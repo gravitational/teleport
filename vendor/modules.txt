@@ -21,7 +21,6 @@ cloud.google.com/go/firestore/apiv1/admin
 ## explicit
 cloud.google.com/go/storage
 # github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78
-## explicit
 github.com/Azure/go-ansiterm
 github.com/Azure/go-ansiterm/winterm
 # github.com/Azure/go-autorest/autorest v0.9.6
@@ -285,18 +284,28 @@ github.com/gorilla/mux
 # github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 ## explicit
 github.com/gravitational/configure/cstrings
+github.com/gravitational/configure/jsonschema
 # github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 ## explicit
 github.com/gravitational/form
 # github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible
 ## explicit
 github.com/gravitational/kingpin
+# github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
+## explicit
+github.com/gravitational/license
+github.com/gravitational/license/constants
 # github.com/gravitational/oxy v0.0.0-20210316180922-c73d80d27348
 ## explicit
 github.com/gravitational/oxy/connlimit
 github.com/gravitational/oxy/forward
 github.com/gravitational/oxy/ratelimit
 github.com/gravitational/oxy/utils
+# github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
+## explicit
+github.com/gravitational/reporting
+github.com/gravitational/reporting/client
+github.com/gravitational/reporting/types
 # github.com/gravitational/roundtrip v1.0.0
 ## explicit
 github.com/gravitational/roundtrip
@@ -313,7 +322,6 @@ github.com/gravitational/teleport/api/metadata
 github.com/gravitational/teleport/api/profile
 github.com/gravitational/teleport/api/types
 github.com/gravitational/teleport/api/types/events
-github.com/gravitational/teleport/api/types/webauthn
 github.com/gravitational/teleport/api/types/wrappers
 github.com/gravitational/teleport/api/utils
 github.com/gravitational/teleport/api/utils/keypaths
@@ -503,7 +511,6 @@ github.com/shabbyrobe/gocovmerge
 github.com/siddontang/go/hack
 github.com/siddontang/go/sync2
 # github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07
-## explicit
 github.com/siddontang/go-log/log
 github.com/siddontang/go-log/loggers
 # github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
@@ -542,6 +549,15 @@ github.com/xdg-go/pbkdf2
 github.com/xdg-go/scram
 # github.com/xdg-go/stringprep v1.0.2
 github.com/xdg-go/stringprep
+# github.com/xeipuuv/gojsonpointer v0.0.0-20151027082146-e0fe6f683076
+## explicit
+github.com/xeipuuv/gojsonpointer
+# github.com/xeipuuv/gojsonreference v0.0.0-20150808065054-e02fc20de94c
+## explicit
+github.com/xeipuuv/gojsonreference
+# github.com/xeipuuv/gojsonschema v0.0.0-20151204154511-3988ac14d6f6
+## explicit
+github.com/xeipuuv/gojsonschema
 # github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d
 github.com/youmark/pkcs8
 # go.etcd.io/etcd v0.5.0-alpha.5.0.20201125193152-8a03d2e9614b
