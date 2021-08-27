@@ -1928,3 +1928,9 @@ func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	res, err := c.grpc.ChangeUserAuthentication(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
+
+// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error) {
+	resp, err := c.grpc.CreatePrivilegeToken(ctx, req, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
