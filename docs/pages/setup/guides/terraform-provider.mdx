@@ -1,6 +1,7 @@
 ---
 title: Terraform Provider
 description: Configuration as a code with Terraform Provider
+videoBanner: YgNHD4SS8dg
 ---
 
 This section will cover:
@@ -8,55 +9,44 @@ This section will cover:
 - Setting up Teleport's terraform provider on Linux and Mac.
 - Configuring users and roles using terraform provider for Cloud, Enterprise and Open Source editions.
 
-## Follow along with our video guide
-
-<iframe
-  width="712"
-  height="400"
-  src="https://www.youtube-nocookie.com/embed/YgNHD4SS8dg?rel=0&modestbranding=1"
-  frameBorder="0"
-  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-/>
-
 ## Prerequisites
 
 - [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
 - Teleport (=teleport.version=) Cloud, Open Source or Enterprise
 
-```bash
-terraform version
-Terraform v(=terraform.version=)
+```code
+$ terraform version
+# Terraform v(=terraform.version=)
 ```
 
-```bash
-tctl version
-Teleport v(=teleport.version=) go(teleport.golang)
+```code
+$ tctl version
+# Teleport v(=teleport.version=) go(teleport.golang)
 ```
 
 Create a folder `teleport-terraform` to hold some temporary files:
 
-```bash
-mkdir -p teleport-terraform
-cd teleport-terraform
+```code
+$ mkdir -p teleport-terraform
+$ cd teleport-terraform
 ```
 
 ## Step 1/4. Install terraform provider
 
 <Tabs>
   <TabItem label="Linux">
-  ```bash
-  mkdir -p ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/linux_amd64
-  curl -L -O https://get.gravitational.com/terraform-provider-teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  tar -zxvf terraform-provider-teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz -C ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/linux_amd64
+  ```code
+  $ mkdir -p ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/linux_amd64
+  $ curl -L -O https://get.gravitational.com/terraform-provider-teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ tar -zxvf terraform-provider-teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz -C ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/linux_amd64
   ```
   </TabItem>
 
   <TabItem label="MacOS">
-  ```bash
-  mkdir -p ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/darwin_amd64
-  curl -L -O https://get.gravitational.com/terraform-provider-teleport-v(=teleport.version=)-darwin-amd64-bin.tar.gz
-  tar -zxvf terraform-provider-teleport-v(=teleport.version=)-darwin-amd64-bin.tar.gz -C ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/darwin_amd64
+  ```code
+  $ mkdir -p ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/darwin_amd64
+  $ curl -L -O https://get.gravitational.com/terraform-provider-teleport-v(=teleport.version=)-darwin-amd64-bin.tar.gz
+  $ tar -zxvf terraform-provider-teleport-v(=teleport.version=)-darwin-amd64-bin.tar.gz -C ${HOME?}/.terraform.d/plugins/gravitational.com/teleport/teleport/(=teleport.version=)/darwin_amd64
   ```
   </TabItem>
 </Tabs>
@@ -65,7 +55,7 @@ cd teleport-terraform
 
 Put the following content into `terraform.yaml`:
 
-```
+```yaml
 kind: role
 metadata:
   name: terraform
@@ -86,16 +76,16 @@ version: v2
 
 Run:
 
-```bash
-tctl create terraform.yaml
-tctl auth sign --format=file --user=terraform --out=terraform-identity --ttl=10h
+```code
+$ tctl create terraform.yaml
+$ tctl auth sign --format=file --user=terraform --out=terraform-identity --ttl=10h
 ```
 
 <Admonition type="note">
 Clients missing impersonation privileges when trying to use `tctl auth sign`,
 will get the following error:
 
-```bash
+```txt
 ERROR: access denied: impersonation is not allowed
 ```
 
@@ -127,7 +117,7 @@ spec:
       '*': '*'
 ```
 
-```bash
+```code
 tctl create terraform-impersonator.yaml
 ```
 
@@ -231,16 +221,16 @@ Update `teleport.example.com:443` with the address of your Teleport cluster.
 
 Check the contents of `teleport-terraform` folder:
 
-```bash
-ls 
-main.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
+```code
+$ ls 
+# main.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
 ```
 
 Init terraform and apply the spec:
 
-```bash
-terraform init
-terraform apply
+```code
+$ terraform init
+$ terraform apply
 ```
 
 ## Next Steps

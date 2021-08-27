@@ -23,20 +23,18 @@ import (
 	"sort"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
+	"github.com/gokyle/hotp"
 	"github.com/google/go-cmp/cmp"
-
 	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // IdentityService is responsible for managing web users and currently
@@ -260,6 +258,11 @@ func (s *IdentityService) upsertLocalAuthSecrets(user string, auth types.LocalAu
 	}
 	for _, d := range auth.MFA {
 		if err := s.UpsertMFADevice(context.TODO(), user, d); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if auth.Webauthn != nil {
+		if err := s.UpsertWebauthnLocalAuth(context.TODO(), user, auth.Webauthn); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -564,6 +567,98 @@ func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge,
 	return &u2fChal, nil
 }
 
+func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
+	switch {
+	case user == "":
+		return trace.BadParameter("missing parameter user")
+	case wla == nil:
+		return trace.BadParameter("missing parameter webauthn local auth")
+	}
+	if err := wla.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	value, err := json.Marshal(wla)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:   webauthnLocalAuthKey(user),
+		Value: value,
+	})
+	return trace.Wrap(err)
+}
+
+func (s *IdentityService) GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
+	item, err := s.Get(ctx, webauthnLocalAuthKey(user))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	wal := &types.WebauthnLocalAuth{}
+	return wal, trace.Wrap(json.Unmarshal(item.Value, wal))
+}
+
+func webauthnLocalAuthKey(user string) []byte {
+	return backend.Key(webPrefix, usersPrefix, user, webauthnLocalAuthPrefix)
+}
+
+func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
+	switch {
+	case user == "":
+		return trace.BadParameter("missing parameter user")
+	case sessionID == "":
+		return trace.BadParameter("missing parameter sessionID")
+	case sd == nil:
+		return trace.BadParameter("missing parameter sd")
+	}
+
+	value, err := json.Marshal(sd)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:     sessionDataKey(user, sessionID),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnChallengeTimeout),
+	})
+	return trace.Wrap(err)
+}
+
+func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
+	switch {
+	case user == "":
+		return nil, trace.BadParameter("missing parameter user")
+	case sessionID == "":
+		return nil, trace.BadParameter("missing parameter sessionID")
+	}
+
+	item, err := s.Get(ctx, sessionDataKey(user, sessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sd := &wantypes.SessionData{}
+	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
+}
+
+func (s *IdentityService) DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error {
+	switch {
+	case user == "":
+		return trace.BadParameter("missing parameter user")
+	case sessionID == "":
+		return trace.BadParameter("missing parameter sessionID")
+	}
+
+	return trace.Wrap(s.Delete(ctx, sessionDataKey(user, sessionID)))
+}
+
+func sessionDataKey(user, sessionID string) []byte {
+	return backend.Key(webPrefix, usersPrefix, user, webauthnSessionData, sessionID)
+}
+
 func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
@@ -573,7 +668,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 
 	// Check device Name for uniqueness.
-	devs, err := s.GetMFADevices(ctx, user)
+	devs, err := s.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -612,7 +707,7 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error) {
+func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing parameter user")
 	}
@@ -627,6 +722,16 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*ty
 		var d types.MFADevice
 		if err := json.Unmarshal(item.Value, &d); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if !withSecrets {
+			switch mfad := d.Device.(type) {
+			case *types.MFADevice_Totp:
+				mfad.Totp.Key = ""
+			case *types.MFADevice_U2F:
+				// Do nothing, U2F does not contain any sensitive secrets.
+			default:
+				return nil, trace.BadParameter("unsupported MFADevice type %T", d.Device)
+			}
 		}
 		devices = append(devices, &d)
 	}
@@ -1058,23 +1163,148 @@ func (s *IdentityService) GetGithubAuthRequest(stateToken string) (*services.Git
 	return &req, nil
 }
 
+// GetRecoveryCodes returns user's recovery codes.
+func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string) (*types.RecoveryCodesV1, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
+	item, err := s.Get(ctx, backend.Key(webPrefix, usersPrefix, user, recoveryCodesPrefix))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var tokens types.RecoveryCodesV1
+	if err := json.Unmarshal(item.Value, &tokens); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &tokens, nil
+}
+
+// UpsertRecoveryCodes creates or updates user's account recovery codes.
+// Each recovery code are hashed before upsert.
+func (s *IdentityService) UpsertRecoveryCodes(ctx context.Context, user string, recovery *types.RecoveryCodesV1) error {
+	if user == "" {
+		return trace.BadParameter("missing parameter user")
+	}
+
+	if err := recovery.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	value, err := json.Marshal(recovery)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(webPrefix, usersPrefix, user, recoveryCodesPrefix),
+		Value: value,
+	}
+
+	_, err = s.Put(ctx, item)
+	return trace.Wrap(err)
+}
+
+// CreateUserRecoveryAttempt creates new user recovery attempt.
+func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error {
+	if user == "" {
+		return trace.BadParameter("missing parameter user")
+	}
+
+	if err := attempt.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	value, err := json.Marshal(attempt)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix, uuid.New()),
+		Value:   value,
+		Expires: attempt.Expires,
+	}
+
+	_, err = s.Create(ctx, item)
+	return trace.Wrap(err)
+}
+
+// GetUserRecoveryAttempt returns users recovery attempts.
+func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
+	startKey := backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]*types.RecoveryAttempt, len(result.Items))
+	for i, item := range result.Items {
+		var a types.RecoveryAttempt
+		if err := json.Unmarshal(item.Value, &a); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = &a
+	}
+
+	sort.Sort(recoveryAttemptsChronologically(out))
+
+	return out, nil
+}
+
+// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
+func (s *IdentityService) DeleteUserRecoveryAttempts(ctx context.Context, user string) error {
+	if user == "" {
+		return trace.BadParameter("missing parameter user")
+	}
+
+	startKey := backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
+	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
+}
+
+// recoveryAttemptsChronologically sorts recovery attempts by oldest to latest time.
+type recoveryAttemptsChronologically []*types.RecoveryAttempt
+
+func (s recoveryAttemptsChronologically) Len() int {
+	return len(s)
+}
+
+// Less stacks latest attempts to the end of the list.
+func (s recoveryAttemptsChronologically) Less(i, j int) bool {
+	return s[i].Time.Before(s[j].Time)
+}
+
+func (s recoveryAttemptsChronologically) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
 const (
-	webPrefix              = "web"
-	usersPrefix            = "users"
-	sessionsPrefix         = "sessions"
-	attemptsPrefix         = "attempts"
-	pwdPrefix              = "pwd"
-	hotpPrefix             = "hotp"
-	connectorsPrefix       = "connectors"
-	oidcPrefix             = "oidc"
-	samlPrefix             = "saml"
-	githubPrefix           = "github"
-	requestsPrefix         = "requests"
-	u2fRegChalPrefix       = "adduseru2fchallenges"
-	usedTOTPPrefix         = "used_totp"
-	usedTOTPTTL            = 30 * time.Second
-	mfaDevicePrefix        = "mfa"
-	u2fSignChallengePrefix = "u2fsignchallenge"
+	webPrefix               = "web"
+	usersPrefix             = "users"
+	sessionsPrefix          = "sessions"
+	attemptsPrefix          = "attempts"
+	pwdPrefix               = "pwd"
+	hotpPrefix              = "hotp"
+	connectorsPrefix        = "connectors"
+	oidcPrefix              = "oidc"
+	samlPrefix              = "saml"
+	githubPrefix            = "github"
+	requestsPrefix          = "requests"
+	u2fRegChalPrefix        = "adduseru2fchallenges"
+	usedTOTPPrefix          = "used_totp"
+	usedTOTPTTL             = 30 * time.Second
+	mfaDevicePrefix         = "mfa"
+	u2fSignChallengePrefix  = "u2fsignchallenge"
+	webauthnLocalAuthPrefix = "webauthnlocalauth"
+	webauthnSessionData     = "webauthnsessiondata"
+	recoveryCodesPrefix     = "recoverycodes"
+	recoveryAttemptsPrefix  = "recoveryattempts"
 
 	// DELETE IN 7.0: these prefixes are migrated to mfaDevicePrefix in 6.0 on
 	// first startup.

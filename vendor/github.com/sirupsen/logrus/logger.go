@@ -44,12 +44,15 @@ type Logger struct {
 	entryPool sync.Pool
 	// Function to exit the application, defaults to `os.Exit()`
 	ExitFunc exitFunc
+	// The buffer pool used to format the log. If it is nil, the default global
+	// buffer pool will be used.
+	BufferPool BufferPool
 }
 
 type exitFunc func(int)
 
 type MutexWrap struct {
-	lock     sync.Mutex
+	lock     sync.RWMutex
 	disabled bool
 }
 
@@ -59,9 +62,21 @@ func (mw *MutexWrap) Lock() {
 	}
 }
 
+func (mw *MutexWrap) RLock() {
+	if !mw.disabled {
+		mw.lock.RLock()
+	}
+}
+
 func (mw *MutexWrap) Unlock() {
 	if !mw.disabled {
 		mw.lock.Unlock()
+	}
+}
+
+func (mw *MutexWrap) RUnlock() {
+	if !mw.disabled {
+		mw.lock.RUnlock()
 	}
 }
 
@@ -348,6 +363,20 @@ func (logger *Logger) SetNoLock() {
 	logger.mu.Disable()
 }
 
+func (logger *Logger) GetHooks() LevelHooks {
+	var hooks LevelHooks
+	logger.mu.RLock()
+	hooks = logger.Hooks
+	logger.mu.RUnlock()
+	return hooks
+}
+
+func (logger *Logger) SetHooks(hooks LevelHooks) {
+	logger.mu.Lock()
+	logger.Hooks = hooks
+	logger.mu.Unlock()
+}
+
 func (logger *Logger) level() Level {
 	return Level(atomic.LoadUint32((*uint32)(&logger.Level)))
 }
@@ -401,4 +430,11 @@ func (logger *Logger) ReplaceHooks(hooks LevelHooks) LevelHooks {
 	logger.Hooks = hooks
 	logger.mu.Unlock()
 	return oldHooks
+}
+
+// SetBufferPool sets the logger buffer pool.
+func (logger *Logger) SetBufferPool(pool BufferPool) {
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
+	logger.BufferPool = pool
 }
