@@ -668,7 +668,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 
 	// Check device Name for uniqueness.
-	devs, err := s.GetMFADevices(ctx, user)
+	devs, err := s.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -707,7 +707,7 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error) {
+func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing parameter user")
 	}
@@ -722,6 +722,16 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string) ([]*ty
 		var d types.MFADevice
 		if err := json.Unmarshal(item.Value, &d); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if !withSecrets {
+			switch mfad := d.Device.(type) {
+			case *types.MFADevice_Totp:
+				mfad.Totp.Key = ""
+			case *types.MFADevice_U2F:
+				// Do nothing, U2F does not contain any sensitive secrets.
+			default:
+				return nil, trace.BadParameter("unsupported MFADevice type %T", d.Device)
+			}
 		}
 		devices = append(devices, &d)
 	}

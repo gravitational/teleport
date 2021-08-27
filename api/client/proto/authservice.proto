@@ -781,7 +781,12 @@ message DeleteMFADeviceRequestInit {
 message DeleteMFADeviceResponseAck {}
 
 // GetMFADeviceRequest is a request for MFA devices for the calling user.
-message GetMFADevicesRequest {}
+message GetMFADevicesRequest {
+    // RecoveryApprovedTokenID is the ID of a recovery approved token that allows a user to view
+    // their devices without being logged in. Recovery approved tokens are obtained after user goes
+    // through a two step verification process.
+    string RecoveryApprovedTokenID = 1;
+}
 
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
 message GetMFADevicesResponse { repeated types.MFADevice Devices = 1; }
