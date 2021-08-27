@@ -19,6 +19,7 @@ package webauthn
 import (
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 
 	wan "github.com/duo-labs/webauthn/webauthn"
 )
@@ -39,5 +40,6 @@ func newWebAuthn(cfg *types.Webauthn, rpID, origin string) (*wan.WebAuthn, error
 		RPDisplayName:         defaultDisplayName,
 		RPIcon:                defaultIcon,
 		AttestationPreference: attestation,
+		Timeout:               int(defaults.WebauthnChallengeTimeout.Milliseconds()),
 	})
 }
