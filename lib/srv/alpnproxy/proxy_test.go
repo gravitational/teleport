@@ -51,7 +51,7 @@ func TestProxySSHHandler(t *testing.T) {
 	suite.Start(t)
 
 	conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-		NextProtos: []string{ProtocolProxySSH},
+		NextProtos: []string{string(ProtocolProxySSH)},
 		ServerName: "localhost",
 		RootCAs:    suite.GetCertPool(),
 	})
@@ -88,7 +88,7 @@ func TestProxyKubeHandler(t *testing.T) {
 	suite.Start(t)
 
 	conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-		NextProtos: []string{ProtocolHTTP2},
+		NextProtos: []string{string(ProtocolHTTP2)},
 		ServerName: kubeSNI,
 		RootCAs:    suite.GetCertPool(),
 	})
@@ -144,7 +144,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 
 	t.Run("tls database connection wrapped with ALPN value", func(t *testing.T) {
 		conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-			NextProtos: []string{ProtocolMongoDB},
+			NextProtos: []string{string(ProtocolMongoDB)},
 			RootCAs:    suite.GetCertPool(),
 			ServerName: "localhost",
 		})

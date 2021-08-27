@@ -66,7 +66,7 @@ func dialALPNWithDeadline(network string, addr string, config *ssh.ClientConfig)
 		return nil, trace.Wrap(err)
 	}
 	tlsConn, err := tls.DialWithDialer(dialer, network, addr, &tls.Config{
-		NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
+		NextProtos:         []string{string(alpnproxy.ProtocolReverseTunnel)},
 		InsecureSkipVerify: lib.IsInsecureDevMode(),
 		ServerName:         address.Host(),
 	})
@@ -113,7 +113,7 @@ func (d directDial) DialTimeout(network, address string, timeout time.Duration) 
 			return nil, trace.Wrap(err)
 		}
 		tlsConn, err := tls.Dial("tcp", address, &tls.Config{
-			NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
+			NextProtos:         []string{string(alpnproxy.ProtocolReverseTunnel)},
 			InsecureSkipVerify: lib.IsInsecureDevMode(),
 			ServerName:         addr.Host(),
 		})
@@ -153,7 +153,7 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 			return nil, trace.Wrap(err)
 		}
 		conn = tls.Client(conn, &tls.Config{
-			NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
+			NextProtos:         []string{string(alpnproxy.ProtocolReverseTunnel)},
 			InsecureSkipVerify: lib.IsInsecureDevMode(),
 			ServerName:         address.Host(),
 		})
@@ -178,7 +178,7 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 			return nil, trace.Wrap(err)
 		}
 		pconn = tls.Client(pconn, &tls.Config{
-			NextProtos:         []string{alpnproxy.ProtocolReverseTunnel},
+			NextProtos:         []string{string(alpnproxy.ProtocolReverseTunnel)},
 			InsecureSkipVerify: lib.IsInsecureDevMode(),
 			ServerName:         address.Host(),
 		})
