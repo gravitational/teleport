@@ -1868,6 +1868,10 @@ type IdentityService interface {
 	// GetAccountRecoveryToken returns a user token resource after verifying the token in
 	// request is not expired and is of the correct recovery type.
 	GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error)
+
+	// CreatePrivilegeToken creates a privilege token for the logged in user who has successfully re-authenticated with their second factor.
+	// A privilege token allows users to perform privileged action eg: add/delete their MFA device.
+	CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error)
 }
 
 // ProvisioningService is a service in control

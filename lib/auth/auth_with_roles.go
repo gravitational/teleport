@@ -3486,6 +3486,11 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 	return a.authServer.CreateAuthenticateChallenge(ctx, req)
 }
 
+// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error) {
+	return a.authServer.CreatePrivilegeToken(ctx, req)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
