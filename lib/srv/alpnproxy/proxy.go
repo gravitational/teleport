@@ -77,7 +77,7 @@ type Router struct {
 func (r *Router) CheckAndSetDefault() error {
 	for _, v := range r.alpnHandlers {
 		if v.Handler != nil && v.HandlerWithConnInfo != nil {
-			return trace.BadParameter("can create route with both Handler and HandlerWithConnInfo handlers")
+			return trace.BadParameter("can't create route with both Handler and HandlerWithConnInfo handlers")
 		}
 	}
 	return nil

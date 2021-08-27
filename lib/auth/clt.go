@@ -140,14 +140,14 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		})
 	}
 
-	// Set 'http/1.1' protocol and remote 'h2' value used by gRPC server to make sure
-	// that negotiated ALPN protocol will be http/1.1 and the request will be handled by Web Auth API.
-	// This is needed due to the Auth Server using a multiplexer
-	// for protocol detection. Unless next protocol is specified
+	// Set the next protocol. This is needed due to the Auth Server using a
+	// multiplexer for protocol detection. Unless next protocol is specified
 	// it will attempt to upgrade to HTTP2 and at that point there is no way
 	// to distinguish between HTTP2/JSON or GPRC.
-	tls.NextProtos = client.AppendToNextProtos(tls.NextProtos, teleport.HTTPNextProtoTLS)
-	tls.NextProtos = client.RemoveFromNextProtos(tls.NextProtos, teleport.HTTP2NextProtoTLS)
+	tls.NextProtos = []string{teleport.HTTPNextProtoTLS}
+	// Configure ALPN SNI direct dial TLS routing information used by ALPN SNI proxy in order to
+	// dial auth service without using of SSH tunnels.
+	tls = client.ConfigureALPNSNITLSRoutingSettings(tls, cfg.ALPNSNIAuthDialClusterName)
 
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed

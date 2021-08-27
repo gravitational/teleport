@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -714,16 +713,12 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
-	tlsConfig.ServerName = auth.EncodeClusterName(clusterName)
-	tlsConfig.NextProtos = []string{alpnproxy.ProtocolAuth}
-
 	clt, err := auth.NewClient(client.Config{
 		Addrs: []string{proxy.teleportClient.WebProxyAddr},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		ALPNSNIAuthDialClusterName: clusterName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

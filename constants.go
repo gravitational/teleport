@@ -59,10 +59,6 @@ const (
 	// HTTP/1.1.'s TLS setup.
 	// https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#alpn-protocol-ids
 	HTTPNextProtoTLS = "http/1.1"
-
-	// HTTP2Proto is the NPN/ALPN protocol negotiated during
-	// HTTP/2's TLS setup.
-	HTTP2NextProtoTLS = "h2"
 )
 
 const (
