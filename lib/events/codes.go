@@ -399,6 +399,8 @@ const (
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
+	// PrivilegeTokenCreateCode is the recovery token create event code.
+	PrivilegeTokenCreateCode = "T6001I"
 
 	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
 	TrustedClusterCreateCode = "T7000I"
