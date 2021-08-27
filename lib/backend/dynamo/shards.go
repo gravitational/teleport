@@ -154,6 +154,12 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 		select {
 		case event := <-eventsC:
 			if event.err != nil {
+				if event.shardID == "" {
+					// empty shard IDs in err-variant events are programming bugs and will lead to
+					// invalid state.
+					b.WithError(err).Warnf("Forcing watch system reset due to empty shard ID on error (this is a bug)")
+					return trace.BadParameter("empty shard ID")
+				}
 				delete(set, event.shardID)
 				if event.err != io.EOF {
 					b.Debugf("Shard ID %v closed with error: %v, reseting buffers.", event.shardID, event.err)
@@ -337,12 +343,13 @@ func toEvent(rec *dynamodbstreams.Record) (*backend.Event, error) {
 
 func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent, initC chan<- error) {
 	var err error
+	shardID := aws.StringValue(shard.ShardId)
 	defer func() {
 		if err == nil {
-			err = trace.BadParameter("shard exited unexpectedly")
+			err = trace.BadParameter("shard %q exited unexpectedly", shardID)
 		}
 		select {
-		case eventsC <- shardEvent{err: err}:
+		case eventsC <- shardEvent{err: err, shardID: shardID}:
 		case <-ctx.Done():
 			b.Debugf("Context is closing, returning")
 			return

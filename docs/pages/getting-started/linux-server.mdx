@@ -1,6 +1,7 @@
 ---
 title: Getting started
 description: Getting started with Teleport - identity-aware, multi-protocol access proxy for SSH, HTTPS, Kubernetes, and more.
+videoBanner: jvaCmQyHghY
 ---
 
 This tutorial will guide you through the steps needed to install and run
@@ -13,17 +14,6 @@ Teleport (=teleport.version=) on Linux machines.
 - A two-factor authenticator app.
 - An SSH client like OpenSSH.
 - Around 20 minutes to complete; half of this may be waiting for DNS propagation.
-
-## Follow along with our video guide
-
-<iframe
-  width="712"
-  height="400"
-  src="https://www.youtube-nocookie.com/embed/jvaCmQyHghY?rel=0&modestbranding=1"
-  frameBorder="0"
-  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-/>
 
 ## Step 1/4. Install Teleport on a Linux host
 
@@ -158,7 +148,7 @@ Here's a selection of compatible two-factor authentication apps:
 
 <Tabs>
   <TabItem label="Mac">
-    [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=macos) (`tsh` client only, signed) file, double-click to run the installer.
+    [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=mac) (`tsh` client only, signed) file, double-click to run the installer.
   </TabItem>
 
   <TabItem label="Mac - Homebrew">
@@ -168,7 +158,7 @@ Here's a selection of compatible two-factor authentication apps:
 
     <Admonition type="note">
       The Teleport package in Homebrew is not maintained by Teleport and we can't
-      guarantee its reliability or security. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
+      guarantee its reliability or security. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=mac).
 
       If you choose to use Homebrew, you must verify that the versions of `tsh` and
       `tctl` are compatible with the versions you run server-side. Homebrew usually
@@ -206,14 +196,14 @@ Log in to receive short-lived certificates from Teleport:
 
 ```bash
 # Replace teleport.example.com:443 with your Teleport cluster's public address as configured above.
-tsh login --proxy=teleport.example.com:443 --user=teleport-admin
+tsh login --proxy=teleport.example.com --user=teleport-admin
 ```
 
 ## Step 4/4. Have fun with Teleport!
 
 Congrats! You've completed setting up Teleport! Now, feel free to have fun and explore the many features Teleport has to offer.
 
-Here are several common commands and operations you'll likely find useful: 
+Here are several common commands and operations you'll likely find useful:
 
 ### View Status
 
@@ -326,4 +316,4 @@ Check out our collection of step-by-step guides for common Teleport tasks.
 - [Manage Users](../admin-guide.mdx#adding-and-deleting-users)
 - [Github SSO](../admin-guide.mdx#github-oauth-20)
 - [Label Nodes](../admin-guide.mdx#labeling-nodes-and-applications)
-- [Teleport with OpenSSH](../admin-guide.mdx#using-teleport-with-openssh)
+- [Teleport with OpenSSH](../server-access/guides/openssh.mdx)

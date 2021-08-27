@@ -47,6 +47,8 @@ type TunnelAuthDialer struct {
 	ProxyAddr string
 	// ClientConfig is SSH tunnel client config
 	ClientConfig *ssh.ClientConfig
+	// Log is used for logging.
+	Log logrus.FieldLogger
 }
 
 // DialContext dials auth server via SSH tunnel
@@ -56,8 +58,10 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 
 	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
 	resp, err := webclient.Find(ctx, t.ProxyAddr, lib.IsInsecureDevMode(), nil)
-	if err == nil && resp.Proxy.ALPNSNIListenerEnabled {
-		opts = append(opts, proxy.WithTLSDialer())
+	if err != nil {
+		t.Log.WithError(err).Debugf("Failed to ping web proxy %q addr.", t.ProxyAddr)
+	} else if resp.Proxy.ALPNSNIListenerEnabled {
+		opts = append(opts, proxy.WithALPNDialer())
 	}
 
 	dialer := proxy.DialerFromEnvironment(addr, opts...)

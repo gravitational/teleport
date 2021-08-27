@@ -29,7 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
 )
 
 // WebListenerConfig is the web listener configuration.
@@ -151,7 +151,7 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 	// connection either to database access listener if identity encoded
 	// in the cert indicates this is a database connection, or to a regular
 	// tls listener.
-	isDatabaseConnection, err := utils.IsDatabaseConnection(conn.ConnectionState())
+	isDatabaseConnection, err := dbcommon.IsDatabaseConnection(conn.ConnectionState())
 	if err != nil {
 		l.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}

@@ -47,6 +47,7 @@ func TestContextLockTargets(t *testing.T) {
 	}
 	expected := []types.LockTarget{
 		{Node: "node"},
+		{Node: "node.cluster"},
 		{User: "node.cluster"},
 		{Role: "role1"},
 		{Role: "role2"},
@@ -82,7 +83,7 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, srv.AuthServer.UpsertLock(ctx, mfaLock))
-	waitForLockPut(ctx, t, srv, mfaLock)
+	upsertLockWithPutEvent(ctx, t, srv, mfaLock)
 
 	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
 	require.Error(t, err)
@@ -99,7 +100,7 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, srv.AuthServer.UpsertLock(ctx, roleLock))
-	waitForLockPut(ctx, t, srv, roleLock)
+	upsertLockWithPutEvent(ctx, t, srv, roleLock)
 
 	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
 	require.Error(t, err)
@@ -117,9 +118,8 @@ func TestAuthorizeWithLocksForBuiltinRole(t *testing.T) {
 	require.NoError(t, err)
 
 	builtinRole := BuiltinRole{
-		Username:                  "node",
-		Role:                      types.RoleNode,
-		GetSessionRecordingConfig: srv.AuthServer.GetSessionRecordingConfig,
+		Username: "node",
+		Role:     types.RoleNode,
 		Identity: tlsca.Identity{
 			Username: "node",
 		},
@@ -130,8 +130,7 @@ func TestAuthorizeWithLocksForBuiltinRole(t *testing.T) {
 		Target: types.LockTarget{Node: builtinRole.Identity.Username},
 	})
 	require.NoError(t, err)
-	require.NoError(t, srv.AuthServer.UpsertLock(ctx, nodeLock))
-	waitForLockPut(ctx, t, srv, nodeLock)
+	upsertLockWithPutEvent(ctx, t, srv, nodeLock)
 
 	_, err = srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, builtinRole))
 	require.Error(t, err)
@@ -142,18 +141,19 @@ func TestAuthorizeWithLocksForBuiltinRole(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func waitForLockPut(ctx context.Context, t *testing.T, srv *TestAuthServer, lock types.Lock) {
+func upsertLockWithPutEvent(ctx context.Context, t *testing.T, srv *TestAuthServer, lock types.Lock) {
 	lockWatch, err := srv.LockWatcher.Subscribe(ctx)
 	require.NoError(t, err)
 	defer lockWatch.Close()
 
+	require.NoError(t, srv.AuthServer.UpsertLock(ctx, lock))
 	select {
 	case event := <-lockWatch.Events():
 		require.Equal(t, types.OpPut, event.Type)
-		require.Equal(t, lock.GetName(), event.Resource.GetName())
+		require.Empty(t, resourceDiff(lock, event.Resource))
 	case <-lockWatch.Done():
 		t.Fatalf("Watcher exited with error: %v.", lockWatch.Error())
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for lock put.")
 	}
 }

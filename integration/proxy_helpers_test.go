@@ -472,12 +472,9 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpnproxy.Proto
 		lp.Close()
 	})
 
-	startSyncC := make(chan struct{})
 	go func() {
-		close(startSyncC)
 		err := lp.Start(context.Background())
 		require.NoError(t, err)
 	}()
-	<-startSyncC
 	return lp
 }

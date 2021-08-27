@@ -92,7 +92,7 @@ type InstancePorts struct {
 	Web  *InstancePort
 	// SSH is an instance of SSH server Port.
 	SSH *InstancePort
-	// TeleportProxy SSH Port.
+	// SSHProxy is Teleport SSH Proxy Port.
 	SSHProxy      *InstancePort
 	Auth          *InstancePort
 	ReverseTunnel *InstancePort

@@ -857,11 +857,8 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
-	nodeConf.SSH.ProxyReverseTunnelFallbackAddr = &utils.NetAddr{
-		// Configure the original proxy address as a fallback so the node is able to connect
-		Addr:        main.GetWebAddr(),
-		AddrNetwork: "tcp",
-	}
+	os.Setenv(apidefaults.TunnelPublicAddrEnvar, main.GetWebAddr())
+	t.Cleanup(func() { os.Unsetenv(apidefaults.TunnelPublicAddrEnvar) })
 
 	// verify the node is able to join the cluster
 	_, err = main.StartReverseTunnelNode(nodeConf)
@@ -1638,8 +1635,12 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	// Stop cluster "a" to force existing tunnels to close.
 	require.NoError(t, a.StopAuth(true))
 
-	// Reset KeyPair set by first start by ACME.
+	// Reset KeyPair set by the first start by ACME. After introducing the ALPN TLS listener TLS proxy
+	// certs are generated even if WebService and WebInterface was disabled and only DisableTLS
+	// flag skips the TLS cert initialization. the First start call creates the ACME certs
+	// where Resets() call deletes certs dir thus KeyPairs is no longer valid.
 	a.Config.Proxy.KeyPairs = nil
+
 	// Restart cluster "a".
 	require.NoError(t, a.Reset())
 	require.NoError(t, a.Start())

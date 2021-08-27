@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -69,7 +70,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	addr := "127.0.0.1:0"
+	addr := "localhost:0"
 	if cf.LocalProxyPort != "" {
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
@@ -77,14 +78,17 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		if err := listener.Close(); err != nil {
+			log.WithError(err).Warnf("Failed to close listener.")
+		}
+	}()
 	lp, err := mkLocalProxy(cf.Context, client.WebProxyAddr, database.Protocol, listener)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx, cancel := context.WithCancel(cf.Context)
-	defer cancel()
 	go func() {
-		<-ctx.Done()
+		<-cf.Context.Done()
 		lp.Close()
 	}()
 
@@ -95,4 +99,39 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, listener net.Listener) (*alpnproxy.LocalProxy, error) {
+	alpnProtocol, err := toALPNProtocol(protocol)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	address, err := utils.ParseAddr(remoteProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+		RemoteProxyAddr: remoteProxyAddr,
+		Protocol:        alpnProtocol,
+		Listener:        listener,
+		ParentContext:   ctx,
+		SNI:             address.Host(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return lp, nil
+}
+
+func toALPNProtocol(dbProtocol string) (alpnproxy.Protocol, error) {
+	switch dbProtocol {
+	case defaults.ProtocolMySQL:
+		return alpnproxy.ProtocolMySQL, nil
+	case defaults.ProtocolPostgres:
+		return alpnproxy.ProtocolPostgres, nil
+	case defaults.ProtocolMongoDB:
+		return alpnproxy.ProtocolMongoDB, nil
+	default:
+		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
+	}
 }

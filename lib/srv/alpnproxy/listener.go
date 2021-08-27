@@ -48,7 +48,7 @@ func NewMuxListenerWrapper(serviceListener, alpnListener net.Listener) *Listener
 	return listener
 }
 
-// HandleConnection allows to inject connection to the listener.
+// HandleConnection allows injecting connection to the listener.
 func (l *ListenerMuxWrapper) HandleConnection(ctx context.Context, conn net.Conn) error {
 	select {
 	case <-l.close:
@@ -60,6 +60,8 @@ func (l *ListenerMuxWrapper) HandleConnection(ctx context.Context, conn net.Conn
 	}
 }
 
+// Addr returns address of the listeners. If both serviceListener and alpnListener listeners were provided.
+// function will return address obtained from the alpnListener listener.
 func (l *ListenerMuxWrapper) Addr() net.Addr {
 	if l.alpnListener != nil {
 		return l.alpnListener.Addr()
@@ -67,6 +69,7 @@ func (l *ListenerMuxWrapper) Addr() net.Addr {
 	return l.Listener.Addr()
 }
 
+// Accept waits for the next injected by HandleConnection or received from serviceListener and returns it.
 func (l *ListenerMuxWrapper) Accept() (net.Conn, error) {
 	select {
 	case <-l.close:
@@ -83,20 +86,21 @@ func (l *ListenerMuxWrapper) startAcceptingConnectionServiceListener() {
 		return
 	}
 	for {
-		select {
-		case <-l.close:
-			return
-		default:
-		}
 		conn, err := l.Listener.Accept()
 		if err != nil {
 			l.errC <- err
 			return
 		}
-		l.connC <- conn
+		select {
+		case l.connC <- conn:
+		case <-l.close:
+			return
+
+		}
 	}
 }
 
+// Close the ListenerMuxWrapper.
 func (l *ListenerMuxWrapper) Close() error {
 	var errs []error
 	if l.Listener != nil {

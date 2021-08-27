@@ -802,10 +802,6 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SiteName = c.SiteName
 	cp.ALPNSNIListenerEnabled = c.ALPNSNIListenerEnabled
 
-	if c.ALPNSNIListenerEnabled {
-		cp.KubeProxyAddr = c.WebProxyAddr
-	}
-
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
 	}
@@ -902,9 +898,6 @@ func (c *Config) ParseProxyHost(proxyHost string) error {
 
 // KubeProxyHostPort returns the host and port of the Kubernetes proxy.
 func (c *Config) KubeProxyHostPort() (string, int) {
-	if c.ALPNSNIListenerEnabled {
-		return c.WebProxyHostPort()
-	}
 	if c.KubeProxyAddr != "" {
 		addr, err := utils.ParseAddr(c.KubeProxyAddr)
 		if err == nil {
@@ -1844,6 +1837,19 @@ func (tc *TeleportClient) ListDatabaseServers(ctx context.Context) ([]types.Data
 	return proxyClient.GetDatabaseServers(ctx, tc.Namespace)
 }
 
+// ListDatabases returns all registered databases.
+func (tc *TeleportClient) ListDatabases(ctx context.Context) ([]types.Database, error) {
+	servers, err := tc.ListDatabaseServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var databases []types.Database
+	for _, server := range servers {
+		databases = append(databases, server.GetDatabases()...)
+	}
+	return types.DeduplicateDatabases(databases), nil
+}
+
 // ListAllNodes is the same as ListNodes except that it ignores labels.
 func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -2083,6 +2089,7 @@ func makeProxySSHClientWithTLSWrapper(cfg Config, sshConfig *ssh.ClientConfig) (
 	}
 	c, chans, reqs, err := ssh.NewClientConn(tlsConn, cfg.WebProxyAddr, sshConfig)
 	if err != nil {
+		// tlsConn is closed inside ssh.NewClientConn function
 		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.WebProxyAddr)
 	}
 	return ssh.NewClient(c, chans, reqs), nil
@@ -2390,9 +2397,14 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
-		if err := utils.CheckVersions(teleport.Version, pr.MinClientVersion); err != nil {
-			fmt.Printf("\nWARNING: %v\n", err)
-			fmt.Printf("Future versions of tsh will fail when incompatible versions are detected.\n\n")
+		if err := utils.CheckVersion(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
+			fmt.Printf(`
+			WARNING
+			Detected potentially incompatible client and server versions.
+			Minimum client version supported by the server is %v but you are using %v.
+			Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
+			Future versions of tsh will fail when incompatible versions are detected.
+			`, pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
 		}
 	}
 
@@ -2604,10 +2616,6 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	}
 
 	tc.ALPNSNIListenerEnabled = proxySettings.ALPNSNIListenerEnabled
-
-	if tc.ALPNSNIListenerEnabled {
-		tc.KubeProxyAddr = tc.WebProxyAddr
-	}
 
 	return nil
 }

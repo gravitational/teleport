@@ -61,6 +61,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -370,7 +372,7 @@ func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
 	return siteAPI
 }
 
-// Create creates a new instance of Teleport which trusts a lsit of other clusters (other
+// Create creates a new instance of Teleport which trusts a list of other clusters (other
 // instances)
 func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
 	tconf := service.MakeDefaultConfig()
@@ -590,9 +592,15 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
 	}
 
+	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
+
 	tconf.Keygen = testauthority.New()
 	i.Config = tconf
 	return tconf, nil
+}
+
+func nullImpersonationCheck(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {
+	return nil
 }
 
 // CreateEx creates a new instance of Teleport which trusts a list of other clusters (other

@@ -1,6 +1,7 @@
 ---
 title: Server Access Getting Started Guide
 description: Getting started with Teleport Server Access.
+videoBanner: EsEvO5ndNDI
 ---
 
 # Getting Started
@@ -14,7 +15,7 @@ This guide introduces some of these common scenarios and how to interact with Te
 3. Introspecting the cluster using Teleport features.
 
 <Admonition type="tip" title="Tip">
-  This guide also demonstrates how to configure Teleport Nodes into the *Bastion* pattern so that [only a single Node can be accessed publicly](https://goteleport.com/blog/ssh-bastion-host/). 
+  This guide also demonstrates how to configure Teleport Nodes into the *Bastion* pattern so that [only a single Node can be accessed publicly](https://goteleport.com/blog/ssh-bastion-host/).
 </Admonition>
 
 <Figure
@@ -33,17 +34,6 @@ This guide introduces some of these common scenarios and how to interact with Te
 - Teleport (=teleport.version=) installed locally.
 
 (!docs/pages/includes/permission-warning.mdx!)
-
-## Follow along with our video guide
-
-<iframe
-  width="712"
-  height="400"
-  src="https://www.youtube-nocookie.com/embed/EsEvO5ndNDI?rel=0&modestbranding=1"
-  frameBorder="0"
-  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-/>
 
 ## Step 1/4. Create a cluster
 
@@ -127,7 +117,7 @@ This guide introduces some of these common scenarios and how to interact with Te
 
 3. Configure Teleport on the *Bastion Host*.
 
-   Teleport will now automatically acquire an X.509 certificate using the ACME protocol. 
+   Teleport will now automatically acquire an X.509 certificate using the ACME protocol.
 
    ```bash
    # Configure Teleport with TLS certs
@@ -156,18 +146,18 @@ This guide introduces some of these common scenarios and how to interact with Te
    # Let's save the token to a file
    sudo tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
    ```
- 
-   Each Teleport Node can be configured into SSH mode (Teleport Node) and run as an enhanced SSH server. "Node" mode specifies that the Teleport Node will act and join as an SSH server.  
-   
+
+   Each Teleport Node can be configured into SSH mode (Teleport Node) and run as an enhanced SSH server. "Node" mode specifies that the Teleport Node will act and join as an SSH server.
+
    `> token.file` indicates that you'd like to save the output to a file name `token.file`.
-  
+
    <Admonition type="tip" title="Tip">
-     This helps to minimize the direct sharing of tokens even when they are *dynamically* generated.   
+     This helps to minimize the direct sharing of tokens even when they are *dynamically* generated.
    </Admonition>
 
 2. Now, create a third terminal and connect to `tele.example.com`.
-   
-   - Save `token.file` to an appropriate, secure, directory you have the rights and access to read on the second instance. 
+
+   - Save `token.file` to an appropriate, secure, directory you have the rights and access to read on the second instance.
 
    ```bash
    # Join cluster
@@ -185,7 +175,7 @@ This guide introduces some of these common scenarios and how to interact with Te
    ```bash
    # Add a user
    sudo tctl users add tele-admin --roles=editor,access --logins=root,ubuntu,ec2-user
-   ```  
+   ```
 
    This will generate an initial login link where you can set a password and set up Two-Factor Authentication for `tele-admin`.
 
@@ -205,17 +195,17 @@ This guide introduces some of these common scenarios and how to interact with Te
 
 ## Step 3/4. SSH into the server
 
-Now, that we've got our cluster up and running, let's see how easy it is to connect to our two Nodes. 
+Now, that we've got our cluster up and running, let's see how easy it is to connect to our two Nodes.
 
 We can use `tsh` to SSH into the cluster:
 
-1. On your local machine, log in through `tsh`: 
+1. On your local machine, log in through `tsh`:
 
    ```bash
    # Log in through tsh
-   tsh login --proxy=tele.example.com:443 --user=tele-admin
+   tsh login --proxy=tele.example.com --user=tele-admin
    ```
-   
+
    You'll be prompted to supply the password and One Time Passcode we set up previously.
 
 2. `tele-admin` will now see:
@@ -242,11 +232,11 @@ We can use `tsh` to SSH into the cluster:
 
    The *Bastion Host* Node is located on the bottom line below:
 
-   ```bash                        
-   Node Name        Address        Labels                                 
-   ---------------- -------------- -------------------------------------- 
-   ip-172-31-35-170 ⟵ Tunnel                                              
-   ip-172-31-41-144 127.0.0.1:3022 env=example, hostname=ip-172-31-41-144 
+   ```bash
+   Node Name        Address        Labels
+   ---------------- -------------- --------------------------------------
+   ip-172-31-35-170 ⟵ Tunnel
+   ip-172-31-41-144 127.0.0.1:3022 env=example, hostname=ip-172-31-41-144
    ```
 
 4. `tele-admin` can SSH into the *Bastion Host* Node by running the following command locally:
@@ -258,12 +248,12 @@ We can use `tsh` to SSH into the cluster:
 
    Now, they can:
 
-   - Connect to other Nodes in the cluster by using the appropriate IP address in the `tsh ssh` command.  
-   - Traverse the Linux file system.  
-   - Execute desired commands.  
+   - Connect to other Nodes in the cluster by using the appropriate IP address in the `tsh ssh` command.
+   - Traverse the Linux file system.
+   - Execute desired commands.
 
    All commands executed by `tele-admin` are recorded and can be replayed in the Teleport Web interface.
-   
+
    The `tsh ssh` command allows one to do anything they would if they were to SSH into a server using a third-party tool. Compare the two equivalent commands:
 
 <Tabs>
@@ -283,7 +273,7 @@ We can use `tsh` to SSH into the cluster:
 
 1. Now, `tele-admin` has the ability to SSH into other Nodes within the cluster, traverse the Linux file system, and execute commands.
 
-   - They have visibility into all resources within the cluster due to their defined and assigned roles.  
+   - They have visibility into all resources within the cluster due to their defined and assigned roles.
    - They can also quickly view any Node or grouping of Nodes that've been assigned a `label`.
 
 2. Execute the following command within your *Bastion Host* console:
@@ -293,13 +283,13 @@ We can use `tsh` to SSH into the cluster:
    sudo tctl nodes ls
    ```
 
-   It displays the unified resource catalog with all queried resources in one view: 
-   
+   It displays the unified resource catalog with all queried resources in one view:
+
    ```bash
-   Nodename         UUID                                 Address        Labels                                
-   ---------------- ------------------------------------ -------------- ------------------------------------- 
-   ip-172-31-35-170 4980899c-d260-414f-9aea-874feef71747                                                      
-   ip-172-31-41-144 f3d2a65f-3fa7-451d-b516-68d189ff9ae5 127.0.0.1:3022 env=example,hostname=ip-172-31-41-144                            
+   Nodename         UUID                                 Address        Labels
+   ---------------- ------------------------------------ -------------- -------------------------------------
+   ip-172-31-35-170 4980899c-d260-414f-9aea-874feef71747
+   ip-172-31-41-144 f3d2a65f-3fa7-451d-b516-68d189ff9ae5 127.0.0.1:3022 env=example,hostname=ip-172-31-41-144
    ```
 
 3. Note the "Labels" column on the farthest side. `tele-admin` can query all resources with a shared [label](../admin-guide.mdx#labeling-nodes-and-applications) using the command:
@@ -309,8 +299,8 @@ We can use `tsh` to SSH into the cluster:
    tsh ls env=example
    ```
 
-   - Customized labels can be defined in your `teleport.yaml` configuration file or during Node creation.  
-   - This is a convenient feature that allows for more advanced queries.  
+   - Customized labels can be defined in your `teleport.yaml` configuration file or during Node creation.
+   - This is a convenient feature that allows for more advanced queries.
    - Suppose an IP address changes, an admin can quickly find the current Node with that label since it remains unchanged.
 
 4. `tele-admin` can also execute commands on all Nodes that share a label vastly simplifying repeated operations. For example, the command:
@@ -318,8 +308,8 @@ We can use `tsh` to SSH into the cluster:
    ```bash
    # Run the ls command on all Nodes with a label
    tsh ssh root@env=example ls
-   ``` 
-   
+   ```
+
    will execute the `ls` command on each Node displaying the contents of each to the screen.
 
 ## Conclusion
@@ -329,9 +319,9 @@ We can use `tsh` to SSH into the cluster:
 
    If you'd like to further experiment with using Teleport according to the *Bastion* pattern:
 
-   - Close port `22` on your second, private, Linux instance now that your Node is configured and running.  
-   - Optionally close port `22` on your *Bastion Host*.  
-   - You'll be able to fully connect to both the *Bastion Host* and the private instance using `tsh ssh`.  
+   - Close port `22` on your second, private, Linux instance now that your Node is configured and running.
+   - Optionally close port `22` on your *Bastion Host*.
+   - You'll be able to fully connect to both the *Bastion Host* and the private instance using `tsh ssh`.
 </Admonition>
 
 To recap, this Getting Started Guide described:
@@ -343,12 +333,12 @@ Feel free to shut down, clean up, and delete your resources or use them in furth
 
 ## Next steps
 
-- Learn more about Teleport `tsh` through the [reference documentation](../cli-docs.mdx#tsh-ssh).  
-- Learn more about [Teleport Nodes](../architecture/nodes.mdx#connecting-to-nodes)  
+- Learn more about Teleport `tsh` through the [reference documentation](../setup/reference/cli.mdx#tsh-ssh).
+- Learn more about [Teleport Nodes](../architecture/nodes.mdx#connecting-to-nodes)
 - For a complete list of ports used by Teleport, read [The Admin Guide](../admin-guide.mdx#ports).
 
 ## Resources
 
-- [Announcing Teleport SSH Server](https://goteleport.com/blog/announcing-teleport-ssh-server/)  
-- [How to SSH properly](https://goteleport.com/blog/how-to-ssh-properly/)  
+- [Announcing Teleport SSH Server](https://goteleport.com/blog/announcing-teleport-ssh-server/)
+- [How to SSH properly](https://goteleport.com/blog/how-to-ssh-properly/)
 - Consider whether [OpenSSH or Teleport SSH](https://goteleport.com/blog/openssh-vs-teleport/) is right for you.

@@ -21,7 +21,7 @@ type Protocol string
 
 const (
 	// ProtocolPostgres is TLS ALPN protocol value used to indicate Postgres protocol.
-	ProtocolPostgres = "teleport-postgres"
+	ProtocolPostgres Protocol = "teleport-postgres"
 
 	// ProtocolMySQL is TLS ALPN protocol value used to indicate MySQL protocol.
 	ProtocolMySQL = "teleport-mysql"
@@ -42,8 +42,8 @@ const (
 	ProtocolHTTP2 = "h2"
 
 	// ProtocolDefault is default TLS ALPN value.
-	ProtocolDefault = ""
+	ProtocolDefault Protocol = ""
 
 	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
-	ProtocolAuth = "teleport-auth"
+	ProtocolAuth Protocol = "teleport-auth"
 )

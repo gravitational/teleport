@@ -18,9 +18,7 @@ package service
 
 import (
 	"crypto/tls"
-	"net"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -371,7 +369,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			PublicTLSKey:         keyPair.PublicTLSKey,
 			PublicSSHKey:         keyPair.PublicSSHKey,
 			CipherSuites:         process.Config.CipherSuites,
-			CAPin:                process.Config.CAPin,
+			CAPins:               process.Config.CAPins,
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
@@ -800,7 +798,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 
 // newClient attempts to connect directly to the Auth Server. If it fails, it
 // falls back to trying to connect to the Auth Server through the proxy.
-// The proxy address might be configured in process environment as defaults.TunnelPublicAddrEnvar
+// The proxy address might be configured in process environment as apidefaults.TunnelPublicAddrEnvar
 // in which case, no attempt at discovering the reverse tunnel address is made.
 func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
@@ -808,8 +806,6 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 		return nil, trace.Wrap(err)
 	}
 
-	// Try and connect to the Auth Server. If the request fails, try and
-	// connect through a tunnel.
 	logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
 	logger.Debug("Attempting to connect to Auth Server directly.")
 	directClient, err := process.newClientDirect(authServers, tlsConfig)
@@ -827,18 +823,12 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	}
 
 	logger.Debug("Attempting to discover reverse tunnel address.")
-	var proxyAddr string
-	if process.Config.SSH.ProxyReverseTunnelFallbackAddr != nil {
-		proxyAddr = process.Config.SSH.ProxyReverseTunnelFallbackAddr.String()
-	} else {
-		// Discover address of SSH reverse tunnel server.
-		proxyAddr, err = process.findReverseTunnel(authServers)
-		if err != nil {
-			directErrLogger.Debug("Failed to connect to Auth Server directly.")
-			logger.WithError(err).Debug("Failed to discover reverse tunnel address.")
-			return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
-		}
 
+	proxyAddr, err := process.findReverseTunnel(authServers)
+	if err != nil {
+		directErrLogger.Debug("Failed to connect to Auth Server directly.")
+		logger.WithError(err).Debug("Failed to discover reverse tunnel address.")
+		return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
 	}
 
 	logger = process.log.WithField("proxy-addr", proxyAddr)
@@ -861,61 +851,13 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		resp, err := webclient.Find(process.ExitContext(),
-			addr.String(),
-			lib.IsInsecureDevMode(),
-			nil)
+		tunnelAddr, err := webclient.GetTunnelAddr(process.ExitContext(), addr.String(), lib.IsInsecureDevMode(), nil)
 		if err == nil {
-			return tunnelAddr(resp.Proxy, addr)
+			return tunnelAddr, nil
 		}
 		errs = append(errs, err)
 	}
 	return "", trace.NewAggregate(errs...)
-}
-
-// tunnelAddr returns the tunnel address in the following preference order:
-//  1. Reverse Tunnel Public Address.
-//  2. If proxy support ALPN listener where all services are exposed on single port return proxy address.
-//  3. SSH Proxy Public Address.
-//  4. HTTP Proxy Public Address.
-//  5. Tunnel Listen Address.
-func tunnelAddr(settings webclient.ProxySettings, proxyAddr utils.NetAddr) (string, error) {
-	// Extract the port the tunnel server is listening on.
-	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	tunnelPort := netAddr.Port(defaults.SSHProxyTunnelListenPort)
-
-	// If a tunnel public address is set, nothing else has to be done, return it.
-	if settings.SSH.TunnelPublicAddr != "" {
-		return settings.SSH.TunnelPublicAddr, nil
-	}
-
-	if settings.ALPNSNIListenerEnabled {
-		return proxyAddr.String(), nil
-	}
-
-	// If a tunnel public address has not been set, but a related HTTP or SSH
-	// public address has been set, extract the hostname but use the port from
-	// the tunnel listen address.
-	if settings.SSH.SSHPublicAddr != "" {
-		addr, err := utils.ParseHostPortAddr(settings.SSH.SSHPublicAddr, tunnelPort)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return net.JoinHostPort(addr.Host(), strconv.Itoa(tunnelPort)), nil
-	}
-	if settings.SSH.PublicAddr != "" {
-		addr, err := utils.ParseHostPortAddr(settings.SSH.PublicAddr, tunnelPort)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return net.JoinHostPort(addr.Host(), strconv.Itoa(tunnelPort)), nil
-	}
-
-	// If nothing is set, fallback to the tunnel listen address.
-	return settings.SSH.TunnelListenAddr, nil
 }
 
 func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
@@ -923,6 +865,7 @@ func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, tlsConf
 		Dialer: &reversetunnel.TunnelAuthDialer{
 			ProxyAddr:    proxyAddr,
 			ClientConfig: sshConfig,
+			Log:          process.log,
 		},
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),

@@ -1,6 +1,7 @@
 ---
 title: Dual Authorization
 description: Dual Authorization for SSH and Kubernetes.
+videoBanner: b_iqJm_o15I
 ---
 
 # Dual Authorization
@@ -33,17 +34,6 @@ two team members for a privileged role `dbadmin`.
 - [Tctl enterprise admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
 - Mattermost installed.
 
-## Demo
-
-<iframe
-  width="712"
-  height="400"
-  src="https://www.youtube-nocookie.com/embed/b_iqJm_o15I?rel=0&modestbranding=1"
-  frameBorder="0"
-  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-/>
-
 <Admonition
   type="tip"
   title="Running Mattermost locally with Docker"
@@ -60,7 +50,7 @@ tctl status
 
 # Output
 Cluster  acme.example.com
-Version  6.0.2
+Version  (=teleport.version=)
 Host CA  never updated
 User CA  never updated
 Jwt CA   never updated
@@ -254,14 +244,14 @@ Alice and Ivan can review and approve request using Web UI or CLI:
   <TabItem label="Web UI">
     ![Teleport-Approve](../../../img/access-controls/dual-authz/teleport-6-ivan-approve.png)
   </TabItem>
-  
+
   <TabItem label="CLI">
     ```bash
     tsh request list
-  
+
     # Output
     ID                                   User             Roles   Created (UTC)       Status
-    ------------------------------------ ---------------  ------- ------------------- ------- 
+    ------------------------------------ ---------------  ------- ------------------- -------
     9c721e54-b049-4ef8-a7f6-c777aa066764 bob@example.com  dbadmin 03 Apr 21 03:58 UTC PENDING
 
     tsh request review --approve --reason="hello" 9c721e54-b049-4ef8-a7f6-c777aa066764

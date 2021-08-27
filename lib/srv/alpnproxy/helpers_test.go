@@ -57,7 +57,7 @@ func NewSuite(t *testing.T) *Suite {
 
 	router := NewRouter()
 	router.Add(HandlerDecs{
-		Protocols: []string{ProtocolDefault},
+		Protocols: []Protocol{ProtocolDefault},
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			t.Fatal("default handler called")
 			return nil
@@ -99,16 +99,14 @@ func (s *Suite) Start(t *testing.T) {
 	svr, err := New(proxyConfig)
 	require.NoError(t, err)
 
-	syncC := make(chan struct{})
 	go func() {
-		close(syncC)
 		err := svr.Serve(context.Background())
 		require.NoError(t, err)
 	}()
-	<-syncC
 
 	t.Cleanup(func() {
-		svr.Close()
+		err := svr.Close()
+		require.NoError(t, err)
 	})
 }
 
@@ -207,11 +205,8 @@ func mustStartLocalProxy(t *testing.T, config LocalProxyConfig) {
 		err = lp.Close()
 		require.NoError(t, err)
 	})
-	syncC := make(chan struct{})
 	go func() {
-		close(syncC)
 		err := lp.Start(context.Background())
 		require.NoError(t, err)
 	}()
-	<-syncC
 }

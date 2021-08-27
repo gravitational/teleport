@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"os"
@@ -45,9 +44,9 @@ func onListDatabases(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var servers []types.DatabaseServer
+	var databases []types.Database
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		servers, err = tc.ListDatabaseServers(cf.Context)
+		databases, err = tc.ListDatabases(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -63,11 +62,10 @@ func onListDatabases(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sort.Slice(servers, func(i, j int) bool {
-		return servers[i].GetName() < servers[j].GetName()
+	sort.Slice(databases, func(i, j int) bool {
+		return databases[i].GetName() < databases[j].GetName()
 	})
-	showDatabases(tc.SiteName, types.DeduplicateDatabaseServers(servers),
-		profile.Databases, cf.Verbose)
+	showDatabases(tc.SiteName, databases, profile.Databases, cf.Verbose)
 	return nil
 }
 
@@ -77,12 +75,12 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var servers []types.DatabaseServer
+	var databases []types.Database
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		allServers, err := tc.ListDatabaseServers(cf.Context)
-		for _, server := range allServers {
-			if server.GetName() == cf.DatabaseService {
-				servers = append(servers, server)
+		allDatabases, err := tc.ListDatabases(cf.Context)
+		for _, database := range allDatabases {
+			if database.GetName() == cf.DatabaseService {
+				databases = append(databases, database)
 			}
 		}
 		return trace.Wrap(err)
@@ -90,13 +88,13 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(servers) == 0 {
+	if len(databases) == 0 {
 		return trace.NotFound(
 			"database %q not found, use 'tsh db ls' to see registered databases", cf.DatabaseService)
 	}
 	err = databaseLogin(cf, tc, tlsca.RouteToDatabase{
 		ServiceName: cf.DatabaseService,
-		Protocol:    servers[0].GetProtocol(),
+		Protocol:    databases[0].GetProtocol(),
 		Username:    cf.DatabaseUser,
 		Database:    cf.DatabaseName,
 	}, false)
@@ -294,7 +292,7 @@ Key:       %v
 }
 
 func startLocalALPNSNIProxy(cf *CLIConf, tc *client.TeleportClient, databaseProtocol string) (*alpnproxy.LocalProxy, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -303,14 +301,11 @@ func startLocalALPNSNIProxy(cf *CLIConf, tc *client.TeleportClient, databaseProt
 		return nil, trace.Wrap(err)
 	}
 
-	startSyncC := make(chan struct{})
 	go func() {
-		close(startSyncC)
 		if err := lp.Start(cf.Context); err != nil {
 			log.WithError(err).Errorf("Failed to start local proxy")
 		}
 	}()
-	<-startSyncC
 
 	return lp, nil
 }
@@ -339,7 +334,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		opts = append(opts, WithLocalProxyRoute(addr.Host(), addr.Port(0)))
+		opts = append(opts, WithLocalProxy(addr.Host(), addr.Port(0)))
 	}
 	cmd, err := getConnectCommand(cf, tc, profile, database, opts...)
 	if err != nil {
@@ -391,7 +386,7 @@ type connectionCommandOpts struct {
 
 type ConnectCommandFunc func(*connectionCommandOpts)
 
-func WithLocalProxyRoute(host string, port int) ConnectCommandFunc {
+func WithLocalProxy(host string, port int) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.localProxyPort = port
 		opts.localProxyHost = host
@@ -419,41 +414,6 @@ func getConnectCommand(cf *CLIConf, tc *client.TeleportClient, profile *client.P
 		return getMongoCommand(host, port, profile.DatabaseCertPath(db.ServiceName), cf.DatabaseName), nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol: %v", db)
-}
-
-func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, listener net.Listener) (*alpnproxy.LocalProxy, error) {
-	alpnProtocol, err := toALPNProtocol(protocol)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	address, err := utils.ParseAddr(remoteProxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr: remoteProxyAddr,
-		Protocol:        alpnProtocol,
-		Listener:        listener,
-		ParentContext:   ctx,
-		SNI:             address.Host(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return lp, nil
-}
-
-func toALPNProtocol(dbProtocol string) (alpnproxy.Protocol, error) {
-	switch dbProtocol {
-	case defaults.ProtocolMySQL:
-		return alpnproxy.ProtocolMySQL, nil
-	case defaults.ProtocolPostgres:
-		return alpnproxy.ProtocolPostgres, nil
-	case defaults.ProtocolMongoDB:
-		return alpnproxy.ProtocolMongoDB, nil
-	default:
-		return "", trace.NotImplemented("%q protocol not supported", dbProtocol)
-	}
 }
 
 func getPostgresCommand(db *tlsca.RouteToDatabase, cluster, user, name string, options connectionCommandOpts) *exec.Cmd {

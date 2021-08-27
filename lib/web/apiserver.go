@@ -168,11 +168,6 @@ type Config struct {
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
-
-	// WebIdleTimeout specifies how long a user WebUI session can be left
-	// idle before being logged by the server. A zero value means there
-	// is no idle timeout set.
-	WebIdleTimeout time.Duration
 }
 
 type RewritingHandler struct {
@@ -1258,6 +1253,10 @@ type CreateSessionResponse struct {
 	TokenExpiresIn int `json:"expires_in"`
 	// SessionExpires is when this session expires.
 	SessionExpires time.Time `json:"sessionExpires,omitempty"`
+	// SessionInactiveTimeoutMS specifies how long in milliseconds
+	// a user WebUI session can be left idle before being logged out
+	// by the server. A zero value means there is no idle timeout set.
+	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 }
 
 func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -1274,10 +1273,12 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &CreateSessionResponse{
-		TokenType:      roundtrip.AuthBearer,
-		Token:          token.GetName(),
-		TokenExpiresIn: int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
+		TokenType:                roundtrip.AuthBearer,
+		Token:                    token.GetName(),
+		TokenExpiresIn:           int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
+		SessionInactiveTimeoutMS: int(ctx.session.GetIdleTimeout().Milliseconds()),
 	}, nil
 }
 
@@ -1444,7 +1445,7 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 // createResetPasswordToken allows a UI user to reset a user's password.
 // This handler is also required for after creating new users.
 func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req auth.CreateResetPasswordTokenRequest
+	var req auth.CreateUserTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1455,7 +1456,7 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 	}
 
 	token, err := clt.CreateResetPasswordToken(r.Context(),
-		auth.CreateResetPasswordTokenRequest{
+		auth.CreateUserTokenRequest{
 			Name: req.Name,
 			Type: req.Type,
 		})
@@ -1487,12 +1488,12 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 		return nil, trace.Wrap(err)
 	}
 
-	// RotateResetPasswordTokenSecrets rotates secrets for a given tokenID.
+	// RotateUserTokenSecrets rotates secrets for a given tokenID.
 	// It gets called every time a user fetches 2nd-factor secrets during registration attempt.
 	// This ensures that an attacker that gains the ResetPasswordToken link can not view it,
 	// extract the OTP key from the QR code, then allow the user to signup with
 	// the same OTP token.
-	secrets, err := h.auth.proxyClient.RotateResetPasswordTokenSecrets(ctx, tokenID)
+	secrets, err := h.auth.proxyClient.RotateUserTokenSecrets(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
