@@ -224,7 +224,6 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			t.Parallel()
 			clt, err := New(ctx, tt.config)
 			tt.assertErr(t, err)
 

@@ -3,15 +3,15 @@ Whether an IP or hostname is provided as an external address for the load balanc
   <Tabs>
     <TabItem label="EKS (hostname)">
       EKS uses a hostname:
-      ```bash
-      kubectl --namespace teleport-cluster get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
+      ```code
+      $ kubectl --namespace teleport-cluster get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].hostname}'
       # a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com
       ```
     </TabItem>
     <TabItem label="GKE (IP address)">
       GKE uses an IP address:
-      ```bash
-      kubectl --namespace teleport-cluster get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].ip}'
+      ```code
+      $ kubectl --namespace teleport-cluster get service/teleport -o jsonpath='{.status.loadBalancer.ingress[*].ip}'
       # 35.203.56.38
       ```
     </TabItem>

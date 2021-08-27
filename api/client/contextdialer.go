@@ -56,17 +56,12 @@ func NewDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
 	dialer := newTunnelDialer(ssh, keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
-		// Ping web proxy to retrieve tunnel proxy address.
-		pr, err := webclient.Find(ctx, discoveryAddr, insecure, nil)
+		tunnelAddr, err := webclient.GetTunnelAddr(ctx, discoveryAddr, insecure, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if pr.Proxy.SSH.TunnelPublicAddr == "" {
-			return nil, trace.BadParameter("reverse tunnel address not discoverable, 'tunnel_public_addr' is not set")
-		}
-
-		conn, err = dialer.DialContext(ctx, network, pr.Proxy.SSH.TunnelPublicAddr)
+		conn, err = dialer.DialContext(ctx, network, tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

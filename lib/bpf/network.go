@@ -29,9 +29,6 @@ import (
 	_ "embed"
 )
 
-//go:embed bytecode/network.bpf.o
-var networkBPF []byte
-
 var (
 	lostNetworkEvents = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -112,6 +109,11 @@ func startConn(bufferSize int) (*conn, error) {
 	}
 
 	c := &conn{}
+
+	networkBPF, err := embedFS.ReadFile("bytecode/network.bpf.o")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	c.module, err = libbpfgo.NewModuleFromBuffer(networkBPF, "network")
 	if err != nil {

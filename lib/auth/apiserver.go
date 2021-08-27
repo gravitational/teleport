@@ -1137,7 +1137,9 @@ func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.R
 	return domain, nil
 }
 
-// getClusterCACert returns the CAs for the local cluster without signing keys.
+// getClusterCACert returns the PEM-encoded TLS certs for the local cluster
+// without signing keys. If the cluster has multiple TLS certs, they will all
+// be appended.
 func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	localCA, err := auth.GetClusterCACert()
 	if err != nil {
@@ -1147,19 +1149,40 @@ func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *htt
 	return localCA, nil
 }
 
+// DELETE IN 9.0.0: defined in grpcserver "ChangeUserAuthentication", kept for fallback.
 func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req ChangePasswordWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	webSession, err := auth.ChangePasswordWithToken(r.Context(), req)
+	protoReq := &proto.ChangeUserAuthenticationRequest{
+		TokenID:     req.TokenID,
+		NewPassword: req.Password,
+	}
+
+	if req.U2FRegisterResponse != nil {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+			U2F: &proto.U2FRegisterResponse{
+				RegistrationData: req.U2FRegisterResponse.RegistrationData,
+				ClientData:       req.U2FRegisterResponse.ClientData,
+			},
+		}}
+	}
+
+	if req.SecondFactorToken != "" {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
+		}}
+	}
+
+	res, err := auth.ChangeUserAuthentication(r.Context(), protoReq)
 	if err != nil {
 		log.Debugf("Failed to change user password with token: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.MarshalWebSession(webSession, services.WithVersion(version)))
+	return rawMessage(services.MarshalWebSession(res.WebSession, services.WithVersion(version)))
 }
 
 // getU2FAppID returns the U2F AppID in the auth configuration

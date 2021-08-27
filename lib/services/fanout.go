@@ -156,26 +156,37 @@ func (f *Fanout) Emit(events ...types.Event) {
 		// has had secrets filtered out.
 		event := filterEventSecrets(fullEvent)
 		var remove []*fanoutWatcher
-	Inner:
-		for _, entry := range f.watchers[event.Resource.GetKind()] {
-			match, err := entry.kind.Matches(event)
-			if err != nil {
-				entry.watcher.setError(err)
-				remove = append(remove, entry.watcher)
-				continue Inner
+		// If the event has no associated resource, emit it to all watchers.
+		if event.Resource == nil {
+			for _, entries := range f.watchers {
+				for _, entry := range entries {
+					if err := entry.watcher.emit(event); err != nil {
+						entry.watcher.setError(err)
+						remove = append(remove, entry.watcher)
+					}
+				}
 			}
-			if !match {
-				continue Inner
-			}
-			emitEvent := event
-			// if this entry loads secrets, emit the
-			// full unfiltered event.
-			if entry.kind.LoadSecrets {
-				emitEvent = fullEvent
-			}
-			if err := entry.watcher.emit(emitEvent); err != nil {
-				remove = append(remove, entry.watcher)
-				continue Inner
+		} else {
+			for _, entry := range f.watchers[event.Resource.GetKind()] {
+				match, err := entry.kind.Matches(event)
+				if err != nil {
+					entry.watcher.setError(err)
+					remove = append(remove, entry.watcher)
+					continue
+				}
+				if !match {
+					continue
+				}
+				emitEvent := event
+				// if this entry loads secrets, emit the
+				// full unfiltered event.
+				if entry.kind.LoadSecrets {
+					emitEvent = fullEvent
+				}
+				if err := entry.watcher.emit(emitEvent); err != nil {
+					entry.watcher.setError(err)
+					remove = append(remove, entry.watcher)
+				}
 			}
 		}
 		for _, w := range remove {

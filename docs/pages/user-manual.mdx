@@ -17,40 +17,40 @@ In this document you will learn how to:
 - Replay recorded interactive sessions.
 
 In addition to this document, you can always simply type `tsh` into your
-terminal for the [CLI reference](cli-docs.mdx).
+terminal for the [CLI reference](./setup/reference/cli.mdx).
 
 ## Introduction
 
 (!docs/pages/includes/permission-warning.mdx!)
 
 For the impatient, here's an example of how a user would typically use
-[`tsh`](cli-docs.mdx#tsh):
+[`tsh`](./setup/reference/cli.mdx#tsh):
 
-```bash
+```code
 # Login into a Teleport cluster. This command retrieves user's certificates
 # and saves them into ~/.tsh/teleport.example.com
-tsh login --proxy=teleport.example.com
+$ tsh login --proxy=teleport.example.com
 
 # SSH into a node, as usual:
-tsh ssh user@node
+$ tsh ssh user@node
 
 # `tsh ssh` takes the same arguments as OpenSSH client:
-tsh ssh -o ForwardAgent=yes user@node
-tsh ssh -o AddKeysToAgent=yes user@node
+$ tsh ssh -o ForwardAgent=yes user@node
+$ tsh ssh -o AddKeysToAgent=yes user@node
 
 # you can even create a convenient symlink:
-ln -s /path/to/tsh /path/to/ssh
+$ ln -s /path/to/tsh /path/to/ssh
 
 # ... and now your 'ssh' command is calling Teleport's `tsh ssh`
-ssh user@host
+$ ssh user@host
 
 # This command removes SSH certificates from a user's machine:
-tsh logout
+$ tsh logout
 ```
 
 In other words, Teleport was designed to be fully compatible with existing
 SSH-based workflows and does not require users to learn anything new, other than
-to call [`tsh login`](cli-docs.mdx#tsh-login) in the beginning.
+to call [`tsh login`](./setup/reference/cli.mdx#tsh-login) in the beginning.
 
 ## Installing tsh
 
@@ -68,33 +68,33 @@ When logging into a remote node, you will have to specify both logins. Teleport
 identity will have to be passed as `--user` flag, while the node login will be
 passed as `login@host`, using syntax compatible with traditional `ssh`.
 
-```bash
+```code
 # Authenticate against the "work" cluster as joe and then
 # log into the node as root:
-tsh ssh --proxy=work.example.com --user=joe root@node
+$ tsh ssh --proxy=work.example.com --user=joe root@node
 ```
 
-[CLI Docs - tsh ssh](cli-docs.mdx#tsh-ssh)
+[CLI Docs - tsh ssh](./setup/reference/cli.mdx#tsh-ssh)
 
 ## Logging in
 
 To retrieve a user's certificate, execute:
 
-```bash
+```code
 # Full form:
-tsh login --proxy=proxy_host:<https_proxy_port>,<ssh_proxy_port>
+$ tsh login --proxy=proxy_host:<https_proxy_port>,<ssh_proxy_port>
 
 # Using default ports:
-tsh login --proxy=work.example.com
+$ tsh login --proxy=work.example.com
 
 # Using custom HTTPS port:
-tsh login --proxy=work.example.com:5000
+$ tsh login --proxy=work.example.com:5000
 
 # Using custom SSH proxy port, which is set on the Auth Server:
-tsh login --proxy=work.example.com:2002
+$ tsh login --proxy=work.example.com:2002
 ```
 
-[CLI Docs - tsh login](cli-docs.mdx#tsh-login)
+[CLI Docs - tsh login](./setup/reference/cli.mdx#tsh-login)
 
 | Port | Description |
 | - | - |
@@ -110,54 +110,52 @@ This allows you to authenticate just once, maybe at the beginning of the day. Su
   type="tip"
   title="Tip"
 >
-  It is recommended to always use [`tsh login`](cli-docs.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
+  It is recommended to always use [`tsh login`](./setup/reference/cli.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
 </Admonition>
 
 A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via Github](admin-guide.mdx#github-oauth-20). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
 
-```bash
+```code
 # Login using the local Teleport 'admin' user:
-tsh --proxy=proxy.example.com --auth=local --user=admin login
+$ tsh --proxy=proxy.example.com --auth=local --user=admin login
 
 # Login using Github as an SSO provider, assuming the Github connector is called "github"
-tsh --proxy=proxy.example.com --auth=github --user=admin login
+$ tsh --proxy=proxy.example.com --auth=github --user=admin login
 ```
 
 When using an external identity provider to log in, `tsh` will need to open a web browser to
 complete the authentication flow. By default, `tsh` will use your system's default browser to open
 such links. If you wish to suppress this behavior, you can use the `--browser=none` flag:
 
-```
+```code
 # Don't open the system default browser when logging in
-tsh login --proxy=work.example.com --browser=none
+$ tsh login --proxy=work.example.com --browser=none
 ```
 
 In this situation, a link will be printed on the screen. You can copy and paste this link into
 a browser of your choice to continue the login flow.
 
-[CLI Docs - tsh login](cli-docs.mdx#tsh-login)
+[CLI Docs - tsh login](./setup/reference/cli.mdx#tsh-login)
 
 ### Inspecting SSH certificate
 
 To inspect the SSH certificates in `~/.tsh`, a user may execute the following
 command:
 
-```bash
-tsh status
+```code
+$ tsh status
 
-# Output
-> Profile URL:  https://proxy.example.com:3080
-  Logged in as: johndoe
-  Cluster:      proxy.example.com
-  Roles:        admin*
-  Logins:       root, admin, guest
-  Kubernetes:   disabled
-  Valid until:  2017-04-25 15:02:30 -0700 PDT [valid for 1h0m0s]
-  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
+# > Profile URL:  https://proxy.example.com:3080
+#   Logged in as: johndoe
+#  Cluster:      proxy.example.com
+#   Roles:        admin*
+#   Logins:       root, admin, guest
+#   Kubernetes:   disabled
+#  Valid until:  2017-04-25 15:02:30 -0700 PDT [valid for 1h0m0s]
+#  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-[CLI Docs - tsh status](cli-docs.mdx#tsh-status)
+[CLI Docs - tsh status](./setup/reference/cli.mdx#tsh-status)
 
 ### SSH agent support
 
@@ -165,8 +163,8 @@ If there is an [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) running,
 `tsh login` will store the user certificate in the agent. This can be verified
 via:
 
-```bash
-ssh-add -L
+```code
+$ ssh-add -L
 ```
 
 SSH agent can be used to feed the certificate to other SSH clients, for example
@@ -178,16 +176,16 @@ variable to `false` in your shell profile to make this permanent.
 
 ### Identity files
 
-[`tsh login`](cli-docs.mdx#tsh-login) can also save the user certificate into a
+[`tsh login`](./setup/reference/cli.mdx#tsh-login) can also save the user certificate into a
 file:
 
-```bash
+```code
 # Authenticate user against proxy.example.com and save the user
 # certificate into joe.pem file
-tsh login --proxy=proxy.example.com --out=joe
+$ tsh login --proxy=proxy.example.com --out=joe
 
 # Use joe.pem to login into a server 'db'
-tsh ssh --proxy=proxy.example.com -i joe joe@db
+$ tsh ssh --proxy=proxy.example.com -i joe joe@db
 ```
 
 By default, `--out` flag will create an identity file suitable for `tsh -i` but
@@ -195,16 +193,14 @@ if compatibility with OpenSSH is needed, `--format=openssh` must be specified.
 In this case, the identity will be saved into two files: `joe` and
 `joe-cert.pub`:
 
-```bash
-tsh login --proxy=proxy.example.com --out=joe --format=openssh
-ls -lh
+```code
+$ tsh login --proxy=proxy.example.com --out=joe --format=openssh
+$ ls -lh
 
-# Output
-total 8.0K
--rw------- 1 joe staff 1.7K Aug 10 16:16 joe
--rw------- 1 joe staff 1.5K Aug 10 16:16 joe-cert.pub
+# total 8.0K
+# -rw------- 1 joe staff 1.7K Aug 10 16:16 joe
+# -rw------- 1 joe staff 1.5K Aug 10 16:16 joe-cert.pub
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ### SSH certificates for automation
 
@@ -223,12 +219,12 @@ In this example, we're creating a certificate with a TTL of 1-hour for the
 jenkins user and storing it in a `jenkins.pem` file, which can be later used with
 `-i` (identity) flag for `tsh`.
 
-```bash
+```code
 # To be executed on a Teleport auth server
-tctl auth sign --ttl=1h--user=jenkins --out=jenkins.pem
+$ tctl auth sign --ttl=1h--user=jenkins --out=jenkins.pem
 ```
 
-[CLI Docs - tctl auth sign](cli-docs.mdx#tctl-auth-sign)
+[CLI Docs - tctl auth sign](./setup/reference/cli.mdx#tctl-auth-sign)
 
 Now `jenkins.pem` can be copied to the jenkins server and passed to `-i`
 (identity file) flag of `tsh`. Essentially `tctl auth sign` is an admin's
@@ -241,35 +237,31 @@ In a Teleport cluster, all nodes periodically ping the cluster's auth server and
 update their status. This allows Teleport users to see which nodes are online
 with the `tsh ls` command:
 
-```bash
+```code
 # This command lists all nodes in the cluster which you previously logged in via "tsh login":
-tsh ls
+$ tsh ls
 
-# Output
-Node Name     Address            Labels
----------     -------            ------
-turing        10.1.0.5:3022      os:linux
-turing        10.1.0.6:3022      os:linux
-graviton      10.1.0.7:3022      os:osx
+# Node Name     Address            Labels
+# ---------     -------            ------
+# turing        10.1.0.5:3022      os:linux
+# turing        10.1.0.6:3022      os:linux
+# graviton      10.1.0.7:3022      os:osx
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-[CLI Docs - tsh ls](cli-docs.mdx#tsh-ls)
+[CLI Docs - tsh ls](./setup/reference/cli.mdx#tsh-ls)
 
 `tsh ls` can apply a filter based on the node labels.
 
-```bash
+```code
 # Only show nodes with os label set to 'osx':
-tsh ls os=osx
+$ tsh ls os=osx
 
-# Output
-Nodename      UUID                   Address            Labels
----------     -------                -------            ------
-graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
+# Nodename      UUID                   Address            Labels
+# ---------     -------                -------            ------
+# graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-[CLI Docs -tsh ls](cli-docs.mdx#tsh-ls)
+[CLI Docs -tsh ls](./setup/reference/cli.mdx#tsh-ls)
 
 ## Interactive shell
 
@@ -281,18 +273,18 @@ the most popular `ssh` flags like `-p`, `-l` or `-L`. For example, if you have
 the following alias defined in your `~/.bashrc`: `alias ssh="tsh ssh"` then you
 can continue using familiar SSH syntax:
 
-```bash
+```code
 # Have this alias configured, perhaps via ~/.bashrc
-alias ssh="/usr/local/bin/tsh ssh"
+$ alias ssh="/usr/local/bin/tsh ssh"
 
 # Login into a cluster and retrieve your SSH certificate:
-tsh --proxy=proxy.example.com login
+$ tsh --proxy=proxy.example.com login
 
 # These commands execute `tsh ssh` under the hood:
-ssh user@node
-ssh -p 6122 user@node ls
-ssh -o ForwardAgent=yes user@node
-ssh -o AddKeysToAgent=yes user@node
+$ ssh user@node
+$ ssh -p 6122 user@node ls
+$ ssh -o ForwardAgent=yes user@node
+$ ssh -o AddKeysToAgent=yes user@node
 ```
 
 ### Proxy ports
@@ -304,8 +296,8 @@ factor auth for the `tsh` client.
 If a Teleport proxy is configured to listen on non-default ports, they must be
 specified via `--proxy` flag as shown:
 
-```bash
-tsh --proxy=proxy.example.com:5000,5001 <subcommand>
+```code
+$ tsh --proxy=proxy.example.com:5000,5001 <subcommand>
 ```
 
 This means *use port `5000` for HTTPS and `5001` for SSH*.
@@ -316,13 +308,13 @@ This means *use port `5000` for HTTPS and `5001` for SSH*.
 connections from localhost to the specified remote host:port. The syntax of `-L`
 flag is as follows, where "bind_ip" defaults to `127.0.0.1`:
 
-```bash
--L [bind_ip]:listen_port:remote_host:remote_port
+```code
+$ -L [bind_ip]:listen_port:remote_host:remote_port
 ```
 
 Example:
 
-```bash
+```code
 $ tsh ssh -L 5000:web.remote:80 node
 ```
 
@@ -336,8 +328,8 @@ flag.
 
 Example:
 
-```bash
-tsh ssh -L 5000:google.com:80 --local node curl http://localhost:5000
+```code
+$ tsh ssh -L 5000:google.com:80 --local node curl http://localhost:5000
 ```
 
 This command:
@@ -350,8 +342,8 @@ This command:
 
 While implementing ProxyJump for Teleport, we have extended the feature to `tsh`.
 
-```bash
-tsh ssh -J proxy.example.com telenode
+```code
+$ tsh ssh -J proxy.example.com telenode
 ```
 
 Known limitations:
@@ -370,8 +362,8 @@ Known limitations:
 If we have two nodes, one with `os:linux` label and one node with `os:osx`, we
 can log into the OSX node with:
 
-```bash
-tsh ssh os=osx
+```code
+$ tsh ssh os=osx
 ```
 
 This only works if there is only one remote node with the `os:osx` label, but
@@ -379,8 +371,8 @@ you can still execute commands via SSH on multiple nodes using labels as a
 selector. This command will update all system packages on machines that run
 Linux:
 
-```bash
-tsh ssh os=ubuntu apt-get update -y
+```code
+$ tsh ssh os=ubuntu apt-get update -y
 ```
 
 ### Short-lived sessions
@@ -389,15 +381,15 @@ The default TTL of a Teleport user certificate is 12 hours. This can be modified
 at login with the `--ttl` flag. This command logs you into the cluster with a
 very short-lived (1 minute) temporary certificate:
 
-```bash
-tsh --ttl=1 login
+```code
+$ tsh --ttl=1 login
 ```
 
 You will be logged out after one minute, but if you want to log out immediately,
 you can always do:
 
-```bash
-tsh logout
+```code
+$ tsh logout
 ```
 
 ## Copying files
@@ -405,15 +397,15 @@ tsh logout
 To securely copy files to and from cluster nodes, use the `tsh scp` command. It
 is designed to mimic traditional `scp` as much as possible:
 
-```bash
-tsh scp example.txt root@node:/path/to/dest
+```code
+$ tsh scp example.txt root@node:/path/to/dest
 ```
 
 Again, you may want to create a bash alias like `alias scp="tsh --proxy=work
 scp"` and use the familiar syntax:
 
-```bash
-scp -P 61122 -r files root@node:/path/to/dest
+```code
+$ scp -P 61122 -r files root@node:/path/to/dest
 ```
 
 ## Sharing sessions
@@ -426,12 +418,13 @@ terminal multiplexer like `screen`, and join a session there.
 Teleport makes this more convenient. Let's log into a server named `luna`
 and ask Teleport for our current session status:
 
-```bash
-tsh ssh luna
->luna $ teleport status
+```code
+$ tsh ssh luna
+# on host luna
+$ teleport status
 
-User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
-Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
+# User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
+# Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
 Session URL: https://work:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
@@ -439,8 +432,8 @@ Session URL: https://work:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
 Now you can invite another user account to the `work` cluster. You can share the
 URL for access through a web browser, or you can share the session ID, and she can join you through her terminal by typing:
 
-```bash
-tsh join <session_ID>
+```code
+$ tsh join <session_ID>
 ```
 
 <Admonition type="note">
@@ -459,36 +452,32 @@ These features are called [*Trusted Clusters*](https://gravitational.com/telepor
 Assuming the `work` Teleport proxy server is configured with a few trusted
 clusters, a user may use the `tsh clusters` command to see a list of all clusters on the server:
 
-```bash
-tsh --proxy=work clusters
+```code
+$ tsh --proxy=work clusters
 
-# Output
-Cluster Name     Status
-------------     ------
-staging          online
-production       offline
+# Cluster Name     Status
+# ------------     ------
+# staging          online
+# production       offline
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
-[CLI Docs - tsh clusters](cli-docs.mdx#tsh-clusters)
+[CLI Docs - tsh clusters](./setup/reference/cli.mdx#tsh-clusters)
 
 Now you can use the `--cluster` flag with any `tsh` command. For example, to list SSH nodes that are members of the `production` cluster, simply do:
 
-```bash
-tsh --proxy=work ls --cluster=production
+```code
+$ tsh --proxy=work ls --cluster=production
 
-# Output
-Node Name     Node ID       Address            Labels
----------     -------       -------            ------
-db-1          xxxxxxxxx     10.0.20.31:3022    kernel:4.4
-db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
+# Node Name     Node ID       Address            Labels
+# ---------     -------       -------            ------
+# db-1          xxxxxxxxx     10.0.20.31:3022    kernel:4.4
+# db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Similarly, if you want to SSH into `db-1` inside the `production` cluster:
 
-```bash
-tsh --proxy=work ssh --cluster=production db-1
+```code
+$ tsh --proxy=work ssh --cluster=production db-1
 ```
 
 This is possible even if nodes in the `production` cluster are located behind a
@@ -533,7 +522,7 @@ To configure `ssh` to use a Teleport proxy on `proxy.example.com`, a user must
 update the `/etc/ssh/ssh_config` or `~/.ssh/config`. A few examples are shown
 below:
 
-```bash
+```txt
 # When "ssh db" is executed, OpenSSH will connect to proxy.example.com on port 3023
 # and will request a proxied connection to "db" on port 3022 (default Teleport SSH port)
 Host db
@@ -550,13 +539,13 @@ If there is no ssh-agent available, the certificate must be passed to the OpenSS
 
 When a proxy is in ["Recording mode"](https://gravitational.com/blog/how-to-record-ssh-sessions/) the following will happen with SSH:
 
-```bash
-ssh -J user@teleport.proxy:3023 -p 3022 user@target -F ./forward.config
+```code
+$ ssh -J user@teleport.proxy:3023 -p 3022 user@target -F ./forward.config
 ```
 
 Where `forward.config` enables agent forwarding:
 
-```bash
+```txt
 Host teleport.proxy
   ForwardAgent yes
 ```
@@ -568,15 +557,15 @@ the certificate must be passed to `ssh` via `IdentityFile` option (see `man
 ssh_config`). Consider this example: the Teleport user `joe` wants to login into
 the proxy named `lab.example.com`.
 
-He executes the [`tsh login`](cli-docs.mdx#tsh-login) command:
+He executes the [`tsh login`](./setup/reference/cli.mdx#tsh-login) command:
 
-```bash
-tsh --proxy=lab.example.com login --user=joe
+```code
+$ tsh --proxy=lab.example.com login --user=joe
 ```
 
 His identity is now stored in `~/.tsh/keys/lab.example.com`, so his `~/.ssh/config` needs to look like this:
 
-```bash
+```txt
 # ~/.ssh/config file:
 Host *.lab.example.com
     Port 3022
@@ -587,8 +576,8 @@ Host *.lab.example.com
 Now he can SSH into any machine behind `lab.example.com` using the OpenSSH
 client:
 
-```bash
-ssh jenkins.lab.example.com
+```code
+$ ssh jenkins.lab.example.com
 ```
 
 ## Troubleshooting

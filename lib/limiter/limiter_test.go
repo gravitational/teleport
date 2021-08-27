@@ -22,6 +22,7 @@ import (
 
 	"github.com/mailgun/timetools"
 
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
@@ -102,12 +103,12 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 		Config{
 			Clock: clock,
 			Rates: []Rate{
-				Rate{
+				{
 					Period:  10 * time.Millisecond,
 					Average: 10,
 					Burst:   20,
 				},
-				Rate{
+				{
 					Period:  40 * time.Millisecond,
 					Average: 10,
 					Burst:   40,
@@ -159,4 +160,41 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 		}
 	}
 	c.Assert(err, NotNil)
+}
+
+func (s *LimiterSuite) TestCustomRate(c *C) {
+	clock := &timetools.FreezedTime{
+		CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
+	}
+
+	limiter, err := NewLimiter(
+		Config{
+			Clock: clock,
+			Rates: []Rate{
+				// Default rate
+				{
+					Period:  10 * time.Millisecond,
+					Average: 10,
+					Burst:   20,
+				},
+			},
+		})
+	c.Assert(err, IsNil)
+
+	customRate := ratelimit.NewRateSet()
+	err = customRate.Add(time.Minute, 1, 5)
+	c.Assert(err, IsNil)
+
+	// Max out custom rate.
+	for i := 0; i < 5; i++ {
+		c.Assert(limiter.RegisterRequestWithCustomRate("token1", customRate), IsNil)
+	}
+
+	// Test rate limit exceeded with custom rate.
+	c.Assert(limiter.RegisterRequestWithCustomRate("token1", customRate), NotNil)
+
+	// Test default rate still works.
+	for i := 0; i < 20; i++ {
+		c.Assert(limiter.RegisterRequest("token1"), IsNil)
+	}
 }

@@ -26,6 +26,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
@@ -120,11 +121,35 @@ type Identity interface {
 	// GetU2FSignChallenge returns a U2F sign (auth) challenge
 	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
 
+	// UpsertWebauthnLocalAuth creates or updates the local auth configuration for
+	// Webauthn.
+	// WebauthnLocalAuth is a component of LocalAuthSecrets.
+	UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error
+
+	// GetWebauthnLocalAuth retrieves the existing local auth configuration for
+	// Webauthn, if any.
+	// WebauthnLocalAuth is a component of LocalAuthSecrets.
+	GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error)
+
+	// UpsertWebauthnSessionData creates or updates WebAuthn session data in
+	// storage, for the purpose of later verifying an authentication or
+	// registration challenge.
+	// Session data is expected to expire according to backend settings.
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
+
+	// GetWebauthnSessionData retrieves a previously-stored session data by ID,
+	// if it exists and has not expired.
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
+
+	// DeleteWebauthnSessionData deletes session data by ID, if it exists and has
+	// not expired.
+	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
+
 	// UpsertMFADevice upserts an MFA device for the user.
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
 
 	// GetMFADevices gets all MFA devices for the user.
-	GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error)
+	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 
 	// DeleteMFADevice deletes an MFA device for the user by ID.
 	DeleteMFADevice(ctx context.Context, user, id string) error
@@ -189,23 +214,38 @@ type Identity interface {
 	// GetGithubAuthRequest retrieves Github auth request by the token
 	GetGithubAuthRequest(stateToken string) (*GithubAuthRequest, error)
 
-	// CreateResetPasswordToken creates a token
-	CreateResetPasswordToken(ctx context.Context, resetPasswordToken types.ResetPasswordToken) (types.ResetPasswordToken, error)
+	// CreateUserToken creates a new user token.
+	CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error)
 
-	// DeleteResetPasswordToken deletes a token
-	DeleteResetPasswordToken(ctx context.Context, tokenID string) error
+	// DeleteUserToken deletes a user token.
+	DeleteUserToken(ctx context.Context, tokenID string) error
 
-	// GetResetPasswordTokens returns tokens
-	GetResetPasswordTokens(ctx context.Context) ([]types.ResetPasswordToken, error)
+	// GetUserTokens returns all user tokens.
+	GetUserTokens(ctx context.Context) ([]types.UserToken, error)
 
-	// GetResetPasswordToken returns a token
-	GetResetPasswordToken(ctx context.Context, tokenID string) (types.ResetPasswordToken, error)
+	// GetUserToken returns a user token by id.
+	GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error)
 
-	// UpsertResetPasswordTokenSecrets upserts token secrets
-	UpsertResetPasswordTokenSecrets(ctx context.Context, secrets types.ResetPasswordTokenSecrets) error
+	// UpsertUserTokenSecrets upserts a user token secrets.
+	UpsertUserTokenSecrets(ctx context.Context, secrets types.UserTokenSecrets) error
 
-	// GetResetPasswordTokenSecrets returns token secrets
-	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error)
+	// GetUserTokenSecrets returns a user token secrets.
+	GetUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
+
+	// UpsertRecoveryCodes upserts a user's new recovery codes.
+	UpsertRecoveryCodes(ctx context.Context, user string, recovery *types.RecoveryCodesV1) error
+
+	// GetRecoveryCodes gets a user's recovery codes.
+	GetRecoveryCodes(ctx context.Context, user string) (*types.RecoveryCodesV1, error)
+
+	// CreateUserRecoveryAttempt logs user recovery attempt.
+	CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error
+
+	// GetUserRecoveryAttempts returns user recovery attempts sorted by oldest to latest time.
+	GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error)
+
+	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
+	DeleteUserRecoveryAttempts(ctx context.Context, user string) error
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
