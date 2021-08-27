@@ -517,7 +517,6 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore '**/*.h' \
 		-ignore '**/*.html' \
 		-ignore '**/*.js' \
-		-ignore '**/*.proto' \
 		-ignore '**/*.py' \
 		-ignore '**/*.rs' \
 		-ignore '**/*.sh' \
