@@ -2,7 +2,7 @@ const { TextEncoder } = require('util');
 import Codec, { MessageType, ButtonState, MouseButton } from './codec';
 
 // Use nodejs TextEncoder until jsdom adds support for TextEncoder (https://github.com/jsdom/jsdom/issues/2524)
-window.TextEncoder = TextEncoder;
+window.TextEncoder = window.TextEncoder || TextEncoder;
 const codec = new Codec();
 
 test('encodes the screen spec', () => {
@@ -39,7 +39,7 @@ test('encodes mouse buttons', () => {
 
 // Username/password tests inspired by https://github.com/google/closure-library/blob/master/closure/goog/crypt/crypt_test.js (Apache License)
 test('encodes typical characters for username and password', () => {
-  // Create test vals + known UTF8 encodings
+  // Create a test value with letters, symbols, and numbers and its known UTF8 encodings
   const username = 'Helloworld!*@123';
   const usernameUTF8 = [
     0x0048,
@@ -74,8 +74,6 @@ test('encodes typical characters for username and password', () => {
   });
 });
 
-// Test skipped until jsdom adds support for TextEncoder (https://github.com/jsdom/jsdom/issues/2524)
-// eslint-disable-next-line jest/no-disabled-tests
 test('encodes utf8 characters correctly up to 3 bytes for username and password', () => {
   const first3RangesString = '\u0000\u007F\u0080\u07FF\u0800\uFFFF';
   const first3RangesUTF8 = [
