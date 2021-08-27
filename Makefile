@@ -525,9 +525,12 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore '**/*.yaml' \
 		-ignore '**/*.yml' \
 		-ignore '**/Dockerfile' \
+		-ignore 'api/version.go' \
 		-ignore 'e/**' \
+		-ignore 'gitref.go' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'vendor/**' \
+		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme'
 
