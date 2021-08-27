@@ -53,7 +53,7 @@ A new `events.IAuditLog` method called `SearchCompletedSessions` (also to be ava
 
 While relatively similar to `SearchSessionEvents` the new method shall accept an additional parameter `withParticipant`. When `withParticipant` is nonempty, the method should return only those `session.end` events that involve a [participant](https://github.com/gravitational/teleport/blob/ab57eab5c059b323e4fb50cf02c1134745a19dd1/api/types/events/events.proto#L306-L307) equal to `withParticipant`. Like in the case of `GetSessions`, the RBAC check in `auth.ServerWithRoles` can result in resetting `withParticipant` to the current user, making sure the user is able to view their own recordings.
 
-Note that the participant filtering is applied just to a "page" of events returned from the backend. However, that is already the case with the event type filtering performed in `SearchEvents` is implemented using (an analogue of) `FilterExpression`:
+Note that the participant filtering is applied just to a "page" of events returned from the backend. However, that is already the case with the event type filtering performed in `SearchEvents` that is implemented using (an analogue of) `FilterExpression`:
 
 > For example, suppose that you `Query` a table, with a `Limit` value of `6`, and without a filter expression. The `Query` result contains the first six items from the table that match the key condition expression from the request.
 > Now suppose that you add a filter expression to the `Query`. In this case, DynamoDB reads up to six items, and then returns only those that match the filter expression. The final `Query` result contains six items or fewer, even if more items would have matched the filter expression if DynamoDB had kept reading more items.
