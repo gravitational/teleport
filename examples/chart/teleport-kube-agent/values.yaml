@@ -49,6 +49,10 @@ teleportVersionOverride: ""
 # certificate.
 insecureSkipProxyTLSVerify: false
 
+# If set, will use an existing volume mounted via extraVolumes
+# as the Teleport data directory.
+existingDataVolume: ""
+
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
 podSecurityPolicy:
@@ -58,12 +62,35 @@ podSecurityPolicy:
 labels: {}
 
 ################################################################
+# Values that must be provided if using persistent storage for Teleport state.
+#
+# Assigning a persistent volume to Teleport agent allows the agent to store its security association with the Teleport
+# cluster for re-use when the pod is restarted. Without a persistent storage for this state, every time Teleport agent
+# starts it must use the authToken to create a new registration with the cluster. By using the persistent volume the
+# authToken can be routinely rotated without breaking agents' ability to restart, as the token is only used on the first
+# startup. When persistent volumes are enabled, the agent will be deployed as a StatefulSet instead of a Deployment to
+# Kubernetes.
+#
+# Fields:
+#   enabled: Set to true to enable the use of StatefulSets and Persistent volumes.
+#   storageClassName: The name of the kubernetes storage class to use when creating volumes. See https://kubernetes.io/docs/concepts/storage/storage-classes/
+#   requests: The size of the volume to request from the persistent storage system
+################################################################
+storage:
+  enabled: false
+  storageClassName: ""
+  requests: 128Mi
+
+################################################################
 # Values that you shouldn't need to change.
 ################################################################
 
 # Container image for the agent. Since this runs without the auth_service, we
 # don't need the enterprise version.
 image: quay.io/gravitational/teleport
+# Optional array of imagePullSecrets, to use when pulling from a private registry
+imagePullSecrets: []
+# - name: myRegistryKeySecretName
 # Number of replicas for the agent deployment.
 replicaCount: 1
 # (optional) Override the name of the ClusterRole used by the agent's service account.
@@ -87,6 +114,10 @@ logLevel: INFO
 # Affinity for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 affinity: {}
+
+# nodeSelector to apply for pod assignment
+# https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+nodeSelector: {}
 
 # Kubernetes annotations to apply
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
