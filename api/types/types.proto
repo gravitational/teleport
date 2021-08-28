@@ -861,6 +861,9 @@ message AuthPreferenceSpecV2 {
         (gogoproto.jsontag) = "locking_mode,omitempty",
         (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
     ];
+
+    // Webauthn are the settings for server-side Web Authentication support.
+    Webauthn Webauthn = 10 [ (gogoproto.jsontag) = "webauthn,omitempty" ];
 }
 
 // LegacyClusterConfigAuthFields facilitates a backward compatible transition
@@ -884,6 +887,40 @@ message U2F {
     // devices.
     repeated string DeviceAttestationCAs = 3
         [ (gogoproto.jsontag) = "device_attestation_cas,omitempty" ];
+}
+
+// Webauthn defines user-visible settings for server-side Web Authentication
+// support.
+message Webauthn {
+    // RPID is the ID of the Relying Party.
+    // It should be set to the domain name of the Teleport installation.
+    //
+    // IMPORTANT: RPID must never change in the lifetime of the cluster, because
+    // it's recorded in the registration data on the WebAuthn device. If the
+    // RPID changes, all existing WebAuthn key registrations will become invalid
+    // and all users who use WebAuthn as the second factor will need to
+    // re-register.
+    string RPID = 1 [ (gogoproto.jsontag) = "rp_id,omitempty" ];
+    // Allow list of device attestation CAs in PEM format.
+    // If present, only devices whose attestation certificates match the
+    // certificates specified here may be registered (existing registrations are
+    // unchanged).
+    // If supplied in conjunction with AttestationDeniedCAs, then both
+    // conditions need to be true for registration to be allowed (the device
+    // MUST match an allowed CA and MUST NOT match a denied CA).
+    // By default all devices are allowed.
+    repeated string AttestationAllowedCAs = 2
+        [ (gogoproto.jsontag) = "attestation_allowed_cas,omitempty" ];
+    // Deny list of device attestation CAs in PEM format.
+    // If present, only devices whose attestation certificates don't match the
+    // certificates specified here may be registered (existing registrations are
+    // unchanged).
+    // If supplied in conjunction with AttestationAllowedCAs, then both
+    // conditions need to be true for registration to be allowed (the device
+    // MUST match an allowed CA and MUST NOT match a denied CA).
+    // By default no devices are denied.
+    repeated string AttestationDeniedCAs = 3
+        [ (gogoproto.jsontag) = "attestation_denied_cas,omitempty" ];
 }
 
 // Namespace represents namespace resource specification
@@ -1649,6 +1686,10 @@ message LocalAuthSecrets {
     uint32 U2FCounter = 4 [ (gogoproto.jsontag) = "u2f_counter,omitempty" ];
 
     repeated MFADevice MFA = 5 [ (gogoproto.jsontag) = "mfa,omitempty" ];
+    // Webauthn holds settings necessary for webauthn local auth.
+    // May be null for legacy users or users that haven't yet used webauthn as
+    // their second factor.
+    WebauthnLocalAuth Webauthn = 6 [ (gogoproto.jsontag) = "webauthn,omitempty" ];
 }
 
 // MFADevice is a multi-factor authentication device, such as a security key or
@@ -1685,6 +1726,13 @@ message U2FDevice {
     bytes pub_key = 2;
     // Counter is the latest seen value of the U2F usage counter.
     uint32 counter = 3;
+}
+
+// WebauthnLocalAuth holds settings necessary for local webauthn use.
+message WebauthnLocalAuth {
+    // UserID is the random user handle generated for the user.
+    // See https://www.w3.org/TR/webauthn-2/#sctn-user-handle-privacy.
+    bytes UserID = 1 [ (gogoproto.jsontag) = "user_id,omitempty" ];
 }
 
 // ConnectorRef holds information about OIDC connector
@@ -2392,4 +2440,43 @@ message WindowsDesktopV3 {
 message WindowsDesktopSpecV3 {
     // Addr is the address that this host can be reached at.
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
+}
+
+// RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
+// access to their account by restoring their lost password or second factor. Once a recovery code
+// is successfully verified, the code is mark used (which invalidates it), and lets the user begin
+// the recovery flow. When a user successfully finishes the recovery flow, users will get a new set
+// of codes that will replace all the previous ones.
+message RecoveryCodesV1 {
+    // Kind is the resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind. Currently unused for this resource.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the resource spec.
+    RecoveryCodesSpecV1 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// RecoveryCodesSpecV1 is the recovery codes spec.
+message RecoveryCodesSpecV1 {
+    // Codes hold a list of numOfRecoveryCodes.
+    repeated RecoveryCode Codes = 1 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "codes" ];
+    // Created is when the set of recovery codes were generated. Updated when a new set of recovery
+    // codes are inserted.
+    google.protobuf.Timestamp Created = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created"
+    ];
+}
+
+// RecoveryCode describes a recovery code.
+message RecoveryCode {
+    // HashedCode is a bcrypt hash of this recovery code.
+    bytes HashedCode = 1 [ (gogoproto.jsontag) = "hashed_code" ];
+    // IsUsed determines if this recovery code was used.
+    bool IsUsed = 2 [ (gogoproto.jsontag) = "is_used" ];
 }

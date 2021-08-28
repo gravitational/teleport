@@ -658,7 +658,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 	})
 	// Fetch MFA device ID.
-	devs, err := srv.Auth().GetMFADevices(ctx, user.GetName())
+	devs, err := srv.Auth().Identity.GetMFADevices(ctx, user.GetName(), false)
 	require.NoError(t, err)
 	require.Len(t, devs, 1)
 	u2fDevID := devs[0].Id
@@ -1634,4 +1634,22 @@ func TestDatabasesCRUD(t *testing.T) {
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 0)
+}
+
+func TestChangeUserAuthenticationRateLimiting(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestNop())
+	require.NoError(t, err)
+
+	// Max rate limit.
+	for i := 0; i < 10; i++ {
+		_, err = clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
+		require.Error(t, err)
+	}
+
+	_, err = clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
+	require.True(t, trace.IsLimitExceeded(err))
 }
