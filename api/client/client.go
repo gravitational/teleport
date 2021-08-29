@@ -20,6 +20,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -368,8 +369,8 @@ func ConfigureALPNSNITLSRoutingSettings(tlsConfig *tls.Config, clusterName strin
 		return tlsConfig
 	}
 	out := tlsConfig.Clone()
-	out.ServerName = utils.EncodeClusterName(clusterName)
-	out.NextProtos = append([]string{"teleport-auth"}, out.NextProtos...)
+	routeInfo := fmt.Sprintf("teleport-auth@%s", utils.EncodeClusterName(clusterName))
+	out.NextProtos = append([]string{routeInfo}, out.NextProtos...)
 	return out
 }
 

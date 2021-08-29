@@ -45,17 +45,25 @@ const (
 	ProtocolDefault Protocol = ""
 
 	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
-	ProtocolAuth Protocol = "teleport-auth"
+	ProtocolAuth Protocol = "teleport-auth@"
 )
 
-var supportedProtocols = []string{
-	string(ProtocolPostgres),
+var supportedProtocols = []Protocol{
+	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
 	ProtocolProxySSH,
 	ProtocolReverseTunnel,
 	ProtocolHTTP,
 	ProtocolHTTP2,
-	string(ProtocolDefault),
-	string(ProtocolAuth),
+	ProtocolDefault,
+	ProtocolAuth,
+}
+
+func convProtocolsToString(protocols []Protocol) []string {
+	out := make([]string, 0, len(protocols))
+	for _, v := range protocols {
+		out  = append(out, string(v))
+	}
+	return out
 }

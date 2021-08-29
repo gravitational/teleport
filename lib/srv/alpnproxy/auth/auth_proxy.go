@@ -21,6 +21,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -58,7 +59,7 @@ type AuthProxyDialerService struct {
 
 func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.Conn, connInfo alpnproxy.ConnectionInfo) error {
 	defer conn.Close()
-	clusterName, err := getClusterNameFromSNI(connInfo)
+	clusterName, err := getClusterName(connInfo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -73,8 +74,17 @@ func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.
 	return nil
 }
 
-func getClusterNameFromSNI(info alpnproxy.ConnectionInfo) (string, error) {
-	cn, err := auth.DecodeClusterName(info.SNI)
+func getClusterName(info alpnproxy.ConnectionInfo) (string, error) {
+	if len(info.ALPN) == 0 {
+		return "", trace.NotFound("missing ALPN value")
+	}
+	protocol := info.ALPN[0]
+	if !strings.HasPrefix(protocol, string(alpnproxy.ProtocolAuth)) {
+		return "", trace.BadParameter("auth routing prefix not found")
+	}
+
+	routeToCluster := strings.TrimLeft(protocol, string(alpnproxy.ProtocolAuth))
+	cn, err := auth.DecodeClusterName(routeToCluster)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

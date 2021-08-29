@@ -73,27 +73,31 @@ type Router struct {
 	databaseTLSHandler *HandlerDecs
 	mtx                sync.Mutex
 }
-type MatchFunc func(sni string, alpn []string) bool
 
-func MatchProtocol(protocols ...Protocol) MatchFunc {
-	return func(sni string, alpn []string) bool {
-		for _, protocol := range protocols {
-			if len(alpn) == 0 {
-				return false
-			}
-			if Protocol(alpn[0]) == protocol {
-				return true
-			}
-		}
-		return false
+type MatchFunc func(sni string, alpn string) bool
+
+func MatchByProtocol(protocols ...Protocol) MatchFunc {
+	m := make(map[Protocol]struct{})
+	for _, v := range protocols {
+		m[v] = struct{}{}
+	}
+	return func(sni string, alpn string) bool {
+		_, ok := m[Protocol(alpn)]
+		return ok
+	}
+}
+
+func MatchByALPNPrefix(prefix string) MatchFunc {
+	return func(sni string, alpn string) bool {
+		return strings.HasPrefix(alpn, prefix)
 	}
 }
 
 // CheckAndSetDefaults verifies the constraints for Router.
-func (r *Router) CheckAndSetDefault() error {
+func (r *Router) CheckAndSetDefaults() error {
 	for _, v := range r.alpnHandlers {
-		if v.Handler != nil && v.HandlerWithConnInfo != nil {
-			return trace.BadParameter("can't create route with both Handler and HandlerWithConnInfo handlers")
+		if err := v.CheckAndSetDefaults(); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -140,6 +144,16 @@ type HandlerDecs struct {
 	MatchFunc MatchFunc
 }
 
+func (h *HandlerDecs) CheckAndSetDefaults() error {
+	if h.Handler != nil && h.HandlerWithConnInfo != nil {
+		return trace.BadParameter("can't create route with both Handler and HandlerWithConnInfo handlers")
+	}
+	if h.MatchFunc == nil {
+		return trace.BadParameter("missing param MatchFunc")
+	}
+	return nil
+}
+
 func (h *HandlerDecs) handle(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
 	if h.HandlerWithConnInfo != nil {
 		return h.HandlerWithConnInfo(ctx, conn, info)
@@ -155,7 +169,7 @@ type HandlerFunc func(ctx context.Context, conn net.Conn) error
 // TLS SNI ALPN values to particular service.
 type Proxy struct {
 	cfg                ProxyConfig
-	supportedProtocols []string
+	supportedProtocols []Protocol
 	log                logrus.FieldLogger
 	cancel             context.CancelFunc
 }
@@ -181,7 +195,7 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	if c.Router == nil {
 		return trace.BadParameter("missing parameter router")
 	}
-	if err := c.Router.CheckAndSetDefault(); err != nil {
+	if err := c.Router.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -204,7 +218,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	p.cancel = cancel
-	p.cfg.TLSConfig.NextProtos = p.supportedProtocols
+	p.cfg.TLSConfig.NextProtos = convProtocolsToString(p.supportedProtocols)
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
@@ -256,6 +270,8 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		SNI:  hello.ServerName,
 		ALPN: hello.SupportedProtos,
 	}
+
+	p.log.Infof("----> ROUTING SNI: %s, ALPN: %v", connInfo.SNI, connInfo.ALPN)
 
 	if handlerDesc.ForwardTLS {
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
@@ -377,14 +393,14 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 
 	if isDBTLSProtocol(protocol) {
 		return &HandlerDecs{
-			MatchFunc:           MatchProtocol(protocol),
+			MatchFunc:           MatchByProtocol(protocol),
 			HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,
 			ForwardTLS:          false,
 		}, nil
 	}
 
 	for _, h := range p.cfg.Router.alpnHandlers {
-		if ok := h.MatchFunc(clientHelloInfo.ServerName, clientHelloInfo.SupportedProtos); ok {
+		if ok := h.MatchFunc(clientHelloInfo.ServerName, string(protocol)); ok {
 			return h, nil
 		}
 	}
