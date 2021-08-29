@@ -36,9 +36,9 @@ Host *.{{ .clusterName }} {{ .proxyHost }}
 Host *.{{ .clusterName }} !{{ .proxyHost }}
     Port 3022
     {{- if .leaf }}
-    ProxyCommand ssh -p {{ .proxyPort }} {{ .proxyHost }} -s proxy:$(echo %h | cut -d '.' -f 1):%p@{{ .clusterName }}	
+    ProxyCommand ssh -p {{ .proxyPort }} %r@{{ .proxyHost }} -s proxy:$(echo %h | cut -d '.' -f 1):%p@{{ .clusterName }}	
     {{- else }}
-    ProxyCommand ssh -p {{ .proxyPort }} {{ .proxyHost }} -s proxy:$(echo %h | cut -d '.' -f 1):%p
+    ProxyCommand ssh -p {{ .proxyPort }} %r@{{ .proxyHost }} -s proxy:$(echo %h | cut -d '.' -f 1):%p
     {{- end }}
 `
 
