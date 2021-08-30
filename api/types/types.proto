@@ -320,7 +320,9 @@ message ServerSpecV2 {
     // TeleportVersion is the teleport version that the server is running on
     string Version = 7 [ (gogoproto.jsontag) = "version" ];
     // Apps is a list of applications this server is proxying.
-    repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty" ];
+    //
+    // DELETE IN 9.0. Deprecated, moved to AppServerSpecV3.
+    repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty", deprecated = true ];
     // KubernetesClusters is a list of kubernetes clusters provided by this
     // Proxy or KubeService server.
     //
@@ -331,7 +333,79 @@ message ServerSpecV2 {
         [ (gogoproto.jsontag) = "kube_clusters,omitempty" ];
 }
 
+// AppServerV3 represents a single proxied web app.
+message AppServerV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is the app server resource kind. Always "app_server".
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the app server metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the app server spec.
+    AppServerSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// AppServerSpecV3 is the app access server spec.
+message AppServerSpecV3 {
+    // Version is the Teleport version that the server is running.
+    string Version = 1 [ (gogoproto.jsontag) = "version" ];
+    // Hostname is the app server hostname.
+    string Hostname = 2 [ (gogoproto.jsontag) = "hostname" ];
+    // HostID is the app server host uuid.
+    string HostID = 3 [ (gogoproto.jsontag) = "host_id" ];
+    // Rotation contains the app server CA rotation information.
+    Rotation Rotation = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
+    // App is the app proxied by this app server.
+    AppV3 App = 5 [ (gogoproto.jsontag) = "app" ];
+}
+
+// AppV3List represents a list of app resources.
+message AppV3List {
+    // Apps is a list of app resources.
+    repeated AppV3 App = 1;
+}
+
+// AppV3 represents an app resource.
+message AppV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is the app resource kind. Always "app".
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the app resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the app resource spec.
+    AppSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// AppSpecV3 is the AppV3 resource spec.
+message AppSpecV3 {
+    // URI is the web app endpoint.
+    string URI = 1 [ (gogoproto.jsontag) = "uri" ];
+    // PublicAddr is the public address the application is accessible at.
+    string PublicAddr = 2 [ (gogoproto.jsontag) = "public_addr,omitempty" ];
+    // DynamicLabels are the app's command labels.
+    map<string, CommandLabelV2> DynamicLabels = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
+    // InsecureSkipVerify disables app's TLS certificate verification.
+    bool InsecureSkipVerify = 4 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
+    // Rewrite is a list of rewriting rules to apply to requests and responses.
+    Rewrite Rewrite = 5 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
+}
+
 // App is a specific application that a server proxies.
+//
+// DELETE IN 9.0. Deprecated, use AppV3.
 message App {
     // Name is the name of the application.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];

@@ -1797,7 +1797,7 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error)
 }
 
 // ListAppServers returns a list of application servers.
-func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, error) {
+func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.AppServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1805,6 +1805,19 @@ func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, e
 	defer proxyClient.Close()
 
 	return proxyClient.GetAppServers(ctx, tc.Namespace)
+}
+
+// ListApps returns all registered applications.
+func (tc *TeleportClient) ListApps(ctx context.Context) ([]types.Application, error) {
+	servers, err := tc.ListAppServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var apps []types.Application
+	for _, server := range servers {
+		apps = append(apps, server.GetApp())
+	}
+	return types.DeduplicateApps(apps), nil
 }
 
 // CreateAppSession creates a new application access session.

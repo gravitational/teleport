@@ -459,8 +459,14 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveApp:
-		if serverName != handle.Name {
-			return trace.AccessDenied("access denied")
+		if handle.HostID != "" {
+			if serverName != handle.HostID {
+				return trace.AccessDenied("access denied")
+			}
+		} else { // DELETE IN 9.0. Legacy app server is heartbeating back.
+			if serverName != handle.Name {
+				return trace.AccessDenied("access denied")
+			}
 		}
 		if !a.hasBuiltinRole(string(types.RoleApp)) {
 			return trace.AccessDenied("access denied")
@@ -2686,7 +2692,62 @@ func (a *ServerWithRoles) canImpersonateBuiltinRole(role types.SystemRole) error
 	return nil
 }
 
+func (a *ServerWithRoles) checkAccessToApp(app types.Application) error {
+	return a.context.Checker.CheckAccessToApp(app.GetNamespace(), app,
+		// MFA is not required for operations on database resources but
+		// will be enforced at the connection time.
+		services.AccessMFAParams{Verified: true})
+}
+
+// GetApplicationServers returns all registered application servers.
+func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	if err := a.action(namespace, types.KindAppServer, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := a.authServer.GetApplicationServers(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Filter out apps the caller doesn't have access to.
+	var filtered []types.AppServer
+	for _, server := range servers {
+		err := a.checkAccessToApp(server.GetApp())
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, server)
+		}
+	}
+	return filtered, nil
+}
+
+// UpsertApplicationServer registers an application server.
+func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	if err := a.action(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.UpsertApplicationServer(ctx, server)
+}
+
+// DeleteApplicationServer deletes specified application server.
+func (a *ServerWithRoles) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+	if err := a.action(namespace, types.KindAppServer, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteApplicationServer(ctx, namespace, hostID, name)
+}
+
+// DeleteAllApplicationServers deletes all registered application servers.
+func (a *ServerWithRoles) DeleteAllApplicationServers(ctx context.Context, namespace string) error {
+	if err := a.action(namespace, types.KindAppServer, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllApplicationServers(ctx, namespace)
+}
+
 // GetAppServers gets all application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServers.
 func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if err := a.action(namespace, types.KindAppServer, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -2706,7 +2767,11 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 	for _, server := range servers {
 		filteredApps := make([]*types.App, 0, len(server.GetApps()))
 		for _, app := range server.GetApps() {
-			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app, mfaParams)
+			appV3, err := types.NewAppV3FromLegacyApp(app)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			err = a.context.Checker.CheckAccessToApp(server.GetNamespace(), appV3, mfaParams)
 			if err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
@@ -2722,6 +2787,8 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 }
 
 // UpsertAppServer adds an application server.
+//
+// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
 func (a *ServerWithRoles) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	if err := a.action(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -2731,6 +2798,8 @@ func (a *ServerWithRoles) UpsertAppServer(ctx context.Context, server types.Serv
 }
 
 // DeleteAppServer removes an application server.
+//
+// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
 func (a *ServerWithRoles) DeleteAppServer(ctx context.Context, namespace string, name string) error {
 	if err := a.action(namespace, types.KindAppServer, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
@@ -2743,6 +2812,8 @@ func (a *ServerWithRoles) DeleteAppServer(ctx context.Context, namespace string,
 }
 
 // DeleteAllAppServers removes all application servers.
+//
+// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
 func (a *ServerWithRoles) DeleteAllAppServers(ctx context.Context, namespace string) error {
 	if err := a.action(namespace, types.KindAppServer, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
