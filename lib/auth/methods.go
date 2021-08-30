@@ -150,7 +150,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		})
 		switch {
 		case err != nil:
-			log.Debugf("Failed to authenticate: %v.", err)
+			log.Debugf("User %v failed to authenticate: %v.", req.Username, err)
 			return nil, trace.AccessDenied(failMsg)
 		case dev == nil:
 			log.Debugf(
@@ -195,7 +195,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	}); err != nil {
 		// provide obscure message on purpose, while logging the real
 		// error server side
-		log.Debugf("Failed to authenticate: %v.", err)
+		log.Debugf("User %v failed to authenticate: %v.", req.Username, err)
 		return nil, trace.AccessDenied("invalid username or password")
 	}
 	return nil, nil
