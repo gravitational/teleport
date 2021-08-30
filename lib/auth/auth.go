@@ -38,6 +38,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -48,6 +50,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -61,9 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
@@ -1093,8 +1093,8 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 	return sess.WithoutSecrets(), nil
 }
 
-// MFAAuthenticateChallenge is a U2F authentication challenge sent on user
-// login.
+// MFAAuthenticateChallenge is an MFA authentication challenge sent on user
+// login / authentication ceremonies.
 type MFAAuthenticateChallenge struct {
 	// Before 6.0 teleport would only send 1 U2F challenge. Embed the old
 	// challenge for compatibility with older clients. All new clients should
@@ -1104,6 +1104,12 @@ type MFAAuthenticateChallenge struct {
 	// U2FChallenges is a list of U2F challenges, one for each registered
 	// device.
 	U2FChallenges []u2f.AuthenticateChallenge `json:"u2f_challenges"`
+	// WebauthnChallenge contains a WebAuthn credential assertion used for
+	// login/authentication ceremonies.
+	// An assertion already contains, among other information, a list of allowed
+	// credentials (one for each known U2F or Webauthn device), so there is no
+	// need to send multiple assertions.
+	WebauthnChallenge *wanlib.CredentialAssertion `json:"webauthn_challenge"`
 	// TOTPChallenge specifies whether TOTP is supported for this user.
 	TOTPChallenge bool `json:"totp_challenge"`
 }
@@ -1139,7 +1145,9 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 		}
 		chal.U2FChallenges = append(chal.U2FChallenges, ch)
 	}
-
+	if protoChal.WebauthnChallenge != nil {
+		chal.WebauthnChallenge = wanlib.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+	}
 	return chal, nil
 }
 
@@ -2549,27 +2557,40 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var enableTOTP, enableU2F bool
+	var enableTOTP, enableU2F, enableWebauthn bool
 	switch apref.GetSecondFactor() {
 	case constants.SecondFactorOTP:
-		enableTOTP, enableU2F = true, false
+		enableTOTP = true
 	case constants.SecondFactorU2F:
-		enableTOTP, enableU2F = false, true
+		enableU2F = true
+	case constants.SecondFactorWebauthn:
+		enableWebauthn = true
+	case constants.SecondFactorOn, constants.SecondFactorOptional:
+		enableTOTP, enableU2F, enableWebauthn = true, true, true
 	default:
-		// Other AuthPreference types don't restrict us to a single MFA type,
-		// send all challenges.
-		enableTOTP, enableU2F = true, true
+		return nil, trace.Errorf("unexpected second_factor value: %s", apref.GetSecondFactor())
 	}
-	var u2fPref *types.U2F
-	if enableU2F {
-		u2fPref, err = apref.GetU2F()
-		if trace.IsNotFound(err) {
-			// If U2F parameters were not set in the auth server config,
-			// disable U2F challenges.
-			enableU2F = false
-		} else if err != nil {
+
+	// Read U2F configuration regardless, Webauthn uses it.
+	u2fPref, err := apref.GetU2F()
+	if err != nil && enableU2F {
+		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
+		// If U2F parameters were not set in the auth server config, disable U2F
+		// challenges.
+		enableU2F = false
+	}
+
+	webConfig, err := apref.GetWebauthn()
+	switch {
+	case err != nil && apref.GetSecondFactor() == constants.SecondFactorWebauthn:
+		// Fail explicitly for second_factor:"webauthn".
+		return nil, trace.Errorf("second_factor set to %s, but webauthn config not present", constants.SecondFactorWebauthn)
+	case err != nil:
+		// Fail silently for second_factor "on" and "optional".
+		log.WithError(err).Warningf("WebAuthn: failed to fetch configuration, disabling WebAuthn challenges")
+		enableWebauthn = false
 	}
 
 	devs, err := a.Identity.GetMFADevices(ctx, user, true)
@@ -2577,28 +2598,16 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 		return nil, trace.Wrap(err)
 	}
 
-	challenge := new(proto.MFAAuthenticateChallenge)
-	var u2fDevs []*types.MFADevice
-	for _, dev := range devs {
-		switch dev.Device.(type) {
-		case *types.MFADevice_Totp:
-			if !enableTOTP {
-				continue
-			}
-			challenge.TOTP = new(proto.TOTPChallenge)
-		case *types.MFADevice_U2F:
-			if !enableU2F {
-				continue
-			}
-			u2fDevs = append(u2fDevs, dev)
-		default:
-			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
-		}
+	groupedDevs := groupByDeviceType(devs, enableU2F, enableWebauthn)
+	challenge := &proto.MFAAuthenticateChallenge{}
+	if enableTOTP && groupedDevs.TOTP {
+		challenge.TOTP = &proto.TOTPChallenge{}
 	}
-	if len(u2fDevs) > 0 {
+
+	if len(groupedDevs.U2F) > 0 {
 		chals, err := u2f.AuthenticateInit(ctx, u2f.AuthenticateInitParams{
 			AppConfig:  *u2fPref,
-			Devs:       u2fDevs,
+			Devs:       groupedDevs.U2F,
 			Storage:    u2fStorage,
 			StorageKey: user,
 		})
@@ -2614,7 +2623,47 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 			})
 		}
 	}
+	if len(groupedDevs.Webauthn) > 0 {
+		webLogin := &wanlib.LoginFlow{
+			U2F:      u2fPref,
+			Webauthn: webConfig,
+			Identity: a.Identity,
+		}
+		assertion, err := webLogin.Begin(ctx, user)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		challenge.WebauthnChallenge = wanlib.CredentialAssertionToProto(assertion)
+	}
+
 	return challenge, nil
+}
+
+type devicesByType struct {
+	TOTP     bool
+	U2F      []*types.MFADevice
+	Webauthn []*types.MFADevice
+}
+
+func groupByDeviceType(devs []*types.MFADevice, groupU2F, groupWebauthn bool) devicesByType {
+	res := devicesByType{}
+	for _, dev := range devs {
+		switch dev.Device.(type) {
+		case *types.MFADevice_Totp:
+			res.TOTP = true
+		case *types.MFADevice_U2F:
+			if groupU2F {
+				res.U2F = append(res.U2F, dev)
+			}
+			if groupWebauthn {
+				res.Webauthn = append(res.Webauthn, dev)
+			}
+			// TODO(codingllama): Handle Webauthn device once we have it.
+		default:
+			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
+		}
+	}
+	return res
 }
 
 func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
