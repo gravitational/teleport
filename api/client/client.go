@@ -369,7 +369,7 @@ func ConfigureALPNSNITLSRoutingSettings(tlsConfig *tls.Config, clusterName strin
 		return tlsConfig
 	}
 	out := tlsConfig.Clone()
-	routeInfo := fmt.Sprintf("teleport-auth@%s", utils.EncodeClusterName(clusterName))
+	routeInfo := fmt.Sprintf("%s%s", constants.ALPNSNIAuthProtocol, utils.EncodeClusterName(clusterName))
 	out.NextProtos = append([]string{routeInfo}, out.NextProtos...)
 	return out
 }
