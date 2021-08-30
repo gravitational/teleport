@@ -40,10 +40,10 @@ import (
 // allowed.
 const loginSessionID = "login"
 
-// loginIdentity represents the subset of Identity methods used by LoginFlow.
+// LoginIdentity represents the subset of Identity methods used by LoginFlow.
 // It exists to better scope LoginFlow's use of Identity and to facilitate
 // testing.
-type loginIdentity interface {
+type LoginIdentity interface {
 	userIDStorage
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
@@ -51,6 +51,24 @@ type loginIdentity interface {
 	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
 	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
+}
+
+// WithDevices returns a LoginIdentity backed by a fixed set of devices.
+// The supplied devices are returned in all GetMFADevices calls.
+func WithDevices(identity LoginIdentity, devs []*types.MFADevice) LoginIdentity {
+	return &loginWithDevices{
+		LoginIdentity: identity,
+		devices:       devs,
+	}
+}
+
+type loginWithDevices struct {
+	LoginIdentity
+	devices []*types.MFADevice
+}
+
+func (l *loginWithDevices) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
+	return l.devices, nil
 }
 
 // LoginFlow represents the WebAuthn login procedure (aka authentication).
@@ -71,7 +89,7 @@ type LoginFlow struct {
 	Webauthn *types.Webauthn
 	// Identity is typically an implementation of the Identity service, ie, an
 	// object with access to user, device and MFA storage.
-	Identity loginIdentity
+	Identity LoginIdentity
 }
 
 // Begin is the first step of the LoginFlow.

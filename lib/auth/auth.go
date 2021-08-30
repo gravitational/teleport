@@ -2627,7 +2627,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,
 			Webauthn: webConfig,
-			Identity: a.Identity,
+			Identity: wanlib.WithDevices(a.Identity, groupedDevs.Webauthn),
 		}
 		assertion, err := webLogin.Begin(ctx, user)
 		if err != nil {
