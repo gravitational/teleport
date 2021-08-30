@@ -3284,7 +3284,6 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 
 // StartAccountRecovery is implemented by AuthService.StartAccountRecovery.
 func (a *ServerWithRoles) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
-	// Token is its own authentication, no need to double check.
 	return a.authServer.StartAccountRecovery(ctx, req)
 }
 

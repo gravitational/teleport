@@ -1023,7 +1023,7 @@ message StartAccountRecoveryRequest {
     //  - username is in valid email format
     string Username = 1 [ (gogoproto.jsontag) = "username" ];
     // RecoveryCode is one of the user's recovery code in plain text.
-    bytes RecoveryCode = 2 [ (gogoproto.jsontag) = "recovery_codes" ];
+    bytes RecoveryCode = 2 [ (gogoproto.jsontag) = "recovery_code" ];
     // RecoverType defines what type of authentication user needs to recover.
     types.UserTokenUsage RecoverType = 3 [ (gogoproto.jsontag) = "recover_type" ];
 }

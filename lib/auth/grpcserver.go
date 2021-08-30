@@ -3199,7 +3199,7 @@ func (g *GRPCServer) StartAccountRecovery(ctx context.Context, req *proto.StartA
 
 	r, ok := resetToken.(*types.UserTokenV3)
 	if !ok {
-		return nil, trace.BadParameter("unexpected ResetPasswordToken type %T", resetToken)
+		return nil, trace.BadParameter("unexpected UserToken type %T", resetToken)
 	}
 
 	return r, nil
