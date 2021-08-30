@@ -603,7 +603,7 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.S
 	})
 }
 
-func (s *sessionCache) GetCertificateWithMFA(c client.CreateSSHCertWithMFAReq) (*auth.SSHLoginResponse, error) {
+func (s *sessionCache) AuthenticateSSHUser(c client.AuthenticateSSHUserRequest) (*auth.SSHLoginResponse, error) {
 	authReq := auth.AuthenticateUserRequest{
 		Username: c.User,
 	}
@@ -614,6 +614,9 @@ func (s *sessionCache) GetCertificateWithMFA(c client.CreateSSHCertWithMFAReq) (
 		authReq.U2F = &auth.U2FSignResponseCreds{
 			SignResponse: *c.U2FSignResponse,
 		}
+	}
+	if c.WebauthnChallengeResponse != nil {
+		authReq.Webauthn = c.WebauthnChallengeResponse
 	}
 	if c.TOTPCode != "" {
 		authReq.OTP = &auth.OTPCreds{

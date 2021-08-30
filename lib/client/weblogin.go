@@ -27,16 +27,15 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
 )
 
@@ -116,18 +115,18 @@ type CreateSSHCertReq struct {
 	KubernetesCluster string
 }
 
-// CreateSSHCertWithMFAReq are passed by web client
-// to authenticate against teleport server and receive
-// a temporary cert signed by auth server authority
-type CreateSSHCertWithMFAReq struct {
+// AuthenticateSSHUserRequest are passed by web client to authenticate against
+// teleport server and receive a temporary cert signed by auth server authority.
+type AuthenticateSSHUserRequest struct {
 	// User is a teleport username
 	User string `json:"user"`
 	// Password for the user, to authenticate in case no MFA check was
 	// performed.
 	Password string `json:"password"`
-
 	// U2FSignResponse is the signature from the U2F device
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
+	// WebauthnChallengeResponse is a signed WebAuthn credential assertion.
+	WebauthnChallengeResponse *wanlib.CredentialAssertionResponse `json:"webauthn_challenge_response"`
 	// TOTPCode is a code from the TOTP device.
 	TOTPCode string `json:"totp_code"`
 	// PubKey is a public key user wishes to sign
@@ -143,6 +142,13 @@ type CreateSSHCertWithMFAReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+}
+
+type AuthenticateWebUserRequest struct {
+	// User is a teleport username.
+	User string `json:"user"`
+	// U2FSignResponse is the signature from the U2F device.
+	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response,omitempty"`
 }
 
 // SSHLogin contains common SSH login parameters.
@@ -353,7 +359,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(awly): mfa: rename endpoint
+	// TODO(codingllama): Post to /webapi/mfa/login/begin instead.
 	chalRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), MFAChallengeRequest{
 		User: login.User,
 		Pass: login.Password,
@@ -390,7 +396,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	chalResp := CreateSSHCertWithMFAReq{
+	chalResp := AuthenticateSSHUserRequest{
 		User:              login.User,
 		Password:          login.Password,
 		PubKey:            login.PubKey,
@@ -413,6 +419,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		// No challenge was sent, so we send back just username/password.
 	}
 
+	// TODO(codingllama): Post to /webapi/mfa/login/finish instead.
 	loginRespRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), chalResp)
 	if err != nil {
 		return nil, trace.Wrap(err)

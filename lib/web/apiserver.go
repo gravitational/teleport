@@ -338,13 +338,16 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/github/login/console", httplib.MakeHandler(h.githubLoginConsole))
 
 	// U2F related APIs
+	// DELETE IN 9.x, superseded by /mfa/ endpoints (codingllama)
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
 	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.u2fChangePasswordRequest))
-	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.mfaChallengeRequest))
+	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.mfaLoginBegin))
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
-	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithMFAChallengeResponse))
+	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.mfaLoginFinish))
 
 	// MFA related endpoints
+	h.POST("/webapi/mfa/login/begin", httplib.MakeHandler(h.mfaLoginBegin))
+	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.GET("/webapi/mfa", h.WithAuth(h.getMFADevicesHandle))
 
 	// trusted clusters
@@ -1571,17 +1574,18 @@ func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p h
 	return u2fRegisterRequest, nil
 }
 
-// mfaChallengeRequest is called to get a MFA challenge for authenticating
+// mfaLoginBegin is the first step in the MFA authentication ceremony, which
+// may be completed either via mfaLoginFinish (SSH) or mfaLoginSession (Web).
 //
-// POST /webapi/u2f/signrequest
+// POST /webapi/u2f/signrequest (deprecated)
+// POST /webapi/mfa/login/begin
 //
 // {"user": "alex", "pass": "abc123"}
 //
 // Successful response:
 //
-// {"version":"U2F_V2","challenge":"randombase64string","keyHandle":"longbase64string","appId":"https://mycorp.com:3080"}
-//
-func (h *Handler) mfaChallengeRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+// {"webauthn_challenge": {...}, "u2f_challenges": [...], "totp_challenge": true}
+func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *client.MFAChallengeRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1590,14 +1594,32 @@ func (h *Handler) mfaChallengeRequest(w http.ResponseWriter, r *http.Request, p 
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
-
 	return mfaChallenge, nil
 }
 
-// A request from the client to send the signature from the U2F key
-type u2fSignResponseReq struct {
-	User            string                            `json:"user"`
-	U2FSignResponse u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
+// mfaLoginFinish completes the MFA login ceremony, returning a new SSH
+// certificate if successful.
+//
+// POST /v1/webapi/u2f/certs (deprecated)
+// POST /v1/mfa/login/finish
+//
+// { "user": "bob", "password": "pass", "pub_key": "key to sign", "ttl": 1000000000 }                   # password-only
+// { "user": "bob", "webauthn_challenge_response": {...}, "pub_key": "key to sign", "ttl": 1000000000 } # mfa
+//
+// Success response
+//
+// { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
+func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *client.AuthenticateSSHUserRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := h.auth.AuthenticateSSHUser(*req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cert, nil
 }
 
 // createSessionWithU2FSignResponse is called to sign in with a U2F signature
@@ -1611,12 +1633,12 @@ type u2fSignResponseReq struct {
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
 func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *u2fSignResponseReq
+	var req *client.AuthenticateWebUserRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := h.auth.AuthWithU2FSignResponse(req.User, &req.U2FSignResponse)
+	sess, err := h.auth.AuthWithU2FSignResponse(req.User, req.U2FSignResponse)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
@@ -2269,31 +2291,6 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	return cert, nil
-}
-
-// createSSHCertWithMFAChallengeResponse is a web call that generates new SSH
-// certificate based on user's name, password, MFA response and public key user
-// wishes to sign.
-//
-// POST /v1/webapi/u2f/certs
-//
-// { "user": "bob", "password": "pass", "u2f_sign_response": { "signatureData": "signatureinbase64", "clientData": "verylongbase64string", "challenge": "randombase64string" }, "pub_key": "key to sign", "ttl": 1000000000 }
-//
-// Success response
-//
-// { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
-//
-func (h *Handler) createSSHCertWithMFAChallengeResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *client.CreateSSHCertWithMFAReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, err := h.auth.GetCertificateWithMFA(*req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return cert, nil
 }
 
