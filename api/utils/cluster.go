@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 )
 
-
 // EncodeClusterName encodes cluster name in the SNI hostname
 func EncodeClusterName(clusterName string) string {
 	// hex is used to hide "." that will prevent wildcard *. entry to match

@@ -16,6 +16,8 @@ limitations under the License.
 
 package alpnproxy
 
+import "golang.org/x/crypto/acme"
+
 // Protocol is the TLS ALPN protocol type.
 type Protocol string
 
@@ -49,6 +51,7 @@ const (
 )
 
 var supportedProtocols = []Protocol{
+	acme.ALPNProto,
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
@@ -63,7 +66,7 @@ var supportedProtocols = []Protocol{
 func convProtocolsToString(protocols []Protocol) []string {
 	out := make([]string, 0, len(protocols))
 	for _, v := range protocols {
-		out  = append(out, string(v))
+		out = append(out, string(v))
 	}
 	return out
 }

@@ -82,8 +82,7 @@ func getClusterName(info alpnproxy.ConnectionInfo) (string, error) {
 	if !strings.HasPrefix(protocol, string(alpnproxy.ProtocolAuth)) {
 		return "", trace.BadParameter("auth routing prefix not found")
 	}
-
-	routeToCluster := strings.TrimLeft(protocol, string(alpnproxy.ProtocolAuth))
+	routeToCluster := strings.TrimPrefix(protocol, string(alpnproxy.ProtocolAuth))
 	cn, err := auth.DecodeClusterName(routeToCluster)
 	if err != nil {
 		return "", trace.Wrap(err)

@@ -219,6 +219,7 @@ func TestProxyHTTPConnection(t *testing.T) {
 
 	mustStartHTTPServer(t, lw)
 
+	suite.router = NewRouter()
 	suite.router.Add(HandlerDecs{
 		MatchFunc: MatchByProtocol(ProtocolHTTP2, ProtocolHTTP, ProtocolDefault),
 		Handler:   lw.HandleConnection,

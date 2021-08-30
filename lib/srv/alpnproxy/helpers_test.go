@@ -56,6 +56,13 @@ func NewSuite(t *testing.T) *Suite {
 	})
 
 	router := NewRouter()
+	router.Add(HandlerDecs{
+		MatchFunc: MatchByProtocol(ProtocolDefault),
+		Handler: func(ctx context.Context, conn net.Conn) error {
+			t.Errorf("default handler called")
+			return nil
+		},
+	})
 	return &Suite{
 		ca:             ca,
 		serverListener: l,

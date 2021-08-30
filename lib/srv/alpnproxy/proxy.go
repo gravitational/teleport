@@ -276,8 +276,6 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		ALPN: hello.SupportedProtos,
 	}
 
-	p.log.Infof("----> ROUTING SNI: %s, ALPN: %v", connInfo.SNI, connInfo.ALPN)
-
 	if handlerDesc.ForwardTLS {
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
 	}
