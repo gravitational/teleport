@@ -88,6 +88,11 @@ spec:
           name: "gcp-credentials"
           readOnly: true
   {{- end }}
+  {{- if .Values.highAvailability.certManager.enabled }}
+        - mountPath: /etc/teleport-tls
+          name: "teleport-tls"
+          readOnly: true
+  {{- end }}
         - mountPath: /etc/teleport
           name: "config"
           readOnly: true
@@ -131,6 +136,12 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to register
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
+{{- if .Values.postStart.command }}
+        lifecycle:
+          postStart:
+            exec:
+              command: {{ toYaml .Values.postStart.command | nindent 14 }}
+{{- end }}
 {{- if .Values.resources }}
         resources:
   {{- toYaml .Values.resources | nindent 10 }}
