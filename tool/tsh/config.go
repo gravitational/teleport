@@ -41,7 +41,7 @@ Host *.{{ .ClusterName }} {{ .ProxyHost }}
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
     Port 3022
-    ProxyCommand {{ .TSHPath }} config-proxy --proxy={{ .ProxyHost }}:{{ .ProxyPort }} %h:%p "{{ .ClusterName }}"
+    ProxyCommand {{ .TSHPath }} config-proxy --login="%r" --proxy={{ .ProxyHost }}:{{ .ProxyPort }} %h:%p "{{ .ClusterName }}"
 `
 
 type hostConfigParameters struct {
@@ -175,6 +175,10 @@ func onConfigProxy(cf *CLIConf) error {
 		proxyHost,
 		"-s",
 		fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, cf.SiteName),
+	}
+
+	if cf.NodeLogin != "" {
+		args = append([]string{"-l", cf.NodeLogin}, args...)
 	}
 
 	// NOTE: This should eventually make use of `tsh proxy ssh`.
