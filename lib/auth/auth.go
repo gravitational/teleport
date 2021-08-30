@@ -2569,7 +2569,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 		enableTOTP, enableU2F, enableWebauthn = true, true, true
 	case constants.SecondFactorOff: // All disabled.
 	default:
-		return nil, trace.Errorf("unexpected second_factor value: %s", apref.GetSecondFactor())
+		return nil, trace.BadParameter("unexpected second_factor value: %s", apref.GetSecondFactor())
 	}
 
 	// Read U2F configuration regardless, Webauthn uses it.
@@ -2587,7 +2587,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	if err != nil && enableWebauthn {
 		if apref.GetSecondFactor() == constants.SecondFactorWebauthn {
 			// Fail explicitly for second_factor:"webauthn".
-			return nil, trace.Errorf("second_factor set to %s, but webauthn config not present", constants.SecondFactorWebauthn)
+			return nil, trace.BadParameter("second_factor set to %s, but webauthn config not present", constants.SecondFactorWebauthn)
 		}
 		// Fail silently for other modes.
 		log.WithError(err).Warningf("WebAuthn: failed to fetch configuration, disabling WebAuthn challenges")

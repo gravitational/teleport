@@ -181,10 +181,10 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	dev, ok := findDeviceByID(devices, parsedResp.RawID)
 	switch {
 	case !ok:
-		return nil, trace.Errorf(
+		return nil, trace.BadParameter(
 			"unknown device credential: %q", base64.RawURLEncoding.EncodeToString(parsedResp.RawID))
 	case usingAppID && dev.GetU2F() == nil:
-		return nil, trace.Errorf(
+		return nil, trace.BadParameter(
 			"appid extension is true, but credential is not for an U2F device: %q", base64.RawURLEncoding.EncodeToString(parsedResp.RawID))
 	}
 
