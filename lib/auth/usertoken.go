@@ -162,7 +162,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 }
 
 func (s *Server) resetMFA(ctx context.Context, user string) error {
-	devs, err := s.GetMFADevices(ctx, user)
+	devs, err := s.Identity.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

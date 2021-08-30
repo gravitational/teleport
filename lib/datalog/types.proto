@@ -1,0 +1,24 @@
+syntax = "proto3";
+package datalog;
+
+// Facts represents a datalog database of predicates
+message Facts {
+    enum PredicateType {
+        HasRole = 0;
+        HasTrait = 1;
+        RoleAllowsLogin = 2;
+        RoleDeniesLogin = 3;
+        RoleAllowsNodeLabel = 4;
+        RoleDeniesNodeLabel = 5;
+        NodeHasLabel = 6;
+        // Outputs
+        HasAccess = 7;
+        DenyAccess = 8;
+        DenyLogins = 9;
+    }
+    message Predicate {
+        PredicateType name = 1;
+        repeated uint32 atoms = 2;
+    }
+    repeated Predicate predicates = 1;
+}

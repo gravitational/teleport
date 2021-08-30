@@ -1,0 +1,18 @@
+[package]
+name = "role_tester"
+version = "0.1.0"
+authors = ["Rui Li <rui@goteleport.com>"]
+edition = "2018"
+
+[lib]
+path = "src/role_tester.rs"
+crate-type = ["staticlib"]
+
+[dependencies]
+crepe = "0.1.5"
+libc = "0.2.0"
+prost = "0.8"
+bytes = "1"
+
+[build-dependencies]
+prost-build = "0.8"
