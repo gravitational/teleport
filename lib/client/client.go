@@ -713,6 +713,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
 	clt, err := auth.NewClient(client.Config{
 		Addrs: []string{proxy.teleportClient.WebProxyAddr},
 		Credentials: []client.Credentials{
