@@ -1137,6 +1137,25 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	return chal, nil
 }
 
+// GetMFADevices returns all mfa devices for the user defined in the token or the user defined in context.
+func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+	username, err := GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO lisa place token check for recovery
+
+	devs, err := a.Identity.GetMFADevices(ctx, username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.GetMFADevicesResponse{
+		Devices: devs,
+	}, nil
+}
+
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
 	// before trying to register a user, see U2F is actually setup on the backend
 	cap, err := a.GetAuthPreference(ctx)
@@ -2450,7 +2469,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 		}
 	}
 
-	devs, err := a.GetMFADevices(ctx, user)
+	devs, err := a.Identity.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2511,7 +2530,7 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 }
 
 func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
-	devs, err := a.GetMFADevices(ctx, user)
+	devs, err := a.Identity.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
