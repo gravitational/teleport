@@ -403,14 +403,14 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 
 // CACertPath returns path to the CA certificate for this profile.
 //
-// It's stored in ~/.tsh/keys/<proxy>/certs.pem by default.
+// It's stored in <profile-dir>/keys/<proxy>/certs.pem by default.
 func (p *ProfileStatus) CACertPath() string {
 	return keypaths.TLSCAsPath(p.Dir, p.Name)
 }
 
 // KeyPath returns path to the private key for this profile.
 //
-// It's kept in ~/.tsh/keys/<proxy>/<user>.
+// It's kept in <profile-dir>/keys/<proxy>/<user>.
 func (p *ProfileStatus) KeyPath() string {
 	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
 }
@@ -418,7 +418,7 @@ func (p *ProfileStatus) KeyPath() string {
 // DatabaseCertPath returns path to the specified database access certificate
 // for this profile.
 //
-// It's kept in ~/.tsh/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
+// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) DatabaseCertPath(name string) string {
 	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
@@ -426,10 +426,17 @@ func (p *ProfileStatus) DatabaseCertPath(name string) string {
 // AppCertPath returns path to the specified app access certificate
 // for this profile.
 //
-// It's kept in ~/.tsh/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) AppCertPath(name string) string {
 	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 
+}
+
+// KubeConfigPath returns path to the specified kubeconfig for this profile.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-kube/<cluster>/<name>-kubeconfig
+func (p *ProfileStatus) KubeConfigPath(name string) string {
+	return keypaths.KubeConfigPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
 // DatabaseServices returns a list of database service names for this profile.
