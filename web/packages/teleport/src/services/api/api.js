@@ -123,4 +123,8 @@ export function getAccessToken() {
   return bearerToken.accessToken;
 }
 
+export function getHostName() {
+  return location.hostname + (location.port ? ':' + location.port : '');
+}
+
 export default api;

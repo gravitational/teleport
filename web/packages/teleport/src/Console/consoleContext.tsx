@@ -19,7 +19,7 @@ import Logger from 'shared/libs/logger';
 import session from 'teleport/services/session';
 import history from 'teleport/services/history';
 import cfg, { UrlSshParams } from 'teleport/config';
-import { getAccessToken } from 'teleport/services/api';
+import { getAccessToken, getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
 import serviceSsh, { Session, ParticipantList } from 'teleport/services/ssh';
@@ -210,8 +210,4 @@ export default class ConsoleContext {
     const next = this.removeDocument(doc.id);
     this.gotoTab(next);
   }
-}
-
-function getHostName() {
-  return location.hostname + (location.port ? ':' + location.port : '');
 }
