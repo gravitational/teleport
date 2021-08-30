@@ -74,8 +74,10 @@ type Router struct {
 	mtx                sync.Mutex
 }
 
+// MatchFunc is a type of the match route functions.
 type MatchFunc func(sni string, alpn string) bool
 
+// MatchByProtocol creates match function based on client TLS ALPN protocol.
 func MatchByProtocol(protocols ...Protocol) MatchFunc {
 	m := make(map[Protocol]struct{})
 	for _, v := range protocols {
@@ -87,6 +89,7 @@ func MatchByProtocol(protocols ...Protocol) MatchFunc {
 	}
 }
 
+// MatchByALPNPrefix creates match function based on client TLS ALPN protocol prefix.
 func MatchByALPNPrefix(prefix string) MatchFunc {
 	return func(sni string, alpn string) bool {
 		return strings.HasPrefix(alpn, prefix)
@@ -140,7 +143,9 @@ type HandlerDecs struct {
 	// ForwardTLS tells is ALPN proxy service should terminate TLS traffic or delegate the
 	// TLS termination to the protocol handler (Used in Kube handler case)
 	ForwardTLS bool
-
+	// MatchFunc is a routing route match function based on ALPN SNI TLS values.
+	// If is evaluated to true the current HandleDesc will be used
+	// for connection handling.
 	MatchFunc MatchFunc
 }
 
@@ -162,10 +167,10 @@ func (h *HandlerDecs) handle(ctx context.Context, conn net.Conn, info Connection
 }
 
 // HandlerFunc is a common function signature used to handle downstream with
-// with particular ALPN protocol.
+// particular ALPN protocol.
 type HandlerFunc func(ctx context.Context, conn net.Conn) error
 
-// Proxy server allows to route downstream connections based on
+// Proxy server allows routing downstream connections based on
 // TLS SNI ALPN values to particular service.
 type Proxy struct {
 	cfg                ProxyConfig
