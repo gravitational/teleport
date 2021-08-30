@@ -326,7 +326,7 @@ Function | Description
 `email.local(variable)` | Extracts the local part of an email field, like `Alice <alice@example.com>` or `bob@example.com`.
 `regexp.replace(variable, expression, replacement)` | Finds all matches of `expression` and replaces them with `replacement`. This supports expansion, e.g. `regexp.replace(external.email, "^(.*)@example.com$", "$1")`. Values which do not match the expression will be filtered out.
 
-## Pattern matching in Access & Review Requests
+## Templating in Access Requests
 
 Access and Reviewer Request specifications do not use the same interpolation 
 system as logins, labels etc. Instead, you can use the `claims_to_roles` clause 
@@ -342,7 +342,7 @@ metadata:
 spec:
   allow:
     request:
-      # `roles` is a static list of roles a user with the `peodyct-admin` role may 
+      # `roles` is a static list of roles a user with the `product-admin` role may 
       # request temporary access to
       roles: [access]  
 
