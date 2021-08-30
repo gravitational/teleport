@@ -146,7 +146,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 	// to distinguish between HTTP2/JSON or GPRC.
 	tls.NextProtos = []string{teleport.HTTPNextProtoTLS}
 	// Configure ALPN SNI direct dial TLS routing information used by ALPN SNI proxy in order to
-	// dial auth service without using of SSH tunnels.
+	// dial auth service without using SSH tunnels.
 	tls = client.ConfigureALPNSNITLSRoutingSettings(tls, cfg.ALPNSNIAuthDialClusterName)
 
 	transport := &http.Transport{
