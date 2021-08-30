@@ -62,4 +62,4 @@ ssh.config
 *.retry
 
 # Code signing certificate for Windows binaries
-windows-signing-cert.pfx
+/windows-signing-cert.pfx
