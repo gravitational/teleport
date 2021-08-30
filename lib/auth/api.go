@@ -169,6 +169,9 @@ type ReadAccessPoint interface {
 	// GetWindowsDesktops returns windows desktop hosts.
 	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
 
+	// GetWindowsDesktop returns a named windows desktop host.
+	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+
 	// GetWindowsDesktops returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
 }
