@@ -305,6 +305,9 @@
     "mongodb": {
       "min_version": "3.6"
     },
+    "mysql": {
+      "dbeaver_min_ver": "8.0.3"
+    },
     "teleport": {
       "version": "7.0.0",
       "golang": "1.16",

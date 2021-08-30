@@ -63,7 +63,11 @@ In the "SSL" tab, set "SSL Mode" to `Verify-Full`:
 Click "Save", and pgAdmin should immediately connect.
 
 <Admonition type="note">
-  In order to use a service profile on a Windows client you will first have to export a PG Service File environmental variable in the terminal with `setx PGSERVICEFILE <path_to_.pg_service.conf_file>` and then restart the pgAdmin client. The `.pg_service.conf` file will be created in the user's home directory after a user logs into a database via `tsh db login <dbname>`.
+  On a Windows client, use terminal to export a PG Service File env variable:
+
+ `$ setx PGSERVICEFILE <path_to_.pg_service.conf_file>`
+
+  Restart the pgAdmin client.
 </Admonition>
 
 ## MySQL Workbench
@@ -113,15 +117,15 @@ Click on the "Connect" button.
 
 ## DBeaver
 
-[DBeaver](https://dbeaver.io/) is a SQL client software application and database administration tool.
+DBeaver is a SQL client software application and database administration tool.
 
 ### MySQL 
 
 <Admonition type="note">
-  Teleport's DBeaver MySQL integration only supports MySQL server 8.0.2 or older due to changes made in required handshake parameters starting with MySQL 8.0.3 and above.
+  Teleport's DBeaver MySQL integration only supports MySQL server (=mysql.dbeaver_min_ver=) or older.
 </Admonition>
 
-To configure a new connection to a MySQL database, right-click in the "Database Navigator" menu in the main view and select Create > Connection:
+Right-click in the "Database Navigator" menu in the main view and select Create > Connection:
 
 ![DBeaver Add Server](../../../img/database-access/dbeaver-add-server.png)
 
