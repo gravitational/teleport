@@ -2780,8 +2780,8 @@ func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 	t.Fatalf("Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
 }
 
-// // waitForProxyCount waits a set time for the proxy count in clusterName to
-// // reach some value.
+// waitForProxyCount waits a set time for the proxy count in clusterName to
+// reach some value.
 func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 	var counts map[string]int
 	start := time.Now()

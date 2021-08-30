@@ -147,6 +147,7 @@ func (c *Client) readClientUsername() error {
 			c.cfg.Log.Debugf("Expected ClientUsername message, got %T", msg)
 			continue
 		}
+		c.cfg.Log.Debugf("Got RDP username %q", u.Username)
 		c.username = u.Username
 		return nil
 	}
@@ -163,6 +164,7 @@ func (c *Client) readClientSize() error {
 			c.cfg.Log.Debugf("Expected ClientScreenSpec message, got %T", msg)
 			continue
 		}
+		c.cfg.Log.Debugf("Got RDP screen size %dx%d", s.Width, s.Height)
 		c.clientWidth = uint16(s.Width)
 		c.clientHeight = uint16(s.Height)
 		return nil

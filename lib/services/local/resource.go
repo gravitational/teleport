@@ -423,7 +423,7 @@ func userFromUserItems(name string, items userItems) (types.User, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if items.Len() < 2 {
+	if !items.hasLocalAuthItems() {
 		return user, nil
 	}
 	auth, err := itemToLocalAuthSecrets(items)
@@ -445,6 +445,14 @@ func itemToLocalAuthSecrets(items userItems) (*types.LocalAuthSecrets, error) {
 			return nil, trace.Wrap(err)
 		}
 		auth.MFA = append(auth.MFA, &d)
+	}
+	if items.webauthnLocalAuth != nil {
+		wal := &types.WebauthnLocalAuth{}
+		err := json.Unmarshal(items.webauthnLocalAuth.Value, wal)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		auth.Webauthn = wal
 	}
 
 	// DELETE IN 7.0: these items are migrated to items.mfa on 6.0 first
@@ -568,9 +576,10 @@ func collectUserItems(items []backend.Item) (users map[string]userItems, rem []b
 
 // userItems is a collector for item types related to a single user resource.
 type userItems struct {
-	params *backend.Item
-	pwd    *backend.Item
-	mfa    []*backend.Item
+	params            *backend.Item
+	pwd               *backend.Item
+	mfa               []*backend.Item
+	webauthnLocalAuth *backend.Item
 
 	// Deprecated fields, only used for migration on auth server startup.
 	totp            *backend.Item
@@ -585,6 +594,8 @@ func (u *userItems) Set(suffix string, item backend.Item) (ok bool) {
 		u.params = &item
 	case pwdPrefix:
 		u.pwd = &item
+	case webauthnLocalAuthPrefix:
+		u.webauthnLocalAuth = &item
 
 	// DELETE IN 7.0: these items are migrated to mfaDevicePrefix on 6.0 first
 	// startup.
@@ -608,20 +619,12 @@ func (u *userItems) Set(suffix string, item backend.Item) (ok bool) {
 	return true
 }
 
-func (u *userItems) Len() int {
-	var l int
-	if u.params != nil {
-		l++
-	}
-	if u.pwd != nil {
-		l++
-	}
-	l += len(u.mfa)
-	return l
-}
-
 // complete checks whether userItems is complete enough to be parsed by
 // userFromUserItems.
 func (u *userItems) complete() bool {
 	return u.params != nil
+}
+
+func (u *userItems) hasLocalAuthItems() bool {
+	return u.pwd != nil || u.webauthnLocalAuth != nil || len(u.mfa) > 0
 }
