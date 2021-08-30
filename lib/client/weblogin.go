@@ -149,6 +149,8 @@ type AuthenticateWebUserRequest struct {
 	User string `json:"user"`
 	// U2FSignResponse is the signature from the U2F device.
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response,omitempty"`
+	// WebauthnChallengeResponse is a signed WebAuthn credential assertion.
+	WebauthnChallengeResponse *wanlib.CredentialAssertionResponse `json:"webauthn_challenge_response,omitempty"`
 }
 
 // SSHLogin contains common SSH login parameters.

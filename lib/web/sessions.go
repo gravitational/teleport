@@ -558,13 +558,19 @@ func (s *sessionCache) GetMFAAuthenticateChallenge(user, pass string) (*auth.MFA
 	return s.proxyClient.GetMFAAuthenticateChallenge(user, []byte(pass))
 }
 
-func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.AuthenticateChallengeResponse) (types.WebSession, error) {
-	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
-		Username: user,
-		U2F: &auth.U2FSignResponseCreds{
-			SignResponse: *response,
-		},
-	})
+func (s *sessionCache) AuthenticateWebUser(req *client.AuthenticateWebUserRequest) (types.WebSession, error) {
+	authReq := auth.AuthenticateUserRequest{
+		Username: req.User,
+	}
+	if req.U2FSignResponse != nil {
+		authReq.U2F = &auth.U2FSignResponseCreds{
+			SignResponse: *req.U2FSignResponse,
+		}
+	}
+	if req.WebauthnChallengeResponse != nil {
+		authReq.Webauthn = req.WebauthnChallengeResponse
+	}
+	return s.proxyClient.AuthenticateWebUser(authReq)
 }
 
 // GetCertificateWithoutOTP returns a new user certificate for the specified request.

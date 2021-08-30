@@ -342,12 +342,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
 	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.u2fChangePasswordRequest))
 	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.mfaLoginBegin))
-	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
+	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.mfaLoginFinishSession))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.mfaLoginFinish))
 
 	// MFA related endpoints
 	h.POST("/webapi/mfa/login/begin", httplib.MakeHandler(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
+	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
 	h.GET("/webapi/mfa", h.WithAuth(h.getMFADevicesHandle))
 
 	// trusted clusters
@@ -1575,7 +1576,7 @@ func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p h
 }
 
 // mfaLoginBegin is the first step in the MFA authentication ceremony, which
-// may be completed either via mfaLoginFinish (SSH) or mfaLoginSession (Web).
+// may be completed either via mfaLoginFinish (SSH) or mfaLoginFinishSession (Web).
 //
 // POST /webapi/u2f/signrequest (deprecated)
 // POST /webapi/mfa/login/begin
@@ -1622,30 +1623,31 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	return cert, nil
 }
 
-// createSessionWithU2FSignResponse is called to sign in with a U2F signature
+// mfaLoginFinishSession completes the MFA login ceremony, returning a new web
+// session if successful.
 //
-// POST /webapi/u2f/session
+// POST /webapi/u2f/session (deprecated)
+// POST /webapi/mfa/login/finishsession
 //
-// {"user": "alex", "u2f_sign_response": { "signatureData": "signatureinbase64", "clientData": "verylongbase64string", "challenge": "randombase64string" }}
+// {"user": "alex", "webauthn_challenge_response": {...}}
 //
 // Successful response:
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
-//
-func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *client.AuthenticateWebUserRequest
+func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	req := &client.AuthenticateWebUserRequest{}
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := h.auth.AuthWithU2FSignResponse(req.User, req.U2FSignResponse)
+	session, err := h.auth.AuthenticateWebUser(req)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
-	if err := SetSessionCookie(w, req.User, sess.GetName()); err != nil {
+	if err := SetSessionCookie(w, req.User, session.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, err := h.auth.newSessionContext(req.User, sess.GetName())
+	ctx, err := h.auth.newSessionContext(req.User, session.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}

@@ -199,6 +199,54 @@ func TestWebauthnLogin_ssh_u2fDevice(t *testing.T) {
 	require.NotEmpty(t, loginResp.HostSigners)
 }
 
+func TestWebauthnLogin_web_u2fDevice(t *testing.T) {
+	env := newWebPack(t, 1)
+	clusterMFA := configureClusterForMFA(t, env, &types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		U2F: &types.U2F{
+			AppID:  "https://" + env.server.TLS.ClusterName(),
+			Facets: []string{"https://" + env.server.TLS.ClusterName()},
+		},
+		// Use default Webauthn configuration.
+	})
+	user := clusterMFA.User
+	password := clusterMFA.Password
+	device := clusterMFA.Device
+
+	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
+	require.NoError(t, err)
+
+	// 1st login step: request challenge.
+	ctx := context.Background()
+	beginResp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), &client.MFAChallengeRequest{
+		User: user,
+		Pass: password,
+	})
+	require.NoError(t, err)
+	authChallenge := &auth.MFAAuthenticateChallenge{}
+	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
+	require.NotNil(t, authChallenge.WebauthnChallenge)
+
+	// Sign Webauthn challenge (requires user interaction in real-world
+	// scenarios).
+	assertionResp, err := device.SignAssertion("https://"+env.server.TLS.ClusterName(), authChallenge.WebauthnChallenge)
+	require.NoError(t, err)
+
+	// 2nd login step: reply with signed challenged.
+	sessionResp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), &client.AuthenticateWebUserRequest{
+		User:                      user,
+		WebauthnChallengeResponse: assertionResp,
+	})
+	require.NoError(t, err)
+	createSessionResp := &CreateSessionResponse{}
+	require.NoError(t, json.Unmarshal(sessionResp.Bytes(), createSessionResp))
+	require.NotEmpty(t, createSessionResp.TokenType)
+	require.NotEmpty(t, createSessionResp.Token)
+	require.NotEmpty(t, createSessionResp.TokenExpiresIn)
+	require.NotEmpty(t, createSessionResp.SessionExpires.Unix())
+}
+
 type configureMFAResp struct {
 	User, Password string
 	Device         *mocku2f.Key
