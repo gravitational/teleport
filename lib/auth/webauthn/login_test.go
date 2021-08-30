@@ -61,7 +61,7 @@ func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
 	}
 
 	u2fConfig := types.U2F{AppID: "https://example.com:3080"}
-	webConfig := wanlib.Config{RPID: "example.com"}
+	webConfig := types.Webauthn{RPID: "example.com"}
 	webLogin := wanlib.LoginFlow{
 		U2F:      &u2fConfig,
 		Webauthn: &webConfig,
@@ -78,7 +78,18 @@ func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
 	require.Equal(t, webConfig.RPID, assertion.Response.RelyingPartyID)
 	require.Equal(t, u2fConfig.AppID, assertion.Response.Extensions["appid"])
 	// Did we record the SessionData in storage?
-	require.NotEmpty(t, identity.SessionData)
+	require.Len(t, identity.SessionData, 1)
+	// Retrieve session data without guessing the "sessionID" component of the
+	// key.
+	var sd *wantypes.SessionData
+	for _, v := range identity.SessionData {
+		sd = v
+		break
+	}
+	// Did we create a new web user ID? Was it used?
+	webID := identity.User.GetLocalAuth().Webauthn.UserID
+	require.NotEmpty(t, webID)
+	require.Equal(t, webID, sd.UserId)
 
 	// User interaction would happen here.
 	assertionResp, err := dev.SignAssertion("https://example.com:3080" /* origin */, assertion)
@@ -131,11 +142,7 @@ type fakeIdentity struct {
 	SessionData    map[string]*wantypes.SessionData
 }
 
-func (f *fakeIdentity) GetUser(user string, withSecrets bool) (types.User, error) {
-	return f.User, nil
-}
-
-func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error) {
+func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	return f.User.GetLocalAuth().MFA, nil
 }
 
@@ -144,12 +151,25 @@ func (f *fakeIdentity) UpsertMFADevice(ctx context.Context, user string, d *type
 	return nil
 }
 
-func (f *fakeIdentity) UpsertWebAuthnSessionData(user, sessionID string, sd *wantypes.SessionData) error {
+func (f *fakeIdentity) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
+	f.User.GetLocalAuth().Webauthn = wla
+	return nil
+}
+
+func (f *fakeIdentity) GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
+	wla := f.User.GetLocalAuth().Webauthn
+	if wla == nil {
+		return nil, trace.NotFound("not found")
+	}
+	return wla, nil
+}
+
+func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
 	f.SessionData[sessionDataKey(user, sessionID)] = sd
 	return nil
 }
 
-func (f *fakeIdentity) GetWebAuthnSessionData(user, sessionID string) (*wantypes.SessionData, error) {
+func (f *fakeIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
 	sd, ok := f.SessionData[sessionDataKey(user, sessionID)]
 	if !ok {
 		return nil, trace.NotFound("not found")
@@ -157,7 +177,7 @@ func (f *fakeIdentity) GetWebAuthnSessionData(user, sessionID string) (*wantypes
 	return sd, nil
 }
 
-func (f *fakeIdentity) DeleteWebAuthnSessionData(user, sessionID string) error {
+func (f *fakeIdentity) DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error {
 	delete(f.SessionData, sessionDataKey(user, sessionID))
 	return nil
 }
