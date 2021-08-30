@@ -507,3 +507,7 @@ func (u *UnimplementedAuthServiceServer) GetAuthPreference(context.Context, *emp
 func (u *UnimplementedAuthServiceServer) SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetAuthPreference not implemented")
 }
+
+func (u *UnimplementedAuthServiceServer) StreamSessionEvents(*StreamSessionEventsRequest, AuthService_StreamSessionEventsServer) error {
+	return status.Errorf(codes.Unimplemented, "method StreamSessionEvents not implemented")
+}
