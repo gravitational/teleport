@@ -32,17 +32,22 @@ import (
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 
+func newIdentityService(t *testing.T) (*local.IdentityService, clockwork.Clock) {
+	t.Helper()
+	clock := clockwork.NewFakeClock()
+	backend, err := lite.NewWithConfig(context.Background(), lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
+	})
+	require.NoError(t, err)
+	return local.NewIdentityService(backend), clock
+}
+
 func TestRecoveryCodesCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
-	})
-	require.NoError(t, err)
-
-	service := local.NewIdentityService(backend)
+	identity, clock := newIdentityService(t)
 
 	// Create a recovery codes resource.
 	mockedCodes := []types.RecoveryCode{
@@ -55,15 +60,15 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		t.Parallel()
 		username := "someuser"
 
-		rc1, err := types.NewRecoveryCodes(mockedCodes, backend.Clock().Now(), username)
+		rc1, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username)
 		require.NoError(t, err)
 
 		// Test creation of codes.
-		err = service.UpsertRecoveryCodes(ctx, username, rc1)
+		err = identity.UpsertRecoveryCodes(ctx, username, rc1)
 		require.NoError(t, err)
 
 		// Test fetching of codes.
-		codes, err := service.GetRecoveryCodes(ctx, username)
+		codes, err := identity.GetRecoveryCodes(ctx, username)
 		require.NoError(t, err)
 		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
 
@@ -73,15 +78,15 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 			{HashedCode: []byte("new-code2")},
 			{HashedCode: []byte("new-code3")},
 		}
-		rc2, err := types.NewRecoveryCodes(newMockedCodes, backend.Clock().Now(), username)
+		rc2, err := types.NewRecoveryCodes(newMockedCodes, clock.Now(), username)
 		require.NoError(t, err)
 
 		// Test update of codes for same user.
-		err = service.UpsertRecoveryCodes(ctx, username, rc2)
+		err = identity.UpsertRecoveryCodes(ctx, username, rc2)
 		require.NoError(t, err)
 
 		// Test codes have been updated for same user.
-		codes, err = service.GetRecoveryCodes(ctx, username)
+		codes, err = identity.GetRecoveryCodes(ctx, username)
 		require.NoError(t, err)
 		require.ElementsMatch(t, newMockedCodes, codes.GetCodes())
 	})
@@ -93,22 +98,22 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		// Create a user.
 		userResource := &types.UserV2{}
 		userResource.SetName(username)
-		err := service.CreateUser(userResource)
+		err := identity.CreateUser(userResource)
 		require.NoError(t, err)
 
 		// Test codes exist for user.
-		rc1, err := types.NewRecoveryCodes(mockedCodes, backend.Clock().Now(), username)
+		rc1, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username)
 		require.NoError(t, err)
-		err = service.UpsertRecoveryCodes(ctx, username, rc1)
+		err = identity.UpsertRecoveryCodes(ctx, username, rc1)
 		require.NoError(t, err)
-		codes, err := service.GetRecoveryCodes(ctx, username)
+		codes, err := identity.GetRecoveryCodes(ctx, username)
 		require.NoError(t, err)
 		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
 
 		// Test deletion of recovery code along with user.
-		err = service.DeleteUser(ctx, username)
+		err = identity.DeleteUser(ctx, username)
 		require.NoError(t, err)
-		_, err = service.GetRecoveryCodes(ctx, username)
+		_, err = identity.GetRecoveryCodes(ctx, username)
 		require.True(t, trace.IsNotFound(err))
 	})
 }
@@ -116,34 +121,27 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 func TestRecoveryAttemptsCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
-	})
-	require.NoError(t, err)
-
-	service := local.NewIdentityService(backend)
+	identity, clock := newIdentityService(t)
 
 	// Predefine times for equality check.
-	time1 := backend.Clock().Now()
-	time2 := backend.Clock().Now().Add(2 * time.Minute)
-	time3 := backend.Clock().Now().Add(4 * time.Minute)
+	time1 := clock.Now()
+	time2 := time1.Add(2 * time.Minute)
+	time3 := time1.Add(4 * time.Minute)
 
 	t.Run("create, get, and delete recovery attempts", func(t *testing.T) {
 		t.Parallel()
 		username := "someuser"
 
 		// Test creation of recovery attempt.
-		err := service.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
+		err := identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
 		require.NoError(t, err)
-		err = service.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time1, Expires: time3})
+		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time1, Expires: time3})
 		require.NoError(t, err)
-		err = service.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time2, Expires: time3})
+		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time2, Expires: time3})
 		require.NoError(t, err)
 
 		// Test retrieving attempts sorted by oldest to latest.
-		attempts, err := service.GetUserRecoveryAttempts(ctx, username)
+		attempts, err := identity.GetUserRecoveryAttempts(ctx, username)
 		require.NoError(t, err)
 		require.Len(t, attempts, 3)
 		require.Equal(t, time1, attempts[0].Time)
@@ -151,9 +149,9 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		require.Equal(t, time3, attempts[2].Time)
 
 		// Test delete all recovery attempts.
-		err = service.DeleteUserRecoveryAttempts(ctx, username)
+		err = identity.DeleteUserRecoveryAttempts(ctx, username)
 		require.NoError(t, err)
-		attempts, err = service.GetUserRecoveryAttempts(ctx, username)
+		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
 		require.NoError(t, err)
 		require.Len(t, attempts, 0)
 	})
@@ -165,36 +163,26 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		// Create a user, to test deletion of recovery attempts with user.
 		userResource := &types.UserV2{}
 		userResource.SetName(username)
-		err := service.CreateUser(userResource)
+		err := identity.CreateUser(userResource)
 		require.NoError(t, err)
 
-		err = service.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
+		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
 		require.NoError(t, err)
-		attempts, err := service.GetUserRecoveryAttempts(ctx, username)
+		attempts, err := identity.GetUserRecoveryAttempts(ctx, username)
 		require.NoError(t, err)
 		require.Len(t, attempts, 1)
 
-		err = service.DeleteUser(ctx, username)
+		err = identity.DeleteUser(ctx, username)
 		require.NoError(t, err)
-		attempts, err = service.GetUserRecoveryAttempts(ctx, username)
+		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
 		require.NoError(t, err)
 		require.Len(t, attempts, 0)
 	})
 }
 
-func newIdentityService(t *testing.T) *local.IdentityService {
-	t.Helper()
-	backend, err := lite.NewWithConfig(context.Background(), lite.Config{
-		Path:             t.TempDir(),
-		PollStreamPeriod: 200 * time.Millisecond,
-		Clock:            clockwork.NewFakeClock(),
-	})
-	require.NoError(t, err)
-	return local.NewIdentityService(backend)
-}
-
 func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
-	identity := newIdentityService(t)
+	t.Parallel()
+	identity, _ := newIdentityService(t)
 
 	updateViaUser := func(ctx context.Context, user string, wal *types.WebauthnLocalAuth) error {
 		u, err := types.NewUser(user)
@@ -294,7 +282,8 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 }
 
 func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
-	identity := newIdentityService(t)
+	t.Parallel()
+	identity, _ := newIdentityService(t)
 
 	const user1 = "llama"
 	const user2 = "alpaca"
