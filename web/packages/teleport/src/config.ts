@@ -407,4 +407,11 @@ export interface UrlPlayerParams {
   sid: string;
 }
 
+// /web/cluster/:clusterId/desktops/:desktopUUID/:username
+export interface UrlDesktopParams {
+  username?: string;
+  desktopUUID?: string;
+  clusterId: string;
+}
+
 export default cfg;
