@@ -1928,3 +1928,9 @@ func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	res, err := c.grpc.ChangeUserAuthentication(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
+
+// StartAccountRecovery is implemented by AuthService.StartAccountRecovery
+func (c *Client) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
+	res, err := c.grpc.StartAccountRecovery(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
