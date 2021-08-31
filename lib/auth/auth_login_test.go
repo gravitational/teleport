@@ -18,16 +18,22 @@ import (
 	"context"
 	"encoding/base64"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 	"github.com/tstranex/u2f"
+
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
+
+// TODO(codingllama): Consider moving existing login-related methods here.
 
 func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 	t.Parallel()
@@ -200,7 +206,17 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 	}
 }
 
-func TestServer_AuthenticateUser_WebauthnWithU2F(t *testing.T) {
+// sshPubKey is a randomly-generated public key used for login tests.
+//
+// The corresponding private key is:
+// -----BEGIN PRIVATE KEY-----
+// MHcCAQEEIAKuZeB4WL4KAl5cnCrMYBy3kAX9qHt/g6OAbGGd7f3VoAoGCCqGSM49
+// AwEHoUQDQgAEa/6A3YLbc/TyJ4lED2BT8iThuw6HcrDX3dRixwkPDjWYBOP4qrJ/
+// jlGaPwXyuzeLuZgpFde7UiM1EHM2ClfGpw==
+// -----END PRIVATE KEY-----
+const sshPubKey = `ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGv+gN2C23P08ieJRA9gU/Ik4bsOh3Kw193UYscJDw41mATj+Kqyf45Rmj8F8rs3i7mYKRXXu1IjNRBzNgpXxqc=`
+
+func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 	t.Parallel()
 
 	svr := newTestTLSServer(t)
@@ -208,23 +224,95 @@ func TestServer_AuthenticateUser_WebauthnWithU2F(t *testing.T) {
 	mfa := configureForMFA(t, svr)
 	username := mfa.User
 	password := mfa.Password
-	dev := mfa.Device1
+	fakeClock, ok := svr.Clock().(clockwork.FakeClock)
+	require.True(t, ok, "Expected clock to be a FakeClock instance")
 
-	// 1st step: acquire challenge
-	challenge, err := authServer.GetMFAAuthenticateChallenge(username, []byte(password))
-	require.NoError(t, err)
-	require.NotEmpty(t, challenge.WebauthnChallenge)
+	solveOTP := func(secret string, clock clockwork.FakeClock) func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
+		return func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
+			clock.Advance(1 * time.Minute)
+			code, err := totp.GenerateCode(secret, clock.Now())
+			if err != nil {
+				return nil, err
+			}
+			return &OTPCreds{Password: []byte(password), Token: code}, nil
+		}
+	}
+	solveU2F := func(dev *mocku2f.Key) func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
+		return func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
+			kh := base64.RawURLEncoding.EncodeToString(dev.KeyHandle)
+			for _, c := range challenge.U2FChallenges {
+				if c.KeyHandle == kh {
+					return dev.SignResponse(&u2f.SignRequest{
+						Version:   c.Version,
+						Challenge: c.Challenge,
+						KeyHandle: c.KeyHandle,
+						AppID:     c.AppID,
+					})
+				}
+			}
+			return nil, trace.BadParameter("key handle not found on challenges")
+		}
+	}
+	solveWebauthn := func(dev *mocku2f.Key) func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
+		return func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
+			return dev.SignAssertion("https://localhost" /* origin */, challenge.WebauthnChallenge)
+		}
+	}
 
-	// Sign challenge (client-side)
-	const origin = "https://localhost"
-	assertionResp, err := dev.SignAssertion(origin, challenge.WebauthnChallenge)
-	require.NoError(t, err)
+	tests := []struct {
+		name           string
+		solveChallenge func(*MFAAuthenticateChallenge) (interface{}, error)
+	}{
+		{name: "OK TOTP device", solveChallenge: solveOTP(mfa.OTPKey, fakeClock)},
+		{name: "OK U2F device1", solveChallenge: solveU2F(mfa.Device1)},
+		{name: "OK U2F device2", solveChallenge: solveU2F(mfa.Device2)},
+		{name: "OK Webauthn-compatU2F device1", solveChallenge: solveWebauthn(mfa.Device1)},
+		{name: "OK Webauthn-compatU2F device2", solveChallenge: solveWebauthn(mfa.Device2)},
+	}
+	for _, test := range tests {
+		test := test
+		// makeRun is used to test both SSH and Web login by switching the
+		// authenticate function.
+		makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
+			return func(t *testing.T) {
+				// 1st step: acquire challenge
+				challenge, err := authServer.GetMFAAuthenticateChallenge(username, []byte(password))
+				require.NoError(t, err)
 
-	// 2nd step: finish login
-	require.NoError(t, authServer.AuthenticateUser(AuthenticateUserRequest{
-		Username: username,
-		Webauthn: assertionResp,
-	}))
+				// Solve challenge (client-side)
+				resp, err := test.solveChallenge(challenge)
+				authReq := AuthenticateUserRequest{
+					Username: username,
+				}
+				require.NoError(t, err)
+				switch resp := resp.(type) {
+				case *OTPCreds:
+					authReq.OTP = resp
+				case *u2f.SignResponse:
+					authReq.U2F = &U2FSignResponseCreds{SignResponse: *resp}
+				case *wanlib.CredentialAssertionResponse:
+					authReq.Webauthn = resp
+				default:
+					t.Fatalf("Unexpected solved challenge type: %T", resp)
+				}
+
+				// 2nd step: finish login - either SSH or Web
+				require.NoError(t, authenticate(authServer, authReq))
+			}
+		}
+		t.Run(test.name+"/ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+			_, err := s.AuthenticateSSHUser(AuthenticateSSHRequest{
+				AuthenticateUserRequest: req,
+				PublicKey:               []byte(sshPubKey),
+				TTL:                     24 * time.Hour,
+			})
+			return err
+		}))
+		t.Run(test.name+"/web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+			_, err := s.AuthenticateWebUser(req)
+			return err
+		}))
+	}
 }
 
 type configureMFAResp struct {
