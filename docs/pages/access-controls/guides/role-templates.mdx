@@ -36,7 +36,7 @@ We can create two roles, one for each user in file `roles.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: alice
 spec:
@@ -49,7 +49,7 @@ spec:
       '*': '*'
 ---
 kind: role
-version: v3
+version: v4
 metadata:
   name: bob
 spec:
@@ -78,7 +78,7 @@ Let's create a role template `devs.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: devs
 spec:
@@ -173,7 +173,7 @@ to be set by identity provider. Save this role as `sso-users.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: sso-users
 spec:
@@ -255,7 +255,7 @@ Let's see how these variables are used with role template `interpolation`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: interpolation
 spec:
@@ -288,7 +288,7 @@ behave as the following role:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: interpolation
 spec:
