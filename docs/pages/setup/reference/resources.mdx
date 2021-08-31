@@ -254,8 +254,9 @@ spec:
       'cluster_name': '^us.*\.example\.com$'
 
     # Functions transform variables.
-    database_users: ['{{email.local(external.email)}}']
-    database_labels:
+    db_users: ['{{email.local(external.email)}}']
+    db_names: ['{{external.db_names}}']
+    db_labels:
       'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
 
     # app_labels: a user with this role will be allowed to connect to
