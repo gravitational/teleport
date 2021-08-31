@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/moby/term"
-	"github.com/siddontang/go-log/log"
 )
 
 // initTerminal configures the terminal for raw, VT compatible output and

@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/moby/term"
-	"github.com/siddontang/go-log/log"
 )
 
 // Terminal is used to configure raw input and output modes for an attached

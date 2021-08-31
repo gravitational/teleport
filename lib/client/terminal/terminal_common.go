@@ -1,6 +1,16 @@
 package terminal
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+)
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentClient,
+})
 
 // ResizeEvent is emitted when a terminal window is resized.
 type ResizeEvent struct{}
