@@ -156,14 +156,11 @@ Save this role as `member.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: member
 spec:
   allow:
-    # This field is used for SSH logins. You have to keep 'logins' as a non-empty random value
-    # for Kubernetes to work until we fix it.
-    logins: ['keep-this-value-here']
     kubernetes_groups: ["system:masters"]
 ```
 
