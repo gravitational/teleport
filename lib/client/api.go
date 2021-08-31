@@ -1533,21 +1533,6 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		stream = append(stream, tmp...)
 	}
 
-	term, err := terminal.New(nil, nil, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	defer term.Close()
-
-	// configure terminal for direct unbuffered echo-less input:
-	if term.IsAttached() {
-		err := term.InitInteractive(false)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	return playSession(sessionEvents, stream)
 }
 
@@ -1572,21 +1557,6 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	stream, err = w.SessionChunks()
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	term, err := terminal.New(nil, nil, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	defer term.Close()
-
-	// configure terminal for direct unbuffered echo-less input:
-	if term.IsAttached() {
-		err := term.InitInteractive(false)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	return playSession(sessionEvents, stream)
@@ -3116,8 +3086,23 @@ func isFIPS() bool {
 
 // playSession plays session in the terminal
 func playSession(sessionEvents []events.EventFields, stream []byte) error {
+	term, err := terminal.New(nil, nil, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer term.Close()
+
+	// configure terminal for direct unbuffered echo-less input:
+	if term.IsAttached() {
+		err := term.InitInteractive(true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	var errorCh = make(chan error)
-	player := newSessionPlayer(sessionEvents, stream)
+	player := newSessionPlayer(sessionEvents, stream, term)
 	// keys:
 	const (
 		keyCtrlC = 3
@@ -3133,7 +3118,7 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 		defer player.Stop()
 		var key [1]byte
 		for {
-			_, err := os.Stdin.Read(key[:])
+			_, err := term.Stdin().Read(key[:])
 			if err != nil {
 				errorCh <- err
 				return
