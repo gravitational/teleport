@@ -255,8 +255,21 @@ func (m *AgentPool) pollAndSyncAgents() {
 	}
 }
 
+// getProxyDetailsFromTheOldestCachedCall gets the cached ProxyDetails obtained during the oldest cached agent.connect call.
+func (m *AgentPool) getProxyDetailsFromTheOldestCachedCall(addr utils.NetAddr) *ProxyDetails {
+	agents, ok := m.agents[addr]
+	if !ok {
+		return nil
+	}
+	if len(agents) == 0 {
+		return nil
+	}
+	return agents[0].ProxyDetails
+}
+
 func (m *AgentPool) addAgent(lease track.Lease) error {
 	addr := lease.Key().(utils.NetAddr)
+
 	agent, err := NewAgent(AgentConfig{
 		Addr:                addr,
 		ClusterName:         m.cfg.Cluster,
@@ -272,6 +285,7 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 		Component:           m.cfg.Component,
 		Tracker:             m.proxyTracker,
 		Lease:               lease,
+		ProxyDetails:        m.getProxyDetailsFromTheOldestCachedCall(addr),
 	})
 	if err != nil {
 		// ensure that lease has been released; OK to call multiple times.

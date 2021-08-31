@@ -100,6 +100,12 @@ type AgentConfig struct {
 	Lease track.Lease
 	// Log optionally specifies the logger
 	Log log.FieldLogger
+	// ProxyDetails cacheable details about the Addr endpoint used to reduce proxy ping calls in order to prevent
+	// proxy endpoint stagnation where even numbers of proxy are hidden behind RoundRobbin Load Balancer.
+	// For instance in a situation where only two proxies [A, B] are configured behind RoundRobbin Load Balancer
+	// due to sequential Ping, Dial method order and sequential backend picking by RoundRobbing Load Balancer
+	// the Ping call will always reach Proxy A and the Dial call will always be forwarded by the LB to Proxy B.
+	ProxyDetails *ProxyDetails
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -163,6 +169,13 @@ type Agent struct {
 	// principals is the list of principals of the server this agent
 	// is currently connected to
 	principals []string
+}
+
+// ProxyDetails contains catchable details about the remote proxy.
+type ProxyDetails struct {
+	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI Listener and
+	// the client needs to dial the remote proxy with proper TLS ALPN protocol.
+	ALPNSNIListenerEnabled bool
 }
 
 // NewAgent returns a new reverse tunnel agent
@@ -253,14 +266,27 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		"no matching keys found when checking server's host signature")
 }
 
-func (a *Agent) connect() (conn *ssh.Client, err error) {
-	var opts []proxy.DialerOptionFunc
-
-	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
+// Ping the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
+// If this is Web Service port check if proxy support ALPN SNI Listener.
+func (a *Agent) getProxyDetails() *ProxyDetails {
+	pd := ProxyDetails{ALPNSNIListenerEnabled: false}
 	resp, err := webclient.Find(a.ctx, a.Addr.Addr, lib.IsInsecureDevMode(), nil)
 	if err != nil {
 		a.log.WithError(err).Errorf("Failed to ping web proxy %q addr.", a.Addr.Addr)
-	} else if resp.Proxy.ALPNSNIListenerEnabled {
+	}
+	if err == nil && resp.Proxy.ALPNSNIListenerEnabled {
+		pd.ALPNSNIListenerEnabled = resp.Proxy.ALPNSNIListenerEnabled
+	}
+	return &pd
+}
+
+func (a *Agent) connect() (conn *ssh.Client, err error) {
+	if a.ProxyDetails == nil {
+		a.ProxyDetails = a.getProxyDetails()
+	}
+
+	var opts []proxy.DialerOptionFunc
+	if a.ProxyDetails != nil && a.ProxyDetails.ALPNSNIListenerEnabled {
 		opts = append(opts, proxy.WithALPNDialer())
 	}
 
