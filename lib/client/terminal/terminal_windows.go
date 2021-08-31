@@ -105,16 +105,13 @@ type Terminal struct {
 	closeWait *sync.WaitGroup
 }
 
-// New creates a new Terminal instance. This function immediately configures
-// the terminal as specified. If interactive, the terminal is put into raw mode
-// and (on Windows) configured to render ANSI sequences. If `input` is enabled,
-// the terminal is additionally configured to translate inputs to VT sequences
-// and capture raw inputs.
+// New creates a new Terminal instance. Callers should call `InitInteractive`
+// to configure the terminal for raw input or output modes.
 //
-// Also note that the returned Terminal instance must be closed to ensure the
+// Note that the returned Terminal instance must be closed to ensure the
 // terminal is properly reset; unexpected exits may leave users' terminals
 // unusable.
-func New(interactive, input bool, stdin io.Reader, stdout, stderr io.Writer) (*Terminal, error) {
+func New(stdin io.Reader, stdout, stderr io.Writer) (*Terminal, error) {
 	if stdin == nil {
 		stdin = os.Stdin
 	}
@@ -133,13 +130,6 @@ func New(interactive, input bool, stdin io.Reader, stdout, stderr io.Writer) (*T
 		stderr:    stderr,
 		closer:    utils.NewCloseBroadcaster(),
 		closeWait: &sync.WaitGroup{},
-	}
-
-	if interactive {
-		err := term.InitInteractive(input)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	return &term, nil

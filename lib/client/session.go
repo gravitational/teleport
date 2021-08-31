@@ -87,7 +87,7 @@ func newSession(client *NodeClient,
 	// Initialize the terminal. Note that at this point, we don't know if this
 	// will be an interactive session, so we don't yet enable either raw mode
 	// or raw input.
-	term, err := terminal.New(false, false, stdin, stdout, stderr)
+	term, err := terminal.New(stdin, stdout, stderr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

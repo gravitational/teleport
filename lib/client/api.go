@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1532,14 +1533,21 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		stream = append(stream, tmp...)
 	}
 
-	// configure terminal for direct unbuffered echo-less input:
-	if term.IsTerminal(0) {
-		state, err := term.MakeRaw(0)
-		if err != nil {
-			return nil
-		}
-		defer term.Restore(0, state)
+	term, err := terminal.New(nil, nil, nil)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	defer term.Close()
+
+	// configure terminal for direct unbuffered echo-less input:
+	if term.IsAttached() {
+		err := term.InitInteractive(false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return playSession(sessionEvents, stream)
 }
 
@@ -1565,6 +1573,22 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	term, err := terminal.New(nil, nil, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer term.Close()
+
+	// configure terminal for direct unbuffered echo-less input:
+	if term.IsAttached() {
+		err := term.InitInteractive(false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return playSession(sessionEvents, stream)
 }
 
