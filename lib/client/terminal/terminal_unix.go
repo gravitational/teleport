@@ -83,7 +83,7 @@ func (t *Terminal) InitInteractive(input bool) error {
 	// Put the terminal into raw mode.
 	ts, err := term.SetRawTerminal(0)
 	if err != nil {
-		log.Warn("Could not put terminal into raw mode: %v", err)
+		log.Warnf("Could not put terminal into raw mode: %v", err)
 	} else {
 		// Ensure the terminal is reset on exit.
 		t.closeWait.Add(1)

@@ -292,8 +292,8 @@ func (ns *NodeSession) allocateTerminal(termType string, s *ssh.Session) (io.Rea
 
 	// ... and request a server-side terminal of the same size:
 	err = s.RequestPty(termType,
-		int(height),
-		int(width),
+		height,
+		width,
 		ssh.TerminalModes{})
 	if err != nil {
 		return nil, trace.Wrap(err)
