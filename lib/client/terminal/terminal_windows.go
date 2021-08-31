@@ -120,7 +120,7 @@ func New(stdin io.Reader, stdout, stderr io.Writer) (*Terminal, error) {
 	}
 
 	if stderr == nil {
-		stdout = os.Stderr
+		stderr = os.Stderr
 	}
 
 	term := Terminal{
