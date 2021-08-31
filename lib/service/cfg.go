@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -109,8 +110,14 @@ type Config struct {
 	// Metrics defines the metrics service configuration.
 	Metrics MetricsConfig
 
+	// WindowsDesktop defines the Windows desktop service configuration.
+	WindowsDesktop WindowsDesktopConfig
+
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
+
+	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
+	KeyStore keystore.Config
 
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
@@ -197,8 +204,8 @@ type Config struct {
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
 
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
@@ -516,6 +523,9 @@ type AuthConfig struct {
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
 	PublicAddrs []utils.NetAddr
+
+	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
+	KeyStore keystore.Config
 }
 
 // SSHConfig configures SSH server node role
@@ -793,6 +803,21 @@ type MetricsConfig struct {
 	CACerts []string
 }
 
+// WindowsDesktopConfig specifies the configuration for the Windows Desktop
+// Access service.
+type WindowsDesktopConfig struct {
+	Enabled bool
+	// ListenAddr is the address to listed on for incoming desktop connections.
+	ListenAddr utils.NetAddr
+	// PublicAddrs is a list of advertised public addresses of the service.
+	PublicAddrs []utils.NetAddr
+	// Hosts is an optional list of static Windows hosts to expose through this
+	// service.
+	Hosts []utils.NetAddr
+	// ConnLimiter limits the connection and request rates.
+	ConnLimiter limiter.Config
+}
+
 // Rewrite is a list of rewriting rules to apply to requests and responses.
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
@@ -931,6 +956,10 @@ func ApplyDefaults(cfg *Config) {
 
 	// Metrics service defaults.
 	cfg.Metrics.Enabled = false
+
+	// Windows desktop service is disabled by default.
+	cfg.WindowsDesktop.Enabled = false
+	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

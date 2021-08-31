@@ -15,9 +15,9 @@ Teleport 7.0+ with Restricted Sessions requires Linux kernel 5.8 (or above).
 You can check your kernel version using the `uname` command. The output should look
 something like the following.
 
-```bash
+```code
 $ uname -r
-5.8.17
+# 5.8.17
 ```
 
 ### Linux distributions and supported kernels
@@ -115,9 +115,9 @@ spec:
 
 Install the policy using `tctl`:
 
-```bash
+```code
 $ tctl create -f netpolicy.yaml
-network restrictions have been updated
+# network restrictions have been updated
 ```
 
 <Admonition type="note">
@@ -130,16 +130,16 @@ network restrictions have been updated
 
 ## Step 3/4. Test by logging into node via Teleport
 
-```bash
+```code
 $ curl -v https://google.com
-*   Trying 2607:f8b0:4005:809::200e:80...
-* TCP_NODELAY set
-* Immediate connect fail for 2607:f8b0:4005:809::200e: Operation not permitted
-*   Trying 172.217.6.78:80...
-* TCP_NODELAY set
-* Immediate connect fail for 172.217.6.78: Operation not permitted
-* Closing connection 0
-curl: (7) Couldn't connect to server
+# *   Trying 2607:f8b0:4005:809::200e:80...
+# * TCP_NODELAY set
+# * Immediate connect fail for 2607:f8b0:4005:809::200e: Operation not permitted
+# *   Trying 172.217.6.78:80...
+# * TCP_NODELAY set
+# * Immediate connect fail for 172.217.6.78: Operation not permitted
+# * Closing connection 0
+# curl: (7) Couldn't connect to server
 ```
 
 ## Step 4/4. Inspect logs

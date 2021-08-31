@@ -15,24 +15,24 @@ This section will cover:
 - Fluentd version v(=fluentd.version=).
 - Docker version v(=docker.version=).
 
-```bash
-terraform version
-Terraform v(=terraform.version=)
+```code
+$ terraform version
+# Terraform v(=terraform.version=)
 ```
 
-```bash
-tctl version
+```code
+$ tctl version
 # Teleport v(=teleport.version=) go(teleport.golang)
 #
 # Test connectivity and admin permissions
-tctl get roles
+$ tctl get roles
 ```
 
 Create a folder `fluentd` to hold configuration and plugin state:
 
-```bash
-mkdir -p event-handler
-cd event-handler
+```code
+$ mkdir -p event-handler
+$ cd event-handler
 ```
 
 ## Step 1/6. Install event handler plugin
@@ -42,16 +42,16 @@ and forwards them to fluentd.
 
 <Tabs>
   <TabItem label="Linux">
-  ```bash
-  curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz -C .
+  ```code
+  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz -C .
   ```
   </TabItem>
 
   <TabItem label="MacOS">
-  ```bash
-  curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.version=)-darwin-amd64-bin.tar.gz
-  tar -zxvf terraform-provider-teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz -C .
+  ```code
+  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.version=)-darwin-amd64-bin.tar.gz
+  $ tar -zxvf terraform-provider-teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz -C .
   ```
   </TabItem>
 </Tabs>
@@ -62,13 +62,13 @@ and forwards them to fluentd.
 Run `configure` command to generate sample configuration. Replace `teleport.example.com:443`
 with the DNS name and web proxy port of Teleport's proxy:
 
-```bash
-./teleport-event-handler configure . teleport.example.com:443
+```code
+$ ./teleport-event-handler configure . teleport.example.com:443
 ```
 
 You'll see the following output:
 
-```bash
+```txt
 Teleport event handler 0.0.1 07617b0ad0829db043fe779faf1669defdc8d84e
 
 [1] mTLS Fluentd certificates generated and saved to ca.crt, ca.key, server.crt, server.key, client.crt, client.key
@@ -83,17 +83,17 @@ https://goteleport.com/setup/guides/fluentd
 
 Plugin has generated several setup files:
 
-```bash
-ls -l
--rw------- 1 bob bob     1038 Jul  1 11:14 ca.crt
--rw------- 1 bob bob     1679 Jul  1 11:14 ca.key
--rw------- 1 bob bob     1042 Jul  1 11:14 client.crt
--rw------- 1 bob bob     1679 Jul  1 11:14 client.key
--rw------- 1 bob bob      541 Jul  1 11:14 fluent.conf
--rw------- 1 bob bob     1078 Jul  1 11:14 server.crt
--rw------- 1 bob bob     1766 Jul  1 11:14 server.key
--rw------- 1 bob bob      260 Jul  1 11:14 teleport-event-handler-role.yaml
--rw------- 1 bob bob      343 Jul  1 11:14 teleport-event-handler.toml
+```code
+$ ls -l
+# -rw------- 1 bob bob     1038 Jul  1 11:14 ca.crt
+# -rw------- 1 bob bob     1679 Jul  1 11:14 ca.key
+# -rw------- 1 bob bob     1042 Jul  1 11:14 client.crt
+# -rw------- 1 bob bob     1679 Jul  1 11:14 client.key
+# -rw------- 1 bob bob      541 Jul  1 11:14 fluent.conf
+# -rw------- 1 bob bob     1078 Jul  1 11:14 server.crt
+# -rw------- 1 bob bob     1766 Jul  1 11:14 server.key
+# -rw------- 1 bob bob      260 Jul  1 11:14 teleport-event-handler-role.yaml
+# -rw------- 1 bob bob      343 Jul  1 11:14 teleport-event-handler.toml
 ```
 
 - `ca.crt` and `ca.key` is a fluentd self-signed CA certificate and a private key.
@@ -127,8 +127,8 @@ version: v4
 
 Use `tctl` to create the role and the user:
 
-```bash
-tctl create -f teleport-event-handler-role.yaml
+```code
+$ tctl create -f teleport-event-handler-role.yaml
 # user "teleport-event-handler" has been created
 # role 'teleport-event-handler' has been created
 ```
@@ -137,8 +137,8 @@ tctl create -f teleport-event-handler-role.yaml
 
 Teleport Plugin use the fluentd role and user to read the events. We export the identity files, using tctl auth sign.
 
-```bash
-tctl auth sign --out identity --user teleport-event-handler
+```code
+$ tctl auth sign --out identity --user teleport-event-handler
 # The credentials have been written to identity
 ```
 
@@ -148,7 +148,7 @@ This will generate `identity` which contains TLS certificates and will be used t
 Clients, for example cloud interactive users, could be missing impersonation privileges when trying to use `tctl auth sign`,
 will get the following error:
 
-```bash
+```txt
 ERROR: access denied: impersonation is not allowed
 ```
 
@@ -156,7 +156,7 @@ Create the following file with role: `teleport-event-handler-impersonator.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: teleport-event-handler-impersonator
 spec:
@@ -180,8 +180,8 @@ spec:
       '*': '*'
 ```
 
-```bash
-tctl create teleport-event-handler-impersonator.yaml
+```code
+$ tctl create teleport-event-handler-impersonator.yaml
 ```
 
 Assign this role to the current user. Re-login to assume the new role and try
@@ -229,8 +229,8 @@ Generated sample `fluent.conf` file sets accepts events using `TLS` and prints t
 
 To try it out, start fluentd instance:
 
-```bash
-docker run -u $(id -u ${USER}):$(id -g ${USER}) -p 8888:8888 -v $(pwd):/keys -v $(pwd)/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge
+```code
+$ docker run -u $(id -u ${USER}):$(id -g ${USER}) -p 8888:8888 -v $(pwd):/keys -v $(pwd)/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge
 ```
 
 ## Step 6/6. Start the event handler plugin
@@ -257,15 +257,15 @@ identity = "identity"
 
 Start an export from the current moment:
 
-```bash
-./teleport-event-handler start --config teleport-event-handler.toml
+```code
+$ ./teleport-event-handler start --config teleport-event-handler.toml
 ```
 
 <Admonition type="note">
 This example will start export from `May 5th 2021`:
 
-```sh
-./teleport-event-handler start --config teleport-event-handler.toml --start-time "2021-05-05T00:00:00Z"
+```code
+$ ./teleport-event-handler start --config teleport-event-handler.toml --start-time "2021-05-05T00:00:00Z"
 ```
 
 Start time can be set only once, on the first run of the tool.
@@ -277,7 +277,7 @@ which you had specified in `storage-dir` argument.
 
 Once handler starts, you will see notifications about scanned and forwarded events:
 
-```bash
+```txt
 INFO[0046] Event sent id=0b5f2a3e-faa5-4d77-ab6e-362bca0994fc ts="2021-06-08 11:00:56.034 +0000 UTC" type=user.login
 ...
 ```

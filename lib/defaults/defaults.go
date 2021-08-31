@@ -63,6 +63,16 @@ const (
 	// MetricsListenPort is the default listen port for the metrics service.
 	MetricsListenPort = 3081
 
+	// WindowsDesktopListenPort is the default listed port for
+	// windows_desktop_service.
+	//
+	// TODO(awly): update to match HTTPListenPort once SNI routing is
+	// implemented.
+	WindowsDesktopListenPort = 3028
+
+	// RDPListenPort is the standard port for RDP servers.
+	RDPListenPort = 3389
+
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
 
@@ -213,6 +223,10 @@ const (
 	// MaxLoginAttempts sets the max. number of allowed failed login attempts
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5
+
+	// MaxAccountRecoveryAttempts sets the max number of allowed failed recovery attempts
+	// before a user is locked from login and further recovery attempts for AccountLockInterval.
+	MaxAccountRecoveryAttempts = 3
 
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts
@@ -366,6 +380,9 @@ var (
 
 	// DatabasesQueueSize is db service queue size.
 	DatabasesQueueSize = 128
+
+	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
+	WindowsDesktopQueueSize = 128
 
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
@@ -527,6 +544,9 @@ const (
 const (
 	// U2FChallengeTimeout is hardcoded in the U2F library
 	U2FChallengeTimeout = 5 * time.Minute
+	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
+	// or registration challenges.
+	WebauthnChallengeTimeout = 5 * time.Minute
 )
 
 const (

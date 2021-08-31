@@ -83,6 +83,10 @@ const (
 	// KeepAliveDatabase is the keep alive type for database server.
 	KeepAliveDatabase = "db"
 
+	// KeepAliveWindowsDesktopService is the keep alive type for a Windows
+	// desktop service.
+	KeepAliveWindowsDesktopService = "windows_desktop_service"
+
 	// WindowsOS is the GOOS constant used for Microsoft Windows.
 	WindowsOS = "windows"
 
@@ -116,6 +120,9 @@ const (
 	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
 	// required for all users.
 	SecondFactorU2F = SecondFactorType("u2f")
+	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA is
+	// required for all users.
+	SecondFactorWebauthn = SecondFactorType("webauthn")
 	// SecondFactorOn means that all 2FA protocols are supported and 2FA is
 	// required for all users.
 	SecondFactorOn = SecondFactorType("on")

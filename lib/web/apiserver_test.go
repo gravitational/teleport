@@ -45,6 +45,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
+	apiProto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -1331,7 +1332,7 @@ func (s *WebSuite) TestLogin(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
-func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
+func (s *WebSuite) TestChangePasswordAndAddTOTPDeviceWithToken(c *C) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
@@ -1386,12 +1387,13 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var rawSess *CreateSessionResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
-	c.Assert(rawSess.Token != "", Equals, true)
+	// Test that no recovery codes are returned b/c cloud feature isn't enabled.
+	var recoveryCodes []string
+	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
+	c.Assert(recoveryCodes, HasLen, 0)
 }
 
-func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
+func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorU2F,
@@ -1442,9 +1444,10 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var rawSess *CreateSessionResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
-	c.Assert(rawSess.Token != "", Equals, true)
+	// Test that no recovery codes are returned b/c cloud is not turned on.
+	var recoveryCodes []string
+	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
+	c.Assert(recoveryCodes, HasLen, 0)
 }
 
 func TestU2FLogin(t *testing.T) {
@@ -1483,7 +1486,7 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 	env.proxies[0].createUser(ctx, t, "bob", "root", "password", "")
 
 	// create password change token
-	token, err := env.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
+	token, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
 		Name: "bob",
 	})
 	require.NoError(t, err)
@@ -1497,10 +1500,15 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 	require.NoError(t, err)
 
 	tempPass := []byte("abc123")
-	_, err = env.proxies[0].client.ChangePasswordWithToken(context.TODO(), auth.ChangePasswordWithTokenRequest{
-		TokenID:             token.GetName(),
-		U2FRegisterResponse: u2fRegResp,
-		Password:            tempPass,
+	_, err = env.proxies[0].client.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+		TokenID: token.GetName(),
+		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_U2F{
+			U2F: &apiProto.U2FRegisterResponse{
+				RegistrationData: u2fRegResp.RegistrationData,
+				ClientData:       u2fRegResp.ClientData,
+			},
+		}},
+		NewPassword: tempPass,
 	})
 	require.NoError(t, err)
 
@@ -2116,6 +2124,25 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
+// TestGetMFADevices gets devices for the authenticated user.
+func TestGetMFADevices(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "mfa")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var devices []ui.MFADevice
+	err = json.Unmarshal(re.Bytes(), &devices)
+	require.NoError(t, err)
+	require.Len(t, devices, 1)
+	require.Equal(t, "TOTP", devices[0].Type)
+	require.Equal(t, "otp", devices[0].Name) // default device name
+}
+
 // TestCreateAppSession verifies that an existing session to the Web UI can
 // be exchanged for a application specific session.
 func (s *WebSuite) TestCreateAppSession(c *C) {
@@ -2264,6 +2291,30 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	}
 }
 
+func TestNewSessionResponseWithRenewSession(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+
+	// Set a web idle timeout.
+	duration := time.Duration(5) * time.Minute
+	cfg := types.DefaultClusterNetworkingConfig()
+	cfg.SetWebIdleTimeout(duration)
+	env.server.Auth().SetClusterNetworkingConfig(context.Background(), cfg)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo")
+
+	var ns *CreateSessionResponse
+	resp := pack.renewSession(context.Background(), t)
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &ns))
+
+	require.Equal(t, int(duration.Milliseconds()), ns.SessionInactiveTimeoutMS)
+	require.Equal(t, roundtrip.AuthBearer, ns.TokenType)
+	require.NotEmpty(t, ns.SessionExpires)
+	require.NotEmpty(t, ns.Token)
+	require.NotEmpty(t, ns.TokenExpiresIn)
+}
+
 // TestWebSessionsRenewDoesNotBreakExistingTerminalSession validates that the
 // session renewed via one proxy does not force the terminals created by another
 // proxy to disconnect
@@ -2367,6 +2418,91 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	// subsequent requests to use this session will fail
 	_, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	require.True(t, trace.IsAccessDenied(err))
+}
+
+type testCloudModules struct {
+	modules.Modules
+}
+
+func (m *testCloudModules) Features() modules.Features {
+	return modules.Features{
+		Cloud: true, // Explicily turn on cloud feature.
+	}
+}
+
+// TestChangeUserAuthentication_recoveryCodesReturnedForCloud tests for following:
+//  - Recovery codes are not returned for usernames that are not emails
+//  - Recovery codes are returned for usernames that are valid emails
+func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOTP,
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Enable cloud feature.
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testCloudModules{})
+
+	// Creaet a username that is not a valid email format for recovery.
+	teleUser, err := types.NewUser("invalid-name-for-recovery")
+	require.NoError(t, err)
+	env.server.Auth().CreateUser(ctx, teleUser)
+
+	// Create a reset password token and secrets.
+	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: "invalid-name-for-recovery",
+	})
+	require.NoError(t, err)
+	secrets, err := env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
+	require.NoError(t, err)
+	totpCode, err := totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	require.NoError(t, err)
+
+	// Test invalid username does not receive codes.
+	clt := env.proxies[0].client
+	re, err := clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: []byte("abc123"),
+		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
+			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
+		}},
+	})
+	require.NoError(t, err)
+	require.Empty(t, re.RecoveryCodes)
+
+	// Create a user that is valid for recovery.
+	teleUser, err = types.NewUser("valid-username@example.com")
+	require.NoError(t, err)
+	env.server.Auth().CreateUser(ctx, teleUser)
+
+	// Create a reset password token and secrets.
+	resetToken, err = env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: "valid-username@example.com",
+	})
+	require.NoError(t, err)
+	secrets, err = env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
+	require.NoError(t, err)
+	totpCode, err = totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	require.NoError(t, err)
+
+	// Test valid username (email) returns codes.
+	re, err = clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: []byte("abc123"),
+		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
+			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, re.RecoveryCodes, 3)
 }
 
 type authProviderMock struct {
@@ -2625,7 +2761,7 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
-	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn}, nil
+	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn, SessionInactiveTimeoutMS: r.SessionInactiveTimeoutMS}, nil
 }
 
 func newWebPack(t *testing.T, numProxies int) *webPack {

@@ -21,9 +21,9 @@ Teleport (=teleport.version=) on Linux machines.
 
 <Tabs>
   <TabItem label="Amazon Linux 2/RHEL (RPM)">
-    ```bash
-    sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    sudo yum install teleport
+    ```code
+    $ sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+    $ sudo yum install teleport
 
     # Optional:  Using DNF on newer distributions
     # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
@@ -32,38 +32,38 @@ Teleport (=teleport.version=) on Linux machines.
   </TabItem>
 
   <TabItem label="Debian/Ubuntu (DEB)">
-    ```bash
-    curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
-    sudo add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
-    sudo apt-get update
-    sudo apt-get install teleport
+    ```code
+    $ curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
+    $ sudo add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
+    $ sudo apt-get update
+    $ sudo apt-get install teleport
     ```
   </TabItem>
 
   <TabItem label="Linux">
-    ```bash
-    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    cd teleport
-    sudo ./install
+    ```code
+    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    $ cd teleport
+    $ sudo ./install
     ```
   </TabItem>
 
   <TabItem label="ARMv7 (32-bit)">
-    ```bash
-    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-    tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-    cd teleport
-    sudo ./install
+    ```code
+    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+    $ tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
+    $ cd teleport
+    $ sudo ./install
     ```
   </TabItem>
 
   <TabItem label="ARMv8 (64-bit)">
-    ```bash
-    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-    tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-    cd teleport
-    sudo ./install
+    ```code
+    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+    $ tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
+    $ cd teleport
+    $ sudo ./install
     ```
   </TabItem>
 </Tabs>
@@ -78,8 +78,8 @@ Acme turns on automatic TLS certificates from [Let's Encrypt](https://letsencryp
 
 Set up an email to receive updates from Let's Encrypt, and use a valid DNS name for a cluster name.
 
-```bash
-sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
+```code
+$ sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
 Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
 ```
 
@@ -97,15 +97,15 @@ pointing to the IP/FQDN of the machine with Teleport installed.
 >
   You can use `dig` to make sure that DNS records are propagated:
 
-  ```bash
-  dig @8.8.8.8 tele.example.com
+  ```code
+  $ dig @8.8.8.8 tele.example.com
   ```
 </Admonition>
 
 Start Teleport:
 
-```bash
-sudo teleport start
+```code
+$ sudo teleport start
 ```
 
 You can access Teleport's Web UI on port `443`.
@@ -117,9 +117,9 @@ Replace `tele.example.com` with your domain: `https://tele.example.com/`.
 In this example, we'll create a new Teleport user `teleport-admin` which is allowed to log into
 SSH hosts as any of the principals `root`, `ubuntu` or `ec2-user`.
 
-```bash
+```code
 # tctl is an administrative tool that is used to configure Teleport's auth service.
-tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
+$ tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
 
 Teleport will always enforce the use of two-factor authentication by default. It supports One-Time
@@ -152,8 +152,8 @@ Here's a selection of compatible two-factor authentication apps:
   </TabItem>
 
   <TabItem label="Mac - Homebrew">
-    ```bash
-    brew install teleport
+    ```code
+    $ brew install teleport
     ```
 
     <Admonition type="note">
@@ -168,8 +168,8 @@ Here's a selection of compatible two-factor authentication apps:
   </TabItem>
 
   <TabItem label="Windows - Powershell">
-    ```bash
-    curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
+    ```code
+    $ curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
     # Unzip the archive and move `tsh.exe` to your %PATH%
     ```
   </TabItem>
@@ -177,11 +177,11 @@ Here's a selection of compatible two-factor authentication apps:
   <TabItem label="Linux">
     For more options (including RPM/DEB packages and downloads for i386/ARM/ARM64) please see our [installation page](../installation.mdx).
 
-    ```bash
-    curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    cd teleport
-    sudo ./install
+    ```code
+    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    $ cd teleport
+    $ sudo ./install
     # Teleport binaries have been copied to /usr/local/bin
     # To configure the systemd service for Teleport take a look at examples/systemd/README.mdx
     ```
@@ -194,39 +194,39 @@ Here's a selection of compatible two-factor authentication apps:
 
 Log in to receive short-lived certificates from Teleport:
 
-```bash
-# Replace teleport.example.com:443 with your Teleport cluster's public address as configured above.
-tsh login --proxy=teleport.example.com:443 --user=teleport-admin
+```code
+# Replace teleport.example.com with your Teleport cluster's public address as configured above.
+$ tsh login --proxy=teleport.example.com --user=teleport-admin
 ```
 
 ## Step 4/4. Have fun with Teleport!
 
 Congrats! You've completed setting up Teleport! Now, feel free to have fun and explore the many features Teleport has to offer.
 
-Here are several common commands and operations you'll likely find useful: 
+Here are several common commands and operations you'll likely find useful:
 
 ### View Status
 
-```bash
-tsh status
+```code
+$ tsh status
 ```
 
 ### SSH into a node
 
-```bash
+```code
 # list all SSH servers connected to Teleport
-tsh ls
+$ tsh ls
 
 # ssh into `node-name` as `root`
-tsh ssh root@node-name
+$ tsh ssh root@node-name
 ```
 
 ### Add a node to the cluster
 
 Generate a short-lived dynamic join token using `tctl`:
 
-```bash
-tctl tokens add --type=node
+```code
+$ tctl tokens add --type=node
 ```
 
 Bootstrap a new node:
@@ -236,8 +236,8 @@ Bootstrap a new node:
     Replace `auth_servers` with the hostname and port of your Teleport cluster,
     `token` with the token you generated above.
 
-    ```bash
-    sudo teleport start \
+    ```code
+    $ sudo teleport start \
     --roles=node \
     --auth-server=https://teleport.example.com:443 \
     --token=${TOKEN?} \
@@ -284,8 +284,8 @@ Bootstrap a new node:
 
 Generate a short-lived dynamic token to join apps:
 
-```bash
-tctl tokens add --type=app
+```code
+$ tctl tokens add --type=app
 ```
 
 Add a new application:
@@ -295,8 +295,8 @@ Add a new application:
     Install Teleport on the target node, then start it using a command as shown below.
     Review and update `auth-server`, `token`, `app-name`, and `app-uri` before running this command.
 
-    ```bash
-    sudo teleport start \
+    ```code
+    $ sudo teleport start \
     --roles=app \
     --token=${TOKEN?} \
     --auth-server=teleport.example.com:3080 \
@@ -313,7 +313,7 @@ Check out our collection of step-by-step guides for common Teleport tasks.
 - [Install Teleport](../installation.mdx)
 - [Admin Guide](../admin-guide.mdx)
 - [Share Sessions](../user-manual.mdx#sharing-sessions)
-- [Manage Users](../admin-guide.mdx#adding-and-deleting-users)
+- [Manage Users](../setup/admin/users.mdx)
 - [Github SSO](../admin-guide.mdx#github-oauth-20)
 - [Label Nodes](../admin-guide.mdx#labeling-nodes-and-applications)
-- [Teleport with OpenSSH](../admin-guide.mdx#using-teleport-with-openssh)
+- [Teleport with OpenSSH](../server-access/guides/openssh.mdx)
