@@ -8030,11 +8030,11 @@ type AuthServiceClient interface {
 	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
 	// any existing codes the user previously had.
 	ChangeUserAuthentication(ctx context.Context, in *ChangeUserAuthenticationRequest, opts ...grpc.CallOption) (*ChangeUserAuthenticationResponse, error)
-	// StartAccountRecovery exclusive to cloud users, is the first out of two step user verification
-	// needed to allow a user to recover their account. The first form of verification is a user's
-	// username and a recovery code. After successful verification, a recovery start token is
-	// created for the user which its ID will be used as part of a URL that will be emailed to the
-	// user (not done in this request). The user will be able to finish their second form of
+	// StartAccountRecovery (exclusive to cloud users) is the first out of two step user
+	// verification needed to allow a user to recover their account. The first form of verification
+	// is a user's username and a recovery code. After successful verification, a recovery start
+	// token is created for the user which its ID will be used as part of a URL that will be emailed
+	// to the user (not done in this request). The user will be able to finish their second form of
 	// verification by clicking on this URL and following the prompts.
 	//
 	// If a valid user fails to provide correct recovery code for MaxAccountRecoveryAttempts,
@@ -9705,11 +9705,11 @@ type AuthServiceServer interface {
 	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
 	// any existing codes the user previously had.
 	ChangeUserAuthentication(context.Context, *ChangeUserAuthenticationRequest) (*ChangeUserAuthenticationResponse, error)
-	// StartAccountRecovery exclusive to cloud users, is the first out of two step user verification
-	// needed to allow a user to recover their account. The first form of verification is a user's
-	// username and a recovery code. After successful verification, a recovery start token is
-	// created for the user which its ID will be used as part of a URL that will be emailed to the
-	// user (not done in this request). The user will be able to finish their second form of
+	// StartAccountRecovery (exclusive to cloud users) is the first out of two step user
+	// verification needed to allow a user to recover their account. The first form of verification
+	// is a user's username and a recovery code. After successful verification, a recovery start
+	// token is created for the user which its ID will be used as part of a URL that will be emailed
+	// to the user (not done in this request). The user will be able to finish their second form of
 	// verification by clicking on this URL and following the prompts.
 	//
 	// If a valid user fails to provide correct recovery code for MaxAccountRecoveryAttempts,

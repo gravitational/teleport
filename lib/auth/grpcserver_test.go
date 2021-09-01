@@ -1638,21 +1638,24 @@ func TestDatabasesCRUD(t *testing.T) {
 
 func TestCustomRateLimiting(t *testing.T) {
 	t.Parallel()
+	srv := newTestTLSServer(t)
+	clt, err := srv.NewClient(TestNop())
+	require.NoError(t, err)
 
 	cases := []struct {
-		desc string
-		fn   func(*Client) error
+		name string
+		fn   func() error
 	}{
 		{
-			desc: "RPC ChangeUserAuthentication",
-			fn: func(clt *Client) error {
+			name: "RPC ChangeUserAuthentication",
+			fn: func() error {
 				_, err := clt.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{})
 				return err
 			},
 		},
 		{
-			desc: "RPC StartAccountRecovery",
-			fn: func(clt *Client) error {
+			name: "RPC StartAccountRecovery",
+			fn: func() error {
 				_, err := clt.StartAccountRecovery(context.Background(), &proto.StartAccountRecoveryRequest{})
 				return err
 			},
@@ -1660,7 +1663,7 @@ func TestCustomRateLimiting(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		t.Run(c.desc, func(t *testing.T) {
+		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
 			// For now since we only have one custom rate limit,
@@ -1668,13 +1671,8 @@ func TestCustomRateLimiting(t *testing.T) {
 			const maxAttempts = 11
 			var err error
 
-			srv := newTestTLSServer(t)
-			clt, err := srv.NewClient(TestNop())
-			require.NoError(t, err)
-
-			// Expect last attempt to have hit a limit exceeded.
 			for i := 0; i < maxAttempts; i++ {
-				err = c.fn(clt)
+				err = c.fn()
 				require.Error(t, err)
 			}
 			require.True(t, trace.IsLimitExceeded(err))

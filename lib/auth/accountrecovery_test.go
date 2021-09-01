@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
+
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -156,24 +156,24 @@ func TestStartAccountRecovery(t *testing.T) {
 	require.Error(t, err)
 
 	cases := []struct {
-		desc         string
+		name         string
 		recoverType  types.UserTokenUsage
 		recoveryCode string
 	}{
 		{
-			desc:         "request StartAccountRecovery to recover a MFA",
+			name:         "request StartAccountRecovery to recover a MFA",
 			recoverType:  types.UserTokenUsage_USER_TOKEN_RECOVER_MFA,
 			recoveryCode: u.recoveryCodes[1],
 		},
 		{
-			desc:         "request StartAccountRecovery to recover password",
+			name:         "request StartAccountRecovery to recover password",
 			recoverType:  types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
 			recoveryCode: u.recoveryCodes[2],
 		},
 	}
 
 	for _, c := range cases {
-		t.Run(c.desc, func(t *testing.T) {
+		t.Run(c.name, func(t *testing.T) {
 			startToken, err := srv.Auth().StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{
 				Username:     u.username,
 				RecoveryCode: []byte(c.recoveryCode),
@@ -374,7 +374,7 @@ func createUserWithSecondFactorAndRecoveryCodes(srv *TestTLSServer, secondFactor
 
 		res, err := srv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 			TokenID:     resetToken.GetName(),
-			NewPassword: []byte(password),
+			NewPassword: password,
 			NewMFARegisterResponse: &proto.MFARegisterResponse{
 				Response: &proto.MFARegisterResponse_TOTP{
 					TOTP: &proto.TOTPRegisterResponse{Code: otpCode}},
@@ -398,7 +398,7 @@ func createUserWithSecondFactorAndRecoveryCodes(srv *TestTLSServer, secondFactor
 
 		res, err := srv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 			TokenID:     resetToken.GetName(),
-			NewPassword: []byte(password),
+			NewPassword: password,
 			NewMFARegisterResponse: &proto.MFARegisterResponse{
 				Response: &proto.MFARegisterResponse_U2F{
 					U2F: u2fRegResp},
