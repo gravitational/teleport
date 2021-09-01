@@ -704,10 +704,8 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 
 func containsDB(servers []types.DatabaseServer, name string) bool {
 	for _, server := range servers {
-		for _, database := range server.GetDatabases() {
-			if database.GetName() == name {
-				return true
-			}
+		if server.GetDatabase().GetName() == name {
+			return true
 		}
 	}
 	return false

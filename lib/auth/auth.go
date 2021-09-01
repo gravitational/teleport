@@ -2301,6 +2301,105 @@ func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
 }
 
+// CreateDatabase creates a new database resource.
+func (a *Server) CreateDatabase(ctx context.Context, database types.Database) error {
+	if err := a.Databases.CreateDatabase(ctx, database); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseCreate{
+		Metadata: apievents.Metadata{
+			Type: events.DatabaseCreateEvent,
+			Code: events.DatabaseCreateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    database.GetName(),
+			Expires: database.Expiry(),
+		},
+		DatabaseMetadata: apievents.DatabaseMetadata{
+			DatabaseProtocol:             database.GetProtocol(),
+			DatabaseURI:                  database.GetURI(),
+			DatabaseLabels:               database.GetStaticLabels(),
+			DatabaseAWSRegion:            database.GetAWS().Region,
+			DatabaseAWSRedshiftClusterID: database.GetAWS().Redshift.ClusterID,
+			DatabaseGCPProjectID:         database.GetGCP().ProjectID,
+			DatabaseGCPInstanceID:        database.GetGCP().InstanceID,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit database create event.")
+	}
+	return nil
+}
+
+// UpdateDatabase updates an existing database resource.
+func (a *Server) UpdateDatabase(ctx context.Context, database types.Database) error {
+	if err := a.Databases.UpdateDatabase(ctx, database); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.DatabaseUpdateEvent,
+			Code: events.DatabaseUpdateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    database.GetName(),
+			Expires: database.Expiry(),
+		},
+		DatabaseMetadata: apievents.DatabaseMetadata{
+			DatabaseProtocol:             database.GetProtocol(),
+			DatabaseURI:                  database.GetURI(),
+			DatabaseLabels:               database.GetStaticLabels(),
+			DatabaseAWSRegion:            database.GetAWS().Region,
+			DatabaseAWSRedshiftClusterID: database.GetAWS().Redshift.ClusterID,
+			DatabaseGCPProjectID:         database.GetGCP().ProjectID,
+			DatabaseGCPInstanceID:        database.GetGCP().InstanceID,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit database update event.")
+	}
+	return nil
+}
+
+// DeleteDatabase deletes a database resource.
+func (a *Server) DeleteDatabase(ctx context.Context, name string) error {
+	if err := a.Databases.DeleteDatabase(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseDelete{
+		Metadata: apievents.Metadata{
+			Type: events.DatabaseDeleteEvent,
+			Code: events.DatabaseDeleteCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: name,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit database delete event.")
+	}
+	return nil
+}
+
+// GetDatabases returns all database resources.
+func (a *Server) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	return a.GetCache().GetDatabases(ctx)
+}
+
+// GetDatabase returns the specified database resource.
+func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	return a.GetCache().GetDatabase(ctx, name)
+}
+
 // GetLock gets a lock by name from the auth server's cache.
 func (a *Server) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	return a.GetCache().GetLock(ctx, name)
@@ -2406,11 +2505,9 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 		var db types.Database
 		for _, server := range servers {
-			for _, d := range server.GetDatabases() {
-				if d.GetName() == t.Database.ServiceName {
-					db = d
-					break
-				}
+			if server.GetDatabase().GetName() == t.Database.ServiceName {
+				db = server.GetDatabase()
+				break
 			}
 		}
 		if db == nil {
