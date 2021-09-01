@@ -100,12 +100,12 @@ type AgentConfig struct {
 	Lease track.Lease
 	// Log optionally specifies the logger
 	Log log.FieldLogger
-	// ProxyDetails cacheable details about the Addr endpoint used to reduce proxy ping calls in order to prevent
+	// reverseTunnelDetails cacheable details about the Addr endpoint used to reduce proxy ping calls in order to prevent
 	// proxy endpoint stagnation where even numbers of proxy are hidden behind RoundRobbin Load Balancer.
 	// For instance in a situation where only two proxies [A, B] are configured behind RoundRobbin Load Balancer
 	// due to sequential Ping, Dial method order and sequential backend picking by RoundRobbing Load Balancer
 	// the Ping call will always reach Proxy A and the Dial call will always be forwarded by the LB to Proxy B.
-	ProxyDetails *ProxyDetails
+	reverseTunnelDetails *reverseTunnelDetails
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -171,9 +171,9 @@ type Agent struct {
 	principals []string
 }
 
-// ProxyDetails contains catchable details about the remote proxy.
-type ProxyDetails struct {
-	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI Listener and
+// ReverseTunnelDetails contains catchable details about the reverse tunnel.
+type reverseTunnelDetails struct {
+	// ALPNSNIListenerEnabled indicates that remote address listener supports ALPN SNI Listener and
 	// the client needs to dial the remote proxy with proper TLS ALPN protocol.
 	ALPNSNIListenerEnabled bool
 }
@@ -268,8 +268,8 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 
 // Ping the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
 // If this is Web Service port check if proxy support ALPN SNI Listener.
-func (a *Agent) getProxyDetails() *ProxyDetails {
-	pd := ProxyDetails{ALPNSNIListenerEnabled: false}
+func (a *Agent) getReverserTunnelDetails() *reverseTunnelDetails {
+	pd := reverseTunnelDetails{ALPNSNIListenerEnabled: false}
 	resp, err := webclient.Find(a.ctx, a.Addr.Addr, lib.IsInsecureDevMode(), nil)
 	if err != nil {
 		a.log.WithError(err).Errorf("Failed to ping web proxy %q addr.", a.Addr.Addr)
@@ -281,12 +281,12 @@ func (a *Agent) getProxyDetails() *ProxyDetails {
 }
 
 func (a *Agent) connect() (conn *ssh.Client, err error) {
-	if a.ProxyDetails == nil {
-		a.ProxyDetails = a.getProxyDetails()
+	if a.reverseTunnelDetails == nil {
+		a.reverseTunnelDetails = a.getReverserTunnelDetails()
 	}
 
 	var opts []proxy.DialerOptionFunc
-	if a.ProxyDetails != nil && a.ProxyDetails.ALPNSNIListenerEnabled {
+	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.ALPNSNIListenerEnabled {
 		opts = append(opts, proxy.WithALPNDialer())
 	}
 

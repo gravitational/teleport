@@ -255,37 +255,33 @@ func (m *AgentPool) pollAndSyncAgents() {
 	}
 }
 
-// getProxyDetailsFromTheOldestCachedCall gets the cached ProxyDetails obtained during the oldest cached agent.connect call.
-func (m *AgentPool) getProxyDetailsFromTheOldestCachedCall(addr utils.NetAddr) *ProxyDetails {
+// getReverseTunnelDetails gets the cached ReverserTunnelDetails obtained during the oldest cached agent.connect call.
+func (m *AgentPool) getReverseTunnelDetails(addr utils.NetAddr) *reverseTunnelDetails {
 	agents, ok := m.agents[addr]
-	if !ok {
+	if !ok || len(agents) == 0 {
 		return nil
 	}
-	if len(agents) == 0 {
-		return nil
-	}
-	return agents[0].ProxyDetails
+	return agents[0].reverseTunnelDetails
 }
 
 func (m *AgentPool) addAgent(lease track.Lease) error {
 	addr := lease.Key().(utils.NetAddr)
-
 	agent, err := NewAgent(AgentConfig{
-		Addr:                addr,
-		ClusterName:         m.cfg.Cluster,
-		Username:            m.cfg.HostUUID,
-		Signer:              m.cfg.HostSigner,
-		Client:              m.cfg.Client,
-		AccessPoint:         m.cfg.AccessPoint,
-		Context:             m.ctx,
-		KubeDialAddr:        m.cfg.KubeDialAddr,
-		Server:              m.cfg.Server,
-		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
-		LocalClusterName:    m.cfg.LocalCluster,
-		Component:           m.cfg.Component,
-		Tracker:             m.proxyTracker,
-		Lease:               lease,
-		ProxyDetails:        m.getProxyDetailsFromTheOldestCachedCall(addr),
+		Addr:                 addr,
+		ClusterName:          m.cfg.Cluster,
+		Username:             m.cfg.HostUUID,
+		Signer:               m.cfg.HostSigner,
+		Client:               m.cfg.Client,
+		AccessPoint:          m.cfg.AccessPoint,
+		Context:              m.ctx,
+		KubeDialAddr:         m.cfg.KubeDialAddr,
+		Server:               m.cfg.Server,
+		ReverseTunnelServer:  m.cfg.ReverseTunnelServer,
+		LocalClusterName:     m.cfg.LocalCluster,
+		Component:            m.cfg.Component,
+		Tracker:              m.proxyTracker,
+		Lease:                lease,
+		reverseTunnelDetails: m.getReverseTunnelDetails(addr),
 	})
 	if err != nil {
 		// ensure that lease has been released; OK to call multiple times.
