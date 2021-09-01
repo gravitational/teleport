@@ -557,6 +557,15 @@ func collectUserItems(items []backend.Item) (users map[string]userItems, rem []b
 		}
 		users[name] = collector
 	}
+	// Remove user entries that are incomplete.
+	//
+	// For example, an SSO user entry that expired but still has MFA devices
+	// persisted. These users should not be loaded until they login again.
+	for user, items := range users {
+		if !items.complete() {
+			delete(users, user)
+		}
+	}
 	return users, rem, nil
 }
 
@@ -612,4 +621,10 @@ func (u *userItems) Len() int {
 	}
 	l += len(u.mfa)
 	return l
+}
+
+// complete checks whether userItems is complete enough to be parsed by
+// userFromUserItems.
+func (u *userItems) complete() bool {
+	return u.params != nil
 }

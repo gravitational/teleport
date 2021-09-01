@@ -365,7 +365,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 			return nil, trace.BadParameter("invalid namespace %q", namespace)
 		}
 		server.SetNamespace(namespace)
-		handle, err := auth.UpsertNode(server)
+		handle, err := auth.UpsertNode(r.Context(), server)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -407,6 +407,7 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if !services.IsValidNamespace(req.Namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", req.Namespace)
 	}
@@ -444,7 +445,7 @@ func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Reques
 		opts = append(opts, services.SkipValidation())
 	}
 
-	servers, err := auth.GetNodes(namespace, opts...)
+	servers, err := auth.GetNodes(r.Context(), namespace, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -457,7 +458,7 @@ func (s *APIServer) deleteAllNodes(auth ClientI, w http.ResponseWriter, r *http.
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	err := auth.DeleteAllNodes(namespace)
+	err := auth.DeleteAllNodes(r.Context(), namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -474,7 +475,7 @@ func (s *APIServer) deleteNode(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if name == "" {
 		return nil, trace.BadParameter("missing node name")
 	}
-	err := auth.DeleteNode(namespace, name)
+	err := auth.DeleteNode(r.Context(), namespace, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -760,25 +761,39 @@ func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.
 	return u2fSignReq, nil
 }
 
-type createWebSessionReq struct {
-	PrevSessionID   string `json:"prev_session_id"`
+type WebSessionReq struct {
+	// User is the user name associated with the session id.
+	User string `json:"user"`
+	// PrevSessionID is the id of current session.
+	PrevSessionID string `json:"prev_session_id"`
+	// AccessRequestID is an optional field that holds the id of an approved access request.
 	AccessRequestID string `json:"access_request_id"`
+	// Switchback is a flag to indicate if user is wanting to switchback from an assumed role
+	// back to their default role.
+	Switchback bool `json:"switchback"`
 }
 
 func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createWebSessionReq
+	var req WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user := p.ByName("user")
+
+	// DELETE IN 8.0: proxy v5 sends request with no user field.
+	// And since proxy v6, request will come with user field set, so grabbing user
+	// by param is not required.
+	if req.User == "" {
+		req.User = p.ByName("user")
+	}
+
 	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(user, req.PrevSessionID, req.AccessRequestID)
+		sess, err := auth.ExtendWebSession(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return sess, nil
 	}
-	sess, err := auth.CreateWebSession(user)
+	sess, err := auth.CreateWebSession(req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1804,12 +1819,9 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 			return nil, trace.BadParameter("failed to parse limit: %q", limit)
 		}
 	}
-	// remove 'to', 'from' and 'limit' fields, passing the rest of the query unmodified
-	// to whatever pluggable search is implemented by the backend
-	query.Del("to")
-	query.Del("from")
-	query.Del("limit")
-	eventsList, err := auth.SearchEvents(from, to, query.Encode(), limit)
+
+	eventTypes := query[events.EventType]
+	eventsList, _, err := auth.SearchEvents(from, to, defaults.Namespace, eventTypes, limit, types.EventOrderDescending, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1849,7 +1861,7 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, err := auth.SearchSessionEvents(from, to, limit)
+	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2116,6 +2128,7 @@ type upsertRoleRawReq struct {
 	Role json.RawMessage `json:"role"`
 }
 
+// DELETE IN 7.0
 func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertRoleRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -2135,14 +2148,24 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	return message(fmt.Sprintf("'%v' role upserted", role.GetName())), nil
 }
 
+// DELETE IN 7.0
 func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	role, err := auth.GetRole(r.Context(), p.ByName("role"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID()))
+	roleV4, ok := role.(*types.RoleV4)
+	if !ok {
+		return nil, trace.BadParameter("unrecognized role version")
+	}
+	downgraded, err := downgradeRole(context.Background(), roleV4)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rawMessage(services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID()))
 }
 
+// DELETE IN 7.0
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	roles, err := auth.GetRoles(r.Context())
 	if err != nil {
@@ -2150,7 +2173,15 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	}
 	out := make([]json.RawMessage, len(roles))
 	for i, role := range roles {
-		raw, err := services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID())
+		roleV4, ok := role.(*types.RoleV4)
+		if !ok {
+			return nil, trace.BadParameter("unrecognized role version")
+		}
+		downgraded, err := downgradeRole(context.Background(), roleV4)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw, err := services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2159,6 +2190,7 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	return out, nil
 }
 
+// DELETE IN 7.0
 func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	role := p.ByName("role")
 	if err := auth.DeleteRole(r.Context(), role); err != nil {
@@ -2302,6 +2334,7 @@ func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cap.SetOrigin(types.OriginDynamic)
 
 	err = auth.SetAuthPreference(cap)
 	if err != nil {

@@ -74,12 +74,12 @@ spec:
   allow:
     # logins array defines the OS/UNIX logins a user is allowed to use.
     # a few special variables are supported here (see below)
-    logins: [root, '{% raw %}{{internal.logins}}{% endraw %}']
+    logins: [root, '{{internal.logins}}']
     # if kubernetes integration is enabled, this setting configures which
     # kubernetes groups the users of this role will be assigned to.
     # note that you can refer to a SAML/OIDC trait via the "external" property bag,
     # this allows you to specify Kubernetes group membership in an identity manager:
-    kubernetes_groups: ["system:masters", "{% raw %}{{external.trait_name}}{% endraw %}"]]
+    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]]
 
     # list of node labels a user will be allowed to connect to:
     node_labels:
@@ -101,7 +101,7 @@ spec:
       'cluster_name': '^us.*\.example\.com$'
 
     # defines roles that this user can can request.
-    # needed for teleport's request workflow
+    # needed for teleport's access request workflow
     # https://goteleport.com/teleport/docs/enterprise/workflow/
     request:
       roles:
@@ -133,8 +133,8 @@ The following variables can be used with `logins` field:
 
 | Variable | Description |
 | - | - |
-| `{% raw %}{{internal.logins}}{% endraw %}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database. |
-| `{% raw %}{{external.xyz}}{% endraw %}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim. |
+| `{{internal.logins}}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database. |
+| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim. |
 
 Both variables above are there to deliver the same benefit: they allow Teleport
 administrators to define allowed OS logins via the user database, be it the
@@ -154,7 +154,7 @@ Assuming you have the following SAML assertion attribute in your response:
 
 ```
 logins:
-   - '{% raw %}{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}{% endraw %}'
+   - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
 ```
 
 ### Role Options
@@ -171,6 +171,20 @@ The table below documents the behavior of each option if multiple roles are assi
 | `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `max_connections` | Limit on how many active SSH sessions can be started via Teleport | |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
+
+### Role Versions
+
+There are currently two supported role versions: `v3` and `v4`. `v4` roles are
+completely backwards-compatible with `v3`, the only difference lies in the
+default allow labels which will be applied to the role if they are not
+explicitly set.
+
+Label              | `v3` Default   | `v4` Default
+------------------ | -------------- | ---------------
+`node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
+`app_labels`        | `[{"*": "*"}]` | `[]`
+`kubernetes_labels` | `[{"*": "*"}]` | `[]`
+`database_labels`   | `[{"*": "*"}]` | `[]`
 
 ## RBAC for Hosts
 

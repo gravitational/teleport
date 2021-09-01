@@ -10,7 +10,7 @@ a deep dive into how to setup and run Teleport in production.
 We have split this guide into:
 
 - [Teleport on AWS FAQ](#teleport-on-aws-faq)
-- [Authenticating to EKS Using GitHub Credentials with Teleport Community Edition](#using-teleport-with-eks)
+- [Authenticating to EKS Using GitHub Credentials with Teleport Open Source Edition](#using-teleport-with-eks)
 - [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
 - [Teleport AWS Tips & Tricks](#teleport-aws-tips--tricks)
 - [AWS HA with Terraform](aws-terraform-guide.mdx)
@@ -74,7 +74,7 @@ DynamoDB is a key-value and document database that delivers single-digit millise
 performance at any scale. For large clusters you can provision usage but for smaller
 deployments you can leverage DynamoDB's autoscaling.
 
-Teleport 4.0 leverages [DynamoDB's streaming feature](https://github.com/gravitational/teleport/issues/2430). When turning this on, you'll need
+Teleport 4.0+ leverages [DynamoDB's streaming feature](https://github.com/gravitational/teleport/issues/2430). When turning this on, you'll need
 to specify `New Image` from the streaming options. DynamoDB back-end supports two
 types of Teleport data:
 
@@ -462,7 +462,7 @@ To check, run `kubectl describe configmap -n kube-system aws-auth`
 
 #### Create EC2 instance
 
-Create an EC2 instance using the [Teleport Community AMI](https://aws.amazon.com/marketplace/pp/Gravitational-Teleport-Community-Edition/B07FYTZB9B) on a public subnet in your VPC.
+Create an EC2 instance using the [Teleport Open Source AMI](https://aws.amazon.com/marketplace/pp/Gravitational-Teleport-Community-Edition/B07FYTZB9B) on a public subnet in your VPC.
 Modify the security group associated with that instance to allow port 22 inbound, so
 you can SSH to the instance after it’s running. You will need security group rules
 to allow access to ports `3080` and `3022-3026` so that users can access the Teleport
@@ -498,7 +498,7 @@ aws ec2 associate-iam-instance-profile --iam-instance-profile Name=teleport-role
 3. Setup Teleport config file. `sudo cp teleport.yaml /etc/teleport.yaml`. An example is below.
 
 ```
-{!examples/aws/eks/teleport.yaml!}
+(!examples/aws/eks/teleport.yaml!)
 ```
 
 #### Download Kubectl on Teleport Server
@@ -531,12 +531,15 @@ aws eks update-kubeconfig --name [teleport-cluster] --region us-west-2
 
 #### Creating TLS certificate for Teleport
 
-Create TLS certificate for HTTPs. It is absolutely crucial to properly configure TLS
-for HTTPS when you use Teleport Proxy in production. For simplicity, we are using Let’s
-Encrypt to issue certificates and simple DNS resolution.
+This section walks through configuring Teleport to acquire a TLS (SSL) certificate for HTTPS. 
 
-However, using an Elastic IP and a Route53 domain name would be appropriate for
-production use cases.
+<Admonition type="warning" title="Warning">
+  It's essential to properly configure TLS (SSL) to secure your production resources!
+</Admonition>
+
+While Teleport is fully compatible with third-party ACME clients (such as Let's Encrypt certbot), third-party clients are optional to get started with Teleport on AWS. Teleport will automatically acquire a TLS certificate through the ACME protocol by default to make it easy to get set up.
+
+Some resources, architectures, and scenarios will nevertheless require more sophisticated or flexible configuration options. Perhaps, an ACME client is already being used within a stack and to manage certificates for multiple resources. The steps below will help you configure your Teleport environment to use Let's Encrypt certbot for just such occasions:
 
 Install certbot:
 

@@ -180,6 +180,15 @@ message DatabaseServerSpecV3 {
 message AWS {
     // Region is a AWS cloud region.
     string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
+    // Redshift contains Redshift specific settings.
+    Redshift Redshift = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "redshift,omitempty" ];
+}
+
+// Redshift contains AWS Redshift specific settings.
+message Redshift {
+    // ClusterID is the Redshift cluster identifier.
+    string ClusterID = 1 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -205,6 +214,13 @@ message ServerV2 {
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a server spec
     ServerSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// ServerV2List is a list of servers.
+// DELETE IN 8.0.0 only used in deprecated GetNodes rpc
+message ServerV2List {
+    // Servers is a list of servers.
+    repeated ServerV2 Servers = 1;
 }
 
 // ServerSpecV2 is a specification for V2 Server
@@ -267,7 +283,18 @@ message App {
 message Rewrite {
     // Redirect defines a list of hosts which will be rewritten to the public
     // address of the application if they occur in the "Location" header.
-    repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect" ];
+    repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect,omitempty" ];
+    // Headers is a list of headers to inject when passing the request over
+    // to the application.
+    repeated Header Headers = 2 [ (gogoproto.jsontag) = "headers,omitempty" ];
+}
+
+// Header represents a single http header passed over to the proxied application.
+message Header {
+    // Name is the http header name.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // Value is the http header value.
+    string Value = 2 [ (gogoproto.jsontag) = "value" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -405,7 +432,7 @@ message ProvisionTokenV2 {
 // ProvisionTokenV2List is a list of provisioning tokens.
 message ProvisionTokenV2List {
     // ProvisionTokens is a list of provisioning tokens.
-    repeated types.ProvisionTokenV2 ProvisionTokens = 1;
+    repeated ProvisionTokenV2 ProvisionTokens = 1;
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -566,6 +593,60 @@ message AuditConfig {
     int64 WriteMinCapacity = 12 [ (gogoproto.jsontag) = "write_min_capacity,omitempty" ];
     // WriteTargetValue is the ratio of consumed write to provisioned capacity.
     double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
+}
+
+// AuthPreferenceV2 implements the AuthPreference interface.
+message AuthPreferenceV2 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is resource metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an AuthPreference specification
+    AuthPreferenceSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// AuthPreferenceSpecV2 is the actual data we care about for AuthPreference.
+message AuthPreferenceSpecV2 {
+    // Type is the type of authentication.
+    string Type = 1 [ (gogoproto.jsontag) = "type" ];
+
+    // SecondFactor is the type of second factor.
+    string SecondFactor = 2 [
+        (gogoproto.jsontag) = "second_factor,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.SecondFactorType"
+    ];
+
+    // ConnectorName is the name of the OIDC or SAML connector. If this value is
+    // not set the first connector in the backend will be used.
+    string ConnectorName = 3 [ (gogoproto.jsontag) = "connector_name,omitempty" ];
+
+    // U2F are the settings for the U2F device.
+    U2F U2F = 4 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "u2f,omitempty" ];
+
+    // RequireSessionMFA causes all sessions in this cluster to require MFA
+    // checks.
+    bool RequireSessionMFA = 5 [ (gogoproto.jsontag) = "require_session_mfa,omitempty" ];
+}
+
+// U2F defines settings for U2F device.
+message U2F {
+    // AppID returns the application ID for universal second factor.
+    string AppID = 1 [ (gogoproto.jsontag) = "app_id,omitempty" ];
+
+    // Facets returns the facets for universal second factor.
+    repeated string Facets = 2 [ (gogoproto.jsontag) = "facets,omitempty" ];
+
+    // DeviceAttestationCAs contains the trusted attestation CAs for U2F
+    // devices.
+    repeated string DeviceAttestationCAs = 3
+        [ (gogoproto.jsontag) = "device_attestation_cas,omitempty" ];
 }
 
 // Namespace represents namespace resource specification
@@ -920,8 +1001,8 @@ message PluginDataUpdateParams {
     map<string, string> Expect = 5 [ (gogoproto.jsontag) = "expect,omitempty" ];
 }
 
-// RoleV3 represents role resource specification
-message RoleV3 {
+// RoleV4 represents role resource specification
+message RoleV4 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
@@ -934,11 +1015,11 @@ message RoleV3 {
     // Metadata is User metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a role specification
-    RoleSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    RoleSpecV4 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
-// RoleSpecV3 is role specification for RoleV3.
-message RoleSpecV3 {
+// RoleSpecV4 is role specification for RoleV4.
+message RoleSpecV4 {
     // Options is for OpenSSH options like agent forwarding.
     RoleOptions Options = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "options,omitempty" ];
@@ -1564,6 +1645,12 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
+    // LoginTime is the time this user recently logged in.
+    google.protobuf.Timestamp LoginTime = 8 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "login_time"
+    ];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
@@ -1698,6 +1785,20 @@ message ResourcesWithSecretsRequest {
     bool WithSecrets = 1 [ (gogoproto.jsontag) = "with_secrets,omitempty" ];
 }
 
+// ResourcesInNamespaceRequest is a request relating to a named resource in the given namespace.
+message ResourceInNamespaceRequest {
+    // Name is the name of the resource.
+    string Name = 1;
+    // Namespace is the namespace of resources.
+    string Namespace = 2;
+}
+
+// ResourcesInNamespaceRequest is a request relating to resources in the given namespace.
+message ResourcesInNamespaceRequest {
+    // Namespace is the namespace of resources.
+    string Namespace = 1;
+}
+
 // OIDCConnectorV2 represents an OIDC connector.
 message OIDCConnectorV2 {
     // Kind is a resource kind.
@@ -1715,7 +1816,7 @@ message OIDCConnectorV2 {
 // OIDCConnectorV2List is a list of OIDC connectors.
 message OIDCConnectorV2List {
     // OIDCConnectors is a list of OIDC connectors.
-    repeated types.OIDCConnectorV2 OIDCConnectors = 1;
+    repeated OIDCConnectorV2 OIDCConnectors = 1;
 }
 
 // OIDCConnectorSpecV2 is an OIDC connector specification.
@@ -1774,7 +1875,7 @@ message SAMLConnectorV2 {
 // SAMLConnectorV2List is a list of SAML connectors.
 message SAMLConnectorV2List {
     // SAMLConnectors is a list of SAML connectors.
-    repeated types.SAMLConnectorV2 SAMLConnectors = 1;
+    repeated SAMLConnectorV2 SAMLConnectors = 1;
 }
 
 // SAMLConnectorSpecV2 is a SAML connector specification.
@@ -1849,7 +1950,7 @@ message GithubConnectorV3 {
 // GithubConnectorV3List is a list of Github connectors.
 message GithubConnectorV3List {
     // GithubConnectors is a list of Github connectors.
-    repeated types.GithubConnectorV3 GithubConnectors = 1;
+    repeated GithubConnectorV3 GithubConnectors = 1;
 }
 
 // GithubConnectorSpecV3 is a Github connector specification.
@@ -1899,7 +2000,7 @@ message TrustedClusterV2 {
 // TrustedClusterV2List is a list of trusted cluster.
 message TrustedClusterV2List {
     // TrustedClusters is a list of trusted cluster.
-    repeated types.TrustedClusterV2 TrustedClusters = 1;
+    repeated TrustedClusterV2 TrustedClusters = 1;
 }
 
 // TrustedClusterSpecV2 is a Trusted Cluster specification.

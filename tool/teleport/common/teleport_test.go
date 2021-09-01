@@ -53,7 +53,7 @@ func TestTeleportMain(t *testing.T) {
 	defaults.DataDir = "/tmp/teleport/var/lib/teleport"
 
 	t.Run("Default", func(t *testing.T) {
-		cmd, conf := Run(Options{
+		_, cmd, conf := Run(Options{
 			Args:     []string{"start"},
 			InitOnly: true,
 		})
@@ -68,7 +68,7 @@ func TestTeleportMain(t *testing.T) {
 	})
 
 	t.Run("RolesFlag", func(t *testing.T) {
-		cmd, conf := Run(Options{
+		_, cmd, conf := Run(Options{
 			Args:     []string{"start", "--roles=node"},
 			InitOnly: true,
 		})
@@ -77,7 +77,7 @@ func TestTeleportMain(t *testing.T) {
 		require.False(t, conf.Proxy.Enabled)
 		require.Equal(t, "start", cmd)
 
-		cmd, conf = Run(Options{
+		_, cmd, conf = Run(Options{
 			Args:     []string{"start", "--roles=proxy"},
 			InitOnly: true,
 		})
@@ -86,7 +86,7 @@ func TestTeleportMain(t *testing.T) {
 		require.True(t, conf.Proxy.Enabled)
 		require.Equal(t, "start", cmd)
 
-		cmd, conf = Run(Options{
+		_, cmd, conf = Run(Options{
 			Args:     []string{"start", "--roles=auth"},
 			InitOnly: true,
 		})
@@ -97,7 +97,7 @@ func TestTeleportMain(t *testing.T) {
 	})
 
 	t.Run("ConfigFile", func(t *testing.T) {
-		cmd, conf := Run(Options{
+		_, cmd, conf := Run(Options{
 			Args:     []string{"start", "--roles=node", "--labels=a=a1,b=b1", "--config=" + configFile},
 			InitOnly: true,
 		})

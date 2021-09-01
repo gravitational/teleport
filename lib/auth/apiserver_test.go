@@ -18,6 +18,7 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +35,8 @@ import (
 
 func TestUpsertServer(t *testing.T) {
 	t.Parallel()
+
+	ctx := context.Background()
 	const remoteAddr = "request-remote-addr"
 
 	tests := []struct {
@@ -127,7 +130,7 @@ func TestUpsertServer(t *testing.T) {
 				allServers = append(allServers, servers...)
 			}
 			addServers(s.GetAuthServers())
-			addServers(s.GetNodes(defaults.Namespace))
+			addServers(s.GetNodes(ctx, defaults.Namespace))
 			addServers(s.GetProxies())
 			require.Empty(t, cmp.Diff(allServers, []services.Server{tt.wantServer}))
 		})

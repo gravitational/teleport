@@ -36,13 +36,101 @@ section of the Admin Manual.
 ### Can individual nodes create reverse tunnels to a proxy server without creating a new cluster?
 
 This has been a long standing [request](https://github.com/gravitational/teleport/issues/803) of Teleport and
-it has been fixed with Teleport 4.0.   Once you've upgraded your Teleport Cluster, change the node config
+it has been fixed with Teleport 4.0. Once you've upgraded your Teleport Cluster, change the node config
 option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr`
 in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](admin-guide.mdx#adding-a-node-located-behind-nat)
 
 ### Can nodes use a single port for reverse tunnels?
 
-Yes, Teleport supports tunnel multiplexing on a single port.  Set the `tunnel_listen_addr` to use the same port as the `web_listen_addr` address setting in the `proxy_service` configuration. Teleport will automatically use multiplexing with that configuration.
+Yes, Teleport supports tunnel multiplexing on a single port. Set the `tunnel_listen_addr` to use the same port as the `web_listen_addr` address setting in the `proxy_service` configuration. Teleport will automatically use multiplexing with that configuration.
+
+## How is Open Source different from Enterprise?
+
+Teleport provides three offerings:
+
+- Open Source - Apache 2 License, self-hosted.
+- Enterprise - self-hosted or cloud, commercial license.
+- Pro - cloud only
+
+<table>
+  <thead>
+    <tr>
+      <th>Capability/Offering</th>
+      <th>Open Source</th>
+      <th>Pro</th>
+      <th>Enterprise</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>License</td>
+      <td>Apache 2</td>
+      <td>Commercial</td>
+      <td>Commercial</td>
+    </tr>
+    <tr>
+      <td>Role-Based Access Control</td>
+      <td>&#10004;</td>
+      <td>&#10004;</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>Cloud-hosted</td>
+      <td>&#10006;</td>
+      <td>&#10004;</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>Self-hosted</td>
+      <td>&#10004;</td>
+      <td>&#10006;</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>Single Sign-On</td>
+      <td>Github only</td>
+      <td>Github, Google, OIDC, SAML</td>
+      <td>Github, Google, OIDC, SAML</td>
+    </tr>
+    <tr>
+      <td>Access Requests</td>
+      <td>Limited</td>
+      <td>&#10004; [Dual authorization, mandatory requests](./access-controls/guides/dual-authz.mdx)</td>
+      <td>&#10004; [Dual authorization, mandatory requests](./access-controls/guides/dual-authz.mdx)</td>
+    </tr>
+    <tr>
+      <td>FedRamp Control</td>
+      <td>&#10006;</td>
+      <td>&#10006;</td>
+      <td>[Compiled with FIPS-certified crypto libraries, FedRamp control features](./enterprise/ssh-kubernetes-fedramp.mdx)</td>
+    </tr>
+    <tr>
+      <td>PCI DSS Features</td>
+      <td>Limited</td>
+      <td>Limited</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>SOC2 Features</td>
+      <td>Limited</td>
+      <td>&#10004;</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>Annual or Multi-Year contracts, Volume Discounts</td>
+      <td>&#10006;</td>
+      <td>&#10006;</td>
+      <td>&#10004;</td>
+    </tr>
+    <tr>
+      <td>Support</td>
+      <td>Best-effort, community</td>
+      <td>8x5</td>
+      <td>24x7 support with premium SLAs & account managers</td>
+    </tr>
+  </tbody>
+</table>
 
 ### What are Teleport's scalability and hardware recommendations?
 
@@ -76,12 +164,15 @@ We recommend that the Auth Server should be upgraded first, and proxy is bumped 
 
 ### Does Web UI support copy and paste?
 
-Yes. You can copy&paste using the mouse. For working with a keyboard, Teleport employs
-`tmux`-like "prefix" mode. To enter prefix mode, press `Ctrl+A`.
+Yes. You can copy-and-paste using a mouse. If you prefer a keyboard, Teleport employs
+`tmux`-like "prefix" mode. To enter prefix mode, use the `Ctrl`+`A` keyboard shortcut.
 
-While in prefix mode, you can press `Ctrl+V` to paste, or enter text selection
-mode by pressing `[`. When in text selection mode, move around using `hjkl`, select
-text by toggling `space` and copy it via `Ctrl+C`.
+While in prefix mode, you can press `Ctrl`+`V` to paste, or enter text selection
+mode by pressing `[`. When in text selection mode:
+
+- Move around using the keys `h`,`j`,`k`, and `l`.
+- Select text by toggling `space`.
+- And, copy it via `Ctrl`+`C`.
 
 ### What TCP ports does Teleport use?
 

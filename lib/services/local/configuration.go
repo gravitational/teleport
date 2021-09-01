@@ -19,11 +19,27 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+var (
+	clusterNameNotFound = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricClusterNameNotFound,
+			Help: "Number of times a cluster name was not found",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(clusterNameNotFound)
+}
 
 // ClusterConfigurationService is responsible for managing cluster configuration.
 type ClusterConfigurationService struct {
@@ -42,6 +58,7 @@ func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOpt
 	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, namePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
+			clusterNameNotFound.Inc()
 			return nil, trace.NotFound("cluster name not found")
 		}
 		return nil, trace.Wrap(err)

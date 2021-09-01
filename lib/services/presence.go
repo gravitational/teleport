@@ -36,17 +36,20 @@ type Presence interface {
 
 	// GetNodes returns a list of registered servers. Schema validation can be
 	// skipped to improve performance.
-	GetNodes(namespace string, opts ...MarshalOption) ([]Server, error)
+	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]Server, error)
+
+	// ListNodes returns a paginated list of registered servers.
+	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
 
 	// DeleteAllNodes deletes all nodes in a namespace.
-	DeleteAllNodes(namespace string) error
+	DeleteAllNodes(ctx context.Context, namespace string) error
 
 	// DeleteNode deletes node in a namespace
-	DeleteNode(namespace, name string) error
+	DeleteNode(ctx context.Context, namespace, name string) error
 
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
-	UpsertNode(server Server) (*KeepAlive, error)
+	UpsertNode(ctx context.Context, server Server) (*KeepAlive, error)
 
 	// UpsertNodes bulk inserts nodes.
 	UpsertNodes(namespace string, servers []Server) error

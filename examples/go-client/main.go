@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,24 +20,58 @@ import (
 	"context"
 	"fmt"
 	"log"
+
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
+
+	"github.com/pborman/uuid"
 )
 
 func main() {
+	ctx := context.Background()
 	log.Printf("Starting Teleport client...")
-	client, err := connectClient()
+
+	cfg := client.Config{
+		Credentials: []client.Credentials{
+			client.LoadProfile("", ""),
+		},
+	}
+
+	clt, err := client.New(ctx, cfg)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
-	defer client.Close()
+	defer clt.Close()
 
-	ctx := context.Background()
+	if err := demoClient(ctx, clt); err != nil {
+		log.Printf("error in demoClient: %v", err)
+	}
+}
 
-	fmt.Println("")
-	roleCRUD(ctx, client)
+func demoClient(ctx context.Context, clt *client.Client) (err error) {
+	// Create a new access request for the `access-admin` user to use the `admin` role.
+	accessReq, err := types.NewAccessRequest(uuid.New(), "access-admin", "admin")
+	if err != nil {
+		return fmt.Errorf("failed to make new access request: %w", err)
+	}
+	if err = clt.CreateAccessRequest(ctx, accessReq); err != nil {
+		return fmt.Errorf("failed to create access request: %w", err)
+	}
+	log.Printf("Created access request: %v", accessReq)
 
-	fmt.Println("")
-	tokenCRUD(ctx, client)
+	// Approve the access request as if this was another party.
+	if err = clt.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+		RequestID: accessReq.GetName(),
+		State:     types.RequestState_APPROVED,
+	}); err != nil {
+		return fmt.Errorf("failed to accept request: %w", err)
+	}
+	log.Printf("Approved access request")
 
-	fmt.Println("")
-	accessWorkflow(ctx, client)
+	if err := clt.DeleteAccessRequest(ctx, accessReq.GetName()); err != nil {
+		return fmt.Errorf("failed to delete access request: %w", err)
+	}
+	log.Println("Deleted access request")
+
+	return nil
 }

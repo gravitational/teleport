@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -47,7 +46,6 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/jonboulle/clockwork"
 )
 
 const (
@@ -132,7 +130,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		contextDialer := client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 		dialer = ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -600,88 +598,6 @@ func (c *Client) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	return &keys, nil
 }
 
-// UpsertToken adds provisioning tokens for the auth server
-func (c *Client) UpsertToken(ctx context.Context, tok services.ProvisionToken) error {
-	if err := c.APIClient.UpsertToken(ctx, tok); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	_, err := c.PostJSON(c.Endpoint("tokens"), GenerateTokenRequest{
-		Token: tok.GetName(),
-		Roles: tok.GetRoles(),
-		TTL:   backend.TTL(clockwork.NewRealClock(), tok.Expiry()),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetTokens returns a list of active invitation tokens for nodes and users
-func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]services.ProvisionToken, error) {
-	if resp, err := c.APIClient.GetTokens(ctx); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	out, err := c.Get(c.Endpoint("tokens"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var tokens []services.ProvisionTokenV1
-	if err := json.Unmarshal(out.Bytes(), &tokens); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.ProvisionTokensFromV1(tokens), nil
-}
-
-// GetToken returns provisioning token
-func (c *Client) GetToken(ctx context.Context, token string) (services.ProvisionToken, error) {
-	if resp, err := c.APIClient.GetToken(ctx, token); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	out, err := c.Get(c.Endpoint("tokens", token), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalProvisionToken(out.Bytes(), services.SkipValidation())
-}
-
-// DeleteToken deletes a given provisioning token on the auth server (CA). It
-// could be a reset password token or a machine token
-func (c *Client) DeleteToken(ctx context.Context, token string) error {
-	if err := c.APIClient.DeleteToken(ctx, token); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	_, err := c.Delete(c.Endpoint("tokens", token))
-	return trace.Wrap(err)
-}
-
 // RegisterNewAuthServer is used to register new auth server with token
 func (c *Client) RegisterNewAuthServer(ctx context.Context, token string) error {
 	_, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
@@ -720,66 +636,6 @@ func (c *Client) UpsertNodes(namespace string, servers []services.Server) error 
 	}
 	_, err = c.PutJSON(c.Endpoint("namespaces", namespace, "nodes"), args)
 	return trace.Wrap(err)
-}
-
-// DeleteAllNodes deletes all nodes in a given namespace
-func (c *Client) DeleteAllNodes(namespace string) error {
-	_, err := c.Delete(c.Endpoint("namespaces", namespace, "nodes"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteNode deletes node in the namespace by name
-func (c *Client) DeleteNode(namespace string, name string) error {
-	if namespace == "" {
-		return trace.BadParameter("missing parameter namespace")
-	}
-	if name == "" {
-		return trace.BadParameter("missing parameter name")
-	}
-	_, err := c.Delete(c.Endpoint("namespaces", namespace, "nodes", name))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetNodes returns the list of servers registered in the cluster.
-func (c *Client) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{
-		"skip_validation": []string{fmt.Sprintf("%t", cfg.SkipValidation)},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re := make([]services.Server, len(items))
-	for i, raw := range items {
-		s, err := services.UnmarshalServer(
-			raw,
-			services.KindNode,
-			services.AddOptions(opts, services.SkipValidation())...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		re[i] = s
-	}
-
-	return re, nil
 }
 
 // UpsertReverseTunnel is used by admins to create a new reverse tunnel
@@ -1170,14 +1026,9 @@ func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
-func (c *Client) ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error) {
+func (c *Client) ExtendWebSession(req WebSessionReq) (services.WebSession, error) {
 	out, err := c.PostJSON(
-		c.Endpoint("users", user, "web", "sessions"),
-		createWebSessionReq{
-			PrevSessionID:   prevSessionID,
-			AccessRequestID: accessRequestID,
-		},
-	)
+		c.Endpoint("users", req.User, "web", "sessions"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1188,7 +1039,7 @@ func (c *Client) ExtendWebSession(user string, prevSessionID string, accessReque
 func (c *Client) CreateWebSession(user string) (services.WebSession, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "sessions"),
-		createWebSessionReq{},
+		WebSessionReq{User: user},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1308,105 +1159,6 @@ func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePassword
 	return services.UnmarshalWebSession(out.Bytes())
 }
 
-// UpsertOIDCConnector updates or creates OIDC connector
-func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
-	if err := c.APIClient.UpsertOIDCConnector(ctx, connector); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	data, err := services.MarshalOIDCConnector(connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PostJSON(c.Endpoint("oidc", "connectors"), &upsertOIDCConnectorRawReq{
-		Connector: data,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetOIDCConnector returns OIDC connector information by id
-func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (services.OIDCConnector, error) {
-	if resp, err := c.APIClient.GetOIDCConnector(ctx, id, withSecrets); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	if id == "" {
-		return nil, trace.BadParameter("missing connector id")
-	}
-	out, err := c.Get(c.Endpoint("oidc", "connectors", id),
-		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
-	if err != nil {
-		return nil, err
-	}
-	return services.UnmarshalOIDCConnector(out.Bytes(), services.SkipValidation())
-}
-
-// GetOIDCConnectors gets OIDC connectors list
-func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]services.OIDCConnector, error) {
-	if resp, err := c.APIClient.GetOIDCConnectors(ctx, withSecrets); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	out, err := c.Get(c.Endpoint("oidc", "connectors"),
-		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
-	if err != nil {
-		return nil, err
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connectors := make([]services.OIDCConnector, len(items))
-	for i, raw := range items {
-		connector, err := services.UnmarshalOIDCConnector(raw, services.SkipValidation())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		connectors[i] = connector
-	}
-	return connectors, nil
-}
-
-// DeleteOIDCConnector deletes OIDC connector by ID
-func (c *Client) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
-	if err := c.APIClient.DeleteOIDCConnector(ctx, connectorID); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	if connectorID == "" {
-		return trace.BadParameter("missing connector id")
-	}
-	_, err := c.Delete(c.Endpoint("oidc", "connectors", connectorID))
-	return trace.Wrap(err)
-}
-
 // CreateOIDCAuthRequest creates OIDCAuthRequest
 func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
 	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
@@ -1474,105 +1226,6 @@ func (c *Client) CreateSAMLConnector(ctx context.Context, connector services.SAM
 	return nil
 }
 
-// UpsertSAMLConnector updates or creates SAML connector
-func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
-	if err := c.APIClient.UpsertSAMLConnector(ctx, connector); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	data, err := services.MarshalSAMLConnector(connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PutJSON(c.Endpoint("saml", "connectors"), &upsertSAMLConnectorRawReq{
-		Connector: data,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetSAMLConnector returns SAML connector information by id
-func (c *Client) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (services.SAMLConnector, error) {
-	if resp, err := c.APIClient.GetSAMLConnector(ctx, id, withSecrets); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	if id == "" {
-		return nil, trace.BadParameter("missing connector id")
-	}
-	out, err := c.Get(c.Endpoint("saml", "connectors", id),
-		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalSAMLConnector(out.Bytes(), services.SkipValidation())
-}
-
-// GetSAMLConnectors gets SAML connectors list
-func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]services.SAMLConnector, error) {
-	if resp, err := c.APIClient.GetSAMLConnectors(ctx, withSecrets); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	out, err := c.Get(c.Endpoint("saml", "connectors"),
-		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
-	if err != nil {
-		return nil, err
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connectors := make([]services.SAMLConnector, len(items))
-	for i, raw := range items {
-		connector, err := services.UnmarshalSAMLConnector(raw, services.SkipValidation())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		connectors[i] = connector
-	}
-	return connectors, nil
-}
-
-// DeleteSAMLConnector deletes SAML connector by ID
-func (c *Client) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
-	if err := c.APIClient.DeleteSAMLConnector(ctx, connectorID); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	if connectorID == "" {
-		return trace.BadParameter("missing connector id")
-	}
-	_, err := c.Delete(c.Endpoint("saml", "connectors", connectorID))
-	return trace.Wrap(err)
-}
-
 // CreateSAMLAuthRequest creates SAML AuthnRequest
 func (c *Client) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
 	out, err := c.PostJSON(c.Endpoint("saml", "requests", "create"), createSAMLAuthRequestReq{
@@ -1634,104 +1287,6 @@ func (c *Client) CreateGithubConnector(connector services.GithubConnector) error
 	_, err = c.PostJSON(c.Endpoint("github", "connectors"), &createGithubConnectorRawReq{
 		Connector: bytes,
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// UpsertGithubConnector creates or updates a Github connector
-func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
-	if err := c.APIClient.UpsertGithubConnector(ctx, connector); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	bytes, err := services.MarshalGithubConnector(connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PutJSON(c.Endpoint("github", "connectors"), &upsertGithubConnectorRawReq{
-		Connector: bytes,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetGithubConnectors returns all configured Github connectors
-func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]services.GithubConnector, error) {
-	if resp, err := c.APIClient.GetGithubConnectors(ctx, withSecrets); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	out, err := c.Get(c.Endpoint("github", "connectors"), url.Values{
-		"with_secrets": []string{strconv.FormatBool(withSecrets)},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connectors := make([]services.GithubConnector, len(items))
-	for i, raw := range items {
-		connector, err := services.UnmarshalGithubConnector(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		connectors[i] = connector
-	}
-	return connectors, nil
-}
-
-// GetGithubConnector returns the specified Github connector
-func (c *Client) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (services.GithubConnector, error) {
-	if resp, err := c.APIClient.GetGithubConnector(ctx, id, withSecrets); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	out, err := c.Get(c.Endpoint("github", "connectors", id), url.Values{
-		"with_secrets": []string{strconv.FormatBool(withSecrets)},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalGithubConnector(out.Bytes())
-}
-
-// DeleteGithubConnector deletes the specified Github connector
-func (c *Client) DeleteGithubConnector(ctx context.Context, id string) error {
-	if err := c.APIClient.DeleteGithubConnector(ctx, id); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	_, err := c.Delete(c.Endpoint("github", "connectors", id))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1896,45 +1451,11 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 	return retval, nil
 }
 
-// SearchEvents returns events that fit the criteria
-func (c *Client) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {
-	q, err := url.ParseQuery(query)
-	if err != nil {
-		return nil, trace.BadParameter("query")
-	}
-	q.Set("from", from.Format(time.RFC3339))
-	q.Set("to", to.Format(time.RFC3339))
-	q.Set("limit", fmt.Sprintf("%v", limit))
-	response, err := c.Get(c.Endpoint("events"), q)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	retval := make([]events.EventFields, 0)
-	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return retval, nil
-}
-
-// SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(from, to time.Time, limit int) ([]events.EventFields, error) {
-	query := url.Values{
-		"to":    []string{to.Format(time.RFC3339)},
-		"from":  []string{from.Format(time.RFC3339)},
-		"limit": []string{fmt.Sprintf("%v", limit)},
-	}
-
-	response, err := c.Get(c.Endpoint("events", "session"), query)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	retval := make([]events.EventFields, 0)
-	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return retval, nil
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan events.AuditEvent, chan error) {
+	return c.APIClient.StreamSessionEvents(ctx, string(sessionID), startIndex)
 }
 
 // GetNamespaces returns a list of namespaces
@@ -1974,105 +1495,9 @@ func (c *Client) DeleteNamespace(name string) error {
 	return trace.Wrap(err)
 }
 
-// GetRoles returns a list of roles
-func (c *Client) GetRoles(ctx context.Context) ([]services.Role, error) {
-	if resp, err := c.APIClient.GetRoles(ctx); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 7.0
-	out, err := c.Get(c.Endpoint("roles"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roles := make([]services.Role, len(items))
-	for i, roleBytes := range items {
-		role, err := services.UnmarshalRole(roleBytes, services.SkipValidation())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		roles[i] = role
-	}
-	return roles, nil
-}
-
 // CreateRole not implemented: can only be called locally.
 func (c *Client) CreateRole(role services.Role) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertRole creates or updates role
-func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
-	if err := c.APIClient.UpsertRole(ctx, role); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 7.0
-	data, err := services.MarshalRole(role)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PostJSON(c.Endpoint("roles"), &upsertRoleRawReq{Role: data})
-	return trace.Wrap(err)
-}
-
-// GetRole returns role by name
-func (c *Client) GetRole(ctx context.Context, name string) (services.Role, error) {
-	if resp, err := c.APIClient.GetRole(ctx, name); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 7.0
-	if name == "" {
-		return nil, trace.BadParameter("missing name")
-	}
-	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	role, err := services.UnmarshalRole(out.Bytes(), services.SkipValidation())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return role, nil
-}
-
-// DeleteRole deletes role by name
-func (c *Client) DeleteRole(ctx context.Context, name string) error {
-	if err := c.APIClient.DeleteRole(ctx, name); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 7.0
-	if name == "" {
-		return trace.BadParameter("missing name")
-	}
-	_, err := c.Delete(c.Endpoint("roles", name))
-	return trace.Wrap(err)
 }
 
 // GetClusterConfig returns cluster level configuration information.
@@ -2177,39 +1602,6 @@ func (c *Client) SetStaticTokens(st services.StaticTokens) error {
 	return nil
 }
 
-func (c *Client) GetAuthPreference() (services.AuthPreference, error) {
-	out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cap, err := services.UnmarshalAuthPreference(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cap, nil
-}
-
-func (c *Client) SetAuthPreference(cap services.AuthPreference) error {
-	data, err := services.MarshalAuthPreference(cap)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(c.Endpoint("authentication", "preference"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// DeleteAuthPreference not implemented: can only be called locally.
-func (c *Client) DeleteAuthPreference(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetLocalClusterName returns local cluster name
 func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()
@@ -2255,87 +1647,6 @@ func (c *Client) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) GetTrustedCluster(ctx context.Context, name string) (services.TrustedCluster, error) {
-	if resp, err := c.APIClient.GetTrustedCluster(ctx, name); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	out, err := c.Get(c.Endpoint("trustedclusters", name), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	trustedCluster, err := services.UnmarshalTrustedCluster(out.Bytes(), services.SkipValidation())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return trustedCluster, nil
-}
-
-func (c *Client) GetTrustedClusters(ctx context.Context) ([]services.TrustedCluster, error) {
-	if resp, err := c.APIClient.GetTrustedClusters(ctx); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	out, err := c.Get(c.Endpoint("trustedclusters"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	trustedClusters := make([]services.TrustedCluster, len(items))
-	for i, bytes := range items {
-		trustedCluster, err := services.UnmarshalTrustedCluster(bytes, services.SkipValidation())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		trustedClusters[i] = trustedCluster
-	}
-
-	return trustedClusters, nil
-}
-
-// UpsertTrustedCluster creates or updates a trusted cluster.
-func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
-	if resp, err := c.APIClient.UpsertTrustedCluster(ctx, trustedCluster); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	trustedClusterBytes, err := services.MarshalTrustedCluster(trustedCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(c.Endpoint("trustedclusters"), &upsertTrustedClusterReq{
-		TrustedCluster: trustedClusterBytes,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalTrustedCluster(out.Bytes())
-}
-
 func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	validateRequestRaw, err := validateRequest.ToRaw()
 	if err != nil {
@@ -2359,22 +1670,6 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	}
 
 	return validateResponse, nil
-}
-
-// DeleteTrustedCluster deletes a trusted cluster by name.
-func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
-	if err := c.APIClient.DeleteTrustedCluster(ctx, name); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	// fallback to http if grpc is not implemented
-	// DELETE IN 8.0
-	_, err := c.Delete(c.Endpoint("trustedclusters", name))
-	return trace.Wrap(err)
 }
 
 // CreateResetPasswordToken creates reset password token
@@ -2442,7 +1737,7 @@ type WebService interface {
 	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
-	ExtendWebSession(user, prevSessionID, accessRequestID string) (types.WebSession, error)
+	ExtendWebSession(req WebSessionReq) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(user string) (types.WebSession, error)
 

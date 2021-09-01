@@ -18,15 +18,16 @@ package services
 
 import (
 	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+
 	"github.com/pborman/uuid"
 )
 
 // NewPresetEditorRole returuns new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() Role {
-	role := &RoleV3{
+	role := &types.RoleV4{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
@@ -34,7 +35,7 @@ func NewPresetEditorRole() Role {
 			Namespace:   defaults.Namespace,
 			Description: "Edit cluster configuration",
 		},
-		Spec: RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
@@ -65,7 +66,7 @@ func NewPresetEditorRole() Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() Role {
-	role := &RoleV3{
+	role := &types.RoleV4{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
@@ -73,7 +74,7 @@ func NewPresetAccessRole() Role {
 			Namespace:   defaults.Namespace,
 			Description: "Access cluster resources",
 		},
-		Spec: RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
@@ -105,7 +106,7 @@ func NewPresetAccessRole() Role {
 // auditor - someone who can review cluster events and replay sessions,
 // but can't initiate interactive sessions or modify configuration.
 func NewPresetAuditorRole() Role {
-	role := &RoleV3{
+	role := &types.RoleV4{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
@@ -113,7 +114,7 @@ func NewPresetAuditorRole() Role {
 			Namespace:   defaults.Namespace,
 			Description: "Review cluster events and replay sessions",
 		},
-		Spec: RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),

@@ -148,6 +148,12 @@ message SessionStart {
 
     // InitialCommand is the command used to start this session.
     repeated string InitialCommand = 9 [ (gogoproto.jsontag) = "initial_command,omitempty" ];
+
+    // SessionRecording is the type of session recording.
+    string SessionRecording = 10 [ (gogoproto.jsontag) = "session_recording,omitempty" ];
+
+    // AccessRequests are the IDs of access requests created by the user
+    repeated string AccessRequests = 11 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
 }
 
 // SessionJoin emitted when another user joins a session
@@ -323,6 +329,9 @@ message SessionEnd {
 
     // InitialCommand is the command used to start this session.
     repeated string InitialCommand = 13 [ (gogoproto.jsontag) = "initial_command,omitempty" ];
+
+    // SessionRecording is the type of session recording.
+    string SessionRecording = 14 [ (gogoproto.jsontag) = "session_recording,omitempty" ];
 }
 
 // BPFMetadata is a common BPF process metadata
@@ -1171,6 +1180,9 @@ message DatabaseSessionQuery {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
     // DatabaseQuery is the executed query string.
     string DatabaseQuery = 5 [ (gogoproto.jsontag) = "db_query" ];
+    // DatabaseQueryParameters are the query parameters for prepared statements.
+    repeated string DatabaseQueryParameters = 6
+        [ (gogoproto.jsontag) = "db_query_parameters,omitempty" ];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.

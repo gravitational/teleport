@@ -26,25 +26,26 @@ import (
 // The following constants have been moved to /api/constants/constants.go, and are now
 // imported here for backwards compatibility. DELETE IN 7.0.0
 const (
-	Local                      = constants.Local
-	OIDC                       = constants.OIDC
-	SAML                       = constants.SAML
-	Github                     = constants.Github
-	HumanDateFormatSeconds     = constants.HumanDateFormatSeconds
-	DefaultImplicitRole        = constants.DefaultImplicitRole
-	APIDomain                  = constants.APIDomain
-	CertificateFormatStandard  = constants.CertificateFormatStandard
-	DurationNever              = constants.DurationNever
-	EnhancedRecordingMinKernel = constants.EnhancedRecordingMinKernel
-	EnhancedRecordingCommand   = constants.EnhancedRecordingCommand
-	EnhancedRecordingDisk      = constants.EnhancedRecordingDisk
-	EnhancedRecordingNetwork   = constants.EnhancedRecordingNetwork
-	KeepAliveNode              = constants.KeepAliveNode
-	KeepAliveApp               = constants.KeepAliveApp
-	KeepAliveDatabase          = constants.KeepAliveDatabase
-	WindowsOS                  = constants.WindowsOS
-	LinuxOS                    = constants.LinuxOS
-	DarwinOS                   = constants.DarwinOS
+	Local                        = constants.Local
+	OIDC                         = constants.OIDC
+	SAML                         = constants.SAML
+	Github                       = constants.Github
+	HumanDateFormatSeconds       = constants.HumanDateFormatSeconds
+	DefaultImplicitRole          = constants.DefaultImplicitRole
+	APIDomain                    = constants.APIDomain
+	CertificateFormatStandard    = constants.CertificateFormatStandard
+	DurationNever                = constants.DurationNever
+	EnhancedRecordingMinKernel   = constants.EnhancedRecordingMinKernel
+	EnhancedRecordingCommand     = constants.EnhancedRecordingCommand
+	EnhancedRecordingDisk        = constants.EnhancedRecordingDisk
+	EnhancedRecordingNetwork     = constants.EnhancedRecordingNetwork
+	KeepAliveNode                = constants.KeepAliveNode
+	KeepAliveApp                 = constants.KeepAliveApp
+	KeepAliveDatabase            = constants.KeepAliveDatabase
+	WindowsOS                    = constants.WindowsOS
+	LinuxOS                      = constants.LinuxOS
+	DarwinOS                     = constants.DarwinOS
+	UseOfClosedNetworkConnection = constants.UseOfClosedNetworkConnection
 )
 
 // WebAPIVersion is a current webapi version
@@ -452,6 +453,9 @@ const (
 	NetIQ = "netiq"
 	// ADFS is Microsoft Active Directory Federation Services
 	ADFS = "adfs"
+	// Ping is the common backend for all Ping Identity-branded identity
+	// providers (including PingOne, PingFederate, etc).
+	Ping = "ping"
 )
 
 const (
@@ -647,10 +651,6 @@ const (
 )
 
 const (
-	// UseOfClosedNetworkConnection is a special string some parts of
-	// go standard lib are using that is the only way to identify some errors
-	UseOfClosedNetworkConnection = "use of closed network connection"
-
 	// NodeIsAmbiguous serves as an identifying error string indicating that
 	// the proxy subsystem found multiple nodes matching the specified hostname.
 	NodeIsAmbiguous = "err-node-is-ambiguous"
@@ -721,6 +721,9 @@ const (
 
 	// AppCFHeader is a compatibility header.
 	AppCFHeader = "cf-access-token"
+
+	// HostHeader is the name of the Host header.
+	HostHeader = "Host"
 )
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.

@@ -108,7 +108,6 @@ by the system's SSH agent if it is running.
    their username, password, and 2nd-factor token. Users can log in with [`tsh
    login`](../cli-docs.mdx#tsh-login) or via the Web UI. The Auth Server checks
    the username and password against its identity storage and checks the 2nd factor token.
-
 2. If the correct credentials were offered, the Auth Server will generate a
    signed certificate and return it to the client. For users, certificates are
    stored in `~/.tsh` by default. If the client uses the Web UI the signed certificate

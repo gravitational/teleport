@@ -90,13 +90,12 @@ This token will expire in %d minutes
 
 Fill out and run this command on a node to make the application available:
 
-> teleport start \
-   --roles=%v \
+> teleport app start \
    --token=%v \
    --ca-pin=%v \
    --auth-server=%v \
-   --app-name=%-30v ` + "`" + `# Change "%v" to the name of your application.` + "`" + ` \
-   --app-uri=%-31v ` + "`" + `# Change "%v" to the address of your application.` + "`" + `
+   --name=%-30v ` + "`" + `# Change "%v" to the name of your application.` + "`" + ` \
+   --uri=%-31v ` + "`" + `# Change "%v" to the address of your application.` + "`" + `
 
 Your application will be available at %v.
 

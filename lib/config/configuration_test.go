@@ -21,8 +21,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -34,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -514,6 +517,11 @@ func TestApplyConfig(t *testing.T) {
 	require.True(t, cfg.Proxy.Enabled)
 	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
 	require.Equal(t, "tcp://tunnelhost:1001", cfg.Proxy.ReverseTunnelListenAddr.FullAddress())
+	require.Equal(t, "tcp://webhost:3336", cfg.Proxy.MySQLAddr.FullAddress())
+	require.Len(t, cfg.Proxy.PostgresPublicAddrs, 1)
+	require.Equal(t, "tcp://postgres.example:5432", cfg.Proxy.PostgresPublicAddrs[0].FullAddress())
+	require.Len(t, cfg.Proxy.MySQLPublicAddrs, 1)
+	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
 
 	u2fCAFromFile, err := ioutil.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
@@ -523,6 +531,7 @@ func TestApplyConfig(t *testing.T) {
 		Metadata: types.Metadata{
 			Name:      "cluster-auth-preference",
 			Namespace: defaults.Namespace,
+			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         teleport.Local,
@@ -569,13 +578,75 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.NoError(t, err)
 
 	require.False(t, cfg.Auth.Enabled)
-	require.Len(t, cfg.Auth.PublicAddrs, 0)
+	require.Empty(t, cfg.Auth.PublicAddrs)
 	require.False(t, cfg.Proxy.Enabled)
-	require.Len(t, cfg.Proxy.PublicAddrs, 0)
+	require.Empty(t, cfg.Proxy.PublicAddrs)
 	require.False(t, cfg.SSH.Enabled)
-	require.Len(t, cfg.SSH.PublicAddrs, 0)
+	require.Empty(t, cfg.SSH.PublicAddrs)
 	require.False(t, cfg.Apps.Enabled)
 	require.False(t, cfg.Databases.Enabled)
+	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
+	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
+}
+
+// TestPostgresPublicAddr makes sure Postgres proxy public address default
+// port logic works correctly.
+func TestPostgresPublicAddr(t *testing.T) {
+	tests := []struct {
+		desc string
+		fc   *FileConfig
+		out  []string
+	}{
+		{
+			desc: "postgres public address with port set",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PublicAddr:         []string{"web.example.com:443"},
+					PostgresPublicAddr: []string{"postgres.example.com:5432"},
+				},
+			},
+			out: []string{"postgres.example.com:5432"},
+		},
+		{
+			desc: "when port not set, defaults to web proxy public port",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PublicAddr:         []string{"web.example.com:443"},
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{"postgres.example.com:443"},
+		},
+		{
+			desc: "when port and public addr not set, defaults to web proxy listen port",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					WebAddr:            "0.0.0.0:8080",
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{"postgres.example.com:8080"},
+		},
+		{
+			desc: "when port and listen/public addrs not set, defaults to web proxy default port",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					PostgresPublicAddr: []string{"postgres.example.com"},
+				},
+			},
+			out: []string{net.JoinHostPort("postgres.example.com", strconv.Itoa(defaults.HTTPListenPort))},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+			err := applyProxyConfig(test.fc, cfg)
+			require.NoError(t, err)
+			require.EqualValues(t, test.out, utils.NetAddrsToStrings(cfg.Proxy.PostgresPublicAddrs))
+		})
+	}
 }
 
 func TestBackendDefaults(t *testing.T) {
@@ -1336,6 +1407,21 @@ db_service:
 `,
 			outError: `invalid database "foo" address`,
 		},
+		{
+			desc: "missing Redshift region",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - name: foo
+    protocol: postgres
+    uri: 192.168.1.1:5438
+    aws:
+      redshift:
+        cluster_id: cluster-1
+`,
+			outError: `missing AWS region for Redshift database "foo"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -1353,20 +1439,38 @@ db_service:
 	}
 }
 
-func TestDatabaseFlags(t *testing.T) {
+// TestDatabaseCLIFlags verifies database service can be configured with CLI flags.
+func TestDatabaseCLIFlags(t *testing.T) {
+	// Prepare test CA certificate used to configure some databases.
+	testCertPath := filepath.Join(t.TempDir(), "cert.pem")
+	err := ioutil.WriteFile(testCertPath, fixtures.LocalhostCert, 0644)
+	require.NoError(t, err)
 	tests := []struct {
-		inFlags  CommandLineFlags
-		desc     string
-		outError string
+		inFlags     CommandLineFlags
+		desc        string
+		outDatabase service.Database
+		outError    string
 	}{
 		{
 			desc: "valid database config",
 			inFlags: CommandLineFlags{
 				DatabaseName:     "foo",
-				DatabaseProtocol: "postgres",
+				DatabaseProtocol: defaults.ProtocolPostgres,
 				DatabaseURI:      "localhost:5432",
+				Labels:           "env=test,hostname=[1h:hostname]",
 			},
-			outError: "",
+			outDatabase: service.Database{
+				Name:         "foo",
+				Protocol:     defaults.ProtocolPostgres,
+				URI:          "localhost:5432",
+				StaticLabels: map[string]string{"env": "test"},
+				DynamicLabels: services.CommandLabels{
+					"hostname": &types.CommandLabelV2{
+						Period:  types.Duration(time.Hour),
+						Command: []string{"hostname"},
+					},
+				},
+			},
 		},
 		{
 			desc: "unsupported database protocol",
@@ -1381,7 +1485,7 @@ func TestDatabaseFlags(t *testing.T) {
 			desc: "missing database uri",
 			inFlags: CommandLineFlags{
 				DatabaseName:     "foo",
-				DatabaseProtocol: "postgres",
+				DatabaseProtocol: defaults.ProtocolPostgres,
 			},
 			outError: `invalid database "foo" address`,
 		},
@@ -1389,21 +1493,119 @@ func TestDatabaseFlags(t *testing.T) {
 			desc: "invalid database uri (missing port)",
 			inFlags: CommandLineFlags{
 				DatabaseName:     "foo",
-				DatabaseProtocol: "postgres",
+				DatabaseProtocol: defaults.ProtocolPostgres,
 				DatabaseURI:      "localhost",
 			},
 			outError: `invalid database "foo" address`,
 		},
+		{
+			desc: "RDS database",
+			inFlags: CommandLineFlags{
+				DatabaseName:      "rds",
+				DatabaseProtocol:  defaults.ProtocolMySQL,
+				DatabaseURI:       "localhost:3306",
+				DatabaseAWSRegion: "us-east-1",
+			},
+			outDatabase: service.Database{
+				Name:     "rds",
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost:3306",
+				AWS: service.DatabaseAWS{
+					Region: "us-east-1",
+				},
+				StaticLabels:  map[string]string{},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "Redshift database",
+			inFlags: CommandLineFlags{
+				DatabaseName:                 "redshift",
+				DatabaseProtocol:             defaults.ProtocolPostgres,
+				DatabaseURI:                  "localhost:5432",
+				DatabaseAWSRegion:            "us-east-1",
+				DatabaseAWSRedshiftClusterID: "redshift-cluster-1",
+			},
+			outDatabase: service.Database{
+				Name:     "redshift",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AWS: service.DatabaseAWS{
+					Region: "us-east-1",
+					Redshift: service.DatabaseAWSRedshift{
+						ClusterID: "redshift-cluster-1",
+					},
+				},
+				StaticLabels:  map[string]string{},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "Cloud SQL database",
+			inFlags: CommandLineFlags{
+				DatabaseName:          "gcp",
+				DatabaseProtocol:      defaults.ProtocolPostgres,
+				DatabaseURI:           "localhost:5432",
+				DatabaseCACertFile:    testCertPath,
+				DatabaseGCPProjectID:  "gcp-project-1",
+				DatabaseGCPInstanceID: "gcp-instance-1",
+			},
+			outDatabase: service.Database{
+				Name:     "gcp",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				CACert:   fixtures.LocalhostCert,
+				GCP: service.DatabaseGCP{
+					ProjectID:  "gcp-project-1",
+					InstanceID: "gcp-instance-1",
+				},
+				StaticLabels:  map[string]string{},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			err := Configure(&tt.inFlags, service.MakeDefaultConfig())
+			config := service.MakeDefaultConfig()
+			err := Configure(&tt.inFlags, config)
 			if tt.outError != "" {
-				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.outError)
 			} else {
 				require.NoError(t, err)
+				require.Equal(t, []service.Database{
+					tt.outDatabase,
+				}, config.Databases.Databases)
 			}
 		})
 	}
+}
+
+func TestTextFormatter(t *testing.T) {
+	tests := []struct {
+		comment      string
+		formatConfig []string
+		assertErr    require.ErrorAssertionFunc
+	}{
+		{
+			comment:      "invalid key (does not exist)",
+			formatConfig: []string{"level", "invalid key"},
+			assertErr:    require.Error,
+		},
+		{
+			comment:      "valid keys and formatting",
+			formatConfig: []string{"level", "component", "timestamp"},
+			assertErr:    require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.comment, func(t *testing.T) {
+			formatter := &textFormatter{
+				LogFormat: tt.formatConfig,
+			}
+			tt.assertErr(t, formatter.CheckAndSetDefaults())
+
+		})
+	}
+
 }

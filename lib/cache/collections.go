@@ -616,7 +616,7 @@ type node struct {
 
 // erase erases all data in the collection
 func (c *node) erase(ctx context.Context) error {
-	if err := c.presenceCache.DeleteAllNodes(defaults.Namespace); err != nil {
+	if err := c.presenceCache.DeleteAllNodes(ctx, defaults.Namespace); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -625,7 +625,7 @@ func (c *node) erase(ctx context.Context) error {
 }
 
 func (c *node) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.Presence.GetNodes(defaults.Namespace)
+	resources, err := c.Presence.GetNodes(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -635,7 +635,7 @@ func (c *node) fetch(ctx context.Context) (apply func(ctx context.Context) error
 		}
 		for _, resource := range resources {
 			c.setTTL(resource)
-			if _, err := c.presenceCache.UpsertNode(resource); err != nil {
+			if _, err := c.presenceCache.UpsertNode(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -646,7 +646,7 @@ func (c *node) fetch(ctx context.Context) (apply func(ctx context.Context) error
 func (c *node) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
-		err := c.presenceCache.DeleteNode(event.Resource.GetMetadata().Namespace, event.Resource.GetName())
+		err := c.presenceCache.DeleteNode(ctx, event.Resource.GetMetadata().Namespace, event.Resource.GetName())
 		if err != nil {
 			// resource could be missing in the cache
 			// expired or not created, if the first consumed
@@ -662,7 +662,7 @@ func (c *node) processEvent(ctx context.Context, event services.Event) error {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		c.setTTL(resource)
-		if _, err := c.presenceCache.UpsertNode(resource); err != nil {
+		if _, err := c.presenceCache.UpsertNode(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

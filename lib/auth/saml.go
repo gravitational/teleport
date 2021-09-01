@@ -106,7 +106,18 @@ func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 	}
 
 	req.ID = attr.Value
-	req.RedirectURL, err = provider.BuildAuthURLFromDocument("", doc)
+
+	// Workaround for Ping: Ping expects `SigAlg` and `Signature` query
+	// parameters when "Enforce Signed Authn Request" is enabled, but gosaml2
+	// only provides these parameters when binding == BindingHttpRedirect.
+	// Luckily, BuildAuthURLRedirect sets this and is otherwise identical to
+	// the standard BuildAuthURLFromDocument.
+	if connector.GetProvider() == teleport.Ping {
+		req.RedirectURL, err = provider.BuildAuthURLRedirect("", doc)
+	} else {
+		req.RedirectURL, err = provider.BuildAuthURLFromDocument("", doc)
+	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -418,6 +429,7 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
 			SessionTTL: params.sessionTTL,
+			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
 			return re, trace.Wrap(err)

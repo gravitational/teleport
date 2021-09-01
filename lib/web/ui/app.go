@@ -18,17 +18,10 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/gravitational/teleport/lib/services"
 )
-
-// AppLabel describes an application label
-type AppLabel struct {
-	// Name is this label name
-	Name string `json:"name"`
-	// Value is this label value
-	Value string `json:"value"`
-}
 
 // App describes an application
 type App struct {
@@ -43,7 +36,7 @@ type App struct {
 	// ClusterID is this app cluster ID
 	ClusterID string `json:"clusterId"`
 	// Labels is a map of static labels associated with an application.
-	Labels []AppLabel `json:"labels"`
+	Labels []Label `json:"labels"`
 }
 
 // MakeApps creates server application objects
@@ -53,13 +46,16 @@ func MakeApps(localClusterName string, localProxyDNSName string, appClusterName 
 		teleApps := server.GetApps()
 		for _, teleApp := range teleApps {
 			fqdn := AssembleAppFQDN(localClusterName, localProxyDNSName, appClusterName, teleApp)
-			labels := []AppLabel{}
+			labels := []Label{}
 			for name, value := range teleApp.StaticLabels {
-				labels = append(labels, AppLabel{
+				labels = append(labels, Label{
 					Name:  name,
 					Value: value,
 				})
 			}
+
+			sort.Sort(sortedLabels(labels))
+
 			result = append(result, App{
 				Name:       teleApp.Name,
 				URI:        teleApp.URI,

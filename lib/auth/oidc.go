@@ -374,6 +374,7 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
 			SessionTTL: params.sessionTTL,
+			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -545,9 +546,12 @@ func claimsFromIDToken(oidcClient *oidc.Client, idToken string) (jose.Claims, er
 // the issuer to be HTTPS and leave integrity and confidentiality to TLS. Authenticity is taken care of
 // during the token exchange.
 func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken string) (jose.Claims, error) {
+	// If the issuer URL is not HTTPS, return the error as trace.NotFound to
+	// allow the caller to treat this condition gracefully and extract claims
+	// just from the token.
 	err := isHTTPS(issuerURL)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NotFound(err.Error())
 	}
 
 	oac, err := oidcClient.OAuthClient()
@@ -567,9 +571,13 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 	}
 
 	endpoint := pc.UserInfoEndpoint.String()
+
+	// If the userinfo endpoint is not HTTPS, return the error as trace.NotFound to
+	// allow the caller to treat this condition gracefully and extract claims
+	// just from the token.
 	err = isHTTPS(endpoint)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NotFound(err.Error())
 	}
 	log.Debugf("Fetching OIDC claims from UserInfo endpoint: %q.", endpoint)
 
@@ -779,7 +787,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConne
 	userInfoClaims, err := claimsFromUserInfo(oidcClient, connector.GetIssuerURL(), t.AccessToken)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			log.Debugf("OIDC provider doesn't offer UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
+			log.Debugf("OIDC provider doesn't offer valid UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
 			return idTokenClaims, nil
 		}
 		log.Debugf("Unable to fetch UserInfo claims: %v.", err)

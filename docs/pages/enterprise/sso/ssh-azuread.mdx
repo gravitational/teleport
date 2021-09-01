@@ -27,7 +27,7 @@ The following steps configure an example SAML authentication connector matching 
 
 Before you get started you’ll need:
 
-- An Enterprise version of Teleport {{teleport_version}} or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/login).
+- An Enterprise version of Teleport (=teleport.version=) or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/login).
 - An Azure AD admin account with access to creating non-gallery applications (P2 License)
 - To register one or more users in the directory
 - To create at least two security groups in AzureAD and assign one or more users to each group
@@ -50,9 +50,9 @@ Before you get started you’ll need:
 
    ![Enter application name](../../../img/azuread/azuread-4-enterappname.png)
 
-5.Select properties under Manage and turn off User assignment required
+5. Select properties under Manage and turn off User assignment required
 
-  ![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
+   ![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
 
 6. Select Single Sign-on under Manage and choose SAML
 
@@ -70,15 +70,15 @@ Before you get started you’ll need:
 
    - Edit the Claim Name.  Change the name identifier format to Default. Make sure the source attribute is user.userprincipalname.
 
-   ![Confirm Name Identifier](../../../img/azuread/azuread-9a-nameidentifier.png)
+     ![Confirm Name Identifier](../../../img/azuread/azuread-9a-nameidentifier.png)
 
    - Add a group Claim to have user security groups available to the connector
-   ![Put in Security group claim](../../../img/azuread/azuread-9b-groupclaim.png)
+
+     ![Put in Security group claim](../../../img/azuread/azuread-9b-groupclaim.png)
 
    - Add a Claim to pass the username from transforming the AzureAD User name.
 
-   ![Add a transformed username](../../../img/azuread/azuread-9c-usernameclaim.png)
-
+     ![Add a transformed username](../../../img/azuread/azuread-9c-usernameclaim.png)
 
 10. On the SAML Signing Certificate select to download SAML Download the Federation Metadata XML.
 
@@ -124,16 +124,16 @@ $ tctl create azure-connector.yaml
   type="tip"
   title="Automatic signing keypair"
 >
-Teleport will generate a signing key pair and update SAML connector with `signing_key_pair`
-property.
+  Teleport will generate a signing key pair and update SAML connector with `signing_key_pair`
+  property.
 
-![Sample Connector Transform](../../../img/azuread/azuread-12-sampleconnector.png)
+  ![Sample Connector Transform](../../../img/azuread/azuread-12-sampleconnector.png)
 
-Alternatively, you can generate your own keypair when creating a connector using `openssl`:
+  Alternatively, you can generate your own keypair when creating a connector using `openssl`:
 
-```bash
-$ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
-```
+  ```bash
+  $ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
+  ```
 </Admonition>
 
 ## Create Teleport Roles
@@ -175,7 +175,7 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
+    logins: [ "{{external.username}}", ubuntu ]
     node_labels:
       access: relaxed
 ```

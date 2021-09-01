@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -264,6 +265,9 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 		{events: []string{"file://localhost"}, isErr: true},
 	}
 
+	backend, err := memory.New(memory.Config{})
+	c.Assert(err, check.IsNil)
+
 	for i, tt := range tts {
 		// isErr implies isNil.
 		if tt.isErr {
@@ -274,7 +278,7 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 
 		loggers, err := initExternalLog(context.Background(), services.AuditConfig{
 			AuditEventsURI: tt.events,
-		}, t.Log)
+		}, t.Log, backend)
 
 		if tt.isErr {
 			c.Assert(err, check.NotNil, cmt)
@@ -297,9 +301,11 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			HostUUID:    "global-uuid",
 			AdvertiseIP: "1.2.3.4",
 			Proxy: ProxyConfig{
-				PublicAddrs:       utils.MustParseAddrList("proxy-public-1", "proxy-public-2"),
-				SSHPublicAddrs:    utils.MustParseAddrList("proxy-ssh-public-1", "proxy-ssh-public-2"),
-				TunnelPublicAddrs: utils.MustParseAddrList("proxy-tunnel-public-1", "proxy-tunnel-public-2"),
+				PublicAddrs:         utils.MustParseAddrList("proxy-public-1", "proxy-public-2"),
+				SSHPublicAddrs:      utils.MustParseAddrList("proxy-ssh-public-1", "proxy-ssh-public-2"),
+				TunnelPublicAddrs:   utils.MustParseAddrList("proxy-tunnel-public-1", "proxy-tunnel-public-2"),
+				PostgresPublicAddrs: utils.MustParseAddrList("proxy-postgres-public-1", "proxy-postgres-public-2"),
+				MySQLPublicAddrs:    utils.MustParseAddrList("proxy-mysql-public-1", "proxy-mysql-public-2"),
 				Kube: KubeProxyConfig{
 					Enabled:     true,
 					PublicAddrs: utils.MustParseAddrList("proxy-kube-public-1", "proxy-kube-public-2"),
@@ -335,6 +341,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"proxy-ssh-public-2",
 				"proxy-tunnel-public-1",
 				"proxy-tunnel-public-2",
+				"proxy-postgres-public-1",
+				"proxy-postgres-public-2",
+				"proxy-mysql-public-1",
+				"proxy-mysql-public-2",
 				"proxy-kube-public-1",
 				"proxy-kube-public-2",
 			},

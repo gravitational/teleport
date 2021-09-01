@@ -35,7 +35,7 @@ import (
 // of it.
 type AuthPreference interface {
 	// Resource provides common resource properties.
-	Resource
+	ResourceWithOrigin
 
 	// GetType gets the type of authentication: local, saml, or oidc.
 	GetType() string
@@ -73,12 +73,27 @@ type AuthPreference interface {
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
 func NewAuthPreference(spec AuthPreferenceSpecV2) (AuthPreference, error) {
+	return newAuthPreferenceWithLabels(spec, map[string]string{})
+}
+
+// NewAuthPreferenceFromConfigFile is a convenience method to create
+// AuthPreferenceV2 labelled as originating from config file.
+func NewAuthPreferenceFromConfigFile(spec AuthPreferenceSpecV2) (AuthPreference, error) {
+	return newAuthPreferenceWithLabels(spec, map[string]string{
+		OriginLabel: OriginConfigFile,
+	})
+}
+
+// NewAuthPreferenceWithLabels is a convenience method to create
+// AuthPreferenceV2 with a specific map of labels.
+func newAuthPreferenceWithLabels(spec AuthPreferenceSpecV2, labels map[string]string) (AuthPreference, error) {
 	pref := AuthPreferenceV2{
 		Kind:    KindClusterAuthPreference,
 		Version: V2,
 		Metadata: Metadata{
 			Name:      MetaNameClusterAuthPreference,
 			Namespace: defaults.Namespace,
+			Labels:    labels,
 		},
 		Spec: spec,
 	}
@@ -97,30 +112,15 @@ func DefaultAuthPreference() AuthPreference {
 		Metadata: Metadata{
 			Name:      MetaNameClusterAuthPreference,
 			Namespace: defaults.Namespace,
+			Labels: map[string]string{
+				OriginLabel: OriginDefaults,
+			},
 		},
 		Spec: AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOTP,
 		},
 	}
-}
-
-// AuthPreferenceV2 implements AuthPreference.
-type AuthPreferenceV2 struct {
-	// Kind is a resource kind - always resource.
-	Kind string `json:"kind"`
-
-	// SubKind is a resource sub kind.
-	SubKind string `json:"sub_kind,omitempty"`
-
-	// Version is a resource version.
-	Version string `json:"version"`
-
-	// Metadata is metadata about the resource.
-	Metadata Metadata `json:"metadata"`
-
-	// Spec is the specification of the resource.
-	Spec AuthPreferenceSpecV2 `json:"spec"`
 }
 
 // GetVersion returns resource version.
@@ -168,6 +168,16 @@ func (c *AuthPreferenceV2) GetResourceID() int64 {
 // SetResourceID sets resource ID.
 func (c *AuthPreferenceV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// Origin returns the origin value of the resource.
+func (c *AuthPreferenceV2) Origin() string {
+	return c.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (c *AuthPreferenceV2) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
 }
 
 // GetKind returns resource kind.
@@ -220,7 +230,7 @@ func (c *AuthPreferenceV2) SetConnectorName(cn string) {
 // GetU2F gets the U2F configuration settings.
 func (c *AuthPreferenceV2) GetU2F() (*U2F, error) {
 	if c.Spec.U2F == nil {
-		return nil, trace.NotFound("U2F configuration not found")
+		return nil, trace.NotFound("U2F is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/u2f/")
 	}
 	return c.Spec.U2F, nil
 }
@@ -238,10 +248,18 @@ func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
 
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
+	if c.Metadata.Name == "" {
+		c.Metadata.Name = MetaNameClusterAuthPreference
+	}
 	// make sure we have defaults for all metadata fields
 	err := c.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Make sure origin value is always set.
+	if c.Origin() == "" {
+		c.SetOrigin(OriginDynamic)
 	}
 
 	// if nothing is passed in, set defaults
@@ -279,39 +297,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 // String represents a human readable version of authentication settings.
 func (c *AuthPreferenceV2) String() string {
 	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.Spec.SecondFactor)
-}
-
-// AuthPreferenceSpecV2 is the actual data we care about for AuthPreferenceV2.
-type AuthPreferenceSpecV2 struct {
-	// Type is the type of authentication.
-	Type string `json:"type"`
-
-	// SecondFactor is the type of second factor.
-	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
-
-	// ConnectorName is the name of the OIDC or SAML connector. If this value is
-	// not set the first connector in the backend will be used.
-	ConnectorName string `json:"connector_name,omitempty"`
-
-	// U2F are the settings for the U2F device.
-	U2F *U2F `json:"u2f,omitempty"`
-
-	// RequireSessionMFA causes all sessions in this cluster to require MFA
-	// checks.
-	RequireSessionMFA bool `json:"require_session_mfa,omitempty"`
-}
-
-// U2F defines settings for U2F device.
-type U2F struct {
-	// AppID returns the application ID for universal second factor.
-	AppID string `json:"app_id,omitempty"`
-
-	// Facets returns the facets for universal second factor.
-	Facets []string `json:"facets,omitempty"`
-
-	// DeviceAttestationCAs contains the trusted attestation CAs for U2F
-	// devices.
-	DeviceAttestationCAs []string `json:"device_attestation_cas,omitempty"`
 }
 
 func (u *U2F) Check() error {

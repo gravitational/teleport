@@ -271,6 +271,7 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
 			SessionTTL: params.sessionTTL,
+			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -306,49 +307,6 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 	}
 
 	return re, nil
-}
-
-func (a *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (services.WebSession, error) {
-	// It's safe to extract the roles and traits directly from services.User
-	// because this occurs during the user creation process and services.User
-	// is not fetched from the backend.
-	session, err := a.NewWebSession(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = a.upsertWebSession(ctx, req.User, session)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return session, nil
-}
-
-func (a *Server) createSessionCert(user services.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string) ([]byte, []byte, error) {
-	// It's safe to extract the roles and traits directly from services.User
-	// because this occurs during the user creation process and services.User
-	// is not fetched from the backend.
-	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	certs, err := a.generateUserCert(certRequest{
-		user:              user,
-		ttl:               sessionTTL,
-		publicKey:         publicKey,
-		compatibility:     compatibility,
-		checker:           checker,
-		traits:            user.GetTraits(),
-		routeToCluster:    routeToCluster,
-		kubernetesCluster: kubernetesCluster,
-	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return certs.ssh, certs.tls, nil
 }
 
 // createUserParams is a set of parameters used to create a user for an

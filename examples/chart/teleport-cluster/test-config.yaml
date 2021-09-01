@@ -1,0 +1,28 @@
+teleport:
+  log:
+    output: stderr
+    severity: INFO
+
+auth_service:
+  enabled: true
+  cluster_name: custom.example.com
+  tokens:
+  - "proxy,node:cars-are-nicer-than-trains"
+  - "trustedcluster:cats-are-way-better-than-dogs"
+  listen_addr: 0.0.0.0:3025
+  public_addr: custom.example.com:3025
+
+proxy_service:
+  enabled: true
+  web_listen_addr: 0.0.0.0:3080
+  public_addr: custom.example.com:443
+
+ssh_service:
+  enabled: true
+  labels:
+    cluster: custom
+  commands:
+  - name: kernel
+    command: [/bin/uname, -r]
+    period: 5m
+

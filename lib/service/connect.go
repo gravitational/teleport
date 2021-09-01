@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"crypto/tls"
 	"net"
 	"path/filepath"
 	"strconv"
@@ -24,8 +25,10 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -35,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
 
@@ -51,8 +55,10 @@ func (process *TeleportProcess) reconnectToAuthService(role teleport.Role) (*Con
 			// if connected and client is present, make sure the connector's
 			// client works, by using call that should succeed at all times
 			if connector.Client != nil {
-				_, err = connector.Client.GetNamespace(defaults.Namespace)
+				pingResponse, err := connector.Client.Ping(process.ExitContext())
 				if err == nil {
+					process.setClusterFeatures(pingResponse.GetServerFeatures())
+					process.log.Infof("%v: features loaded from auth server: %+v", role, pingResponse.GetServerFeatures())
 					return connector, nil
 				}
 				process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, err)
@@ -434,16 +440,21 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 		return nil
 	}
 
-	retryTicker := time.NewTicker(defaults.HighResPollingPeriod)
-	defer retryTicker.Stop()
+	periodic := interval.New(interval.Config{
+		Duration:      defaults.HighResPollingPeriod,
+		FirstDuration: utils.HalfJitter(defaults.HighResPollingPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
+
 	for {
 		err := process.syncRotationStateCycle()
 		if err == nil {
 			return nil
 		}
-		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after %v.", err, defaults.HighResPollingPeriod)
+		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after ~%v.", err, defaults.HighResPollingPeriod)
 		select {
-		case <-retryTicker.C:
+		case <-periodic.Next():
 		case <-process.ExitContext().Done():
 			return nil
 		}
@@ -482,8 +493,12 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 	}
 	defer watcher.Close()
 
-	t := time.NewTicker(process.Config.PollingPeriod)
-	defer t.Stop()
+	periodic := interval.New(interval.Config{
+		Duration:      process.Config.PollingPeriod,
+		FirstDuration: utils.HalfJitter(process.Config.PollingPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
 	for {
 		select {
 		case event := <-watcher.Events():
@@ -512,7 +527,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 			}
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher has disconnected")
-		case <-t.C:
+		case <-periodic.Next():
 			status, err := process.syncRotationStateAndBroadcast(conn)
 			if err != nil {
 				return trace.Wrap(err)
@@ -788,49 +803,55 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 // The proxy address might be configured in process environment as defaults.TunnelPublicAddrEnvar
 // in which case, no attempt at discovering the reverse tunnel address is made.
 func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
-	directClient, err := process.newClientDirect(authServers, identity)
+	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Try and connect to the Auth Server. If the request fails, try and
 	// connect through a tunnel.
-	process.log.Debugf("Attempting to connect to Auth Server directly.")
-	if _, err = directClient.GetLocalClusterName(); err != nil {
-		process.log.WithError(err).Warn("Failed to connect to Auth Server directly.")
-		if err := directClient.Close(); err != nil {
-			process.log.WithError(err).Warn("Failed to close direct Auth Server client.")
-		}
+	logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
+	logger.Debug("Attempting to connect to Auth Server directly.")
+	directClient, err := process.newClientDirect(authServers, tlsConfig)
+	if err == nil {
+		logger.Debug("Connected to Auth Server with direct connection.")
+		return directClient, nil
+	}
+	logger.Debug("Failed to connect to Auth Server directly.")
+	// store err in directLogger, only log it if tunnel dial fails.
+	directErrLogger := logger.WithError(err)
 
-		// Don't attempt to connect through a tunnel as a proxy or auth server.
-		if identity.ID.Role == teleport.RoleAuth || identity.ID.Role == teleport.RoleProxy {
-			return nil, trace.Wrap(err)
-		}
-
-		var proxyAddr string
-		if process.Config.SSH.ProxyReverseTunnelFallbackAddr != nil {
-			proxyAddr = process.Config.SSH.ProxyReverseTunnelFallbackAddr.String()
-		} else {
-			// Discover address of SSH reverse tunnel server.
-			proxyAddr, err = process.findReverseTunnel(authServers)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
-		logger := process.log.WithField("proxy-addr", proxyAddr)
-		logger.Debug("Attempting to connect to Auth Server through tunnel.")
-		tunnelClient, err := process.newClientThroughTunnel(proxyAddr, identity)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		logger.Debug("Connected to Auth Server through tunnel.")
-		return tunnelClient, nil
+	// Don't attempt to connect through a tunnel as a proxy or auth server.
+	if identity.ID.Role == teleport.RoleAuth || identity.ID.Role == teleport.RoleProxy {
+		return nil, trace.Wrap(err)
 	}
 
-	process.log.Debug("Connected to Auth Server with direct connection.")
-	return directClient, nil
+	logger.Debug("Attempting to discover reverse tunnel address.")
+	var proxyAddr string
+	if process.Config.SSH.ProxyReverseTunnelFallbackAddr != nil {
+		proxyAddr = process.Config.SSH.ProxyReverseTunnelFallbackAddr.String()
+	} else {
+		// Discover address of SSH reverse tunnel server.
+		var err error
+		proxyAddr, err = process.findReverseTunnel(authServers)
+		if err != nil {
+			directErrLogger.Debug("Failed to connect to Auth Server directly.")
+			logger.WithError(err).Debug("Failed to discover reverse tunnel address.")
+			return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
+		}
+	}
+
+	logger = process.log.WithField("proxy-addr", proxyAddr)
+	logger.Debug("Attempting to connect to Auth Server through tunnel.")
+	tunnelClient, err := process.newClientThroughTunnel(proxyAddr, tlsConfig, identity.SSHClientConfig())
+	if err != nil {
+		directErrLogger.Debug("Failed to connect to Auth Server directly.")
+		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
+		return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
+	}
+
+	logger.Debug("Connected to Auth Server through tunnel.")
+	return tunnelClient, nil
 }
 
 // findReverseTunnel uses the web proxy to discover where the SSH reverse tunnel
@@ -840,7 +861,7 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		resp, err := apiclient.Find(process.ExitContext(),
+		resp, err := webclient.Find(process.ExitContext(),
 			addr.String(),
 			lib.IsInsecureDevMode(),
 			nil)
@@ -857,7 +878,7 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 //  2. SSH Proxy Public Address.
 //  3. HTTP Proxy Public Address.
 //  4. Tunnel Listen Address.
-func tunnelAddr(settings apiclient.ProxySettings) (string, error) {
+func tunnelAddr(settings webclient.ProxySettings) (string, error) {
 	// Extract the port the tunnel server is listening on.
 	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
 	if err != nil {
@@ -892,16 +913,11 @@ func tunnelAddr(settings apiclient.ProxySettings) (string, error) {
 	return settings.SSH.TunnelListenAddr, nil
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, identity *auth.Identity) (*auth.Client, error) {
-	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
 	clt, err := auth.NewClient(apiclient.Config{
 		Dialer: &reversetunnel.TunnelAuthDialer{
 			ProxyAddr:    proxyAddr,
-			ClientConfig: identity.SSHClientConfig(),
+			ClientConfig: sshConfig,
 		},
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
@@ -915,29 +931,37 @@ func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, identit
 	// get the underlying error.
 	_, err = clt.GetLocalClusterName()
 	if err != nil {
+		if err2 := clt.Close(); err != nil {
+			process.log.WithError(err2).Warn("Failed to close Auth Server tunnel client.")
+		}
 		return nil, trace.Unwrap(err)
 	}
 
 	return clt, nil
 }
 
-func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
-	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config) (*auth.Client, error) {
+	var cltParams []roundtrip.ClientParam
 	if process.Config.ClientTimeout != 0 {
-		return auth.NewClient(apiclient.Config{
-			Addrs: utils.NetAddrsToStrings(authServers),
-			Credentials: []apiclient.Credentials{
-				apiclient.LoadTLS(tlsConfig),
-			},
-		}, auth.ClientTimeout(process.Config.ClientTimeout))
+		cltParams = []roundtrip.ClientParam{auth.ClientTimeout(process.Config.ClientTimeout)}
 	}
-	return auth.NewClient(apiclient.Config{
+
+	clt, err := auth.NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(authServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
-	})
+	}, cltParams...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := clt.GetLocalClusterName(); err != nil {
+		if err2 := clt.Close(); err2 != nil {
+			process.log.WithError(err2).Warn("Failed to close direct Auth Server client.")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	return clt, nil
 }

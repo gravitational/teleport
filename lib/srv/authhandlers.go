@@ -17,12 +17,14 @@ limitations under the License.
 package srv
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -34,6 +36,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -99,7 +102,11 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 	identity.RoleSet = roleSet
 	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
-
+	accessRequestIDs, err := parseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
+	if err != nil {
+		return IdentityContext{}, trace.Wrap(err)
+	}
+	identity.ActiveRequests = accessRequestIDs
 	return identity, nil
 }
 
@@ -150,6 +157,27 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 	return nil
 }
 
+var (
+	failedLoginCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricFailedLoginAttempts,
+			Help: "Number of times there was a failed login",
+		},
+	)
+
+	certificateMismatchCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricCertificateMistmatch,
+			Help: "Number of times there was a certificate mismatch",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(failedLoginCount)
+	prometheus.MustRegister(certificateMismatchCount)
+}
+
 // UserKeyAuth implements SSH client authentication using public keys and is
 // called by the server every time the client connects.
 func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
@@ -184,6 +212,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 
 	// only failed attempts are logged right now
 	recordFailedLogin := func(err error) {
+		failedLoginCount.Inc()
 		if err := h.Emitter.EmitAuditEvent(h.Server.Context(), &events.AuthAttempt{
 			Metadata: events.Metadata{
 				Type: events.AuthAttemptEvent,
@@ -222,6 +251,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
+		certificateMismatchCount.Inc()
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
@@ -388,25 +418,34 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		roles, err := extractRolesFromCert(cert)
-		if err != nil {
+		// Old-style SSH certificates don't have roles in metadata.
+		roles, err := services.ExtractRolesFromCert(cert)
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.AccessDenied("failed to parse certificate roles")
 		}
 		roleNames, err := services.MapRoles(ca.CombinedMapping(), roles)
 		if err != nil {
 			return nil, trace.AccessDenied("failed to map roles")
 		}
-		// Pass the principals on the certificate along as the login traits
-		// to the remote cluster.
-		traits := map[string][]string{
-			teleport.TraitLogins: cert.ValidPrincipals,
+		// Old-style SSH certificates don't have traits in metadata.
+		traits, err := services.ExtractTraitsFromCert(cert)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.AccessDenied("failed to parse certificate traits")
 		}
+		if traits == nil {
+			traits = make(map[string][]string)
+		}
+		// Prior to Teleport 6.2 the only trait passed to the remote cluster
+		// was the "logins" trait set to the SSH certificate principals.
+		//
+		// Keep backwards-compatible behavior and set it in addition to the
+		// traits extracted from the certificate.
+		traits[teleport.TraitLogins] = cert.ValidPrincipals
 		roleset, err = services.FetchRoles(roleNames, h.AccessPoint, traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	return roleset, nil
 }
 
@@ -461,12 +500,31 @@ func (h *AuthHandlers) isProxy() bool {
 	return h.Component == teleport.ComponentProxy
 }
 
-// extractRolesFromCert extracts roles from certificate metadata extensions.
-func extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
-	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
-	if !ok {
-		// it's ok to not have any roles in the metadata
-		return nil, nil
+// AccessRequests are the access requests associated with a session
+type AccessRequests struct {
+	IDs []string `json:"access_requests"`
+}
+
+func parseAccessRequestIDs(str string) ([]string, error) {
+	var accessRequestIDs []string
+	var ar AccessRequests
+
+	if str == "" {
+		return []string{}, nil
 	}
-	return services.UnmarshalCertRoles(data)
+	err := json.Unmarshal([]byte(str), &ar)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, v := range ar.IDs {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return nil, trace.WrapWithMessage(err, "failed to parse access request ID")
+		}
+		if fmt.Sprintf("%v", id) == "" {
+			return nil, trace.Errorf("invalid uuid: %v", id)
+		}
+		accessRequestIDs = append(accessRequestIDs, v)
+	}
+	return accessRequestIDs, nil
 }

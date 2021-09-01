@@ -56,10 +56,13 @@ $ cat kubeconfig
 $ kubectl --kubeconfig /path/to/kubeconfig get pods
 ```
 
-<Admonition type="tip" title="Short-Lived Certs">
-Short lived certificates expire in hours or minutes. You don't have to revoke
-them if the host gets compromised.
-Generate a new kubeconfig every hour using `tctl` or [API](../../api-reference.mdx)
-and publish it to secret storage, like [AWS](https://aws.amazon.com/secrets-manager/) or
-[GCP](https://cloud.google.com/secret-manager) secret managers.
+<Admonition
+  type="tip"
+  title="Short-Lived Certs"
+>
+  Short lived certificates expire in hours or minutes. You don't have to revoke
+  them if the host gets compromised.
+  Generate a new kubeconfig every hour using `tctl` or [API](../../reference/api/introduction.mdx)
+  and publish it to secret storage, like [AWS](https://aws.amazon.com/secrets-manager/) or
+  [GCP](https://cloud.google.com/secret-manager) secret managers.
 </Admonition>

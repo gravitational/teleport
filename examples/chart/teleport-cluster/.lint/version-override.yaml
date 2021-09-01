@@ -1,0 +1,5 @@
+clusterName: test-cluster-name
+teleportVersionOverride: 5.2.1
+labels:
+  env: test
+  version: 5.2.1

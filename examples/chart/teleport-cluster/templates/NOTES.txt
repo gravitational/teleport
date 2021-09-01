@@ -1,0 +1,16 @@
+{{- if .Values.highAvailability.certManager.enabled }}
+You have enabled cert-manager support in high availability mode.
+
+There may be a short delay before Teleport pods start while an ACME certificate is issued.
+You can check the status of the certificate with `kubectl -n {{ .Release.Namespace }} describe certificate/{{ .Release.Name }}`
+
+NOTE: For certificates to be provisioned, you must also install cert-manager (https://cert-manager.io/docs/) and configure an appropriate
+      Issuer with access to your DNS provider to handle DNS01 challenges (https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers)
+
+For more information, please see the Helm guides in the Teleport docs (https://goteleport.com/docs/kubernetes-access/helm/guides/)
+{{- else if (gt (int .Values.highAvailability.replicaCount) 1) }}
+You have requested more than 1 replica but have not enabled cert-manager support (highAvailability.certManager.enabled=true) to get ACME certificates.
+Your Teleport cluster will not be properly accessible by remote nodes until TLS certificates with the correct clusterName ({{ .Values.clusterName }}) are configured.
+
+For more information, please see the Helm guides in the Teleport docs (https://goteleport.com/docs/kubernetes-access/helm/guides/)
+{{- end }}

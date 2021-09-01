@@ -31,6 +31,9 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
@@ -133,7 +136,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
 		RecordSessions: true,
-		ForwardTo:      alog,
+		IAuditLog:      alog,
 		Clock:          fakeClock,
 	})
 	c.Assert(err, check.IsNil)
@@ -253,7 +256,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 		ServerID:       teleport.ComponentUpload,
 		DataDir:        uploadDir,
 		RecordSessions: false,
-		ForwardTo:      alog,
+		IAuditLog:      alog,
 		Clock:          fakeClock,
 	})
 	c.Assert(err, check.IsNil)
@@ -296,11 +299,15 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 	upload(c, uploadDir, fakeClock, alog)
 
 	// get all events from the audit log, should have two session event and one upload event
-	found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 0)
+	found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), apidefaults.Namespace, nil, 0, types.EventOrderAscending, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.HasLen, 3)
-	c.Assert(found[0].GetString(EventLogin), check.Equals, username)
-	c.Assert(found[1].GetString(EventLogin), check.Equals, username)
+	eventA, okA := found[0].(*SessionStart)
+	eventB, okB := found[1].(*SessionEnd)
+	c.Assert(okA, check.Equals, true)
+	c.Assert(okB, check.Equals, true)
+	c.Assert(eventA.Login, check.Equals, username)
+	c.Assert(eventB.Login, check.Equals, username)
 
 	// inspect the session log for "200", should have two events
 	history, err := alog.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0, true)
@@ -351,7 +358,11 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		clock.Advance(duration)
 
 		// emit regular event:
-		err = alog.EmitAuditEventLegacy(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
+		event := &events.Resize{
+			Metadata:     events.Metadata{Type: "resize", Time: now},
+			TerminalSize: "10:10",
+		}
+		err = alog.EmitAuditEvent(context.TODO(), event)
 		c.Assert(err, check.IsNil)
 		logfile := alog.localLog.file.Name()
 
@@ -363,15 +374,17 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		// read back what's been written:
 		bytes, err := ioutil.ReadFile(logfile)
 		c.Assert(err, check.IsNil)
-		contents := fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n", now.Format(time.RFC3339), fixtures.UUID)
-		c.Assert(string(bytes), check.Equals, contents)
+		contents, err := json.Marshal(event)
+		contents = append(contents, '\n')
+		c.Assert(err, check.IsNil)
+		c.Assert(string(bytes), check.Equals, string(contents))
 
 		// read back the contents using symlink
 		bytes, err = ioutil.ReadFile(filepath.Join(alog.localLog.SymlinkDir, SymlinkFilename))
 		c.Assert(err, check.IsNil)
-		c.Assert(string(bytes), check.Equals, contents)
+		c.Assert(string(bytes), check.Equals, string(contents))
 
-		found, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "", 0)
+		found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), apidefaults.Namespace, nil, 0, types.EventOrderAscending, "")
 		c.Assert(err, check.IsNil)
 		c.Assert(found, check.HasLen, 1)
 	}
@@ -489,7 +502,7 @@ func (a *AuditTestSuite) forwardAndUpload(c *check.C, fakeClock clockwork.Clock,
 		ServerID:       "upload",
 		DataDir:        uploadDir,
 		RecordSessions: true,
-		ForwardTo:      alog,
+		IAuditLog:      alog,
 	})
 	c.Assert(err, check.IsNil)
 

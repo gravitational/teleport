@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"crypto/subtle"
 	"fmt"
 	"io"
@@ -27,12 +28,13 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
 )
@@ -272,7 +274,7 @@ func (a *LocalKeyAgent) GetCoreKey() (*Key, error) {
 // AddHostSignersToCache takes a list of CAs whom we trust. This list is added to a database
 // of "seen" CAs.
 //
-// Every time we connect to a new host, we'll request its certificaate to be signed by one
+// Every time we connect to a new host, we'll request its certificate to be signed by one
 // of these trusted CAs.
 //
 // Why do we trust these CAs? Because we received them from a trusted Teleport Proxy.
@@ -391,7 +393,9 @@ func (a *LocalKeyAgent) defaultHostPromptFunc(host string, key ssh.PublicKey, wr
 	var err error
 	ok := false
 	if !a.noHosts[host] {
-		ok, err = prompt.Confirmation(writer, reader,
+		cr := prompt.NewContextReader(reader)
+		defer cr.Close()
+		ok, err = prompt.Confirmation(context.Background(), writer, cr,
 			fmt.Sprintf("The authenticity of host '%s' can't be established. Its public key is:\n%s\nAre you sure you want to continue?",
 				host,
 				ssh.MarshalAuthorizedKey(key),
@@ -489,12 +493,23 @@ func (a *LocalKeyAgent) DeleteKeys() error {
 	return nil
 }
 
-// AuthMethods returns the list of different authentication methods this agent supports:
-//	  1. First to try is the external SSH agent
-//    2. Itself (disk-based local agent)
-// It returns an error in case there is no auth method method available.
-func (a *LocalKeyAgent) AuthMethods() ([]ssh.AuthMethod, error) {
-	// combine our certificates with external SSH agent's:
+// certsForCluster returns a set of ssh.Signers using certificates for a
+// specific cluster. If clusterName is empty, certsForCluster returns
+// ssh.Signers for all known clusters.
+func (a *LocalKeyAgent) certsForCluster(clusterName string) ([]ssh.Signer, error) {
+	if clusterName != "" {
+		k, err := a.GetKey(clusterName, WithSSHCerts{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signer, err := k.AsSigner()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []ssh.Signer{signer}, nil
+	}
+
+	// Load all certs, including the ones from a local SSH agent.
 	var signers []ssh.Signer
 	if a.sshAgent != nil {
 		if sshAgentCerts, _ := a.sshAgent.Signers(); sshAgentCerts != nil {
@@ -504,17 +519,16 @@ func (a *LocalKeyAgent) AuthMethods() ([]ssh.AuthMethod, error) {
 	if ourCerts, _ := a.Signers(); ourCerts != nil {
 		signers = append(signers, ourCerts...)
 	}
-	// for every certificate create a new "auth method" and return them
-	m := []ssh.AuthMethod{}
-	for i := range signers {
-		// filter out non-certificates (like regular public SSH keys stored in the SSH agent):
-		_, ok := signers[i].PublicKey().(*ssh.Certificate)
-		if ok {
-			m = append(m, sshutils.NewAuthMethodForCert(signers[i]))
+	// Filter out non-certificates (like regular public SSH keys stored in the SSH agent).
+	certs := make([]ssh.Signer, 0, len(signers))
+	for _, s := range signers {
+		if _, ok := s.PublicKey().(*ssh.Certificate); !ok {
+			continue
 		}
+		certs = append(certs, s)
 	}
-	if len(m) == 0 {
+	if len(certs) == 0 {
 		return nil, trace.BadParameter("no auth method available")
 	}
-	return m, nil
+	return certs, nil
 }

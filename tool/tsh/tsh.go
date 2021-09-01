@@ -36,6 +36,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -273,6 +274,15 @@ const (
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
+
+	// proxyDefaultResolutionTimeout is how long to wait for an unknown proxy
+	// port to be resolved.
+	//
+	// Originally based on the RFC-8305 "Maximum Connection Attempt Delay"
+	// recommended default value of 2s. In the RFC this value is for the
+	// establishment of a TCP connection, rather than the full HTTP round-
+	// trip that we measure against, so some tweaking may be needed.
+	proxyDefaultResolutionTimeout = 2 * time.Second
 )
 
 // cliOption is used in tests to inject/override configuration within Run
@@ -605,10 +615,6 @@ func Run(args []string, opts ...cliOption) error {
 func onPlay(cf *CLIConf) error {
 	switch cf.Format {
 	case teleport.PTY:
-		tc, err := makeClient(cf, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		switch {
 		case path.Ext(cf.SessionID) == ".tar":
 			sid := sessionIDFromPath(cf.SessionID)
@@ -617,10 +623,14 @@ func onPlay(cf *CLIConf) error {
 			if err != nil {
 				return trace.ConvertSystemError(err)
 			}
-			if err := tc.PlayFile(context.TODO(), tarFile, sid); err != nil {
+			if err := client.PlayFile(context.TODO(), tarFile, sid); err != nil {
 				return trace.Wrap(err)
 			}
 		default:
+			tc, err := makeClient(cf, true)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
 				return trace.Wrap(err)
 			}
@@ -710,7 +720,7 @@ func onLogin(cf *CLIConf) error {
 		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
 			// trigger reissue, preserving any active requests.
-			err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
+			err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
 				AccessRequests: profile.ActiveRequests.AccessRequests,
 				RouteToCluster: cf.SiteName,
 			})
@@ -744,7 +754,7 @@ func onLogin(cf *CLIConf) error {
 		cf.Username = tc.Username
 	}
 
-	// -i flag specified? save the retreived cert into an identity file
+	// -i flag specified? save the retrieved cert into an identity file
 	makeIdentityFile := (cf.IdentityFileOut != "")
 
 	key, err := tc.Login(cf.Context)
@@ -804,7 +814,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	if autoRequest && cf.DesiredRoles == "" {
-		var reason, auto bool
+		var requireReason, auto bool
 		var prompt string
 		roleNames, err := key.CertRoles()
 		if err != nil {
@@ -820,7 +830,7 @@ func onLogin(cf *CLIConf) error {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				reason = reason || role.GetOptions().RequestAccess.RequireReason()
+				requireReason = requireReason || role.GetOptions().RequestAccess.RequireReason()
 				auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
 				if prompt == "" {
 					prompt = role.GetOptions().RequestPrompt
@@ -832,7 +842,7 @@ func onLogin(cf *CLIConf) error {
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
-		if reason && cf.RequestReason == "" {
+		if requireReason && cf.RequestReason == "" {
 			msg := "--request-reason must be specified"
 			if prompt != "" {
 				msg = msg + ", prompt=" + prompt
@@ -1246,7 +1256,7 @@ func showApps(servers []services.Server, active []tlsca.RouteToApp, verbose bool
 
 func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsca.RouteToDatabase, verbose bool) {
 	if verbose {
-		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "URI", "Labels", "Connect"})
+		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
 		for _, server := range servers {
 			name := server.GetName()
 			var connect string
@@ -1260,9 +1270,11 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 				name,
 				server.GetDescription(),
 				server.GetProtocol(),
+				server.GetType(),
 				server.GetURI(),
 				server.LabelsString(),
 				connect,
+				server.Expiry().Format(constants.HumanDateFormatSeconds),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
@@ -1665,12 +1677,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
-	if cf.Proxy != "" && c.WebProxyAddr == "" {
-		err = c.ParseProxyHost(cf.Proxy)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := setClientWebProxyAddr(cf, c); err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	if len(fPorts) > 0 {
 		c.LocalForwardPorts = fPorts
 	}
@@ -1726,8 +1736,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 
 	// If agent forwarding was specified on the command line enable it.
-	if cf.ForwardAgent || options.ForwardAgent {
-		c.ForwardAgent = true
+	c.ForwardAgent = options.ForwardAgent
+	if cf.ForwardAgent {
+		c.ForwardAgent = client.ForwardAgentYes
 	}
 
 	// If the caller does not want to check host keys, pass in a insecure host
@@ -1784,6 +1795,50 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	return tc, nil
 }
 
+// defaultWebProxyPorts is the order of default proxy ports to try, in order that
+// they will be tried.
+var defaultWebProxyPorts = []int{
+	defaults.HTTPListenPort, teleport.StandardHTTPSPort,
+}
+
+// setClientWebProxyAddr configures the client WebProxyAddr and SSHProxyAddr
+// configuration values. Values that are not fully specified via configuration
+// or command-line options will be deduced if necessary.
+//
+// If successful, setClientWebProxyAddr will modify the client Config in-place.
+func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
+	// If the user has specified a proxy on the command line, and one has not
+	// already been specified from configuration...
+
+	if cf.Proxy != "" && c.WebProxyAddr == "" {
+		parsedAddrs, err := client.ParseProxyHost(cf.Proxy)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		proxyAddress := parsedAddrs.WebProxyAddr
+		if parsedAddrs.UsingDefaultWebProxyPort {
+			log.Debug("Web proxy port was not set. Attempting to detect port number to use.")
+			timeout, cancel := context.WithTimeout(context.Background(), proxyDefaultResolutionTimeout)
+			defer cancel()
+
+			proxyAddress, err = pickDefaultAddr(
+				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
+
+			// On error, fall back to the legacy behaviour
+			if err != nil {
+				log.WithError(err).Debug("Proxy port resolution failed, falling back to legacy default.")
+				return c.ParseProxyHost(cf.Proxy)
+			}
+		}
+
+		c.WebProxyAddr = proxyAddress
+		c.SSHProxyAddr = parsedAddrs.SSHProxyAddr
+	}
+
+	return nil
+}
+
 func parseCertificateCompatibilityFlag(compatibility string, certificateFormat string) (string, error) {
 	switch {
 	// if nothing is passed in, the role will decide
@@ -1821,7 +1876,7 @@ func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return apisshutils.NewAuthMethodForCert(signer), nil
+	return ssh.PublicKeys(signer), nil
 }
 
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
@@ -1889,8 +1944,8 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
 	if p.KubeEnabled {
 		fmt.Printf("  Kubernetes:         enabled\n")
-		if p.KubeCluster != "" {
-			fmt.Printf("  Kubernetes cluster: %q\n", p.KubeCluster)
+		if kubeCluster := selectedKubeCluster(p.Cluster); kubeCluster != "" {
+			fmt.Printf("  Kubernetes cluster: %q\n", kubeCluster)
 		}
 		if len(p.KubeUsers) > 0 {
 			fmt.Printf("  Kubernetes users:   %v\n", strings.Join(p.KubeUsers, ", "))
@@ -2029,7 +2084,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = profile.Cluster
 	}
-	if err := tc.ReissueUserCerts(cf.Context, params); err != nil {
+	if err := tc.ReissueUserCerts(cf.Context, client.CertCacheDrop, params); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := tc.SaveProfile("", true); err != nil {

@@ -21,7 +21,7 @@ the following services.
 | [Node](architecture/nodes.mdx) | `node` | Runs a daemon on a node which allows SSH connections from authenticated clients. |
 | [Auth](architecture/authentication.mdx) | `auth` | Authenticates nodes and users who want access to Teleport Nodes or information about the cluster |
 | [Proxy](architecture/proxy.mdx) | `proxy` | The gateway that clients use to connect to the Auth or Node Services |
-| [App](application-access.mdx) | `app` | Runs a daemon on a node which provides access to applications using an SSH reverse tunnel. |
+| [App](./application-access/introduction.mdx) | `app` | Runs a daemon on a node which provides access to applications using an SSH reverse tunnel. |
 
 ### teleport start
 
@@ -141,9 +141,7 @@ Run shell or execute a command on a remote SSH node
 - `user` The login identity to use on the remote host. If `[user]` is not specified
   the user defaults to `$USER` or can be set with `--user` . If the flag `--user`
   and positional argument `[user]` are specified the arg `[user]` takes precedence.
-
 - `host` A `nodename` of a cluster node or a
-
 - `command` The command to execute on a remote host.
 
 #### Flags
@@ -153,7 +151,7 @@ Run shell or execute a command on a remote SSH node
 | `-p, --port` | none | port | SSH port on a remote host |
 | `-A, --forward-agent` | none | none | Forward agent to target node like `ssh -A` |
 | `-L, --forward` | none | none | Forward localhost connections to remote server |
-| `-D, --dynamic-forward ` | none | none | Forward localhost connections to remote server using SOCKS5 |
+| `-D, --dynamic-forward` | none | none | Forward localhost connections to remote server using SOCKS5 |
 | `-N, -no-remote-exec` | none | none | Don't execute remote command, useful for port forwarding |
 | `--local` | none | | Execute command on localhost after connecting to SSH node |
 | `-t, --tty` | `file` | | Allocate TTY |
@@ -164,10 +162,8 @@ Run shell or execute a command on a remote SSH node
 
 #### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl,
---identity, --cert-format, --insecure, --auth, --skip-version-check, --debug,
---jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](#tsh-global-flags)
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
 
@@ -206,10 +202,8 @@ Joins an active session
 
 #### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl,
---identity, --cert-format, --insecure, --auth, --skip-version-check, --debug,
---jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](#tsh-global-flags)
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
 
@@ -238,10 +232,8 @@ Plays back a prior session
 
 #### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl,
---identity, --cert-format, --insecure, --auth, --skip-version-check, --debug,
---jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](#tsh-global-flags)
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
 
@@ -254,6 +246,7 @@ tsh --proxy proxy.example.com play <session-id>
 Copies files from source to dest
 
 **Usage** `usage: tsh scp [<flags>] <source>... <dest>`
+
 {/* TODO Confirm which flags are supported, and whether supports multiple sources */}
 
 #### Arguments
@@ -272,10 +265,8 @@ Copies files from source to dest
 
 #### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl,
---identity, --cert-format, --insecure, --auth, --skip-version, --debug,
---jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](#tsh-global-flags)
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
 
@@ -288,6 +279,7 @@ $ tsh --proxy=proxy.example.com scp -P example.txt user@host/destination/dir
 List cluster nodes
 
 **Usage** `usage: tsh ls [<flags>] [<label>]`
+
 {/* TODO: label? or labels? seems like it only supports one label at a time */}
 
 #### Arguments
@@ -302,10 +294,8 @@ List cluster nodes
 
 #### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl,
---identity, --cert-format, --insecure, --auth, --skip-version, --debug,
---jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](#tsh-global-flags)
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
 
@@ -358,10 +348,8 @@ microk8s
 
 #### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl,
---identity, --cert-format, --insecure, --auth, --skip-version, --debug,
---jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](#tsh-global-flags)
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
 
@@ -402,10 +390,8 @@ interval via `--ttl` flag (capped by the server-side configuration).
 
 #### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl,
---identity, --cert-format, --insecure, --auth, --skip-version-check, --debug,
---jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
-Section](#tsh-global-flags)
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
 
@@ -555,6 +541,15 @@ including nodes, users, tokens, and certificates.
 
 `tctl` can also be used to modify the dynamic configuration of the cluster, like
 creating new user roles or connecting trusted clusters.
+
+The `TELEPORT_CONFIG_FILE` environment variable indicates where the Teleport configuration file is. 
+If you're connecting to a remote Teleport cluster (Teleport cloud) through a `tsh` session and have a file `/etc/teleport.yaml` on your machine set the `TELEPORT_CONFIG_FILE` to `""`.  Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine which could result in the error `ERROR: open /var/lib/teleport/host_uuid: permission denied`.
+
+**Example**:
+```bash
+export TELEPORT_CONFIG_FILE=""
+tctl tokens add --type=node
+```
 
 ### tctl Global Flags
 
@@ -713,7 +708,7 @@ Generate a node invitation token
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--roles` | `node` | `node,auth` or ` proxy` | Comma-separated list of roles for the new node to assume |
+| `--roles` | `node` | `node,auth` or `proxy` | Comma-separated list of roles for the new node to assume |
 | `--ttl` | 30m | relative duration like 5s, 2m, or 3h | Time to live for a generated token |
 | `--token` | none | **string** token value | A custom token to use, auto-generated if not provided. Should match token set with `teleport start --token` |
 
@@ -972,7 +967,7 @@ Delete a resource
 #### Arguments
 
 - `[<resource-type/resource-name>]` Resource to delete
-  - `<resource type>` Type of a resource [for example: `saml,oidc,github,user,cluster,token`]
+  - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,token`]
   - `<resource name>` Resource name to delete
 
 #### Examples
@@ -994,7 +989,7 @@ Print a YAML declaration of various Teleport resources
 #### Arguments
 
 - `[<resource-type/resource-name>]` Resource to get
-  - `<resource type>` Type of a resource [for example: `user,cluster,token`]
+  - `<resource type>` Type of a resource \[for example: `user,cluster,token`]
   - `<resource name>` Resource name to get
 
 #### Flags

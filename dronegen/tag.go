@@ -173,11 +173,12 @@ func tagPipeline(b buildType) pipeline {
 		pipelineName += "-centos6"
 	}
 	tagEnvironment := map[string]value{
-		"UID":    value{raw: "1000"},
-		"GID":    value{raw: "1000"},
-		"GOPATH": value{raw: "/go"},
-		"OS":     value{raw: b.os},
-		"ARCH":   value{raw: b.arch},
+		"UID":     value{raw: "1000"},
+		"GID":     value{raw: "1000"},
+		"GOCACHE": value{raw: "/go/cache"},
+		"GOPATH":  value{raw: "/go"},
+		"OS":      value{raw: b.os},
+		"ARCH":    value{raw: b.arch},
 	}
 	if b.fips {
 		pipelineName += "-fips"

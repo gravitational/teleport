@@ -44,24 +44,7 @@ func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Postgres proxy listens on web proxy port while MySQL proxy listens on
-	// a separate port due to the specifics of the protocol.
-	host, port := tc.WebProxyHostPort()
-	if db.Protocol == defaults.ProtocolMySQL {
-		host, port = tc.MySQLProxyHostPort()
-	}
-	connectProfile := profile.ConnectProfile{
-		Name:       profileName(tc.SiteName, db.ServiceName),
-		Host:       host,
-		Port:       port,
-		User:       db.Username,
-		Database:   db.Database,
-		Insecure:   tc.InsecureSkipVerify,
-		CACertPath: clientProfile.CACertPath(),
-		CertPath:   clientProfile.DatabaseCertPath(db.ServiceName),
-		KeyPath:    clientProfile.KeyPath(),
-	}
-	err = profileFile.Upsert(connectProfile)
+	connectProfile, err := add(tc, db, clientProfile, profileFile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -75,6 +58,35 @@ func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 		return mysql.Message.Execute(os.Stdout, connectProfile)
 	}
 	return nil
+}
+
+func add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, profileFile profile.ConnectProfileFile) (*profile.ConnectProfile, error) {
+	var host string
+	var port int
+	switch db.Protocol {
+	case defaults.ProtocolPostgres:
+		host, port = tc.PostgresProxyHostPort()
+	case defaults.ProtocolMySQL:
+		host, port = tc.MySQLProxyHostPort()
+	default:
+		return nil, trace.BadParameter("unknown database protocol: %q", db)
+	}
+	connectProfile := profile.ConnectProfile{
+		Name:       profileName(tc.SiteName, db.ServiceName),
+		Host:       host,
+		Port:       port,
+		User:       db.Username,
+		Database:   db.Database,
+		Insecure:   tc.InsecureSkipVerify,
+		CACertPath: clientProfile.CACertPath(),
+		CertPath:   clientProfile.DatabaseCertPath(db.ServiceName),
+		KeyPath:    clientProfile.KeyPath(),
+	}
+	err := profileFile.Upsert(connectProfile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &connectProfile, nil
 }
 
 // Env returns environment variables for the specified database profile.

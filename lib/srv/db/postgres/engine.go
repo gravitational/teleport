@@ -41,9 +41,9 @@ import (
 // Implements common.Engine.
 type Engine struct {
 	// Auth handles database access authentication.
-	Auth *common.Auth
+	Auth common.Auth
 	// Audit emits database access audit events.
-	Audit *common.Audit
+	Audit common.Audit
 	// Context is the database server close context.
 	Context context.Context
 	// Clock is the clock interface.
@@ -111,16 +111,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 	// At this point Postgres client should be ready to start sending
 	// messages: this is where psql prompt appears on the other side.
-	err = e.Audit.OnSessionStart(e.Context, *sessionCtx, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer func() {
-		err := e.Audit.OnSessionEnd(e.Context, *sessionCtx)
-		if err != nil {
-			e.Log.WithError(err).Error("Failed to emit audit event.")
-		}
-	}()
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 	// Reconstruct pgconn.PgConn from hijacked connection for easier access
 	// to its utility methods (such as Close).
 	serverConn, err := pgconn.Construct(hijackedConn)
@@ -192,9 +184,7 @@ func (e *Engine) checkAccess(sessionCtx *common.Session) error {
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 		&services.DatabaseNameMatcher{Name: sessionCtx.DatabaseName})
 	if err != nil {
-		if err := e.Audit.OnSessionStart(e.Context, *sessionCtx, err); err != nil {
-			e.Log.WithError(err).Error("Failed to emit audit event.")
-		}
+		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
 	}
 	return nil
@@ -274,9 +264,44 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 		log.Debugf("Received client message: %#v.", message)
 		switch msg := message.(type) {
 		case *pgproto3.Query:
-			err := e.Audit.OnQuery(e.Context, *sessionCtx, msg.String)
+			// Query message indicates the client is executing a simple query.
+			e.Audit.OnQuery(e.Context, sessionCtx, msg.String)
+		case *pgproto3.Parse:
+			// Parse message is a start of the extended query protocol which
+			// prepares parameterized query for execution. It is never used
+			// by psql, mostly by various GUI clients and programs.
+			//   https://www.postgresql.org/docs/10/protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY
+			sessionCtx.Statements.Save(msg.Name, msg.Query)
+		case *pgproto3.Bind:
+			// Bind message readies existing prepared statement (created when
+			// Parse message is received) for execution into what Postgres
+			// calls a "destination portal", optionally binding it with
+			// parameters (for parameterized queries).
+			err := sessionCtx.Statements.Bind(
+				msg.PreparedStatement,
+				msg.DestinationPortal,
+				getBindParameters(msg)...)
 			if err != nil {
-				log.WithError(err).Error("Failed to emit audit event.")
+				log.WithError(err).Warnf("Failed to bind prepared statement %#v.", msg)
+			}
+		case *pgproto3.Execute:
+			// Execute message indicates the client is executing the previously
+			// parsed and bound prepared statement i.e. the "portal". This is
+			// where we emit the query audit event.
+			portal, err := sessionCtx.Statements.GetPortal(msg.Portal)
+			if err != nil {
+				log.WithError(err).Warnf("Failed to find destination portal %#v.", msg)
+			} else {
+				e.Audit.OnQuery(e.Context, sessionCtx, portal.Query, portal.Parameters...)
+			}
+		case *pgproto3.Close:
+			// Close message closes the specified prepared statement or portal.
+			// Remove respective object from the cache.
+			switch msg.ObjectType {
+			case closeTypePreparedStatement:
+				sessionCtx.Statements.Remove(msg.Name)
+			case closeTypeDestinationPortal:
+				sessionCtx.Statements.RemovePortal(msg.Name)
 			}
 		case *pgproto3.Terminate:
 			clientErrCh <- nil
@@ -348,6 +373,11 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.DatabaseTypeRedshift:
+		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.DatabaseTypeCloudSQL:
 		config.Password, err = e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx)
 		if err != nil {
@@ -362,3 +392,57 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	}
 	return config, nil
 }
+
+// getBindParameters converts prepared statement parameters from the Postgres
+// wire protocol Bind message into their string representations for including
+// in the audit log.
+func getBindParameters(msg *pgproto3.Bind) (parameters []string) {
+	// Each parameter can be either a text or a binary which is determined
+	// by "parameter format codes" in the Bind message (0 - text, 1 - binary).
+	//
+	// Be a bit paranoid and make sure that number of format codes matches the
+	// number of parameters, or there are no format codes in which case all
+	// parameters will be text.
+	if len(msg.ParameterFormatCodes) != 0 && len(msg.ParameterFormatCodes) != len(msg.Parameters) {
+		logrus.Warnf("Postgres parameter format codes and parameters don't match: %#v.", msg)
+		return parameters
+	}
+	for i, p := range msg.Parameters {
+		// According to Bind message documentation, if there are no parameter
+		// format codes, it may mean that either there are no parameters, or
+		// that all parameters use default text format.
+		if len(msg.ParameterFormatCodes) == 0 {
+			parameters = append(parameters, string(p))
+			continue
+		}
+		switch msg.ParameterFormatCodes[i] {
+		case parameterFormatCodeText:
+			// Text parameters can just be converted to their string
+			// representation.
+			parameters = append(parameters, string(p))
+		case parameterFormatCodeBinary:
+			// For binary parameters, just put a placeholder to avoid
+			// spamming the audit log with unreadable info.
+			parameters = append(parameters, "<binary>")
+		default:
+			// Should never happen but...
+			logrus.Warnf("Unknown Postgres parameter format code: %#v.", msg)
+			parameters = append(parameters, "<unknown>")
+		}
+	}
+	return parameters
+}
+
+const (
+	// parameterFormatCodeText indicates that this is a text query parameter.
+	parameterFormatCodeText = 0
+	// parameterFormatCodeBinary indicates that this is a binary query parameter.
+	parameterFormatCodeBinary = 1
+
+	// closeTypePreparedStatement indicates that a prepared statement is being
+	// closed by the Close message.
+	closeTypePreparedStatement = 'S'
+	// closeTypeDestinationPortal indicates that a destination portal is being
+	// closed by the Close message.
+	closeTypeDestinationPortal = 'P'
+)

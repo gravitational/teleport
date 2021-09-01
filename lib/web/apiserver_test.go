@@ -35,6 +35,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -44,7 +45,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -433,7 +434,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
-	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{
+	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV4{
 		Options: services.RoleOptions{
 			MaxSessionTTL: services.NewDuration(defaults.MaxCertDuration),
 		},
@@ -778,6 +779,8 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
+	ctx := context.Background()
+
 	validNode := services.ServerV2{}
 	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
 	validNode.Spec.Hostname = "nodehostname"
@@ -869,7 +872,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range validCases {
-		term, err := NewTerminal(testCase.req, testCase.authProvider, nil)
+		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, IsNil)
 		c.Assert(term.params, DeepEquals, testCase.req)
 		c.Assert(term.hostName, Equals, testCase.expectedHost)
@@ -877,7 +880,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range invalidCases {
-		_, err := NewTerminal(testCase.req, testCase.authProvider, nil)
+		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
 }
@@ -1548,7 +1551,7 @@ func (s *WebSuite) TestPing(c *C) {
 	re, err := wc.Get(context.Background(), wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 
-	var out *apiclient.PingResponse
+	var out *webclient.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
 	preference, err := s.server.Auth().GetAuthPreference()
@@ -1594,7 +1597,7 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 	// hit the ping endpoint to get the auth type and connector name
 	re, err := wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
-	var out *apiclient.PingResponse
+	var out *webclient.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
 	// make sure the connector name we got back was the first connector
@@ -1700,11 +1703,34 @@ func (s *WebSuite) TestConstructSSHResponseLegacy(c *C) {
 	c.Assert(resp.TLSCert, DeepEquals, []byte{0x01})
 }
 
+type byTimeAndIndex []events.AuditEvent
+
+func (f byTimeAndIndex) Len() int {
+	return len(f)
+}
+
+func (f byTimeAndIndex) Less(i, j int) bool {
+	itime := f[i].GetTime()
+	jtime := f[j].GetTime()
+	if itime.Equal(jtime) && events.GetSessionID(f[i]) == events.GetSessionID(f[j]) {
+		return f[i].GetIndex() < f[j].GetIndex()
+	}
+	return itime.Before(jtime)
+}
+
+func (f byTimeAndIndex) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
 // TestSearchClusterEvents makes sure web API allows querying events by type.
 func (s *WebSuite) TestSearchClusterEvents(c *C) {
+	// We need a clock that uses the current time here to work around
+	// the fact that filelog doesn't support emitting past events.
+	clock := clockwork.NewRealClock()
+
 	sessionEvents := events.GenerateTestSession(events.SessionParams{
 		PrintEvents: 3,
-		Clock:       s.clock,
+		Clock:       clock,
 		ServerID:    s.proxy.ID(),
 	})
 
@@ -1712,9 +1738,13 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		c.Assert(s.proxyClient.EmitAuditEvent(context.TODO(), e), IsNil)
 	}
 
+	sort.Sort(sort.Reverse(byTimeAndIndex(sessionEvents)))
 	sessionStart := sessionEvents[0]
 	sessionPrint := sessionEvents[1]
 	sessionEnd := sessionEvents[4]
+
+	fromTime := []string{clock.Now().AddDate(0, -1, 0).UTC().Format(time.RFC3339)}
+	toTime := []string{clock.Now().AddDate(0, 1, 0).UTC().Format(time.RFC3339)}
 
 	testCases := []struct {
 		// Comment is the test case description.
@@ -1723,62 +1753,107 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		Query url.Values
 		// Result is the expected returned list of events.
 		Result []events.AuditEvent
+		// TestStartKey is a flag to test start key value.
+		TestStartKey bool
+		// StartKeyValue is the value of start key to expect.
+		StartKeyValue string
 	}{
 		{
 			Comment: "Empty query",
-			Query:   url.Values{},
-			Result:  sessionEvents,
+			Query: url.Values{
+				"from": fromTime,
+				"to":   toTime,
+			},
+			Result: sessionEvents,
 		},
 		{
 			Comment: "Query by session start event",
-			Query:   url.Values{"include": []string{sessionStart.GetType()}},
-			Result:  sessionEvents[:1],
+			Query: url.Values{
+				"include": []string{sessionStart.GetType()},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result: sessionEvents[:1],
 		},
 		{
 			Comment: "Query session start and session end events",
-			Query:   url.Values{"include": []string{sessionEnd.GetType() + ";" + sessionStart.GetType()}},
-			Result:  []events.AuditEvent{sessionStart, sessionEnd},
+			Query: url.Values{
+				"include": []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result: []events.AuditEvent{sessionStart, sessionEnd},
 		},
 		{
 			Comment: "Query events with filter by type and limit",
 			Query: url.Values{
-				"include": []string{sessionPrint.GetType() + ";" + sessionEnd.GetType()},
+				"include": []string{sessionPrint.GetType() + "," + sessionEnd.GetType()},
 				"limit":   []string{"1"},
+				"from":    fromTime,
+				"to":      toTime,
 			},
 			Result: []events.AuditEvent{sessionPrint},
+		},
+		{
+			Comment: "Query session start and session end events with limit and test returned start key",
+			Query: url.Values{
+				"include": []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"limit":   []string{"1"},
+				"from":    fromTime,
+				"to":      toTime,
+			},
+			Result:        []events.AuditEvent{sessionStart},
+			TestStartKey:  true,
+			StartKeyValue: sessionStart.GetID(),
+		},
+		{
+			Comment: "Query session start and session end events with limit and given start key",
+			Query: url.Values{
+				"include":  []string{sessionEnd.GetType() + "," + sessionStart.GetType()},
+				"startKey": []string{sessionStart.GetID()},
+				"from":     fromTime,
+				"to":       toTime,
+			},
+			Result:        []events.AuditEvent{sessionEnd},
+			TestStartKey:  true,
+			StartKeyValue: "",
 		},
 	}
 
 	pack := s.authPack(c, "foo")
+	// var sessionStartKey string
 	for _, tc := range testCases {
 		result := s.searchEvents(c, pack.clt, tc.Query, []string{sessionStart.GetType(), sessionPrint.GetType(), sessionEnd.GetType()})
-		c.Assert(result, HasLen, len(tc.Result), Commentf(tc.Comment))
-		for i, resultEvent := range result {
+		c.Assert(result.Events, HasLen, len(tc.Result), Commentf(tc.Comment))
+		for i, resultEvent := range result.Events {
 			c.Assert(resultEvent.GetType(), Equals, tc.Result[i].GetType(), Commentf(tc.Comment))
 			c.Assert(resultEvent.GetID(), Equals, tc.Result[i].GetID(), Commentf(tc.Comment))
+		}
+
+		// Session prints do not have ID's, only sessionStart and sessionEnd.
+		// When retrieving events for sessionStart and sessionEnd, sessionStart is returned first.
+		if tc.TestStartKey {
+			c.Assert(result.StartKey, Equals, tc.StartKeyValue, Commentf(tc.Comment))
 		}
 	}
 }
 
-func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) (result []events.EventFields) {
+func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, filter []string) eventsListGetResponse {
 	response, err := clt.Get(context.Background(), clt.Endpoint("webapi", "sites", s.server.ClusterName(), "events", "search"), query)
 	c.Assert(err, IsNil)
 	var out eventsListGetResponse
 	c.Assert(json.Unmarshal(response.Bytes(), &out), IsNil)
-	for _, event := range out.Events {
-		if utils.SliceContainsStr(filter, event.GetType()) {
-			result = append(result, event)
-		}
-	}
-	return result
+	return out
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
+	ctx := context.Background()
+
 	site, err := s.proxyTunnel.GetSite(s.server.ClusterName())
 	c.Assert(err, IsNil)
 	c.Assert(site, NotNil)
 
-	cluster, err := ui.GetClusterDetails(site)
+	cluster, err := ui.GetClusterDetails(ctx, site)
 	c.Assert(err, IsNil)
 	c.Assert(cluster.Name, Equals, s.server.ClusterName())
 	c.Assert(cluster.ProxyVersion, Equals, teleport.Version)
@@ -1787,7 +1862,7 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.LastConnected, NotNil)
 	c.Assert(cluster.AuthVersion, Equals, teleport.Version)
 
-	nodes, err := s.proxyClient.GetNodes(defaults.Namespace)
+	nodes, err := s.proxyClient.GetNodes(ctx, defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
@@ -1800,6 +1875,95 @@ func (m *testModules) Features() modules.Features {
 	return modules.Features{
 		App: false, // Explicily turn off application access.
 	}
+}
+
+func TestClusterDatabasesGet(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// No db registered.
+	dbs := []ui.Database{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
+	require.Len(t, dbs, 0)
+
+	// Register a database.
+	db := types.NewDatabaseServerV3("test-db-name", map[string]string{"test-field": "test-value"}, types.DatabaseServerSpecV3{
+		Description: "test-description",
+		Protocol:    "test-protocol",
+		URI:         "test-uri",
+		Hostname:    "test-hostname",
+		HostID:      "test-hostID",
+	})
+
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
+	require.NoError(t, err)
+
+	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	dbs = []ui.Database{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
+	require.Len(t, dbs, 1)
+	require.EqualValues(t, ui.Database{
+		Name:     "test-db-name",
+		Desc:     "test-description",
+		Protocol: "test-protocol",
+		Type:     types.DatabaseTypeSelfHosted,
+		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
+	}, dbs[0])
+}
+
+func TestClusterKubesGet(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// No kube registered.
+	kbs := []ui.Kube{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
+	require.Len(t, kbs, 0)
+
+	// Register a kube service.
+	err = env.server.Auth().UpsertKubeService(context.Background(), &services.ServerV2{
+		Metadata: services.Metadata{Name: "test-kube"},
+		Kind:     services.KindKubeService,
+		Version:  services.V2,
+		Spec: services.ServerSpecV2{
+			KubernetesClusters: []*services.KubernetesCluster{
+				{
+					Name:         "test-kube-name",
+					StaticLabels: map[string]string{"test-field": "test-value"},
+				},
+				// tests for de-duplication
+				{
+					Name:         "test-kube-name",
+					StaticLabels: map[string]string{"test-field": "test-value"},
+				}},
+		},
+	})
+	require.NoError(t, err)
+
+	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	kbs = []ui.Kube{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
+	require.Len(t, kbs, 1)
+	require.EqualValues(t, ui.Kube{
+		Name:   "test-kube-name",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+	}, kbs[0])
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -1839,7 +2003,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-		FQDN:        "panel.example.com",
+		FQDNHint:    "panel.example.com",
 		PublicAddr:  "panel.example.com",
 		ClusterName: "localhost",
 	})
@@ -1892,7 +2056,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Valid request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
@@ -1913,7 +2077,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Valid request: only FQDN."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN: "panel.example.com",
+				FQDNHint: "panel.example.com",
 			},
 			outError:    false,
 			outFQDN:     "panel.example.com",
@@ -1936,7 +2100,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Invalid application."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "invalid.example.com",
 				ClusterName: "localhost",
 			},
@@ -1945,7 +2109,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Invalid cluster name."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com",
+				FQDNHint:    "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "example.com",
 			},
@@ -1954,7 +2118,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Malicious request: all fields."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN:        "panel.example.com@malicious.com",
+				FQDNHint:    "panel.example.com@malicious.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
@@ -1965,7 +2129,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Malicious request: only FQDN."),
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDN: "panel.example.com@malicious.com",
+				FQDNHint: "panel.example.com@malicious.com",
 			},
 			outError: true,
 		},
@@ -2107,7 +2271,7 @@ type authProviderMock struct {
 	server services.ServerV2
 }
 
-func (mock authProviderMock) GetNodes(n string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]services.Server, error) {
 	return []services.Server{&mock.server}, nil
 }
 
@@ -2359,7 +2523,7 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn}, nil
+	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn}, nil
 }
 
 func newWebPack(t *testing.T, numProxies int) *webPack {
@@ -2670,8 +2834,8 @@ func (r *proxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response)
 
 	session, err := resp.response()
 	require.NoError(t, err)
-	if session.ExpiresIn < 0 {
-		t.Errorf("Expected expiry time to be in the future but got %v", session.ExpiresIn)
+	if session.TokenExpiresIn < 0 {
+		t.Errorf("Expected expiry time to be in the future but got %v", session.TokenExpiresIn)
 	}
 	return &authPack{
 		session: session,

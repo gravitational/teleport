@@ -80,7 +80,6 @@ There are a couple of important things to notice about this file:
 1. The start command in the unit file specifies `--config` as a file and there
    are very few flags passed to the `teleport` binary. Most of the configuration
    for Teleport should be done in the [configuration file](admin-guide.mdx#configuration).
-
 2. The **ExecReload** command allows admins to run `systemctl reload teleport`.
    This will attempt to perform a graceful restart of Teleport **but it only works if
    network-based backend storage like [DynamoDB](admin-guide.mdx#using-dynamodb) or
@@ -170,7 +169,7 @@ https_keypairs:
 If you already have a certificate these should be uploaded to the Teleport Proxy and
 can be set via `https_key_file` and `https_cert_file`. Make sure any certificates
 files uploaded contain a full certificate chain, complete with any intermediate
-certificates required - this [guide](https://www.digicert.com/ssl-support/pem-ssl-creation.htm) may help.
+certificates required.
 
 ```yaml
 # This section configures the 'proxy service'
@@ -203,7 +202,7 @@ setting up the proxy nodes start Teleport with:
 
 `teleport start --insecure --roles=proxy --config=/etc/teleport.yaml`
 
-See [Teleport Proxy HA](admin-guide.mdx#teleport-proxy-ha) for more info.
+See [Teleport Proxy HA](admin-guide.mdx#teleport-proxy-high-availability) for more info.
 
 {
   /* TODO SSL for Webproxy & Auth Section */
@@ -217,10 +216,10 @@ hijack the IP address of the auth server.
 
 To prevent this from happening, you need to supply every new node with an
 additional bit of information about the auth server. This technique is called
-"CA pinning". It works by asking the auth server to produce a "CA pin", which
+*CA pinning*. It works by asking the auth server to produce a *CA pin*, which
 is a hashed value of its private key, i.e. it cannot be forged by an attacker.
 
-To get the current CA pin run this on the auth server:
+To get the current CA pin run the following code on the auth server:
 
 ```bash
 $ tctl status
@@ -272,10 +271,10 @@ teleport:
 ### Secure Data Storage
 
 By default the `teleport` daemon uses the local directory `/var/lib/teleport` to
-store its data. This applies to any role or service including Auth, Node, or Proxy.
-While an Auth node hosts the most sensitive data you will want to prevent
+store its data. This applies to any role or service including `auth`, `node`, or `proxy`.
+While an `auth` node hosts the most sensitive data you will want to prevent
 unauthorized access to this directory. Make sure that regular/non-admin users
-do not have access to this folder, particularly on the Auth server. Change
+do not have access to this folder, particularly on the `auth` server. Change
 the ownership of the directory with [`chown`](https://linuxize.com/post/linux-chown-command/)
 
 ```bash

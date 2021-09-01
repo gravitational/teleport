@@ -109,14 +109,14 @@ func RoleNameForCertAuthority(name string) string {
 // is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() Role {
 	adminRules := getExtendedAdminUserRules(modules.GetModules().Features())
-	role := &RoleV3{
+	role := &types.RoleV4{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
 			Name:      teleport.AdminRoleName,
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
@@ -145,14 +145,14 @@ func NewAdminRole() Role {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() Role {
-	return &RoleV3{
+	return &types.RoleV4{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
 			Name:      teleport.DefaultImplicitRole,
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: RoleOptions{
 				MaxSessionTTL: MaxDuration(),
 				// PortForwarding has to be set to false in the default-implicit-role
@@ -170,14 +170,14 @@ func NewImplicitRole() Role {
 
 // RoleForUser creates an admin role for a services.User.
 func RoleForUser(u User) Role {
-	return &RoleV3{
+	return &types.RoleV4{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
 			Name:      RoleNameForUser(u.GetName()),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
@@ -207,7 +207,7 @@ func RoleForUser(u User) Role {
 // This role overrides built in OSS "admin" role to have less privileges.
 // DELETE IN (7.x)
 func NewDowngradedOSSAdminRole() Role {
-	role := &RoleV3{
+	role := &types.RoleV4{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
@@ -215,7 +215,7 @@ func NewDowngradedOSSAdminRole() Role {
 			Namespace: defaults.Namespace,
 			Labels:    map[string]string{teleport.OSSMigratedV6: types.True},
 		},
-		Spec: RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
@@ -246,14 +246,14 @@ func NewDowngradedOSSAdminRole() Role {
 
 // NewOSSGithubRole creates a role for enabling RBAC for open source Github users
 func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) Role {
-	role := &RoleV3{
+	role := &types.RoleV4{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
 			Name:      "github-" + uuid.New(),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: RoleOptions{
 				CertificateFormat: teleport.CertificateFormatStandard,
 				MaxSessionTTL:     NewDuration(defaults.MaxCertDuration),
@@ -283,14 +283,14 @@ func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) 
 
 // RoleForCertAuthority creates role using services.CertAuthority.
 func RoleForCertAuthority(ca CertAuthority) Role {
-	return &RoleV3{
+	return &types.RoleV4{
 		Kind:    KindRole,
 		Version: V3,
 		Metadata: Metadata{
 			Name:      RoleNameForCertAuthority(ca.GetClusterName()),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV3{
+		Spec: types.RoleSpecV4{
 			Options: RoleOptions{
 				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			},
@@ -398,7 +398,7 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 
 		var outLogins []string
 		for _, login := range inLogins {
-			variableValues, err := applyValueTraits(login, traits)
+			variableValues, err := ApplyValueTraits(login, traits)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.Debugf("Skipping login %v: %v.", login, err)
@@ -424,7 +424,7 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		inKubeGroups := r.GetKubeGroups(condition)
 		var outKubeGroups []string
 		for _, group := range inKubeGroups {
-			variableValues, err := applyValueTraits(group, traits)
+			variableValues, err := ApplyValueTraits(group, traits)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.Debugf("Skipping kube group %v: %v.", group, err)
@@ -439,7 +439,7 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		inKubeUsers := r.GetKubeUsers(condition)
 		var outKubeUsers []string
 		for _, user := range inKubeUsers {
-			variableValues, err := applyValueTraits(user, traits)
+			variableValues, err := ApplyValueTraits(user, traits)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.Debugf("Skipping kube user %v: %v.", user, err)
@@ -454,7 +454,7 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		inDbNames := r.GetDatabaseNames(condition)
 		var outDbNames []string
 		for _, name := range inDbNames {
-			variableValues, err := applyValueTraits(name, traits)
+			variableValues, err := ApplyValueTraits(name, traits)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.Debugf("Skipping database name %q: %v.", name, err)
@@ -469,7 +469,7 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		inDbUsers := r.GetDatabaseUsers(condition)
 		var outDbUsers []string
 		for _, user := range inDbUsers {
-			variableValues, err := applyValueTraits(user, traits)
+			variableValues, err := ApplyValueTraits(user, traits)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.Debugf("Skipping database user %q: %v.", user, err)
@@ -514,7 +514,7 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		inCond := r.GetImpersonateConditions(condition)
 		var outCond types.ImpersonateConditions
 		for _, user := range inCond.Users {
-			variableValues, err := applyValueTraits(user, traits)
+			variableValues, err := ApplyValueTraits(user, traits)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.WithError(err).Debugf("Skipping impersonate user %q.", user)
@@ -524,7 +524,7 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 			outCond.Users = append(outCond.Users, variableValues...)
 		}
 		for _, role := range inCond.Roles {
-			variableValues, err := applyValueTraits(role, traits)
+			variableValues, err := ApplyValueTraits(role, traits)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.WithError(err).Debugf("Skipping impersonate role %q.", role)
@@ -559,7 +559,7 @@ func applyLabelsTraits(inLabels Labels, traits map[string][]string) Labels {
 	outLabels := make(Labels, len(inLabels))
 	// every key will be mapped to the first value
 	for key, vals := range inLabels {
-		keyVars, err := applyValueTraits(key, traits)
+		keyVars, err := ApplyValueTraits(key, traits)
 		if err != nil {
 			// empty key will not match anything
 			log.Debugf("Setting empty node label pair %q -> %q: %v", key, vals, err)
@@ -568,7 +568,7 @@ func applyLabelsTraits(inLabels Labels, traits map[string][]string) Labels {
 
 		var values []string
 		for _, val := range vals {
-			valVars, err := applyValueTraits(val, traits)
+			valVars, err := ApplyValueTraits(val, traits)
 			if err != nil {
 				log.Debugf("Setting empty node label value %q -> %q: %v", key, val, err)
 				// empty value will not match anything
@@ -581,12 +581,12 @@ func applyLabelsTraits(inLabels Labels, traits map[string][]string) Labels {
 	return outLabels
 }
 
-// applyValueTraits applies the passed in traits to the variable,
+// ApplyValueTraits applies the passed in traits to the variable,
 // returns BadParameter in case if referenced variable is unsupported,
 // returns NotFound in case if referenced trait is missing,
 // mapped list of values otherwise, the function guarantees to return
 // at least one value in case if return value is nil
-func applyValueTraits(val string, traits map[string][]string) ([]string, error) {
+func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) {
 	// Extract the variable from the role variable.
 	variable, err := parse.NewExpression(val)
 	if err != nil {
@@ -857,7 +857,7 @@ type AccessChecker interface {
 }
 
 // FromSpec returns new RoleSet created from spec
-func FromSpec(name string, spec RoleSpecV3) (RoleSet, error) {
+func FromSpec(name string, spec types.RoleSpecV4) (RoleSet, error) {
 	role, err := NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -906,11 +906,11 @@ func ExtractFromCertificate(access UserGetter, cert *ssh.Certificate) ([]string,
 	}
 
 	// Standard certificates have the roles and traits embedded in them.
-	roles, err := extractRolesFromCert(cert)
+	roles, err := ExtractRolesFromCert(cert)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	traits, err := extractTraitsFromCert(cert)
+	traits, err := ExtractTraitsFromCert(cert)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -988,8 +988,8 @@ func missingIdentity(identity tlsca.Identity) bool {
 	return false
 }
 
-// extractRolesFromCert extracts roles from certificate metadata extensions.
-func extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
+// ExtractRolesFromCert extracts roles from certificate metadata extensions.
+func ExtractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
 	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
 	if !ok {
 		return nil, trace.NotFound("no roles found")
@@ -997,8 +997,8 @@ func extractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
 	return UnmarshalCertRoles(data)
 }
 
-// extractTraitsFromCert extracts traits from the certificate extensions.
-func extractTraitsFromCert(cert *ssh.Certificate) (wrappers.Traits, error) {
+// ExtractTraitsFromCert extracts traits from the certificate extensions.
+func ExtractTraitsFromCert(cert *ssh.Certificate) (wrappers.Traits, error) {
 	rawTraits, ok := cert.Extensions[teleport.CertExtensionTeleportTraits]
 	if !ok {
 		return nil, trace.NotFound("no traits found")
@@ -1121,6 +1121,17 @@ func (set RoleSet) HasRole(role string) bool {
 		}
 	}
 	return false
+}
+
+// WithoutImplicit returns this role set with default implicit role filtered out.
+func (set RoleSet) WithoutImplicit() (out RoleSet) {
+	for _, r := range set {
+		if r.GetName() == teleport.DefaultImplicitRole {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
 }
 
 // AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
@@ -2133,8 +2144,8 @@ func (s SortedRoles) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-// RoleSpecV3SchemaTemplate is JSON schema for RoleSpecV3
-const RoleSpecV3SchemaTemplate = `{
+// RoleSpecV4SchemaTemplate is JSON schema for RoleSpecV4
+const RoleSpecV4SchemaTemplate = `{
 	"type": "object",
 	"additionalProperties": false,
 	"properties": {
@@ -2166,8 +2177,8 @@ const RoleSpecV3SchemaTemplate = `{
 	}
   }`
 
-// RoleSpecV3SchemaDefinitions is JSON schema for RoleSpecV3 definitions
-const RoleSpecV3SchemaDefinitions = `
+// RoleSpecV4SchemaDefinitions is JSON schema for RoleSpecV4 definitions
+const RoleSpecV4SchemaDefinitions = `
 	  "definitions": {
 		"role_condition": {
 		  "namespaces": {
@@ -2297,8 +2308,8 @@ const RoleSpecV3SchemaDefinitions = `
 // GetRoleSchema returns role schema for the version requested with optionally
 // injected schema for extensions.
 func GetRoleSchema(version string, extensionSchema string) string {
-	schemaDefinitions := "," + RoleSpecV3SchemaDefinitions
-	schemaTemplate := RoleSpecV3SchemaTemplate
+	schemaDefinitions := "," + RoleSpecV4SchemaDefinitions
+	schemaTemplate := RoleSpecV4SchemaTemplate
 
 	schema := fmt.Sprintf(schemaTemplate, ``)
 	if extensionSchema != "" {
@@ -2322,8 +2333,11 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
 	}
 
 	switch h.Version {
+	case types.V4:
+		// V4 roles are identical to V3 except for their defaults
+		fallthrough
 	case V3:
-		var role RoleV3
+		var role types.RoleV4
 		if cfg.SkipValidation {
 			if err := utils.FastUnmarshal(bytes, &role); err != nil {
 				return nil, trace.BadParameter(err.Error())
@@ -2356,8 +2370,13 @@ func MarshalRole(r Role, opts ...MarshalOption) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	switch role := r.(type) {
-	case *RoleV3:
+	case *types.RoleV4:
+		// V4 role version is compatible with V3
+		if version := role.GetVersion(); version != types.V3 && version != types.V4 {
+			return nil, trace.BadParameter("mismatched role version %v and type %T", version, role)
+		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -2368,5 +2387,41 @@ func MarshalRole(r Role, opts ...MarshalOption) ([]byte, error) {
 		return utils.FastMarshal(role)
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", r)
+	}
+}
+
+// DowngradeToV3 converts a V4 role to V3 so that it will be compatible with
+// older instances. Makes a shallow copy if the conversion is necessary. The
+// passed in role will not be mutated.
+// DELETE IN 8.0.0
+func DowngradeRoleToV3(r *types.RoleV4) (*types.RoleV4, error) {
+	switch r.Version {
+	case types.V3:
+		return r, nil
+	case types.V4:
+		var downgraded types.RoleV4
+		downgraded = *r
+		downgraded.Version = types.V3
+
+		// V3 roles will set the default labels to wildcard allow if they are
+		// empty. To prevent this for roles which are created as V4 and
+		// downgraded, set a placeholder label
+		const labelKey = "__teleport_no_labels"
+		labelVal := uuid.New()
+		if len(r.Spec.Allow.NodeLabels) == 0 {
+			downgraded.Spec.Allow.NodeLabels = types.Labels{labelKey: []string{labelVal}}
+		}
+		if len(r.Spec.Allow.AppLabels) == 0 {
+			downgraded.Spec.Allow.AppLabels = types.Labels{labelKey: []string{labelVal}}
+		}
+		if len(r.Spec.Allow.KubernetesLabels) == 0 {
+			downgraded.Spec.Allow.KubernetesLabels = types.Labels{labelKey: []string{labelVal}}
+		}
+		if len(r.Spec.Allow.DatabaseLabels) == 0 {
+			downgraded.Spec.Allow.DatabaseLabels = types.Labels{labelKey: []string{labelVal}}
+		}
+		return &downgraded, nil
+	default:
+		return nil, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
 }

@@ -2,18 +2,25 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}
+  {{- if .Values.annotations.config }}
+  annotations:
+    {{- toYaml .Values.annotations.config | nindent 4 }}
+  {{- end }}
 data:
   teleport.yaml: |
     teleport:
       auth_token: "/etc/teleport-secrets/auth-token"
       auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
+      log:
+        severity: {{ .Values.logLevel }}
+        output: stderr
 
     kubernetes_service:
       {{- if or (contains "kube" (.Values.roles | toString)) (empty .Values.roles) }}
       enabled: true
       kube_cluster_name: {{ required "kubeClusterName is required in chart values when kube role is enabled, see README" .Values.kubeClusterName }}
         {{- if .Values.labels }}
-      labels: {{ toYaml .Values.labels | nindent 8 }}
+      labels: {{- toYaml .Values.labels | nindent 8 }}
         {{- end }}
       {{- else }}
       enabled: false

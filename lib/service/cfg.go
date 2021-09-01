@@ -20,13 +20,16 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -40,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -361,6 +365,14 @@ type ProxyConfig struct {
 	// list of host principals on the TLS and SSH certificate.
 	TunnelPublicAddrs []utils.NetAddr
 
+	// PostgresPublicAddrs is a list of the public addresses the proxy
+	// advertises for Postgres clients.
+	PostgresPublicAddrs []utils.NetAddr
+
+	// MySQLPublicAddrs is a list of the public addresses the proxy
+	// advertises for MySQL clients.
+	MySQLPublicAddrs []utils.NetAddr
+
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
 
@@ -511,6 +523,9 @@ type SSHConfig struct {
 	//
 	// See github.com/gravitational/teleport/issues/4141 for details.
 	ProxyReverseTunnelFallbackAddr *utils.NetAddr
+
+	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
+	AllowTCPForwarding bool
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -565,9 +580,9 @@ type Database struct {
 	DynamicLabels services.CommandLabels
 	// CACert is an optional database CA certificate.
 	CACert []byte
-	// AWS contains AWS specific settings for RDS/Aurora.
+	// AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
 	AWS DatabaseAWS
-	// GCP contains GCP specific settings for Cloud SQL.
+	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP
 }
 
@@ -575,6 +590,14 @@ type Database struct {
 type DatabaseAWS struct {
 	// Region is the cloud region database is running in when using AWS RDS.
 	Region string
+	// Redshift contains Redshift specific settings.
+	Redshift DatabaseAWSRedshift
+}
+
+// DatabaseAWSRedshift contains AWS Redshift specific settings.
+type DatabaseAWSRedshift struct {
+	// ClusterID is the Redshift cluster identifier.
+	ClusterID string
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -608,6 +631,12 @@ func (d *Database) Check() error {
 		if _, err := tlsca.ParseCertificatePEM(d.CACert); err != nil {
 			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v",
 				d.Name, err)
+		}
+	}
+	// Validate Redshift specific configuration.
+	if d.AWS.Redshift.ClusterID != "" {
+		if d.AWS.Region == "" {
+			return trace.BadParameter("missing AWS region for Redshift database %q", d.Name)
 		}
 	}
 	// Validate Cloud SQL specific configuration.
@@ -681,7 +710,7 @@ func (a App) Check() error {
 		return trace.BadParameter("missing application name")
 	}
 	if a.URI == "" {
-		return trace.BadParameter("missing application URI")
+		return trace.BadParameter("missing application %q URI", a.Name)
 	}
 	// Check if the application name is a valid subdomain. Don't allow names that
 	// are invalid subdomains because for trusted clusters the name is used to
@@ -691,19 +720,29 @@ func (a App) Check() error {
 	}
 	// Parse and validate URL.
 	if _, err := url.Parse(a.URI); err != nil {
-		return trace.BadParameter("application URI invalid: %v", err)
+		return trace.BadParameter("application %q URI invalid: %v", a.Name, err)
 	}
 	// If a port was specified or an IP address was provided for the public
 	// address, return an error.
 	if a.PublicAddr != "" {
 		if _, _, err := net.SplitHostPort(a.PublicAddr); err == nil {
-			return trace.BadParameter("public_addr %q can not contain a port, applications will be available on the same port as the web proxy", a.PublicAddr)
+			return trace.BadParameter("application %q public_addr %q can not contain a port, applications will be available on the same port as the web proxy", a.Name, a.PublicAddr)
 		}
 		if net.ParseIP(a.PublicAddr) != nil {
-			return trace.BadParameter("public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.PublicAddr)
+			return trace.BadParameter("application %q public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.Name, a.PublicAddr)
 		}
 	}
-
+	// Make sure there are no reserved headers in the rewrite configuration.
+	// They wouldn't be rewritten even if we allowed them here but catch it
+	// early and let the user know.
+	if a.Rewrite != nil {
+		for _, h := range a.Rewrite.Headers {
+			if app.IsReservedHeader(h.Name) {
+				return trace.BadParameter("invalid application %q header rewrite configuration: header %q is reserved and can't be rewritten",
+					a.Name, http.CanonicalHeaderKey(h.Name))
+			}
+		}
+	}
 	return nil
 }
 
@@ -711,6 +750,48 @@ func (a App) Check() error {
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
 	Redirect []string
+	// Headers is a list of extra headers to inject in the request.
+	Headers []Header
+}
+
+// Header represents a single http header passed over to the proxied application.
+type Header struct {
+	// Name is the http header name.
+	Name string
+	// Value is the http header value.
+	Value string
+}
+
+// ParseHeader parses the provided string as a http header.
+func ParseHeader(header string) (*Header, error) {
+	parts := strings.SplitN(header, ":", 2)
+	if len(parts) != 2 {
+		return nil, trace.BadParameter("failed to parse %q as http header", header)
+	}
+	name := strings.TrimSpace(parts[0])
+	value := strings.TrimSpace(parts[1])
+	if !httpguts.ValidHeaderFieldName(name) {
+		return nil, trace.BadParameter("invalid http header name: %q", header)
+	}
+	if !httpguts.ValidHeaderFieldValue(value) {
+		return nil, trace.BadParameter("invalid http header value: %q", header)
+	}
+	return &Header{
+		Name:  name,
+		Value: value,
+	}, nil
+}
+
+// ParseHeaders parses the provided list as http headers.
+func ParseHeaders(headers []string) (headersOut []Header, err error) {
+	for _, header := range headers {
+		h, err := ParseHeader(header)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		headersOut = append(headersOut, *h)
+	}
+	return headersOut, nil
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
@@ -785,6 +866,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+	cfg.SSH.AllowTCPForwarding = true
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false

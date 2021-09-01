@@ -37,7 +37,14 @@ const DatabaseServerSpecV3Schema = `{
 		"type": "object",
 		"additionalProperties": false,
 		"properties": {
-		  "region": {"type": "string"}
+		  "region": {"type": "string"},
+		  "redshift": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+			  "cluster_id": {"type": "string"}
+			}
+		  }
 		}
 	  },
 	  "gcp": {

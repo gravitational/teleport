@@ -18,14 +18,11 @@ Now you can see the monitoring information by visiting several endpoints:
 - `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is
   tracking. It is compatible with [Prometheus](https://prometheus.io/)
   collectors.
-
 - `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or
   `503` otherwise.
-
 - `http://127.0.0.1:3000/readyz` is similar to `/healthz` , but it returns "OK"
   *only after* the node successfully joined the cluster, i.e.it draws the
   difference between "healthy" and "ready".
-
 - `http://127.0.0.1:3000/debug/pprof/` is Golang's standard profiler. It's only
   available when `-d` flag is given in addition to `--diag-addr`
 
@@ -109,3 +106,12 @@ Now you can see the monitoring information by visiting several endpoints:
 | `auth_generate_requests_throttled_total` | counter | Teleport Auth | Number of throttled requests to generate new server keys |
 | `auth_generate_requests_total` | counter | Teleport Auth | Number of requests to generate new server keys |
 | `auth_generate_seconds` | `histogram` | Teleport Auth | Latency for generate requests |
+| `cluster_name_not_found_total` | counter | Teleport Auth | Number of times a cluster was not found |
+| `heartbeat_connections_received_total` | counter | Teleport Auth | Number of times auth received a heartbeat connection |
+| `heartbeat_connections_missed_total` | counter | Teleport Auth | Number of times auth did not receive a heartbeat from a node |  
+| `user_login_total` | counter | Teleport Auth | Number of user logins |
+| `failed_connect_to_node_attempts_total` | counter | Teleport Proxy | Number of times a user failed connecting to a node |
+| `proxy_connection_limit_exceeded_total` | counter | Teleport Proxy | Number of connections that exceeded the proxy connection limit |
+| `certificate_mismatch_total` | counter | Teleport Proxy | Number of times there was a certificate mismatch | 
+| `failed_login_attempts_total` | counter | Teleport Proxy | Number of failed `tsh login` or `tsh ssh` logins | 
+| `user_max_concurrent_sessions_hit_total` | counter | Teleport Node | Number of times a user exceeded their concurrent session limit |

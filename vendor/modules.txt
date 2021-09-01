@@ -110,6 +110,7 @@ github.com/aws/aws-sdk-go/service/dynamodb
 github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute
 github.com/aws/aws-sdk-go/service/dynamodbstreams
 github.com/aws/aws-sdk-go/service/rds/rdsutils
+github.com/aws/aws-sdk-go/service/redshift
 github.com/aws/aws-sdk-go/service/s3
 github.com/aws/aws-sdk-go/service/s3/s3iface
 github.com/aws/aws-sdk-go/service/s3/s3manager
@@ -129,7 +130,7 @@ github.com/boombuler/barcode/qr
 github.com/boombuler/barcode/utils
 # github.com/cespare/xxhash/v2 v2.1.1
 github.com/cespare/xxhash/v2
-# github.com/coreos/go-oidc v0.0.3 => github.com/gravitational/go-oidc v0.0.3
+# github.com/coreos/go-oidc v0.0.4 => github.com/gravitational/go-oidc v0.0.4
 ## explicit
 github.com/coreos/go-oidc/http
 github.com/coreos/go-oidc/jose
@@ -276,13 +277,17 @@ github.com/gravitational/roundtrip
 ## explicit
 github.com/gravitational/teleport/api/client
 github.com/gravitational/teleport/api/client/proto
+github.com/gravitational/teleport/api/client/webclient
 github.com/gravitational/teleport/api/constants
 github.com/gravitational/teleport/api/defaults
+github.com/gravitational/teleport/api/identityfile
+github.com/gravitational/teleport/api/profile
 github.com/gravitational/teleport/api/types
 github.com/gravitational/teleport/api/types/events
 github.com/gravitational/teleport/api/types/wrappers
 github.com/gravitational/teleport/api/utils
 github.com/gravitational/teleport/api/utils/sshutils
+github.com/gravitational/teleport/api/utils/tlsutils
 # github.com/gravitational/trace v1.1.14
 ## explicit
 github.com/gravitational/trace
@@ -1018,7 +1023,7 @@ k8s.io/utils/integer
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
-# github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.3
+# github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.4
 # github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 # github.com/gravitational/teleport/api => ./api
 # github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1

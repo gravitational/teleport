@@ -31,21 +31,21 @@ import (
 // dynamic labels and heartbeats its presence to the auth server.
 func TestDatabaseServerStart(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t)
-	t.Cleanup(func() { testCtx.Close() })
+	testCtx := setupTestContext(ctx, t,
+		withSelfHostedPostgres("postgres"),
+		withSelfHostedMySQL("mysql"))
 
 	err := testCtx.server.Start()
 	require.NoError(t, err)
-	t.Cleanup(func() { testCtx.server.Close() })
 
 	tests := []struct {
 		server types.DatabaseServer
 	}{
 		{
-			server: testCtx.postgresDBServer,
+			server: testCtx.postgres["postgres"].server,
 		},
 		{
-			server: testCtx.mysqlDBServer,
+			server: testCtx.mysql["mysql"].server,
 		},
 	}
 

@@ -17,6 +17,8 @@ limitations under the License.
 package ui
 
 import (
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -66,6 +68,10 @@ type userACL struct {
 	Nodes access `json:"nodes"`
 	// AppServers defines access to application servers
 	AppServers access `json:"appServers"`
+	// DBServers defines access to database servers.
+	DBServers access `json:"dbServers"`
+	// KubeServers defines access to kubernetes servers.
+	KubeServers access `json:"kubeServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 	// AccessRequests defines access to access requests
@@ -166,7 +172,7 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContext, error) {
+func NewUserContext(user services.User, userRoles services.RoleSet, features proto.Features) (*UserContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
 	roleAccess := newAccess(userRoles, ctx, services.KindRole)
@@ -177,8 +183,14 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
+	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
+	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
 	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
-	billingAccess := newAccess(userRoles, ctx, services.KindBilling)
+
+	var billingAccess access
+	if features.Cloud {
+		billingAccess = newAccess(userRoles, ctx, services.KindBilling)
+	}
 
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
@@ -186,6 +198,8 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	acl := userACL{
 		AccessRequests:  requestAccess,
 		AppServers:      appServerAccess,
+		DBServers:       dbServerAccess,
+		KubeServers:     kubeServerAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,

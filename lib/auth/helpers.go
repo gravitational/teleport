@@ -183,7 +183,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	authPreference, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})

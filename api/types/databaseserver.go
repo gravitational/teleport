@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -64,14 +64,18 @@ type DatabaseServer interface {
 	GetURI() string
 	// GetCA returns the database CA certificate bytes.
 	GetCA() []byte
+	// SetCA sets the database CA certificate bytes.
+	SetCA([]byte)
 	// GetAWS returns AWS information for RDS/Aurora databases.
 	GetAWS() AWS
 	// GetGCP returns GCP information for Cloud SQL databases.
 	GetGCP() GCPCloudSQL
-	// GetType returns the database type, self-hosted or AWS RDS.
+	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
 	GetType() string
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
+	// IsRedshift returns true if this is a Redshift database.
+	IsRedshift() bool
 	// IsCloudSQL returns true if this is a Cloud SQL database.
 	IsCloudSQL() bool
 	// CheckAndSetDefaults checks and set default values for any missing fields.
@@ -239,6 +243,11 @@ func (s *DatabaseServerV3) GetCA() []byte {
 	return s.Spec.CACert
 }
 
+// SetCA sets the database CA certificate bytes.
+func (s *DatabaseServerV3) SetCA(bytes []byte) {
+	s.Spec.CACert = bytes
+}
+
 // GetAWS returns AWS information for RDS/Aurora databases.
 func (s *DatabaseServerV3) GetAWS() AWS {
 	return s.Spec.AWS
@@ -254,6 +263,11 @@ func (s *DatabaseServerV3) IsRDS() bool {
 	return s.GetType() == DatabaseTypeRDS
 }
 
+// IsRedshift returns true if this is a Redshift database instance.
+func (s *DatabaseServerV3) IsRedshift() bool {
+	return s.GetType() == DatabaseTypeRedshift
+}
+
 // IsCloudSQL returns true if this database is a Cloud SQL instance.
 func (s *DatabaseServerV3) IsCloudSQL() bool {
 	return s.GetType() == DatabaseTypeCloudSQL
@@ -261,6 +275,9 @@ func (s *DatabaseServerV3) IsCloudSQL() bool {
 
 // GetType returns the database type, self-hosted or AWS RDS.
 func (s *DatabaseServerV3) GetType() string {
+	if s.Spec.AWS.Redshift.ClusterID != "" {
+		return DatabaseTypeRedshift
+	}
 	if s.Spec.AWS.Region != "" {
 		return DatabaseTypeRDS
 	}
@@ -272,8 +289,8 @@ func (s *DatabaseServerV3) GetType() string {
 
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
-	return fmt.Sprintf("DatabaseServer(Name=%v, Version=%v, Labels=%v)",
-		s.GetName(), s.GetTeleportVersion(), s.GetStaticLabels())
+	return fmt.Sprintf("DatabaseServer(Name=%v, Type=%v, Version=%v, Labels=%v)",
+		s.GetName(), s.GetType(), s.GetTeleportVersion(), s.GetStaticLabels())
 }
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
@@ -314,6 +331,8 @@ const (
 	DatabaseTypeSelfHosted = "self-hosted"
 	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.
 	DatabaseTypeRDS = "rds"
+	// DatabaseTypeRedshift is AWS Redshift database.
+	DatabaseTypeRedshift = "redshift"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
 	DatabaseTypeCloudSQL = "gcp"
 )
@@ -332,23 +351,3 @@ func (s SortedDatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // DatabaseServers is a list of database servers.
 type DatabaseServers []DatabaseServer
-
-// HasRDS returns true if an AWS RDS database is present among this list.
-func (s DatabaseServers) HasRDS() bool {
-	for _, d := range s {
-		if d.IsRDS() {
-			return true
-		}
-	}
-	return false
-}
-
-// HasGCP returns true if a GCP Cloud SQL database is present among this list.
-func (s DatabaseServers) HasGCP() bool {
-	for _, d := range s {
-		if d.IsCloudSQL() {
-			return true
-		}
-	}
-	return false
-}

@@ -186,7 +186,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 	// Close makes sure that close cancels operations and context
 	t.Run("Close", func(t *testing.T) {
-		counter := &counterEmitter{}
+		counter := &counterEmitter{count: atomic.NewInt64(0)}
 		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
 			Inner:      counter,
 			BufferSize: len(events),
@@ -237,7 +237,7 @@ func (s *slowEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) erro
 }
 
 type counterEmitter struct {
-	count atomic.Int64
+	count *atomic.Int64
 }
 
 func (c *counterEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {

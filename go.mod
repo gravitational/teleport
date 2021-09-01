@@ -16,7 +16,7 @@ require (
 	github.com/aws/aws-sdk-go v1.37.17
 	github.com/beevik/etree v1.1.0
 	github.com/boombuler/barcode v1.0.1 // indirect
-	github.com/coreos/go-oidc v0.0.3
+	github.com/coreos/go-oidc v0.0.4
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/davecgh/go-spew v1.1.1
@@ -121,7 +121,7 @@ require (
 )
 
 replace (
-	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.3
+	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.4
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
 	github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1

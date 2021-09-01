@@ -132,6 +132,9 @@ func (c *ClusterNameV2) GetClusterName() string {
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterNameV2) CheckAndSetDefaults() error {
+	if c.Metadata.Name == "" {
+		c.Metadata.Name = MetaNameClusterName
+	}
 	// make sure we have defaults for all metadata fields
 	err := c.Metadata.CheckAndSetDefaults()
 	if err != nil {

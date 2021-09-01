@@ -2,21 +2,48 @@
 title: Quickstart
 ---
 
-Documentation is hard. Without structure over time it turns into a random collection of articles.
+This article serves as the primary entry-point all things documentation-related.
 
-## Getting Started
+- If you have an idea to improve the docs tooling, submit a ticket over in the [Next](https://github.com/gravitational/next) repo.
+- If you have an idea to improve the docs (an article, post, example, etc.), submit a ticket over in the [Teleport](https://github.com/gravitational/teleport) repo.
 
-Getting started guides are self contained articles and should get a user going
-following the shortest path.
-They are for beginners, people who may have never heard about Teleport before.
-A good quickstart takes 5-10 minutes, starts with benefits and a demo video.
+## Our documentation philosophy
 
-For example, an article can start with "SSO and Audit for Kubernetes in 3 steps".
-Then it follows with a demo video. Prerequisites and tools used should
-go next. Two-three sub-sections with the setup. Wrap up with "Next steps" section.
+Documentation is:
 
-Getting started guides should try hard to keep a busy user engaged. It calls out each step and where the user
-is in the sequence, for example "Step 1 out of 3. Adding a local user."
+- Often thankless. Often neglected, it can make or break teams when they encounter a stumbling block. 
+- Hard. Without structure, over time, it turns into a random collection of articles. 
+- Essential when learning - whether one's a new or a seasoned engineer.
+- Often the final arbiter of disputes and disagreements. Reference documentation is often the ultimate source of truth about a product, service, or tool.
+- **At best:** an arm of Engineering, an advocate for developers, enpowerment for learning, and definitive resolution for customers. 
+- **At worst:** a disorganized morass of inaccurate and unhelpful jargon.
+- Supplements other support mediums like Stack Overflow, support forums, GitHub issues, Slack, and so on. There are many customer voices and we want to hear them all. As such, we provide several avenues for expression, questions, and feedback.
+- Not marketing although it plays a role in onboarding customers. Page views matter, but accuracy and customer satisfaction matter most.
+- Often essential to leadership when they're evaluating a product. Doubly so when potential customers are in high-regulation spaces like finance or government. Many teams neglect their documentation only to fail to secure (or have delayed) the lucrative contracts that such potential customers can bring.
+
+## Kinds of documents
+
+This section ennumerates the most-common kinds of documents we write at Teleport and include within our document set.
+
+### Getting started articles
+
+*Getting started guides* are self-contained, *quickstart*, articles and should aim to get a user up and running in the shortest way.
+
+These are designed for beginners, often people who may not have heard about Teleport before.
+
+A good *quickstart* takes 5-10 minutes, states the utility of completing the article at the beginning, and a demo video.
+
+Example:
+
+1. Getting started title: `"SSO and Audit for Kubernetes in 3 steps"`
+2. Followed by a demo video. 
+3. Prerequisites and tools used should go next. 
+4. Two-three sub-sections with the setup. 
+5. Wrap up with "Next steps" section.
+
+Getting started guides should be written with the goal to keep a busy user engaged. 
+
+Each step is clearly stated so users can easily follow the sequence: "Step 1 out of 3. Adding a local user."
 
 <Admonition type="note">
   "Getting started" is a better term than "Quickstart".
@@ -24,58 +51,47 @@ is in the sequence, for example "Step 1 out of 3. Adding a local user."
   and compare the search results.
 </Admonition>
 
-## Guides
+### Guides
 
-Guides are self-contained articles for intermediate-level readers setting up Teleport
-for a specific scenario.
-For example, "Kubernetes Access on GKE" features high availability setup,
-using Firebase and GCS backend.
+*Guides* are self-contained articles for intermediate readers (readers with some familiarity working with Teleport already) setting up Teleport for a specific scenario.
 
-It's OK to have duplicate content between different guides. Readers should be able to
-scroll down a single guide and get to a result without leaving the page.
-Guides start with a purpose, followed by prerequisites, setup steps and next steps.
+Example: 
 
-### Integrations
+1. Guide title: "Kubernetes Access on GKE" which features a high availability setup using Firebase and GCS backend.
+2. Followed by the guide purpose.
+3. Followed by prerequisites.
+4. Next, the setup steps.
+5. Wrap up with "Next steps" section.
 
-Integration guides explain how to set up Teleport with other tools,
-for example "Access Workflows with Slack".
+It's OK to have duplicate content between different guides. In many cases this is encouraged for ease and familiarity.
 
-### Best Practices
+Readers should be able to scroll down the guide and get to the end without leaving the page. Do not use an anchor or HTML link to describe some step - concisely, include the steps within the guide.
 
-Best practices guides are about best deployment and usage practices.
-They sometimes take the form of patterns and anti-patterns.
+Specific kinds of *guides* include:
 
-### Troubleshooting
+1. **Integration** - *integration guides* explain how to set up Teleport with other tools. E.g. - "Access Requests with Slack".
+2. **Best Practices** - *best practices guides* are about best deployment and usage practices. They sometimes describe common patterns and anti-patterns.
+3. **Troubleshooting** - *troubleshooting guides* list common failures and how to diagnose them, they explain logs, remedies and tips and tricks.
 
-Troubleshooting guides list common failures and how to diagnose them,
-they explain logs, remedies and tips and tricks.
+### Architecture
 
-## Architecture
+*Architecture* articles explain how Teleport works to advanced readers. Architects, devsecops, or similar professional constitute the most-common audience. 
 
-Architecture explains how Teleport works to advanced readers.
-It is often an architect, devsecops or other professional reading these guides
-to make a decision on whether and how to use Teleport.
+These articles are used to make a decision about whether and how to use Teleport.
 
-### Networking
+Specific kinds of *architecture* articles include:
 
-Readers are interested to learn about ports, components and protocols used.
+1. **Networking** - readers are interested in learning about specific ports, components, and protocols that are or can be used.
+2. **Security** - lists security protocols and primitives. Secops will look for an attack vector tree diagram. Make sure to include these sections when appropriate!
+3. **Deployment** - should include a deployment diagram which in turn explains components and how they interact with databases and each other.
 
-### Security
+### Reference manuals
 
-This section lists security protocols and primitives.
-Secops look for an attack vector tree diagram.
+*Reference manuals* provide an exhaustive list of configuration options and API methods (*reference documentation*).
 
-### Deployment
+HTML or Markdown tables are often the best formats for this kind of article (or sections within them).
 
-Deployment diagram should explain components and how they interact with databases
-and each other.
-
-## Reference manuals
-
-Reference manuals provide an exhaustive list of configuration options
-and API methods.
-
-A good reference manual is search friendly and lists all content on the same page.
+A good *reference manual* is search friendly and lists all content on the same page.
 
 ## Next Steps
 

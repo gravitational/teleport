@@ -104,8 +104,10 @@ func (r *ResourceSuite) TestUserResourceWithSecrets(c *check.C) {
 }
 
 func (r *ResourceSuite) runUserResourceTest(c *check.C, withSecrets bool) {
-	alice := newUserTestCase(c, "alice", nil, withSecrets)
-	bob := newUserTestCase(c, "bob", nil, withSecrets)
+	expiry := r.bk.Clock().Now().Add(time.Minute)
+
+	alice := newUserTestCase(c, "alice", nil, withSecrets, expiry)
+	bob := newUserTestCase(c, "bob", nil, withSecrets, expiry)
 	// Check basic dynamic item creation
 	r.runCreationChecks(c, alice, bob)
 	// Check that dynamically created item is compatible with service
@@ -126,6 +128,12 @@ func (r *ResourceSuite) runUserResourceTest(c *check.C, withSecrets bool) {
 			c.Errorf("Unexpected user %q", user.GetName())
 		}
 	}
+
+	// Advance the clock to let the users to expire.
+	r.bk.Clock().(clockwork.FakeClock).Advance(2 * time.Minute)
+	allUsers, err = s.GetUsers(withSecrets)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(allUsers), check.Equals, 0, check.Commentf("expected all users to expire"))
 }
 
 func (r *ResourceSuite) TestCertAuthorityResource(c *check.C) {
@@ -235,13 +243,14 @@ func localAuthSecretsTestCase(c *check.C) services.LocalAuthSecrets {
 	return auth
 }
 
-func newUserTestCase(c *check.C, name string, roles []string, withSecrets bool) services.User {
+func newUserTestCase(c *check.C, name string, roles []string, withSecrets bool, expires time.Time) services.User {
 	user := services.UserV2{
 		Kind:    services.KindUser,
 		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      name,
 			Namespace: defaults.Namespace,
+			Expires:   &expires,
 		},
 		Spec: services.UserSpecV2{
 			Roles: roles,

@@ -300,11 +300,11 @@ func NewLoggingEmitter() *LoggingEmitter {
 type LoggingEmitter struct {
 }
 
-// EmitAuditEvent logs audit event, skips session print events
-// and session disk events, because they are very verbose
+// EmitAuditEvent logs audit event, skips session print events, session
+// disk events and app session request events, because they are very verbose.
 func (*LoggingEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
 	switch event.GetType() {
-	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, "":
+	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, "":
 		return nil
 	}
 
@@ -557,9 +557,9 @@ func (t *TeeStream) EmitAuditEvent(ctx context.Context, event AuditEvent) error 
 		errors = append(errors, err)
 	}
 	// Forward session events except the ones that pollute global logs
-	// terminal resize, print and disk access.
+	// terminal resize, print, disk access and app session request events.
 	switch event.GetType() {
-	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, "":
+	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, "":
 		return trace.NewAggregate(errors...)
 	}
 	if err := t.emitter.EmitAuditEvent(ctx, event); err != nil {

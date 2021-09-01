@@ -19,8 +19,8 @@ Let's explore how Teleport's role templates provide a way to describe these and 
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud.mdx) >= {{teleport_version}}
-- [Tctl admin tool](https://goteleport.com/teleport/download) >= {{teleport_version}}
+- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
+- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
 
 Verify that your Teleport client is connected:
 
@@ -104,7 +104,7 @@ spec:
 Any role becomes a template once it starts using template variables.
 Just like roles, role templates are a valid YAML and validate both the structure and types.
 
-Role template `devs` is using `internal.` notation referring to local user's
+Role template `devs` is using `internal` notation referring to local user's
 traits `logins` and `kubernetes_groups`.
 
 Use `tctl` to create a role template:
@@ -261,7 +261,7 @@ groups: ["admins", "devs"]
 access: {"env": ["prod", "staging"]}
 ```
 
-Let's see how these variables a role template `interpolation`:
+Let's see how these variables are used with role template `interpolation`:
 
 ```yaml
 kind: role
@@ -281,8 +281,10 @@ spec:
 
     # Functions transform variables.
     database_users: ['{{email.local(external.email)}}']
+    database_labels:
+      'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
     
-    # Labels can mix template and hard-coded values
+    # Labels can mix template and hard-coded values.
     node_labels:
       'env': '{{external.access["env"]}}'
       'region': 'us-west-2'
@@ -311,10 +313,14 @@ spec:
     # The variable external.groups gets replaced with a list.
     kubernetes_groups: ['devs', 'admins']
 
-    # The variable email.local will take a local part of the external.email attribute.
+    # The function email.local will take a local part of the external.email attribute.
     database_users: ['alice']
 
-    # Node labels have 'env' replaced from a variable
+    # The function regexp.replace will transform and filter only matching values.
+    database_labels:
+      'env': 'staging'
+
+    # Node labels have 'env' replaced from a variable and 'region' hard-coded.
     node_labels:
       'env': ['prod', 'staging']
       'region': 'us-west-2'
@@ -322,3 +328,10 @@ spec:
     kubernetes_labels:
       '*': '*'
 ```
+
+Available interpolation functions include:
+
+Function | Description
+--- | ---
+`email.local(variable)` | Extracts the local part of an email field, like `Alice <alice@example.com>` or `bob@example.com`.
+`regexp.replace(variable, expression, replacement)` | Finds all matches of `expression` and replaces them with `replacement`. This supports expansion, e.g. `regexp.replace(external.email, "^(.*)@example.com$", "$1")`. Values which do not match the expression will be filtered out.

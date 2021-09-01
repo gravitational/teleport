@@ -41,7 +41,6 @@ Follow instructions at: https://www.packer.io/docs/install/index.html
 | TELEPORT_VERSION    | Teleport version. See [Teleport releases](https://github.com/gravitational/teleport/releases). ex. `4.2.10` |
 | INSTANCE_TYPE       | The instance type used for the build. ex. `t2.micro`                                                        |
 | DESTINATION_REGIONS | The regions the AMI will be replicated to. ex. `us-east-1,us-east-2`                                        |
-| S3_BUCKET_ID        | The S3 bucket used for AMI distribution.                                                                    |
 
 5. Run 
 ```

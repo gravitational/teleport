@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -387,14 +388,14 @@ func (a *ServerWithRoles) UpsertNodes(namespace string, servers []services.Serve
 	return a.authServer.UpsertNodes(namespace, servers)
 }
 
-func (a *ServerWithRoles) UpsertNode(s services.Server) (*services.KeepAlive, error) {
+func (a *ServerWithRoles) UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
 	if err := a.action(s.GetNamespace(), services.KindNode, services.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(s.GetNamespace(), services.KindNode, services.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.UpsertNode(s)
+	return a.authServer.UpsertNode(ctx, s)
 }
 
 // DELETE IN: 5.1.0
@@ -591,29 +592,29 @@ NextNode:
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace
-func (a *ServerWithRoles) DeleteAllNodes(namespace string) error {
+func (a *ServerWithRoles) DeleteAllNodes(ctx context.Context, namespace string) error {
 	if err := a.action(namespace, services.KindNode, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteAllNodes(namespace)
+	return a.authServer.DeleteAllNodes(ctx, namespace)
 }
 
 // DeleteNode deletes node in the namespace
-func (a *ServerWithRoles) DeleteNode(namespace, node string) error {
+func (a *ServerWithRoles) DeleteNode(ctx context.Context, namespace, node string) error {
 	if err := a.action(namespace, services.KindNode, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteNode(namespace, node)
+	return a.authServer.DeleteNode(ctx, namespace, node)
 }
 
-func (a *ServerWithRoles) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if err := a.action(namespace, services.KindNode, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Fetch full list of nodes in the backend.
 	startFetch := time.Now()
-	nodes, err := a.authServer.GetNodes(namespace, opts...)
+	nodes, err := a.authServer.GetNodes(ctx, namespace, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -636,6 +637,49 @@ func (a *ServerWithRoles) GetNodes(namespace string, opts ...services.MarshalOpt
 		len(nodes), len(filteredNodes), elapsedFetch+elapsedFilter)
 
 	return filteredNodes, nil
+}
+
+// ListNodes returns a paginated list of nodes filtered by user access.
+func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.filterAndListNodes(ctx, namespace, limit, startKey)
+}
+
+func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive parameter limit")
+	}
+
+	page = make([]types.Server, 0, limit)
+	nextKey, err = a.authServer.IterateNodePages(ctx, namespace, limit, startKey, func(nextPage []types.Server) (bool, error) {
+		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
+		filteredPage, err := a.filterNodes(nextPage)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		// We have more than enough nodes to fill the page, cut it to size.
+		if len(filteredPage) > limit-len(page) {
+			filteredPage = filteredPage[:limit-len(page)]
+		}
+
+		// Add filteredPage and break out of iterator if the page is now full.
+		page = append(page, filteredPage...)
+		return len(page) == limit, nil
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Filled a page, reset nextKey in case the last node was cut out.
+	if len(page) == limit {
+		nextKey = backend.NextPaginationKey(page[len(page)-1])
+	}
+
+	return page, nextKey, nil
 }
 
 func (a *ServerWithRoles) UpsertAuthServer(s services.Server) error {
@@ -825,11 +869,11 @@ func (a *ServerWithRoles) CreateWebSession(user string) (services.WebSession, er
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
-func (a *ServerWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID string) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
+func (a *ServerWithRoles) ExtendWebSession(req WebSessionReq) (services.WebSession, error) {
+	if err := a.currentUserAction(req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.ExtendWebSession(user, prevSessionID, accessRequestID, a.context.Identity.GetIdentity())
+	return a.authServer.ExtendWebSession(req, a.context.Identity.GetIdentity())
 }
 
 // GetWebSessionInfo returns the web session for the given user specified with sid.
@@ -1976,22 +2020,6 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
 }
 
-func (a *ServerWithRoles) SearchEvents(from, to time.Time, query string, limit int) ([]events.EventFields, error) {
-	if err := a.action(defaults.Namespace, services.KindEvent, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.alog.SearchEvents(from, to, query, limit)
-}
-
-func (a *ServerWithRoles) SearchSessionEvents(from, to time.Time, limit int) ([]events.EventFields, error) {
-	if err := a.action(defaults.Namespace, services.KindSession, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.alog.SearchSessionEvents(from, to, limit)
-}
-
 // GetNamespaces returns a list of namespaces
 func (a *ServerWithRoles) GetNamespaces() ([]services.Namespace, error) {
 	if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbList); err != nil {
@@ -2214,15 +2242,19 @@ func (a *ServerWithRoles) GetAuthPreference() (services.AuthPreference, error) {
 	return a.authServer.GetAuthPreference()
 }
 
-func (a *ServerWithRoles) SetAuthPreference(cap services.AuthPreference) error {
-	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, services.VerbUpdate); err != nil {
+func (a *ServerWithRoles) SetAuthPreference(newAuthPref services.AuthPreference) error {
+	storedAuthPref, err := a.authServer.GetAuthPreference()
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetAuthPreference(cap)
+	for _, verb := range verbsToReplaceResourceWithOrigin(storedAuthPref) {
+		if err := a.action(defaults.Namespace, services.KindClusterAuthPreference, verb); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return a.authServer.SetAuthPreference(newAuthPref)
 }
 
 // DeleteAuthPreference not implemented: can only be called locally.
@@ -2553,15 +2585,47 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 }
 
 // GenerateDatabaseCert generates a certificate used by a database service
-// to authenticate with the database instance
+// to authenticate with the database instance.
+//
+// This certificate can be requested by:
+//
+//  - Cluster administrator using "tctl auth sign --format=db" command locally
+//    on the auth server to produce a certificate for configuring a self-hosted
+//    database.
+//  - Remote user using "tctl auth sign --format=db" command with a remote
+//    proxy (e.g. Teleport Cloud), as long as they can impersonate system
+//    role Db.
+//  - Database service when initiating connection to a database instance to
+//    produce a client certificate.
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	// This certificate can be requested only by a database service when
-	// initiating connection to a database instance, or by an admin when
-	// generating certificates for a database instance.
-	if !a.hasBuiltinRole(string(teleport.RoleDatabase)) && !a.hasBuiltinRole(string(teleport.RoleAdmin)) {
-		return nil, trace.AccessDenied("this request can only be executed by a database service or an admin")
+	// Check if this is a local cluster admin, or a datababase service, or a
+	// user that is allowed to impersonate database service.
+	if !a.hasBuiltinRole(string(types.RoleDatabase)) && !a.hasBuiltinRole(string(types.RoleAdmin)) {
+		if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
+			log.WithError(err).Warnf("User %v tried to generate database certificate but is not allowed to impersonate %q system role.",
+				a.context.User.GetName(), types.RoleDatabase)
+			return nil, trace.AccessDenied("access denied")
+		}
 	}
 	return a.authServer.GenerateDatabaseCert(ctx, req)
+}
+
+// canImpersonateBuiltinRole checks if the current user can impersonate the
+// provided system role.
+func (a *ServerWithRoles) canImpersonateBuiltinRole(role types.SystemRole) error {
+	roleCtx, err := NewBuiltinRoleContext(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	roleSet, ok := roleCtx.Checker.(BuiltinRoleSet)
+	if !ok {
+		return trace.BadParameter("expected BuiltinRoleSet, got %T", roleCtx.Checker)
+	}
+	err = a.context.Checker.CheckImpersonate(a.context.User, roleCtx.User, roleSet.RoleSet.WithoutImplicit())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // GetAppServers gets all application servers.
@@ -2866,6 +2930,47 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
 }
 
+// SearchEvents allows searching audit events with pagination support.
+func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) (events []events.AuditEvent, lastKey string, err error) {
+	if err := a.action(defaults.Namespace, types.KindEvent, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	events, lastKey, err = a.alog.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
+}
+
+// SearchSessionEvents allows searching session audit events with pagination support.
+func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) (events []events.AuditEvent, lastKey string, err error) {
+	if err := a.action(defaults.Namespace, types.KindSession, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return events, lastKey, nil
+}
+
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan events.AuditEvent, chan error) {
+	if err := a.action(defaults.Namespace, types.KindSession, types.VerbList); err != nil {
+		c, e := make(chan events.AuditEvent), make(chan error, 1)
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
@@ -2898,5 +3003,14 @@ func emitSSOLoginFailureEvent(ctx context.Context, emitter events.Emitter, metho
 	if emitErr != nil {
 		log.WithError(err).Warnf("Failed to emit %v login failure event.", method)
 	}
+}
 
+// verbsToReplaceResourceWithOrigin determines the verbs/actions required of a role
+// to replace the resource currently stored in the backend.
+func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string {
+	verbs := []string{types.VerbUpdate}
+	if stored.Origin() == types.OriginConfigFile {
+		verbs = append(verbs, types.VerbCreate)
+	}
+	return verbs
 }

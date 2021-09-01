@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -88,12 +88,20 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			db.Name,
 			db.StaticLabels,
 			types.DatabaseServerSpecV3{
-				Description:   db.Description,
-				Protocol:      db.Protocol,
-				URI:           db.URI,
-				CACert:        db.CACert,
-				AWS:           types.AWS{Region: db.AWS.Region},
-				GCP:           types.GCPCloudSQL{ProjectID: db.GCP.ProjectID, InstanceID: db.GCP.InstanceID},
+				Description: db.Description,
+				Protocol:    db.Protocol,
+				URI:         db.URI,
+				CACert:      db.CACert,
+				AWS: types.AWS{
+					Region: db.AWS.Region,
+					Redshift: types.Redshift{
+						ClusterID: db.AWS.Redshift.ClusterID,
+					},
+				},
+				GCP: types.GCPCloudSQL{
+					ProjectID:  db.GCP.ProjectID,
+					InstanceID: db.GCP.InstanceID,
+				},
 				DynamicLabels: types.LabelsToV2(db.DynamicLabels),
 				Version:       teleport.Version,
 				Hostname:      process.Config.Hostname,

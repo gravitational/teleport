@@ -324,7 +324,7 @@ func (f *fakeAnnouncer) UpsertDatabaseServer(ctx context.Context, s types.Databa
 	return &types.KeepAlive{}, nil
 }
 
-func (f *fakeAnnouncer) UpsertNode(s services.Server) (*services.KeepAlive, error) {
+func (f *fakeAnnouncer) UpsertNode(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeNode]++
 	if f.err != nil {
 		return nil, f.err

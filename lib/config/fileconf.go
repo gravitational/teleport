@@ -461,6 +461,8 @@ type Log struct {
 	Output string `yaml:"output,omitempty"`
 	// Severity defines how verbose the log will be. Possible valus are "error", "info", "warn"
 	Severity string `yaml:"severity,omitempty"`
+	// Format lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
+	Format []string `yaml:"format,omitempty"`
 }
 
 // Global is 'teleport' (global) section of the config file
@@ -767,7 +769,7 @@ func (a *AuthenticationConfig) Parse() (services.AuthPreference, error) {
 		}
 	}
 
-	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+	ap, err := types.NewAuthPreferenceFromConfigFile(services.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
@@ -833,6 +835,23 @@ type SSH struct {
 
 	// BPF is used to configure BPF-based auditing for this node.
 	BPF *BPF `yaml:"enhanced_recording,omitempty"`
+
+	// MaybeAllowTCPForwarding enables or disables TCP port forwarding. We're
+	// using a pointer-to-bool here because the system default is to allow TCP
+	// forwarding, we need to distinguish between an unset value and a false
+	// value so we can an override unset value with `true`.
+	//
+	// Don't read this value directly: call the AllowTCPForwarding method
+	// instead.
+	MaybeAllowTCPForwarding *bool `yaml:"port_forwarding,omitempty"`
+}
+
+// AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
+func (ssh *SSH) AllowTCPForwarding() bool {
+	if ssh.MaybeAllowTCPForwarding == nil {
+		return true
+	}
+	return *ssh.MaybeAllowTCPForwarding
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -930,7 +949,7 @@ type Database struct {
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels []CommandLabel `yaml:"dynamic_labels,omitempty"`
-	// AWS contains AWS specific settings for RDS/Aurora databases.
+	// AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
@@ -940,6 +959,14 @@ type Database struct {
 type DatabaseAWS struct {
 	// Region is a cloud region for RDS/Aurora database endpoint.
 	Region string `yaml:"region,omitempty"`
+	// Redshift contains Redshift specific settings.
+	Redshift DatabaseAWSRedshift `yaml:"redshift"`
+}
+
+// DatabaseAWSRedshift contains AWS Redshift specific settings.
+type DatabaseAWSRedshift struct {
+	// ClusterID is the Redshift cluster identifier.
+	ClusterID string `yaml:"cluster_id,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -998,6 +1025,8 @@ type App struct {
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
 	Redirect []string `yaml:"redirect"`
+	// Headers is a list of extra headers to inject in the request.
+	Headers []string `yaml:"headers,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
@@ -1048,6 +1077,12 @@ type Proxy struct {
 
 	// MySQLAddr is MySQL proxy listen address.
 	MySQLAddr string `yaml:"mysql_listen_addr,omitempty"`
+	// MySQLPublicAddr is the hostport the proxy advertises for MySQL
+	// client connections.
+	MySQLPublicAddr utils.Strings `yaml:"mysql_public_addr,omitempty"`
+	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
+	// client connections.
+	PostgresPublicAddr utils.Strings `yaml:"postgres_public_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates

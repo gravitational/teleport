@@ -69,7 +69,7 @@ proxy_service:
   public_addr: "teleport.example.com:443"
   acme:
     enabled: "yes"
-    email: "alice@example.com"
+    email: alice@example.com
 ```
 
 <Admonition
@@ -127,7 +127,7 @@ a reverse tunnel.
 
 ### Application Name
 
-An application name should make a valid sub-domain (&lt;=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
+An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
 
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
@@ -216,8 +216,11 @@ address. To override the public address, specify the `public_addr` field:
 
 ### Skip TLS Certificate Verification
 
-<Admonition type="warning" title="Danger Zone">
-This is insecure and not recommended for use in production.
+<Admonition
+  type="warning"
+  title="Danger Zone"
+>
+  This is insecure and not recommended for use in production.
 </Admonition>
 
 Teleport checks if the certificates presented by the applications are signed
@@ -244,10 +247,11 @@ The URI should be updated to include the subdirectory:
   public_addr: "k8s.example.com"
 ```
 
-### Rewrite
+### Rewrite Redirect
 
-Application access supports simple rewrites. This is helpful for applications
-that provide internal redirect headers:
+To support web apps that perform internal redirects, application access
+provides an option to rewrite the hostname of the `Location` header on
+redirect responses to the application's public address:
 
 ```yaml
 - name: "jira"
@@ -260,6 +264,35 @@ that provide internal redirect headers:
     - "localhost"
     - "jenkins.internal.dev"
 ```
+
+### Headers Passthrough
+
+You can configure application access to inject additional headers in the
+requests forwarded to a web application.
+
+```yaml
+- name: "dashboard"
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  rewrite:
+    headers:
+    # Inject a static header.
+    - "X-Custom-Header: example"
+    # Inject hedaers with internal/external user traits.
+    - "X-Internal-Trait: {{internal.logins}}"
+    - "X-External-Trait: {{external.env}}"
+    # Override Host header.
+    - "Host: dashboard.example.com"
+```
+
+Headers injected this way override any headers with the same names that may
+be sent by an application. The following headers are reserved and can't be
+rewritten: `X-Teleport-Jwt`, `Cf-Access-Token`, `X-Forwarded-*`.
+
+Rewritten header values support the same templating variables as [role templates](../../access-controls/guides/role-templates.mdx).
+In the example above, `X-Internal-Trait` header will be populated with the value
+of internal user trait `logins` and `X-External-Trait` header will get the value
+of the user's external `env` trait coming from the identity provider.
 
 ## View Applications in Teleport
 

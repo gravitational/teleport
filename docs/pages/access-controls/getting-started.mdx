@@ -13,8 +13,8 @@ with creating your own role.
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../cloud.mdx) >= {{teleport_version}}
-- [Tctl admin tool](https://goteleport.com/teleport/download) >= {{teleport_version}}
+- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../cloud/introduction.mdx) >= (=teleport.version=)
+- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
 
 Verify that your Teleport client is connected:
 
@@ -67,58 +67,56 @@ she will be able to act as a system administrator and auditor at the same time.
 We are going to setup Github connector for OSS and Okta for Enterprises version.
 
 <Tabs>
-<TabItem label="Open Source">
+  <TabItem label="Open Source">
+    Save the file below as `github.yaml` and update the fields. You will need to set up
+    [Github OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) app.
+    Any member belonging to the Github organization `octocats` and on team `admin` will be able to assume a built-in role `access`.
 
-Save the file below as `github.yaml` and update the fields. You will need to set up
-[Github OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) app.
-Any member belonging to the Github organization `octocats` and on team `admin` will be able to assume a built-in role `access`.
+    ```yaml
+    kind: github
+    version: v3
+    metadata:
+      # connector name that will be used with `tsh --auth=github login`
+      name: github
+    spec:
+      # client ID of Github OAuth app
+      client_id: client-id
+      # client secret of Github OAuth app
+      client_secret: client-secret
+      # This name will be shown on UI login screen
+      display: Github
+      # Change tele.example.com to your domain name
+      redirect_url: https://tele.example.com:443/v1/webapi/github/callback
+      # Map github teams to teleport roles
+      teams_to_logins:
+        - organization: octocats # Github organization name
+          team: admin            # Github team name within that organization
+          # map github admin team to Teleport's "access" role
+          logins: ["access"]
+    ```
+  </TabItem>
 
-```yaml
-kind: github
-version: v3
-metadata:
-  # connector name that will be used with `tsh --auth=github login`
-  name: github
-spec:
-  # client ID of Github OAuth app
-  client_id: client-id
-  # client secret of Github OAuth app
-  client_secret: client-secret
-  # This name will be shown on UI login screen
-  display: Github
-  # Change tele.example.com to your domain name
-  redirect_url: https://tele.example.com:443/v1/webapi/github/callback
-  # Map github teams to teleport roles
-  teams_to_logins:
-    - organization: octocats # Github organization name
-      team: admin            # Github team name within that organization
-      # map github admin team to Teleport's "access" role
-      logins: ["access"]
-```
-</TabItem>
-<TabItem label="Enterprise">
+  <TabItem label="Enterprise">
+    Follow [SAML Okta Guide](../enterprise/sso/ssh-okta.mdx#configure-okta) to create a SAML app.
+    Check out [OIDC guides](../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
+    Save the file below as `okta.yaml` and update the `acs` field.
+    Any member in Okta group `okta-admin` will assume a builtin role `admin`.
 
-Follow [SAML Okta Guide](../enterprise/sso/ssh-okta.mdx#configure-okta) to create a SAML app.
-Check out [OIDC guides](../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
-Save the file below as `okta.yaml` and update the `acs` field.
-Any member in Okta group `okta-admin` will assume a builtin role `admin`.
-
-```yaml
-kind: saml
-version: v2
-metadata:
-  name: okta
-spec:
-  acs: https://tele.example.com/v1/webapi/saml/acs
-  attributes_to_roles:
-  - {name: "groups", value: "okta-admin", roles: ["access"]}
-  entity_descriptor: |
-    <?xml !!! Make sure to shift all lines in XML descriptor
-    with 4 spaces, otherwise things will not work
-```
-</TabItem>
+    ```yaml
+    kind: saml
+    version: v2
+    metadata:
+      name: okta
+    spec:
+      acs: https://tele.example.com/v1/webapi/saml/acs
+      attributes_to_roles:
+      - {name: "groups", value: "okta-admin", roles: ["access"]}
+      entity_descriptor: |
+        <?xml !!! Make sure to shift all lines in XML descriptor
+        with 4 spaces, otherwise things will not work
+    ```
+  </TabItem>
 </Tabs>
-
 
 ## Step 3/3 Create a custom role
 
@@ -170,5 +168,5 @@ $ tctl get roles --format text
 
 ## Next Steps
 
-- [Mapping SSO and Local Users Traits with Role Templates](./guides/role-templates.mdx)
-
+- [Mapping SSO and local users traits with role templates](./guides/role-templates.mdx)
+- [Create certs for CI/CD using impersonation](./guides/impersonation.mdx)

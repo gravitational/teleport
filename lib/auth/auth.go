@@ -38,11 +38,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -201,6 +202,19 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
+	// UserLoginCount counts user logins
+	UserLoginCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricUserLoginCount,
+			Help: "Number of times there was a user login",
+		},
+	)
+	heartbeatsMissedByAuth = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: teleport.MetricHeartbeatsMissed,
+			Help: "Number of hearbeats missed by auth server",
+		},
+	)
 )
 
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
@@ -275,7 +289,7 @@ func (a *Server) GetCache() Cache {
 
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
-func (a *Server) runPeriodicOperations() {
+func (a *Server) runPeriodicOperations(ctx context.Context) {
 	// run periodic functions with a semi-random period
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
@@ -284,7 +298,14 @@ func (a *Server) runPeriodicOperations() {
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
 	ticker := time.NewTicker(period)
+	// Create a ticker with jitter
+	heartbeatCheckTicker := interval.New(interval.Config{
+		Duration: defaults.ServerKeepAliveTTL * 2,
+		Jitter:   utils.NewSeventhJitter(),
+	})
+	missedKeepAliveCount := 0
 	defer ticker.Stop()
+	defer heartbeatCheckTicker.Stop()
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -298,6 +319,18 @@ func (a *Server) runPeriodicOperations() {
 					log.Errorf("Failed to perform cert rotation check: %v.", err)
 				}
 			}
+		case <-heartbeatCheckTicker.Next():
+			nodes, err := a.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
+			if err != nil {
+				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
+			}
+			for _, node := range nodes {
+				if services.NodeHasMissedKeepAlives(node) {
+					missedKeepAliveCount++
+				}
+			}
+			// Update prometheus gauge
+			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 		}
 	}
 }
@@ -326,6 +359,11 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 // SetAuditLog sets the server's audit log
 func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
+}
+
+// GetAuthPreference gets AuthPreference from the backend.
+func (a *Server) GetAuthPreference() (types.AuthPreference, error) {
+	return a.GetCache().GetAuthPreference()
 }
 
 // GetClusterConfig gets ClusterConfig from the backend.
@@ -952,13 +990,18 @@ func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response
 	return a.checkU2F(ctx, user, *response, a.Identity)
 }
 
-// ExtendWebSession creates a new web session for a user based on a valid previous session.
-// Additional roles are appended to initial roles if there is an approved access request.
-// The new session expiration time will not exceed the expiration time of the old session.
-func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
+// ExtendWebSession creates a new web session for a user based on a valid previous (current) session.
+//
+// If there is an approved access request, additional roles are appended to the roles that were
+// extracted from identity. The new session expiration time will not exceed the expiration time
+// of the previous session.
+//
+// If there is a switchback request, the roles will switchback to user's default roles and
+// the expiration time is derived from users recently logged in time.
+func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (services.WebSession, error) {
 	prevSession, err := a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
-		User:      user,
-		SessionID: prevSessionID,
+		User:      req.User,
+		SessionID: req.PrevSessionID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -977,8 +1020,8 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		return nil, trace.Wrap(err)
 	}
 
-	if accessRequestID != "" {
-		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(user, accessRequestID)
+	if req.AccessRequestID != "" {
+		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -992,9 +1035,33 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		}
 	}
 
+	if req.Switchback {
+		if prevSession.GetLoginTime().IsZero() {
+			return nil, trace.BadParameter("Unable to switchback, log in time was not recorded.")
+		}
+
+		// Get default/static roles.
+		user, err := a.GetUser(req.User, false)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to switchback")
+		}
+
+		// Calculate expiry time.
+		roleSet, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		sessionTTL := roleSet.AdjustSessionTTL(defaults.CertDuration)
+
+		// Set default roles and expiration.
+		expiresAt = prevSession.GetLoginTime().UTC().Add(sessionTTL)
+		roles = user.GetRoles()
+	}
+
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:       user,
+		User:       req.User,
 		Roles:      roles,
 		Traits:     traits,
 		SessionTTL: sessionTTL,
@@ -1003,7 +1070,10 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
+	// Keep preserving the login time.
+	sess.SetLoginTime(prevSession.GetLoginTime())
+
+	if err := a.upsertWebSession(context.TODO(), req.User, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1058,9 +1128,10 @@ func (a *Server) CreateWebSession(user string) (services.WebSession, error) {
 		return nil, trace.Wrap(err)
 	}
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:   user,
-		Roles:  u.GetRoles(),
-		Traits: u.GetTraits(),
+		User:      user,
+		Roles:     u.GetRoles(),
+		Traits:    u.GetTraits(),
+		LoginTime: a.clock.Now().UTC(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1347,7 +1418,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// HTTPS requests need to specify DNS name that should be present in the
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
-	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleApp) {
+	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) || req.Roles.Include(teleport.RoleKube) || req.Roles.Include(teleport.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+teleport.APIDomain, teleport.APIDomain)
 	}
 	// Unlike additional principals, DNS Names is x509 specific and is limited
@@ -1610,15 +1681,24 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 		return nil, trace.Wrap(err)
 	}
 	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
-	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, services.WebSessionSpecV2{
+
+	startTime := a.clock.Now()
+	if !req.LoginTime.IsZero() {
+		startTime = req.LoginTime
+	}
+
+	sessionSpec := services.WebSessionSpecV2{
 		User:               req.User,
 		Priv:               priv,
 		Pub:                certs.ssh,
 		TLSCert:            certs.tls,
-		Expires:            a.clock.Now().UTC().Add(sessionTTL),
+		Expires:            startTime.UTC().Add(sessionTTL),
 		BearerToken:        bearerToken,
-		BearerTokenExpires: a.clock.Now().UTC().Add(bearerTokenTTL),
-	}), nil
+		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
+		LoginTime:          req.LoginTime,
+	}
+	UserLoginCount.Inc()
+	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, sessionSpec), nil
 }
 
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.
@@ -1633,10 +1713,11 @@ func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 }
 
 func (a *Server) DeleteNamespace(namespace string) error {
+	ctx := context.TODO()
 	if namespace == defaults.Namespace {
 		return trace.AccessDenied("can't delete default namespace")
 	}
-	nodes, err := a.Presence.GetNodes(namespace, services.SkipValidation())
+	nodes, err := a.Presence.GetNodes(ctx, namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1791,7 +1872,8 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 }
 
 func (a *Server) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
-	if err := a.DynamicAccessExt.SetAccessRequestState(ctx, params); err != nil {
+	req, err := a.DynamicAccessExt.SetAccessRequestState(ctx, params)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	event := &events.AccessRequestCreate{
@@ -1801,6 +1883,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		},
 		ResourceMetadata: events.ResourceMetadata{
 			UpdatedBy: ClientUsername(ctx),
+			Expires:   req.GetAccessExpiry(),
 		},
 		RequestID:    params.RequestID,
 		RequestState: params.State.String(),
@@ -1808,7 +1891,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		Roles:        params.Roles,
 	}
 
-	if delegator := client.GetDelegator(ctx); delegator != "" {
+	if delegator := apiutils.GetDelegator(ctx); delegator != "" {
 		event.Delegator = delegator
 	}
 
@@ -1820,7 +1903,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 			event.Annotations = annotations
 		}
 	}
-	err := a.emitter.EmitAuditEvent(a.closeCtx, event)
+	err = a.emitter.EmitAuditEvent(a.closeCtx, event)
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request update event.")
 	}
@@ -1964,8 +2047,39 @@ func (a *Server) GetNamespaces() ([]services.Namespace, error) {
 }
 
 // GetNodes is a part of auth.AccessPoint implementation
-func (a *Server) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
-	return a.GetCache().GetNodes(namespace, opts...)
+func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	return a.GetCache().GetNodes(ctx, namespace, opts...)
+}
+
+// ListNodes is a part of auth.AccessPoint implementation
+func (a *Server) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
+	return a.GetCache().ListNodes(ctx, namespace, limit, startKey)
+}
+
+// NodePageFunc is a function to run on each page iterated over.
+type NodePageFunc func(next []types.Server) (stop bool, err error)
+
+// IterateNodePages can be used to iterate over pages of nodes.
+func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit int, startKey string, f NodePageFunc) (string, error) {
+	for {
+		nextPage, nextKey, err := a.ListNodes(ctx, namespace, limit, startKey)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		stop, err := f(nextPage)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// Iterator stopped before end of pages or
+		// there are no more pages, return nextKey
+		if stop || nextKey == "" {
+			return nextKey, nil
+		}
+
+		startKey = nextKey
+	}
 }
 
 // GetReverseTunnels is a part of auth.AccessPoint implementation
@@ -2074,7 +2188,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("empty Login field")
 		}
 		// Find the target node and check whether MFA is required.
-		nodes, err := a.GetNodes(defaults.Namespace, services.SkipValidation())
+		nodes, err := a.GetNodes(ctx, defaults.Namespace, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2492,4 +2606,6 @@ func init() {
 	prometheus.MustRegister(generateThrottledRequestsCount)
 	prometheus.MustRegister(generateRequestsCurrent)
 	prometheus.MustRegister(generateRequestsLatencies)
+	prometheus.MustRegister(UserLoginCount)
+	prometheus.MustRegister(heartbeatsMissedByAuth)
 }

@@ -6,28 +6,67 @@ h1: Upcoming Teleport Releases
 
 The teleport team delivers a new major release roughly every 3 months.
 
-## Teleport 6.1 "New York"
+## Teleport 6.2 "Buffalo"
 
-The team adds per session U2F support, Dual Authorization and Access Workflows UI.
+The Core team focuses on cleanup of customer-facing issues and documentation.
+The plugins team catches up with Terraform plugin missed in the previous release
+and updates PagerDuty and Gitlab plugins to use the new API.
 
 ### Release Schedule
 
 | Version | Date | Description |
 | - | - | - |
-| First alpha | March 15th, 2021 | Good for testing and demos. |
-| First beta | March 31st, 2021 | Deploy on staging. |
-| Release | April 7th, 2021 | Good to go for production. |
+| First alpha | May 7th, 2021 | Good for testing and demos. |
+| First beta | May 14th | Deploy on staging. |
+| Release | May 24th, 2021 | Good to go for production. |
 
 ### Features
 
 You can find the full list of fixes and features in the
-[Github milestone](https://github.com/gravitational/teleport/milestone/50).
+[Github milestone](https://github.com/gravitational/teleport/milestone/55).
 
-| Feature | Editions | Description |
+## Teleport 7.0 "Stockholm"
+
+The Core team adds support for [hardware security modules - HSM](https://github.com/gravitational/teleport/blob/master/rfd/0025-hsm.md) for managing certificate authorities.
+
+The team improves security with fleet patch upgrades, makes it easier to write access requests
+and adds [Session termination and user locking](https://github.com/gravitational/teleport/issues/3360).
+
+Our engineers are working on improving first-time user experience of `teleport` and `tsh`.
+
+The Database Access team adds MongoDB protocol support.
+
+### Release Schedule
+
+| Version | Date | Description |
 | - | - | - |
-| Dual Authorization Workflows | Enterprise, Cloud | Request multiple users to review and approve access requests. Find out more in [issue 5007](https://github.com/gravitational/teleport/issues/5007). |
-| U2F for Kubernetes and SSH sessions | All | Adds an option to authorize with 2nd factor when connecting to a node/k8s cluster. Details in [issue 3828](https://github.com/gravitational/teleport/issues/3878). |
-| Access Workflows UI | Enterprise, Cloud | Review access requests and assume roles in the UI. Some mockups are in [issue 4937](https://github.com/gravitational/teleport/issues/4937). |
+| First alpha | June 1st, 2021 | Good for some testing and demos. |
+| First beta | June 15th | Deploy on staging. |
+| Release | July 15th, 2021 | Good to go for production. |
+
+### Features
+
+You can find the full list of fixes and features in the
+[Github milestone](https://github.com/gravitational/teleport/milestone/54).
+
+## Teleport Cloud "Washington"
+
+The Cloud team improves user experience - adds databases and kubernetes user interfaces
+and wizards, adds downloads page.
+The team improves cloud self service with password recovery and cancellation, adds data export.
+
+### Release Schedule
+
+The cloud team ships the release features as they are ready up to July 15th.
+
+| Version | Date | Description |
+| - | - | - |
+| Wrap up | July 15th, 2021 | Key features deployed. |
+
+### Features
+
+You can find the full list of fixes and features in the
+[Github milestone](https://github.com/gravitational/teleport/milestone/54).
 
 ## Semantic Versioning
 
@@ -40,10 +79,8 @@ They are not ready for production:
 
 - You can use alpha releases such as `5.0.1-alpha.1` for trying new features.
   Things can break and new changes may not be backwards-compatible.
-
 - Teleport `beta` releases, such as `5.0.1-beta.2` are suitable for staging environments.
   We are unlikely to change the APIs while we are ironing out bugs and UX glitches.
-
 - We mark release candidates as `5.0.1-rc.1` coding and bug fixes are finished.
   The team is going through the manual test plan to find any regressions.
 
@@ -53,7 +90,5 @@ Releases are ready for production use.
 
 - Releases `5.0.0` and `6.0.0` are major releases. We publish 4 major releases each year.
   Read more about upgrades and compatibility [here](../admin-guide.mdx#component-compatibility).
-
 - Releases `5.1.0` are minor releases. They contain minor backwards-compatible improvements and backports.
-
 - Versions like `5.0.1` are quick patches. They contain backwards-compatible fixes.

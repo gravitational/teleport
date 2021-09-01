@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -68,8 +69,7 @@ var _ = check.Suite(&KubeSuite{})
 type KubeSuite struct {
 	*kubernetes.Clientset
 
-	ports utils.PortList
-	me    *user.User
+	me *user.User
 	// priv/pub pair to avoid re-generating it
 	priv []byte
 	pub  []byte
@@ -104,10 +104,6 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
 
-	s.ports, err = utils.GetFreeTCPPorts(AllocatePortsNum, utils.PortStartingNumber+AllocatePortsNum+1)
-	if err != nil {
-		c.Fatal(err)
-	}
 	s.me, err = user.Current()
 	c.Assert(err, check.IsNil)
 
@@ -177,7 +173,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -186,7 +182,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 	username := s.me.Username
 	kubeGroups := []string{testImpersonationGroup}
 	kubeUsers := []string{"alice@example.com"}
-	role, err := services.NewRole("kubemaster", services.RoleSpecV3{
+	role, err := services.NewRole("kubemaster", types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
@@ -351,7 +347,7 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -360,7 +356,7 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 	username := s.me.Username
 	kubeGroups := []string{testImpersonationGroup}
 	kubeUsers := []string{"alice@example.com"}
-	role, err := services.NewRole("kubemaster", services.RoleSpecV3{
+	role, err := services.NewRole("kubemaster", types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
@@ -407,7 +403,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -415,7 +411,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 
 	username := s.me.Username
 	kubeGroups := []string{testImpersonationGroup}
-	role, err := services.NewRole("kubemaster", services.RoleSpecV3{
+	role, err := services.NewRole("kubemaster", types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
@@ -440,7 +436,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// forward local port to target port 80 of the nginx container
-	localPort := s.ports.Pop()
+	localPort := ports.Pop()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -476,7 +472,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	localPort = s.ports.Pop()
+	localPort = ports.Pop()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      testPod,
@@ -506,7 +502,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		ClusterName: clusterMain,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -515,7 +511,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 	// main cluster has a role and user called main-kube
 	username := s.me.Username
 	mainKubeGroups := []string{testImpersonationGroup}
-	mainRole, err := services.NewRole("main-kube", services.RoleSpecV3{
+	mainRole, err := services.NewRole("main-kube", types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: mainKubeGroups,
@@ -530,7 +526,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		ClusterName: clusterAux,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -551,7 +547,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "aux-kube" to local role "main-kube"
 	auxKubeGroups := []string{teleport.TraitInternalKubeGroupsVariable}
-	auxRole, err := services.NewRole("aux-kube", services.RoleSpecV3{
+	auxRole, err := services.NewRole("aux-kube", types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 			// Note that main cluster can pass it's kubernetes groups
@@ -709,7 +705,7 @@ loop:
 	c.Assert(err.Error(), check.Matches, ".*impersonation request has been denied.*")
 
 	// forward local port to target port 80 of the nginx container
-	localPort := s.ports.Pop()
+	localPort := ports.Pop()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -737,7 +733,7 @@ loop:
 	c.Assert(resp.Body.Close(), check.IsNil)
 
 	// impersonating client requests will be denied
-	localPort = s.ports.Pop()
+	localPort = ports.Pop()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      pod.Name,
@@ -767,7 +763,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		ClusterName: clusterMain,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -776,7 +772,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 	// main cluster has a role and user called main-kube
 	username := s.me.Username
 	mainKubeGroups := []string{testImpersonationGroup}
-	mainRole, err := services.NewRole("main-kube", services.RoleSpecV3{
+	mainRole, err := services.NewRole("main-kube", types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: mainKubeGroups,
@@ -791,7 +787,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		ClusterName: clusterAux,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -816,7 +812,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "aux-kube" to local role "main-kube"
 	auxKubeGroups := []string{teleport.TraitInternalKubeGroupsVariable}
-	auxRole, err := services.NewRole("aux-kube", services.RoleSpecV3{
+	auxRole, err := services.NewRole("aux-kube", types.RoleSpecV4{
 		Allow: services.RoleConditions{
 			Logins: []string{username},
 			// Note that main cluster can pass it's kubernetes groups
@@ -972,7 +968,7 @@ loop:
 	c.Assert(err.Error(), check.Matches, ".*impersonation request has been denied.*")
 
 	// forward local port to target port 80 of the nginx container
-	localPort := s.ports.Pop()
+	localPort := ports.Pop()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -1000,7 +996,7 @@ loop:
 	c.Assert(resp.Body.Close(), check.IsNil)
 
 	// impersonating client requests will be denied
-	localPort = s.ports.Pop()
+	localPort = ports.Pop()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      pod.Name,
@@ -1050,7 +1046,7 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(6),
+		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
@@ -1058,7 +1054,7 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	username := s.me.Username
 	kubeGroups := []string{testImpersonationGroup}
-	role, err := services.NewRole("kubemaster", services.RoleSpecV3{
+	role, err := services.NewRole("kubemaster", types.RoleSpecV4{
 		Options: tc.options,
 		Allow: services.RoleConditions{
 			Logins:     []string{username},
@@ -1142,7 +1138,7 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true
-	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, s.ports.Pop())
+	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, ports.Pop())
 	tconf.Proxy.Kube.KubeconfigPath = s.kubeConfigPath
 
 	return tconf

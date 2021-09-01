@@ -1,5 +1,5 @@
 ---
-title: Database Access RBAC
+title: Database Access Access Controls
 description: Role-based access control (RBAC) for Teleport Database Access
 ---
 
@@ -110,7 +110,7 @@ database names from the user's Okta `databases` assertion:
 ```yaml
 spec:
   allow:
-    db_names: ["{% raw %}{{external.databases}}{% endraw %}"]
+    db_names: ["{{external.databases}}"]
 ```
 
 The `{{internal.db_users}}` and `{{internal.db_names}}` variables permit sharing
@@ -132,6 +132,6 @@ accounts and names:
 ```yaml
 spec:
   allow:
-    db_users: ["{% raw %}{{internal.db_users}}{% endraw %}"]
-    db_names: ["{% raw %}{{internal.db_names}}{% endraw %}"]
+    db_users: ["{{internal.db_users}}"]
+    db_names: ["{{internal.db_names}}"]
 ```

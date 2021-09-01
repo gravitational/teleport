@@ -7,7 +7,7 @@ description: How to access RESTful APIs using Teleport Application Access
 
 Application Access can be used to access applications' RESTful APIs with
 tools like [curl](https://man7.org/linux/man-pages/man1/curl.1.html) or
-[Postman](https://www.postman.com/).
+Postman.
 
 ## Prerequisites
 
@@ -66,9 +66,12 @@ curl \
 The login message shows an example `curl` command you can run to call the
 target application's API through Teleport App Access.
 
-<Admonition type="note" title="CA and Key Pair Files">
-Note the paths to the CA certificate and your user's certificate/key pair in
-the command - `curl` will use a client certificate to authenticate with Teleport.
+<Admonition
+  type="note"
+  title="CA and Key Pair Files"
+>
+  Note the paths to the CA certificate and your user's certificate/key pair in
+  the command - `curl` will use a client certificate to authenticate with Teleport.
 </Admonition>
 
 As Grafana's API requires authentication, let's update the `curl` command to

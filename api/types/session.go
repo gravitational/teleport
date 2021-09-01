@@ -82,6 +82,10 @@ type WebSession interface {
 	GetBearerTokenExpiryTime() time.Time
 	// GetExpiryTime - absolute time when web session expires
 	GetExpiryTime() time.Time
+	// GetLoginTime returns the time this user recently logged in.
+	GetLoginTime() time.Time
+	// SetLoginTime sets when this user logged in.
+	SetLoginTime(time.Time)
 	// WithoutSecrets returns copy of the web session but without private keys
 	WithoutSecrets() WebSession
 	// CheckAndSetDefaults checks and set default values for any missing fields.
@@ -250,6 +254,16 @@ func (ws *WebSessionV2) GetBearerTokenExpiryTime() time.Time {
 // GetExpiryTime - absolute time when web session expires
 func (ws *WebSessionV2) GetExpiryTime() time.Time {
 	return ws.Spec.Expires
+}
+
+// GetLoginTime returns the time this user recently logged in.
+func (ws *WebSessionV2) GetLoginTime() time.Time {
+	return ws.Spec.LoginTime
+}
+
+// SetLoginTime sets when this user logged in.
+func (ws *WebSessionV2) SetLoginTime(loginTime time.Time) {
+	ws.Spec.LoginTime = loginTime
 }
 
 // GetAppSessionRequest contains the parameters to request an application
@@ -490,6 +504,8 @@ type NewWebSessionRequest struct {
 	// SessionTTL optionally specifies the session time-to-live.
 	// If left unspecified, the default certificate duration is used.
 	SessionTTL time.Duration
+	// LoginTime is the time that this user recently logged in.
+	LoginTime time.Time
 }
 
 // Check validates the request.

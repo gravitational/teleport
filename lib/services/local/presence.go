@@ -191,26 +191,26 @@ func (s *PresenceService) upsertServer(ctx context.Context, prefix string, serve
 }
 
 // DeleteAllNodes deletes all nodes in a namespace
-func (s *PresenceService) DeleteAllNodes(namespace string) error {
+func (s *PresenceService) DeleteAllNodes(ctx context.Context, namespace string) error {
 	startKey := backend.Key(nodesPrefix, namespace)
-	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
 // DeleteNode deletes node
-func (s *PresenceService) DeleteNode(namespace string, name string) error {
+func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name string) error {
 	key := backend.Key(nodesPrefix, namespace, name)
-	return s.Delete(context.TODO(), key)
+	return s.Delete(ctx, key)
 }
 
 // GetNodes returns a list of registered servers
-func (s *PresenceService) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace value")
 	}
 
 	// Get all items in the bucket.
 	startKey := backend.Key(nodesPrefix, namespace)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -232,9 +232,51 @@ func (s *PresenceService) GetNodes(namespace string, opts ...services.MarshalOpt
 	return servers, nil
 }
 
+// ListNodes returns a paginated list of registered servers.
+// StartKey is a resource name, which is the suffix of its key.
+func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+	if namespace == "" {
+		return nil, "", trace.BadParameter("missing namespace value")
+	}
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive limit value")
+	}
+
+	// Get all items in the bucket within the given range.
+	rangeStart := backend.Key(nodesPrefix, namespace, startKey)
+	keyPrefix := backend.Key(nodesPrefix, namespace)
+	rangeEnd := backend.RangeEnd(keyPrefix)
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Marshal values into a []services.Server slice.
+	servers := make([]types.Server, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.UnmarshalServer(
+			item.Value,
+			types.KindNode,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		servers[i] = server
+	}
+
+	// If a full page was filled, set nextKey using the last node.
+	if len(result.Items) == limit {
+		nextKey = backend.NextPaginationKey(servers[len(servers)-1])
+	}
+
+	return servers, nextKey, nil
+}
+
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
 // specified duration with second resolution if it's >= 1 second.
-func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAlive, error) {
+func (s *PresenceService) UpsertNode(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
 	if server.GetNamespace() == "" {
 		return nil, trace.BadParameter("missing node namespace")
 	}
@@ -242,7 +284,7 @@ func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAliv
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lease, err := s.Put(context.TODO(), backend.Item{
+	lease, err := s.Put(ctx, backend.Item{
 		Key:     backend.Key(nodesPrefix, server.GetNamespace(), server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),

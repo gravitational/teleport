@@ -5,7 +5,7 @@ h1: FedRAMP for SSH and Kubernetes Access
 ---
 
 With Teleport 4.0 we have built the foundation to meet FedRAMP requirements for
-the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
+the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
 level overview of how Teleport FIPS mode works and how it can help your company to become FedRAMP certified.
 
 ### Obtain FedRAMP certification with Teleport
@@ -38,7 +38,7 @@ Enterprise FIPS Binary.
 After downloading the binary tarball, run:
 
 ```bsh
-$ tar -xzf teleport-ent-v{{ teleport.version }}-linux-amd64-fips-bin.tar.gz
+$ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
 $ cd teleport-ent
 $ sudo ./install
 # This will copy Teleport Enterprise to /usr/local/bin.
@@ -129,15 +129,10 @@ binary was compiled against an approved cryptographic module (BoringCrypto) and
 fails to start if it was not.
 
 - For OSS and Enterprise binaries not compiled with BoringCrypto, this flag will report that this version of Teleport is not compiled with the appropriate cryptographic module.
-
 - Running commands like `ps aux` can be useful to note that Teleport is running in FedRAMP enforcing mode.
-
 - If no ciphersuites are provided, Teleport will set the default ciphersuites to be FIPS 140-2 compliant.
-
 - If ciphersuites, key exchange and MAC algorithms are provided in the Teleport configuration, Teleport will validate that they are FIPS 140-2 compliant..
-
 - Teleport will always enable at-rest encryption for both DynamoDB and S3.
-
 - If recording proxy mode is selected, validation of host certificates should always happen.
 
 ### FedRAMP Audit Log

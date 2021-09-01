@@ -90,8 +90,6 @@ func (r *RequestIDs) IsEmpty() bool {
 type DynamicAccessCore interface {
 	// CreateAccessRequest stores a new access request.
 	CreateAccessRequest(ctx context.Context, req AccessRequest) error
-	// SetAccessRequestState updates the state of an existing access request.
-	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) error
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter AccessRequestFilter) ([]AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
@@ -108,6 +106,8 @@ type DynamicAccess interface {
 	DynamicAccessCore
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (AccessRequest, error)
+	// SetAccessRequestState updates the state of an existing access request.
+	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) error
 }
 
 // DynamicAccessOracle is a service capable of answering questions related
@@ -150,6 +150,8 @@ type DynamicAccessExt interface {
 	UpsertAccessRequest(ctx context.Context, req AccessRequest) error
 	// DeleteAllAccessRequests deletes all existent access requests.
 	DeleteAllAccessRequests(ctx context.Context) error
+	// SetAccessRequestState updates the state of an existing access request.
+	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) (types.AccessRequest, error)
 }
 
 // reviewParamsContext is a simplified view of an access review
@@ -589,7 +591,7 @@ func insertAnnotations(annotations map[string][]string, conditions AccessRequest
 		// variable interpolation syntax they contain.
 	ApplyTraits:
 		for _, v := range vals {
-			applied, err := applyValueTraits(v, traits)
+			applied, err := ApplyValueTraits(v, traits)
 			if err != nil {
 				// skip values that failed variable expansion
 				continue ApplyTraits

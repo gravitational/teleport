@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 
+	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
@@ -336,6 +337,200 @@ func TestAppAccessNoHeaderOverrides(t *testing.T) {
 	}
 }
 
+// TestAppAccessRewriteHeadersRoot validates that http headers from application
+// rewrite configuration are correctly passed to proxied applications in root.
+func TestAppAccessRewriteHeadersRoot(t *testing.T) {
+	// Start test server that will dump all request headers in the response.
+	dumperServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Write(w)
+	}))
+	t.Cleanup(dumperServer.Close)
+
+	publicAddr := "dumper-root.example.com"
+
+	// Setup the test with additional dumper application in root cluster.
+	pack := setupWithOptions(t, appTestOptions{
+		extraRootApps: []service.App{
+			{
+				Name:       "dumper-root",
+				URI:        dumperServer.URL,
+				PublicAddr: publicAddr,
+				Rewrite: &service.Rewrite{
+					Headers: []service.Header{
+						{
+							Name:  "X-Teleport-Cluster",
+							Value: "root",
+						},
+						{
+							Name:  "X-External-Env",
+							Value: "{{external.env}}",
+						},
+						// Make sure can rewrite Host header.
+						{
+							Name:  "Host",
+							Value: "example.com",
+						},
+						// Make sure can rewrite existing header.
+						{
+							Name:  "X-Existing",
+							Value: "rewritten-existing-header",
+						},
+						// Make sure can't rewrite Teleport headers.
+						{
+							Name:  teleport.AppJWTHeader,
+							Value: "rewritten-app-jwt-header",
+						},
+						{
+							Name:  teleport.AppCFHeader,
+							Value: "rewritten-app-cf-header",
+						},
+						{
+							Name:  forward.XForwardedFor,
+							Value: "rewritten-x-forwarded-for-header",
+						},
+						{
+							Name:  forward.XForwardedHost,
+							Value: "rewritten-x-forwarded-host-header",
+						},
+						{
+							Name:  forward.XForwardedProto,
+							Value: "rewritten-x-forwarded-proto-header",
+						},
+						{
+							Name:  forward.XForwardedServer,
+							Value: "rewritten-x-forwarded-server-header",
+						},
+					},
+				},
+			},
+		},
+		userLogins: []string{"root", "ubuntu"},
+		userTraits: map[string][]string{"env": {"production"}},
+	})
+
+	// Create an application session for dumper app in root cluster.
+	appCookie := pack.createAppSession(t, publicAddr, "example.com")
+
+	// Get headers response and make sure headers were passed.
+	status, resp, err := pack.makeRequest(appCookie, http.MethodGet, "/", service.Header{
+		Name: "X-Existing", Value: "existing",
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	require.Contains(t, resp, "X-Teleport-Cluster: root")
+	require.Contains(t, resp, "X-External-Env: production")
+	require.Contains(t, resp, "Host: example.com")
+	require.Contains(t, resp, "X-Existing: rewritten-existing-header")
+	require.NotContains(t, resp, "X-Existing: existing")
+	require.NotContains(t, resp, "rewritten-app-jwt-header")
+	require.NotContains(t, resp, "rewritten-app-cf-header")
+	require.NotContains(t, resp, "rewritten-x-forwarded-for-header")
+	require.NotContains(t, resp, "rewritten-x-forwarded-host-header")
+	require.NotContains(t, resp, "rewritten-x-forwarded-proto-header")
+	require.NotContains(t, resp, "rewritten-x-forwarded-server-header")
+}
+
+// TestAppAccessRewriteHeadersLeaf validates that http headers from application
+// rewrite configuration are correctly passed to proxied applications in leaf.
+func TestAppAccessRewriteHeadersLeaf(t *testing.T) {
+	// Start test server that will dump all request headers in the response.
+	dumperServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Write(w)
+	}))
+	t.Cleanup(dumperServer.Close)
+
+	publicAddr := "dumper-leaf.example.com"
+
+	// Setup the test with additional dumper application in leaf cluster.
+	pack := setupWithOptions(t, appTestOptions{
+		extraLeafApps: []service.App{
+			{
+				Name:       "dumper-leaf",
+				URI:        dumperServer.URL,
+				PublicAddr: publicAddr,
+				Rewrite: &service.Rewrite{
+					Headers: []service.Header{
+						{
+							Name:  "X-Teleport-Cluster",
+							Value: "leaf",
+						},
+						// In leaf clusters internal.logins variable is
+						// populated with the user's root role logins.
+						{
+							Name:  "X-Teleport-Login",
+							Value: "{{internal.logins}}",
+						},
+						{
+							Name:  "X-External-Env",
+							Value: "{{external.env}}",
+						},
+						// Make sure can rewrite Host header.
+						{
+							Name:  "Host",
+							Value: "example.com",
+						},
+						// Make sure can rewrite existing header.
+						{
+							Name:  "X-Existing",
+							Value: "rewritten-existing-header",
+						},
+						// Make sure can't rewrite Teleport headers.
+						{
+							Name:  teleport.AppJWTHeader,
+							Value: "rewritten-app-jwt-header",
+						},
+						{
+							Name:  teleport.AppCFHeader,
+							Value: "rewritten-app-cf-header",
+						},
+						{
+							Name:  forward.XForwardedFor,
+							Value: "rewritten-x-forwarded-for-header",
+						},
+						{
+							Name:  forward.XForwardedHost,
+							Value: "rewritten-x-forwarded-host-header",
+						},
+						{
+							Name:  forward.XForwardedProto,
+							Value: "rewritten-x-forwarded-proto-header",
+						},
+						{
+							Name:  forward.XForwardedServer,
+							Value: "rewritten-x-forwarded-server-header",
+						},
+					},
+				},
+			},
+		},
+		userLogins: []string{"root", "ubuntu"},
+		userTraits: map[string][]string{"env": {"staging"}},
+	})
+
+	// Create an application session for dumper app in leaf cluster.
+	appCookie := pack.createAppSession(t, publicAddr, "leaf.example.com")
+
+	// Get headers response and make sure headers were passed.
+	status, resp, err := pack.makeRequest(appCookie, http.MethodGet, "/", service.Header{
+		Name: "X-Existing", Value: "existing",
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	require.Contains(t, resp, "X-Teleport-Cluster: leaf")
+	require.Contains(t, resp, "X-Teleport-Login: root")
+	require.Contains(t, resp, "X-Teleport-Login: ubuntu")
+	require.Contains(t, resp, "X-External-Env: staging")
+	require.Contains(t, resp, "Host: example.com")
+	require.Contains(t, resp, "X-Existing: rewritten-existing-header")
+	require.NotContains(t, resp, "X-Existing: existing")
+	require.NotContains(t, resp, "rewritten-app-jwt-header")
+	require.NotContains(t, resp, "rewritten-app-cf-header")
+	require.NotContains(t, resp, "rewritten-x-forwarded-for-header")
+	require.NotContains(t, resp, "rewritten-x-forwarded-host-header")
+	require.NotContains(t, resp, "rewritten-x-forwarded-proto-header")
+	require.NotContains(t, resp, "rewritten-x-forwarded-server-header")
+}
+
 // pack contains identity as well as initialized Teleport clusters and instances.
 type pack struct {
 	username string
@@ -391,8 +586,20 @@ type pack struct {
 	headerAppClusterName string
 }
 
+type appTestOptions struct {
+	extraRootApps []service.App
+	extraLeafApps []service.App
+	userLogins    []string
+	userTraits    map[string][]string
+}
+
 // setup configures all clusters and servers needed for a test.
 func setup(t *testing.T) *pack {
+	return setupWithOptions(t, appTestOptions{})
+}
+
+// setupWithOptions configures app access test with custom options.
+func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -440,7 +647,7 @@ func setup(t *testing.T) *pack {
 		headerAppClusterName: "example.com",
 	}
 
-	// Start a few different HTTP server that will be acting like a proxied application. The first two applications
+	// Start a few different HTTP server that will be acting like a proxied application.
 	rootServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, p.rootMessage)
 	}))
@@ -487,11 +694,6 @@ func setup(t *testing.T) *pack {
 	p.jwtAppURI = jwtServer.URL
 
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
-	require.NoError(t, err)
-
-	// Find AllocatePortsNum free listening ports to use.
-	startNumber := utils.PortStartingNumber + (AllocatePortsNum * 2) + 1
-	ports, err := utils.GetFreeTCPPorts(AllocatePortsNum, startNumber+1)
 	require.NoError(t, err)
 
 	// Create a new Teleport instance with passed in configuration.
@@ -577,7 +779,7 @@ func setup(t *testing.T) *pack {
 	raConf.Proxy.Enabled = false
 	raConf.SSH.Enabled = false
 	raConf.Apps.Enabled = true
-	raConf.Apps.Apps = []service.App{
+	raConf.Apps.Apps = append([]service.App{
 		{
 			Name:       p.rootAppName,
 			URI:        rootServer.URL,
@@ -603,7 +805,7 @@ func setup(t *testing.T) *pack {
 			URI:        headerServer.URL,
 			PublicAddr: p.headerAppPublicAddr,
 		},
-	}
+	}, opts.extraRootApps...)
 	p.rootAppServer, err = p.rootCluster.StartApp(raConf)
 	require.NoError(t, err)
 	t.Cleanup(func() { p.rootAppServer.Close() })
@@ -625,7 +827,7 @@ func setup(t *testing.T) *pack {
 	laConf.Proxy.Enabled = false
 	laConf.SSH.Enabled = false
 	laConf.Apps.Enabled = true
-	laConf.Apps.Apps = []service.App{
+	laConf.Apps.Apps = append([]service.App{
 		{
 			Name:       p.leafAppName,
 			URI:        leafServer.URL,
@@ -641,13 +843,13 @@ func setup(t *testing.T) *pack {
 			URI:        leafWSSServer.URL,
 			PublicAddr: p.leafWSSPublicAddr,
 		},
-	}
+	}, opts.extraLeafApps...)
 	p.leafAppServer, err = p.leafCluster.StartApp(laConf)
 	require.NoError(t, err)
 	t.Cleanup(func() { p.leafAppServer.Close() })
 
 	// Create user for tests.
-	p.initUser(t)
+	p.initUser(t, opts)
 
 	// Create Web UI session.
 	p.initWebSession(t)
@@ -662,7 +864,7 @@ func setup(t *testing.T) *pack {
 }
 
 // initUser will create a user within the root cluster.
-func (p *pack) initUser(t *testing.T) {
+func (p *pack) initUser(t *testing.T, opts appTestOptions) {
 	p.username = uuid.New()
 	p.password = uuid.New()
 
@@ -670,11 +872,16 @@ func (p *pack) initUser(t *testing.T) {
 	require.NoError(t, err)
 
 	role := services.RoleForUser(user)
-	role.SetLogins(services.Allow, []string{p.username})
+	if len(opts.userLogins) != 0 {
+		role.SetLogins(services.Allow, opts.userLogins)
+	} else {
+		role.SetLogins(services.Allow, []string{p.username})
+	}
 	err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
+	user.SetTraits(opts.userTraits)
 	err = p.rootCluster.Process.GetAuthServer().CreateUser(context.Background(), user)
 	require.NoError(t, err)
 
@@ -765,7 +972,7 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 	require.NotEmpty(t, p.webToken)
 
 	casReq, err := json.Marshal(web.CreateAppSessionRequest{
-		FQDN:        publicAddr,
+		FQDNHint:    publicAddr,
 		PublicAddr:  publicAddr,
 		ClusterName: clusterName,
 	})
@@ -881,7 +1088,7 @@ func (p *pack) makeTLSConfigNoSession(t *testing.T, publicAddr, clusterName stri
 }
 
 // makeRequest makes a request to the root cluster with the given session cookie.
-func (p *pack) makeRequest(sessionCookie string, method string, endpoint string) (int, string, error) {
+func (p *pack) makeRequest(sessionCookie string, method string, endpoint string, headers ...service.Header) (int, string, error) {
 	req, err := http.NewRequest(method, p.assembleRootProxyURL(endpoint), nil)
 	if err != nil {
 		return 0, "", trace.Wrap(err)
@@ -893,6 +1100,10 @@ func (p *pack) makeRequest(sessionCookie string, method string, endpoint string)
 			Name:  app.CookieName,
 			Value: sessionCookie,
 		})
+	}
+
+	for _, h := range headers {
+		req.Header.Add(h.Name, h.Value)
 	}
 
 	return p.sendRequest(req, nil)

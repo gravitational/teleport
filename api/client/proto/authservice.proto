@@ -49,7 +49,7 @@ message Event {
         // User is a user resource
         types.UserV2 User = 8 [ (gogoproto.jsontag) = "user,omitempty" ];
         // Role is a role resource
-        types.RoleV3 Role = 9 [ (gogoproto.jsontag) = "role,omitempty" ];
+        types.RoleV4 Role = 9 [ (gogoproto.jsontag) = "role,omitempty" ];
         // Namespace is a namespace resource
         types.Namespace Namespace = 10 [ (gogoproto.jsontag) = "namespace,omitempty" ];
         // Server is a node or proxy resource
@@ -149,10 +149,21 @@ message UserCertsRequest {
     string NodeName = 9 [ (gogoproto.jsontag) = "node_name,omitempty" ];
 
     enum CertUsage {
+        // All means a request for both SSH and TLS certificates for the
+        // overall user session. These certificates are not specific to any SSH
+        // node, Kubernetes cluster, database or web app.
         All = 0;
+        // SSH means a request for an SSH certificate for access to a specific
+        // SSH node, as specified by NodeName.
         SSH = 1;
+        // Kubernetes means a request for a TLS certificate for access to a
+        // specific Kubernetes cluster, as specified by KubernetesCluster.
         Kubernetes = 2;
+        // Database means a request for a TLS certificate for access to a
+        // specific database, as specified by RouteToDatabase.
         Database = 3;
+        // App means a request for a TLS certificate for access to a specific
+        // web app, as specified by RouteToApp.
         App = 4;
     }
     // CertUsage limits the resulting user certificate to a single protocol.
@@ -571,7 +582,7 @@ message GetRoleRequest {
 // GetRolesResponse is a response to querying for all roles.
 message GetRolesResponse {
     // Roles is a list of roles.
-    repeated types.RoleV3 Roles = 1;
+    repeated types.RoleV4 Roles = 1;
 }
 
 // DeleteRoleRequest is a request to delete a role.
@@ -782,6 +793,15 @@ message IsMFARequiredRequest {
     }
 }
 
+// StreamSessionEventsRequest is a request containing needed data to fetch a session recording.
+message StreamSessionEventsRequest {
+    // SessionID is the ID for a given session in an UUIDv4 format.
+    string SessionID = 1;
+    // StartIndex is the index of the event to resume the stream after.
+    // A StartIndex of 0 creates a new stream.
+    int32 StartIndex = 2;
+}
+
 // NodeLogin specifies an SSH node and OS login.
 message NodeLogin {
     // Node can be node's hostname or UUID.
@@ -801,14 +821,99 @@ message SingleUseUserCert {
     }
 }
 
+// Order specifies any ordering of some objects as returned in regards to some aspect
+// of said objects which may be trivially ordered such as a timestamp.
+enum Order {
+    DESCENDING = 0;
+    ASCENDING = 1;
+}
+
+message GetEventsRequest {
+    // Namespace, if not set, defaults to 'default'
+    string Namespace = 1;
+    // StartDate is the oldest date of returned events
+    google.protobuf.Timestamp StartDate = 2
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // EndDate is the newest date of returned events
+    google.protobuf.Timestamp EndDate = 3
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // EventTypes is optional, if not set, returns all events
+    repeated string EventTypes = 4;
+    // Limit is the maximum amount of events returned
+    int32 Limit = 5;
+    // StartKey is used to resume a query in order to enable pagination.
+    // If the previous response had LastKey set then this should be
+    // set to its value. Otherwise leave empty.
+    string StartKey = 6;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 7;
+}
+
+message GetSessionEventsRequest {
+    // StartDate is the oldest date of returned events
+    google.protobuf.Timestamp StartDate = 1
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // EndDate is the newest date of returned events
+    google.protobuf.Timestamp EndDate = 2
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+    // Limit is the maximum amount of events to retrieve.
+    int32 Limit = 3;
+    // StartKey is used to resume a query in order to enable pagination.
+    // If the previous response had LastKey set then this should be
+    // set to its value. Otherwise leave empty.
+    string StartKey = 4;
+    // Order specifies an ascending or descending order of events.
+    // A value of 0 means a descending order and a value of 1 means an ascending order.
+    Order Order = 5;
+}
+
+message Events {
+    // Items is a list of typed gRPC formatted audit events.
+    repeated events.OneOf Items = 1;
+    // the key of the last event if the returned set did not contain all events found i.e limit <
+    // actual amount. this is the key clients can supply in another API request to continue fetching
+    // events from the previous last position
+    string LastKey = 2;
+}
+
+message ListNodesRequest {
+    // Namespace is the namespace of resources.
+    string Namespace = 1;
+    // Limit is the maximum amount of nodes to retrieve.
+    int32 Limit = 2;
+    // StartKey is used to start listing nodes from a specific spot. This should
+    // be set to the previous NextKey value if using pagination, or left empty.
+    string StartKey = 3;
+}
+
+message ListNodesResponse {
+    // Servers is a list of servers.
+    repeated types.ServerV2 Servers = 1;
+    // NextKey is the next Key to use as StartKey in a ListNodesRequest to continue
+    // retrieving pages of nodes. If NextKey is empty, there are no more pages.
+    string NextKey = 2;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
     rpc SendKeepAlives(stream types.KeepAlive) returns (google.protobuf.Empty);
     // WatchEvents returns a new stream of cluster events
     rpc WatchEvents(Watch) returns (stream Event);
-    // UpsertNode upserts node
+
+    // GetNodes retrieves all nodes.
+    // DELETE IN 8.0.0 in favor of ListNodes
+    rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
+    // ListNodes retrieves a paginated list of nodes.
+    rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
+    // UpsertNode upserts a node in a backend.
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
+    // DeleteNode deletes an existing node in a backend described by the given request.
+    rpc DeleteNode(types.ResourceInNamespaceRequest) returns (google.protobuf.Empty);
+    // DeleteAllNodes deletes all nodes.
+    rpc DeleteAllNodes(types.ResourcesInNamespaceRequest) returns (google.protobuf.Empty);
+
     // GenerateUserCerts generates a set of user certificates.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
     // GenerateUserSingleUseCerts generates a set of single-use user
@@ -947,11 +1052,11 @@ service AuthService {
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
 
     // GetRole retrieves a role described by the given request.
-    rpc GetRole(GetRoleRequest) returns (types.RoleV3);
+    rpc GetRole(GetRoleRequest) returns (types.RoleV4);
     // GetRole retrieves all roles.
     rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
     // UpsertRole upserts a role in a backend.
-    rpc UpsertRole(types.RoleV3) returns (google.protobuf.Empty);
+    rpc UpsertRole(types.RoleV4) returns (google.protobuf.Empty);
     // DeleteRole deletes an existing role in a backend described by the given request.
     rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 
@@ -1024,4 +1129,17 @@ service AuthService {
     rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
     // DeleteToken deletes an existing token in a backend described by the given request.
     rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
+
+    // Out-of-session request for audit events.
+    rpc GetEvents(GetEventsRequest) returns (Events);
+    // In-session request for audit events.
+    rpc GetSessionEvents(GetSessionEventsRequest) returns (Events);
+
+    // GetAuthPreference gets cluster auth preference.
+    rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2);
+    // SetAuthPreference sets cluster auth preference.
+    rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty);
+
+    // StreamSessionEvents streams audit events from a given session recording.
+    rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);
 }

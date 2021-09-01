@@ -11,9 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -22,14 +21,16 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"k8s.io/client-go/transport"
-
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
+	"k8s.io/client-go/transport"
 )
 
 type ForwarderSuite struct{}
@@ -386,7 +387,7 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServices = tt.kubeServices
-			roles, err := services.FromSpec("ops", services.RoleSpecV3{
+			roles, err := services.FromSpec("ops", types.RoleSpecV4{
 				Allow: services.RoleConditions{
 					KubeUsers:  tt.roleKubeUsers,
 					KubeGroups: tt.roleKubeGroups,
@@ -757,6 +758,7 @@ type mockAccessPoint struct {
 
 	clusterConfig services.ClusterConfig
 	kubeServices  []services.Server
+	cas           map[string]types.CertAuthority
 }
 
 func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (services.ClusterConfig, error) {
@@ -765,6 +767,18 @@ func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (services.
 
 func (ap mockAccessPoint) GetKubeServices(ctx context.Context) ([]services.Server, error) {
 	return ap.kubeServices, nil
+}
+
+func (ap mockAccessPoint) GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+	var cas []types.CertAuthority
+	for _, ca := range ap.cas {
+		cas = append(cas, ca)
+	}
+	return cas, nil
+}
+
+func (ap mockAccessPoint) GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+	return ap.cas[id.DomainName], nil
 }
 
 type mockRevTunnel struct {

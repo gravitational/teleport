@@ -16,68 +16,69 @@ Here are examples of connectors that map SSO users to Kubernetes groups in OSS
 and Teleport's roles in enterprise:
 
 <Tabs>
-<TabItem label="Open Source">
-Github's `teams_to_logins` section maps users to roles based on users's teams.
+  <TabItem label="Open Source">
+    Github's `teams_to_logins` section maps users to roles based on users's teams.
 
-```yaml
-kind: github
-version: v3
-metadata:
-  # connector name that will be used with `tsh --auth=github login`
-  name: github
-spec:
-  # client ID of Github OAuth app
-  client_id: client-id
-  # client secret of Github OAuth app
-  client_secret: client-secret
-  # This name will be shown on UI login screen
-  display: Github
-  # Change tele.example.com to your domain name
-  redirect_url: https://tele.example.com:443/v1/webapi/github/callback
-  # Map github teams to teleport roles
-  teams_to_logins:
-    - organization: octocats # Github organization name
-      team: admin            # Github team name within that organization
-      # keep this field as is for now
-      logins: ["admin"]
-```
-</TabItem>
-<TabItem label="Enterprise">
-OIDC and SAML connectors `claims_to_roles` and `attributes_to_roles` sections map
-attribute statements and claims received from identity providers to Teleport's roles.
+    ```yaml
+    kind: github
+    version: v3
+    metadata:
+      # connector name that will be used with `tsh --auth=github login`
+      name: github
+    spec:
+      # client ID of Github OAuth app
+      client_id: client-id
+      # client secret of Github OAuth app
+      client_secret: client-secret
+      # This name will be shown on UI login screen
+      display: Github
+      # Change tele.example.com to your domain name
+      redirect_url: https://tele.example.com:443/v1/webapi/github/callback
+      # Map github teams to teleport roles
+      teams_to_logins:
+        - organization: octocats # Github organization name
+          team: admin            # Github team name within that organization
+          # keep this field as is for now
+          logins: ["admin"]
+    ```
+  </TabItem>
 
-```yaml
-kind: saml
-version: v2
-metadata:
-  name: okta
-spec:
-  acs: https://tele.example.com/v1/webapi/saml/acs
-  attributes_to_roles:
-  # Any user who has SAML `groups` atrribute with value `okta-admin`
-  # will be given the Teleport `admin` role.
-  - {name: "groups", value: "okta-admin", roles: ["admin"]}
-  entity_descriptor: |
-    <?xml !!! Make sure to shift all lines in XML descriptor 
-    with 4 spaces, otherwise things will not work
-```
-    
-Members of the role `admin` have a property `kubernetes_groups` that assigns them to [Kubernetes groups](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#referring-to-subjects)
+  <TabItem label="Enterprise">
+    OIDC and SAML connectors `claims_to_roles` and `attributes_to_roles` sections map
+    attribute statements and claims received from identity providers to Teleport's roles.
 
-```yaml
-kind: role
-version: v3
-metadata:
-  name: admin
-spec:
-  allow:
-    # if kubernetes integration is enabled, this setting configures which
-    # kubernetes groups the users of this role will be assigned to.
-    # note that you can refer to a SAML/OIDC trait named 'property' via the "{{external.property}}" template variable,
-    # this allows you to specify Kubernetes group membership via your identity provider:
-    kubernetes_groups: ["system:masters"]
-```
-</TabItem>
+    ```yaml
+    kind: saml
+    version: v2
+    metadata:
+      name: okta
+    spec:
+      acs: https://tele.example.com/v1/webapi/saml/acs
+      attributes_to_roles:
+      # Any user who has SAML `groups` atrribute with value `okta-admin`
+      # will be given the Teleport `admin` role.
+      - {name: "groups", value: "okta-admin", roles: ["admin"]}
+      entity_descriptor: |
+        <?xml !!! Make sure to shift all lines in XML descriptor 
+        with 4 spaces, otherwise things will not work
+    ```
+
+    Members of the role `admin` have a property `kubernetes_groups` that assigns them to [Kubernetes groups](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#referring-to-subjects)
+
+    ```yaml
+    kind: role
+    version: v3
+    metadata:
+      name: admin
+    spec:
+      allow:
+        # if kubernetes integration is enabled, this setting configures which
+        # kubernetes groups the users of this role will be assigned to.
+        # note that you can refer to a SAML/OIDC trait named 'property' via the "{{external.property}}" template variable,
+        # this allows you to specify Kubernetes group membership via your identity provider:
+        kubernetes_groups: ["system:masters"]
+    ```
+  </TabItem>
 </Tabs>
 
 ## Mapping OIDC claims and SAML attributes to Kubernetes groups
@@ -97,7 +98,7 @@ access: {"env": ["prod", "staging"]}
 ```
 
 Teleport's roles map OIDC claims or SAML attributes using template variables.
-Template variable `{% raw %}{{external.groups}}{% endraw %}` will
+Template variable `{{external.groups}}` will
 be substituted to the users's group list in the role definition.
 
 ```yaml
@@ -111,9 +112,9 @@ spec:
     # for Kubernetes to work until we fix it.
     logins: ['keep-this-value-here']
     # For Alice, will be substituted with the list ["admins", "devs"]
-    kubernetes_groups: ["{% raw %}{{external.groups}}{% endraw %}"]
+    kubernetes_groups: ["{{external.groups}}"]
     # For Alice, will be substituted with ["alice@example.com"]
-    kubernetes_users: ["{% raw %}{{external.email}}{% endraw %}"]
+    kubernetes_users: ["{{external.email}}"]
 ```
 
 Create or update this role using `tctl`:
@@ -125,71 +126,73 @@ $ tctl create -f member.yaml
 Assign this role to a user in OIDC or SAML connector:
 
 <Tabs>
-<TabItem label="Github (OSS)">
-```yaml
-kind: github
-version: v3
-metadata:
-  # connector name that will be used with `tsh --auth=github login`
-  name: github
-spec:
-  # client ID of Github OAuth app
-  client_id: client-id
-  # client secret of Github OAuth app
-  client_secret: client-secret
-  # This name will be shown on UI login screen
-  display: Github
-  # Change tele.example.com to your domain name
-  redirect_url: https://tele.example.com:443/v1/webapi/github/callback
-  # Map github teams to kubernetes groups
-  teams_to_logins:
-    - organization: octocats # Github organization name
-      team: admin            # Github team name within that organization
-      # list of Kubernetes groups this Github team is allowed to connect to
-      # keep this field as is for now
-      logins: ["admins"]
-```
-</TabItem>
-<TabItem label="OIDC (Enterprise)">
-```yaml
-kind: oidc
-version: v2
-metadata:
-  name: auth0
-spec:
-  redirect_url: https://tele.example.com/v1/webapi/oidc/callback
-  client_id: client-id-here
-  client_secret: client-secret-here
-  issuer_url: https://idp.example.com/
-  # request groups scope from OIDC provider
-  # read more about scopes here https://auth0.com/docs/scopes/openid-connect-scopes
-  scope: [groups]
-  claims_to_roles:
-    - {claim: "groups", value: "*", roles: ["group-member"]}
-```
-</TabItem>
-<TabItem label="SAML (Enterprise)">
-```yaml
-kind: saml
-version: v2
-metadata:
-  name: okta
-spec:
-  acs: https://tele.example.com/v1/webapi/saml/acs
-  attributes_to_roles:
-  - {name: "groups", value: "*", roles: ["group-member"]}
-  entity_descriptor: |
-    <?xml !!! Make sure to indent all lines in XML descriptor 
-    with 4 spaces, otherwise things will not work
-```
-</TabItem>
+  <TabItem label="Github (OSS)">
+    ```yaml
+    kind: github
+    version: v3
+    metadata:
+      # connector name that will be used with `tsh --auth=github login`
+      name: github
+    spec:
+      # client ID of Github OAuth app
+      client_id: client-id
+      # client secret of Github OAuth app
+      client_secret: client-secret
+      # This name will be shown on UI login screen
+      display: Github
+      # Change tele.example.com to your domain name
+      redirect_url: https://tele.example.com:443/v1/webapi/github/callback
+      # Map github teams to kubernetes groups
+      teams_to_logins:
+        - organization: octocats # Github organization name
+          team: admin            # Github team name within that organization
+          # list of Kubernetes groups this Github team is allowed to connect to
+          # keep this field as is for now
+          logins: ["admins"]
+    ```
+  </TabItem>
+
+  <TabItem label="OIDC (Enterprise)">
+    ```yaml
+    kind: oidc
+    version: v2
+    metadata:
+      name: auth0
+    spec:
+      redirect_url: https://tele.example.com/v1/webapi/oidc/callback
+      client_id: client-id-here
+      client_secret: client-secret-here
+      issuer_url: https://idp.example.com/
+      # request groups scope from OIDC provider
+      # read more about scopes here https://auth0.com/docs/scopes/openid-connect-scopes
+      scope: [groups]
+      claims_to_roles:
+        - {claim: "groups", value: "*", roles: ["group-member"]}
+    ```
+  </TabItem>
+
+  <TabItem label="SAML (Enterprise)">
+    ```yaml
+    kind: saml
+    version: v2
+    metadata:
+      name: okta
+    spec:
+      acs: https://tele.example.com/v1/webapi/saml/acs
+      attributes_to_roles:
+      - {name: "groups", value: "*", roles: ["group-member"]}
+      entity_descriptor: |
+        <?xml !!! Make sure to indent all lines in XML descriptor 
+        with 4 spaces, otherwise things will not work
+    ```
+  </TabItem>
 </Tabs>
 
 ## Local Users
 
 Local users are mapped to Kubernetes groups using roles:
 
-``` bash
+```bash
 # Specify `kubernetes_groups` property in a role "admins" and
 # create a user assigned to the role.
 $ tctl users add joe --roles="admins"
@@ -197,27 +200,28 @@ $ tctl users add joe --roles="admins"
 
 ## Kubernetes Labels
 
-Label each cluster with key value pairs describing the cluster:
+Label each cluster with key-value pairs describing the cluster:
 
 <Tabs>
-<TabItem label="Helm">
-```bash
-# install or upgrade the agent or cluster and set labels:
-$ helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
-    --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent\
-    --set labels.env=prod --set labels.region=us-west-1
-```
-</TabItem>
-<TabItem label="Config">
-```yaml
-kubernetes_service:
-  enabled: true
-  kube_cluster_name: cookie
-  labels:
-    env: prod
-    region: us-west-1
-```
-</TabItem>
+  <TabItem label="Helm">
+    ```bash
+    # install or upgrade the agent or cluster and set labels:
+    $ helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
+        --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent\
+        --set labels.env=prod --set labels.region=us-west-1
+    ```
+  </TabItem>
+
+  <TabItem label="Config">
+    ```yaml
+    kubernetes_service:
+      enabled: true
+      kube_cluster_name: cookie
+      labels:
+        env: prod
+        region: us-west-1
+    ```
+  </TabItem>
 </Tabs>
 
 Limit access to cluster based on the label:
@@ -284,7 +288,7 @@ subjects:
   namespace: default
 ```
 
-Take a look at the example usage in a [Teleport Helm chart](https://github.com/gravitational/teleport/blob/v{{teleport_version}}/examples/chart/teleport-cluster/templates/clusterrole.yaml)
+Take a look at the example usage in a [Teleport Helm chart](https://github.com/gravitational/teleport/blob/v\(=teleport.version=\)/examples/chart/teleport-cluster/templates/clusterrole.yaml)
 
 ## Next Steps
 
@@ -293,6 +297,6 @@ Integrate with your identity provider:
 - [OIDC guide](../enterprise/sso/oidc.mdx)
 - [ADFS guide](../enterprise/sso/ssh-adfs.mdx)
 - [Azure AD guide](../enterprise/sso/ssh-azuread.mdx)
-- [GSuite guide](../enterprise/sso/ssh-azuread.mdx)
+- [Google Workspace guide](../enterprise/sso/ssh-google-workspace.mdx)
 - [Onelogin guide](../enterprise/sso/ssh-one-login.mdx)
 - [Okta guide](../enterprise/sso/ssh-okta.mdx)

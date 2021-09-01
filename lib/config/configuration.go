@@ -114,6 +114,8 @@ type CommandLineFlags struct {
 
 	// DatabaseName is the name of the database to proxy.
 	DatabaseName string
+	// DatabaseDescription is a free-form database description.
+	DatabaseDescription string
 	// DatabaseProtocol is the type of the proxied database e.g. postgres or mysql.
 	DatabaseProtocol string
 	// DatabaseURI is the address to connect to the proxied database.
@@ -122,6 +124,12 @@ type CommandLineFlags struct {
 	DatabaseCACertFile string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
 	DatabaseAWSRegion string
+	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
+	DatabaseAWSRedshiftClusterID string
+	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
+	DatabaseGCPProjectID string
+	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
+	DatabaseGCPInstanceID string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -401,6 +409,16 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
+
+	formatter := &textFormatter{
+		LogFormat:    loggerConfig.Format,
+		EnableColors: trace.IsTerminal(os.Stderr),
+	}
+	err := formatter.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Formatter = formatter
 	return nil
 }
 
@@ -676,6 +694,34 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.TunnelPublicAddrs = addrs
 	}
+	if len(fc.Proxy.PostgresPublicAddr) != 0 {
+		// Postgres proxy is multiplexed on the web proxy port. If the port is
+		// not specified here explicitly, prefer defaults in the following
+		// order, depending on what's set:
+		//   1. Web proxy public port
+		//   2. Web proxy listen port
+		//   3. Web proxy default listen port
+		defaultPort := cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
+		if len(cfg.Proxy.PublicAddrs) != 0 {
+			defaultPort = cfg.Proxy.PublicAddrs[0].Port(defaults.HTTPListenPort)
+		}
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.PostgresPublicAddr, defaultPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PostgresPublicAddrs = addrs
+	}
+	if len(fc.Proxy.MySQLPublicAddr) != 0 {
+		if fc.Proxy.MySQLAddr == "" {
+			return trace.BadParameter("mysql_listen_addr must be set when mysql_public_addr is set")
+		}
+		// MySQL proxy is listening on a separate port.
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.MySQLPublicAddr, defaults.MySQLListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MySQLPublicAddrs = addrs
+	}
 
 	acme, err := fc.Proxy.ACME.Parse()
 	if err != nil {
@@ -756,6 +802,8 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
 		}
 	}
+
+	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
 
 	return nil
 }
@@ -844,6 +892,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			CACert:        caBytes,
 			AWS: service.DatabaseAWS{
 				Region: database.AWS.Region,
+				Redshift: service.DatabaseAWSRedshift{
+					ClusterID: database.AWS.Redshift.ClusterID,
+				},
 			},
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
@@ -896,8 +947,15 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			InsecureSkipVerify: application.InsecureSkipVerify,
 		}
 		if application.Rewrite != nil {
+			// Parse http rewrite headers if there are any.
+			headers, err := service.ParseHeaders(application.Rewrite.Headers)
+			if err != nil {
+				return trace.Wrap(err, "failed to parse headers rewrite configuration for app %q",
+					application.Name)
+			}
 			app.Rewrite = &service.Rewrite{
 				Redirect: application.Rewrite.Redirect,
+				Headers:  headers,
 			}
 		}
 		if err := app.Check(); err != nil {
@@ -1183,6 +1241,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 		db := service.Database{
 			Name:          clf.DatabaseName,
+			Description:   clf.DatabaseDescription,
 			Protocol:      clf.DatabaseProtocol,
 			URI:           clf.DatabaseURI,
 			StaticLabels:  staticLabels,
@@ -1190,6 +1249,13 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			CACert:        caBytes,
 			AWS: service.DatabaseAWS{
 				Region: clf.DatabaseAWSRegion,
+				Redshift: service.DatabaseAWSRedshift{
+					ClusterID: clf.DatabaseAWSRedshiftClusterID,
+				},
+			},
+			GCP: service.DatabaseGCP{
+				ProjectID:  clf.DatabaseGCPProjectID,
+				InstanceID: clf.DatabaseGCPInstanceID,
 			},
 		}
 		if err := db.Check(); err != nil {

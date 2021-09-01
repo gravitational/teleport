@@ -34,6 +34,14 @@ $ tsh login --proxy=myinstance.teleport.sh:443
 # tctl (Enterprise edition) can use tsh credentials as of version 5.0
 $ tctl status
 ```
+### Why am I getting `permission denied` errors when using `tctl`?
+
+If you have a local file `/etc/teleport.yaml` on your machine `tctl` will attempt to use the local cluster. Set the environment variable `TELEPORT_CONFIG_FILE` to `""` so it will not attempt to use that Teleport configuration file.
+
+```bash
+$ export TELEPORT_CONFIG_FILE=""
+$ tctl tokens add --type=node
+```
 
 ### Are dynamic node tokens available?
 

@@ -14,14 +14,14 @@ Unlike traditional SSH, Teleport introduces the concept of a User Account. A
 User Account is not the same as SSH login. Instead each Teleport User is
 associated with another account which is used to authenticate the user.
 
-For community edition users, these will be OS users which are administered
+For Open Source edition users, these will be OS users which are administered
 outside of Teleport on each cluster node. For example, there can be a Teleport
 user "joe" who can be given permission to login as "root" to a specific subset
 of nodes. Another user "juliet" could be given permission to OS users "root" and
 to "nginx". Teleport does not have knowledge of the OS Users so it expects both
 "root" and "nginx" to exist on the node.
 
-For enterprise edition users, these can be stored in an external identity
+For Enterprise edition users, these can be stored in an external identity
 sources such as OKTA, Active Directory, OneLogin, G Suite, or OIDC. Read the
 [Enterprise Guide](../enterprise/introduction.mdx) to learn more.
 
@@ -82,11 +82,11 @@ connector and it is enforced by default.
 There are two types of 2FA supported:
 
 - [TOTP - e.g. Google Authenticator](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
-- [U2F - e.g. YubiKey](https://en.wikipedia.org/wiki/Universal_2nd_Factor)
+- [U2F - e.g. YubiKey](https://en.wikipedia.org/wiki/Universal\_2nd_Factor)
 
-  `TOTP` is the default. You can use [Google
-  Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
-  [Authy](https://www.authy.com/) or any other TOTP client.
+`TOTP` is the default. You can use [Google
+Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
+[Authy](https://www.authy.com/) or any other TOTP client.
 
 ### External users
 

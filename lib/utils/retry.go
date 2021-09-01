@@ -27,14 +27,26 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// HalfJitter is a global jitter instance used for one-off jitters.
+// Prefer instantiating a new jitter instance for operations that require
+// repeated calls.
+var HalfJitter = NewHalfJitter()
+
 // Jitter is a function which applies random jitter to a
 // duration.  Used to randomize backoff values.  Must be
 // safe for concurrent usage.
 type Jitter func(time.Duration) time.Duration
 
-// NewJitter returns the default jitter (currently jitters on
+// NewJitter builds a new default jitter (currently jitters on
 // the range [n/2,n), but this is subject to change).
 func NewJitter() Jitter {
+	return NewHalfJitter()
+}
+
+// NewHalfJitter returns a new jitter on the range [n/2,n).  This is
+// a large range and most suitable for jittering things like backoff
+// operations where breaking cycles quickly is a priority.
+func NewHalfJitter() Jitter {
 	var mu sync.Mutex
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return func(d time.Duration) time.Duration {
@@ -46,6 +58,24 @@ func NewJitter() Jitter {
 		mu.Lock()
 		defer mu.Unlock()
 		return (d / 2) + time.Duration(rng.Int63n(int64(d))/2)
+	}
+}
+
+// NewSeventhJitter builds a new jitter on the range [6n/7,n). Prefer smaller
+// jitters such as this when jittering periodic operations (e.g. cert rotation
+// checks) since large jitters result in significantly increased load.
+func NewSeventhJitter() Jitter {
+	var mu sync.Mutex
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return func(d time.Duration) time.Duration {
+		// values less than 1 cause rng to panic, and some logic
+		// relies on treating zero duration as non-blocking case.
+		if d < 1 {
+			return 0
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		return (6 * d / 7) + time.Duration(rng.Int63n(int64(d))/7)
 	}
 }
 
@@ -201,4 +231,23 @@ func (r *Linear) After() <-chan time.Time {
 // String returns user-friendly representation of the LinearPeriod
 func (r *Linear) String() string {
 	return fmt.Sprintf("Linear(attempt=%v, duration=%v)", r.attempt, r.Duration())
+}
+
+// RetryFastFor retries a function repeatedly for a set amount of
+// time before returning an error.
+//
+// Intended mostly for tests.
+func RetryStaticFor(d time.Duration, w time.Duration, f func() error) error {
+	start := time.Now()
+	var err error
+
+	for time.Since(start) < d {
+		if err = f(); err == nil {
+			break
+		}
+
+		time.Sleep(w)
+	}
+
+	return err
 }

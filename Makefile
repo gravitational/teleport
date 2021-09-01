@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=6.1.0-beta.1
+VERSION=6.2.0
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -276,6 +276,25 @@ test: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
 
+# Runs API Go tests. These have to be run separately as the package name is different.
+#
+.PHONY: test-api
+test-api:
+test-api: FLAGS ?= '-race'
+test-api: PACKAGES := $(shell cd api && go list ./...)
+test-api: $(VERSRC)
+	GOMODCACHE=/tmp go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+
+# Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
+.PHONY: test-sh
+test-sh:
+	@if ! type bats 2>&1 >/dev/null; then \
+		echo "Not running 'test-sh' target as 'bats' is not installed."; \
+		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		exit 0; \
+	fi; \
+	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
+
 #
 # Integration tests. Need a TTY to work.
 # Any tests which need to run as root must be skipped during regular integration testing.
@@ -341,19 +360,32 @@ lint-sh:
 
 # Lints all the Helm charts found in directories under examples/chart and exits on failure
 # If there is a .lint directory inside, the chart gets linted once for each .yaml file in that directory
+# We inherit yamllint's 'relaxed' configuration as it's more compatible with Helm output and will only error on
+# show-stopping issues. Kubernetes' YAML parser is not particularly fussy.
+# If errors are found, the file is printed with line numbers to aid in debugging.
 .PHONY: lint-helm
 lint-helm:
+	@if ! type yamllint 2>&1 >/dev/null; then \
+		echo "Not running 'lint-helm' target as 'yamllint' is not installed."; \
+		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
+		exit 0; \
+	fi; \
 	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
-		if [ -d $$CHART/.lint ]; then \
-			for VALUES in $$CHART/.lint/*.yaml; do \
-				echo "$$CHART: $$VALUES"; \
-				helm lint --strict $$CHART -f $$VALUES || exit 1; \
-				helm template test $$CHART -f $$VALUES 1>/dev/null || exit 1; \
+		if [ -d $${CHART}/.lint ]; then \
+			for VALUES in $${CHART}/.lint/*.yaml; do \
+				export HELM_TEMP=$$(mktemp); \
+				echo -n "Using values from '$${VALUES}': "; \
+				yamllint -c examples/chart/.lint-config.yaml $${VALUES} || { cat -en $${VALUES}; exit 1; }; \
+				helm lint --strict $${CHART} -f $${VALUES} || exit 1; \
+				helm template test $${CHART} -f $${VALUES} 1>$${HELM_TEMP} || exit 1; \
+				yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
 			done \
 		else \
-			helm lint --strict $$CHART || exit 1; \
-			helm template test $$CHART 1>/dev/null || exit 1; \
-		fi \
+			export HELM_TEMP=$$(mktemp); \
+			helm lint --strict $${CHART} || exit 1; \
+			helm template test $${CHART} 1>$${HELM_TEMP} || exit 1; \
+			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
+		fi; \
 	done
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes

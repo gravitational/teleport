@@ -19,12 +19,11 @@ or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
 - [Azure Active Directory (AD)](ssh-azuread.mdx)
 - [Active Directory (ADFS)](ssh-adfs.mdx)
-- [G Suite](ssh-gsuite.mdx)
+- [Google Workspace](ssh-google-workspace.mdx)
 - [GitLab](gitlab.mdx)
 - [OneLogin](ssh-one-login.mdx)
 - [OIDC](oidc.mdx)
 - [Okta](ssh-okta.mdx)
-
 
 ## How does SSO work with SSH?
 
@@ -117,7 +116,7 @@ connect to Teleport nodes. To support this:
 
 - Use the SSO provider to create a field called *"unix_login"* (you can use another name).
 - Make sure it's exposed as a claim via SAML/OIDC.
-- Update a Teleport SSH role to include `{% raw %}{{external.unix_login}}{% endraw %}` variable into the list of allowed logins:
+- Update a Teleport SSH role to include `{{external.unix_login}}` variable into the list of allowed logins:
 
 ```yaml
 kind: role
@@ -127,10 +126,27 @@ metadata:
 spec:
   allow:
     logins:
-    - '{% raw %}{{external.unix_login}}{% endraw %}'
+    - '{{external.unix_login}}'
     node_labels:
       '*': '*'
 ```
+
+### Provider-Specific Workarounds
+
+Certain SSO providers may require or benefit from changes to Teleport's SSO
+flow. These provider-specific changes can be enabled by setting the
+`spec.provider` property of the connector definition to one of the following
+values to match your identity provider:
+
+- `adfs` (SAML): Required for compatibility with Active Directory (ADFS); refer
+  to the full [ADFS guide](./ssh-adfs.mdx#create-teleport-roles) for details.
+- `netiq` (OIDC): Used to enable NetIQ-specific ACR value processing; refer to
+  the [OIDC guide](./oidc.mdx#optional-acr-values) for details.
+- `ping` (SAML): Required for compatibility with Ping Identity (including
+  PingOne and PingFederate) when "Enforced Signed Authn Requests" is enabled in
+  the application settings.
+
+At this time, the `spec.provider` field should not be set for any other identity providers.
 
 ## Working with External Email Identity
 
@@ -138,9 +154,9 @@ Along with sending groups, an SSO provider will also provide a user's email addr
 In many organizations, the username that a person uses to log into a system is the
 same as the first part of their email address - the 'local' part. For example, `dave.smith@acme.com` might log in with the username `dave.smith`. Teleport 4.2.6+ adds an easy way to
 extract the first part of an email address so it can be used as a username - this
-is the `{% raw %}{{email.local}}{% endraw %}` function.
+is the `{{email.local}}` function.
 
-If the email claim from the identity provider (which can be accessed via `{% raw %}{{external.email}}{% endraw %}`) is sent and contains an email address, you can extract the 'local' part of the email address before the @ sign like this: `{% raw %}{{email.local(external.email)}}{% endraw %}`
+If the email claim from the identity provider (which can be accessed via `{{external.email}}`) is sent and contains an email address, you can extract the 'local' part of the email address before the @ sign like this: `{{email.local(external.email)}}`
 
 Here's how this looks in a Teleport role:
 
@@ -154,7 +170,7 @@ spec:
     logins:
     # Extracts the local part of dave.smith@acme.com, so the login will
     # now support dave.smith.
-    - '{% raw %}{{email.local(external.email)}}{% endraw %}'
+    - '{{email.local(external.email)}}'
     node_labels:
       '*': '*'
 ```
@@ -196,11 +212,11 @@ SAML and OIDC types:
 
 | Provider | YAML | Example |
 | - | - | - |
-| Github | `display: Github` | ![github](../../../img/teleport-sso/github.png) |
-| Microsoft | `display: Microsoft` | ![microsoft](../../../img/teleport-sso/microsoft.png) |
-| Google | `display: Google` | ![google](../../../img/teleport-sso/google.png) |
-| BitBucket | `display: Bitbucket` | ![bitbucket](../../../img/teleport-sso/bitbucket.png) |
-| OpenID | `display: Okta` | ![Okta](../../../img/teleport-sso/openId.png) |
+| Github | `display: Github` | ![github](../../../img/teleport-sso/github@2x.png) |
+| Microsoft | `display: Microsoft` | ![microsoft](../../../img/teleport-sso/microsoft@2x.png) |
+| Google | `display: Google` | ![google](../../../img/teleport-sso/google@2x.png) |
+| BitBucket | `display: Bitbucket` | ![bitbucket](../../../img/teleport-sso/bitbucket@2x.png) |
+| OpenID | `display: Okta` | ![Okta](../../../img/teleport-sso/openId@2x.png) |
 
 ## Troubleshooting
 

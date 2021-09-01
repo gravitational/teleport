@@ -158,6 +158,9 @@ proxy_service:
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
   public_addr: web3:443
+  postgres_public_addr: postgres.example:5432
+  mysql_listen_addr: webhost:3336
+  mysql_public_addr: mysql.example:3306
 `
 
 // NoServicesConfigString is a configuration file with no services enabled

@@ -77,6 +77,8 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 			insecureSkipVerify: app.InsecureSkipVerify,
 			jwt:                jwt,
 			rewrite:            app.Rewrite,
+			traits:             identity.Traits,
+			log:                s.log,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -1,0 +1,83 @@
+---
+title: Database Access Configuration Reference
+description: Configuration reference for Teleport Database Access
+---
+
+# Database Access Configuration Reference
+
+## Database Service Configuration
+
+The following snippet shows full YAML configuration of a Database Service
+appearing in `teleport.yaml` configuration file:
+
+```yaml
+db_service:
+  # Enables the Database Service.
+  enabled: "yes"
+  # This section contains definitions of all databases proxied by this
+  # service, it can contain multiple database instances.
+  databases:
+    # Name of the database proxy instance, used to reference in CLI.
+  - name: "prod"
+    # Free-form description of the database proxy instance.
+    description: "Production database"
+    # Database protocol. Can be "postgres" or "mysql".
+    protocol: "postgres"
+    # Database connection endpoint. Must be reachable from Database Service.
+    uri: "postgres.example.com:5432"
+    # Optional path to the CA used to validate the database certificate.
+    ca_cert_file: /path/to/ca.pem
+    # AWS specific configuration, only required for RDS/Aurora/Redshift.
+    aws:
+      # Region the database is deployed in.
+      region: "us-east-1"
+      # Redshift specific configuration.
+      redshift:
+        # Redshift cluster identifier.
+        cluster_id: "redshift-cluster-1"
+    # GCP specific configuration for Cloud SQL databases.
+    gcp:
+      # GCP project ID.
+      project_id: "xxx-1234"
+      # Cloud SQL instance ID.
+      instance_id: "example"
+    # Static labels to assign to the database. Used in RBAC.
+    static_labels:
+      env: "prod"
+    # Dynamic labels ("commands"). Used in RBAC.
+    dynamic_labels:
+    - name: "hostname"
+      command: ["hostname"]
+      period: 1m0s
+```
+
+## Proxy Configuration
+
+The following Proxy service configuration is relevant for Database Access:
+
+<Admonition
+  type="warning"
+  title="Proxy TLS Warning for PostgreSQL"
+>
+  The PostgreSQL connection requires TLS enabled for the SSL connection that operates on the `web_listen_addr`.
+  Do not set `--insecure-no-tls` for the proxy Teleport instances as a parameter.  If you are terminating TLS at a
+  Application Load Balancer (ALB) or other service that may require enabling a backend protocol of HTTPS for the target address.  
+</Admonition>
+
+```yaml
+proxy_service:
+  enabled: "yes"
+  # PostgreSQL proxy is listening on the regular web proxy port.
+  web_listen_addr: "0.0.0.0:3080"
+  # MySQL proxy is listening on a separate port and needs to be enabled
+  # on the proxy server.
+  mysql_listen_addr: "0.0.0.0:3036"
+  # By default database clients will be connecting to the Proxy over this
+  # hostname. To override public address for specific database protocols
+  # use postgres_public_addr and mysql_public_addr.
+  public_addr: "teleport.example.com:3080"
+  # Address advertised to PostgreSQL clients. If not set, public_addr is used.
+  postgres_public_addr: "postgres.teleport.example.com:443"
+  # Address advertised to MySQL clients. If not set, public_addr is used.
+  mysql_public_addr: "mysql.teleport.example.com:3306"
+```

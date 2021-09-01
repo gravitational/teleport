@@ -1,0 +1,13 @@
+clusterName: helmgke.practice.io
+chartMode: gcp
+gcp:
+  projectId: bens-demos
+  backendTable: teleport-helmgke-backend
+  auditLogTable: teleport-helmgke-events
+  sessionRecordingBucket: teleport-helmgke-sessions
+highAvailability:
+  replicaCount: 2
+  certManager:
+    enabled: true
+    issuerName: letsencrypt-production
+imagePullPolicy: Always

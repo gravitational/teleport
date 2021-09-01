@@ -1,7 +1,7 @@
 ---
-title: Access Workflows for SSH and Kubernetes Access
+title: Access Requests for SSH and Kubernetes Access
 description: How to customize SSH and Kubernetes access using Teleport.
-h1: Teleport Access Workflows
+h1: Teleport Access Requests
 ---
 
 #### Approving Workflow using an External Integration
@@ -12,7 +12,7 @@ h1: Teleport Access Workflows
 - [Integrating Teleport with Jira Server](ssh-approval-jira-server.mdx)
 - [Integrating Teleport with PagerDuty](ssh-approval-pagerduty.mdx)
 
-## Access Workflows Setup
+## Access Requests Setup
 
 Teleport 4.2 introduced the ability for users to request additional roles. The
 workflow API makes it easy to dynamically approve or deny these requests.
@@ -72,7 +72,7 @@ spec:
 # list of allow-rules, see
 # https://gravitational.com/teleport/docs/enterprise/ssh-rbac/
 rules:
-    # Access Request is part of Access Workflows introduced in 4.2
+    # Access Request were introduced in 4.2
     # `access_request` should only be given to Teleport Admins.
     - resources: [access_request]
       verbs: [list, read, update, delete]
@@ -126,13 +126,13 @@ deny:
     roles: ['admin']
 ```
 
-## Adding a Reason to Access Workflows
+## Adding a Reason to Access Requests
 
 Teleport 4.4.4 introduced the ability for users to request additional roles. `tctl`
-or the Access Workflows API makes it easy to dynamically approve or deny these requests.
+or the Access Requests API makes it easy to dynamically approve or deny these requests.
 
 By requiring a reason along with an access request, you can provide users with a default
-unprivileged state where they must always go through the Access Workflows API in order to
+unprivileged state where they must always go through the Access Requests API in order to
 gain meaningful privilege.
 
 Teams can leverage claims (traits) provided by external identity providers both when
@@ -168,7 +168,7 @@ spec:
       # external identity provider to the plugin system.
       annotations:
         foo: ['bar']
-        groups: ['{% raw %}{{external.groups}}{% endraw %}']
+        groups: ['{{external.groups}}']
   options:
     # the `request_access` field can be set to 'always' or 'reason' to tell
     # tsh or the web UI to always create an access request on login. If it is
@@ -191,9 +191,9 @@ version: v3
 
   `^prod.*$` - Can request all `prod.*` clusters. e.g. prod.us-east
 
-  `dev-{% raw %}{{regexp.match("us-*")}}{% endraw %}` - Can request any dev cluster in the US. e.g. dev-us-east-a, dev-us-west-b
+  `dev-{{regexp.match("us-*")}}` - Can request any dev cluster in the US. e.g. dev-us-east-a, dev-us-west-b
 
-  `dev-{% raw %}{{regexp.not_match("beta")}}{% endraw %}-prod` - Can request any cluster, apart from beta cluster. e.g. Can access dev-alpha-prod, cannot access dev-beta-prod.
+  `dev-{{regexp.not_match("beta")}}-prod` - Can request any cluster, apart from beta cluster. e.g. Can access dev-alpha-prod, cannot access dev-beta-prod.
 </Admonition>
 
 **Unprivileged User Login**<br/>
@@ -226,7 +226,7 @@ Because automatically generated requests always include all roles that the user 
 $ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
-### Other features of Access Workflows
+### Other features of Access Requests
 
 - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
 - Approved requests have no effect on Teleport's behavior outside of allowing additional

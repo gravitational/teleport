@@ -1,0 +1,301 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "type": "object",
+    "required": [
+        "clusterName",
+        "enterprise",
+        "podSecurityPolicy",
+        "labels",
+        "chartMode",
+        "highAvailability",
+        "image",
+        "enterpriseImage",
+        "logLevel",
+        "affinity",
+        "annotations",
+        "extraVolumes",
+        "extraVolumeMounts",
+        "imagePullPolicy",
+        "initContainers",
+        "resources",
+        "tolerations"
+    ],
+    "properties": {
+        "clusterName": {
+            "$id": "#/properties/clusterName",
+            "type": "string",
+            "default": ""
+        },
+        "teleportVersionOverride": {
+            "$id": "#/properties/teleportVersionOverride",
+            "type": "string",
+            "default": ""
+        },
+        "acme": {
+            "$id": "#/properties/acme",
+            "type": "boolean",
+            "default": false
+        },
+        "acmeEmail": {
+            "$id": "#/properties/acmeEmail",
+            "type": "string",
+            "default": ""
+        },
+        "acmeURI": {
+            "$id": "#/properties/acmeURI",
+            "type": "string",
+            "default": ""
+        },
+        "enterprise": {
+            "$id": "#/properties/enterprise",
+            "type": "boolean",
+            "default": false
+        },
+        "podSecurityPolicy": {
+            "$id": "#/properties/podSecurityPolicy",
+            "type": "object",
+            "required": [
+                "enabled"
+            ],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podSecurityPolicy/properties/enabled",
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "labels": {
+            "$id": "#/properties/labels",
+            "type": "object",
+            "default": {}
+        },
+        "chartMode": {
+            "$id": "#/properties/chartMode",
+            "type": "string",
+            "enum": ["standalone", "aws", "gcp", "custom"],
+            "default": "standalone"
+        },
+        "standalone": {
+            "$id": "#/properties/standalone",
+            "type": "object",
+            "required": [
+                "volumeSize"
+            ],
+            "properties": {
+                "existingClaimName": {
+                    "$id": "#/properties/standalone/properties/existingClaimName",
+                    "type": "string",
+                    "default": ""
+                },
+                "volumeSize": {
+                    "$id": "#/properties/standalone/properties/volumeSize",
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },
+        "aws": {
+            "$id": "#/properties/aws",
+            "type": "object",
+            "properties": {
+                "region": {
+                    "$id": "#/properties/aws/properties/region",
+                    "type": "string",
+                    "default": ""
+                },
+                "backendTable": {
+                    "$id": "#/properties/aws/properties/backendTable",
+                    "type": "string",
+                    "default": ""
+                },
+                "auditLogTable": {
+                    "$id": "#/properties/aws/properties/auditLogTable",
+                    "type": "string",
+                    "default": ""
+                },
+                "sessionRecordingBucket": {
+                    "$id": "#/properties/aws/properties/sessionRecordingBucket",
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },
+        "gcp": {
+            "$id": "#/properties/gcp",
+            "type": "object",
+            "required": [
+                "credentialSecretName"
+            ],
+            "properties": {
+                "projectId": {
+                    "$id": "#/properties/gcp/properties/projectId",
+                    "type": "string",
+                    "default": ""
+                },
+                "backendTable": {
+                    "$id": "#/properties/gcp/properties/backendTable",
+                    "type": "string",
+                    "default": ""
+                },
+                "auditLogTable": {
+                    "$id": "#/properties/gcp/properties/auditLogTable",
+                    "type": "string",
+                    "default": ""
+                },
+                "sessionRecordingBucket": {
+                    "$id": "#/properties/gcp/properties/sessionRecordingBucket",
+                    "type": "string",
+                    "default": ""
+                },
+                "credentialSecretName": {
+                    "$id": "#/properties/gcp/properties/credentialSecretName",
+                    "type": "string",
+                    "default": "teleport-gcp-credentials"
+                }
+            }
+        },
+        "highAvailability": {
+            "$id": "#/properties/highAvailability",
+            "type": "object",
+            "required": [
+                "replicaCount",
+                "requireAntiAffinity",
+                "certManager"
+            ],
+            "properties": {
+                "replicaCount": {
+                    "$id": "#/properties/highAvailability/properties/replicaCount",
+                    "type": "integer",
+                    "default": 1
+                },
+                "requireAntiAffinity": {
+                    "$id": "#/properties/highAvailability/properties/requireAntiAffinity",
+                    "type": "boolean",
+                    "default": false
+                },
+                "certManager": {
+                    "$id": "#/properties/highAvailability/properties/certManager",
+                    "type": "object",
+                    "required": [
+                        "enabled",
+                        "issuerName",
+                        "issuerKind"
+                    ],
+                    "properties": {
+                        "enabled": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/enabled",
+                            "type": "boolean",
+                            "default": "false"
+                        },
+                        "issuerName": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerName",
+                            "type": "string",
+                            "default": ""
+                        },
+                        "issuerKind": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerKind",
+                            "type": "string",
+                            "default": "Issuer"
+                        }
+                    }
+                }
+            }
+        },
+        "image": {
+            "$id": "#/properties/image",
+            "type": "string",
+            "default": "quay.io/gravitational/teleport"
+        },
+        "enterpriseImage": {
+            "$id": "#/properties/enterpriseImage",
+            "type": "string",
+            "default": "quay.io/gravitational/teleport-ent"
+        },
+        "logLevel": {
+            "$id": "#/properties/logLevel",
+            "type": "string",
+            "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+            "default": "INFO"
+        },
+        "affinity": {
+            "$id": "#/properties/affinity",
+            "type": "object",
+            "default": {}
+        },
+        "annotations": {
+            "$id": "#/properties/annotations",
+            "type": "object",
+            "required": [
+                "config",
+                "deployment",
+                "pod",
+                "service",
+                "serviceAccount"
+            ],
+            "properties": {
+                "config": {
+                    "$id": "#/properties/annotations/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/annotations/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                },
+                "service": {
+                    "$id": "#/properties/annotations/properties/service",
+                    "type": "object",
+                    "default": {}
+                },
+                "serviceAccount": {
+                    "$id": "#/properties/annotations/properties/serviceAccount",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
+        "extraArgs": {
+            "$id": "#/properties/extraArgs",
+            "type": "array",
+            "default": []
+        },
+        "extraVolumes": {
+            "$id": "#/properties/extraVolumes",
+            "type": "array",
+            "default": []
+        },
+        "extraVolumeMounts": {
+            "$id": "#/properties/extraVolumeMounts",
+            "type": "array",
+            "default": []
+        },
+        "imagePullPolicy": {
+            "$id": "#/properties/imagePullPolicy",
+            "type": "string",
+            "enum": ["Never", "IfNotPresent", "Always"],
+            "default": "IfNotPresent"
+        },
+        "initContainers": {
+            "$id": "#/properties/initContainers",
+            "type": "array",
+            "default": []
+        },
+        "resources": {
+            "$id": "#/properties/resources",
+            "type": "object",
+            "default": {}
+        },
+        "tolerations": {
+            "$id": "#/properties/tolerations",
+            "type": "array",
+            "default": []
+        }
+    }
+}

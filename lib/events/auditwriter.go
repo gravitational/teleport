@@ -51,10 +51,13 @@ func NewAuditWriter(cfg AuditWriterConfig) (*AuditWriter, error) {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
 		}),
-		cancel:   cancel,
-		closeCtx: ctx,
-		eventsCh: make(chan AuditEvent),
-		doneCh:   make(chan struct{}),
+		cancel:         cancel,
+		closeCtx:       ctx,
+		eventsCh:       make(chan AuditEvent),
+		doneCh:         make(chan struct{}),
+		lostEvents:     atomic.NewInt64(0),
+		acceptedEvents: atomic.NewInt64(0),
+		slowWrites:     atomic.NewInt64(0),
 	}
 	go func() {
 		writer.processEvents()
@@ -155,9 +158,9 @@ type AuditWriter struct {
 	doneCh chan struct{}
 
 	backoffUntil   time.Time
-	lostEvents     atomic.Int64
-	acceptedEvents atomic.Int64
-	slowWrites     atomic.Int64
+	lostEvents     *atomic.Int64
+	acceptedEvents *atomic.Int64
+	slowWrites     *atomic.Int64
 }
 
 // AuditWriterStats provides stats about lost events and slow writes

@@ -32,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
 
@@ -458,24 +460,42 @@ func (s *remoteSite) updateCertAuthorities() error {
 			"remote cluster sent different cluster name %v instead of expected one %v",
 			remoteCA.GetClusterName(), s.domainName)
 	}
-	err = s.localClient.UpsertCertAuthority(remoteCA)
-	if err != nil {
+
+	oldRemoteCA, err := s.localClient.GetCertAuthority(services.CertAuthID{
+		Type:       services.HostCA,
+		DomainName: remoteCA.GetClusterName(),
+	}, false)
+
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
+	// if CA is changed or does not exist, update backend
+	if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
+		if err := s.localClient.UpsertCertAuthority(remoteCA); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// always update our local reference to the cert authority
 	return s.compareAndSwapCertAuthority(remoteCA)
 }
 
 func (s *remoteSite) periodicUpdateCertAuthorities() {
 	s.Debugf("Ticking with period %v", s.srv.PollingPeriod)
-	ticker := time.NewTicker(s.srv.PollingPeriod)
-	defer ticker.Stop()
+
+	periodic := interval.New(interval.Config{
+		Duration:      s.srv.PollingPeriod,
+		FirstDuration: utils.HalfJitter(s.srv.PollingPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
 	for {
 		select {
 		case <-s.ctx.Done():
 			s.Debugf("Context is closing.")
 			return
-		case <-ticker.C:
+		case <-periodic.Next():
 			err := s.updateCertAuthorities()
 			if err != nil {
 				switch {

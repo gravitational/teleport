@@ -169,7 +169,8 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 // ListActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (c *NodeCommand) ListActive(client auth.ClientI) error {
-	nodes, err := client.GetNodes(c.namespace, services.SkipValidation())
+	ctx := context.TODO()
+	nodes, err := client.GetNodes(ctx, c.namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}

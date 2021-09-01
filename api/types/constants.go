@@ -197,6 +197,9 @@ const (
 	// KindBilling represents access to cloud billing features
 	KindBilling = "billing"
 
+	// V4 is the fourth version of resources.
+	V4 = "v4"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 
@@ -207,6 +210,9 @@ const (
 	// not explicitly versioned.
 	V1 = "v1"
 )
+
+// WebSessionSubKinds lists subkinds of web session resources
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -232,8 +238,26 @@ const (
 	VerbRotate = "rotate"
 )
 
-// WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
+const (
+	// OriginLabel is a resource metadata label name used to identify a source
+	// that the resource originates from.
+	OriginLabel = "teleport.dev/origin"
+
+	// OriginConfigFile is an origin value indicating that the resource was
+	// constructed as a default value.
+	OriginDefaults = "defaults"
+
+	// OriginConfigFile is an origin value indicating that the resource is
+	// derived from static configuration.
+	OriginConfigFile = "config-file"
+
+	// OriginDynamic is an origin value indicating that the resource was
+	// committed as dynamic configuration.
+	OriginDynamic = "dynamic"
+)
+
+// OriginValues lists all possible origin values.
+var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.

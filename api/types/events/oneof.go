@@ -213,6 +213,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_MFADeviceDelete{
 			MFADeviceDelete: e,
 		}
+	case *BillingCardCreate:
+		out.Event = &OneOf_BillingCardCreate{
+			BillingCardCreate: e,
+		}
+	case *BillingCardDelete:
+		out.Event = &OneOf_BillingCardDelete{
+			BillingCardDelete: e,
+		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
 	}
@@ -310,6 +318,10 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	} else if e := in.GetMFADeviceAdd(); e != nil {
 		return e, nil
 	} else if e := in.GetMFADeviceDelete(); e != nil {
+		return e, nil
+	} else if e := in.GetBillingCardCreate(); e != nil {
+		return e, nil
+	} else if e := in.GetBillingCardDelete(); e != nil {
 		return e, nil
 	} else {
 		if in.Event == nil {

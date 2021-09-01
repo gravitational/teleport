@@ -88,11 +88,9 @@ This setup works as follows:
 
 1. The "leaf" creates an outbound reverse SSH tunnel to "root" and keeps the
    tunnel open.
-
 2. **Accessibility only works in one direction.** The "leaf" cluster allows
    users from "root" to access its nodes but users in the "leaf" cluster can not
    access the "root" cluster.
-
 3. When a user tries to connect to a node inside "leaf" using root's proxy, the
    reverse tunnel from step 1 is used to establish this connection shown as the
    green line above.
@@ -129,9 +127,7 @@ the fly using `tctl` tool.
   type="tip"
   title="Important"
 >
-  It is important to realize that join tokens are only used to establish the
-  connection for the first time. The clusters will exchange certificates and
-  won't be using the token to re-establish the connection in the future.
+  It's important to note that join tokens are only used to establish the connection for the first time. The clusters will exchange certificates and won't use tokens to re-establish their connection afterwards.
 </Admonition>
 
 ### Static Join Tokens
@@ -265,7 +261,6 @@ Lets make a few assumptions for this example:
 
 - The cluster "root" has two roles: *user* for regular users and *admin* for
   local administrators.
-
 - We want administrators from "root" (but not regular users!) to have
   restricted access to "leaf". We want to deny them access to machines
   with "environment=production" and any Government cluster labeled "customer=gov"
@@ -489,43 +484,51 @@ Remove the relationship from the root cluster: `tctl rm rc/leaf.example.com`.
 
 Remove the relationship from the leaf cluster: `tctl rm tc/root.example.com`.
 
-## Sharing Kubernetes groups between Trusted Clusters
+## Sharing user traits between Trusted Clusters
 
-Below is an example of how to share a kubernetes group between trusted clusters.
+You can share user SSH logins, Kubernetes users/groups and database users/names
+between Trusted Clusters.
 
-In this example, we have a root trusted cluster with a role `root` and kubernetes groups:
-
-```yaml
-kubernetes_groups: ["system:masters"]
-```
-
-SSH logins:
+Suppose you have a root cluster with a role named `root` and the following
+allow rules:
 
 ```yaml
 logins: ["root"]
+kubernetes_groups: ["system:masters"]
+kubernetes_users: ["alice"]
+db_users: ["postgres"]
+db_names: ["dev", "metrics"]
 ```
 
-The leaf cluster can choose to map this `root` cluster to its own cluster. The `admin` cluster in the trusted cluster config:
+When setting up the Trusted Cluster relationship, the leaf cluster can choose
+to map this `root` cluster role to its own `admin` role:
 
 ```yaml
 role_map:
-  - remote: "root"
-    local: [admin]
+- remote: "root"
+  local: ["admin"]
 ```
 
-The role `admin` of the leaf cluster can now be set up to use the root cluster role logins and `kubernetes_groups` using the following variables:
+The role `admin` of the leaf cluster can now be set up to use the root cluster's
+role logins, Kubernetes groups and other traits using the following variables:
 
 ```yaml
-logins: ["{% raw %}{{internal.logins}}{% endraw %}"]
-kubernetes_groups: ["{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]
+logins: ["{{internal.logins}}"]
+kubernetes_groups: ["{{internal.kubernetes_groups}}"]
+kubernetes_users: ["{{internal.kubernetes_users}}"]
+db_users: ["{{internal.db_users}}"]
+db_names: ["{{internal.db_names}}"]
 ```
 
-<Admonition
-  type="tip"
-  title="Note"
->
-  In order to pass logins from a root trusted cluster to a leaf cluster, you must use the variable `{% raw %}{{internal.logins}}{% endraw %}`.
-</Admonition>
+User traits that come from the identity provider (such as OIDC claims or SAML
+attributes) are also passed to the leaf clusters and can be access in the role
+templates using `external` variable prefix:
+
+```yaml
+logins: ["{{internal.logins}}", "{{external.logins_from_okta}}"]
+node_labels:
+  env: "{{external.env_from_okta}}"
+```
 
 ## How does it work?
 

@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -159,6 +160,10 @@ type Server struct {
 
 	// wtmpPath is the path to the user accounting log.
 	wtmpPath string
+
+	// allowTCPForwarding indicates whether the ssh server is allowed to offer
+	// TCP port forwarding.
+	allowTCPForwarding bool
 }
 
 // GetClock returns server clock implementation
@@ -489,6 +494,16 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 	}
 }
 
+// SetAllowTCPForwarding sets the TCP port forwarding mode that this server is
+// allowed to offer. The default value is SSHPortForwardingModeAll, i.e. port
+// forwarding is allowed.
+func SetAllowTCPForwarding(allow bool) ServerOption {
+	return func(s *Server) error {
+		s.allowTCPForwarding = allow
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -507,15 +522,16 @@ func New(addr utils.NetAddr,
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	s := &Server{
-		addr:            addr,
-		authService:     authService,
-		hostname:        hostname,
-		proxyPublicAddr: proxyPublicAddr,
-		uuid:            uuid,
-		cancel:          cancel,
-		ctx:             ctx,
-		clock:           clockwork.NewRealClock(),
-		dataDir:         dataDir,
+		addr:               addr,
+		authService:        authService,
+		hostname:           hostname,
+		proxyPublicAddr:    proxyPublicAddr,
+		uuid:               uuid,
+		cancel:             cancel,
+		ctx:                ctx,
+		clock:              clockwork.NewRealClock(),
+		dataDir:            dataDir,
+		allowTCPForwarding: true,
 	}
 	s.limiter, err = limiter.NewLimiter(limiter.Config{})
 	if err != nil {
@@ -815,6 +831,19 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	return nil
 }
 
+var (
+	userSessionLimitHitCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricUserMaxConcurrentSessionsHit,
+			Help: "Number of times a user exceeded their max concurrent ssh connections",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(userSessionLimitHitCount)
+}
+
 // HandleRequest processes global out-of-band requests. Global out-of-band
 // requests are processed in order (this way the originator knows which
 // request we are responding to). If Teleport does not support the request
@@ -880,6 +909,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	if err != nil {
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
 			// user has exceeded their max concurrent ssh connections.
+			userSessionLimitHitCount.Inc()
 			if err := s.EmitAuditEvent(s.ctx, &events.SessionReject{
 				Metadata: events.Metadata{
 					Type: events.SessionRejectedEvent,
@@ -1002,7 +1032,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 					Reason:  events.SessionRejectedReasonMaxSessions,
 					Maximum: max,
 				}); err != nil {
-					log.WithError(err).Warn("Failed to emit sesion reject event.")
+					log.WithError(err).Warn("Failed to emit session reject event.")
 				}
 				rejectChannel(nch, ssh.Prohibited, fmt.Sprintf("too many session channels for user %q (max=%d)", identityContext.TeleportUser, max))
 				return
@@ -1044,6 +1074,24 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 }
 
+// canPortForward determines if port forwarding is allowed for the current
+// user/role/node combo. Returns nil if port forwarding is allowed, non-nil
+// if denied.
+func (s *Server) canPortForward(scx *srv.ServerContext, channel ssh.Channel) error {
+	// Is the node configured to allow port forwarding?
+	if !s.allowTCPForwarding {
+		return trace.AccessDenied("node does not allow port forwarding")
+	}
+
+	// Check if the role allows port forwarding for this user.
+	err := s.authHandlers.CheckPortForward(scx.DstAddr, scx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // handleDirectTCPIPRequest handles port forwarding requests.
 func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, channel ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
@@ -1063,9 +1111,9 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 
 	channel = scx.TrackActivity(channel)
 
-	// Check if the role allows port forwarding for this user.
-	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)
-	if err != nil {
+	// Bail out now if TCP port forwarding is not allowed for this node/user/role
+	// combo
+	if err = s.canPortForward(scx, channel); err != nil {
 		writeStderr(channel, err.Error())
 		return
 	}
