@@ -3185,6 +3185,26 @@ func (g *GRPCServer) ChangeUserAuthentication(ctx context.Context, req *proto.Ch
 	return res, trace.Wrap(err)
 }
 
+// StartAccountRecovery is implemented by AuthService.StartAccountRecovery.
+func (g *GRPCServer) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resetToken, err := auth.ServerWithRoles.StartAccountRecovery(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := resetToken.(*types.UserTokenV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected UserToken type %T", resetToken)
+	}
+
+	return r, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
