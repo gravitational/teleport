@@ -1,0 +1,24 @@
+# This workflow is run whenever a pull request is opened, re-opened, or taken
+# out of draft (ready for review).
+#
+# NOTE: Due to the sensitive nature of this workflow, it must always be run
+# against master AND with minimal permissions. These properties must always
+# be maintained!
+name: Assign
+on: 
+  pull_request_target:
+    types: [assigned, opened, reopened, ready_for_review]
+jobs:
+  auto-request-review:
+    name: Auto Request Review
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout master branch of Teleport repository. This is to prevent an
+      # attacker from submitting their own review assignment logic.
+      - name: Checkout master branch
+        uses: actions/checkout@master        
+      - name: Installing the latest version of Go.
+        uses: actions/setup-go@v2
+      # Run "assign-reviewers" subcommand on bot.
+      - name: Assigning reviewers 
+        run: cd .github/workflows/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} --default-reviewers=${{ secrets.defaultreviewers }} --reviewers=${{ secrets.reviewers }} assign-reviewers

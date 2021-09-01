@@ -1,0 +1,19 @@
+# Workflow will run every 30 minutes and dismiss stale runs on all open pull requests. 
+name: Dismiss Stale Workflows Runs
+on:
+  schedule:
+    # Runs every 30 minutes
+    - cron:  '0,30 * * * *' 
+
+jobs: 
+  dismiss-stale-runs:
+    name: Dismiss Stale Workflow Runs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master branch 
+        uses: actions/checkout@master
+      - name: Installing the latest version of Go.
+        uses: actions/setup-go@v2
+        # Run "dismiss-runs" subcommand on bot.
+      - name: Dismiss
+        run: cd .github/workflows/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} dismiss-runs
