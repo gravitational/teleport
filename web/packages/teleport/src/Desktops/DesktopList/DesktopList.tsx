@@ -66,10 +66,10 @@ function DesktopList(props: Props) {
   function onDesktopSelect(
     e: React.MouseEvent,
     username: string,
-    desktopUUID: string
+    desktopId: string
   ) {
     e.preventDefault();
-    openRemoteDesktopWindow(username, desktopUUID);
+    openRemoteDesktopWindow(username, desktopId);
   }
 
   const data = sortAndFilter(searchValue);
@@ -123,16 +123,16 @@ const LoginCell: React.FC<Required<{
   onSelect?: (
     e: React.SyntheticEvent,
     username: string,
-    desktopUUID: string
+    desktopId: string
   ) => void;
   onOpen: (serverUuid: string) => LoginItem[];
   [key: string]: any;
 }>> = props => {
   const { rowIndex, data, onOpen, onSelect } = props;
   const { name } = data[rowIndex] as Desktop;
-  const desktopUUID = name;
+  const desktopId = name;
   function handleOnOpen() {
-    return onOpen(desktopUUID);
+    return onOpen(desktopId);
   }
 
   function handleOnSelect(e: React.SyntheticEvent, login: string) {
@@ -142,7 +142,7 @@ const LoginCell: React.FC<Required<{
 
     const username = login;
 
-    return onSelect(e, username, desktopUUID);
+    return onSelect(e, username, desktopId);
   }
 
   return (
@@ -202,7 +202,7 @@ type Props = {
   clusterId: string;
   authType: AuthType;
   searchValue: string;
-  openRemoteDesktopWindow: (username: string, desktopUUID: string) => void;
+  openRemoteDesktopWindow: (username: string, desktopId: string) => void;
 };
 
 export default DesktopList;

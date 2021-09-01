@@ -34,11 +34,11 @@ export default function useDesktopSession() {
     }
 
     // Build the websocket address from the route's url parameters.
-    const { clusterId, username, desktopUUID } = desktopRouteMatch.params;
+    const { clusterId, username, desktopId } = desktopRouteMatch.params;
     const addr = cfg.api.desktopWsAddr
       .replace(':fqdm', getHostName())
       .replace(':clusterId', clusterId)
-      .replace(':desktopUUID', desktopUUID)
+      .replace(':desktopId', desktopId)
       .replace(':token', getAccessToken());
 
     // Create the TdpClient reference with the ws address and the username from the route url.

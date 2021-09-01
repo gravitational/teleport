@@ -57,7 +57,7 @@ const cfg = {
     recordings: '/web/cluster/:clusterId/recordings',
     databases: '/web/cluster/:clusterId/databases',
     desktops: '/web/cluster/:clusterId/desktops',
-    desktop: '/web/cluster/:clusterId/desktops/:desktopUUID/:username',
+    desktop: '/web/cluster/:clusterId/desktops/:desktopId/:username',
     users: '/web/users',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
@@ -99,7 +99,7 @@ const cfg = {
     databasesPath: `/v1/webapi/sites/:clusterId/databases`,
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops`,
     desktopWsAddr:
-      'wss://:fqdm/v1/webapi/sites/:clusterId/desktop/:desktopUUID/connect?access_token=:token',
+      'wss://:fqdm/v1/webapi/sites/:clusterId/desktop/:desktopId/connect?access_token=:token',
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     ttyWsAddr:
       'wss://:fqdm/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
@@ -225,10 +225,10 @@ const cfg = {
     });
   },
 
-  getDesktopRoute({ clusterId, username, desktopUUID }) {
+  getDesktopRoute({ clusterId, username, desktopId }) {
     return generatePath(cfg.routes.desktop, {
       clusterId,
-      desktopUUID,
+      desktopId,
       username,
     });
   },
@@ -407,10 +407,10 @@ export interface UrlPlayerParams {
   sid: string;
 }
 
-// /web/cluster/:clusterId/desktops/:desktopUUID/:username
+// /web/cluster/:clusterId/desktops/:desktopId/:username
 export interface UrlDesktopParams {
   username?: string;
-  desktopUUID?: string;
+  desktopId?: string;
   clusterId: string;
 }
 

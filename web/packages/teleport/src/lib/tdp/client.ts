@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import Codec, { MessageType, ButtonState, MouseButton, Message } from './codec';
+import Codec, { MessageType } from './codec';
 import Logger from 'shared/libs/logger';
 
 const logger = Logger.create('TDPClient');
@@ -38,8 +38,7 @@ export default class Client {
     try {
       this.canvas = canvas;
       this.socket = new WebSocket(this.socketAddr);
-      // Websocket callbacks use arrow functions to automatically bind `this` to the calling Client object (rather than using `bind`),
-      // see https://www.freecodecamp.org/news/this-is-why-we-need-to-bind-event-handlers-in-class-components-in-react-f7ea1a6f93eb/
+
       this.socket.onopen = () => {
         this.onOpen();
       };

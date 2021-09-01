@@ -38,10 +38,10 @@ export default function useDesktops(ctx: Ctx) {
     run(() => ctx.desktopService.fetchDesktops(clusterId).then(setDesktops));
   }, [clusterId]);
 
-  const openRemoteDesktopWindow = (username: string, desktopUUID: string) => {
+  const openRemoteDesktopWindow = (username: string, desktopId: string) => {
     const url = cfg.getDesktopRoute({
       clusterId,
-      desktopUUID,
+      desktopId,
       username,
     });
 
