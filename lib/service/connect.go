@@ -358,7 +358,6 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		}
 
 		identity, err = auth.Register(auth.RegisterParams{
-			DataDir:              process.Config.DataDir,
 			Token:                process.Config.Token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
