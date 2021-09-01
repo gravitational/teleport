@@ -1,0 +1,15 @@
+[Unit]
+Description=Teleport 7.1
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+EnvironmentFile=-/etc/default/teleport
+ExecStart=/usr/local/bin/teleport start --pid-file=/run/teleport.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/teleport.pid
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
