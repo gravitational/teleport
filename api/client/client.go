@@ -1758,8 +1758,17 @@ func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
 	return nil
 }
 
-// ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
+// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
+// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
 func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	res, err := c.grpc.ChangeUserAuthentication(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
+// This token is used as part of a URL that will be emailed to the user (not done in this request).
+// Represents step 1 of the account recovery process.
+func (c *Client) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
+	res, err := c.grpc.StartAccountRecovery(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
