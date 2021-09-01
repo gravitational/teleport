@@ -1,13 +1,13 @@
 package ci
 
 const (
-	// ASSIGN is the argument to assign reviewers
+	// ASSIGN is the subcommand to assign reviewers
 	ASSIGN = "assign-reviewers"
 
-	// CHECK is the argument to check reviewers
+	// CHECK is the subcommand to check reviewers
 	CHECK = "check-reviewers"
 
-	// CRON
+	// CRON is the subcommand to dismiss runs
 	CRON = "dismiss-runs"
 
 	// OPEN is a pull request state
@@ -16,10 +16,6 @@ const (
 	// GITHUBREPOSITORY is the environment variable
 	// that contains the repo owner and name
 	GITHUBREPOSITORY = "GITHUB_REPOSITORY"
-
-	// WORKFLOWCREDS is the name of the environment variable that is the
-	// access token with write permissions for GH actions.
-	WORKFLOWCREDS = "WORKFLOW_RUN_CREDENTIALS"
 
 	// GITHUBEVENTPATH is the env variable that
 	// contains the path to the event payload

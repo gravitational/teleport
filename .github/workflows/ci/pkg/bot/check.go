@@ -25,11 +25,10 @@ func (c *Bot) Check() error {
 			return trace.Wrap(err)
 		}
 	}
-	listOpts := github.ListOptions{}
 	reviews, _, err := env.Client.PullRequests.ListReviews(context.TODO(), pr.RepoOwner,
 		pr.RepoName,
 		pr.Number,
-		&listOpts)
+		&github.ListOptions{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -53,7 +52,6 @@ func (c *Bot) check(isInternal bool, pr *environment.PullRequestMetadata, requir
 			return trace.BadParameter("all required reviewers have not yet approved.")
 		}
 	}
-
 	if hasNewCommit(pr.HeadSHA, currentReviews) && !isInternal {
 		// Check file changes/commit verification
 		err := c.verify(pr.RepoOwner, pr.RepoName, pr.BaseSHA, pr.HeadSHA)

@@ -28,9 +28,8 @@ func (a *Bot) Assign() error {
 func (a *Bot) assign(required []string, currentAssignedReviewers []*github.User) error {
 	for _, requiredReviewer := range required {
 		if ok := containsRequiredReviewer(currentAssignedReviewers, requiredReviewer); !ok {
-			return trace.BadParameter("failed to assign all required reviewers.")
+			return trace.BadParameter("failed to assign all required reviewers")
 		}
-
 	}
 	return nil
 }

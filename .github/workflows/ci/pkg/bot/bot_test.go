@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/.github/workflows/ci/pkg/environment"
+
 	"github.com/stretchr/testify/require"
 )
 
