@@ -1208,15 +1208,6 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 			default:
 			}
 
-			isSSHError := func(e error) bool {
-				switch trace.Unwrap(err).(type) {
-				case *ssh.ExitError, *ssh.ExitMissingError:
-					return true
-				default:
-					return false
-				}
-			}
-
 			if tc.assertExpected != nil {
 				tc.assertExpected(t, err)
 			} else if err != nil && !trace.IsEOF(err) && !isSSHError(err) {
@@ -1241,6 +1232,15 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	case <-ctx.Done():
 		// session closed.  a test case is successful if the first
 		// session to close encountered the expected error variant.
+	}
+}
+
+func isSSHError(err error) bool {
+	switch trace.Unwrap(err).(type) {
+	case *ssh.ExitError, *ssh.ExitMissingError:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -3386,10 +3386,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 
 				termSession.Type("\aecho hi\n\r\aexit\n\r\a")
 				err = cl.SSH(context.TODO(), []string{}, false)
-				switch trace.Unwrap(err).(type) {
-				case nil, *ssh.ExitError, *ssh.ExitMissingError:
-					break
-				default:
+				if !isSSHError(err) {
 					require.NoError(t, err)
 				}
 
@@ -4227,16 +4224,11 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 
 		for i := 0; i < 10; i++ {
 			err = cl.Join(context.TODO(), apidefaults.Namespace, session.ID(sessionID), personB)
-			switch trace.Unwrap(err).(type) {
-			case nil, *ssh.ExitError, *ssh.ExitMissingError:
-				err = nil
-			default:
-				require.NoError(t, err)
-			}
-
-			if err == nil {
+			if err == nil || isSSHError(err) {
 				break
 			}
+
+			require.NoError(t, err)
 		}
 	}
 
@@ -4811,7 +4803,6 @@ func testSSHExitCode(t *testing.T, suite *integrationTestSuite) {
 			command:        []string{lsPath},
 			interactive:    false,
 			errorAssertion: require.NoError,
-			statusCode:     0,
 		},
 		// A failed noninteractive session should have a non-zero status code
 		{
@@ -4851,7 +4842,6 @@ func testSSHExitCode(t *testing.T, suite *integrationTestSuite) {
 			input:          fmt.Sprintf("%v\n\rexit\n\r", lsPath),
 			interactive:    true,
 			errorAssertion: require.NoError,
-			statusCode:     0,
 		},
 		// A successful interactive session should have a zero status code
 		{
@@ -4859,7 +4849,6 @@ func testSSHExitCode(t *testing.T, suite *integrationTestSuite) {
 			input:          "exit\n\r",
 			interactive:    true,
 			errorAssertion: require.NoError,
-			statusCode:     -100,
 		},
 	}
 
@@ -4889,39 +4878,35 @@ func testSSHExitCode(t *testing.T, suite *integrationTestSuite) {
 
 			// context to signal when the client is done with the terminal.
 			doneContext, doneCancel := context.WithTimeout(context.Background(), time.Second*10)
+			defer doneCancel()
 
-			func() {
-				cli, err := main.NewClient(t, ClientConfig{
-					Login:       suite.me.Username,
-					Cluster:     Site,
-					Host:        Host,
-					Port:        main.GetPortSSHInt(),
-					Interactive: tt.interactive,
-				})
-				require.NoError(t, err)
+			cli, err := main.NewClient(t, ClientConfig{
+				Login:       suite.me.Username,
+				Cluster:     Site,
+				Host:        Host,
+				Port:        main.GetPortSSHInt(),
+				Interactive: tt.interactive,
+			})
+			require.NoError(t, err)
 
-				if tt.interactive {
-					// Create a new terminal and connect it to std{in,out} of client.
-					term := NewTerminal(250)
-					cli.Stdout = term
-					cli.Stdin = term
-					term.Type(tt.input)
-				}
+			if tt.interactive {
+				// Create a new terminal and connect it to std{in,out} of client.
+				term := NewTerminal(250)
+				cli.Stdout = term
+				cli.Stdin = term
+				term.Type(tt.input)
+			}
 
-				// run the ssh command
-				err = cli.SSH(doneContext, tt.command, false)
-				tt.errorAssertion(t, err)
+			// run the ssh command
+			err = cli.SSH(doneContext, tt.command, false)
+			tt.errorAssertion(t, err)
 
-				// check that the exit code of the session matches the expected one
-				if err != nil {
-					var exitError *ssh.ExitError
-					require.ErrorAs(t, trace.Unwrap(err), &exitError)
-					require.Equal(t, tt.statusCode, exitError.ExitStatus())
-				}
-
-				// Signal that the client has finished the interactive session.
-				doneCancel()
-			}()
+			// check that the exit code of the session matches the expected one
+			if err != nil {
+				var exitError *ssh.ExitError
+				require.ErrorAs(t, trace.Unwrap(err), &exitError)
+				require.Equal(t, tt.statusCode, exitError.ExitStatus())
+			}
 		})
 	}
 }
