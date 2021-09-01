@@ -24,22 +24,43 @@ export default function Container() {
 }
 
 export function DesktopSession(props: State) {
-  const { attempt, setAttempt, tdpClientRef, tdpClientInitialized } = props;
+  const { setAttempt, tdpClient, tdpClientInitialized, username } = props;
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
-
-  React.useEffect(() => {
-    resizeCanvasToDisplaySize(canvasRef.current);
-  }, []);
 
   // Waits for the state hook to initialize the TdpClient.
   // Once the client is initialized, calls for the client to connect to the
   // server and passes in the canvas for the client to render to.
   React.useEffect(() => {
     setAttempt({ status: 'processing' });
-    const tdpClient = tdpClientRef.current;
+
     if (tdpClientInitialized) {
+      const ctx = canvasRef.current.getContext('2d');
+      syncCanvasSizeToClientSize(canvasRef.current);
+
+      tdpClient.on('close', () => {
+        setAttempt({
+          status: 'failed',
+          statusText: 'connection to remote server was closed',
+        });
+      });
+
+      tdpClient.on('error', (err: Error) => {
+        setAttempt({
+          status: 'failed',
+          statusText: err.message,
+        });
+      });
+
+      tdpClient.on('render', ({ bitmap, left, top }) => {
+        ctx.drawImage(bitmap, left, top);
+      });
+
       try {
-        tdpClient.connect(canvasRef.current);
+        tdpClient.connect(
+          username,
+          canvasRef.current.width,
+          canvasRef.current.height
+        );
         setAttempt({ status: 'success' });
       } catch (err) {
         setAttempt({ status: 'failed', statusText: err });
@@ -48,9 +69,9 @@ export function DesktopSession(props: State) {
   }, [tdpClientInitialized]);
 
   // Canvas has two size attributes: the dimension of the pixels in the canvas (canvas.width)
-  // and the display size of the html element (canvas.clientWidth). resizeCanvasToDisplaySize
+  // and the display size of the html element (canvas.clientWidth). syncCanvasSizeToClientSize
   // ensures the two remain equal.
-  function resizeCanvasToDisplaySize(canvas: HTMLCanvasElement) {
+  function syncCanvasSizeToClientSize(canvas: HTMLCanvasElement) {
     // look up the size the canvas is being displayed
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;

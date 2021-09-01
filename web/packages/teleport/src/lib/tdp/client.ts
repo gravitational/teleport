@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+import { EventEmitter } from 'events';
 import Codec, { MessageType } from './codec';
 import Logger from 'shared/libs/logger';
 
@@ -20,48 +21,46 @@ const logger = Logger.create('TDPClient');
 // sending client commands, and recieving and processing server messages. In the case of recieving a
 // png frame from the server, it will draw the frame to the supplied canvas.
 // TODO: clipboard syncronization.
-export default class Client {
-  canvas: HTMLCanvasElement;
+export default class Client extends EventEmitter {
   socketAddr: string;
-  username: string;
   codec: Codec;
   socket: WebSocket;
 
-  constructor(socketAddr: string, username: string) {
+  constructor(socketAddr: string) {
+    super();
     this.socketAddr = socketAddr;
-    this.username = username;
     this.codec = new Codec();
   }
 
-  // Pass the canvas to draw to on connection
-  connect(canvas: HTMLCanvasElement) {
+  // Create the websocket and register event handlers.
+  // Passes the username and the screens initial width and height of the screen,
+  // and sends that data to the TDP server as required by the protocol.`
+  connect(username: string, width: number, height: number) {
     try {
-      this.canvas = canvas;
       this.socket = new WebSocket(this.socketAddr);
 
       this.socket.onopen = () => {
-        this.onOpen();
+        logger.info('websocket is open');
+        logger.info(`opening tdp connection with username ${username}`);
+        this.socket.send(this.codec.encodeUsername(username));
+        logger.info(
+          `sending initial screen size of width = ${width}, height = ${height}`
+        );
+        this.resize(width, height);
       };
       this.socket.onmessage = (ev: MessageEvent) => {
         this.onMessage(ev);
       };
       this.socket.onclose = () => {
+        this.emit('close');
         logger.info('websocket is closed');
       };
       this.socket.onerror = () => {
-        this.logAndThrowError('websocket internal error');
+        this.handleError(new Error('websocket internal error'));
       };
     } catch (err) {
-      this.logAndThrowError('error connecting to websocket', err);
+      this.handleError(err);
     }
-  }
-
-  onOpen() {
-    logger.info('websocket is open');
-    logger.info(`initial canvas width: ${this.canvas.width}`);
-    logger.info(`initial canvas height: ${this.canvas.height}`);
-    this.sendUsername(this.username);
-    this.sendScreenSpec(this.canvas.width, this.canvas.height);
   }
 
   onMessage(ev: MessageEvent) {
@@ -69,46 +68,38 @@ export default class Client {
       .decodeMessageType(ev.data)
       .then(messageType => {
         if (messageType === MessageType.PNG_FRAME) {
-          this.drawFrame(ev.data);
+          this.processFrame(ev.data);
         } else {
-          this.logAndThrowError(
-            `recieved unsupported message type: ${messageType}`
+          this.handleError(
+            new Error(`recieved unsupported message type ${messageType}`)
           );
         }
       })
       .catch(err => {
-        this.logAndThrowError('failed to decode incoming message', err);
+        this.handleError(err);
       });
   }
 
-  // Assuming we have a message of type PNG_FRAME, extract its bounds
-  // and draw the image to the canvas.
-  drawFrame(blob: Blob) {
+  // Assuming we have a message of type PNG_FRAME, extract its
+  // bounds and png bitmap and emit a render event.
+  processFrame(blob: Blob) {
     Promise.all([this.codec.decodeRegion(blob), this.codec.decodePng(blob)])
       .then(values => {
         const { left, top } = values[0];
         const bitmap = values[1];
-        this.canvas.getContext('2d').drawImage(bitmap, left, top);
+        this.emit('render', { bitmap, left, top });
       })
       .catch(err => {
-        this.logAndThrowError('failed to draw frame', err);
+        this.handleError(err);
       });
   }
 
-  sendScreenSpec(w: number, h: number) {
+  resize(w: number, h: number) {
     this.socket.send(this.codec.encodeScreenSpec(w, h));
   }
 
-  sendUsername(username: string) {
-    this.socket.send(this.codec.encodeUsername(username));
-  }
-
-  logAndThrowError(msg: string, err?: any) {
-    logger.error(msg, err);
-    if (err) {
-      throw err;
-    } else {
-      throw new Error(msg);
-    }
+  handleError(err: Error) {
+    this.emit('error', err);
+    logger.error(err);
   }
 }

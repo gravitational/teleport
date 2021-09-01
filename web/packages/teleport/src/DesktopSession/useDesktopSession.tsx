@@ -26,19 +26,24 @@ export default function useDesktopSession() {
   // Flag for alerting the DesktopSession component that the TdpClient is initialized.
   const [tdpClientInitialized, setTdpClientInitialized] = useState(false);
 
+  // Triggered by a change in the url in the browser.
   useEffect(() => {
+    // Trigger the DesktopSession component's useEffect callback that's watching tdpClientInitialized.
+    setTdpClientInitialized(false);
+
     // Create the TdpClient reference with the ws address and the username from the route url.
-    tdpClientRef.current = new TdpClient(addr, username);
+    tdpClientRef.current = new TdpClient(addr);
 
     // Alert the DesktopSession that the TdpClient is ready to connect.
     setTdpClientInitialized(true);
-  }, []);
+  }, [addr, username]);
 
   return {
     attempt,
     setAttempt,
-    tdpClientRef,
+    tdpClient: tdpClientRef.current,
     tdpClientInitialized,
+    username,
   };
 }
 
