@@ -359,7 +359,8 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 func getCustomRate(endpoint string) *ratelimit.RateSet {
 	switch endpoint {
 	case
-		"/proto.AuthService/ChangeUserAuthentication":
+		"/proto.AuthService/ChangeUserAuthentication",
+		"/proto.AuthService/StartAccountRecovery":
 		rates := ratelimit.NewRateSet()
 		// This limit means: 1 request per minute with bursts up to 10 requests.
 		if err := rates.Add(time.Minute, 1, 10); err != nil {

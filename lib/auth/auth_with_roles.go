@@ -3282,6 +3282,11 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 	return a.authServer.DeleteAllWindowsDesktops(ctx)
 }
 
+// StartAccountRecovery is implemented by AuthService.StartAccountRecovery.
+func (a *ServerWithRoles) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
+	return a.authServer.StartAccountRecovery(ctx, req)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
