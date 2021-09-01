@@ -449,7 +449,7 @@ integration-root:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go
+lint: lint-sh lint-helm lint-api lint-go lint-license
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -510,6 +510,39 @@ lint-helm:
 			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
 		fi; \
 	done
+
+ADDLICENSE := $(GOPATH)/bin/addlicense
+ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
+		-ignore '**/*.c' \
+		-ignore '**/*.h' \
+		-ignore '**/*.html' \
+		-ignore '**/*.js' \
+		-ignore '**/*.py' \
+		-ignore '**/*.rs' \
+		-ignore '**/*.sh' \
+		-ignore '**/*.tf' \
+		-ignore '**/*.yaml' \
+		-ignore '**/*.yml' \
+		-ignore '**/Dockerfile' \
+		-ignore 'api/version.go' \
+		-ignore 'e/**' \
+		-ignore 'gitref.go' \
+		-ignore 'lib/web/build/**' \
+		-ignore 'vendor/**' \
+		-ignore 'version.go' \
+		-ignore 'webassets/**' \
+		-ignore 'ignoreme'
+
+.PHONY: lint-license
+lint-license: $(ADDLICENSE)
+	$(ADDLICENSE) $(ADDLICENSE_ARGS) -check * 2>/dev/null
+
+.PHONY: fix-license
+fix-license: $(ADDLICENSE)
+	$(ADDLICENSE) $(ADDLICENSE_ARGS) * 2>/dev/null
+
+$(ADDLICENSE):
+	cd && go install github.com/google/addlicense@v1.0.0
 
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
