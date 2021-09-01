@@ -217,6 +217,8 @@ const (
 	//  - updating a user record
 	UpdatedBy = "updated_by"
 
+	// RecoveryTokenCreateEvent is emitted when a new recovery token is created.
+	RecoveryTokenCreateEvent = "recovery_token.create"
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.

@@ -1019,9 +1019,15 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		return trace.Wrap(err)
 	}
 	status := user.GetStatus()
-	if status.IsLocked && status.LockExpires.After(a.clock.Now().UTC()) {
-		return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
-			user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+	if status.IsLocked {
+		if status.RecoveryAttemptLockExpires.After(a.clock.Now().UTC()) {
+			return trace.AccessDenied("%v exceeds %v failed account recovery attempts, locked until %v",
+				user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
+		}
+		if status.LockExpires.After(a.clock.Now().UTC()) {
+			return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
+				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+		}
 	}
 	fnErr := authenticateFn()
 	if fnErr == nil {
@@ -1144,7 +1150,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO lisa place token check for recovery
+	// TODO (kimlisa): place token check for recovery
 
 	devs, err := a.Identity.GetMFADevices(ctx, username, false)
 	if err != nil {
@@ -2819,6 +2825,9 @@ const (
 
 	// TokenLenBytes is len in bytes of the invite token
 	TokenLenBytes = 16
+
+	// RecoveryTokenLenBytes is len in bytes of a user token for recovery.
+	RecoveryTokenLenBytes = 32
 
 	// SessionTokenBytes is the number of bytes of a web or application session.
 	SessionTokenBytes = 32

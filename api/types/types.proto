@@ -970,11 +970,23 @@ message UserTokenV3 {
     UserTokenSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
+// UserTokenUsage contains additional information about the intended usage of a user token.
+enum UserTokenUsage {
+    // Default value that implies token usage was not set.
+    USER_TOKEN_USAGE_UNSPECIFIED = 0;
+    // USER_TOKEN_RECOVER_PASSWORD is a request to recover password.
+    USER_TOKEN_RECOVER_PASSWORD = 1;
+    // USER_TOKEN_RECOVER_MFA is a request to recover a MFA.
+    USER_TOKEN_RECOVER_MFA = 2;
+}
+
 message UserTokenSpecV3 {
     // User is user name associated with this token
     string User = 1 [ (gogoproto.jsontag) = "user" ];
     // URL is this token URL
     string URL = 2 [ (gogoproto.jsontag) = "url" ];
+    // Usage is an optional field that provides more information about how this token will be used.
+    UserTokenUsage Usage = 3 [ (gogoproto.jsontag) = "usage,omitempty" ];
     // Created holds information about when the token was created
     google.protobuf.Timestamp Created = 4 [
         (gogoproto.stdtime) = true,
@@ -1659,6 +1671,14 @@ message LoginStatus {
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "lock_expires,omitempty"
+    ];
+    // RecoveryAttemptLockExpires contains the time when this lock will expire
+    // from reaching MaxAccountRecoveryAttempts. This field is used to determine
+    // if a user got locked from recovery attempts.
+    google.protobuf.Timestamp RecoveryAttemptLockExpires = 5 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "recovery_attempt_lock_expires,omitempty"
     ];
 }
 
