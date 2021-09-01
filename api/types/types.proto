@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 syntax = "proto3";
 package types;
 
@@ -1686,6 +1700,10 @@ message LocalAuthSecrets {
     uint32 U2FCounter = 4 [ (gogoproto.jsontag) = "u2f_counter,omitempty" ];
 
     repeated MFADevice MFA = 5 [ (gogoproto.jsontag) = "mfa,omitempty" ];
+    // Webauthn holds settings necessary for webauthn local auth.
+    // May be null for legacy users or users that haven't yet used webauthn as
+    // their second factor.
+    WebauthnLocalAuth Webauthn = 6 [ (gogoproto.jsontag) = "webauthn,omitempty" ];
 }
 
 // MFADevice is a multi-factor authentication device, such as a security key or
@@ -1722,6 +1740,13 @@ message U2FDevice {
     bytes pub_key = 2;
     // Counter is the latest seen value of the U2F usage counter.
     uint32 counter = 3;
+}
+
+// WebauthnLocalAuth holds settings necessary for local webauthn use.
+message WebauthnLocalAuth {
+    // UserID is the random user handle generated for the user.
+    // See https://www.w3.org/TR/webauthn-2/#sctn-user-handle-privacy.
+    bytes UserID = 1 [ (gogoproto.jsontag) = "user_id,omitempty" ];
 }
 
 // ConnectorRef holds information about OIDC connector
@@ -2429,4 +2454,43 @@ message WindowsDesktopV3 {
 message WindowsDesktopSpecV3 {
     // Addr is the address that this host can be reached at.
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
+}
+
+// RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
+// access to their account by restoring their lost password or second factor. Once a recovery code
+// is successfully verified, the code is mark used (which invalidates it), and lets the user begin
+// the recovery flow. When a user successfully finishes the recovery flow, users will get a new set
+// of codes that will replace all the previous ones.
+message RecoveryCodesV1 {
+    // Kind is the resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind. Currently unused for this resource.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the resource spec.
+    RecoveryCodesSpecV1 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// RecoveryCodesSpecV1 is the recovery codes spec.
+message RecoveryCodesSpecV1 {
+    // Codes hold a list of numOfRecoveryCodes.
+    repeated RecoveryCode Codes = 1 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "codes" ];
+    // Created is when the set of recovery codes were generated. Updated when a new set of recovery
+    // codes are inserted.
+    google.protobuf.Timestamp Created = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created"
+    ];
+}
+
+// RecoveryCode describes a recovery code.
+message RecoveryCode {
+    // HashedCode is a bcrypt hash of this recovery code.
+    bytes HashedCode = 1 [ (gogoproto.jsontag) = "hashed_code" ];
+    // IsUsed determines if this recovery code was used.
+    bool IsUsed = 2 [ (gogoproto.jsontag) = "is_used" ];
 }

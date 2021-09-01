@@ -224,6 +224,10 @@ const (
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5
 
+	// MaxAccountRecoveryAttempts sets the max number of allowed failed recovery attempts
+	// before a user is locked from login and further recovery attempts for AccountLockInterval.
+	MaxAccountRecoveryAttempts = 3
+
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts
 	AccountLockInterval = 20 * time.Minute
@@ -530,7 +534,6 @@ const (
 	U2FChallengeTimeout = 5 * time.Minute
 	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
 	// or registration challenges.
-	// TODO(codingllama): Apply this to the lib/auth/webauthn package.
 	WebauthnChallengeTimeout = 5 * time.Minute
 )
 

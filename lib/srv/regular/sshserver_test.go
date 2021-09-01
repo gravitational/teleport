@@ -1349,7 +1349,7 @@ func TestEnv(t *testing.T) {
 	require.NoError(t, se.Setenv("HOME", "/"))
 }
 
-// // TestNoAuth tries to log in with no auth methods and should be rejected
+// TestNoAuth tries to log in with no auth methods and should be rejected
 func TestNoAuth(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

@@ -65,9 +65,6 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 // RegisterParams specifies parameters
 // for first time register operation with auth server
 type RegisterParams struct {
-	// DataDir is the data directory
-	// storing CA certificate
-	DataDir string
 	// Token is a secure token to join the cluster
 	Token string
 	// ID is identity ID
@@ -237,7 +234,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 
-	cert, err := readCA(params)
+	cert, err := readCA(params.CAPath)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -275,14 +272,14 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 
 // readCA will read in CA that will be used to validate the certificate that
 // the Auth Server presents.
-func readCA(params RegisterParams) (*x509.Certificate, error) {
-	certBytes, err := utils.ReadPath(params.CAPath)
+func readCA(path string) (*x509.Certificate, error) {
+	certBytes, err := utils.ReadPath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cert, err := tlsca.ParseCertificatePEM(certBytes)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse certificate at %v", params.CAPath)
+		return nil, trace.Wrap(err, "failed to parse certificate at %v", path)
 	}
 	return cert, nil
 }

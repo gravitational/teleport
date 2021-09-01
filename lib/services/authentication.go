@@ -48,6 +48,11 @@ func ValidateLocalAuthSecrets(l *types.LocalAuthSecrets) error {
 		}
 		mfaNames[d.Metadata.Name] = struct{}{}
 	}
+	if l.Webauthn != nil {
+		if err := l.Webauthn.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 

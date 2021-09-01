@@ -48,6 +48,9 @@ type AuthPreference interface {
 	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
 	SetSecondFactor(constants.SecondFactorType)
+	// IsSecondFactorEnforced checks if second factor is enforced
+	// (not disabled or set to optional).
+	IsSecondFactorEnforced() bool
 
 	// GetConnectorName gets the name of the OIDC or SAML connector to use. If
 	// this value is empty, we fall back to the first connector in the backend.
@@ -213,6 +216,11 @@ func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
 // SetSecondFactor sets the type of second factor.
 func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
+}
+
+// IsSecondFactorEnforced checks if second factor is enforced (not disabled or set to optional).
+func (c *AuthPreferenceV2) IsSecondFactorEnforced() bool {
+	return c.Spec.SecondFactor != constants.SecondFactorOff && c.Spec.SecondFactor != constants.SecondFactorOptional
 }
 
 // GetConnectorName gets the name of the OIDC or SAML connector to use. If
@@ -456,6 +464,14 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 func isValidAttestationCert(certOrPath string) error {
 	_, err := tlsutils.ParseCertificatePEM([]byte(certOrPath))
 	return err
+}
+
+// Check validates WebauthnLocalAuth, returning an error if it's not valid.
+func (wal *WebauthnLocalAuth) Check() error {
+	if len(wal.UserID) == 0 {
+		return trace.BadParameter("missing UserID field")
+	}
+	return nil
 }
 
 // NewMFADevice creates a new MFADevice with the given name. Caller must set
