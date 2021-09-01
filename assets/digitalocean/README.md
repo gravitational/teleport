@@ -1,6 +1,8 @@
 ## Teleport Digital Ocean marketplace images.
 
-This repository contains scripts and templates to build a 1-click Teleport application for Digital Ocean marketplace. The snapshot building process is based on [Packer](https://www.packer.io/intro/index.html) so make sure it is installed in your system.
+This repository contains scripts and templates to build a 1-click Teleport application for Digital Ocean marketplace. 
+
+> Currently installs Teleport v7.0.1
 
 ## Files
 - `template.json` is the main configuration template that is used to build snapshots using Packer.
@@ -11,6 +13,8 @@ This repository contains scripts and templates to build a 1-click Teleport appli
 
 
 ## Usage
+
+The snapshot building process is based on [Packer](https://www.packer.io/intro/index.html) so make sure it is installed in your system.
 
 ### Step 1: Prepare Digital Ocean access token.
 Create personal access token from Digital Ocean control panel (in API menu).
