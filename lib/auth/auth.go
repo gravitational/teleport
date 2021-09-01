@@ -1150,7 +1150,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO lisa place token check for recovery
+	// TODO (kimlisa): place token check for recovery
 
 	devs, err := a.Identity.GetMFADevices(ctx, username, false)
 	if err != nil {

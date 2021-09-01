@@ -959,11 +959,11 @@ message UserTokenV3 {
 // UserTokenUsage contains additional information about the intended usage of a user token.
 enum UserTokenUsage {
     // Default value that implies token usage was not set.
-    UNDEFINED = 0;
-    // RECOVER_PWD is a request to recover password.
-    RECOVER_PWD = 1;
-    // RECOVER_2FA is a request to recover a second factor.
-    RECOVER_2FA = 2;
+    USER_TOKEN_USAGE_UNSPECIFIED = 0;
+    // USER_TOKEN_RECOVER_PASSWORD is a request to recover password.
+    USER_TOKEN_RECOVER_PASSWORD = 1;
+    // USER_TOKEN_RECOVER_MFA is a request to recover a MFA.
+    USER_TOKEN_RECOVER_MFA = 2;
 }
 
 message UserTokenSpecV3 {

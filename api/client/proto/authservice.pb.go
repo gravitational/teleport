@@ -7119,7 +7119,8 @@ func (m *ChangeUserAuthenticationResponse) GetRecoveryCodes() []string {
 
 // StartAccountRecoveryRequest defines a request to create a recovery start token for a user who is
 // allowed to recover their account. The tokens ID is used as part of a URL that will be emailed to
-// the user (not done in this request). Represents step 1 of the account recovery process.
+// the user (not done in this request). Represents step 1 of the account recovery process, next step
+// is RPC ApproveAccountRecovery.
 type StartAccountRecoveryRequest struct {
 	// Username is the requesting user. The username must meet the following requirements to be
 	// allowed to recover their account:
@@ -7186,7 +7187,7 @@ func (m *StartAccountRecoveryRequest) GetRecoverType() types.UserTokenUsage {
 	if m != nil {
 		return m.RecoverType
 	}
-	return types.UserTokenUsage_UNDEFINED
+	return types.UserTokenUsage_USER_TOKEN_USAGE_UNSPECIFIED
 }
 
 func init() {
@@ -8029,12 +8030,12 @@ type AuthServiceClient interface {
 	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
 	// any existing codes the user previously had.
 	ChangeUserAuthentication(ctx context.Context, in *ChangeUserAuthenticationRequest, opts ...grpc.CallOption) (*ChangeUserAuthenticationResponse, error)
-	// StartAccountRecovery is the first out of two step user verification needed to allow a user to
-	// recover their account. The first form of verification is a user's username and a recovery
-	// code. After successful verification, a recovery start token is created for the user which
-	// its ID will be used as part of a URL that will be emailed to the user (not done in this
-	// request). The user will be able to finish their second form of verification by clicking on
-	// this URL and following the prompts.
+	// StartAccountRecovery exclusive to cloud users, is the first out of two step user verification
+	// needed to allow a user to recover their account. The first form of verification is a user's
+	// username and a recovery code. After successful verification, a recovery start token is
+	// created for the user which its ID will be used as part of a URL that will be emailed to the
+	// user (not done in this request). The user will be able to finish their second form of
+	// verification by clicking on this URL and following the prompts.
 	//
 	// If a valid user fails to provide correct recovery code for MaxAccountRecoveryAttempts,
 	// user account gets temporarily locked from further recovery attempts and from logging in.
@@ -9704,12 +9705,12 @@ type AuthServiceServer interface {
 	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
 	// any existing codes the user previously had.
 	ChangeUserAuthentication(context.Context, *ChangeUserAuthenticationRequest) (*ChangeUserAuthenticationResponse, error)
-	// StartAccountRecovery is the first out of two step user verification needed to allow a user to
-	// recover their account. The first form of verification is a user's username and a recovery
-	// code. After successful verification, a recovery start token is created for the user which
-	// its ID will be used as part of a URL that will be emailed to the user (not done in this
-	// request). The user will be able to finish their second form of verification by clicking on
-	// this URL and following the prompts.
+	// StartAccountRecovery exclusive to cloud users, is the first out of two step user verification
+	// needed to allow a user to recover their account. The first form of verification is a user's
+	// username and a recovery code. After successful verification, a recovery start token is
+	// created for the user which its ID will be used as part of a URL that will be emailed to the
+	// user (not done in this request). The user will be able to finish their second form of
+	// verification by clicking on this URL and following the prompts.
 	//
 	// If a valid user fails to provide correct recovery code for MaxAccountRecoveryAttempts,
 	// user account gets temporarily locked from further recovery attempts and from logging in.

@@ -1636,38 +1636,48 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.Len(t, out, 0)
 }
 
-func TestChangeUserAuthenticationRateLimiting(t *testing.T) {
+func TestCustomRateLimiting(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestNop())
-	require.NoError(t, err)
-
-	// Max rate limit.
-	for i := 0; i < 10; i++ {
-		_, err = clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
-		require.Error(t, err)
+	cases := []struct {
+		desc string
+		fn   func(*Client) error
+	}{
+		{
+			desc: "RPC ChangeUserAuthentication",
+			fn: func(clt *Client) error {
+				_, err := clt.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{})
+				return err
+			},
+		},
+		{
+			desc: "RPC StartAccountRecovery",
+			fn: func(clt *Client) error {
+				_, err := clt.StartAccountRecovery(context.Background(), &proto.StartAccountRecoveryRequest{})
+				return err
+			},
+		},
 	}
 
-	_, err = clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
-	require.True(t, trace.IsLimitExceeded(err))
-}
+	for _, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			t.Parallel()
 
-func TestStartAccountRecoveryRateLimiting(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
+			// For now since we only have one custom rate limit,
+			// test limit for 1 request per minute with bursts up to 10 requests.
+			const maxAttempts = 11
+			var err error
 
-	clt, err := srv.NewClient(TestNop())
-	require.NoError(t, err)
+			srv := newTestTLSServer(t)
+			clt, err := srv.NewClient(TestNop())
+			require.NoError(t, err)
 
-	// Max rate limit.
-	for i := 0; i < 10; i++ {
-		_, err = clt.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{})
-		require.Error(t, err)
+			// Expect last attempt to have hit a limit exceeded.
+			for i := 0; i < maxAttempts; i++ {
+				err = c.fn(clt)
+				require.Error(t, err)
+			}
+			require.True(t, trace.IsLimitExceeded(err))
+		})
 	}
-
-	_, err = clt.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{})
-	require.True(t, trace.IsLimitExceeded(err))
 }

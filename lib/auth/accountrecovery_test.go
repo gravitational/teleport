@@ -92,15 +92,15 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 
 	// Test with a used code returns error.
 	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(rc[0]))
-	require.True(t, trace.IsBadParameter(err))
+	require.True(t, trace.IsAccessDenied(err))
 
 	// Test with invalid recovery code returns error.
 	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte("invalidcode"))
-	require.True(t, trace.IsBadParameter(err))
+	require.True(t, trace.IsAccessDenied(err))
 
 	// Test with non-existing user returns error.
 	err = srv.Auth().verifyRecoveryCode(ctx, "doesnotexist", []byte(rc[0]))
-	require.True(t, trace.IsBadParameter(err))
+	require.True(t, trace.IsAccessDenied(err))
 }
 
 func TestRecoveryCodeEventsEmitted(t *testing.T) {
@@ -148,54 +148,64 @@ func TestStartAccountRecovery(t *testing.T) {
 	u, err := createUserWithSecondFactorAndRecoveryCodes(srv, "otp")
 	require.NoError(t, err)
 
-	// Test with recover type 2FA.
-	startToken, err := srv.Auth().StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{
-		Username:     u.username,
-		RecoveryCode: []byte(u.recoveryCodes[0]),
-		RecoverType:  types.UserTokenUsage_RECOVER_2FA,
-	})
-	require.NoError(t, err)
-	require.Equal(t, UserTokenTypeRecoveryStart, startToken.GetSubKind())
-	require.Equal(t, types.UserTokenUsage_RECOVER_2FA, startToken.GetUsage())
-	require.Equal(t, startToken.GetURL(), fmt.Sprintf("https://<proxyhost>:3080/web/recovery/steps/%s/verify", startToken.GetName()))
-
-	// Test token returned correct byte length.
-	bytes, err := hex.DecodeString(startToken.GetName())
-	require.NoError(t, err)
-	require.Len(t, bytes, RecoveryTokenLenBytes)
-
-	// Test expired token.
-	fakeClock.Advance(defaults.RecoveryStartTokenTTL)
-	_, err = srv.Auth().GetUserToken(ctx, startToken.GetName())
-	require.True(t, trace.IsNotFound(err))
-
-	// Test events emitted.
-	event := mockEmitter.LastEvent()
-	require.Equal(t, event.GetType(), events.RecoveryTokenCreateEvent)
-	require.Equal(t, event.GetCode(), events.RecoveryTokenCreateCode)
-	require.Equal(t, event.(*apievents.UserTokenCreate).Name, u.username)
-
-	// Test with recover type PWD.
-	startToken, err = srv.Auth().StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{
-		Username:     u.username,
-		RecoveryCode: []byte(u.recoveryCodes[1]),
-		RecoverType:  types.UserTokenUsage_RECOVER_PWD,
-	})
-	require.NoError(t, err)
-	require.Equal(t, types.UserTokenUsage_RECOVER_PWD, startToken.GetUsage())
-
 	// Test with no recover type.
 	_, err = srv.Auth().StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{
 		Username:     u.username,
-		RecoveryCode: []byte(u.recoveryCodes[2]),
+		RecoveryCode: []byte(u.recoveryCodes[0]),
 	})
 	require.Error(t, err)
+
+	cases := []struct {
+		desc         string
+		recoverType  types.UserTokenUsage
+		recoveryCode string
+	}{
+		{
+			desc:         "request StartAccountRecovery to recover a MFA",
+			recoverType:  types.UserTokenUsage_USER_TOKEN_RECOVER_MFA,
+			recoveryCode: u.recoveryCodes[1],
+		},
+		{
+			desc:         "request StartAccountRecovery to recover password",
+			recoverType:  types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
+			recoveryCode: u.recoveryCodes[2],
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			startToken, err := srv.Auth().StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{
+				Username:     u.username,
+				RecoveryCode: []byte(c.recoveryCode),
+				RecoverType:  c.recoverType,
+			})
+			require.NoError(t, err)
+			require.Equal(t, UserTokenTypeRecoveryStart, startToken.GetSubKind())
+			require.Equal(t, c.recoverType, startToken.GetUsage())
+			require.Equal(t, startToken.GetURL(), fmt.Sprintf("https://<proxyhost>:3080/web/recovery/steps/%s/verify", startToken.GetName()))
+
+			// Test token returned correct byte length.
+			bytes, err := hex.DecodeString(startToken.GetName())
+			require.NoError(t, err)
+			require.Len(t, bytes, RecoveryTokenLenBytes)
+
+			// Test expired token.
+			fakeClock.Advance(defaults.RecoveryStartTokenTTL)
+			_, err = srv.Auth().GetUserToken(ctx, startToken.GetName())
+			require.True(t, trace.IsNotFound(err))
+
+			// Test events emitted.
+			event := mockEmitter.LastEvent()
+			require.Equal(t, event.GetType(), events.RecoveryTokenCreateEvent)
+			require.Equal(t, event.GetCode(), events.RecoveryTokenCreateCode)
+			require.Equal(t, event.(*apievents.UserTokenCreate).Name, u.username)
+		})
+	}
 }
 
 func TestStartAccountRecovery_WithLock(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	fakeClock := srv.Clock().(clockwork.FakeClock)
 
 	defaultModules := modules.GetModules()
 	defer modules.SetModules(defaultModules)
@@ -204,41 +214,20 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 	u, err := createUserWithSecondFactorAndRecoveryCodes(srv, "otp")
 	require.NoError(t, err)
 
-	// Test max failed recovery attempt locks both login and further recovery attempt.
-	for i := 1; i <= defaults.MaxAccountRecoveryAttempts; i++ {
-		_, err = srv.Auth().StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{
-			Username: u.username,
-		})
-		require.Error(t, err)
-	}
-
-	user, err := srv.Auth().GetUser(u.username, false)
-	require.NoError(t, err)
-	require.True(t, user.GetStatus().IsLocked)
-	require.False(t, user.GetStatus().LockExpires.IsZero())
-	require.False(t, user.GetStatus().RecoveryAttemptLockExpires.IsZero())
-
-	// Advance time to remove lock and attempts.
-	fakeClock.Advance(defaults.AttemptTTL)
-
 	// Trigger login lock.
-	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
+	for i := 0; i < defaults.MaxLoginAttempts; i++ {
 		_, err = srv.Auth().authenticateUser(ctx, AuthenticateUserRequest{
 			Username: u.username,
 			OTP:      &OTPCreds{},
 		})
-		require.Error(t, err)
-
-		if i == defaults.MaxLoginAttempts {
-			require.True(t, trace.IsAccessDenied(err))
-		}
+		require.True(t, trace.IsAccessDenied(err))
 	}
 
 	// Test recovery is still allowed after login lock.
 	_, err = srv.Auth().StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{
 		Username:     u.username,
 		RecoveryCode: []byte(u.recoveryCodes[0]),
-		RecoverType:  types.UserTokenUsage_RECOVER_2FA,
+		RecoverType:  types.UserTokenUsage_USER_TOKEN_RECOVER_MFA,
 	})
 	require.NoError(t, err)
 
@@ -247,11 +236,10 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 		_, err = srv.Auth().StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{
 			Username: u.username,
 		})
-		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
 
-		// The third failed attempt should return error.
 		if i == defaults.MaxAccountRecoveryAttempts {
-			require.EqualValues(t, ErrMaxFailedRecoveryAttempts, err)
+			require.EqualValues(t, ErrMaxFailedAttemptsFromStartRecovery, err)
 		}
 	}
 
@@ -259,9 +247,74 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 	_, err = srv.Auth().StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{
 		Username:     u.username,
 		RecoveryCode: []byte(u.recoveryCodes[1]),
-		RecoverType:  types.UserTokenUsage_RECOVER_2FA,
+		RecoverType:  types.UserTokenUsage_USER_TOKEN_RECOVER_MFA,
 	})
 	require.True(t, trace.IsAccessDenied(err))
+	require.Equal(t, startRecoveryMaxFailedAttemptsErrMsg, err.Error())
+
+	// Test locks have been placed.
+	user, err := srv.Auth().GetUser(u.username, false)
+	require.NoError(t, err)
+	require.True(t, user.GetStatus().IsLocked)
+	require.False(t, user.GetStatus().RecoveryAttemptLockExpires.IsZero())
+	require.Equal(t, user.GetStatus().LockExpires, user.GetStatus().RecoveryAttemptLockExpires)
+}
+
+func TestStartAccountRecovery_UserErrors(t *testing.T) {
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testWithCloudModules{})
+
+	u, err := createUserWithSecondFactorAndRecoveryCodes(srv, "otp")
+	require.NoError(t, err)
+
+	cases := []struct {
+		desc      string
+		expErrMsg string
+		req       *proto.StartAccountRecoveryRequest
+	}{
+		{
+			desc:      "username not in valid email format",
+			expErrMsg: startRecoveryGenericErrMsg,
+			req: &proto.StartAccountRecoveryRequest{
+				Username: "malformed-email",
+			},
+		},
+		{
+			desc:      "user does not exist",
+			expErrMsg: startRecoveryBadAuthnErrMsg,
+			req: &proto.StartAccountRecoveryRequest{
+				Username: "dne@test.com",
+			},
+		},
+		{
+			desc:      "invalid recovery code",
+			expErrMsg: startRecoveryBadAuthnErrMsg,
+			req: &proto.StartAccountRecoveryRequest{
+				Username:     u.username,
+				RecoveryCode: []byte("invalid-code"),
+			},
+		},
+		{
+			desc:      "missing recover type in request",
+			expErrMsg: startRecoveryGenericErrMsg,
+			req: &proto.StartAccountRecoveryRequest{
+				Username:     u.username,
+				RecoveryCode: []byte(u.recoveryCodes[0]),
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			_, err = srv.Auth().StartAccountRecovery(ctx, c.req)
+			require.True(t, trace.IsAccessDenied(err))
+			require.Equal(t, c.expErrMsg, err.Error())
+		})
+	}
 }
 
 type userAuthCreds struct {
@@ -269,11 +322,13 @@ type userAuthCreds struct {
 	username      string
 	password      []byte
 	u2fKey        *mocku2f.Key
+	otpKey        string
 }
 
+// TODO (codingllama): Unify with test func `configureForMFA`
 func createUserWithSecondFactorAndRecoveryCodes(srv *TestTLSServer, secondFactor string) (*userAuthCreds, error) {
 	ctx := context.Background()
-	username := "fake@fake.com"
+	username := "llama@goteleport.com"
 	password := []byte("abc123")
 
 	// Enable second factors.
@@ -298,12 +353,6 @@ func createUserWithSecondFactorAndRecoveryCodes(srv *TestTLSServer, secondFactor
 		return nil, trace.Wrap(err)
 	}
 
-	// Insert recovery code for user.
-	recoveryCodes, err := srv.Auth().generateAndUpsertRecoveryCodes(ctx, username)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	resetToken, err := srv.Auth().CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
 		Name: username,
 	})
@@ -311,66 +360,76 @@ func createUserWithSecondFactorAndRecoveryCodes(srv *TestTLSServer, secondFactor
 		return nil, trace.Wrap(err)
 	}
 
-	// Add second factor.
+	userCreds := &userAuthCreds{
+		username: username,
+		password: password,
+	}
+
+	// Insert a password, second factor, and recovery codes.
 	if secondFactor == "otp" {
-		otp, err := getOTPCode(srv, resetToken.GetName())
+		otpCode, otpKey, err := getOTPCodeAndKey(srv, resetToken.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = srv.Auth().changeUserSecondFactor(&proto.ChangeUserAuthenticationRequest{
-			TokenID: resetToken.GetName(),
-			NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-				TOTP: &proto.TOTPRegisterResponse{Code: otp},
-			}},
-		}, resetToken)
+		res, err := srv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:     resetToken.GetName(),
+			NewPassword: []byte(password),
+			NewMFARegisterResponse: &proto.MFARegisterResponse{
+				Response: &proto.MFARegisterResponse_TOTP{
+					TOTP: &proto.TOTPRegisterResponse{Code: otpCode}},
+			},
+		},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		userCreds.recoveryCodes = res.GetRecoveryCodes()
+		userCreds.otpKey = otpKey
+		return userCreds, nil
 	}
 
-	var u2fKey *mocku2f.Key
 	if secondFactor == "u2f" {
-		var u2fRegResp *proto.U2FRegisterResponse
-		u2fRegResp, u2fKey, err = getMockedU2FAndRegisterRes(srv, resetToken.GetName())
+		u2fRegResp, u2fKey, err := getMockedU2FAndRegisterRes(srv, resetToken.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = srv.Auth().changeUserSecondFactor(&proto.ChangeUserAuthenticationRequest{
-			TokenID: resetToken.GetName(),
-			NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
-				U2F: &proto.U2FRegisterResponse{
-					RegistrationData: u2fRegResp.RegistrationData,
-					ClientData:       u2fRegResp.ClientData,
-				},
-			}},
-		}, resetToken)
+		res, err := srv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:     resetToken.GetName(),
+			NewPassword: []byte(password),
+			NewMFARegisterResponse: &proto.MFARegisterResponse{
+				Response: &proto.MFARegisterResponse_U2F{
+					U2F: u2fRegResp},
+			},
+		},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		userCreds.recoveryCodes = res.GetRecoveryCodes()
+		userCreds.u2fKey = u2fKey
+		return userCreds, nil
 	}
 
-	return &userAuthCreds{
-		recoveryCodes: recoveryCodes,
-		username:      username,
-		password:      password,
-		u2fKey:        u2fKey,
-	}, nil
+	// No second factor or recovery codes.
+	return userCreds, nil
 }
 
-func getOTPCode(srv *TestTLSServer, tokenID string) (string, error) {
+func getOTPCodeAndKey(srv *TestTLSServer, tokenID string) (string, string, error) {
 	secrets, err := srv.Auth().RotateUserTokenSecrets(context.TODO(), tokenID)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
-	otp, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
+	otpCode, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
-	return otp, nil
+	return otpCode, secrets.GetOTPKey(), nil
 }
 
 func getMockedU2FAndRegisterRes(srv *TestTLSServer, tokenID string) (*proto.U2FRegisterResponse, *mocku2f.Key, error) {

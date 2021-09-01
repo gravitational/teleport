@@ -49,8 +49,8 @@ type User interface {
 	GetStatus() LoginStatus
 	// SetLocked sets login status to locked
 	SetLocked(until time.Time, reason string)
-	// SetLockedFromRecoveryAttempt sets the time the lock for recovery attempt expires.
-	SetLockedFromRecoveryAttempt(until time.Time)
+	// SetRecoveryAttemptLockExpires sets the lock expiry time for both recovery and login attempt.
+	SetRecoveryAttemptLockExpires(until time.Time, reason string)
 	// SetRoles sets user roles
 	SetRoles(roles []string)
 	// AddRole adds role to the users' role list
@@ -261,9 +261,10 @@ func (u *UserV2) SetLocked(until time.Time, reason string) {
 	u.Spec.Status.LockedMessage = reason
 }
 
-// SetLockedFromRecoveryAttempt sets the time the lock for recovery attempt expires.
-func (u *UserV2) SetLockedFromRecoveryAttempt(until time.Time) {
+// SetRecoveryAttemptLockExpires sets the lock expiry time for both recovery and login attempt.
+func (u *UserV2) SetRecoveryAttemptLockExpires(until time.Time, reason string) {
 	u.Spec.Status.RecoveryAttemptLockExpires = until
+	u.SetLocked(until, reason)
 }
 
 // IsEmpty returns true if there's no info about who created this user

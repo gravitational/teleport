@@ -38,8 +38,9 @@ const (
 	numOfRecoveryCodes     = 3
 	numWordsInRecoveryCode = 8
 
-	// accountLockedMsg is the reason used to update a user's status locked message.
-	accountLockedMsg = "user has exceeded maximum failed account recovery attempts"
+	startRecoveryGenericErrMsg           = "unable to start account recovery, please try again or contact your system administrator"
+	startRecoveryBadAuthnErrMsg          = "invalid username or recovery code"
+	startRecoveryMaxFailedAttemptsErrMsg = "too many incorrect attempts, please try again later"
 )
 
 // fakeRecoveryCodeHash is bcrypt hash for "fake-barbaz x 8".
@@ -47,9 +48,9 @@ const (
 // exist but does not have recovery codes.
 var fakeRecoveryCodeHash = []byte(`$2a$10$c2.h4pF9AA25lbrWo6U0D.ZmnYpFDaNzN3weNNYNC3jAkYEX9kpzu`)
 
-// ErrMaxFailedRecoveryAttempts is a user friendly error message to notify user that recovery attempt
-// has been temporarily locked and an email has been sent.
-var ErrMaxFailedRecoveryAttempts = trace.AccessDenied("too many incorrect attempts, please check your email and try again later")
+// ErrMaxFailedAttemptsFromStartRecovery is a user friendly error message to try again later.
+// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
+var ErrMaxFailedAttemptsFromStartRecovery = trace.AccessDenied(startRecoveryMaxFailedAttemptsErrMsg)
 
 // StartAccountRecovery implements AuthService.StartAccountRecovery.
 func (s *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
@@ -59,7 +60,8 @@ func (s *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 
 	// Only user's with email as their username can start recovery.
 	if _, err := mail.ParseAddress(req.GetUsername()); err != nil {
-		return nil, trace.BadParameter("only emails as usernames are allowed to recover their account")
+		log.Debugf("Failed to start account recovery, user %s is not in valid email format", req.GetUsername())
+		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
 	}
 
 	if err := s.verifyCodeWithRecoveryLock(ctx, req.GetUsername(), req.GetRecoveryCode()); err != nil {
@@ -68,11 +70,17 @@ func (s *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 
 	// Remove any other existing tokens for this user before creating a token.
 	if err := s.deleteUserTokens(ctx, req.Username); err != nil {
-		return nil, trace.Wrap(err)
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
 	}
 
 	token, err := s.createRecoveryToken(ctx, req.GetUsername(), UserTokenTypeRecoveryStart, req.GetRecoverType())
-	return token, trace.Wrap(err)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
+	}
+
+	return token, nil
 }
 
 // verifyCodeWithRecoveryLock counts number of failed attempts at providing a valid recovery code.
@@ -80,31 +88,31 @@ func (s *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 // locked from logging in. Modeled after existing function WithUserLock.
 func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string, recoveryCode []byte) error {
 	user, err := s.Identity.GetUser(username, false)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			// If user is not found, still authenticate. It should
-			// always return an error. This prevents username oracles and
-			// timing attacks.
-			return s.verifyRecoveryCode(ctx, username, recoveryCode)
-		}
-		return trace.Wrap(err)
+	switch {
+	case trace.IsNotFound(err):
+		// If user is not found, still authenticate. It should always return an error.
+		// This prevents username oracles and timing attacks.
+		return s.verifyRecoveryCode(ctx, username, recoveryCode)
+	case err != nil:
+		log.Error(trace.DebugReport(err))
+		return trace.AccessDenied(startRecoveryGenericErrMsg)
 	}
 
 	status := user.GetStatus()
 	if status.IsLocked && status.RecoveryAttemptLockExpires.After(s.clock.Now().UTC()) {
 		log.Debugf("%v exceeds %v failed account recovery attempts, locked until %v",
 			user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
-		return trace.AccessDenied("too many incorrect recovery attempts, please try again later")
+		return trace.AccessDenied(startRecoveryMaxFailedAttemptsErrMsg)
 	}
 
-	fnErr := s.verifyRecoveryCode(ctx, username, recoveryCode)
-	if fnErr == nil {
+	verifyCodeErr := s.verifyRecoveryCode(ctx, username, recoveryCode)
+	if verifyCodeErr == nil {
 		return nil
 	}
 
 	// Do not lock user in case if DB is flaky or down.
-	if trace.IsConnectionProblem(fnErr) {
-		return trace.Wrap(fnErr)
+	if trace.IsConnectionProblem(verifyCodeErr) {
+		return trace.Wrap(verifyCodeErr)
 	}
 
 	// Log failed attempt.
@@ -112,36 +120,33 @@ func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string
 	attempt := &types.RecoveryAttempt{Time: now, Expires: now.Add(defaults.AttemptTTL)}
 	if err := s.CreateUserRecoveryAttempt(ctx, username, attempt); err != nil {
 		log.Error(trace.DebugReport(err))
-		return trace.Wrap(fnErr)
+		return trace.Wrap(verifyCodeErr)
 	}
 
 	attempts, err := s.Identity.GetUserRecoveryAttempts(ctx, username)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
-		return trace.Wrap(fnErr)
+		return trace.Wrap(verifyCodeErr)
 	}
 
 	if !types.IsMaxFailedRecoveryAttempt(defaults.MaxAccountRecoveryAttempts, attempts, now) {
 		log.Debugf("%v user has less than %v failed account recovery attempts", username, defaults.MaxAccountRecoveryAttempts)
-		return trace.Wrap(fnErr)
+		return trace.Wrap(verifyCodeErr)
 	}
 
 	// Reached max attempts.
 	lockUntil := s.clock.Now().UTC().Add(defaults.AccountLockInterval)
-
 	log.Debugf("%v exceeds %v failed account recovery attempts, account locked until %v and an email has been sent",
 		username, defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(lockUntil))
 
 	// Temp lock both user login and recovery attempts.
-	user.SetLockedFromRecoveryAttempt(lockUntil)
-	user.SetLocked(lockUntil, accountLockedMsg)
-
+	user.SetRecoveryAttemptLockExpires(lockUntil, "user has exceeded maximum failed account recovery attempts")
 	if err := s.Identity.UpsertUser(user); err != nil {
 		log.Error(trace.DebugReport(err))
-		return trace.Wrap(fnErr)
+		return trace.Wrap(verifyCodeErr)
 	}
 
-	return ErrMaxFailedRecoveryAttempts
+	return trace.Wrap(ErrMaxFailedAttemptsFromStartRecovery)
 }
 
 func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode []byte) error {
@@ -174,7 +179,8 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 		// Mark matched token as used in backend so it can't be used again.
 		recovery.GetCodes()[i].IsUsed = true
 		if err := s.UpsertRecoveryCodes(ctx, user, recovery); err != nil {
-			return trace.Wrap(err)
+			log.Error(trace.DebugReport(err))
+			return trace.AccessDenied(startRecoveryGenericErrMsg)
 		}
 		break
 	}
@@ -208,7 +214,7 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 			log.WithFields(logrus.Fields{"user": user}).Warn("Failed to emit account recovery code used failed event.")
 		}
 
-		return trace.BadParameter("invalid username or recovery code")
+		return trace.AccessDenied(startRecoveryBadAuthnErrMsg)
 	}
 
 	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {

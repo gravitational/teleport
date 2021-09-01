@@ -39,10 +39,10 @@ type UserToken interface {
 	GetURL() string
 	// SetURL returns URL
 	SetURL(string)
-	// SetUsage sets usage type.
-	SetUsage(UserTokenUsage)
 	// GetUsage returns usage type.
 	GetUsage() UserTokenUsage
+	// SetUsage sets usage type.
+	SetUsage(UserTokenUsage)
 }
 
 // NewUserToken creates an instance of UserToken.
@@ -163,12 +163,12 @@ func (u *UserTokenV3) String() string {
 	return fmt.Sprintf("UserTokenV3(tokenID=%v, type=%v user=%v, expires at %v)", u.GetName(), u.GetSubKind(), u.Spec.User, u.Expiry())
 }
 
-// SetUsage sets a usage type.
-func (u *UserTokenV3) SetUsage(r UserTokenUsage) {
-	u.Spec.Usage = r
-}
-
 // GetUsage returns a usage type.
 func (u *UserTokenV3) GetUsage() UserTokenUsage {
 	return u.Spec.Usage
+}
+
+// SetUsage sets a usage type.
+func (u *UserTokenV3) SetUsage(r UserTokenUsage) {
+	u.Spec.Usage = r
 }

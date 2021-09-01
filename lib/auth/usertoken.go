@@ -98,7 +98,7 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 	case UserTokenTypeRecoveryStart:
 		r.TTL = defaults.RecoveryStartTokenTTL
 
-	// TODO lisa add RecoveryApprovedToken type
+	// TODO (kimlisa): add RecoveryApprovedToken type
 
 	default:
 		return trace.BadParameter("unknown user token request type(%v)", r.Type)
@@ -396,13 +396,13 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 
 // createRecoveryToken creates a user token for account recovery.
 func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType string, usage types.UserTokenUsage) (types.UserToken, error) {
-	// TODO lisa add RecoveryApprovedToken type
+	// TODO (kimlisa): add RecoveryApprovedToken type
 	if tokenType != UserTokenTypeRecoveryStart {
-		return nil, trace.BadParameter("invalid recovery token type")
+		return nil, trace.BadParameter("invalid recovery token type: %s", tokenType)
 	}
 
-	if usage != types.UserTokenUsage_RECOVER_2FA && usage != types.UserTokenUsage_RECOVER_PWD {
-		return nil, trace.BadParameter("invalid recovery token usage type")
+	if usage != types.UserTokenUsage_USER_TOKEN_RECOVER_MFA && usage != types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD {
+		return nil, trace.BadParameter("invalid recovery token usage type %s", usage.String())
 	}
 
 	req := CreateUserTokenRequest{
