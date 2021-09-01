@@ -23,12 +23,8 @@ import cfg from 'teleport/config';
 
 export default function useDesktops(ctx: Ctx) {
   const { attempt, run } = useAttempt('processing');
-  const { clusterId, isLeafCluster } = useStickyClusterId();
+  const { clusterId } = useStickyClusterId();
   const username = ctx.storeUser.state.username;
-  const canCreate = ctx.storeUser.getTokenAccess().create;
-  const isEnterprise = ctx.isEnterprise;
-  const version = ctx.storeUser.state.cluster.authVersion;
-  const authType = ctx.storeUser.state.authType;
 
   const [searchValue, setSearchValue] = useState<string>('');
 
@@ -68,13 +64,8 @@ export default function useDesktops(ctx: Ctx) {
   return {
     desktops,
     attempt,
-    canCreate,
-    isLeafCluster,
-    isEnterprise,
     username,
-    version,
     clusterId,
-    authType,
     searchValue,
     setSearchValue,
     openRemoteDesktopWindow,
