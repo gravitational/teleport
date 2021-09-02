@@ -41,7 +41,7 @@ Host *.{{ .ClusterName }} {{ .ProxyHost }}
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
     Port 3022
-    ProxyCommand {{ .TSHPath }} config-proxy --login="%r" --proxy={{ .ProxyHost }}:{{ .ProxyPort }} %h:%p "{{ .ClusterName }}"
+    ProxyCommand "{{ .TSHPath }}" config-proxy --login="%r" --proxy={{ .ProxyHost }}:{{ .ProxyPort }} %h:%p "{{ .ClusterName }}"
 `
 
 type hostConfigParameters struct {
@@ -54,13 +54,13 @@ type hostConfigParameters struct {
 	TSHPath             string
 }
 
-// getSSHPath returns a sane default `ssh` path for the current platform.
-func getDefaultSSHPath() string {
+// getSSHPath returns a sane `ssh` path for the current platform.
+func getSSHPath() (string, error) {
 	if runtime.GOOS == constants.WindowsOS {
-		return "C:\\Windows\\System32\\OpenSSH\\ssh.exe"
+		return exec.LookPath("ssh.exe")
 	}
 
-	return "/usr/bin/ssh"
+	return exec.LookPath("ssh")
 }
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
@@ -169,6 +169,12 @@ func onConfigProxy(cf *CLIConf) error {
 	targetHost = strings.TrimSuffix(targetHost, "."+proxyHost)
 	targetHost = strings.TrimSuffix(targetHost, "."+cf.SiteName)
 
+	// NOTE: This should eventually make use of `tsh proxy ssh`.
+	sshPath, err := getSSHPath()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	args := []string{
 		"-p",
 		proxyPort,
@@ -181,8 +187,7 @@ func onConfigProxy(cf *CLIConf) error {
 		args = append([]string{"-l", cf.NodeLogin}, args...)
 	}
 
-	// NOTE: This should eventually make use of `tsh proxy ssh`.
-	child := exec.Command(getDefaultSSHPath(), args...)
+	child := exec.Command(sshPath, args...)
 	child.Stdin = os.Stdin
 	child.Stdout = os.Stdout
 	child.Stderr = os.Stderr
