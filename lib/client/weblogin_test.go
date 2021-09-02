@@ -28,62 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSSHAgentLoginFallback(t *testing.T) {
-	ctx := context.Background()
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.RequestURI != "/v1/webapi/ssh/certs" {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(auth.SSHLoginResponse{})
-	})
-	httpSvr := httptest.NewServer(handler)
-	defer httpSvr.Close()
-
-	t.Run("Allowed on insecure & loopback", func(t *testing.T) {
-		_, err := SSHAgentLogin(ctx, SSHLoginDirect{
-			SSHLogin: SSHLogin{
-				ProxyAddr: httpSvr.Listener.Addr().String(),
-				Insecure:  true,
-			},
-		})
-		require.NoError(t, err)
-	})
-
-	t.Run("Denied on secure", func(t *testing.T) {
-		_, err := SSHAgentLogin(ctx, SSHLoginDirect{
-			SSHLogin: SSHLogin{
-				ProxyAddr: httpSvr.Listener.Addr().String(),
-				Insecure:  false,
-			},
-		})
-		require.Error(t, err)
-	})
-
-	t.Run("Denied on non-loopback", func(t *testing.T) {
-		nonLoopbackSvr := httptest.NewUnstartedServer(handler)
-
-		// replace the test-supplied loopback listener with the first available
-		// non-loopback address
-		nonLoopbackSvr.Listener.Close()
-		l, err := net.Listen("tcp", "0.0.0.0:0")
-		require.NoError(t, err)
-		nonLoopbackSvr.Listener = l
-		nonLoopbackSvr.Start()
-		defer nonLoopbackSvr.Close()
-
-		_, err = SSHAgentLogin(ctx, SSHLoginDirect{
-			SSHLogin: SSHLogin{
-				ProxyAddr: httpSvr.Listener.Addr().String(),
-				Insecure:  false,
-			},
-		})
-		require.Error(t, err)
-	})
-}
-
 func TestHostCredentialsFallback(t *testing.T) {
 	ctx := context.Background()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
