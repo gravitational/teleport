@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"os"
+	"text/template"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -85,24 +86,24 @@ func (c *AppsCommand) ListApps(client auth.ClientI) error {
 	return nil
 }
 
-const appMessage = `The invite token: %v
-This token will expire in %d minutes
+var appMessageTemplate = template.Must(template.New("app").Parse(`The invite token: {{.token}}.
+This token will expire in {{.minutes}} minutes.
 
 Fill out and run this command on a node to make the application available:
 
 > teleport app start \
-   --token=%v \
-   --ca-pin=%v \
-   --auth-server=%v \
-   --name=%-30v ` + "`" + `# Change "%v" to the name of your application.` + "`" + ` \
-   --uri=%-31v ` + "`" + `# Change "%v" to the address of your application.` + "`" + `
+   --token={{.token}} \{{range .ca_pins}}
+   --ca-pin={{.}} \{{end}}
+   --auth-server={{.auth_server}} \
+   --name={{printf "%-30v" .app_name}} ` + "`" + `# Change "{{.app_name}}" to the name of your application.` + "`" + ` \
+   --uri={{printf "%-31v" .app_uri}} ` + "`" + `# Change "{{.app_uri}}" to the address of your application.` + "`" + `
 
-Your application will be available at %v.
+Your application will be available at {{.app_public_addr}}.
 
 Please note:
 
-  - This invitation token will expire in %d minutes.
-  - %v must be reachable from the new application service.
-  - Update DNS to point %v to the Teleport proxy.
-  - Add a TLS certificate for %v to the Teleport proxy under "https_keypairs".
-`
+  - This invitation token will expire in {{.minutes}} minutes.
+  - {{.auth_server}} must be reachable from the new application service.
+  - Update DNS to point {{.app_public_addr}} to the Teleport proxy.
+  - Add a TLS certificate for {{.app_public_addr}} to the Teleport proxy under "https_keypairs".
+`))

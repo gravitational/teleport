@@ -132,6 +132,11 @@ type ForwarderConfig struct {
 	// DynamicLabels is map of dynamic labels associated with this cluster.
 	// Used for RBAC.
 	DynamicLabels *labels.Dynamic
+	// LockWatcher is a lock watcher.
+	LockWatcher *services.LockWatcher
+	// CheckImpersonationPermissions is an optional override of the default
+	// impersonation permissions check, for use in testing
+	CheckImpersonationPermissions ImpersonationPermissionsChecker
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -201,7 +206,14 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		trace.Component: cfg.Component,
 	})
 
-	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType)
+	// Pick the permissions check function to use, applying an override
+	// if specified.
+	checkImpersonation := checkImpersonationPermissions
+	if cfg.CheckImpersonationPermissions != nil {
+		checkImpersonation = cfg.CheckImpersonationPermissions
+	}
+
+	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, checkImpersonation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -590,7 +602,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		authCtx.kubeCluster = kubeCluster
 	}
 
-	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference()
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -620,7 +632,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ap, err := f.cfg.CachingAuthClient.GetAuthPreference()
+	ap, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1315,9 +1327,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if s.disconnectExpiredCert.IsZero() && s.clientIdleTimeout == 0 {
-		return conn, nil
-	}
+
 	ctx, cancel := context.WithCancel(s.parent.ctx)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
@@ -1329,7 +1339,9 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		return nil, trace.Wrap(err)
 	}
 
-	mon, err := srv.NewMonitor(srv.MonitorConfig{
+	err = srv.StartMonitor(srv.MonitorConfig{
+		LockWatcher:           s.parent.cfg.LockWatcher,
+		LockTargets:           s.LockTargets(),
 		DisconnectExpiredCert: s.disconnectExpiredCert,
 		ClientIdleTimeout:     s.clientIdleTimeout,
 		Clock:                 s.parent.cfg.Clock,
@@ -1345,7 +1357,6 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		tc.Close()
 		return nil, trace.Wrap(err)
 	}
-	go mon.Start()
 	return tc, nil
 }
 

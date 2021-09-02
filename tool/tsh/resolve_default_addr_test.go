@@ -233,8 +233,6 @@ func TestResolveUndeliveredBodyDoesNotBlockForever(t *testing.T) {
 }
 
 func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
-	t.Parallel()
-
 	// Given a large set of candidate servers that will all block forever...
 
 	blockingHandler, doneCh := newWaitForeverHandler()

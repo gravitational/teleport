@@ -1,6 +1,7 @@
 ---
 title: Database Access with Redshift on AWS
-description: How to configure Teleport Database Access with AWS Redshift PostgreSQL
+description: How to configure Teleport Database Access with AWS Redshift PostgreSQL.
+videoBanner: UFhT52d5bYg
 ---
 
 # AWS Redshift PostgreSQL
@@ -34,7 +35,7 @@ maintenance database are displayed on the `Database configurations` panel of the
 ![Redshift cluster user/database](../../../img/database-access/guides/redshift/cluster-user-db@2x.png)
 </Figure>
 
-## Create IAM Policy
+## Create IAM policy
 
 Teleport uses [IAM tokens](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html)
 to authenticate with Redshift databases. IAM authentication is enabled by default
@@ -93,56 +94,19 @@ Parameters:
 See [AWS documentation](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-iam-credentials-role-permissions.html)
 for more information about setting up an IAM role.
 
-## Setup Teleport Auth and Proxy Services
+## Setup Teleport Auth and Proxy services
 
 Teleport Database Access for Redshift is available starting from `6.2` release.
-Download the appropriate version of Teleport for your platform from our
-[downloads page](https://goteleport.com/teleport/download).
 
-Teleport requires a valid TLS certificate to operate and can fetch one automatically
-using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol.
+(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-We will assume that you have configured DNS records for `teleport.example.com`
-and `*.teleport.example.com` to point to the Teleport node.
+(!docs/pages/includes/database-access/token.mdx!)
 
-Let's generate a Teleport config with ACME enabled:
-
-```bash
-$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
-```
-
-<Admonition
-  type="note"
-  title="Web Proxy Port"
->
-  Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
-  ACME challenge to validate certificate requests which only works on port `443`.
-  As such, in order to use ACME for certificate management, web proxy needs to
-  be accessible on port `443`.
-</Admonition>
-
-Start the service:
-
-```bash
-$ sudo teleport start
-```
-
-Generate a short-lived join token for the database service and save it for
-example in `/tmp/token`:
-
-```bash
-$ tctl tokens add \
-    --type=db \
-    --db-name=redshift \
-    --db-protocol=postgres \
-    --db-uri=redshift-cluster-1.abcdefg.us-east-1.redshift.amazonaws.com:5439
-```
-
-### Create a User
+### Create user
 
 Create a local Teleport user with the built-in `access` role:
 
-```bash
+```code
 $ tctl users add --roles=access alice
 ```
 
@@ -154,7 +118,7 @@ connect to the `dev` database as a `awsuser` database user.
 
 First, export the user resource:
 
-```bash
+```code
 $ tctl get users/alice > alice.yaml
 ```
 
@@ -172,14 +136,14 @@ traits:
 
 Update the user:
 
-```bash
+```code
 $ tctl create alice.yaml -f
 ```
 
 For more detailed information about database access controls see [RBAC](../rbac.mdx)
 documentation.
 
-## Setup Teleport Database Service
+## Setup Teleport Database service
 
 Below is an example of a database service configuration file that proxies
 a single Redshift database:
@@ -236,11 +200,11 @@ proxy_service:
 
 Start the database service:
 
-```bash
+```code
 $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ```
 
-### AWS Credentials
+### AWS credentials
 
 Teleport Database Service must have an IAM role allowing it to generate IAM
 auth tokens which we created in the [Create IAM Policy](#create-iam-policy)
@@ -255,12 +219,12 @@ for more information.
 Once the database service has joined the cluster, login to see the available
 databases:
 
-```bash
-$ tsh login --proxy=teleport.example.com:3080 --user=alice
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
-Name     Description             Labels
--------- ----------------------- --------
-redshift AWS Redshift PostgreSQL env=dev
+# Name     Description             Labels
+# -------- ----------------------- --------
+# redshift AWS Redshift PostgreSQL env=dev
 ```
 
 Note that you will only be able to see databases your role has access to. See
@@ -269,7 +233,7 @@ Note that you will only be able to see databases your role has access to. See
 To connect to a particular database server, first retrieve credentials from
 Teleport using `tsh db login` command:
 
-```bash
+```code
 $ tsh db login redshift
 ```
 
@@ -283,27 +247,30 @@ $ tsh db login redshift
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
-```bash
+```code
 $ tsh db login --db-user=awsuser --db-name=dev redshift
 ```
 
-When logging into a PostgreSQL database, `tsh` automatically configures a section
-in the [connection service file](https://www.postgresql.org/docs/current/libpq-pgservice.html)
-with the name of `<cluster-name>-<database-service-name>`.
+Once logged in, connect to the database:
 
-Suppose the cluster name is "teleport.example.com", then you can connect to the
-database using the following `psql` command:
+```code
+$ tsh db connect aurora
+```
 
-```bash
-# Use default database user and database name.
-$ psql "service=teleport.example.com-redshift"
-# Specify database user and database name explicitly.
-$ psql "service=teleport.example.com-redshift user=awsuser dbname=dev"
+<Admonition type="note" title="Note">
+  The `psql` command-line client should be available in PATH in order to be
+  able to connect.
+</Admonition>
+
+If you would like to see the native `psql` shell connect command, run:
+
+```code
+$ tsh db config --format=cmd aurora
 ```
 
 To log out of the database and remove credentials:
 
-```bash
+```code
 # Remove credentials for a particular database instance.
 $ tsh db logout redshift
 # Remove credentials for all database instances.

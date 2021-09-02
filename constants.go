@@ -234,6 +234,9 @@ const (
 	// ComponentBPF is the eBPF packagae.
 	ComponentBPF = "bpf"
 
+	// ComponentRestrictedSession is restriction of user access to kernel objects
+	ComponentRestrictedSession = "restrictedsess"
+
 	// ComponentCgroup is the cgroup package.
 	ComponentCgroup = "cgroups"
 
@@ -243,8 +246,20 @@ const (
 	// ComponentSAML is a SAML service provider.
 	ComponentSAML = "saml"
 
+	// ComponentMetrics is a metrics server
+	ComponentMetrics = "metrics"
+
+	// ComponentWindowsDesktop is a Windows desktop access server.
+	ComponentWindowsDesktop = "windows_desktop"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
+
+	// DebugAssetsPath allows users to set the path of the webassets if debug
+	// mode is enabled.
+	// For example,
+	// `DEBUG=1 DEBUG_ASSETS_PATH=/path/to/webassets/ teleport start`.
+	DebugAssetsPath = "DEBUG_ASSETS_PATH"
 
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
@@ -429,6 +444,9 @@ const (
 	NetIQ = "netiq"
 	// ADFS is Microsoft Active Directory Federation Services
 	ADFS = "adfs"
+	// Ping is the common backend for all Ping Identity-branded identity
+	// providers (including PingOne, PingFederate, etc).
+	Ping = "ping"
 )
 
 const (
@@ -628,6 +646,10 @@ const (
 	// UsageDatabaseOnly specifies certificate usage metadata that only allows
 	// it to be used for proxying database connections.
 	UsageDatabaseOnly = "usage:db"
+
+	// UsageWindowsDesktopOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Windows desktop access
+	UsageWindowsDesktopOnly = "usage:windows_desktop"
 )
 
 const (

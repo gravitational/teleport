@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMTLSClientCAs(t *testing.T) {
@@ -46,16 +47,21 @@ func TestMTLSClientCAs(t *testing.T) {
 	require.NoError(t, err)
 
 	addCA := func(t *testing.T, name string) (key, cert []byte) {
-		key, cert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(caKey, pkix.Name{CommonName: name}, nil, time.Minute)
+		cert, err := tlsca.GenerateSelfSignedCAWithSigner(caKey, pkix.Name{CommonName: name}, nil, time.Minute)
 		require.NoError(t, err)
-		ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		_, key, err = utils.MarshalPrivateKey(caKey)
+		require.NoError(t, err)
+		ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 			Type:        types.HostCA,
 			ClusterName: name,
-			TLSKeyPairs: []types.TLSKeyPair{{
-				Cert: cert,
-				Key:  key,
-			}},
+			ActiveKeys: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  key,
+				}},
+			},
 		})
+		require.NoError(t, err)
 		ap.cas[name] = ca
 		return key, cert
 	}

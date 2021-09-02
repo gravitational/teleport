@@ -56,6 +56,21 @@ type ClusterNetworkingConfig interface {
 
 	// SetSessionControlTimeout sets the session control timeout.
 	SetSessionControlTimeout(t time.Duration)
+
+	// GetClientIdleTimeoutMessage fetches the message to be sent to the client in
+	// the event of an idle timeout. An empty string implies no message should
+	// be sent.
+	GetClientIdleTimeoutMessage() string
+
+	// SetClientIdleTimeoutMessage sets the inactivity timeout disconnection message
+	// to be sent to the user.
+	SetClientIdleTimeoutMessage(string)
+
+	// GetWebIdleTimeout gets web idle timeout duration.
+	GetWebIdleTimeout() time.Duration
+
+	// SetWebIdleTimeout sets the web idle timeout duration.
+	SetWebIdleTimeout(time.Duration)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -77,21 +92,16 @@ func DefaultClusterNetworkingConfig() ClusterNetworkingConfig {
 // newClusterNetworkingConfigWithLabels is a convenience method to create
 // ClusterNetworkingConfigV2 with a specific map of labels.
 func newClusterNetworkingConfigWithLabels(spec ClusterNetworkingConfigSpecV2, labels map[string]string) (ClusterNetworkingConfig, error) {
-	netConfig := ClusterNetworkingConfigV2{
-		Kind:    KindClusterNetworkingConfig,
-		Version: V2,
+	c := &ClusterNetworkingConfigV2{
 		Metadata: Metadata{
-			Name:      MetaNameClusterNetworkingConfig,
-			Namespace: defaults.Namespace,
-			Labels:    labels,
+			Labels: labels,
 		},
 		Spec: spec,
 	}
-
-	if err := netConfig.CheckAndSetDefaults(); err != nil {
+	if err := c.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &netConfig, nil
+	return c, nil
 }
 
 // GetVersion returns resource version.
@@ -117,13 +127,6 @@ func (c *ClusterNetworkingConfigV2) SetExpiry(expires time.Time) {
 // Expiry returns object expiry setting.
 func (c *ClusterNetworkingConfigV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *ClusterNetworkingConfigV2) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
 }
 
 // GetMetadata returns object metadata.
@@ -208,15 +211,36 @@ func (c *ClusterNetworkingConfigV2) SetSessionControlTimeout(d time.Duration) {
 	c.Spec.SessionControlTimeout = Duration(d)
 }
 
+func (c *ClusterNetworkingConfigV2) GetClientIdleTimeoutMessage() string {
+	return c.Spec.ClientIdleTimeoutMessage
+}
+
+func (c *ClusterNetworkingConfigV2) SetClientIdleTimeoutMessage(msg string) {
+	c.Spec.ClientIdleTimeoutMessage = msg
+}
+
+// GetWebIdleTimeout gets the web idle timeout.
+func (c *ClusterNetworkingConfigV2) GetWebIdleTimeout() time.Duration {
+	return c.Spec.WebIdleTimeout.Duration()
+}
+
+// SetWebIdleTimeout sets the web idle timeout.
+func (c *ClusterNetworkingConfigV2) SetWebIdleTimeout(ttl time.Duration) {
+	c.Spec.WebIdleTimeout = Duration(ttl)
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (c *ClusterNetworkingConfigV2) setStaticFields() {
+	c.Kind = KindClusterNetworkingConfig
+	c.Version = V2
+	c.Metadata.Name = MetaNameClusterNetworkingConfig
+}
+
 // CheckAndSetDefaults verifies the constraints for ClusterNetworkingConfig.
 func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
-	// Make sure we have defaults for all metadata fields.
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if c.Version == "" {
-		c.Version = V2
 	}
 
 	// Make sure origin value is always set.

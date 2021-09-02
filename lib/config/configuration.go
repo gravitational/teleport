@@ -34,6 +34,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -48,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -63,9 +64,8 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
-	// CAPin is the hash of the SKPI of the root CA. Used to verify the cluster
-	// being joined is the one expected.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 	// --listen-ip flag
 	ListenIP net.IP
 	// --advertise-ip flag
@@ -209,6 +209,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Databases.Disabled() {
 		cfg.Databases.Enabled = false
 	}
+	if fc.Metrics.Disabled() {
+		cfg.Metrics.Enabled = false
+	}
+	if fc.WindowsDesktop.Disabled() {
+		cfg.WindowsDesktop.Enabled = false
+	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// apply "advertise_ip" setting:
@@ -310,8 +316,16 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// Read in how nodes will validate the CA.
-	if fc.CAPin != "" {
-		cfg.CAPin = fc.CAPin
+	cfg.CAPins = fc.CAPin
+
+	// Set diagnostic address
+	if fc.DiagAddr != "" {
+		// Validate address
+		parsed, err := utils.ParseAddr(fc.DiagAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.DiagnosticAddr = *parsed
 	}
 
 	// apply connection throttling:
@@ -319,6 +333,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		&cfg.SSH.Limiter,
 		&cfg.Auth.Limiter,
 		&cfg.Proxy.Limiter,
+		&cfg.Kube.Limiter,
+		&cfg.WindowsDesktop.ConnLimiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
@@ -371,6 +387,16 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Metrics.Enabled() {
+		if err := applyMetricsConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.WindowsDesktop.Enabled() {
+		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	return nil
 }
@@ -397,10 +423,9 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		}
 		logger.SetOutput(logFile)
 	}
+
 	switch strings.ToLower(loggerConfig.Severity) {
-	case "":
-		break // not set
-	case "info":
+	case "", "info":
 		logger.SetLevel(log.InfoLevel)
 	case "err", "error":
 		logger.SetLevel(log.ErrorLevel)
@@ -412,15 +437,34 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
-	formatter := &textFormatter{
-		LogFormat:    loggerConfig.Format,
-		EnableColors: trace.IsTerminal(os.Stderr),
+	switch strings.ToLower(loggerConfig.Format.Output) {
+	case "":
+		fallthrough // not set. defaults to 'text'
+	case "text":
+		formatter := &textFormatter{
+			ExtraFields:  loggerConfig.Format.ExtraFields,
+			EnableColors: trace.IsTerminal(os.Stderr),
+		}
+
+		if err := formatter.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		logger.SetFormatter(formatter)
+	case "json":
+		formatter := &jsonFormatter{
+			extraFields: loggerConfig.Format.ExtraFields,
+		}
+
+		if err := formatter.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		logger.SetFormatter(formatter)
+	default:
+		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
-	err := formatter.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	logger.Formatter = formatter
+
 	return nil
 }
 
@@ -444,18 +488,6 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Auth.SSHAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
-	}
-
-	// INTERNAL: Authorities (plus Roles) and ReverseTunnels don't follow the
-	// same pattern as the rest of the configuration (they are not configuration
-	// singletons). However, we need to keep them around while Telekube uses them.
-	for _, authority := range fc.Auth.Authorities {
-		ca, role, err := authority.Parse()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Auth.Authorities = append(cfg.Auth.Authorities, ca)
-		cfg.Auth.Roles = append(cfg.Auth.Roles, role)
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
 		tun, err := t.ConvertAndValidate()
@@ -489,7 +521,9 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		cfg.Auth.Preference.SetMessageOfTheDay(fc.Auth.MessageOfTheDay)
 	}
+
 	if fc.Auth.DisconnectExpiredCert != nil {
 		cfg.Auth.Preference.SetOrigin(types.OriginConfigFile)
 		cfg.Auth.Preference.SetDisconnectExpiredCert(fc.Auth.DisconnectExpiredCert.Value)
@@ -502,26 +536,25 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		log.Warnf(warningMessage)
 	}
 
-	auditConfig, err := services.AuditConfigFromObject(fc.Storage.Params)
+	// Set cluster audit configuration from file configuration.
+	auditConfigSpec, err := services.ClusterAuditConfigSpecFromObject(fc.Storage.Params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	auditConfig.Type = fc.Storage.Type
-
-	// Set cluster-wide configuration from file configuration.
-	cfg.Auth.ClusterConfig, err = types.NewClusterConfig(types.ClusterConfigSpecV3{
-		Audit: *auditConfig,
-	})
+	auditConfigSpec.Type = fc.Storage.Type
+	cfg.Auth.AuditConfig, err = types.NewClusterAuditConfig(*auditConfigSpec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Set cluster networking configuration from file configuration.
 	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout:     fc.Auth.ClientIdleTimeout,
-		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
-		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
-		SessionControlTimeout: fc.Auth.SessionControlTimeout,
+		ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
+		ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
+		WebIdleTimeout:           fc.Auth.WebIdleTimeout,
+		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
+		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
+		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -536,6 +569,10 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
+	if err := applyKeyStoreConfig(fc, cfg); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// read in and set the license file path (not used in open-source version)
 	licenseFile := fc.Auth.LicenseFile
 	if licenseFile != "" {
@@ -546,6 +583,28 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	return nil
+}
+
+func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
+	if fc.Auth.CAKeyParams == nil {
+		return nil
+	}
+	cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
+	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
+	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
+		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
+			return trace.BadParameter("can not set both pin and pin_path")
+		}
+		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pin := strings.TrimRight(string(pinBytes), "\r\n")
+		cfg.Auth.KeyStore.Pin = pin
+	}
 	return nil
 }
 
@@ -741,7 +800,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Proxy.ACME = *acme
 
 	return nil
-
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
@@ -806,13 +864,15 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.BPF != nil {
 		cfg.SSH.BPF = fc.SSH.BPF.Parse()
 	}
-
-	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
-		cfg.SSH.ProxyReverseTunnelFallbackAddr, err = utils.ParseHostPortAddr(proxyAddr, defaults.SSHProxyTunnelListenPort)
+	if fc.SSH.RestrictedSession != nil {
+		rs, err := fc.SSH.RestrictedSession.Parse()
 		if err != nil {
-			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
+			return trace.Wrap(err)
 		}
+		cfg.SSH.RestrictedSession = rs
 	}
+
+	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
 
 	return nil
 }
@@ -868,6 +928,12 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 // applyDatabasesConfig applies file configuration for the "db_service" section.
 func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Databases.Enabled = true
+	for _, selector := range fc.Databases.Selectors {
+		cfg.Databases.Selectors = append(cfg.Databases.Selectors,
+			services.Selector{
+				MatchLabels: selector.MatchLabels,
+			})
+	}
 	for _, database := range fc.Databases.Databases {
 		staticLabels := make(map[string]string)
 		if database.StaticLabels != nil {
@@ -910,7 +976,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				InstanceID: database.GCP.InstanceID,
 			},
 		}
-		if err := db.Check(); err != nil {
+		if err := db.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
@@ -976,6 +1042,100 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
+// applyMetricsConfig applies file configuration for the "metrics_service" section.
+func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
+	// Metrics is enabled.
+	cfg.Metrics.Enabled = true
+
+	addr, err := utils.ParseHostPortAddr(fc.Metrics.ListenAddress, int(defaults.MetricsListenPort))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.Metrics.ListenAddr = addr
+
+	if !fc.Metrics.MTLSEnabled() {
+		return nil
+	}
+
+	cfg.Metrics.MTLS = true
+
+	if len(fc.Metrics.KeyPairs) == 0 {
+		return trace.BadParameter("at least one keypair shoud be provided when mtls is enabled in the metrics config")
+	}
+
+	if len(fc.Metrics.CACerts) == 0 {
+		return trace.BadParameter("at least one CA cert shoud be provided when mtls is enabled in the metrics config")
+	}
+
+	for _, p := range fc.Metrics.KeyPairs {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(p.PrivateKey) {
+			return trace.NotFound("metrics service private key does not exist: %s", p.PrivateKey)
+		}
+		if !utils.FileExists(p.Certificate) {
+			return trace.NotFound("metrics service cert does not exist: %s", p.Certificate)
+		}
+
+		certificateChainBytes, err := utils.ReadPath(p.Certificate)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !utils.IsSelfSigned(certificateChain) {
+			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
+				return trace.BadParameter("unable to verify the metrics service certificate chain in %v: %s",
+					p.Certificate, utils.UserMessageFromError(err))
+			}
+		}
+
+		cfg.Metrics.KeyPairs = append(cfg.Metrics.KeyPairs, service.KeyPairPath{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
+	}
+
+	for _, caCert := range fc.Metrics.CACerts {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(caCert) {
+			return trace.NotFound("metrics service ca cert does not exist: %s", caCert)
+		}
+
+		cfg.Metrics.CACerts = append(cfg.Metrics.CACerts, caCert)
+	}
+
+	return nil
+}
+
+// applyWindowsDesktopConfig applies file configuration for the "windows_desktop_service" section.
+func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
+	cfg.WindowsDesktop.Enabled = true
+
+	if fc.WindowsDesktop.ListenAddress != "" {
+		listenAddr, err := utils.ParseHostPortAddr(fc.WindowsDesktop.ListenAddress, int(defaults.WindowsDesktopListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.WindowsDesktop.ListenAddr = *listenAddr
+	}
+	var err error
+	cfg.WindowsDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // parseAuthorizedKeys parses keys in the authorized_keys format and
 // returns a types.CertAuthority.
 func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
@@ -994,14 +1154,20 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 	}
 
 	// create a new certificate authority
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         types.UserCA,
-		ClusterName:  clusterName,
-		SigningKeys:  nil,
-		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubkey)},
-		Roles:        nil,
-		SigningAlg:   types.CertAuthoritySpecV2_UNKNOWN,
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PublicKey: ssh.MarshalAuthorizedKey(pubkey),
+			}},
+		},
+		Roles:      nil,
+		SigningAlg: types.CertAuthoritySpecV2_UNKNOWN,
 	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -1035,11 +1201,18 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority,
 	const prefix = "*."
 	domainName := strings.TrimPrefix(options[0], prefix)
 
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         authType,
-		ClusterName:  domainName,
-		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        authType,
+		ClusterName: domainName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PublicKey: ssh.MarshalAuthorizedKey(pubKey),
+			}},
+		},
 	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -1142,7 +1315,11 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 			tunnelAddresses = append(tunnelAddresses, addr.FullAddress())
 		}
 		if len(tunnelAddresses) > 0 {
-			conf.ReverseTunnels = append(conf.ReverseTunnels, types.NewReverseTunnel(clusterName, tunnelAddresses))
+			rt, err := types.NewReverseTunnel(clusterName, tunnelAddresses)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			conf.ReverseTunnels = append(conf.ReverseTunnels, rt)
 		}
 	}
 	return nil
@@ -1267,7 +1444,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				InstanceID: clf.DatabaseGCPInstanceID,
 			},
 		}
-		if err := db.Check(); err != nil {
+		if err := db.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
@@ -1381,8 +1558,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
-	if clf.CAPin != "" {
-		cfg.CAPin = clf.CAPin
+	if len(clf.CAPins) != 0 {
+		cfg.CAPins = clf.CAPins
 	}
 
 	// apply --listen-ip flag:

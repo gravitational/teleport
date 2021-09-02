@@ -19,41 +19,58 @@ package services
 import (
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// DefaultClusterConfig is used as the default cluster configuration when
-// one is not specified (record at node).
-func DefaultClusterConfig() types.ClusterConfig {
-	return &types.ClusterConfigV3{
-		Kind:    types.KindClusterConfig,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:      types.MetaNameClusterConfig,
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.ClusterConfigSpecV3{},
-	}
+// ClusterConfigDerivedResources holds a set of the ClusterConfig-derived
+// resources following the reorganization of RFD 28.
+type ClusterConfigDerivedResources struct {
+	types.ClusterAuditConfig
+	types.ClusterNetworkingConfig
+	types.SessionRecordingConfig
 }
 
-// AuditConfigFromObject returns audit config from interface object
-func AuditConfigFromObject(in interface{}) (*types.AuditConfig, error) {
-	var cfg types.AuditConfig
-	if in == nil {
-		return &cfg, nil
+// NewDerivedResourcesFromClusterConfig converts a legacy ClusterConfig to the new
+// configuration resources described in RFD 28.
+// DELETE IN 8.0.0
+func NewDerivedResourcesFromClusterConfig(cc types.ClusterConfig) (*ClusterConfigDerivedResources, error) {
+	ccV3, ok := cc.(*types.ClusterConfigV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected ClusterConfig type %T", cc)
 	}
-	if err := utils.ObjectToStruct(in, &cfg); err != nil {
+
+	auditConfig, err := ccV3.GetClusterAuditConfig()
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &cfg, nil
+	netConfig, err := ccV3.GetClusterNetworkingConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	recConfig, err := ccV3.GetSessionRecordingConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ClusterConfigDerivedResources{
+		ClusterAuditConfig:      auditConfig,
+		ClusterNetworkingConfig: netConfig,
+		SessionRecordingConfig:  recConfig,
+	}, nil
 }
 
-// ShouldUploadSessions returns whether audit config
-// instructs server to upload sessions
-func ShouldUploadSessions(a types.AuditConfig) bool {
-	return a.AuditSessionsURI != ""
+// UpdateAuthPreferenceWithLegacyClusterConfig updates an AuthPreference with
+// auth-related values that used to be stored in ClusterConfig.
+// DELETE IN 8.0.0
+func UpdateAuthPreferenceWithLegacyClusterConfig(cc types.ClusterConfig, authPref types.AuthPreference) error {
+	ccV3, ok := cc.(*types.ClusterConfigV3)
+	if !ok {
+		return trace.BadParameter("unexpected ClusterConfig type %T", cc)
+	}
+	authPref.SetDisconnectExpiredCert(ccV3.Spec.DisconnectExpiredCert.Value())
+	authPref.SetAllowLocalAuth(ccV3.Spec.AllowLocalAuth.Value())
+	return nil
 }
 
 // UnmarshalClusterConfig unmarshals the ClusterConfig resource from JSON.
@@ -89,6 +106,10 @@ func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (types.ClusterC
 
 // MarshalClusterConfig marshals the ClusterConfig resource to JSON.
 func MarshalClusterConfig(clusterConfig types.ClusterConfig, opts ...MarshalOption) ([]byte, error) {
+	if err := clusterConfig.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -96,9 +117,6 @@ func MarshalClusterConfig(clusterConfig types.ClusterConfig, opts ...MarshalOpti
 
 	switch clusterConfig := clusterConfig.(type) {
 	case *types.ClusterConfigV3:
-		if version := clusterConfig.GetVersion(); version != types.V3 {
-			return nil, trace.BadParameter("mismatched cluster config version %v and type %T", version, clusterConfig)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

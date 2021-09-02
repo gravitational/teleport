@@ -82,6 +82,8 @@ type WebSession interface {
 	GetLoginTime() time.Time
 	// SetLoginTime sets when this user logged in.
 	SetLoginTime(time.Time)
+	// GetIdleTimeout returns the max time a user can be inactive for this session.
+	GetIdleTimeout() time.Duration
 	// WithoutSecrets returns copy of the web session but without private keys
 	WithoutSecrets() WebSession
 	// String returns string representation of the session.
@@ -89,18 +91,19 @@ type WebSession interface {
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
-func NewWebSession(name string, kind string, subkind string, spec WebSessionSpecV2) WebSession {
-	return &WebSessionV2{
-		Kind:    kind,
+func NewWebSession(name string, subkind string, spec WebSessionSpecV2) (WebSession, error) {
+	ws := &WebSessionV2{
 		SubKind: subkind,
-		Version: V2,
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
-			Expires:   &spec.Expires,
+			Name:    name,
+			Expires: &spec.Expires,
 		},
 		Spec: spec,
 	}
+	if err := ws.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ws, nil
 }
 
 // GetKind gets resource Kind
@@ -143,13 +146,6 @@ func (ws *WebSessionV2) SetExpiry(expiry time.Time) {
 	ws.Metadata.SetExpiry(expiry)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (ws *WebSessionV2) SetTTL(clock Clock, ttl time.Duration) {
-	ws.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata gets resource Metadata
 func (ws *WebSessionV2) GetMetadata() Metadata {
 	return ws.Metadata
@@ -165,21 +161,30 @@ func (ws *WebSessionV2) SetResourceID(id int64) {
 	ws.Metadata.SetID(id)
 }
 
+// GetIdleTimeout returns the max idle timeout duration.
+func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
+	return ws.Spec.IdleTimeout.Duration()
+}
+
 // WithoutSecrets returns copy of the object but without secrets
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	ws.Spec.Priv = nil
 	return ws
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (ws *WebSessionV2) setStaticFields() {
+	ws.Version = V2
+	ws.Kind = KindWebSession
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (ws *WebSessionV2) CheckAndSetDefaults() error {
-	err := ws.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	ws.setStaticFields()
+	if err := ws.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if ws.Version == "" {
-		ws.Version = V2
-	}
+
 	if ws.Spec.User == "" {
 		return trace.BadParameter("missing User")
 	}
@@ -285,6 +290,8 @@ type CreateAppSessionRequest struct {
 	PublicAddr string `json:"public_addr"`
 	// ClusterName is the name of the cluster within which the application is running.
 	ClusterName string `json:"cluster_name"`
+	// AWSRoleARN is AWS role this the user wants to assume.
+	AWSRoleARN string `json:"aws_role_arn"`
 }
 
 // Check validates the request.
@@ -309,17 +316,18 @@ type DeleteAppSessionRequest struct {
 }
 
 // NewWebToken returns a new web token with the given expiration and spec
-func NewWebToken(expires time.Time, spec WebTokenSpecV3) WebToken {
-	return &WebTokenV3{
-		Kind:    KindWebToken,
-		Version: V3,
+func NewWebToken(expires time.Time, spec WebTokenSpecV3) (WebToken, error) {
+	r := &WebTokenV3{
 		Metadata: Metadata{
-			Name:      spec.Token,
-			Namespace: defaults.Namespace,
-			Expires:   &expires,
+			Name:    spec.Token,
+			Expires: &expires,
 		},
 		Spec: spec,
 	}
+	if err := r.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return r, nil
 }
 
 // WebTokensGetter provides access to web tokens
@@ -410,11 +418,6 @@ func (r *WebTokenV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
 }
 
-// SetTTL sets the token resource TTL (time-to-live) value
-func (r *WebTokenV3) SetTTL(clock Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
-}
-
 // GetToken returns the token value
 func (r *WebTokenV3) GetToken() string {
 	return r.Spec.Token
@@ -448,14 +451,19 @@ func (r *WebTokenV3) SetExpiry(t time.Time) {
 	r.Metadata.Expires = &t
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (r *WebTokenV3) setStaticFields() {
+	r.Kind = KindWebToken
+	r.Version = V3
+}
+
 // CheckAndSetDefaults validates this token value and sets defaults
 func (r *WebTokenV3) CheckAndSetDefaults() error {
+	r.setStaticFields()
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if r.Version == "" {
-		r.Version = V3
-	}
+
 	if r.Spec.User == "" {
 		return trace.BadParameter("User required")
 	}

@@ -19,7 +19,7 @@ limitations under the License.
 package bpf
 
 import (
-	"github.com/aquasecurity/tracee/libbpfgo"
+	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,9 +28,6 @@ import (
 
 	_ "embed"
 )
-
-//go:embed bytecode/network.bpf.o
-var networkBPF []byte
 
 var (
 	lostNetworkEvents = prometheus.NewCounter(
@@ -68,7 +65,7 @@ type rawConn4Event struct {
 	DstPort uint16
 
 	// Command is name of the executable making the connection.
-	Command [commMax]byte
+	Command [CommMax]byte
 }
 
 // rawConn6Event is sent by the eBPF program that Teleport pulls off the perf
@@ -93,7 +90,7 @@ type rawConn6Event struct {
 	DstPort uint16
 
 	// Command is name of the executable making the connection.
-	Command [commMax]byte
+	Command [CommMax]byte
 }
 
 type conn struct {
@@ -112,6 +109,11 @@ func startConn(bufferSize int) (*conn, error) {
 	}
 
 	c := &conn{}
+
+	networkBPF, err := embedFS.ReadFile("bytecode/network.bpf.o")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	c.module, err = libbpfgo.NewModuleFromBuffer(networkBPF, "network")
 	if err != nil {

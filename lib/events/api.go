@@ -23,6 +23,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 
@@ -216,6 +217,8 @@ const (
 	//  - updating a user record
 	UpdatedBy = "updated_by"
 
+	// RecoveryTokenCreateEvent is emitted when a new recovery token is created.
+	RecoveryTokenCreateEvent = "recovery_token.create"
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
@@ -363,6 +366,13 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
+	// DatabaseCreateEvent is emitted when a database resource is created.
+	DatabaseCreateEvent = "db.create"
+	// DatabaseUpdateEvent is emitted when a database resource is updated.
+	DatabaseUpdateEvent = "db.update"
+	// DatabaseDeleteEvent is emitted when a database resource is deleted.
+	DatabaseDeleteEvent = "db.delete"
+
 	// DatabaseSessionStartEvent is emitted when a database client attempts
 	// to connect to a database.
 	DatabaseSessionStartEvent = "db.session.start"
@@ -372,6 +382,9 @@ const (
 	// DatabaseSessionQueryEvent is emitted when a database client executes
 	// a query.
 	DatabaseSessionQueryEvent = "db.session.query"
+	// DatabaseSessionQueryFailedEvent is emitted when database client's request
+	// to execute a database query/command was unsuccessful.
+	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
@@ -392,6 +405,16 @@ const (
 	MFADeviceAddEvent = "mfa.add"
 	// MFADeviceDeleteEvent is an event type for users deleting MFA devices.
 	MFADeviceDeleteEvent = "mfa.delete"
+
+	// LockCreatedEvent fires when a lock is created/updated.
+	LockCreatedEvent = "lock.created"
+	// LockDeletedEvent fires when a lock is deleted.
+	LockDeletedEvent = "lock.deleted"
+
+	// RecoveryCodeGeneratedEvent is an event type for generating a user's recovery tokens.
+	RecoveryCodeGeneratedEvent = "recovery_code.generated"
+	// RecoveryCodeUsedEvent is an event type when a recovery token was used.
+	RecoveryCodeUsedEvent = "recovery_code.used"
 )
 
 const (
@@ -592,9 +615,10 @@ type IAuditLog interface {
 	// Event types to filter can be specified and pagination is handled by an iterator key that allows
 	// a query to be resumed.
 	//
-	// The only mandatory requirement is a date range (UTC). Results must always
-	// show up sorted by date (newest first)
-	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error)
+	// The only mandatory requirement is a date range (UTC).
+	//
+	// This function may never return more than 1 MiB of event data.
+	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
 
 	// SearchSessionEvents is a flexible way to find session events.
 	// Only session events are returned by this function.
@@ -602,11 +626,18 @@ type IAuditLog interface {
 	//
 	// Event types to filter can be specified and pagination is handled by an iterator key that allows
 	// a query to be resumed.
-	SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error)
+	//
+	// This function may never return more than 1 MiB of event data.
+	SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
 
 	// WaitForDelivery waits for resources to be released and outstanding requests to
 	// complete after calling Close method
 	WaitForDelivery(context.Context) error
+
+	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+	// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+	// The event channel is not closed on error to prevent race conditions in downstream select statements.
+	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
 // EventFields instance is attached to every logged event

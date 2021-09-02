@@ -1,9 +1,9 @@
 ---
 title: Second Factor - U2F
-description: Configuring U2F support in Teleport clusters
+description: Configuring U2F support in Teleport clusters.
 ---
 
-# U2F
+#  U2F ( Hardware Tokens) 
 
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
 hardware keys as a second authentication factor. U2F can be used for logging
@@ -77,17 +77,19 @@ changes.
 
 ## Register U2F devices as a user
 
-A user can register multiple U2F devices [using
-`tsh`](../../cli-docs.mdx#tsh-mfa-add):
+A user can register multiple U2F devices [using `tsh`](../../setup/reference/cli.mdx#tsh-mfa-add):
 
-```bash
+```code
 $ tsh mfa add
-Choose device type [TOTP, U2F]: u2f
-Enter device name: desktop yubikey
-Tap any *registered* security key
-Tap your *new* security key
-MFA device "desktop yubikey" added.
+
+# Choose device type [TOTP, U2F]: u2f
+# Enter device name: desktop yubikey
+# Tap any *registered* security key
+# Tap your *new* security key
+# MFA device "desktop yubikey" added.
 ```
+
+{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 <Admonition type="warning" title="Windows support">
   U2F devices are currently not supported in `tsh` on Windows.
@@ -97,18 +99,19 @@ MFA device "desktop yubikey" added.
 
 Once a U2F device is registered, the user will be prompted for it on login:
 
-```sh
+```code
 $ tsh login --proxy=example.com
-Enter password for Teleport user awly:
-Tap any security key <tap U2F token>
-> Profile URL:        https://example.com
-  Logged in as:       awly
-  Cluster:            example.com
-  Roles:              admin*
-  Logins:             awly
-  Kubernetes:         enabled
-  Valid until:        2021-04-01 23:32:29 -0700 PDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+
+# Enter password for Teleport user awly:
+# Tap any security key <tap U2F token>
+# > Profile URL:        https://example.com
+#  Logged in as:       awly
+#  Cluster:            example.com
+#  Roles:              admin*
+#  Logins:             awly
+#  Kubernetes:         enabled
+#  Valid until:        2021-04-01 23:32:29 -0700 PDT [valid for 12h0m0s]
+#  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
 <Admonition type="note">
@@ -117,6 +120,6 @@ users](../../admin-guide.mdx#local-connector). SSO users should configure
 multi-factor authentication in their SSO provider.
 </Admonition>
 
-## Next Steps
+## Next steps
 
 - [Setup per-session U2F checks](per-session-mfa.mdx)

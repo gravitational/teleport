@@ -286,13 +286,6 @@ func (r *EmptyResource) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }
 
-// SetTTL sets TTL header using realtime clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (r *EmptyResource) SetTTL(clock types.Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
-}
-
 // SetName sets the role name and is a shortcut for SetMetadata().Name.
 func (r *EmptyResource) SetName(s string) {
 	r.Metadata.Name = s

@@ -21,7 +21,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/gravitational/teleport/lib/client/db/profile"
 
@@ -149,18 +148,3 @@ const (
 	// mysqlOptionFile is the default name of the MySQL option file.
 	mysqlOptionFile = ".my.cnf"
 )
-
-// Message is printed after MySQL option file has been updated.
-var Message = template.Must(template.New("").Parse(`
-Connection information for MySQL database "{{.Name}}" has been saved.
-
-You can now connect to the database using the following command:
-
-  $ mysql --defaults-group-suffix=_{{.Name}}
-
-Or configure environment variables and use regular CLI flags:
-
-  $ eval $(tsh db env)
-  $ mysql
-
-`))

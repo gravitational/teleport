@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package common
 
 import (
@@ -10,6 +24,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -83,7 +98,13 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "identity output").Short('o').Required().StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q, %q or %q", identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatTLS, identityfile.FormatKubernetes, identityfile.FormatDatabase)).
+	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q, %q, %q or %q",
+		identityfile.FormatFile,
+		identityfile.FormatOpenSSH,
+		identityfile.FormatTLS,
+		identityfile.FormatKubernetes,
+		identityfile.FormatDatabase,
+		identityfile.FormatMongo)).
 		Default(string(identityfile.DefaultFormat)).
 		StringVar((*string)(&a.outputFormat))
 	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate").
@@ -146,10 +167,10 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if len(certAuthority.GetTLSKeyPairs()) != 1 {
-			return trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetTLSKeyPairs()))
+		if len(certAuthority.GetActiveKeys().TLS) != 1 {
+			return trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
 		}
-		keyPair := certAuthority.GetTLSKeyPairs()[0]
+		keyPair := certAuthority.GetActiveKeys().TLS[0]
 		if a.exportPrivateKeys {
 			fmt.Println(string(keyPair.Key))
 		}
@@ -190,20 +211,20 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 	// print:
 	for _, ca := range authorities {
 		if a.exportPrivateKeys {
-			for _, key := range ca.GetSigningKeys() {
-				fingerprint, err := sshutils.PrivateKeyFingerprint(key)
+			for _, key := range ca.GetActiveKeys().SSH {
+				fingerprint, err := sshutils.PrivateKeyFingerprint(key.PrivateKey)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 				if a.exportAuthorityFingerprint != "" && fingerprint != a.exportAuthorityFingerprint {
 					continue
 				}
-				os.Stdout.Write(key)
+				os.Stdout.Write(key.PrivateKey)
 				fmt.Fprintf(os.Stdout, "\n")
 			}
 		} else {
-			for _, keyBytes := range ca.GetCheckingKeys() {
-				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
+			for _, key := range ca.GetTrustedSSHKeyPairs() {
+				fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -214,7 +235,7 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 				// export certificates in the old 1.0 format where host and user
 				// certificate authorities were exported in the known_hosts format.
 				if a.compatVersion == "1.0" {
-					castr, err := hostCAFormat(ca, keyBytes, client)
+					castr, err := hostCAFormat(ca, key.PublicKey, client)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -227,9 +248,9 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 				var castr string
 				switch ca.GetType() {
 				case types.UserCA:
-					castr, err = userCAFormat(ca, keyBytes)
+					castr, err = userCAFormat(ca, key.PublicKey)
 				case types.HostCA:
-					castr, err = hostCAFormat(ca, keyBytes, client)
+					castr, err = hostCAFormat(ca, key.PublicKey, client)
 				default:
 					return trace.BadParameter("unknown user type: %q", ca.GetType())
 				}
@@ -270,7 +291,7 @@ func (a *AuthCommand) GenerateKeys() error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(clusterAPI auth.ClientI) error {
 	switch {
-	case a.outputFormat == identityfile.FormatDatabase:
+	case a.outputFormat == identityfile.FormatDatabase || a.outputFormat == identityfile.FormatMongo:
 		return a.generateDatabaseKeys(clusterAPI)
 	case a.genUser != "" && a.genHost == "":
 		return a.generateUserKeys(clusterAPI)
@@ -357,12 +378,39 @@ func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
 	return nil
 }
 
+// generateDatabaseKeys generates a new unsigned key and signs it with Teleport
+// CA for database access.
 func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
 	key, err := client.NewKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return a.generateDatabaseKeysForKey(clusterAPI, key)
+}
+
+// generateDatabaseKeysForKey signs the provided unsigned key with Teleport CA
+// for database access.
+func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *client.Key) error {
 	subject := pkix.Name{CommonName: a.genHost}
+	if a.outputFormat == identityfile.FormatMongo {
+		// Include Organization attribute in MongoDB certificates as well.
+		//
+		// When using X.509 member authentication, MongoDB requires O or OU to
+		// be non-empty so this will make the certs we generate compatible:
+		//
+		// https://docs.mongodb.com/manual/core/security-internal-authentication/#x.509
+		//
+		// The actual O value doesn't matter as long as it matches on all
+		// MongoDB cluster members so set it to the Teleport cluster name
+		// to avoid hardcoding anything.
+		clusterName, err := clusterAPI.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		subject.Organization = []string{
+			clusterName.GetClusterName(),
+		}
+	}
 	csr, err := tlsca.GenerateCertificateRequestPEM(subject, key.Priv)
 	if err != nil {
 		return trace.Wrap(err)
@@ -390,10 +438,55 @@ func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("\nThe credentials have been written to %s\n",
-		strings.Join(filesWritten, ", "))
+	switch a.outputFormat {
+	case identityfile.FormatDatabase:
+		dbAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+			"files":  strings.Join(filesWritten, ", "),
+			"output": a.output,
+		})
+	case identityfile.FormatMongo:
+		mongoAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+			"files":  strings.Join(filesWritten, ", "),
+			"output": a.output,
+		})
+	}
 	return nil
 }
+
+var (
+	// dbAuthSignTpl is printed when user generates credentials for a self-hosted database.
+	dbAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your PostgreSQL server, add the following to its
+postgresql.conf configuration file:
+
+ssl = on
+ssl_cert_file = '/path/to/{{.output}}.crt'
+ssl_key_file = '/path/to/{{.output}}.key'
+ssl_ca_file = '/path/to/{{.output}}.cas'
+
+To enable mutual TLS on your MySQL server, add the following to its
+mysql.cnf configuration file:
+
+[mysqld]
+require_secure_transport=ON
+ssl-cert=/path/to/{{.output}}.crt
+ssl-key=/path/to/{{.output}}.key
+ssl-ca=/path/to/{{.output}}.cas
+`))
+	// mongoAuthSignTpl is printed when user generates credentials for a MongoDB database.
+	mongoAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your MongoDB server, add the following to its
+mongod.yaml configuration file:
+
+net:
+  tls:
+    mode: requireTLS
+    certificateKeyFile: /path/to/{{.output}}.crt
+    CAFile: /path/to/{{.output}}.cas
+`))
+)
 
 func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	// Validate --proxy flag.

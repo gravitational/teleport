@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -57,7 +58,7 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// set cluster name
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, IsNil)
@@ -225,14 +226,15 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
+func (s *PasswordSuite) TestChangeUserAuthenticationPasswordOnly(c *C) {
+	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)
 
-	err = s.a.SetAuthPreference(authPreference)
+	err = s.a.SetAuthPreference(ctx, authPreference)
 	c.Assert(err, IsNil)
 
 	username := "joe@example.com"
@@ -240,14 +242,14 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
 		Name: username,
 	})
 	c.Assert(err, IsNil)
 
-	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
-		TokenID:  token.GetName(),
-		Password: password,
+	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     token.GetName(),
+		NewPassword: password,
 	})
 	c.Assert(err, IsNil)
 
@@ -256,14 +258,15 @@ func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
+func (s *PasswordSuite) TestChangeUserAuthenticationWithTOTP(c *C) {
+	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
 
-	err = s.a.SetAuthPreference(authPreference)
+	err = s.a.SetAuthPreference(ctx, authPreference)
 	c.Assert(err, IsNil)
 
 	username := "joe@example.com"
@@ -271,21 +274,23 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
 		Name: username,
 	})
 	c.Assert(err, IsNil)
 
-	secrets, err := s.a.RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
+	secrets, err := s.a.RotateUserTokenSecrets(ctx, token.GetName())
 	c.Assert(err, IsNil)
 
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
 	c.Assert(err, IsNil)
 
-	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
-		TokenID:           token.GetName(),
-		Password:          password,
-		SecondFactorToken: otpToken,
+	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     token.GetName(),
+		NewPassword: password,
+		NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
+		}},
 	})
 	c.Assert(err, IsNil)
 
@@ -293,7 +298,8 @@ func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
+func (s *PasswordSuite) TestChangeUserAuthenticationWithErrors(c *C) {
+	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
@@ -304,7 +310,7 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
 		Name: username,
 	})
 	c.Assert(err, IsNil)
@@ -315,41 +321,43 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	type testCase struct {
 		desc         string
 		secondFactor constants.SecondFactorType
-		req          ChangePasswordWithTokenRequest
+		req          *proto.ChangeUserAuthenticationRequest
 	}
 
 	testCases := []testCase{
 		{
 			secondFactor: constants.SecondFactorOff,
 			desc:         "invalid tokenID value",
-			req: ChangePasswordWithTokenRequest{
-				TokenID:  "what_token",
-				Password: validPassword,
+			req: &proto.ChangeUserAuthenticationRequest{
+				TokenID:     "what_token",
+				NewPassword: validPassword,
 			},
 		},
 		{
 			secondFactor: constants.SecondFactorOff,
 			desc:         "invalid password",
-			req: ChangePasswordWithTokenRequest{
-				TokenID:  validTokenID,
-				Password: []byte("short"),
+			req: &proto.ChangeUserAuthenticationRequest{
+				TokenID:     validTokenID,
+				NewPassword: []byte("short"),
 			},
 		},
 		{
 			secondFactor: constants.SecondFactorOTP,
 			desc:         "missing second factor",
-			req: ChangePasswordWithTokenRequest{
-				TokenID:  validTokenID,
-				Password: validPassword,
+			req: &proto.ChangeUserAuthenticationRequest{
+				TokenID:     validTokenID,
+				NewPassword: validPassword,
 			},
 		},
 		{
 			secondFactor: constants.SecondFactorOTP,
 			desc:         "invalid OTP value",
-			req: ChangePasswordWithTokenRequest{
-				TokenID:           validTokenID,
-				Password:          validPassword,
-				SecondFactorToken: "invalid",
+			req: &proto.ChangeUserAuthenticationRequest{
+				TokenID:     validTokenID,
+				NewPassword: validPassword,
+				NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+					TOTP: &proto.TOTPRegisterResponse{Code: "invalid"},
+				}},
 			},
 		},
 	}
@@ -357,27 +365,27 @@ func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
 	for _, tc := range testCases {
 		// set new auth preference settings
 		authPreference.SetSecondFactor(tc.secondFactor)
-		err = s.a.SetAuthPreference(authPreference)
+		err = s.a.SetAuthPreference(ctx, authPreference)
 		c.Assert(err, IsNil)
 
-		_, err = s.a.changePasswordWithToken(context.TODO(), tc.req)
+		_, err = s.a.changeUserAuthentication(ctx, tc.req)
 		c.Assert(err, NotNil, Commentf("test case %q", tc.desc))
 	}
 
 	authPreference.SetSecondFactor(constants.SecondFactorOff)
-	err = s.a.SetAuthPreference(authPreference)
+	err = s.a.SetAuthPreference(ctx, authPreference)
 	c.Assert(err, IsNil)
 
-	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
-		TokenID:  validTokenID,
-		Password: validPassword,
+	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     validTokenID,
+		NewPassword: validPassword,
 	})
 	c.Assert(err, IsNil)
 
 	// invite token cannot be reused
-	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
-		TokenID:  validTokenID,
-		Password: validPassword,
+	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     validTokenID,
+		NewPassword: validPassword,
 	})
 	c.Assert(err, NotNil)
 }
@@ -397,6 +405,7 @@ func (s *PasswordSuite) shouldLockAfterFailedAttempts(c *C, req services.ChangeP
 }
 
 func (s *PasswordSuite) prepareForPasswordChange(user string, pass []byte, secondFactorType constants.SecondFactorType) (services.ChangePasswordReq, error) {
+	ctx := context.Background()
 	req := services.ChangePasswordReq{
 		User:        user,
 		OldPassword: pass,
@@ -420,7 +429,7 @@ func (s *PasswordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		return req, err
 	}
 
-	err = s.a.SetAuthPreference(ap)
+	err = s.a.SetAuthPreference(ctx, ap)
 	if err != nil {
 		return req, err
 	}

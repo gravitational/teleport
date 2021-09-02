@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -154,8 +168,10 @@ func tagPipelines() []pipeline {
 	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
 
 	// Also add the two CentOS 6 artifacts.
+	// CentOS 6 FIPS builds have been removed in Teleport 7.0. See https://github.com/gravitational/teleport/issues/7207
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true, fips: true}))
+
+	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline())
 	return ps
 }
 
@@ -173,11 +189,12 @@ func tagPipeline(b buildType) pipeline {
 		pipelineName += "-centos6"
 	}
 	tagEnvironment := map[string]value{
-		"UID":    value{raw: "1000"},
-		"GID":    value{raw: "1000"},
-		"GOPATH": value{raw: "/go"},
-		"OS":     value{raw: b.os},
-		"ARCH":   value{raw: b.arch},
+		"UID":     value{raw: "1000"},
+		"GID":     value{raw: "1000"},
+		"GOCACHE": value{raw: "/go/cache"},
+		"GOPATH":  value{raw: "/go"},
+		"OS":      value{raw: b.os},
+		"ARCH":    value{raw: b.arch},
 	}
 	if b.fips {
 		pipelineName += "-fips"

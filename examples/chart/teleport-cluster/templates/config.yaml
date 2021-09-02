@@ -20,6 +20,7 @@ data:
         table_name: {{ required "aws.backendTable is required in chart values" .Values.aws.backendTable }}
         audit_events_uri: ['dynamodb://{{ required "aws.auditLogTable is required in chart values" .Values.aws.auditLogTable }}']
         audit_sessions_uri: s3://{{ required "aws.sessionRecordingBucket is required in chart values" .Values.aws.sessionRecordingBucket }}
+        continuous_backups: {{ required "aws.backups is required in chart values" .Values.aws.backups }}
   {{- else if eq .Values.chartMode "gcp" }}
       storage:
         type: firestore
@@ -37,12 +38,19 @@ data:
   {{- if .Values.enterprise }}
       license_file: '/var/lib/license/license.pem'
   {{- end }}
+      authentication:
+        type: {{ required "authenticationType is required in chart values" .Values.authenticationType }}
     kubernetes_service:
       enabled: true
       listen_addr: 0.0.0.0:3027
+  {{- if .Values.kubeClusterName }}
+      kube_cluster_name: {{ .Values.kubeClusterName }}
+  {{- else }}
+      kube_cluster_name: {{ .Values.clusterName }}
+  {{- end }}
   {{- if .Values.labels }}
       labels:
-    {{ toYaml .Values.labels | indent 8 }}
+    {{- toYaml .Values.labels | nindent 8 }}
   {{- end }}
     proxy_service:
       public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'

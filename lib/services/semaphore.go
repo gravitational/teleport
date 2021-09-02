@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package services
 
 import (
@@ -186,6 +200,32 @@ Outer:
 	}
 }
 
+// AcquireSemaphoreWithRetryConfig contains parameters for trying to acquire a
+// semaphore with a retry.
+type AcquireSemaphoreWithRetryConfig struct {
+	Service types.Semaphores
+	Request types.AcquireSemaphoreRequest
+	Retry   utils.LinearConfig
+}
+
+// AcquireSemaphoreWithRetry tries to acquire the semaphore according to the
+// retry schedule until it succeeds or context expires.
+func AcquireSemaphoreWithRetry(ctx context.Context, req AcquireSemaphoreWithRetryConfig) (*types.SemaphoreLease, error) {
+	retry, err := utils.NewLinear(req.Retry)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var lease *types.SemaphoreLease
+	err = retry.For(ctx, func() (err error) {
+		lease, err = req.Service.AcquireSemaphore(ctx, req.Request)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return lease, nil
+}
+
 // AcquireSemaphoreLock attempts to acquire and hold a semaphore lease.  If successfully acquired,
 // background keepalive processes are started and an associated lock handle is returned.  Cancelling
 // the supplied context releases the semaphore.
@@ -251,15 +291,17 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (types.Semaphore, e
 
 // MarshalSemaphore marshals the Semaphore resource to JSON.
 func MarshalSemaphore(semaphore types.Semaphore, opts ...MarshalOption) ([]byte, error) {
+	if err := semaphore.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	switch semaphore := semaphore.(type) {
 	case *types.SemaphoreV3:
-		if version := semaphore.GetVersion(); version != types.V3 {
-			return nil, trace.BadParameter("mismatched semaphore version %v and type %T", version, semaphore)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

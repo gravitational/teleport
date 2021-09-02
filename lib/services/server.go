@@ -27,9 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -51,6 +50,11 @@ func CompareServers(a, b types.Resource) int {
 	if dbA, ok := a.(types.DatabaseServer); ok {
 		if dbB, ok := b.(types.DatabaseServer); ok {
 			return compareDatabaseServers(dbA, dbB)
+		}
+	}
+	if winA, ok := a.(types.WindowsDesktopService); ok {
+		if winB, ok := b.(types.WindowsDesktopService); ok {
+			return compareWindowsDesktopServices(winA, winB)
 		}
 	}
 	return Different
@@ -121,20 +125,30 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
-		return Different
-	}
-	if !cmp.Equal(a.GetDynamicLabels(), b.GetDynamicLabels()) {
+	if !cmp.Equal(a.GetDatabase(), b.GetDatabase()) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}
-	if a.GetProtocol() != b.GetProtocol() {
+	return Equal
+}
+
+func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
+	if a.GetKind() != b.GetKind() {
 		return Different
 	}
-	if a.GetURI() != b.GetURI() {
+	if a.GetName() != b.GetName() {
 		return Different
+	}
+	if a.GetAddr() != b.GetAddr() {
+		return Different
+	}
+	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
+	}
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
 	}
 	return Equal
 }
@@ -264,6 +278,7 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -271,9 +286,6 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 
 	switch server := server.(type) {
 	case *types.ServerV2:
-		if version := server.GetVersion(); version != types.V2 {
-			return nil, trace.BadParameter("mismatched server version %v and type %T", version, server)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

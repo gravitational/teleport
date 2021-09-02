@@ -2,7 +2,7 @@
 # This Makefile is used for producing official Teleport releases
 #
 ifneq ("$(wildcard /bin/bash)","")
-SHELL := /bin/bash
+SHELL := /bin/bash -o pipefail
 endif
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
@@ -18,6 +18,7 @@ OS ?= linux
 ARCH ?= amd64
 RUNTIME ?= go1.16.2
 BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
+LIBBPF_VERSION ?= 0.3.1
 
 UID := $$(id -u)
 GID := $$(id -g)
@@ -29,7 +30,6 @@ GOGO_PROTO_TAG ?= v1.3.2
 BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
 BUILDBOX_FIPS=quay.io/gravitational/teleport-buildbox-fips:$(RUNTIME)
 BUILDBOX_CENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
-BUILDBOX_CENTOS6_FIPS=quay.io/gravitational/teleport-buildbox-centos6-fips:$(RUNTIME)
 BUILDBOX_ARM=quay.io/gravitational/teleport-buildbox-arm:$(RUNTIME)
 BUILDBOX_ARM_FIPS=quay.io/gravitational/teleport-buildbox-arm-fips:$(RUNTIME)
 
@@ -52,7 +52,7 @@ GID := 1000
 NOROOT := -u 1000:1000
 # if running in CI and the GOCACHE environment variable is not set, set it to a sensible default
 ifeq ("$(GOCACHE)",)
-GOCACHE := $(shell go env GOCACHE)
+GOCACHE := /go/cache
 endif
 # pass external gocache path through to docker containers
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
@@ -110,6 +110,7 @@ buildbox:
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg PROTOC_PLATFORM=$(PROTOC_PLATFORM) \
+			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi
@@ -125,6 +126,7 @@ buildbox-fips:
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
+			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
 	fi
@@ -142,18 +144,8 @@ buildbox-centos6:
 		--cache-from $(BUILDBOX_CENTOS6) \
 		--tag $(BUILDBOX_CENTOS6) -f Dockerfile-centos6 .
 
-#
-# Builds a Docker buildbox for CentOS 6 FIPS builds
-#
-.PHONY:buildbox-centos6-fips
-buildbox-centos6-fips:
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS6_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS6_FIPS) || true; fi;
-	docker build \
-		--build-arg UID=$(UID) \
-		--build-arg GID=$(GID) \
-		--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
-		--cache-from $(BUILDBOX_CENTOS6_FIPS) \
-		--tag $(BUILDBOX_CENTOS6_FIPS) -f Dockerfile-centos6-fips .
+# CentOS 6 FIPS builds were removed in Teleport 7.0
+# https://github.com/gravitational/teleport/issues/7207
 
 #
 # Builds a Docker buildbox for ARMv7/ARM64 builds
@@ -214,7 +206,7 @@ test: buildbox
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
-.PHONY:test
+.PHONY:test-root
 test-root: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \
@@ -233,8 +225,12 @@ test-sh: buildbox
 
 .PHONY:integration
 integration: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
+	docker run \
+		--env TELEPORT_ETCD_TEST="yes" \
+		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
+		/bin/bash -c \
+		"examples/etcd/start-etcd.sh & sleep 1; \
+		make -C $(SRCDIR) FLAGS='-cover' integration"
 
 .PHONY:integration-root
 integration-root: buildbox
@@ -264,7 +260,7 @@ enter: buildbox
 .PHONY:release
 release: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) REPRODUCIBLE=yes
 
 # These are aliases used to make build commands uniform.
 .PHONY: release-amd64
@@ -291,10 +287,6 @@ release-arm64: buildbox-arm
 release-amd64-centos6: buildbox-centos6
 	$(MAKE) release-centos6 ARCH=amd64
 
-.PHONY: release-amd64-centos6-fips
-release-amd64-centos6-fips: buildbox-centos6-fips
-	$(MAKE) release-centos6-fips ARCH=amd64 FIPS=yes
-
 #
 # Create a Teleport FIPS package using the build container.
 # This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
@@ -304,7 +296,7 @@ release-amd64-centos6-fips: buildbox-centos6-fips
 release-fips: buildbox-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_FIPS_NAME) \
-		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
+		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
 
 #
 # Create a Teleport package for CentOS 6 using the build container.
@@ -312,16 +304,7 @@ release-fips: buildbox-fips
 .PHONY:release-centos6
 release-centos6: buildbox-centos6
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS6) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
-
-#
-# Create a Teleport FIPS package for CentOS 6 using the build container.
-#
-.PHONY:release-centos6-fips
-release-centos6-fips: buildbox-centos6-fips
-	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS6_FIPS) \
-		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION)
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) REPRODUCIBLE=no
 
 #
 # Create a Windows Teleport package using the build container.

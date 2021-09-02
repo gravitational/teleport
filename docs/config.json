@@ -6,7 +6,14 @@
       "entries": [
         { "title": "Introduction", "slug": "/" },
         { "title": "Adopters", "slug": "/adopters/" },
-        { "title": "Getting Started", "slug": "/getting-started/" },
+        {
+          "title": "Getting Started",
+          "slug": "/getting-started/",
+           "entries": [
+            { "title": "Linux Server", "slug": "/getting-started/linux-server/" },
+            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" }
+          ]
+        },
         { "title": "Installation", "slug": "/installation/" },
         { "title": "User Manual", "slug": "/user-manual/" },
         { "title": "Admin Manual", "slug": "/admin-guide/" },
@@ -20,10 +27,42 @@
       "title": "Setup",
       "entries": [
         {
-          "title": "Guides",
+          "title": "Admin Guides",
+          "slug": "/setup/admin/",
+          "entries": [
+            { "title": "Local users", "slug": "/setup/admin/users/" },
+            { "title": "Troubleshooting", "slug": "/setup/admin/troubleshooting/" },
+            { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
+            { "title": "Daemon", "slug": "/setup/admin/daemon/" }
+          ]
+        },
+        {
+          "title": "Deployments",
+          "slug": "/setup/deployments/",
+          "entries": [
+            { "title": "AWS Terraform", "slug": "/setup/deployments/aws-terraform/" },
+            { "title": "GCP", "slug": "/setup/deployments/gcp/" },
+            { "title": "IBM", "slug": "/setup/deployments/ibm/" }
+          ]
+        },
+        {
+          "title": "Integrations",
           "slug": "/setup/guides/",
           "entries": [
-            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" }
+            { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
+            { "title": "Docker", "slug": "/setup/guides/docker/" },
+            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" }
+          ]
+        },
+        {
+          "title": "Reference",
+          "slug": "/setup/reference/",
+          "entries": [
+            { "title": "Config File", "slug": "/setup/reference/config/" },
+            { "title": "Config Resources", "slug": "/setup/reference/resources/" },            
+            { "title": "Command Line", "slug": "/setup/reference/cli/" },
+            { "title": "Metrics", "slug": "/setup/reference/metrics/" },
+            { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" }            
           ]
         }
       ]
@@ -40,7 +79,8 @@
           "entries": [
             { "title": "Connecting Apps", "slug": "/application-access/guides/connecting-apps/" },
             { "title": "Integrating with JWT", "slug": "/application-access/guides/jwt/" },
-            { "title": "API Access", "slug": "/application-access/guides/api-access/" }
+            { "title": "API Access", "slug": "/application-access/guides/api-access/" },
+            { "title": "AWS Console Access", "slug": "/application-access/guides/aws-console/" }
           ]
         },
         { "title": "Access Controls", "slug": "/application-access/controls/" },
@@ -58,7 +98,9 @@
           "slug": "/server-access/guides/",
           "entries": [
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
-            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" }
+            { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
+            {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"},
+            {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"}
           ]
         }
       ]
@@ -68,7 +110,14 @@
       "title": "Kubernetes Access",
       "entries": [
         { "title": "Introduction", "slug": "/kubernetes-access/introduction/" },
-        { "title": "Getting Started", "slug": "/kubernetes-access/getting-started/" },
+        {
+          "title": "Getting Started",
+          "slug": "/kubernetes-access/getting-started/",
+           "entries": [
+            { "title": "Cluster", "slug": "/kubernetes-access/getting-started/cluster/" },
+            { "title": "Agent", "slug": "/kubernetes-access/getting-started/agent/" }
+          ]
+        },
         {
           "title": "Guides",
           "slug": "/kubernetes-access/guides/",
@@ -76,7 +125,8 @@
             { "title": "Multiple Clusters", "slug": "/kubernetes-access/guides/multiple-clusters/" },
             { "title": "CI/CD", "slug": "/kubernetes-access/guides/cicd/" },
             { "title": "Federation", "slug": "/kubernetes-access/guides/federation/" },
-            { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" }
+            { "title": "Migration", "slug": "/kubernetes-access/guides/migration/" },
+            { "title": "Standalone", "slug": "/kubernetes-access/guides/standalone-teleport/" }
           ]
         },
         {
@@ -85,11 +135,11 @@
           "entries": [
             { "title": "AWS EKS Cluster", "slug": "/kubernetes-access/helm/guides/aws/" },
             { "title": "Google Cloud GKE Cluster", "slug": "/kubernetes-access/helm/guides/gcp/" },
-            { "title": "Customize Deployment config", "slug": "/kubernetes-access/helm/guides/custom/" },
-            { "title": "Migrating from older charts", "slug": "/kubernetes-access/helm/guides/migration/" }
+            { "title": "Customize Deployment Config", "slug": "/kubernetes-access/helm/guides/custom/" },
+            { "title": "Migrating From Older Charts", "slug": "/kubernetes-access/helm/guides/migration/" }
           ]
         },
-        { "title": "Helm Chart reference", "slug": "/kubernetes-access/helm/reference/" },
+        { "title": "Helm Chart Reference", "slug": "/kubernetes-access/helm/reference/" },
         { "title": "Access Controls", "slug": "/kubernetes-access/controls/" }
       ]
     },
@@ -105,11 +155,15 @@
           "entries": [
             { "title": "AWS RDS/Aurora PostgreSQL", "slug": "/database-access/guides/postgres-aws/" },
             { "title": "AWS RDS/Aurora MySQL", "slug": "/database-access/guides/mysql-aws/" },
-            { "title": "AWS Redshift PostgreSQL", "slug": "/database-access/guides/postgres-redshift/" },
+            { "title": "AWS Redshift", "slug": "/database-access/guides/postgres-redshift/" },
             { "title": "GCP Cloud SQL PostgreSQL", "slug": "/database-access/guides/postgres-cloudsql/" },
+            { "title": "GCP Cloud SQL MySQL", "slug": "/database-access/guides/mysql-cloudsql/" },
+            { "title": "MongoDB Atlas", "slug": "/database-access/guides/mongodb-atlas/" },
             { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
             { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
-            { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" }
+            { "title": "Self-Hosted MongoDB", "slug": "/database-access/guides/mongodb-self-hosted/" },
+            { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" },
+            { "title": "High Availability", "slug": "/database-access/guides/ha/" }
           ]
         },
         { "title": "Access Controls", "slug": "/database-access/rbac/" },
@@ -137,6 +191,7 @@
           "slug": "/access-controls/guides/",
           "entries": [
             { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" },
+            { "title": "Session Locking", "slug": "/access-controls/guides/locking/" },
             { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
@@ -148,19 +203,19 @@
       ]
     },
     {
+      "icon": "list",
+      "title": "API",
+      "entries": [
+        {"title": "Introduction", "slug": "/api/introduction/"},
+        {"title": "Getting Started", "slug": "/api/getting-started/"},
+        {"title": "Architecture", "slug": "/api/architecture/"}
+      ]
+    },    
+    {
       "icon": "wand",
       "title": "Preview",
       "entries": [
         { "title": "Upcoming Releases", "slug": "/preview/upcoming-releases/" }
-      ]
-    },
-    {
-      "icon": "book",
-      "title": "Infrastructure Guides",
-      "entries": [
-        { "title": "AWS", "slug": "/aws-oss-guide/" },
-        { "title": "GCP", "slug": "/gcp-guide/" },
-        { "title": "IBM", "slug": "/ibm-cloud-guide/" }
       ]
     },
     {
@@ -169,16 +224,26 @@
       "entries": [
         { "title": "Introduction", "slug": "/enterprise/introduction/" },
         {
-          "title": "Quick Start Guide",
-          "slug": "/enterprise/quickstart-enterprise/"
+          "title": "Getting Started",
+          "slug": "/enterprise/getting-started/"
         },
-        { "title": "Single sign-on (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
+        {
+          "title": "Single sign-on (SSO)", "slug": "/enterprise/sso/",
+          "entries": [
+            { "title": "Azure Active Directory (AD)", "slug": "/enterprise/sso/azuread/" },
+            { "title": "Active Directory (ADFS)", "slug": "/enterprise/sso/adfs/" },
+            { "title": "Google Workspace", "slug": "/enterprise/sso/google-workspace/" },
+            { "title": "GitLab", "slug": "/enterprise/sso/gitlab/" },
+            { "title": "OneLogin", "slug": "/enterprise/sso/one-login/" },
+            { "title": "OIDC", "slug": "/enterprise/sso/oidc/" },
+            { "title": "Okta", "slug": "/enterprise/sso/okta/" }
+          ]
+        },
         { "title": "Access Requests", "slug": "/enterprise/workflow/" },
         {
-          "title": "FedRAMP for SSH & K8s",
-          "slug": "/enterprise/ssh-kubernetes-fedramp/"
-        },
-        { "title": "RBAC", "slug": "/enterprise/ssh-rbac/" }
+          "title": "FedRAMP",
+          "slug": "/enterprise/fedramp/"
+        }
       ]
     },
     {
@@ -187,6 +252,13 @@
       "entries": [
         { "title": "Introduction", "slug": "/cloud/introduction/" },
         { "title": "Getting Started", "slug": "/cloud/getting-started/" },
+        {
+          "title": "Guides",
+          "slug": "/cloud/guides/",
+          "entries": [
+            { "title": "U2f", "slug": "/cloud/guides/u2f/" }
+          ]
+        },        
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
       ]
@@ -202,34 +274,6 @@
         { "title": "Teleport Proxy", "slug": "/architecture/proxy/" },
         { "title": "Trusted Clusters", "slug": "/trustedclusters/" }
       ]
-    },
-    {
-      "icon": "bolt",
-      "title": "Advanced Features",
-      "entries": [
-        {
-          "title": "BPF Session Recording",
-          "slug": "/features/enhanced-session-recording/"
-        }
-      ]
-    },
-    {
-      "icon": "list",
-      "title": "Reference",
-      "entries": [
-        { "title": "YAML", "slug": "/config-reference/" },
-        { "title": "CLI", "slug": "/cli-docs/" },
-        { "title": "Metrics", "slug": "/metrics-logs-reference/" },
-        {
-          "title": "API",
-          "slug": "/reference/api/",
-          "entries": [
-            {"title": "Introduction", "slug": "/reference/api/introduction/"},
-            {"title": "Getting Started", "slug": "/reference/api/getting-started/"},
-            {"title": "Architecture", "slug": "/reference/api/architecture/"}
-          ]
-        }
-      ]
     }
   ],
   "variables": {
@@ -240,15 +284,49 @@
     "terraform": {
       "version": "0.12.0"
     },
+    "presets": {
+      "tokens": {
+        "first": "abcd123-insecure-do-not-use-this",
+        "second": "efgh456-insecure-do-not-use-this",
+        "third": "ijkl789-insecure-do-not-use-this"
+      }
+    },
+    "fedramp": {
+      "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
+    },
+    "soc2": {
+      "last_report": "April 12th, 2021"
+    },
+    "cloud": {
+      "sla": {
+        "monthly_percentage": "99.5%",
+        "monthly_downtime": "3 hours 40 minutes"
+      }
+    },
+    "fluentd": {
+      "version": "1.12.4"
+    },
+    "docker": {
+      "version": "20.10.7",
+      "compose": {
+        "version": "1.25.0"
+      }
+    },
+    "helm": {
+      "version": "3.4.2"
+    },
     "kubernetes": {
       "major_version": "1",
       "minor_version": "17"
     },
+    "mongodb": {
+      "min_version": "3.6"
+    },
     "teleport": {
-      "version": "6.2.1",
+      "version": "7.0.0",
       "golang": "1.16",
       "plugin": {
-        "version": "6.2.1"
+        "version": "7.0.0"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "quay.io/gravitational/teleport:7",
@@ -256,6 +334,96 @@
     }
   },
   "redirects": [
+    {
+      "source": "/reference/api/architecture/",
+      "destination": "/api/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/getting-started/",
+      "destination": "/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/introduction/",
+      "destination": "/api/introduction/",
+      "permanent": true
+    },    
+    {
+      "source": "/metrics-logs-reference/",
+      "destination": "/setup/reference/metrics/",
+      "permanent": true
+    },
+    {
+      "source": "/config-reference/",
+      "destination": "/setup/reference/config/",
+      "permanent": true
+    },    
+    {
+      "source": "/cli-docs/",
+      "destination": "/setup/reference/cli/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/ssh-kubernetes-fedramp/",
+      "destination": "/enterprise/fedramp/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-one-login/",
+      "destination": "/enterprise/sso/one-login/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-okta/",
+      "destination": "/enterprise/sso/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-google-workspace/",
+      "destination": "/enterprise/sso/google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-azuread/",
+      "destination": "/enterprise/sso/azuread/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-adfs/",
+      "destination": "/enterprise/sso/adfs/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-sso/",
+      "destination": "/enterprise/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/quickstart-enterprise/",
+      "destination": "/enterprise/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/gcp-guide/",
+      "destination": "/setup/deployments/gcp/",
+      "permanent": true
+    },    
+    {
+      "source": "/ibm-cloud-guide/",
+      "destination": "/setup/deployments/ibm/",
+      "permanent": true
+    },
+    {
+      "source": "/aws-terraform-guide/",
+      "destination": "/setup/deployments/aws-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/guides/docker-compose/",
+      "destination": "/setup/guides/docker/",
+      "permanent": true
+    },
     {
       "source": "/cloud/",
       "destination": "/cloud/introduction/",
@@ -314,6 +482,16 @@
     {
       "source": "/enterprise/sso/ssh-gsuite/",
       "destination": "/enterprise/sso/ssh-google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/features/enhanced-session-recording/",
+      "destination": "/server-access/guides/bpf-session-recording/",
+      "permanent": true
+    },
+    {
+      "source": "/quickstart-docker/",
+      "destination": "/setup/guides/docker/",
       "permanent": true
     }
   ]

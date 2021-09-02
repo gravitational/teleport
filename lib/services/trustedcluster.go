@@ -151,7 +151,6 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (types.Trusted
 	if err := utils.FastUnmarshal(bytes, &trustedCluster); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-
 	// DELETE IN(7.0)
 	// temporarily allow to read trusted cluster with no role map
 	// until users migrate from 6.0 OSS that had no role map present
@@ -170,6 +169,14 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (types.Trusted
 
 // MarshalTrustedCluster marshals the TrustedCluster resource to JSON.
 func MarshalTrustedCluster(trustedCluster types.TrustedCluster, opts ...MarshalOption) ([]byte, error) {
+	// DELETE IN(7.0)
+	// temporarily allow to read trusted cluster with no role map
+	// until users migrate from 6.0 OSS that had no role map present
+	const allowEmptyRoleMap = true
+	if err := ValidateTrustedCluster(trustedCluster, allowEmptyRoleMap); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -177,9 +184,6 @@ func MarshalTrustedCluster(trustedCluster types.TrustedCluster, opts ...MarshalO
 
 	switch trustedCluster := trustedCluster.(type) {
 	case *types.TrustedClusterV2:
-		if version := trustedCluster.GetVersion(); version != types.V2 {
-			return nil, trace.BadParameter("mismatched trusted cluster version %v and type %T", version, trustedCluster)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

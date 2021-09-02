@@ -24,6 +24,7 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/subtle"
@@ -45,6 +46,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -105,6 +107,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.ClusterConfiguration = clusterConfig
 	}
+	if cfg.Restrictions == nil {
+		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
+	}
+	if cfg.Databases == nil {
+		cfg.Databases = local.NewDatabasesService(cfg.Backend)
+	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend, cfg.ClusterConfiguration.GetClusterConfig)
 	}
@@ -117,10 +125,24 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Streamer == nil {
 		cfg.Streamer = events.NewDiscardEmitter()
 	}
+	if cfg.WindowsDesktops == nil {
+		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
+	}
+	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
+		cfg.KeyStoreConfig.RSAKeyPairSource = cfg.Authority.GenerateKeyPair
+	}
+	if cfg.KeyStoreConfig.HostUUID == "" {
+		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyStore, err := keystore.NewKeyStore(cfg.KeyStoreConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -147,9 +169,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			Access:               cfg.Access,
 			DynamicAccessExt:     cfg.DynamicAccessExt,
 			ClusterConfiguration: cfg.ClusterConfiguration,
+			Restrictions:         cfg.Restrictions,
+			Databases:            cfg.Databases,
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
+			WindowsDesktops:      cfg.WindowsDesktops,
 		},
+		keyStore: keyStore,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -169,6 +195,9 @@ type Services struct {
 	services.Access
 	services.DynamicAccessExt
 	services.ClusterConfiguration
+	services.Restrictions
+	services.Databases
+	services.WindowsDesktops
 	types.Events
 	events.IAuditLog
 }
@@ -285,6 +314,13 @@ type Server struct {
 	// streamer is events sessionstreamer, used to create continuous
 	// session related streams
 	streamer events.Streamer
+
+	// keyStore is an interface for interacting with private keys in CAs which
+	// may be backed by HSMs
+	keyStore keystore.KeyStore
+
+	// lockWatcher is a lock watcher, used to verify cert generation requests.
+	lockWatcher *services.LockWatcher
 }
 
 // SetCache sets cache used by auth server
@@ -304,6 +340,22 @@ func (a *Server) GetCache() Cache {
 	return a.cache
 }
 
+// SetLockWatcher sets the lock watcher.
+func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.lockWatcher = lockWatcher
+}
+
+func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.LockTarget) error {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	if a.lockWatcher == nil {
+		return trace.BadParameter("lockWatcher is not set")
+	}
+	return a.lockWatcher.CheckLockInForce(mode, targets...)
+}
+
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
 func (a *Server) runPeriodicOperations() {
@@ -315,7 +367,7 @@ func (a *Server) runPeriodicOperations() {
 	r := rand.New(rand.NewSource(a.GetClock().Now().UnixNano()))
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
-	ticker := time.NewTicker(period)
+	ticker := a.clock.NewTicker(period)
 	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
 		Duration: apidefaults.ServerKeepAliveTTL * 2,
@@ -328,7 +380,7 @@ func (a *Server) runPeriodicOperations() {
 		select {
 		case <-a.closeCtx.Done():
 			return
-		case <-ticker.C:
+		case <-ticker.Chan():
 			err := a.autoRotateCertAuthorities()
 			if err != nil {
 				if trace.IsCompareFailed(err) {
@@ -379,9 +431,29 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
 }
 
-// GetClusterConfig gets ClusterConfig from the backend.
+// GetAuthPreference gets AuthPreference from the cache.
+func (a *Server) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	return a.GetCache().GetAuthPreference(ctx)
+}
+
+// GetClusterConfig gets ClusterConfig from the cache.
 func (a *Server) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
 	return a.GetCache().GetClusterConfig(opts...)
+}
+
+// GetClusterAuditConfig gets ClusterAuditConfig from the cache.
+func (a *Server) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	return a.GetCache().GetClusterAuditConfig(ctx, opts...)
+}
+
+// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the cache.
+func (a *Server) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	return a.GetCache().GetClusterNetworkingConfig(ctx, opts...)
+}
+
+// GetSessionRecordingConfig gets SessionRecordingConfig from the cache.
+func (a *Server) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	return a.GetCache().GetSessionRecordingConfig(ctx, opts...)
 }
 
 // GetClusterName returns the domain name that identifies this authority server.
@@ -400,13 +472,15 @@ func (a *Server) GetDomainName() (string, error) {
 	return clusterName.GetClusterName(), nil
 }
 
-// LocalCAResponse contains PEM-encoded local CAs.
+// LocalCAResponse contains the concatenated PEM-encoded TLS certs for the local
+// cluster's Host CA
 type LocalCAResponse struct {
-	// TLSCA is the PEM-encoded TLS certificate authority.
+	// TLSCA is a PEM-encoded TLS certificate authority.
 	TLSCA []byte `json:"tls_ca"`
 }
 
-// GetClusterCACert returns the CAs for the local cluster without signing keys.
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
+// the cluster has multiple TLS certs, they will all be concatenated.
 func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
@@ -420,19 +494,14 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, err := tlsca.FromAuthority(hostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	certs := services.GetTLSCerts(hostCA)
+	if len(certs) < 1 {
+		return nil, trace.NotFound("no tls certs found in host CA")
 	}
-
-	// Marshal to PEM bytes to send the CA over the wire.
-	pemBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	allCerts := bytes.Join(certs, []byte("\n"))
 
 	return &LocalCAResponse{
-		TLSCA: pemBytes,
+		TLSCA: allCerts,
 	}, nil
 }
 
@@ -450,27 +519,46 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		DomainName: domainName,
 	}, true)
 	if err != nil {
-		return nil, trace.BadParameter("failed to load host CA for '%s': %v", domainName, err)
+		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
-	// get the private key of the certificate authority
-	caPrivateKey, err := ca.FirstSigningKey()
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// create and sign!
-	return a.Authority.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: caPrivateKey,
-		CASigningAlg:        sshutils.GetSigningAlgName(ca),
-		PublicHostKey:       hostPublicKey,
-		HostID:              hostID,
-		NodeName:            nodeName,
-		Principals:          principals,
-		ClusterName:         clusterName,
-		Roles:               roles,
-		TTL:                 ttl,
+	return a.generateHostCert(services.HostCertParams{
+		CASigner:      caSigner,
+		CASigningAlg:  sshutils.GetSigningAlgName(ca),
+		PublicHostKey: hostPublicKey,
+		HostID:        hostID,
+		NodeName:      nodeName,
+		Principals:    principals,
+		ClusterName:   clusterName,
+		Roles:         roles,
+		TTL:           ttl,
 	})
+}
+
+func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
+	authPref, err := a.GetAuthPreference(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if p.Roles.Include(types.RoleNode) {
+		if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
+			[]types.LockTarget{{Node: p.HostID}, {Node: HostFQDN(p.HostID, p.ClusterName)}},
+		); lockErr != nil {
+			return nil, trace.Wrap(lockErr)
+		}
+	}
+	return a.Authority.GenerateHostCert(p)
+}
+
+// GetKeyStore returns the KeyStore used by the auth server
+func (a *Server) GetKeyStore() keystore.KeyStore {
+	return a.keyStore
 }
 
 // certs is a pair of SSH and TLS certificates
@@ -524,6 +612,8 @@ type certRequest struct {
 	appClusterName string
 	// appName is the name of the application to generate cert for.
 	appName string
+	// awsRoleARN is the role ARN to generate certificate for.
+	awsRoleARN string
 	// dbService identifies the name of the database service requests will
 	// be routed to.
 	dbService string
@@ -541,6 +631,26 @@ type certRequest struct {
 	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
+}
+
+// check verifies the cert request is valid.
+func (r *certRequest) check() error {
+	if r.user == nil {
+		return trace.BadParameter("missing parameter user")
+	}
+	if r.checker == nil {
+		return trace.BadParameter("missing parameter checker")
+	}
+
+	// When generating certificate for MongoDB access, database username must
+	// be encoded into it. This is required to be able to tell which database
+	// user to authenticate the connection as.
+	if r.dbProtocol == defaults.ProtocolMongoDB {
+		if r.dbUser == "" {
+			return trace.BadParameter("must provide database user name to generate certificate for database %q", r.dbService)
+		}
+	}
+	return nil
 }
 
 type certRequestOption func(*certRequest)
@@ -592,6 +702,8 @@ type AppTestCertRequest struct {
 	ClusterName string
 	// SessionID is the optional session ID to encode. Used for routing.
 	SessionID string
+	// AWSRoleARN is optional AWS role ARN a user wants to assume to encode.
+	AWSRoleARN string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -626,6 +738,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		appSessionID:   sessionID,
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
+		awsRoleARN:     req.AWSRoleARN,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -679,6 +792,24 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 
 // generateUserCert generates user certificates
 func (a *Server) generateUserCert(req certRequest) (*certs, error) {
+	err := req.check()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Reject the cert request if there is a matching lock in force.
+	authPref, err := a.GetAuthPreference(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if lockErr := a.checkLockInForce(req.checker.LockingMode(authPref.GetLockingMode()), append(
+		services.RolesToLockTargets(req.checker.RoleNames()),
+		types.LockTarget{User: req.user.GetName()},
+		types.LockTarget{MFADevice: req.mfaVerified},
+	)); lockErr != nil {
+		return nil, trace.Wrap(lockErr)
+	}
+
 	// reuse the same RSA keys for SSH and TLS keys
 	cryptoPubKey, err := sshutils.CryptoPublicKey(req.publicKey)
 	if err != nil {
@@ -752,12 +883,13 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := ca.FirstSigningKey()
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	params := services.UserCertParams{
-		PrivateCASigningKey:   privateKey,
+		CASigner:              caSigner,
 		CASigningAlg:          sshutils.GetSigningAlgName(ca),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
@@ -805,8 +937,18 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// See which AWS role ARNs this user is allowed to assume.
+	roleARNs, err := req.checker.CheckAWSRoleARNs(sessionTTL, req.overrideRoleTTL)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate TLS certificate
-	tlsAuthority, err := tlsca.FromAuthority(ca)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsAuthority, err := tlsca.FromCertAndSigner(cert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -826,6 +968,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			PublicAddr:  req.appPublicAddr,
 			ClusterName: req.appClusterName,
 			Name:        req.appName,
+			AWSRoleARN:  req.awsRoleARN,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -838,6 +981,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		DatabaseUsers: dbUsers,
 		MFAVerified:   req.mfaVerified,
 		ClientIP:      req.clientIP,
+		AWSRoleARNs:   roleARNs,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -875,9 +1019,15 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		return trace.Wrap(err)
 	}
 	status := user.GetStatus()
-	if status.IsLocked && status.LockExpires.After(a.clock.Now().UTC()) {
-		return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
-			user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+	if status.IsLocked {
+		if status.RecoveryAttemptLockExpires.After(a.clock.Now().UTC()) {
+			return trace.AccessDenied("%v exceeds %v failed account recovery attempts, locked until %v",
+				user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
+		}
+		if status.LockExpires.After(a.clock.Now().UTC()) {
+			return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
+				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+		}
 	}
 	fnErr := authenticateFn()
 	if fnErr == nil {
@@ -993,9 +1143,28 @@ func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	return chal, nil
 }
 
+// GetMFADevices returns all mfa devices for the user defined in the token or the user defined in context.
+func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+	username, err := GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO (kimlisa): place token check for recovery
+
+	devs, err := a.Identity.GetMFADevices(ctx, username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.GetMFADevicesResponse{
+		Devices: devs,
+	}, nil
+}
+
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
 	// before trying to register a user, see U2F is actually setup on the backend
-	cap, err := a.GetAuthPreference()
+	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1359,7 +1528,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// get the certificate authority that will be signing the public key of the host,
 	client := a.GetCache()
 	if req.NoCache {
-		client = &a.Services
+		client = a.Services
 	}
 	ca, err := client.GetCertAuthority(types.CertAuthID{
 		Type:       types.HostCA,
@@ -1387,30 +1556,52 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		}
 	}
 
-	tlsAuthority, err := tlsca.FromAuthority(ca)
+	isAdminRole := req.Roles.Equals(types.SystemRoles{types.RoleAdmin})
+
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	if trace.IsNotFound(err) && isAdminRole {
+		// If there is no local TLS signer found in the host CA ActiveKeys, this
+		// auth server may have a newly configured HSM and has only populated
+		// local keys in the AdditionalTrustedKeys until the next CA rotation.
+		// This is the only case where we should be able to get a signer from
+		// AdditionalTrustedKeys but not ActiveKeys.
+		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ca)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsAuthority, err := tlsca.FromCertAndSigner(cert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// get the private key of the certificate authority
-	caPrivateKey, err := ca.FirstSigningKey()
+	caSigner, err := a.keyStore.GetSSHSigner(ca)
+	if trace.IsNotFound(err) && isAdminRole {
+		// If there is no local SSH signer found in the host CA ActiveKeys, this
+		// auth server may have a newly configured HSM and has only populated
+		// local keys in the AdditionalTrustedKeys until the next CA rotation.
+		// This is the only case where we should be able to get a signer from
+		// AdditionalTrustedKeys but not ActiveKeys.
+		caSigner, err = a.keyStore.GetAdditionalTrustedSSHSigner(ca)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// generate hostSSH certificate
-	hostSSHCert, err := a.Authority.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: caPrivateKey,
-		CASigningAlg:        sshutils.GetSigningAlgName(ca),
-		PublicHostKey:       pubSSHKey,
-		HostID:              req.HostID,
-		NodeName:            req.NodeName,
-		ClusterName:         clusterName.GetClusterName(),
-		Roles:               req.Roles,
-		Principals:          req.AdditionalPrincipals,
+	hostSSHCert, err := a.generateHostCert(services.HostCertParams{
+		CASigner:      caSigner,
+		CASigningAlg:  sshutils.GetSigningAlgName(ca),
+		PublicHostKey: pubSSHKey,
+		HostID:        req.HostID,
+		NodeName:      req.NodeName,
+		ClusterName:   clusterName.GetClusterName(),
+		Roles:         req.Roles,
+		Principals:    req.AdditionalPrincipals,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// generate host TLS certificate
 	identity := tlsca.Identity{
 		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
@@ -1431,12 +1622,12 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// HTTPS requests need to specify DNS name that should be present in the
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
-	if req.Roles.Include(types.RoleAuth) || req.Roles.Include(types.RoleAdmin) || req.Roles.Include(types.RoleProxy) || req.Roles.Include(types.RoleKube) || req.Roles.Include(types.RoleApp) {
+	if req.Roles.IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+constants.APIDomain, constants.APIDomain)
 	}
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
-	if req.Roles.Include(types.RoleAuth) || req.Roles.Include(types.RoleAdmin) || req.Roles.Include(types.RoleProxy) || req.Roles.Include(types.RoleKube) {
+	if req.Roles.IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleWindowsDesktop) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
@@ -1448,7 +1639,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		Cert:       hostSSHCert,
 		TLSCert:    hostTLSCert,
 		TLSCACerts: services.GetTLSCerts(ca),
-		SSHCACerts: ca.GetCheckingKeys(),
+		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
 }
 
@@ -1610,11 +1801,11 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 	// is this a static token?
 	for _, st := range tkns.GetStaticTokens() {
 		if subtle.ConstantTimeCompare([]byte(st.GetName()), []byte(token)) == 1 {
-			return trace.BadParameter("token %s is statically configured and cannot be removed", token)
+			return trace.BadParameter("token %s is statically configured and cannot be removed", backend.MaskKeyName(token))
 		}
 	}
-	// delete reset password token:
-	if err = a.Identity.DeleteResetPasswordToken(ctx, token); err == nil {
+	// Delete a user token.
+	if err = a.Identity.DeleteUserToken(ctx, token); err == nil {
 		return nil
 	}
 	// delete node token:
@@ -1624,7 +1815,7 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 	return trace.Wrap(err)
 }
 
-// GetTokens returns all tokens (machine provisioning ones and user invitation tokens). Machine
+// GetTokens returns all tokens (machine provisioning ones and user tokens). Machine
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
 func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error) {
 	// get node tokens:
@@ -1640,13 +1831,13 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 	if err == nil {
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
-	// get reset password tokens:
-	resetPasswordTokens, err := a.Identity.GetResetPasswordTokens(ctx)
+	// get user tokens:
+	userTokens, err := a.Identity.GetUserTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// convert reset password tokens to machine tokens:
-	for _, t := range resetPasswordTokens {
+	// convert user tokens to machine tokens:
+	for _, t := range userTokens {
 		roles := types.SystemRoles{types.RoleSignup}
 		tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
 		if err != nil {
@@ -1667,6 +1858,12 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	priv, pub, err := a.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1709,9 +1906,15 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		BearerToken:        bearerToken,
 		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
 		LoginTime:          req.LoginTime,
+		IdleTimeout:        types.Duration(netCfg.GetWebIdleTimeout()),
 	}
 	UserLoginCount.Inc()
-	return types.NewWebSession(token, types.KindWebSession, types.KindWebSession, sessionSpec), nil
+
+	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
 }
 
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.
@@ -1745,88 +1948,6 @@ func (a *Server) DeleteNamespace(namespace string) error {
 // in memory cache, not the backend.
 func (a *Server) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	return a.GetCache().NewWatcher(ctx, watch)
-}
-
-// DeleteRole deletes a role by name of the role.
-func (a *Server) DeleteRole(ctx context.Context, name string) error {
-	// check if this role is used by CA or Users
-	users, err := a.Identity.GetUsers(false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, u := range users {
-		for _, r := range u.GetRoles() {
-			if r == name {
-				// Mask the actual error here as it could be used to enumerate users
-				// within the system.
-				log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
-				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
-			}
-		}
-	}
-	// check if it's used by some external cert authorities, e.g.
-	// cert authorities related to external cluster
-	cas, err := a.Trust.GetCertAuthorities(types.UserCA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, a := range cas {
-		for _, r := range a.GetRoles() {
-			if r == name {
-				// Mask the actual error here as it could be used to enumerate users
-				// within the system.
-				log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
-				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
-			}
-		}
-	}
-
-	if err := a.Access.DeleteRole(ctx, name); err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleDelete{
-		Metadata: apievents.Metadata{
-			Type: events.RoleDeletedEvent,
-			Code: events.RoleDeletedCode,
-		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name: name,
-		},
-	})
-	if err != nil {
-		log.WithError(err).Warnf("Failed to emit role deleted event.")
-	}
-
-	return nil
-}
-
-// UpsertRole creates or updates role.
-func (a *Server) upsertRole(ctx context.Context, role types.Role) error {
-	if err := a.UpsertRole(ctx, role); err != nil {
-		return trace.Wrap(err)
-	}
-
-	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
-		Metadata: apievents.Metadata{
-			Type: events.RoleCreatedEvent,
-			Code: events.RoleCreatedCode,
-		},
-		UserMetadata: apievents.UserMetadata{
-			User: ClientUsername(ctx),
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name: role.GetName(),
-		},
-	})
-	if err != nil {
-		log.WithError(err).Warnf("Failed to emit role create event.")
-	}
-	return nil
 }
 
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
@@ -2064,6 +2185,37 @@ func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...service
 	return a.GetCache().GetNodes(ctx, namespace, opts...)
 }
 
+// ListNodes is a part of auth.AccessPoint implementation
+func (a *Server) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
+	return a.GetCache().ListNodes(ctx, namespace, limit, startKey)
+}
+
+// NodePageFunc is a function to run on each page iterated over.
+type NodePageFunc func(next []types.Server) (stop bool, err error)
+
+// IterateNodePages can be used to iterate over pages of nodes.
+func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit int, startKey string, f NodePageFunc) (string, error) {
+	for {
+		nextPage, nextKey, err := a.ListNodes(ctx, namespace, limit, startKey)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		stop, err := f(nextPage)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// Iterator stopped before end of pages or
+		// there are no more pages, return nextKey
+		if stop || nextKey == "" {
+			return nextKey, nil
+		}
+
+		startKey = nextKey
+	}
+}
+
 // GetReverseTunnels is a part of auth.AccessPoint implementation
 func (a *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	return a.GetCache().GetReverseTunnels(opts...)
@@ -2149,8 +2301,117 @@ func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
 }
 
+// CreateDatabase creates a new database resource.
+func (a *Server) CreateDatabase(ctx context.Context, database types.Database) error {
+	if err := a.Databases.CreateDatabase(ctx, database); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseCreate{
+		Metadata: apievents.Metadata{
+			Type: events.DatabaseCreateEvent,
+			Code: events.DatabaseCreateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    database.GetName(),
+			Expires: database.Expiry(),
+		},
+		DatabaseMetadata: apievents.DatabaseMetadata{
+			DatabaseProtocol:             database.GetProtocol(),
+			DatabaseURI:                  database.GetURI(),
+			DatabaseLabels:               database.GetStaticLabels(),
+			DatabaseAWSRegion:            database.GetAWS().Region,
+			DatabaseAWSRedshiftClusterID: database.GetAWS().Redshift.ClusterID,
+			DatabaseGCPProjectID:         database.GetGCP().ProjectID,
+			DatabaseGCPInstanceID:        database.GetGCP().InstanceID,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit database create event.")
+	}
+	return nil
+}
+
+// UpdateDatabase updates an existing database resource.
+func (a *Server) UpdateDatabase(ctx context.Context, database types.Database) error {
+	if err := a.Databases.UpdateDatabase(ctx, database); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.DatabaseUpdateEvent,
+			Code: events.DatabaseUpdateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    database.GetName(),
+			Expires: database.Expiry(),
+		},
+		DatabaseMetadata: apievents.DatabaseMetadata{
+			DatabaseProtocol:             database.GetProtocol(),
+			DatabaseURI:                  database.GetURI(),
+			DatabaseLabels:               database.GetStaticLabels(),
+			DatabaseAWSRegion:            database.GetAWS().Region,
+			DatabaseAWSRedshiftClusterID: database.GetAWS().Redshift.ClusterID,
+			DatabaseGCPProjectID:         database.GetGCP().ProjectID,
+			DatabaseGCPInstanceID:        database.GetGCP().InstanceID,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit database update event.")
+	}
+	return nil
+}
+
+// DeleteDatabase deletes a database resource.
+func (a *Server) DeleteDatabase(ctx context.Context, name string) error {
+	if err := a.Databases.DeleteDatabase(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseDelete{
+		Metadata: apievents.Metadata{
+			Type: events.DatabaseDeleteEvent,
+			Code: events.DatabaseDeleteCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: name,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit database delete event.")
+	}
+	return nil
+}
+
+// GetDatabases returns all database resources.
+func (a *Server) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	return a.GetCache().GetDatabases(ctx)
+}
+
+// GetDatabase returns the specified database resource.
+func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	return a.GetCache().GetDatabase(ctx, name)
+}
+
+// GetLock gets a lock by name from the auth server's cache.
+func (a *Server) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	return a.GetCache().GetLock(ctx, name)
+}
+
+// GetLocks gets all/in-force matching locks from the auth server's cache.
+func (a *Server) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	return a.GetCache().GetLocks(ctx, inForceOnly, targets...)
+}
+
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-	pref, err := a.GetAuthPreference()
+	pref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2161,7 +2422,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	var noMFAAccessErr, notFoundErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
-		notFoundErr = trace.NotFound("node %q not found", t.Node)
 		if t.Node.Node == "" {
 			return nil, trace.BadParameter("empty Node field")
 		}
@@ -2201,7 +2461,9 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
 			err := checker.CheckAccessToServer(t.Node.Login, n, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
-			if err != nil {
+
+			// Ignore other errors; they'll be caught on the real access attempt.
+			if err != nil && errors.Is(err, services.ErrSessionMFARequired) {
 				noMFAAccessErr = err
 				break
 			}
@@ -2237,14 +2499,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
-		dbs, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
+		servers, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var db types.DatabaseServer
-		for _, d := range dbs {
-			if d.GetName() == t.Database.ServiceName {
-				db = d
+		var db types.Database
+		for _, server := range servers {
+			if server.GetDatabase().GetName() == t.Database.ServiceName {
+				db = server.GetDatabase()
 				break
 			}
 		}
@@ -2264,17 +2526,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// Errors other than ErrSessionMFARequired mean something else is wrong,
 	// most likely access denied.
 	if !errors.Is(noMFAAccessErr, services.ErrSessionMFARequired) {
-		if trace.IsAccessDenied(noMFAAccessErr) {
-			log.Infof("Access to resource denied: %v", noMFAAccessErr)
-			// notFoundErr should always be set by this point, but check it
-			// just in case.
-			if notFoundErr == nil {
-				notFoundErr = trace.NotFound("target resource not found")
-			}
-			// Mask access denied errors to prevent resource name oracles.
-			return nil, trace.Wrap(notFoundErr)
+		if !trace.IsAccessDenied(noMFAAccessErr) {
+			log.WithError(noMFAAccessErr).Warn("Could not determine MFA access")
 		}
-		return nil, trace.Wrap(noMFAAccessErr)
+
+		// Mask the access denied errors by returning false to prevent resource
+		// name oracles. Auth will be denied (and generate an audit log entry)
+		// when the client attempts to connect.
+		return &proto.IsMFARequiredResponse{Required: false}, nil
 	}
 	// If we reach here, the error from AccessChecker was
 	// ErrSessionMFARequired.
@@ -2286,7 +2545,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 // registered by the user.
 func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u2f.AuthenticationStorage) (*proto.MFAAuthenticateChallenge, error) {
 	// Check what kind of MFA is enabled.
-	apref, err := a.GetAuthPreference()
+	apref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2313,7 +2572,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 		}
 	}
 
-	devs, err := a.GetMFADevices(ctx, user)
+	devs, err := a.Identity.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2374,7 +2633,7 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 }
 
 func (a *Server) checkU2F(ctx context.Context, user string, res u2f.AuthenticateChallengeResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
-	devs, err := a.GetMFADevices(ctx, user)
+	devs, err := a.Identity.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2415,14 +2674,185 @@ func (a *Server) upsertWebSession(ctx context.Context, user string, session type
 	if err := a.WebSessions().Upsert(ctx, session); err != nil {
 		return trace.Wrap(err)
 	}
-	token := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
+	token, err := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
 		User:  session.GetUser(),
 		Token: session.GetBearerToken(),
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.WebTokens().Upsert(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// GetNetworkRestrictions returns the network restrictions from the cache
+func (a *Server) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	return a.GetCache().GetNetworkRestrictions(ctx)
+}
+
+// SetNetworkRestrictions updates the network restrictions in the backend
+func (a *Server) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
+	return a.Services.Restrictions.SetNetworkRestrictions(ctx, nr)
+}
+
+// DeleteNetworkRestrictions deletes the network restrictions in the backend
+func (a *Server) DeleteNetworkRestrictions(ctx context.Context) error {
+	return a.Services.Restrictions.DeleteNetworkRestrictions(ctx)
+}
+
+func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
+	newKeySet := a.Clone()
+	newKeySet.SSH = append(newKeySet.SSH, b.SSH...)
+	newKeySet.TLS = append(newKeySet.TLS, b.TLS...)
+	newKeySet.JWT = append(newKeySet.JWT, b.JWT...)
+	return newKeySet
+}
+
+// addAdditionalTrustedKeysAtomic performs an atomic CompareAndSwap to update
+// the given CA with newKeys added to the AdditionalTrustedKeys
+func (a *Server) addAddtionalTrustedKeysAtomic(
+	currentCA types.CertAuthority,
+	newKeys types.CAKeySet,
+	needsUpdate func(types.CertAuthority) bool) error {
+	for {
+		select {
+		case <-a.closeCtx.Done():
+			return trace.Wrap(a.closeCtx.Err())
+		default:
+		}
+		if !needsUpdate(currentCA) {
+			return nil
+		}
+
+		newCA := currentCA.Clone()
+		currentKeySet := newCA.GetAdditionalTrustedKeys()
+		mergedKeySet := mergeKeySets(currentKeySet, newKeys)
+		if err := newCA.SetAdditionalTrustedKeys(mergedKeySet); err != nil {
+			return trace.Wrap(err)
+		}
+
+		err := a.Trust.CompareAndSwapCertAuthority(newCA, currentCA)
+		if err != nil && !trace.IsCompareFailed(err) {
+			return trace.Wrap(err)
+		}
+		if err == nil {
+			// success!
+			return nil
+		}
+		// else trace.IsCompareFailed(err) == true (CA was concurrently updated)
+
+		currentCA, err = a.Trust.GetCertAuthority(currentCA.GetID(), true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+}
+
+func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySet, error) {
+	var keySet types.CAKeySet
+	switch caID.Type {
+	case types.UserCA, types.HostCA:
+		sshKeyPair, err := keyStore.NewSSHKeyPair()
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(caID.DomainName)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.SSH = append(keySet.SSH, sshKeyPair)
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	case types.JWTSigner:
+		jwtKeyPair, err := keyStore.NewJWTKeyPair()
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	default:
+		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
+	}
+	return keySet, nil
+}
+
+// ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
+// already present.
+func (a *Server) ensureLocalAdditionalKeys(ca types.CertAuthority) error {
+	if a.keyStore.HasLocalAdditionalKeys(ca) {
+		// nothing to do
+		return nil
+	}
+
+	newKeySet, err := newKeySet(a.keyStore, ca.GetID())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.addAddtionalTrustedKeysAtomic(ca, newKeySet, func(ca types.CertAuthority) bool {
+		return !a.keyStore.HasLocalAdditionalKeys(ca)
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	log.Infof("Successfully added local additional trusted keys to %s CA.", ca.GetType())
+	return nil
+}
+
+// createSelfSignedCA creates a new self-signed CA and writes it to the
+// backend, with the type and clusterName given by the argument caID.
+func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
+	keySet, err := newKeySet(a.keyStore, caID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sigAlg := defaults.CASignatureAlgorithm
+	if a.caSigningAlg != nil && *a.caSigningAlg != "" {
+		sigAlg = *a.caSigningAlg
+	}
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        caID.Type,
+		ClusterName: caID.DomainName,
+		ActiveKeys:  keySet,
+		SigningAlg:  sshutils.ParseSigningAlg(sigAlg),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.Trust.CreateCertAuthority(ca); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
+// auth server which are not currently used in any CAs.
+func (a *Server) deleteUnusedKeys() error {
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var usedKeys [][]byte
+	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
+		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
+		ca, err := a.Trust.GetCertAuthority(caID, true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
+			for _, sshKeyPair := range keySet.SSH {
+				usedKeys = append(usedKeys, sshKeyPair.PrivateKey)
+			}
+			for _, tlsKeyPair := range keySet.TLS {
+				usedKeys = append(usedKeys, tlsKeyPair.Key)
+			}
+			for _, jwtKeyPair := range keySet.JWT {
+				usedKeys = append(usedKeys, jwtKeyPair.PrivateKey)
+			}
+		}
+	}
+	return trace.Wrap(a.keyStore.DeleteUnusedKeys(usedKeys))
 }
 
 // authKeepAliver is a keep aliver using auth server directly
@@ -2492,6 +2922,9 @@ const (
 
 	// TokenLenBytes is len in bytes of the invite token
 	TokenLenBytes = 16
+
+	// RecoveryTokenLenBytes is len in bytes of a user token for recovery.
+	RecoveryTokenLenBytes = 32
 
 	// SessionTokenBytes is the number of bytes of a web or application session.
 	SessionTokenBytes = 32

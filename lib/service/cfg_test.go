@@ -83,6 +83,7 @@ func TestDefaultConfig(t *testing.T) {
 	ssh := config.SSH
 	require.Equal(t, ssh.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
 	require.Equal(t, ssh.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
+	require.Equal(t, ssh.AllowTCPForwarding, true)
 
 	// proxy section
 	proxy := config.Proxy
@@ -269,50 +270,18 @@ func TestCheckDatabase(t *testing.T) {
 			outErr: true,
 		},
 		{
-			desc: "GCP root cert missing",
+			desc: "MongoDB connection string",
 			inDatabase: Database{
 				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-				GCP: DatabaseGCP{
-					ProjectID:  "project-1",
-					InstanceID: "instance-1",
-				},
+				Protocol: defaults.ProtocolMongoDB,
+				URI:      "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
 			},
-			outErr: true,
-		},
-		{
-			desc: "GCP unsupported for MySQL",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolMySQL,
-				URI:      "localhost:3306",
-				GCP: DatabaseGCP{
-					ProjectID:  "project-1",
-					InstanceID: "instance-1",
-				},
-				CACert: fixtures.LocalhostCert,
-			},
-			outErr: true,
-		},
-		{
-			desc: "Redshift region not set",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "redshift-cluster-1.aaa.us-east-1.redshift.amazonaws.com:5439",
-				AWS: DatabaseAWS{
-					Redshift: DatabaseAWSRedshift{
-						ClusterID: "redshift-cluster-1",
-					},
-				},
-			},
-			outErr: true,
+			outErr: false,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			err := test.inDatabase.Check()
+			err := test.inDatabase.CheckAndSetDefaults()
 			if test.outErr {
 				require.Error(t, err)
 			} else {

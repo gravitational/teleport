@@ -166,6 +166,12 @@ func eventFromGRPC(in proto.Event) (*types.Event, error) {
 	} else if r := in.GetDatabaseServer(); r != nil {
 		out.Resource = r
 		return &out, nil
+	} else if r := in.GetDatabase(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetClusterAuditConfig(); r != nil {
+		out.Resource = r
+		return &out, nil
 	} else if r := in.GetClusterNetworkingConfig(); r != nil {
 		out.Resource = r
 		return &out, nil
@@ -173,6 +179,18 @@ func eventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAuthPreference(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetLock(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetNetworkRestrictions(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetWindowsDesktopService(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetWindowsDesktop(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

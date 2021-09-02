@@ -33,8 +33,20 @@ type Audit interface {
 	OnSessionStart(ctx context.Context, session *Session, sessionErr error)
 	// OnSessionEnd is called when database session terminates.
 	OnSessionEnd(ctx context.Context, session *Session)
-	// OnQuery is called when a SQL statement is executed.
-	OnQuery(ctx context.Context, session *Session, query string, parameters ...string)
+	// OnQuery is called when a database query or command is executed.
+	OnQuery(ctx context.Context, session *Session, query Query)
+}
+
+// Query combines database query parameters.
+type Query struct {
+	// Query is the SQL query text.
+	Query string
+	// Parameters contains optional prepared statement parameters.
+	Parameters []string
+	// Database is optional database name the query is executed in.
+	Database string
+	// Error contains error, if any, signaling query failure.
+	Error error
 }
 
 // AuditConfig is the audit events emitter configuration.
@@ -79,7 +91,7 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			ClusterName: session.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
-			ServerID:        session.Server.GetHostID(),
+			ServerID:        session.HostID,
 			ServerNamespace: apidefaults.Namespace,
 		},
 		UserMetadata: events.UserMetadata{
@@ -91,9 +103,9 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			WithMFA:   session.Identity.MFAVerified,
 		},
 		DatabaseMetadata: events.DatabaseMetadata{
-			DatabaseService:  session.Server.GetName(),
-			DatabaseProtocol: session.Server.GetProtocol(),
-			DatabaseURI:      session.Server.GetURI(),
+			DatabaseService:  session.Database.GetName(),
+			DatabaseProtocol: session.Database.GetProtocol(),
+			DatabaseURI:      session.Database.GetURI(),
 			DatabaseName:     session.DatabaseName,
 			DatabaseUser:     session.DatabaseUser,
 		},
@@ -131,9 +143,9 @@ func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
 			WithMFA:   session.Identity.MFAVerified,
 		},
 		DatabaseMetadata: events.DatabaseMetadata{
-			DatabaseService:  session.Server.GetName(),
-			DatabaseProtocol: session.Server.GetProtocol(),
-			DatabaseURI:      session.Server.GetURI(),
+			DatabaseService:  session.Database.GetName(),
+			DatabaseProtocol: session.Database.GetProtocol(),
+			DatabaseURI:      session.Database.GetURI(),
 			DatabaseName:     session.DatabaseName,
 			DatabaseUser:     session.DatabaseUser,
 		},
@@ -141,8 +153,12 @@ func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
 }
 
 // OnQuery emits an audit event when a database query is executed.
-func (a *audit) OnQuery(ctx context.Context, session *Session, query string, parameters ...string) {
-	a.emitAuditEvent(ctx, &events.DatabaseSessionQuery{
+func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
+	database := session.DatabaseName
+	if query.Database != "" {
+		database = query.Database
+	}
+	event := &events.DatabaseSessionQuery{
 		Metadata: events.Metadata{
 			Type:        libevents.DatabaseSessionQueryEvent,
 			Code:        libevents.DatabaseSessionQueryCode,
@@ -157,15 +173,25 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query string, par
 			WithMFA:   session.Identity.MFAVerified,
 		},
 		DatabaseMetadata: events.DatabaseMetadata{
-			DatabaseService:  session.Server.GetName(),
-			DatabaseProtocol: session.Server.GetProtocol(),
-			DatabaseURI:      session.Server.GetURI(),
-			DatabaseName:     session.DatabaseName,
+			DatabaseService:  session.Database.GetName(),
+			DatabaseProtocol: session.Database.GetProtocol(),
+			DatabaseURI:      session.Database.GetURI(),
+			DatabaseName:     database,
 			DatabaseUser:     session.DatabaseUser,
 		},
-		DatabaseQuery:           query,
-		DatabaseQueryParameters: parameters,
-	})
+		DatabaseQuery:           query.Query,
+		DatabaseQueryParameters: query.Parameters,
+	}
+	if query.Error != nil {
+		event.Metadata.Type = libevents.DatabaseSessionQueryFailedEvent
+		event.Metadata.Code = libevents.DatabaseSessionQueryFailedCode
+		event.Status = events.Status{
+			Success:     false,
+			Error:       trace.Unwrap(query.Error).Error(),
+			UserMessage: query.Error.Error(),
+		}
+	}
+	a.emitAuditEvent(ctx, event)
 }
 
 func (a *audit) emitAuditEvent(ctx context.Context, event events.AuditEvent) {

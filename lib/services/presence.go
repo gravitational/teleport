@@ -22,6 +22,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// ProxyGetter is a service that gets proxies.
+type ProxyGetter interface {
+	// GetProxies returns a list of registered proxies.
+	GetProxies() ([]types.Server, error)
+}
+
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
@@ -39,6 +45,9 @@ type Presence interface {
 
 	// GetNodes returns a list of registered servers.
 	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.Server, error)
+
+	// ListNodes returns a paginated list of registered servers.
+	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
 
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error
@@ -78,7 +87,7 @@ type Presence interface {
 	UpsertProxy(server types.Server) error
 
 	// ProxyGetter gets a list of proxies
-	types.ProxyGetter
+	ProxyGetter
 
 	// DeleteProxy deletes proxy by name
 	DeleteProxy(name string) error
@@ -199,4 +208,13 @@ type Presence interface {
 
 	// DeleteAllKubeServices deletes all registered kubernetes services.
 	DeleteAllKubeServices(context.Context) error
+
+	// GetWindowsDesktopServices returns all registered Windows desktop services.
+	GetWindowsDesktopServices(context.Context) ([]types.WindowsDesktopService, error)
+	// UpsertWindowsDesktopService creates or updates a new Windows desktop service.
+	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
+	// DeleteWindowsDesktopService removes the specified Windows desktop service.
+	DeleteWindowsDesktopService(ctx context.Context, name string) error
+	// DeleteAllWindowsDesktopServices removes all Windows desktop services.
+	DeleteAllWindowsDesktopServices(context.Context) error
 }

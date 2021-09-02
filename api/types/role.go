@@ -116,23 +116,24 @@ type Role interface {
 	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
 	// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 	SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions)
+
+	// GetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
+	GetAWSRoleARNs(RoleConditionType) []string
+	// SetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
+	SetAWSRoleARNs(RoleConditionType, []string)
 }
 
 // NewRole constructs new standard role
 func NewRole(name string, spec RoleSpecV4) (Role, error) {
 	role := RoleV4{
-		Kind:    KindRole,
-		Version: V3,
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
 		Spec: spec,
 	}
 	if err := role.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &role, nil
 }
 
@@ -184,13 +185,6 @@ func (r *RoleV4) SetExpiry(expires time.Time) {
 // Expiry returns the expiry time for the object.
 func (r *RoleV4) Expiry() time.Time {
 	return r.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (r *RoleV4) SetTTL(clock Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
 }
 
 // SetName sets the role name and is a shortcut for SetMetadata().Name.
@@ -476,6 +470,23 @@ func (r *RoleV4) SetImpersonateConditions(rct RoleConditionType, cond Impersonat
 	}
 }
 
+// GetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to impersonate.
+func (r *RoleV4) GetAWSRoleARNs(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.AWSRoleARNs
+	}
+	return r.Spec.Deny.AWSRoleARNs
+}
+
+// SetAWSRoleARNs sets a list of AWS role ARNs this role is allowed to impersonate.
+func (r *RoleV4) SetAWSRoleARNs(rct RoleConditionType, arns []string) {
+	if rct == Allow {
+		r.Spec.Allow.AWSRoleARNs = arns
+	} else {
+		r.Spec.Deny.AWSRoleARNs = arns
+	}
+}
+
 // GetRules gets all allow or deny rules.
 func (r *RoleV4) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
@@ -495,14 +506,22 @@ func (r *RoleV4) SetRules(rct RoleConditionType, in []Rule) {
 	}
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (r *RoleV4) setStaticFields() {
+	r.Kind = KindRole
+	// TODO(Joerger/nklaassen) Role should default to V4
+	// but shouldn't overwrite V3. For now, this does the
+	// opposite due to an internal reliance on V3 defaults.
+	if r.Version != V4 {
+		r.Version = V3
+	}
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
 func (r *RoleV4) CheckAndSetDefaults() error {
-	err := r.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	r.setStaticFields()
+	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if r.Version == "" {
-		r.Version = V3
 	}
 
 	// Make sure all fields have defaults.
@@ -561,7 +580,16 @@ func (r *RoleV4) CheckAndSetDefaults() error {
 			opt == constants.EnhancedRecordingNetwork {
 			continue
 		}
-		return trace.BadParameter("found invalid option in session_recording: %v", opt)
+		return trace.BadParameter("invalid value for role option enhanced_recording: %v", opt)
+	}
+
+	// Validate locking mode.
+	switch r.Spec.Options.Lock {
+	case "":
+		// Missing locking mode implies the cluster-wide default should be used.
+	case constants.LockingModeBestEffort, constants.LockingModeStrict:
+	default:
+		return trace.BadParameter("invalid value for role option lock: %v", r.Spec.Options.Lock)
 	}
 
 	// check and correct the session ttl
@@ -573,6 +601,11 @@ func (r *RoleV4) CheckAndSetDefaults() error {
 	for _, login := range r.Spec.Allow.Logins {
 		if login == Wildcard {
 			return trace.BadParameter("wildcard matcher is not allowed in logins")
+		}
+	}
+	for _, arn := range r.Spec.Allow.AWSRoleARNs {
+		if arn == Wildcard {
+			return trace.BadParameter("wildcard matcher is not allowed in aws_role_arns")
 		}
 	}
 	for key, val := range r.Spec.Allow.NodeLabels {

@@ -23,7 +23,9 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"time"
 
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -334,7 +336,7 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 		log.WithError(err).Debugf("Failed to get client IP.")
 		return nil, trace.BadParameter("missing client IP")
 	}
-	if err := a.Limiter.RegisterRequest(clientIP); err != nil {
+	if err := a.Limiter.RegisterRequestWithCustomRate(clientIP, getCustomRate(info.FullMethod)); err != nil {
 		return nil, trace.LimitExceeded("rate limit exceeded")
 	}
 	if err := a.Limiter.ConnLimiter.Acquire(clientIP, 1); err != nil {
@@ -352,6 +354,23 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 		return nil, trace.Wrap(err)
 	}
 	return handler(context.WithValue(ctx, ContextUser, user), req)
+}
+
+func getCustomRate(endpoint string) *ratelimit.RateSet {
+	switch endpoint {
+	case
+		"/proto.AuthService/ChangeUserAuthentication",
+		"/proto.AuthService/StartAccountRecovery":
+		rates := ratelimit.NewRateSet()
+		// This limit means: 1 request per minute with bursts up to 10 requests.
+		if err := rates.Add(time.Minute, 1, 10); err != nil {
+			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)
+			return nil
+		}
+		return rates
+	}
+
+	return nil
 }
 
 // StreamInterceptor is GPRC unary interceptor that authenticates requests
@@ -416,11 +435,10 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
 		return BuiltinRole{
-			GetSessionRecordingConfig: a.AccessPoint.GetSessionRecordingConfig,
-			Role:                      types.RoleNop,
-			Username:                  string(types.RoleNop),
-			ClusterName:               localClusterName.GetClusterName(),
-			Identity:                  tlsca.Identity{},
+			Role:        types.RoleNop,
+			Username:    string(types.RoleNop),
+			ClusterName: localClusterName.GetClusterName(),
+			Identity:    tlsca.Identity{},
 		}, nil
 	}
 	clientCert := peers[0]
@@ -493,11 +511,10 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
 		return BuiltinRole{
-			GetSessionRecordingConfig: a.AccessPoint.GetSessionRecordingConfig,
-			Role:                      *systemRole,
-			Username:                  identity.Username,
-			ClusterName:               localClusterName.GetClusterName(),
-			Identity:                  *identity,
+			Role:        *systemRole,
+			Username:    identity.Username,
+			ClusterName: localClusterName.GetClusterName(),
+			Identity:    *identity,
 		}, nil
 	}
 	// otherwise assume that is a local role, no need to pass the roles
@@ -543,6 +560,13 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // WrapContextWithUser enriches the provided context with the identity information
 // extracted from the provided TLS connection.
 func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (context.Context, error) {
+	// Perform the handshake if it hasn't been already. Before the handshake we
+	// won't have client certs available.
+	if !conn.ConnectionState().HandshakeComplete {
+		if err := conn.Handshake(); err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
 	user, err := a.GetUser(conn.ConnectionState())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -584,7 +608,7 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 	}
 
 	for _, auth := range authorities {
-		for _, keyPair := range auth.GetTLSKeyPairs() {
+		for _, keyPair := range auth.GetTrustedTLSKeyPairs() {
 			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 			if err != nil {
 				return nil, trace.Wrap(err)

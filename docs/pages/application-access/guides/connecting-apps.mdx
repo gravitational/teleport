@@ -1,6 +1,6 @@
 ---
-title: Using Application Access Guide
-description: How to configure Teleport for Application Access
+title: Use Teleport for Application Access
+description: How to configure Teleport for Application Access.
 ---
 
 # Connecting Web Applications
@@ -8,7 +8,7 @@ description: How to configure Teleport for Application Access
 Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/teleport/download)
 and follow the installation [instructions](../../installation.mdx).
 
-## Start Auth/Proxy Service
+## Start Auth/Proxy service
 
 Create a configuration file for a Teleport service that will be running
 auth and proxy servers:
@@ -26,28 +26,30 @@ ssh_service:
   enabled: "no"
 ```
 
+(!docs/pages/includes/permission-warning.mdx!)
+
 Start the service:
 
-```sh
-$ teleport start --config=/path/to/teleport.yaml
+```code
+$ sudo teleport start --config=/path/to/teleport.yaml
 ```
 
-### Generate Token
+### Generate a token
 
 A join token is required to authorize a Teleport Application Proxy service to
 join the cluster. Generate a short-lived join token and save it for example
 in `/tmp/token`:
 
-```sh
+```code
 $ tctl tokens add \
     --type=app \
     --app-name=grafana \
     --app-uri=http://localhost:3000
 ```
 
-### TLS Requirements
+### TLS requirements
 
-TLS is required to secure Teleport's Unified Access Plane and any connected
+TLS is required to secure Teleport's Access Plane and any connected
 applications. When setting up Teleport, the minimum requirement is a certificate
 for the proxy and a wildcard certificate for its sub-domain. This is where
 everyone will log into Teleport.
@@ -69,7 +71,7 @@ proxy_service:
   public_addr: "teleport.example.com:443"
   acme:
     enabled: "yes"
-    email: "alice@example.com"
+    email: alice@example.com
 ```
 
 <Admonition
@@ -77,9 +79,7 @@ proxy_service:
   title="Web Proxy Port"
 >
   Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
-  ACME challenge to validate certificate requests which only works on port `443`.
-  As such, in order to use ACME for certificate management, web proxy needs to
-  be accessible on port `443`.
+  ACME challenge to validate certificate requests which only works on port `443`.  Make sure your Teleport proxy is accessible on port `443` when using ACME for certificate management.
 </Admonition>
 
 Alternatively, if you have obtained certificate/key pairs for your domain
@@ -98,21 +98,21 @@ proxy_service:
     cert_file: "/etc/letsencrypt/live/*.teleport.example.com/fullchain.pem"
 ```
 
-### Create a User
+### Create a user
 
 A Teleport user needs their role's permission to access an application. Teleport
 comes with a built-in `access` role that grants access to all apps:
 
-```sh
+```code
 $ tctl --config=/path/to/teleport.yaml users add --roles=access appuser
 ```
 
-## Start Application Service with CLI Flags
+## Start application service with CLI flags
 
 A Teleport Application Proxy agent can be started with a single CLI command:
 
-```sh
-$ teleport start \
+```code
+$ sudo teleport start \
     --roles=app \
     --token=/tmp/token \
     --auth-server=teleport.example.com:3080 \
@@ -125,7 +125,7 @@ Note that the `--auth-server` flag must point to the Teleport cluster's proxy
 endpoint because the application service always connects back to the cluster over
 a reverse tunnel.
 
-### Application Name
+### Application name
 
 An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
 
@@ -134,7 +134,7 @@ e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
 `grafana.acme.com` if you configure the appropriate DNS entry to point to the
 Teleport proxy server.
 
-## Start Application Service with Config File
+## Start application service with a config file
 
 Example `teleport.yaml` configuration:
 
@@ -184,15 +184,15 @@ proxy_service:
 
 Start the application service:
 
-```sh
-$ teleport start --config=/path/to/teleport.yaml
+```code
+$ sudo teleport start --config=/path/to/teleport.yaml
 ```
 
-## Advanced Options
+## Advanced options
 
-### Running Debug Application
+### Running the debug application
 
-For testing and debugging purposes we provide a built-in debug app. It can
+For testing and debugging purposes, we provide a built-in debug app. It can
 be turned on using `debug_app: true`.
 
 ```yaml
@@ -203,7 +203,7 @@ app_service:
 
 The app will dump all the request headers in the response.
 
-### Customize Public Address
+### Customize public address
 
 By default applications are available at `<app-name>.<proxy-host>:<proxy-port>`
 address. To override the public address, specify the `public_addr` field:
@@ -214,7 +214,7 @@ address. To override the public address, specify the `public_addr` field:
   public_addr: "jira.example.com"
 ```
 
-### Skip TLS Certificate Verification
+### Skip TLS certificate verification
 
 <Admonition
   type="warning"
@@ -235,9 +235,9 @@ verification step:
   insecure_skip_verify: true
 ```
 
-### Deeplink to Subdirectory
+### Deeplink to a subdirectory
 
-Some applications are available on a subdirectory. Examples include the
+Some applications are available in a subdirectory. Examples include the
 [Kubernetes Dashboard.](https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/).
 The URI should be updated to include the subdirectory:
 
@@ -247,7 +247,7 @@ The URI should be updated to include the subdirectory:
   public_addr: "k8s.example.com"
 ```
 
-### Rewrite Redirect
+### Rewrite redirect
 
 To support web apps that perform internal redirects, application access
 provides an option to rewrite the hostname of the `Location` header on
@@ -265,7 +265,7 @@ redirect responses to the application's public address:
     - "jenkins.internal.dev"
 ```
 
-### Headers Passthrough
+### Headers passthrough
 
 You can configure application access to inject additional headers in the
 requests forwarded to a web application.
@@ -294,19 +294,19 @@ In the example above, `X-Internal-Trait` header will be populated with the value
 of internal user trait `logins` and `X-External-Trait` header will get the value
 of the user's external `env` trait coming from the identity provider.
 
-## View Applications in Teleport
+## View applications in Teleport
 
 Teleport provides a UI for quickly launching connected applications.
 
-They can be viewed by navigating to a cluster's web UI and selecting the Applications tab.
+They can be viewed by navigating to a cluster's web UI and selecting the "Applications" tab.
 The URL structure looks like this:
 
 `https://[cluster-url:cluster-port]/web/cluster/[cluster-name]/apps`
 
-## Logging out of Applications
+## Logging out of applications
 
 When you log into an application, you'll get a certificate and login session
-per your defined RBAC. If you want to force logout before this period you can
+per your defined RBAC. If you want to force log out before this period you can
 do so by hitting the `/teleport-logout` endpoint:
 
-[https://internal-app.teleport.example.com/teleport-logout](https://internal-app.teleport.example.com/teleport-logout)
+- `https://internal-app.teleport.example.com/teleport-logout`

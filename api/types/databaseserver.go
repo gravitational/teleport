@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -38,62 +38,30 @@ type DatabaseServer interface {
 	GetHostname() string
 	// GetHostID returns ID of the host the server is running on.
 	GetHostID() string
-	// GetStaticLabels returns server static labels.
-	GetStaticLabels() map[string]string
-	// SetStaticLabels sets server static labels.
-	SetStaticLabels(map[string]string)
-	// GetDynamicLabels returns server dynamic labels.
-	GetDynamicLabels() map[string]CommandLabel
-	// SetDynamicLabels sets server dynamic labels.
-	SetDynamicLabels(map[string]CommandLabel)
-	// GetAllLabels returns combined static and dynamic labels.
-	GetAllLabels() map[string]string
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// GetRotation gets the state of certificate authority rotation.
 	GetRotation() Rotation
 	// SetRotation sets the state of certificate authority rotation.
 	SetRotation(Rotation)
 	// String returns string representation of the server.
 	String() string
-	// GetDescription returns the database server description.
-	GetDescription() string
-	// GetProtocol returns the database server protocol.
-	GetProtocol() string
-	// GetURI returns the database connection address.
-	GetURI() string
-	// GetCA returns the database CA certificate bytes.
-	GetCA() []byte
-	// SetCA sets the database CA certificate bytes.
-	SetCA([]byte)
-	// GetAWS returns AWS information for RDS/Aurora databases.
-	GetAWS() AWS
-	// GetGCP returns GCP information for Cloud SQL databases.
-	GetGCP() GCPCloudSQL
-	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
-	GetType() string
-	// IsRDS returns true if this is an RDS/Aurora database.
-	IsRDS() bool
-	// IsRedshift returns true if this is a Redshift database.
-	IsRedshift() bool
-	// IsCloudSQL returns true if this is a Cloud SQL database.
-	IsCloudSQL() bool
 	// Copy returns a copy of this database server object.
 	Copy() DatabaseServer
+	// GetDatabase returns the database this database server proxies.
+	GetDatabase() Database
+	// SetDatabase sets the database this database server proxies.
+	SetDatabase(Database) error
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
-func NewDatabaseServerV3(name string, labels map[string]string, spec DatabaseServerSpecV3) *DatabaseServerV3 {
-	return &DatabaseServerV3{
-		Kind:    KindDatabaseServer,
-		Version: V3,
-		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
-			Labels:    labels,
-		},
-		Spec: spec,
+func NewDatabaseServerV3(meta Metadata, spec DatabaseServerSpecV3) (*DatabaseServerV3, error) {
+	s := &DatabaseServerV3{
+		Metadata: meta,
+		Spec:     spec,
 	}
+	if err := s.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s, nil
 }
 
 // GetVersion returns the database server resource version.
@@ -161,13 +129,6 @@ func (s *DatabaseServerV3) Expiry() time.Time {
 	return s.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (s *DatabaseServerV3) SetTTL(clock Clock, ttl time.Duration) {
-	s.Metadata.SetTTL(clock, ttl)
-}
-
 // GetName returns the resource name.
 func (s *DatabaseServerV3) GetName() string {
 	return s.Metadata.Name
@@ -188,136 +149,96 @@ func (s *DatabaseServerV3) SetRotation(r Rotation) {
 	s.Spec.Rotation = r
 }
 
-// GetStaticLabels returns the server static labels.
-func (s *DatabaseServerV3) GetStaticLabels() map[string]string {
-	return s.Metadata.Labels
-}
-
-// SetStaticLabels sets the server static labels.
-func (s *DatabaseServerV3) SetStaticLabels(sl map[string]string) {
-	s.Metadata.Labels = sl
-}
-
-// GetDynamicLabels returns the server dynamic labels.
-func (s *DatabaseServerV3) GetDynamicLabels() map[string]CommandLabel {
-	if s.Spec.DynamicLabels == nil {
-		return nil
+// GetDatabase returns the database this database server proxies.
+func (s *DatabaseServerV3) GetDatabase() Database {
+	if s.Spec.Database != nil {
+		return s.Spec.Database
 	}
-	return V2ToLabels(s.Spec.DynamicLabels)
-}
-
-// SetDynamicLabels sets the server dynamic labels
-func (s *DatabaseServerV3) SetDynamicLabels(dl map[string]CommandLabel) {
-	s.Spec.DynamicLabels = LabelsToV2(dl)
-}
-
-// GetAllLabels returns combines static and dynamic labels.
-func (s *DatabaseServerV3) GetAllLabels() map[string]string {
-	return CombineLabels(s.Metadata.Labels, s.Spec.DynamicLabels)
-}
-
-// LabelsString returns all labels as a string.
-func (s *DatabaseServerV3) LabelsString() string {
-	return LabelsAsString(s.Metadata.Labels, s.Spec.DynamicLabels)
-}
-
-// GetDescription returns the database server description.
-func (s *DatabaseServerV3) GetDescription() string {
-	return s.Spec.Description
-}
-
-// GetProtocol returns the database server protocol.
-func (s *DatabaseServerV3) GetProtocol() string {
-	return s.Spec.Protocol
-}
-
-// GetURI returns the database connection address.
-func (s *DatabaseServerV3) GetURI() string {
-	return s.Spec.URI
-}
-
-// GetCA returns the database CA certificate bytes.
-func (s *DatabaseServerV3) GetCA() []byte {
-	return s.Spec.CACert
-}
-
-// SetCA sets the database CA certificate bytes.
-func (s *DatabaseServerV3) SetCA(bytes []byte) {
-	s.Spec.CACert = bytes
-}
-
-// GetAWS returns AWS information for RDS/Aurora databases.
-func (s *DatabaseServerV3) GetAWS() AWS {
-	return s.Spec.AWS
-}
-
-// GetGCP returns GCP information for Cloud SQL databases.
-func (s *DatabaseServerV3) GetGCP() GCPCloudSQL {
-	return s.Spec.GCP
-}
-
-// IsRDS returns true if this database represents AWS RDS/Aurora instance.
-func (s *DatabaseServerV3) IsRDS() bool {
-	return s.GetType() == DatabaseTypeRDS
-}
-
-// IsRedshift returns true if this is a Redshift database instance.
-func (s *DatabaseServerV3) IsRedshift() bool {
-	return s.GetType() == DatabaseTypeRedshift
-}
-
-// IsCloudSQL returns true if this database is a Cloud SQL instance.
-func (s *DatabaseServerV3) IsCloudSQL() bool {
-	return s.GetType() == DatabaseTypeCloudSQL
-}
-
-// GetType returns the database type, self-hosted or AWS RDS.
-func (s *DatabaseServerV3) GetType() string {
-	if s.Spec.AWS.Redshift.ClusterID != "" {
-		return DatabaseTypeRedshift
+	// If any older database agents are still heartbeating back, they have
+	// fields like protocol, URI, etc. set in the DatabaseServer object
+	// itself, so construct the Database object from them.
+	//
+	// DELETE IN 9.0.
+	return &DatabaseV3{
+		Kind:    KindDatabase,
+		Version: V3,
+		Metadata: Metadata{
+			Name:        s.Metadata.Name,
+			Namespace:   s.Metadata.Namespace,
+			Description: s.Spec.Description,
+			Labels:      s.Metadata.Labels,
+		},
+		Spec: DatabaseSpecV3{
+			Protocol:      s.Spec.Protocol,
+			URI:           s.Spec.URI,
+			CACert:        string(s.Spec.CACert),
+			DynamicLabels: s.Spec.DynamicLabels,
+			AWS:           s.Spec.AWS,
+			GCP:           s.Spec.GCP,
+		},
 	}
-	if s.Spec.AWS.Region != "" {
-		return DatabaseTypeRDS
+}
+
+// SetDatabase sets the database this database server proxies.
+func (s *DatabaseServerV3) SetDatabase(database Database) error {
+	databaseV3, ok := database.(*DatabaseV3)
+	if !ok {
+		return trace.BadParameter("expected *DatabaseV3, got %T", database)
 	}
-	if s.Spec.GCP.ProjectID != "" {
-		return DatabaseTypeCloudSQL
-	}
-	return DatabaseTypeSelfHosted
+	s.Spec.Database = databaseV3
+	return nil
 }
 
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
-	return fmt.Sprintf("DatabaseServer(Name=%v, Type=%v, Version=%v, Labels=%v)",
-		s.GetName(), s.GetType(), s.GetTeleportVersion(), s.GetStaticLabels())
+	return fmt.Sprintf("DatabaseServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, Database=%v)",
+		s.GetName(), s.GetTeleportVersion(), s.GetHostname(), s.GetHostID(), s.GetDatabase())
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (s *DatabaseServerV3) setStaticFields() {
+	s.Kind = KindDatabaseServer
+	s.Version = V3
+}
+
+// setLegacyFields sets fields that database servers used to have before
+// Database resource became a separate field.
+//
+// This is required for backwards compatibility in case a database agent
+// connects back to a pre-8.0 auth server.
+//
+// DELETE IN 9.0.
+func (s *DatabaseServerV3) setLegacyFields(database *DatabaseV3) {
+	s.Metadata.Labels = database.Metadata.Labels
+	s.Spec.Description = database.Metadata.Description
+	s.Spec.Protocol = database.Spec.Protocol
+	s.Spec.URI = database.Spec.URI
+	s.Spec.CACert = []byte(database.Spec.CACert)
+	s.Spec.DynamicLabels = database.Spec.DynamicLabels
+	s.Spec.AWS = database.Spec.AWS
+	s.Spec.GCP = database.Spec.GCP
 }
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (s *DatabaseServerV3) CheckAndSetDefaults() error {
+	s.setStaticFields()
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if s.Version == "" {
-		s.Version = V3
-	}
-	if s.Kind == "" {
-		return trace.BadParameter("database server %q kind is empty", s.GetName())
-	}
-	for key := range s.Spec.DynamicLabels {
-		if !IsValidLabelKey(key) {
-			return trace.BadParameter("database server %q invalid label key: %q", s.GetName(), key)
-		}
-	}
-	if s.Spec.Protocol == "" {
-		return trace.BadParameter("database server %q protocol is empty", s.GetName())
-	}
-	if s.Spec.URI == "" {
-		return trace.BadParameter("database server %q URI is empty", s.GetName())
+	if s.Spec.HostID == "" {
+		return trace.BadParameter("missing database server HostID")
 	}
 	if s.Spec.Hostname == "" {
-		return trace.BadParameter("database server %q hostname is empty", s.GetName())
+		return trace.BadParameter("missing database server Hostname")
 	}
-	if s.Spec.HostID == "" {
-		return trace.BadParameter("database server %q host ID is empty", s.GetName())
+	if s.Spec.Version == "" {
+		s.Spec.Version = api.Version
+	}
+	if s.Spec.Database != nil {
+		if err := s.Spec.Database.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		s.setLegacyFields(s.Spec.Database)
 	}
 	return nil
 }
@@ -327,28 +248,16 @@ func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return proto.Clone(s).(*DatabaseServerV3)
 }
 
-const (
-	// DatabaseTypeSelfHosted is the self-hosted type of database.
-	DatabaseTypeSelfHosted = "self-hosted"
-	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.
-	DatabaseTypeRDS = "rds"
-	// DatabaseTypeRedshift is AWS Redshift database.
-	DatabaseTypeRedshift = "redshift"
-	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
-	DatabaseTypeCloudSQL = "gcp"
-)
-
-// SortedDatabaseServers implements sorter for database servers.
-type SortedDatabaseServers []DatabaseServer
+// DatabaseServers represents a list of database servers.
+type DatabaseServers []DatabaseServer
 
 // Len returns the slice length.
-func (s SortedDatabaseServers) Len() int { return len(s) }
+func (s DatabaseServers) Len() int { return len(s) }
 
-// Less compares database servers by name.
-func (s SortedDatabaseServers) Less(i, j int) bool { return s[i].GetName() < s[j].GetName() }
+// Less compares database servers by name and host ID.
+func (s DatabaseServers) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+}
 
 // Swap swaps two database servers.
-func (s SortedDatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-
-// DatabaseServers is a list of database servers.
-type DatabaseServers []DatabaseServer
+func (s DatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }

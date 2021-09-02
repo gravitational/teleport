@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import "fmt"
@@ -74,9 +88,10 @@ type buildType struct {
 // It includes the Docker socket volume by default, plus any extra volumes passed in
 func dockerService(v ...volumeRef) service {
 	return service{
-		Name:    "Start Docker",
-		Image:   "docker:20.10.6-dind",
-		Volumes: append(v, volumeRefDocker),
+		Name:       "Start Docker",
+		Image:      "docker:dind",
+		Privileged: true,
+		Volumes:    append(v, volumeRefDocker),
 	}
 }
 

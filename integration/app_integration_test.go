@@ -747,9 +747,9 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.SSH.Enabled = false
 	lcConf.Apps.Enabled = false
 
-	err = p.leafCluster.CreateEx(p.rootCluster.Secrets.AsSlice(), lcConf)
+	err = p.leafCluster.CreateEx(t, p.rootCluster.Secrets.AsSlice(), lcConf)
 	require.NoError(t, err)
-	err = p.rootCluster.CreateEx(p.leafCluster.Secrets.AsSlice(), rcConf)
+	err = p.rootCluster.CreateEx(t, p.leafCluster.Secrets.AsSlice(), rcConf)
 	require.NoError(t, err)
 
 	err = p.leafCluster.Start()

@@ -1,15 +1,51 @@
-# Teleport
+<div align="center">
+   <img src="https://goteleport.com/blog/images/2020/gravitational-is-teleport-header.png" width=750/>
+   <div align="center" style="padding: 25px">
+      <a href="https://goteleport.com/docs/">
+      <img src="https://img.shields.io/badge/Teleport-7.0-651FFF.svg" />
+      </a>
+      <a href="https://golang.org/">
+      <img src="https://img.shields.io/badge/Go-1.16-7fd5ea.svg" />
+      </a>
+      <a href="https://github.com/gravitational/teleport/blob/master/CODE_OF_CONDUCT.md">
+      <img src="https://img.shields.io/badge/Contribute-🙌-green.svg" />
+      </a>
+      <a href="https://www.apache.org/licenses/LICENSE-2.0">
+      <img src="https://img.shields.io/badge/Apache-2.0-red.svg" />
+      </a>
+   </div>
+</div>
+</br>
+
+> Read our Blog: https://goteleport.com/blog/
+
+> Read our Documentation: https://goteleport.com/docs/getting-started/
+
+## Table of Contents
+
+1. [Introduction](#introduction)
+1. [Installing and Running](#installing-and-running)
+1. [Docker](#docker)
+1. [Building Teleport](#building-teleport)
+1. [Why did We Build Teleport?](#why-did-we-build-teleport)
+1. [More Information](#more-information)
+1. [Support and Contributing](#support-and-contributing)
+1. [Is Teleport Secure and Production Ready?](#is-teleport-secure-and-production-ready)
+1. [Who Built Teleport?](#who-built-teleport)
+
+## Introduction
 
 Teleport is an identity-aware, multi-protocol access proxy which understands
-SSH, HTTPS, Kubernetes API, MySQL and PostgreSQL wire protocols.
+SSH, HTTPS, Kubernetes API, MySQL, and PostgreSQL wire protocols.
 
-On the server side, Teleport is a single binary which enables convenient secure
+On the server-side, Teleport is a single binary which enables convenient secure
 access to behind-NAT resources such as:
 
-* [SSH nodes](https://goteleport.com/teleport/docs/quickstart/) - SSH works in browsers too!
-* [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-access/)
-* [PostgreSQL and MySQL databases](https://goteleport.com/teleport/docs/database-access/)
-* [Internal Web apps](https://goteleport.com/teleport/docs/application-access/)
+* [SSH nodes](https://goteleport.com/docs/getting-started/) - SSH works in browsers too!
+* [Kubernetes clusters](https://goteleport.com/docs/kubernetes-access/introduction/)
+* [PostgreSQL and MySQL databases](https://goteleport.com/docs/database-access/introduction/)
+* [Internal Web apps](https://goteleport.com/docs/application-access/introduction/)
+* [Networked servers](https://goteleport.com/docs/server-access/introduction/)
 
 Teleport is trivial to set up as a Linux daemon or in a Kubernetes pod. It's rapidly
 replacing legacy `sshd`-based setups at organizations who need:
@@ -18,7 +54,7 @@ replacing legacy `sshd`-based setups at organizations who need:
   across many environments and cloud providers.
 * Audit log with session recording/replay for multiple protocols
 * Easily manage trust between teams, organizations and data centers.
-* Role-based access control (RBAC) and flexible access workflows (one-time access requests)
+* Role-based access control (RBAC) and flexible access workflows (one-time [access requests](https://goteleport.com/features/access-requests/)
 
 In addition to its hallmark features, Teleport is interesting for smaller teams
 because it facilitates easy adoption of the best infrastructure security
@@ -42,12 +78,14 @@ implementation. It is _fully compatible with OpenSSH_,
 | [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback, or idea on our forum. |
 | [Slack](https://goteleport.com/slack) | Need help with your setup? Ping us in our Slack channel. |
-| [Cloud](https://goteleport.com/pricing) | We run Teleport Cloud as hosted, managed Teleport as a service. Connect your nodes, web applications, kubernetes clusters, and databases. |
+| [Cloud-hosted](https://goteleport.com/pricing) | We offer Teleport Pro and Enteprise with a Cloud-hosted option. For teams that require easy and secure access to their computing environments. |
 
 
 [Teleport 6.0 - 4:00m Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM)
 
 ## Installing and Running
+
+| Follow the [Installation](https://goteleport.com/docs/installation/) Guide
 
 Download the [latest binary release](https://goteleport.com/teleport/download),
 unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries into
@@ -66,6 +104,8 @@ In a production environment, Teleport must run as `root`. For testing or non-pro
 * In this case, you will not be able to log in as another user.
 
 ## Docker
+
+| Follow the Docker-Compose [Getting Started](https://goteleport.com/docs/setup/guides/docker-compose/) Guide
 
 ### Deploy Teleport
 
@@ -226,7 +266,7 @@ Why is a specific version of a module imported?
 
 The Teleport creators used to work together at Rackspace. We noticed that most cloud computing users struggle with setting up and configuring infrastructure security because popular tools, while flexible, are complex to understand and expensive to maintain. Additionally, most organizations use multiple infrastructure form factors such as several cloud providers, multiple cloud accounts, servers in colocation, and even smart devices. Some of those devices run on untrusted networks, behind third-party firewalls. This only magnifies complexity and increases operational overhead.
 
-We had a choice, either start a security consulting business, or build a solution that's dead-easy to use and understand. A real-time representation of all of your servers in the same room as you, as if they were magically _teleported_. Thus, Teleport was born!
+We had a choice, either start a security consulting business or build a solution that's dead-easy to use and understand. A real-time representation of all of your servers in the same room as you, as if they were magically _teleported_. Thus, Teleport was born!
 
 ## More Information
 

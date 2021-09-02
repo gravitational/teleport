@@ -254,36 +254,35 @@ func HasClientCert(r *http.Request) bool {
 // HasName checks if the client is attempting to connect to a
 // host that is different than the public address of the proxy. If it is, it
 // redirects back to the application launcher in the Web UI.
-func HasName(r *http.Request, proxyPublicAddr string) (string, bool) {
+func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 	raddr, err := utils.ParseAddr(r.Host)
 	if err != nil {
 		return "", false
 	}
-	paddr, err := utils.ParseAddr(proxyPublicAddr)
-	if err != nil {
+	for _, paddr := range proxyPublicAddrs {
+		// The following requests can not be for an application:
+		//
+		//  * The request is for localhost or loopback.
+		//  * The request is for an IP address.
+		//  * The request is for the public address of the proxy.
+		if utils.IsLocalhost(raddr.Host()) {
+			return "", false
+		}
+		if net.ParseIP(raddr.Host()) != nil {
+			return "", false
+		}
+		if raddr.Host() == paddr.Host() {
+			return "", false
+		}
+	}
+	if len(proxyPublicAddrs) == 0 {
 		return "", false
 	}
-
-	// The following requests can not be for an application:
-	//
-	//  * The request is for localhost or loopback.
-	//  * The request is for an IP address.
-	//  * The request is for the public address of the proxy.
-	if utils.IsLocalhost(raddr.Host()) {
-		return "", false
-	}
-	if net.ParseIP(raddr.Host()) != nil {
-		return "", false
-	}
-	if raddr.Host() == paddr.Host() {
-		return "", false
-	}
-
 	// At this point, it is assumed the caller is requesting an application and
 	// not the proxy, redirect the caller to the application launcher.
 	u := url.URL{
 		Scheme: "https",
-		Host:   proxyPublicAddr,
+		Host:   proxyPublicAddrs[0].String(),
 		Path:   fmt.Sprintf("/web/launch/%v", raddr.Host()),
 	}
 	return u.String(), true

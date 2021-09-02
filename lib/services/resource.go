@@ -23,8 +23,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // MarshalConfig specifies marshalling options
@@ -154,6 +155,18 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindSemaphore, nil
 	case types.KindKubeService, "kube_services":
 		return types.KindKubeService, nil
+	case types.KindLock, "locks":
+		return types.KindLock, nil
+	case types.KindDatabaseServer:
+		return types.KindDatabaseServer, nil
+	case types.KindNetworkRestrictions:
+		return types.KindNetworkRestrictions, nil
+	case types.KindDatabase:
+		return types.KindDatabase, nil
+	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service":
+		return types.KindWindowsDesktopService, nil
+	case types.KindWindowsDesktop, "win_desktop":
+		return types.KindWindowsDesktop, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -478,6 +491,10 @@ func init() {
 // NOTE: This function only supports the subset of resources which may be imported/exported
 // by users (e.g. via `tctl get`).
 func MarshalResource(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+	if err := resource.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	marshal, ok := getResourceMarshaler(resource.GetKind())
 	if !ok {
 		return nil, trace.NotImplemented("cannot dynamically marshal resources of kind %q", resource.GetKind())

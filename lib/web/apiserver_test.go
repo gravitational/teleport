@@ -35,6 +35,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -44,6 +45,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
+	apiProto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -62,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
@@ -95,6 +98,9 @@ func TestWeb(t *testing.T) {
 }
 
 type WebSuite struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	node        *regular.Server
 	proxy       *regular.Server
 	proxyTunnel reversetunnel.Server
@@ -138,6 +144,8 @@ func (s *WebSuite) SetUpSuite(c *C) {
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 	s.user = u.Username
@@ -189,6 +197,14 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	nodeLockWatcher, err := services.NewLockWatcher(s.ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentNode,
+			Client:    nodeClient,
+		},
+	})
+	c.Assert(err, IsNil)
+
 	// create SSH service:
 	nodeDataDir := c.MkDir()
 	node, err := regular.New(
@@ -206,7 +222,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
+		regular.SetLockWatcher(nodeLockWatcher),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -228,6 +246,14 @@ func (s *WebSuite) SetUpTest(c *C) {
 	revTunListener, err := net.Listen("tcp", fmt.Sprintf("%v:0", s.server.ClusterName()))
 	c.Assert(err, IsNil)
 
+	proxyLockWatcher, err := services.NewLockWatcher(s.ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+	})
+	c.Assert(err, IsNil)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:                    node.ID(),
 		Listener:              revTunListener,
@@ -240,6 +266,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		NewCachingAccessPoint: auth.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
+		LockWatcher:           proxyLockWatcher,
 	})
 	c.Assert(err, IsNil)
 	s.proxyTunnel = revTunServer
@@ -259,7 +286,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
+		regular.SetLockWatcher(proxyLockWatcher),
 	)
 	c.Assert(err, IsNil)
 
@@ -274,7 +303,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		ProxyClient:                     s.proxyClient,
 		CipherSuites:                    utils.DefaultCipherSuites(),
 		AccessPoint:                     s.proxyClient,
-		Context:                         context.Background(),
+		Context:                         s.ctx,
 		HostUUID:                        proxyID,
 		Emitter:                         s.proxyClient,
 		StaticFS:                        fs,
@@ -310,16 +339,21 @@ func (s *WebSuite) SetUpTest(c *C) {
 }
 
 func (s *WebSuite) TearDownTest(c *C) {
+	// In particular close the lock watchers by cancelling the context.
+	s.cancel()
+
 	var errors []error
 	s.proxyTunnel.Close()
 	if err := s.node.Close(); err != nil {
 		errors = append(errors, err)
 	}
+	s.webServer.Close()
+	if err := s.proxy.Close(); err != nil {
+		errors = append(errors, err)
+	}
 	if err := s.server.Shutdown(context.Background()); err != nil {
 		errors = append(errors, err)
 	}
-	s.webServer.Close()
-	s.proxy.Close()
 	c.Assert(errors, HasLen, 0)
 }
 
@@ -356,7 +390,7 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(ap)
+	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
 	c.Assert(err, IsNil)
 
 	s.createUser(c, user, login, pass, otpSecret)
@@ -399,7 +433,6 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 }
 
 func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpSecret string) {
-	ctx := context.Background()
 	teleUser, err := types.NewUser(user)
 	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
@@ -407,14 +440,14 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	options := role.GetOptions()
 	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
-	err = s.server.Auth().UpsertRole(ctx, role)
+	err = s.server.Auth().UpsertRole(s.ctx, role)
 	c.Assert(err, IsNil)
 	teleUser.AddRole(role.GetName())
 
 	teleUser.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})
-	err = s.server.Auth().CreateUser(ctx, teleUser)
+	err = s.server.Auth().CreateUser(s.ctx, teleUser)
 	c.Assert(err, IsNil)
 
 	err = s.server.Auth().UpsertPassword(user, []byte(pass))
@@ -429,7 +462,6 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 }
 
 func (s *WebSuite) TestSAMLSuccess(c *C) {
-	ctx := context.Background()
 	input := fixtures.SAMLOktaConnectorV2
 
 	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
@@ -456,7 +488,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	})
 	c.Assert(err, IsNil)
 	role.SetLogins(services.Allow, []string{s.user})
-	err = s.server.Auth().UpsertRole(ctx, role)
+	err = s.server.Auth().UpsertRole(s.ctx, role)
 	c.Assert(err, IsNil)
 
 	err = s.server.Auth().CreateSAMLConnector(connector)
@@ -787,8 +819,6 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
-	ctx := context.Background()
-
 	validNode := types.ServerV2{}
 	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
 	validNode.Spec.Hostname = "nodehostname"
@@ -880,7 +910,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range validCases {
-		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
+		term, err := NewTerminal(s.ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, IsNil)
 		c.Assert(term.params, DeepEquals, testCase.req)
 		c.Assert(term.hostName, Equals, testCase.expectedHost)
@@ -888,7 +918,7 @@ func (s *WebSuite) TestNewTerminalHandler(c *C) {
 	}
 
 	for _, testCase := range invalidCases {
-		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
+		_, err := NewTerminal(s.ctx, testCase.req, testCase.authProvider, nil)
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
 }
@@ -974,14 +1004,12 @@ func (s *WebSuite) TestTerminal(c *C) {
 }
 
 func (s *WebSuite) TestWebsocketPingLoop(c *C) {
-	ctx := context.Background()
-
 	// Change cluster networking config for keep alive interval to be run faster.
 	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		KeepAliveInterval: types.NewDuration(250 * time.Millisecond),
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetClusterNetworkingConfig(context.TODO(), netConfig)
+	err = s.server.Auth().SetClusterNetworkingConfig(s.ctx, netConfig)
 	c.Assert(err, IsNil)
 
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -989,7 +1017,7 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 		ProxyChecksHostKeys: types.NewBoolOption(true),
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
+	err = s.server.Auth().SetSessionRecordingConfig(s.ctx, recConfig)
 	c.Assert(err, IsNil)
 
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
@@ -1243,7 +1271,7 @@ func (s *WebSuite) TestLogin(c *C) {
 		SecondFactor: constants.SecondFactorOff,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(ap)
+	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
 	c.Assert(err, IsNil)
 
 	// create user
@@ -1304,20 +1332,20 @@ func (s *WebSuite) TestLogin(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
-func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
+func (s *WebSuite) TestChangePasswordAndAddTOTPDeviceWithToken(c *C) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(ap)
+	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
 	c.Assert(err, IsNil)
 
 	// create user
 	s.createUser(c, "user1", "root", "password", "")
 
 	// create password change token
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: "user1",
 	})
 	c.Assert(err, IsNil)
@@ -1331,7 +1359,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	c.Assert(uiToken.User, Equals, token.GetUser())
 	c.Assert(uiToken.TokenID, Equals, token.GetName())
 
-	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
+	secrets, err := s.server.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)
 
 	// Advance the clock to invalidate the TOTP token
@@ -1359,12 +1387,13 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var rawSess *CreateSessionResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
-	c.Assert(rawSess.Token != "", Equals, true)
+	// Test that no recovery codes are returned b/c cloud feature isn't enabled.
+	var recoveryCodes []string
+	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
+	c.Assert(recoveryCodes, HasLen, 0)
 }
 
-func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
+func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorU2F,
@@ -1374,13 +1403,13 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(ap)
+	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
 	c.Assert(err, IsNil)
 
 	s.createUser(c, "user2", "root", "password", "")
 
 	// create reset password token
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: "user2",
 	})
 	c.Assert(err, IsNil)
@@ -1415,9 +1444,10 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var rawSess *CreateSessionResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
-	c.Assert(rawSess.Token != "", Equals, true)
+	// Test that no recovery codes are returned b/c cloud is not turned on.
+	var recoveryCodes []string
+	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
+	c.Assert(recoveryCodes, HasLen, 0)
 }
 
 func TestU2FLogin(t *testing.T) {
@@ -1436,6 +1466,7 @@ func TestU2FLogin(t *testing.T) {
 }
 
 func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 
 	// configure cluster authentication preferences
@@ -1448,15 +1479,14 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 		},
 	})
 	require.NoError(t, err)
-	err = env.server.Auth().SetAuthPreference(cap)
+	err = env.server.Auth().SetAuthPreference(ctx, cap)
 	require.NoError(t, err)
 
 	// create user
-	ctx := context.TODO()
 	env.proxies[0].createUser(ctx, t, "bob", "root", "password", "")
 
 	// create password change token
-	token, err := env.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
 		Name: "bob",
 	})
 	require.NoError(t, err)
@@ -1470,10 +1500,15 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 	require.NoError(t, err)
 
 	tempPass := []byte("abc123")
-	_, err = env.proxies[0].client.ChangePasswordWithToken(context.TODO(), auth.ChangePasswordWithTokenRequest{
-		TokenID:             token.GetName(),
-		U2FRegisterResponse: u2fRegResp,
-		Password:            tempPass,
+	_, err = env.proxies[0].client.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+		TokenID: token.GetName(),
+		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_U2F{
+			U2F: &apiProto.U2FRegisterResponse{
+				RegistrationData: u2fRegResp.RegistrationData,
+				ClientData:       u2fRegResp.ClientData,
+			},
+		}},
+		NewPassword: tempPass,
 	})
 	require.NoError(t, err)
 
@@ -1561,21 +1596,81 @@ func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
 func (s *WebSuite) TestPing(c *C) {
 	wc := s.client()
 
-	re, err := wc.Get(context.Background(), wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 
 	var out *webclient.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
-	preference, err := s.server.Auth().GetAuthPreference()
+	preference, err := s.server.Auth().GetAuthPreference(s.ctx)
 	c.Assert(err, IsNil)
 
 	c.Assert(out.Auth.Type, Equals, preference.GetType())
 	c.Assert(out.Auth.SecondFactor, Equals, preference.GetSecondFactor())
 }
 
-func (s *WebSuite) TestMultipleConnectors(c *C) {
+// TestEmptyMotD ensures that responses returned by both /webapi/ping and
+// /webapi/motd work when no MotD is set
+func (s *WebSuite) TestEmptyMotD(c *C) {
 	ctx := context.Background()
+	wc := s.client()
+
+	// Given an auth server configured *not* to expose a Message Of The
+	// Day...
+
+	// When I issue a ping request...
+	re, err := wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	c.Assert(err, IsNil)
+
+	// Expect that the MotD flag in the ping response is *not* set
+	var pingResponse *webclient.PingResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &pingResponse), IsNil)
+	c.Assert(pingResponse.Auth.HasMessageOfTheDay, Equals, false)
+
+	// When I fetch the MotD...
+	re, err = wc.Get(ctx, wc.Endpoint("webapi", "motd"), url.Values{})
+	c.Assert(err, IsNil)
+
+	// Expect that an empty response returned
+	var motdResponse *webclient.MotD
+	c.Assert(json.Unmarshal(re.Bytes(), &motdResponse), IsNil)
+	c.Assert(motdResponse.Text, Equals, "")
+}
+
+// TestMotD ensures that a response is returned by both /webapi/ping and /webapi/motd
+// and that that the response bodies contain their MOTD components
+func (s *WebSuite) TestMotD(c *C) {
+	const motd = "Hello. I'm a Teleport cluster!"
+
+	ctx := context.Background()
+	wc := s.client()
+
+	// Given an auth server configured to expose a Message Of The Day...
+	prefs := types.DefaultAuthPreference()
+	prefs.SetMessageOfTheDay(motd)
+	s.server.AuthServer.AuthServer.SetAuthPreference(ctx, prefs)
+
+	// When I issue a ping request...
+	re, err := wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	c.Assert(err, IsNil)
+
+	// Expect that the MotD flag in the ping response is set to indicate
+	// a MotD
+	var pingResponse *webclient.PingResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &pingResponse), IsNil)
+	c.Assert(pingResponse.Auth.HasMessageOfTheDay, Equals, true)
+
+	// When I fetch the MotD...
+	re, err = wc.Get(ctx, wc.Endpoint("webapi", "motd"), url.Values{})
+	c.Assert(err, IsNil)
+
+	// Expect that the text returned is the configured value
+	var motdResponse *webclient.MotD
+	c.Assert(json.Unmarshal(re.Bytes(), &motdResponse), IsNil)
+	c.Assert(motdResponse.Text, Equals, motd)
+}
+
+func (s *WebSuite) TestMultipleConnectors(c *C) {
 	wc := s.client()
 
 	// create two oidc connectors, one named "foo" and another named "bar"
@@ -1594,9 +1689,13 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 			},
 		},
 	}
-	err := s.server.Auth().UpsertOIDCConnector(ctx, types.NewOIDCConnector("foo", oidcConnectorSpec))
+	o, err := types.NewOIDCConnector("foo", oidcConnectorSpec)
 	c.Assert(err, IsNil)
-	err = s.server.Auth().UpsertOIDCConnector(ctx, types.NewOIDCConnector("bar", oidcConnectorSpec))
+	err = s.server.Auth().UpsertOIDCConnector(s.ctx, o)
+	c.Assert(err, IsNil)
+	o2, err := types.NewOIDCConnector("bar", oidcConnectorSpec)
+	c.Assert(err, IsNil)
+	err = s.server.Auth().UpsertOIDCConnector(s.ctx, o2)
 	c.Assert(err, IsNil)
 
 	// set the auth preferences to oidc with no connector name
@@ -1604,18 +1703,18 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 		Type: "oidc",
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(authPreference)
+	err = s.server.Auth().SetAuthPreference(s.ctx, authPreference)
 	c.Assert(err, IsNil)
 
 	// hit the ping endpoint to get the auth type and connector name
-	re, err := wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 	var out *webclient.PingResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
 	// make sure the connector name we got back was the first connector
 	// in the backend, in this case it's "bar"
-	oidcConnectors, err := s.server.Auth().GetOIDCConnectors(ctx, false)
+	oidcConnectors, err := s.server.Auth().GetOIDCConnectors(s.ctx, false)
 	c.Assert(err, IsNil)
 	c.Assert(out.Auth.OIDC.Name, Equals, oidcConnectors[0].GetName())
 
@@ -1625,11 +1724,11 @@ func (s *WebSuite) TestMultipleConnectors(c *C) {
 		ConnectorName: "foo",
 	})
 	c.Assert(err, IsNil)
-	err = s.server.Auth().SetAuthPreference(authPreference)
+	err = s.server.Auth().SetAuthPreference(s.ctx, authPreference)
 	c.Assert(err, IsNil)
 
 	// hit the ping endpoing to get the auth type and connector name
-	re, err = wc.Get(ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err = wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 
@@ -1716,6 +1815,25 @@ func (s *WebSuite) TestConstructSSHResponseLegacy(c *C) {
 	c.Assert(resp.TLSCert, DeepEquals, []byte{0x01})
 }
 
+type byTimeAndIndex []apievents.AuditEvent
+
+func (f byTimeAndIndex) Len() int {
+	return len(f)
+}
+
+func (f byTimeAndIndex) Less(i, j int) bool {
+	itime := f[i].GetTime()
+	jtime := f[j].GetTime()
+	if itime.Equal(jtime) && events.GetSessionID(f[i]) == events.GetSessionID(f[j]) {
+		return f[i].GetIndex() < f[j].GetIndex()
+	}
+	return itime.Before(jtime)
+}
+
+func (f byTimeAndIndex) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
 // TestSearchClusterEvents makes sure web API allows querying events by type.
 func (s *WebSuite) TestSearchClusterEvents(c *C) {
 	// We need a clock that uses the current time here to work around
@@ -1732,6 +1850,7 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		c.Assert(s.proxyClient.EmitAuditEvent(context.TODO(), e), IsNil)
 	}
 
+	sort.Sort(sort.Reverse(byTimeAndIndex(sessionEvents)))
 	sessionStart := sessionEvents[0]
 	sessionPrint := sessionEvents[1]
 	sessionEnd := sessionEvents[4]
@@ -1840,13 +1959,11 @@ func (s *WebSuite) searchEvents(c *C, clt *client.WebClient, query url.Values, f
 }
 
 func (s *WebSuite) TestGetClusterDetails(c *C) {
-	ctx := context.Background()
-
 	site, err := s.proxyTunnel.GetSite(s.server.ClusterName())
 	c.Assert(err, IsNil)
 	c.Assert(site, NotNil)
 
-	cluster, err := ui.GetClusterDetails(ctx, site)
+	cluster, err := ui.GetClusterDetails(s.ctx, site)
 	c.Assert(err, IsNil)
 	c.Assert(cluster.Name, Equals, s.server.ClusterName())
 	c.Assert(cluster.ProxyVersion, Equals, teleport.Version)
@@ -1855,7 +1972,7 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.LastConnected, NotNil)
 	c.Assert(cluster.AuthVersion, Equals, teleport.Version)
 
-	nodes, err := s.proxyClient.GetNodes(ctx, apidefaults.Namespace)
+	nodes, err := s.proxyClient.GetNodes(s.ctx, apidefaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
@@ -1886,13 +2003,17 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.Len(t, dbs, 0)
 
 	// Register a database.
-	db := types.NewDatabaseServerV3("test-db-name", map[string]string{"test-field": "test-value"}, types.DatabaseServerSpecV3{
+	db, err := types.NewDatabaseServerV3(types.Metadata{
+		Name:   "test-db-name",
+		Labels: map[string]string{"test-field": "test-value"},
+	}, types.DatabaseServerSpecV3{
 		Description: "test-description",
 		Protocol:    "test-protocol",
 		URI:         "test-uri",
 		Hostname:    "test-hostname",
 		HostID:      "test-hostID",
 	})
+	require.NoError(t, err)
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
 	require.NoError(t, err)
@@ -2000,7 +2121,26 @@ func TestApplicationAccessDisabled(t *testing.T) {
 		ClusterName: "localhost",
 	})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "this Teleport cluster doesn't support application access")
+	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
+}
+
+// TestGetMFADevices gets devices for the authenticated user.
+func TestGetMFADevices(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "mfa")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var devices []ui.MFADevice
+	err = json.Unmarshal(re.Bytes(), &devices)
+	require.NoError(t, err)
+	require.Len(t, devices, 1)
+	require.Equal(t, "TOTP", devices[0].Type)
+	require.Equal(t, "otp", devices[0].Name) // default device name
 }
 
 // TestCreateAppSession verifies that an existing session to the Web UI can
@@ -2151,6 +2291,30 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	}
 }
 
+func TestNewSessionResponseWithRenewSession(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+
+	// Set a web idle timeout.
+	duration := time.Duration(5) * time.Minute
+	cfg := types.DefaultClusterNetworkingConfig()
+	cfg.SetWebIdleTimeout(duration)
+	env.server.Auth().SetClusterNetworkingConfig(context.Background(), cfg)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo")
+
+	var ns *CreateSessionResponse
+	resp := pack.renewSession(context.Background(), t)
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &ns))
+
+	require.Equal(t, int(duration.Milliseconds()), ns.SessionInactiveTimeoutMS)
+	require.Equal(t, roundtrip.AuthBearer, ns.TokenType)
+	require.NotEmpty(t, ns.SessionExpires)
+	require.NotEmpty(t, ns.Token)
+	require.NotEmpty(t, ns.TokenExpiresIn)
+}
+
 // TestWebSessionsRenewDoesNotBreakExistingTerminalSession validates that the
 // session renewed via one proxy does not force the terminals created by another
 // proxy to disconnect
@@ -2254,6 +2418,91 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	// subsequent requests to use this session will fail
 	_, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	require.True(t, trace.IsAccessDenied(err))
+}
+
+type testCloudModules struct {
+	modules.Modules
+}
+
+func (m *testCloudModules) Features() modules.Features {
+	return modules.Features{
+		Cloud: true, // Explicily turn on cloud feature.
+	}
+}
+
+// TestChangeUserAuthentication_recoveryCodesReturnedForCloud tests for following:
+//  - Recovery codes are not returned for usernames that are not emails
+//  - Recovery codes are returned for usernames that are valid emails
+func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOTP,
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Enable cloud feature.
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testCloudModules{})
+
+	// Creaet a username that is not a valid email format for recovery.
+	teleUser, err := types.NewUser("invalid-name-for-recovery")
+	require.NoError(t, err)
+	env.server.Auth().CreateUser(ctx, teleUser)
+
+	// Create a reset password token and secrets.
+	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: "invalid-name-for-recovery",
+	})
+	require.NoError(t, err)
+	secrets, err := env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
+	require.NoError(t, err)
+	totpCode, err := totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	require.NoError(t, err)
+
+	// Test invalid username does not receive codes.
+	clt := env.proxies[0].client
+	re, err := clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: []byte("abc123"),
+		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
+			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
+		}},
+	})
+	require.NoError(t, err)
+	require.Empty(t, re.RecoveryCodes)
+
+	// Create a user that is valid for recovery.
+	teleUser, err = types.NewUser("valid-username@example.com")
+	require.NoError(t, err)
+	env.server.Auth().CreateUser(ctx, teleUser)
+
+	// Create a reset password token and secrets.
+	resetToken, err = env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: "valid-username@example.com",
+	})
+	require.NoError(t, err)
+	secrets, err = env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
+	require.NoError(t, err)
+	totpCode, err = totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	require.NoError(t, err)
+
+	// Test valid username (email) returns codes.
+	re, err = clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: []byte("abc123"),
+		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
+			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, re.RecoveryCodes, 3)
 }
 
 type authProviderMock struct {
@@ -2512,10 +2761,11 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
-	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn}, nil
+	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn, SessionInactiveTimeoutMS: r.SessionInactiveTimeoutMS}, nil
 }
 
 func newWebPack(t *testing.T, numProxies int) *webPack {
+	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
 	server, err := auth.NewTestServer(auth.TestServerConfig{
@@ -2526,7 +2776,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, server.Shutdown(context.Background())) })
+	t.Cleanup(func() { require.NoError(t, server.Shutdown(ctx)) })
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
@@ -2555,6 +2805,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	require.NoError(t, err)
+	hostSigners := []ssh.Signer{signer}
 
 	const nodeID = "node"
 	nodeClient, err := server.TLS.NewClient(auth.TestIdentity{
@@ -2566,7 +2817,15 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeClient.Close()) })
 
-	hostSigners := []ssh.Signer{signer}
+	nodeLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentNode,
+			Client:    nodeClient,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(nodeLockWatcher.Close)
+
 	// create SSH service:
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
@@ -2584,7 +2843,9 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
+		regular.SetLockWatcher(nodeLockWatcher),
 	)
 	require.NoError(t, err)
 
@@ -2595,7 +2856,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	var proxies []*proxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(t, proxyID, node, server.TLS, hostSigners, clock))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -2618,7 +2879,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	}
 }
 
-func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
+func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
 	hostSigners []ssh.Signer, clock clockwork.FakeClock) *proxy {
 
 	// create reverse tunnel service:
@@ -2635,6 +2896,15 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunListener.Close()) })
 
+	proxyLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(proxyLockWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:                    node.ID(),
 		Listener:              revTunListener,
@@ -2647,6 +2917,7 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 		NewCachingAccessPoint: auth.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: authServer.ClusterName(), Client: client}},
 		DataDir:               t.TempDir(),
+		LockWatcher:           proxyLockWatcher,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
@@ -2665,7 +2936,9 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
+		regular.SetLockWatcher(proxyLockWatcher),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
@@ -2673,16 +2946,17 @@ func createProxy(t *testing.T, proxyID string, node *regular.Server, authServer 
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
-		Proxy:        revTunServer,
-		AuthServers:  utils.FromAddr(authServer.Addr()),
-		DomainName:   authServer.ClusterName(),
-		ProxyClient:  client,
-		CipherSuites: utils.DefaultCipherSuites(),
-		AccessPoint:  client,
-		Context:      context.Background(),
-		HostUUID:     proxyID,
-		Emitter:      client,
-		StaticFS:     fs,
+		Proxy:            revTunServer,
+		AuthServers:      utils.FromAddr(authServer.Addr()),
+		DomainName:       authServer.ClusterName(),
+		ProxyClient:      client,
+		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
+		CipherSuites:     utils.DefaultCipherSuites(),
+		AccessPoint:      client,
+		Context:          ctx,
+		HostUUID:         proxyID,
+		Emitter:          client,
+		StaticFS:         fs,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -2740,6 +3014,7 @@ type proxy struct {
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
 func (r *proxy) authPack(t *testing.T, user string) *authPack {
+	ctx := context.Background()
 	const (
 		loginUser = "user"
 		pass      = "abc123"
@@ -2753,7 +3028,7 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 	})
 	require.NoError(t, err)
 
-	err = r.auth.Auth().SetAuthPreference(ap)
+	err = r.auth.Auth().SetAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
 	r.createUser(context.TODO(), t, user, loginUser, pass, otpSecret)
@@ -2932,4 +3207,20 @@ func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
 
 	err = waitForOutput(stream, "foo")
 	require.NoError(t, err)
+}
+
+// TestProxyMultiAddr makes sure ping endpoint can be called over any of
+// the proxy's configured public addresses.
+func TestProxyMultiAddr(t *testing.T) {
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	req, err := http.NewRequest(http.MethodGet, proxy.newClient(t).Endpoint("webapi", "ping"), nil)
+	require.NoError(t, err)
+	// Make sure ping endpoint can be reached over all proxy public addrs.
+	for _, proxyAddr := range proxy.handler.handler.cfg.ProxyPublicAddrs {
+		req.Host = proxyAddr.Host()
+		resp, err := client.NewInsecureWebClient().Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+	}
 }

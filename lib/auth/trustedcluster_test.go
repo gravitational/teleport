@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package auth
 
 import (
@@ -95,7 +109,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 		clusterName = name[0]
 	}
 	// Create a cluster with minimal viable config.
-	clusterNameRes, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterNameRes, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
@@ -108,10 +122,11 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
 	t.Cleanup(func() { a.Close() })
+	require.NoError(t, a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
 	require.NoError(t, a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
 	require.NoError(t, a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
-	require.NoError(t, a.SetAuthPreference(types.DefaultAuthPreference()))
-	require.NoError(t, a.SetClusterConfig(services.DefaultClusterConfig()))
+	require.NoError(t, a.SetAuthPreference(ctx, types.DefaultAuthPreference()))
+	require.NoError(t, a.SetClusterConfig(types.DefaultClusterConfig()))
 
 	return a
 }

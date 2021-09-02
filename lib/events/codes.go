@@ -294,6 +294,14 @@ const (
 	MFADeviceAddEventCode = "T1006I"
 	// MFADeviceDeleteEventCode is an event code for users deleting MFA devices.
 	MFADeviceDeleteEventCode = "T1007I"
+	// RecoveryCodesGenerateCode is an event code for generation of recovery codes.
+	RecoveryCodesGenerateCode = "T1008I"
+	// RecoveryCodeUseSuccessCode is an event code for when a
+	// recovery code was used successfully.
+	RecoveryCodeUseSuccessCode = "T1009I"
+	// RecoveryCodeUseFailureCode is an event code for when a
+	// recovery code was not used successfully.
+	RecoveryCodeUseFailureCode = "T1009W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"
@@ -338,6 +346,15 @@ const (
 	DatabaseSessionEndCode = "TDB01I"
 	// DatabaseSessionQueryCode is the database query event code.
 	DatabaseSessionQueryCode = "TDB02I"
+	// DatabaseSessionQueryFailedCode is the database query failure event code.
+	DatabaseSessionQueryFailedCode = "TDB02W"
+
+	// DatabaseCreateCode is the db.create event code.
+	DatabaseCreateCode = "TDB03I"
+	// DatabaseUpdateCode is the db.update event code.
+	DatabaseUpdateCode = "TDB04I"
+	// DatabaseDeleteCode is the db.delete event code.
+	DatabaseDeleteCode = "TDB05I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -389,6 +406,8 @@ const (
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
+	// RecoveryTokenCreateCode is the recovery token create event code.
+	RecoveryTokenCreateCode = "T6001I"
 
 	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
 	TrustedClusterCreateCode = "T7000I"
@@ -417,4 +436,9 @@ const (
 	RoleCreatedCode = "T9000I"
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
+
+	// LockCreatedCode is the lock created event code.
+	LockCreatedCode = "TLK00I"
+	// LockDeletedCode is the lock deleted event code.
+	LockDeletedCode = "TLK01I"
 )
