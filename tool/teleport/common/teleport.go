@@ -302,7 +302,7 @@ func onStatus() error {
 	fmt.Printf("Cluster Name: %s\n", clusterName)
 	fmt.Printf("Host UUID   : %s\n", hostUUID)
 	fmt.Printf("Session ID  : %s\n", sid)
-	fmt.Printf("Session URL : https://%s/web/cluster/%v/node/%v/%v/%v\n", proxyHost, clusterName, hostUUID, systemUser, sid)
+	fmt.Printf("Session URL : https://%s/web/cluster/%s/console/session/%s\n", proxyHost, clusterName, sid)
 
 	return nil
 }

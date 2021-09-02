@@ -404,6 +404,10 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_DatabaseServer{
 			DatabaseServer: r,
 		}
+	case *types.DatabaseV3:
+		out.Resource = &proto.Event_Database{
+			Database: r,
+		}
 	case *types.ClusterAuditConfigV2:
 		out.Resource = &proto.Event_ClusterAuditConfig{
 			ClusterAuditConfig: r,
@@ -2924,6 +2928,7 @@ func (g *GRPCServer) CreateDatabase(ctx context.Context, database *types.Databas
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	database.SetOrigin(types.OriginDynamic)
 	if err := auth.CreateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2936,6 +2941,7 @@ func (g *GRPCServer) UpdateDatabase(ctx context.Context, database *types.Databas
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	database.SetOrigin(types.OriginDynamic)
 	if err := auth.UpdateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3183,6 +3189,26 @@ func (g *GRPCServer) ChangeUserAuthentication(ctx context.Context, req *proto.Ch
 
 	res, err := auth.ServerWithRoles.ChangeUserAuthentication(ctx, req)
 	return res, trace.Wrap(err)
+}
+
+// StartAccountRecovery is implemented by AuthService.StartAccountRecovery.
+func (g *GRPCServer) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resetToken, err := auth.ServerWithRoles.StartAccountRecovery(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := resetToken.(*types.UserTokenV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected UserToken type %T", resetToken)
+	}
+
+	return r, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration
