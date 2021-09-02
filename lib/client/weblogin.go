@@ -320,7 +320,7 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	re, err := clt.PostJSONWithFallback(ctx, clt.Endpoint("webapi", "ssh", "certs"), login.Insecure, CreateSSHCertReq{
+	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
 		User:              login.User,
 		Password:          login.Password,
 		OTPToken:          login.OTPToken,

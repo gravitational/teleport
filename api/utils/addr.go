@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// IsLoopback returns 'true' if a given hostname resolves to local
-// host's loopback interface
+// IsLoopback returns 'true' if a given hostname resolves *only* to the 
+// local host's loopback interface
 func IsLoopback(host string) bool {
 	if strings.Contains(host, ":") {
 		var err error
@@ -19,10 +19,16 @@ func IsLoopback(host string) bool {
 	if err != nil {
 		return false
 	}
+
+	if len(ips) == 0 {
+		return false
+	}
+
 	for _, ip := range ips {
-		if ip.IsLoopback() {
-			return true
+		if !ip.IsLoopback() {
+			return false
 		}
 	}
-	return false
+
+	return true
 }

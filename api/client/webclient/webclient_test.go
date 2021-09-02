@@ -18,11 +18,11 @@ package webclient
 
 import (
 	"context"
-	"os"
 	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -110,7 +110,6 @@ func TestFindHttpFallback(t *testing.T) {
 		require.Error(t, err)
 	})
 }
-
 
 func TestGetTunnelAddr(t *testing.T) {
 	ctx := context.Background()
