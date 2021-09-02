@@ -1369,12 +1369,19 @@ func showDatabases(cluster string, databases []types.Database, active []tlsca.Ro
 			t.AddRow([]string{
 				name,
 				database.GetDescription(),
-				database.LabelsString(),
+				formatDatabaseLabels(database),
 				connect,
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	}
+}
+
+func formatDatabaseLabels(database types.Database) string {
+	labels := database.GetAllLabels()
+	// Hide the origin label unless printing verbose table.
+	delete(labels, types.OriginLabel)
+	return types.LabelsAsString(labels, nil)
 }
 
 // formatConnectCommand formats an appropriate database connection command
