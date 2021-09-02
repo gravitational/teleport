@@ -75,7 +75,7 @@ type Router struct {
 }
 
 // MatchFunc is a type of the match route functions.
-type MatchFunc func(sni string, alpn string) bool
+type MatchFunc func(sni, alpn string) bool
 
 // MatchByProtocol creates match function based on client TLS ALPN protocol.
 func MatchByProtocol(protocols ...Protocol) MatchFunc {
@@ -83,7 +83,7 @@ func MatchByProtocol(protocols ...Protocol) MatchFunc {
 	for _, v := range protocols {
 		m[v] = struct{}{}
 	}
-	return func(sni string, alpn string) bool {
+	return func(sni, alpn string) bool {
 		_, ok := m[Protocol(alpn)]
 		return ok
 	}
@@ -91,7 +91,7 @@ func MatchByProtocol(protocols ...Protocol) MatchFunc {
 
 // MatchByALPNPrefix creates match function based on client TLS ALPN protocol prefix.
 func MatchByALPNPrefix(prefix string) MatchFunc {
-	return func(sni string, alpn string) bool {
+	return func(sni, alpn string) bool {
 		return strings.HasPrefix(alpn, prefix)
 	}
 }

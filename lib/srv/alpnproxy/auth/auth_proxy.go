@@ -112,6 +112,7 @@ func (s *AuthProxyDialerService) dialLocalAuthServer(ctx context.Context) (net.C
 	if len(authServers) == 0 {
 		return nil, trace.NotFound("empty auth servers list")
 	}
+	//TODO(smallinksy) Better support for HA. Add dial retry on auth network errors.
 	authServerIndex := rand.Intn(len(authServers))
 	conn, err := net.Dial("tcp", authServers[authServerIndex].GetAddr())
 	if err != nil {

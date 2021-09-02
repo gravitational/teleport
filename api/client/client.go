@@ -359,7 +359,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	return nil
 }
 
-// ConfigureALPNSNITLSRoutingSettings configures ALPN SNI cluster routing informant in TLS settings allowing for
+// ConfigureALPNSNITLSRoutingSettings configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
 func ConfigureALPNSNITLSRoutingSettings(tlsConfig *tls.Config, clusterName string) *tls.Config {
 	if tlsConfig == nil {
