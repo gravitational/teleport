@@ -159,6 +159,9 @@ const (
 	// ChangePasswordTokenTTL is a default password change token expiry time
 	ChangePasswordTokenTTL = 8 * time.Hour
 
+	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
+	RecoveryStartTokenTTL = 3 * time.Hour
+
 	// ResetPasswordLength is the length of the reset user password
 	ResetPasswordLength = 16
 
@@ -534,7 +537,6 @@ const (
 	U2FChallengeTimeout = 5 * time.Minute
 	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
 	// or registration challenges.
-	// TODO(codingllama): Apply this to the lib/auth/webauthn package.
 	WebauthnChallengeTimeout = 5 * time.Minute
 )
 

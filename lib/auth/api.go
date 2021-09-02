@@ -163,11 +163,20 @@ type ReadAccessPoint interface {
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
+	// GetDatabases returns all database resources.
+	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// GetDatabase returns the specified database resource.
+	GetDatabase(ctx context.Context, name string) (types.Database, error)
+
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 
 	// GetWindowsDesktops returns windows desktop hosts.
 	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
+
+	// GetWindowsDesktop returns a named windows desktop host.
+	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
 
 	// GetWindowsDesktops returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
