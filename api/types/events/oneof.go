@@ -189,6 +189,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionRequest{
 			AppSessionRequest: e,
 		}
+	case *DatabaseCreate:
+		out.Event = &OneOf_DatabaseCreate{
+			DatabaseCreate: e,
+		}
+	case *DatabaseUpdate:
+		out.Event = &OneOf_DatabaseUpdate{
+			DatabaseUpdate: e,
+		}
+	case *DatabaseDelete:
+		out.Event = &OneOf_DatabaseDelete{
+			DatabaseDelete: e,
+		}
 	case *DatabaseSessionStart:
 		out.Event = &OneOf_DatabaseSessionStart{
 			DatabaseSessionStart: e,
@@ -326,6 +338,12 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	} else if e := in.GetAppSessionChunk(); e != nil {
 		return e, nil
 	} else if e := in.GetAppSessionRequest(); e != nil {
+		return e, nil
+	} else if e := in.GetDatabaseCreate(); e != nil {
+		return e, nil
+	} else if e := in.GetDatabaseUpdate(); e != nil {
+		return e, nil
+	} else if e := in.GetDatabaseDelete(); e != nil {
 		return e, nil
 	} else if e := in.GetDatabaseSessionStart(); e != nil {
 		return e, nil

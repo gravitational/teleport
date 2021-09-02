@@ -394,7 +394,7 @@ func TestAccessDisabled(t *testing.T) {
 }
 
 // TestCompatibilityWithOldAgents verifies that older database agents where
-// each database was represented as a single DatabaseServer are supported.
+// each database was represented as a DatabaseServer are supported.
 //
 // DELETE IN 9.0.
 func TestCompatibilityWithOldAgents(t *testing.T) {
@@ -410,16 +410,28 @@ func TestCompatibilityWithOldAgents(t *testing.T) {
 	go postgresServer.Serve()
 	t.Cleanup(func() { postgresServer.Close() })
 
-	resource, err := types.NewDatabaseServerV3(types.Metadata{
+	database, err := types.NewDatabaseV3(types.Metadata{
 		Name: "postgres",
-	}, types.DatabaseServerSpecV3{
+	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      net.JoinHostPort("localhost", postgresServer.Port()),
-		HostID:   testCtx.hostID,
-		Hostname: constants.APIDomain,
 	})
 	require.NoError(t, err)
-	databaseServer := testCtx.setupDatabaseServer(ctx, t, resource)
+	databaseServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: []types.Database{database},
+		GetServerInfoFn: func(database types.Database) func() (types.Resource, error) {
+			return func() (types.Resource, error) {
+				return types.NewDatabaseServerV3(types.Metadata{
+					Name: database.GetName(),
+				}, types.DatabaseServerSpecV3{
+					Protocol: database.GetProtocol(),
+					URI:      database.GetURI(),
+					HostID:   testCtx.hostID,
+					Hostname: constants.APIDomain,
+				})
+			}
+		},
+	})
 	go func() {
 		for conn := range testCtx.proxyConn {
 			go databaseServer.HandleConnection(conn)
@@ -730,33 +742,50 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		ServerID:    "proxy-server",
 		Shuffle: func(servers []types.DatabaseServer) []types.DatabaseServer {
 			// To ensure predictability in tests, sort servers instead of shuffling.
-			sort.Sort(types.SortedDatabaseServers(servers))
+			sort.Sort(types.DatabaseServers(servers))
 			return servers
 		},
 		LockWatcher: proxyLockWatcher,
 	})
 	require.NoError(t, err)
 
-	// Create database service server.
+	// Create database service agent.
 	if len(databases) > 0 {
-		resource, err := types.NewDatabaseServerV3(types.Metadata{
-			Name: testCtx.hostID,
-		}, types.DatabaseServerSpecV3{
-			HostID:   testCtx.hostID,
-			Hostname: constants.APIDomain,
+		testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+			Databases: databases,
 		})
-		require.NoError(t, err)
-		err = resource.SetDatabases(databases)
-		require.NoError(t, err)
-		testCtx.server = testCtx.setupDatabaseServer(ctx, t, resource)
 	}
 
 	return testCtx
 }
 
-func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, resource types.DatabaseServer) *Server {
+// agentParams combines parameters for creating database agent servers in tests.
+type agentParams struct {
+	// Databases is a list of statically registered databases.
+	Databases types.Databases
+	// HostID is an optional host id.
+	HostID string
+	// Selectors are optional database resource selectors.
+	Selectors []services.Selector
+	// GetServerInfoFn overrides heartbeat's server info function.
+	GetServerInfoFn func(database types.Database) func() (types.Resource, error)
+	// OnReconcile sets database resource reconciliation callback.
+	OnReconcile func(types.Databases)
+	// NoStart indicates server should not be started.
+	NoStart bool
+}
+
+func (p *agentParams) setDefaults(c *testContext) {
+	if p.HostID == "" {
+		p.HostID = c.hostID
+	}
+}
+
+func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p agentParams) *Server {
+	p.setDefaults(c)
+
 	// Database service credentials.
-	serverIdentity, err := auth.NewServerIdentity(c.authServer, resource.GetHostID(), types.RoleDatabase)
+	serverIdentity, err := auth.NewServerIdentity(c.authServer, p.HostID, types.RoleDatabase)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -780,21 +809,21 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, res
 	})
 	require.NoError(t, err)
 
-	// Create resource representing this database server agent.
-	_, err = c.authClient.UpsertDatabaseServer(ctx, resource)
-	require.NoError(t, err)
-
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
-		Clock:         clockwork.NewFakeClockAt(time.Now()),
-		DataDir:       t.TempDir(),
-		AuthClient:    c.authClient,
-		AccessPoint:   c.authClient,
-		StreamEmitter: c.authClient,
-		Authorizer:    dbAuthorizer,
-		Server:        resource,
-		TLSConfig:     tlsConfig,
-		Auth:          testAuth,
+		Clock:           clockwork.NewFakeClockAt(time.Now()),
+		DataDir:         t.TempDir(),
+		AuthClient:      c.authClient,
+		AccessPoint:     c.authClient,
+		StreamEmitter:   c.authClient,
+		Authorizer:      dbAuthorizer,
+		Hostname:        constants.APIDomain,
+		HostID:          p.HostID,
+		TLSConfig:       tlsConfig,
+		Auth:            testAuth,
+		Databases:       p.Databases,
+		Selectors:       p.Selectors,
+		GetServerInfoFn: p.GetServerInfoFn,
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
@@ -808,9 +837,15 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, res
 		CADownloader: &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
 		},
+		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
 	})
 	require.NoError(t, err)
+
+	if !p.NoStart {
+		require.NoError(t, server.Start(ctx))
+		require.NoError(t, server.ForceHeartbeat())
+	}
 
 	return server
 }
