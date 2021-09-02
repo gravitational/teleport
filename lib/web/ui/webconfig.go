@@ -43,6 +43,8 @@ type WebConfig struct {
 	CanJoinSessions bool `json:"canJoinSessions"`
 	// ProxyClusterName is the name of the local cluster
 	ProxyClusterName string `json:"proxyCluster,omitempty"`
+	// IsCloud is a flag that determines if cloud features are enabled.
+	IsCloud bool `json:"isCloud,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider

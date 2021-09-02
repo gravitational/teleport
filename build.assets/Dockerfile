@@ -89,6 +89,9 @@ ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
+# Install addlicense
+RUN go install github.com/google/addlicense@v1.0.0
+
 # Install meta-linter.
 RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.38.0/golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
      cp golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \

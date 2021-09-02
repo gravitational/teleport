@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/timetools"
 )
@@ -72,7 +73,11 @@ func NewLimiter(config Config) (*Limiter, error) {
 }
 
 func (l *Limiter) RegisterRequest(token string) error {
-	return l.rateLimiter.RegisterRequest(token)
+	return l.rateLimiter.RegisterRequest(token, nil)
+}
+
+func (l *Limiter) RegisterRequestWithCustomRate(token string, customRate *ratelimit.RateSet) error {
+	return l.rateLimiter.RegisterRequest(token, customRate)
 }
 
 // Add limiter to the handle

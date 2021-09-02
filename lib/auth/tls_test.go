@@ -2537,7 +2537,7 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 	c.Assert(loginAttempts, check.HasLen, 0)
 }
 
-func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
+func (s *TLSSuite) TestChangeUserAuthentication(c *check.C) {
 	ctx := context.Background()
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		AllowLocalAuth: types.NewBoolOption(true),
@@ -2564,22 +2564,24 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 	_, _, err = CreateUserAndRole(clt, username, []string{"role1"})
 	c.Assert(err, check.IsNil)
 
-	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
 	})
 	c.Assert(err, check.IsNil)
 
-	secrets, err := s.server.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
+	secrets, err := s.server.Auth().RotateUserTokenSecrets(ctx, token.GetName())
 	c.Assert(err, check.IsNil)
 
 	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.server.Clock().Now())
 	c.Assert(err, check.IsNil)
 
-	_, err = s.server.Auth().ChangePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
-		TokenID:           token.GetName(),
-		Password:          []byte("qweqweqwe"),
-		SecondFactorToken: otpToken,
+	_, err = s.server.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     token.GetName(),
+		NewPassword: []byte("qweqweqwe"),
+		NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
+		}},
 	})
 	c.Assert(err, check.IsNil)
 }

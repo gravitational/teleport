@@ -1589,9 +1589,10 @@ func (a *ServerWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID st
 	return a.authServer.RotateUserTokenSecrets(ctx, tokenID)
 }
 
-func (a *ServerWithRoles) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
+// ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
+func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	// Token is it's own authentication, no need to double check.
-	return a.authServer.ChangePasswordWithToken(ctx, req)
+	return a.authServer.ChangeUserAuthentication(ctx, req)
 }
 
 // CreateUser inserts a new user entry in a backend.
@@ -2593,20 +2594,17 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Filter out databases the caller doesn't have access to.
+	var filtered []types.DatabaseServer
 	for _, server := range servers {
-		// Filter out databases the caller doesn't have access to from each server.
-		var filtered []types.Database
-		for _, database := range server.GetDatabases() {
-			err := a.checkAccessToDatabase(database)
-			if err != nil && !trace.IsAccessDenied(err) {
-				return nil, trace.Wrap(err)
-			} else if err == nil {
-				filtered = append(filtered, database)
-			}
+		err := a.checkAccessToDatabase(server.GetDatabase())
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, server)
 		}
-		server.SetDatabases(filtered)
 	}
-	return servers, nil
+	return filtered, nil
 }
 
 // UpsertDatabaseServer creates or updates a new database proxy server.
@@ -2956,14 +2954,13 @@ func (a *ServerWithRoles) DeleteNetworkRestrictions(ctx context.Context) error {
 	return a.authServer.DeleteNetworkRestrictions(ctx)
 }
 
+// GetMFADevices returns a list of MFA devices.
+func (a *ServerWithRoles) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+	return a.authServer.GetMFADevices(ctx, req)
+}
+
 // TODO(awly): decouple auth.ClientI from auth.ServerWithRoles, they exist on
 // opposite sides of the connection.
-
-// GetMFADevices exists to satisfy auth.ClientI but is not implemented here.
-// Use auth.GRPCServer.GetMFADevices or client.Client.GetMFADevices instead.
-func (a *ServerWithRoles) GetMFADevices(context.Context, *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
-	return nil, trace.NotImplemented("bug: GetMFADevices must not be called on auth.ServerWithRoles")
-}
 
 // AddMFADevice exists to satisfy auth.ClientI but is not implemented here.
 // Use auth.GRPCServer.AddMFADevice or client.Client.AddMFADevice instead.
@@ -3280,6 +3277,11 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllWindowsDesktops(ctx)
+}
+
+// StartAccountRecovery is implemented by AuthService.StartAccountRecovery.
+func (a *ServerWithRoles) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
+	return a.authServer.StartAccountRecovery(ctx, req)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

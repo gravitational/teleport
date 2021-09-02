@@ -69,6 +69,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabase},
 		{Kind: types.KindNetworkRestrictions},
 		{Kind: types.KindLock},
 		{Kind: types.KindWindowsDesktopService},
@@ -103,6 +104,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 	}
@@ -132,20 +134,22 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabase},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
 }
 
-// DELETE IN: 8.0.0
-//
 // ForOldRemoteProxy sets up watch configuration for older remote proxies.
 func ForOldRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy-old"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterAuditConfig},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindClusterConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
@@ -241,6 +245,7 @@ func ForDatabases(cfg Config) Config {
 		// Databases only need to "know" about default namespace events to
 		// avoid matching too much data about other namespaces or events.
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindDatabase},
 	}
 	cfg.QueueSize = defaults.DatabasesQueueSize
 	return cfg
@@ -329,6 +334,7 @@ type Cache struct {
 	dynamicAccessCache   services.DynamicAccessExt
 	presenceCache        services.Presence
 	restrictionsCache    services.Restrictions
+	databasesCache       services.Databases
 	appSessionCache      services.AppSession
 	webSessionCache      types.WebSessionInterface
 	webTokenCache        types.WebTokenInterface
@@ -381,6 +387,7 @@ func (c *Cache) read() (readGuard, error) {
 			dynamicAccess:   c.dynamicAccessCache,
 			presence:        c.presenceCache,
 			restrictions:    c.restrictionsCache,
+			databases:       c.databasesCache,
 			appSession:      c.appSessionCache,
 			webSession:      c.webSessionCache,
 			webToken:        c.webTokenCache,
@@ -398,6 +405,7 @@ func (c *Cache) read() (readGuard, error) {
 		dynamicAccess:   c.Config.DynamicAccess,
 		presence:        c.Config.Presence,
 		restrictions:    c.Config.Restrictions,
+		databases:       c.Config.Databases,
 		appSession:      c.Config.AppSession,
 		webSession:      c.Config.WebSession,
 		webToken:        c.Config.WebToken,
@@ -420,6 +428,7 @@ type readGuard struct {
 	presence        services.Presence
 	appSession      services.AppSession
 	restrictions    services.Restrictions
+	databases       services.Databases
 	webSession      types.WebSessionInterface
 	webToken        types.WebTokenInterface
 	windowsDesktops services.WindowsDesktops
@@ -470,6 +479,8 @@ type Config struct {
 	Presence services.Presence
 	// Restrictions is a restrictions service
 	Restrictions services.Restrictions
+	// Databases is a databases service.
+	Databases services.Databases
 	// AppSession holds application sessions.
 	AppSession services.AppSession
 	// WebSession holds regular web sessions.
@@ -627,6 +638,7 @@ func New(config Config) (*Cache, error) {
 		dynamicAccessCache:   local.NewDynamicAccessService(wrapper),
 		presenceCache:        local.NewPresenceService(wrapper),
 		restrictionsCache:    local.NewRestrictionsService(wrapper),
+		databasesCache:       local.NewDatabasesService(wrapper),
 		appSessionCache:      local.NewIdentityService(wrapper),
 		webSessionCache:      local.NewIdentityService(wrapper).WebSessions(),
 		webTokenCache:        local.NewIdentityService(wrapper).WebTokens(),
@@ -1374,6 +1386,26 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 	}
 	defer rg.Release()
 	return rg.presence.GetDatabaseServers(ctx, namespace, opts...)
+}
+
+// GetDatabases returns all database resources.
+func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.databases.GetDatabases(ctx)
+}
+
+// GetDatabase returns the specified database resource.
+func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.databases.GetDatabase(ctx, name)
 }
 
 // GetWebSession gets a regular web session.
