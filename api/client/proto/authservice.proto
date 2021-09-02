@@ -112,6 +112,8 @@ message Event {
         // WindowsDesktop is a resource for Windows desktop host.
         types.WindowsDesktopV3 WindowsDesktop = 27
             [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+        // Database is a database resource.
+        types.DatabaseV3 Database = 28 [ (gogoproto.jsontag) = "database,omitempty" ];
     }
 }
 

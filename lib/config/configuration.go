@@ -928,6 +928,12 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 // applyDatabasesConfig applies file configuration for the "db_service" section.
 func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Databases.Enabled = true
+	for _, selector := range fc.Databases.Selectors {
+		cfg.Databases.Selectors = append(cfg.Databases.Selectors,
+			services.Selector{
+				MatchLabels: selector.MatchLabels,
+			})
+	}
 	for _, database := range fc.Databases.Databases {
 		staticLabels := make(map[string]string)
 		if database.StaticLabels != nil {
@@ -970,7 +976,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				InstanceID: database.GCP.InstanceID,
 			},
 		}
-		if err := db.Check(); err != nil {
+		if err := db.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
@@ -1438,7 +1444,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				InstanceID: clf.DatabaseGCPInstanceID,
 			},
 		}
-		if err := db.Check(); err != nil {
+		if err := db.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
