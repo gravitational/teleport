@@ -107,7 +107,7 @@ func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client 
 	return &Client{
 		c:          cfg,
 		dialer:     dialer,
-		tlsConfig:  ConfigureALPNSNITLSRoutingSettings(tlsConfig, cfg.ALPNSNIAuthDialClusterName),
+		tlsConfig:  ConfigureALPN(tlsConfig, cfg.ALPNSNIAuthDialClusterName),
 		closedFlag: new(int32),
 	}
 }
@@ -359,9 +359,9 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	return nil
 }
 
-// ConfigureALPNSNITLSRoutingSettings configures ALPN SNI cluster routing information in TLS settings allowing for
+// ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
-func ConfigureALPNSNITLSRoutingSettings(tlsConfig *tls.Config, clusterName string) *tls.Config {
+func ConfigureALPN(tlsConfig *tls.Config, clusterName string) *tls.Config {
 	if tlsConfig == nil {
 		return nil
 	}

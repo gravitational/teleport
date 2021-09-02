@@ -19,6 +19,9 @@ package utils
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 )
@@ -27,4 +30,25 @@ import (
 func EncodeClusterName(clusterName string) string {
 	// hex is used to hide "." that will prevent wildcard *. entry to match
 	return fmt.Sprintf("%v.%v", hex.EncodeToString([]byte(clusterName)), constants.APIDomain)
+}
+
+// DecodeClusterName decodes cluster name, returns NotFound
+// if no cluster name is encoded (empty subdomain),
+// so servers can detect cases when no server name passed
+// returns BadParameter if encoding does not match
+func DecodeClusterName(serverName string) (string, error) {
+	if serverName == constants.APIDomain {
+		return "", trace.NotFound("no cluster name is encoded")
+	}
+	const suffix = "." + constants.APIDomain
+	if !strings.HasSuffix(serverName, suffix) {
+		return "", trace.NotFound("no cluster name is encoded")
+	}
+	clusterName := strings.TrimSuffix(serverName, suffix)
+
+	decoded, err := hex.DecodeString(clusterName)
+	if err != nil {
+		return "", trace.BadParameter("failed to decode cluster name: %v", err)
+	}
+	return string(decoded), nil
 }

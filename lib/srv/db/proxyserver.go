@@ -31,6 +31,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -564,7 +565,7 @@ func getConfigForClient(conf *tls.Config, ap auth.AccessPoint, log logrus.FieldL
 		var clusterName string
 		var err error
 		if info.ServerName != "" {
-			clusterName, err = auth.DecodeClusterName(info.ServerName)
+			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 			if err != nil && !trace.IsNotFound(err) {
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
