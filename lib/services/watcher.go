@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -40,6 +41,9 @@ type resourceCollector interface {
 	getResourcesAndUpdateCurrent(context.Context) error
 	// processEventAndUpdateCurrent is called when a watcher event is received.
 	processEventAndUpdateCurrent(context.Context, types.Event)
+	// notifyStale is called when the maximum acceptable staleness (if specified)
+	// is exceeded.
+	notifyStale()
 }
 
 // ResourceWatcherConfig configures resource watcher.
@@ -57,6 +61,9 @@ type ResourceWatcherConfig struct {
 	Clock clockwork.Clock
 	// Client is used to create new watchers.
 	Client types.Events
+	// MaxStaleness is a maximum acceptable staleness for the locally maintained
+	// resources, zero implies no staleness detection.
+	MaxStaleness time.Duration
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -87,8 +94,9 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // incl. cfg.CheckAndSetDefaults.
 func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step: cfg.RetryPeriod / 10,
-		Max:  cfg.RetryPeriod,
+		Step:  cfg.RetryPeriod / 10,
+		Max:   cfg.RetryPeriod,
+		Clock: cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -96,12 +104,14 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 	cfg.Log = cfg.Log.WithField("resource-kind", collector.resourceKind())
 	ctx, cancel := context.WithCancel(ctx)
 	p := &resourceWatcher{
-		resourceCollector:     collector,
 		ResourceWatcherConfig: cfg,
+		collector:             collector,
 		ctx:                   ctx,
 		cancel:                cancel,
 		retry:                 retry,
+		LoopC:                 make(chan struct{}),
 		ResetC:                make(chan struct{}),
+		StaleC:                make(chan struct{}, 1),
 	}
 	go p.runWatchLoop()
 	return p, nil
@@ -110,8 +120,8 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 // resourceWatcher monitors additions, updates and deletions
 // to a set of resources.
 type resourceWatcher struct {
-	resourceCollector
 	ResourceWatcherConfig
+	collector resourceCollector
 
 	// ctx is a context controlling the lifetime of this resourceWatcher
 	// instance.
@@ -121,8 +131,18 @@ type resourceWatcher struct {
 	// retry is used to manage backoff logic for watchers.
 	retry utils.Retry
 
+	// failureStartedAt records when the current sync failures were first
+	// detected, zero if there are no failures present.
+	failureStartedAt time.Time
+
+	// LoopC is a channel to check whether the watch loop is running
+	// (used in tests).
+	LoopC chan struct{}
 	// ResetC is a channel to notify of internal watcher reset (used in tests).
 	ResetC chan struct{}
+	// StaleC is a channel that can trigger the condition of resource staleness
+	// (used in tests).
+	StaleC chan struct{}
 }
 
 // Done returns a channel that signals resource watcher closure.
@@ -133,6 +153,22 @@ func (p *resourceWatcher) Done() <-chan struct{} {
 // Close closes the resource watcher and cancels all the functions.
 func (p *resourceWatcher) Close() {
 	p.cancel()
+}
+
+// hasStaleView returns true when the local view has failed to be updated
+// for longer than the MaxStaleness bound.
+func (p *resourceWatcher) hasStaleView() bool {
+	// Used for testing stale lock views.
+	select {
+	case <-p.StaleC:
+		return true
+	default:
+	}
+
+	if p.MaxStaleness == 0 || p.failureStartedAt.IsZero() {
+		return false
+	}
+	return p.Clock.Since(p.failureStartedAt) > p.MaxStaleness
 }
 
 // runWatchLoop runs a watch loop.
@@ -147,12 +183,23 @@ func (p *resourceWatcher) runWatchLoop() {
 			p.Log.Debug("Closed, returning from watch loop.")
 			return
 		}
+		if err != nil {
+			p.Log.Warningf("Restart watch on error: %v.", err)
+			if p.failureStartedAt.IsZero() {
+				p.failureStartedAt = p.Clock.Now()
+			}
+			// failureStartedAt is zeroed in the watch routine immediately after
+			// the local resource set has been successfully updated.
+		}
+		if p.hasStaleView() {
+			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
+			p.collector.notifyStale()
+		}
+		// Used for testing that the watch routine has exited and is about
+		// to be restarted.
 		select {
 		case p.ResetC <- struct{}{}:
 		default:
-		}
-		if err != nil {
-			p.Log.Warningf("Restart watch on error: %v.", err)
 		}
 	}
 }
@@ -163,7 +210,7 @@ func (p *resourceWatcher) watch() error {
 	watcher, err := p.Client.NewWatcher(p.ctx, types.Watch{
 		Name:            p.Component,
 		MetricComponent: p.Component,
-		Kinds:           []types.WatchKind{{Kind: p.resourceKind()}},
+		Kinds:           []types.WatchKind{{Kind: p.collector.resourceKind()}},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -199,10 +246,11 @@ func (p *resourceWatcher) watch() error {
 		}
 	}
 
-	if err := p.getResourcesAndUpdateCurrent(p.ctx); err != nil {
+	if err := p.collector.getResourcesAndUpdateCurrent(p.ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	p.retry.Reset()
+	p.failureStartedAt = time.Time{}
 
 	for {
 		select {
@@ -214,7 +262,9 @@ func (p *resourceWatcher) watch() error {
 		case <-p.ctx.Done():
 			return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
-			p.processEventAndUpdateCurrent(p.ctx, event)
+			p.collector.processEventAndUpdateCurrent(p.ctx, event)
+		case p.LoopC <- struct{}{}:
+			// Used in tests to detect the watch loop is running.
 		}
 	}
 }
@@ -359,6 +409,8 @@ func (p *proxyCollector) broadcastUpdate(ctx context.Context) {
 	}
 }
 
+func (p *proxyCollector) notifyStale() {}
+
 func serverMapValues(serverMap map[string]types.Server) []types.Server {
 	servers := make([]types.Server, 0, len(serverMap))
 	for _, server := range serverMap {
@@ -377,6 +429,9 @@ type LockWatcherConfig struct {
 func (cfg *LockWatcherConfig) CheckAndSetDefaults() error {
 	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+	if cfg.MaxStaleness == 0 {
+		cfg.MaxStaleness = defaults.LockMaxStaleness
 	}
 	if cfg.LockGetter == nil {
 		getter, ok := cfg.Client.(LockGetter)
@@ -416,7 +471,9 @@ type lockCollector struct {
 	LockWatcherConfig
 	// current holds a map of the currently known locks (keyed by lock name).
 	current map[string]types.Lock
-	// currentRW is a mutex protecting current.
+	// isStale indicates whether the local lock view (current) is stale.
+	isStale bool
+	// currentRW is a mutex protecting both current and isStale.
 	currentRW sync.RWMutex
 	// fanout provides support for multiple subscribers to the lock updates.
 	fanout *Fanout
@@ -443,13 +500,21 @@ func (p *lockCollector) Subscribe(ctx context.Context, targets ...types.LockTarg
 	return sub, nil
 }
 
-// FindLockInForce returns a lock in force that matches at least one of the
-// targets, nil if not found.
-// TODO(andrej): Return error if the local lock view becomes stale.
-func (p *lockCollector) FindLockInForce(targets ...types.LockTarget) types.Lock {
+// CheckLockInForce returns an AccessDenied error if there is a lock in force
+// matching at at least one of the targets.
+func (p *lockCollector) CheckLockInForce(mode constants.LockingMode, targets ...types.LockTarget) error {
 	p.currentRW.RLock()
 	defer p.currentRW.RUnlock()
+	if p.isStale && mode == constants.LockingModeStrict {
+		return StrictLockingModeAccessDenied
+	}
+	if lock := p.findLockInForceUnderMutex(targets); lock != nil {
+		return LockInForceAccessDenied(lock)
+	}
+	return nil
+}
 
+func (p *lockCollector) findLockInForceUnderMutex(targets []types.LockTarget) types.Lock {
 	for _, lock := range p.current {
 		if !lock.IsInForce(p.Clock.Now()) {
 			continue
@@ -493,6 +558,7 @@ func (p *lockCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 	p.currentRW.Lock()
 	defer p.currentRW.Unlock()
 	p.current = newCurrent
+	p.isStale = false
 	for _, lock := range p.current {
 		p.fanout.Emit(types.Event{Type: types.OpPut, Resource: lock})
 	}
@@ -508,7 +574,6 @@ func (p *lockCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 
 	p.currentRW.Lock()
 	defer p.currentRW.Unlock()
-
 	switch event.Type {
 	case types.OpDelete:
 		delete(p.current, event.Resource.GetName())
@@ -528,6 +593,17 @@ func (p *lockCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 	default:
 		p.Log.Warningf("Skipping unsupported event type %s.", event.Type)
 	}
+}
+
+// notifyStale is called when the maximum acceptable staleness (if specified)
+// is exceeded.
+func (p *lockCollector) notifyStale() {
+	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
+	p.currentRW.Lock()
+	defer p.currentRW.Unlock()
+	// Do not clear p.current here, the most recent lock set may still be used
+	// with LockingModeBestEffort.
+	p.isStale = true
 }
 
 func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, error) {
@@ -554,4 +630,120 @@ func lockMapValues(lockMap map[string]types.Lock) []types.Lock {
 		locks = append(locks, lock)
 	}
 	return locks
+}
+
+// DatabaseWatcherConfig is a DatabaseWatcher configuration.
+type DatabaseWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// DatabaseGetter is responsible for fetching database resources.
+	DatabaseGetter
+	// DatabasesC receives up-to-date list of all database resources.
+	DatabasesC chan []types.Database
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *DatabaseWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.DatabaseGetter == nil {
+		getter, ok := cfg.Client.(DatabaseGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter DatabaseGetter and Client not usable as DatabaseGetter")
+		}
+		cfg.DatabaseGetter = getter
+	}
+	if cfg.DatabasesC == nil {
+		cfg.DatabasesC = make(chan []types.Database)
+	}
+	return nil
+}
+
+// NewDatabaseWatcher returns a new instance of DatabaseWatcher.
+func NewDatabaseWatcher(ctx context.Context, cfg DatabaseWatcherConfig) (*DatabaseWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &databaseCollector{
+		DatabaseWatcherConfig: cfg,
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &DatabaseWatcher{watcher, collector}, nil
+}
+
+// DatabaseWatcher is built on top of resourceWatcher to monitor database resources.
+type DatabaseWatcher struct {
+	*resourceWatcher
+	*databaseCollector
+}
+
+// databaseCollector accompanies resourceWatcher when monitoring database resources..
+type databaseCollector struct {
+	// DatabaseWatcherConfig is the watcher configuration.
+	DatabaseWatcherConfig
+	// current holds a map of the currently known database resources.
+	current map[string]types.Database
+	// lock protects the "current" map.
+	lock sync.RWMutex
+}
+
+// resourceKind specifies the resource kind to watch.
+func (p *databaseCollector) resourceKind() string {
+	return types.KindDatabase
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *databaseCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	databases, err := p.DatabaseGetter.GetDatabases(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newCurrent := make(map[string]types.Database, len(databases))
+	for _, database := range databases {
+		newCurrent[database.GetName()] = database
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.current = newCurrent
+	p.DatabasesC <- databases
+	return nil
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindDatabase {
+		p.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	switch event.Type {
+	case types.OpDelete:
+		delete(p.current, event.Resource.GetName())
+		p.DatabasesC <- databasesToSlice(p.current)
+	case types.OpPut:
+		database, ok := event.Resource.(types.Database)
+		if !ok {
+			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		p.current[database.GetName()] = database
+		p.DatabasesC <- databasesToSlice(p.current)
+	default:
+		p.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*databaseCollector) notifyStale() {}
+
+func databasesToSlice(databases map[string]types.Database) (slice []types.Database) {
+	for _, database := range databases {
+		slice = append(slice, database)
+	}
+	return slice
 }

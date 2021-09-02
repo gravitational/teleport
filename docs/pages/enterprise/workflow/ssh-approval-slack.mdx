@@ -40,7 +40,7 @@ will create a yaml resource file for a new user and role.
 
 Create a non-interactive bot `access-plugin` user and role.
 
-```bash
+```yaml
 kind: user
 metadata:
   name: access-plugin
@@ -49,7 +49,7 @@ spec:
 version: v2
 ---
 kind: role
-version: v3
+version: v4
 metadata:
   name: access-plugin
 spec:
@@ -76,10 +76,10 @@ $ tctl create -f access.yaml
 
 #### Export access-plugin Certificate
 
-Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
+Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign).
 
-```bash
-tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=2190h
+```code
+$ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=2190h
 # ...
 ```
 
@@ -89,7 +89,7 @@ The above sequence should result in three PEM encoded files being generated: aut
   type="note"
   title="Certificate Lifetime"
 >
-  By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+  By default, [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 </Admonition>
 
 ### Create Slack App
@@ -140,7 +140,7 @@ compile these plugins from [source](https://github.com/gravitational/teleport-pl
 
 <Tabs>
 <TabItem label="Download">
-  ```bash
+  ```code
   $ curl -L https://get.gravitational.com/teleport-access-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
   $ tar -xzf teleport-access-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
   $ cd teleport-access-slack
@@ -150,7 +150,7 @@ compile these plugins from [source](https://github.com/gravitational/teleport-pl
 <TabItem label="From Source">
   To install from source you need `git` and `go >= (=teleport.golang=)` installed.
 
-  ```bash
+  ```code
   # Checkout teleport-plugins
   $ git clone https://github.com/gravitational/teleport-plugins.git
   $ cd teleport-plugins/access/slack
@@ -167,7 +167,7 @@ Run `./install` in from 'teleport-slack' or place the executable in the appropri
 Teleport Slack uses a config file in TOML format. Generate a boilerplate config by
 running the following command:
 
-```bash
+```code
 $ teleport-slack configure > teleport-slack.toml
 $ sudo mv teleport-slack.toml /etc
 ```
@@ -194,18 +194,18 @@ In Slack section, use the OAuth token, signing token, setup the desired channel 
 Assuming that Teleport is running, and you've created the Slack app, the plugin config,
 and provided all the certificates — you can now run the plugin and test the workflow!
 
-```bash
+```code
 $ teleport-slack start
 ```
 
 If everything works fine, the log output should look like this:
 
-```bash
+```code
 $ teleport-slack start
-INFO   Starting Teleport Access Slack (=teleport.plugin.version=).1-0-slack/main.go:145
-INFO   Starting a request watcher... slack/main.go:330
-INFO   Starting insecure HTTP server on 0.0.0.0:8081 utils/http.go:64
-INFO   Watcher connected slack/main.go:298
+# INFO   Starting Teleport Access Slack (=teleport.plugin.version=).1-0-slack/main.go:145
+# INFO   Starting a request watcher... slack/main.go:330
+# INFO   Starting insecure HTTP server on 0.0.0.0:8081 utils/http.go:64
+# INFO   Watcher connected slack/main.go:298
 ```
 
 ### Testing the approval workflow
@@ -214,14 +214,14 @@ You can create a test permissions request with `tctl` and check if the plugin wo
 
 #### Create a test permissions request behalf of a user
 
-```bash
+```code
 # Replace USERNAME with a Teleport local user, and TARGET_ROLE with a Teleport Role
 $ tctl request create USERNAME --roles=TARGET_ROLE
 ```
 
 A user can also try using `--request-roles` flag.
 
-```bash
+```code
 # Example with a user trying to request a role DBA.
 $ tsh login --request-roles=dba
 ```
@@ -230,7 +230,7 @@ $ tsh login --request-roles=dba
 
 The messages should automatically get updated to reflect the action you just clicked. You can also check the request status with `tctl`:
 
-```bash
+```code
 $ tctl request ls
 ```
 
@@ -238,7 +238,7 @@ $ tctl request ls
 
 You can also test the full workflow from the user's perspective using `tsh`:
 
-```bash
+```code
 # tsh login --request-roles=REQUESTED_ROLE
 Seeking request approval... (id: 8f77d2d1-2bbf-4031-a300-58926237a807)
 ```
@@ -251,7 +251,7 @@ approve or deny it and `tsh` should login successfully or error out right after 
 In production, we recommend starting teleport plugin daemon via an init system like systemd .
 Here's the recommended Teleport Plugin service unit file for systemd:
 
-```bash
+```ini
 (!examples/systemd/plugins/teleport-slack.service!)
 ```
 

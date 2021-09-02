@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -581,11 +582,14 @@ func (c *databaseServerCollection) resources() (r []types.Resource) {
 func (c *databaseServerCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Name", "Protocol", "URI", "Labels", "Hostname", "Version"})
 	for _, server := range c.servers {
-		for _, database := range server.GetDatabases() {
-			t.AddRow([]string{
-				database.GetName(), database.GetProtocol(), database.GetURI(), database.LabelsString(), server.GetHostname(), server.GetTeleportVersion(),
-			})
-		}
+		t.AddRow([]string{
+			server.GetDatabase().GetName(),
+			server.GetDatabase().GetProtocol(),
+			server.GetDatabase().GetURI(),
+			server.GetDatabase().LabelsString(),
+			server.GetHostname(),
+			server.GetTeleportVersion(),
+		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -650,6 +654,50 @@ func (c *lockCollection) writeText(w io.Writer) error {
 			expires = apiutils.HumanTimeFormat(*lock.LockExpiry())
 		}
 		t.AddRow([]string{lock.GetName(), target.String(), lock.Message(), expires})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type windowsDesktopServiceCollection struct {
+	services []types.WindowsDesktopService
+}
+
+func (c *windowsDesktopServiceCollection) resources() (r []types.Resource) {
+	for _, resource := range c.services {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *windowsDesktopServiceCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Address", "Version"})
+	for _, service := range c.services {
+		addr := service.GetAddr()
+		if addr == reversetunnel.LocalWindowsDesktop {
+			addr = "<proxy tunnel>"
+		}
+		t.AddRow([]string{service.GetName(), addr, service.GetTeleportVersion()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type windowsDesktopCollection struct {
+	desktops []types.WindowsDesktop
+}
+
+func (c *windowsDesktopCollection) resources() (r []types.Resource) {
+	for _, resource := range c.desktops {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *windowsDesktopCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"UUID", "Address"})
+	for _, desktop := range c.desktops {
+		t.AddRow([]string{desktop.GetName(), desktop.GetAddr()})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

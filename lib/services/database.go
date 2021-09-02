@@ -25,12 +25,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Databases defines an interface for managing database resources.
-type Databases interface {
+// DatabaseGetter defines interface for fetching database resources.
+type DatabaseGetter interface {
 	// GetDatabases returns all database resources.
 	GetDatabases(context.Context) ([]types.Database, error)
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
+}
+
+// Databases defines an interface for managing database resources.
+type Databases interface {
+	// DatabaseGetter provides methods for fetching database resources.
+	DatabaseGetter
 	// CreateDatabase creates a new database resource.
 	CreateDatabase(context.Context, types.Database) error
 	// UpdateDatabse updates an existing database resource.

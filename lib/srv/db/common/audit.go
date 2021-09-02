@@ -91,7 +91,7 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			ClusterName: session.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
-			ServerID:        session.Server.GetHostID(),
+			ServerID:        session.HostID,
 			ServerNamespace: apidefaults.Namespace,
 		},
 		UserMetadata: events.UserMetadata{

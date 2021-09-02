@@ -64,7 +64,7 @@ If you are self hosting that is likely another local address.
 
 ### Create a OIDC Connector
 
-Create a OIDC connector [resource](../../admin-guide.mdx#resources):
+Create a OIDC connector [resource](../../setup/reference/resources.mdx):
 Replace the Application ID and the Secret with the values from GitLab.
 
 ```yaml
@@ -112,7 +112,7 @@ root and is capable of administrating the cluster and non-privileged dev.
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: admin
 spec:
@@ -131,7 +131,7 @@ The developer role:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: dev
 spec:

@@ -213,7 +213,6 @@ The output will look like this (re-formatted here to use compact YAML
 representation for brevity):
 
 ```yaml
-
 kind: role
 metadata:
   name: admin
@@ -252,7 +251,7 @@ spec:
     forward_agent: true
     max_session_ttl: 30h0m0s
     port_forwarding: true
-version: v3
+version: v4
 ```
 
 Pay attention to the *allow/logins* field in the role definition: by default, this
@@ -423,12 +422,12 @@ For testing, we always recommend that you use the latest release version of Tele
 
 The easiest way to start Teleport Enterprise quickly is to use `docker-compose` with our [`teleport-ent-quickstart.yml`](https://github.com/gravitational/teleport/blob/master/docker/teleport-ent-quickstart.yml) file:
 
-```bash
+```code
 # download the quickstart file from our Github repo
-curl -Lso teleport-ent-quickstart.yml https://raw.githubusercontent.com/gravitational/teleport/master/docker/teleport-ent-quickstart.yml
+$ curl -Lso teleport-ent-quickstart.yml https://raw.githubusercontent.com/gravitational/teleport/master/docker/teleport-ent-quickstart.yml
 
 # start teleport quickstart using docker-compose
-docker-compose -f teleport-ent-quickstart.yml up
+$ docker-compose -f teleport-ent-quickstart.yml up
 ```
 
 - The `docker-compose` quickstart will automatically create a config file for you at `./docker/teleport/config/teleport.yaml`
@@ -443,26 +442,26 @@ docker-compose -f teleport-ent-quickstart.yml up
 
 If you'd prefer to complete these steps manually, here's some sample `docker run` commands:
 
-```bash
+```code
 # create local config and data directories for teleport, which will be mounted into the container
-mkdir -p ~/teleport/config ~/teleport/data
+$ mkdir -p ~/teleport/config ~/teleport/data
 
 # download your license file from the Gravitational dashboard and put it in the correct directory
 # the file needs to be named license.pem
-cp ~/downloads/downloaded-license.pem ~/teleport/data/license.pem
+$ cp ~/downloads/downloaded-license.pem ~/teleport/data/license.pem
 
 # generate a sample teleport config and write it to the local config directory
 # this container will write the config and immediately exit - this is expected
-docker run --hostname localhost --rm \
+$ docker run --hostname localhost --rm \
   --entrypoint=/bin/sh \
   -v ~/teleport/config:/etc/teleport \
   (=teleport.latest_ent_docker_image=) -c "teleport configure > /etc/teleport/teleport.yaml"
 
 # change the path to the license file in the sample config
-sed -i 's_/path/to/license-if-using-teleport-enterprise.pem_/var/lib/teleport/license.pem_g' ~/teleport/config/teleport.yaml
+$ sed -i 's_/path/to/license-if-using-teleport-enterprise.pem_/var/lib/teleport/license.pem_g' ~/teleport/config/teleport.yaml
 
 # start teleport with mounted license, config and data directories, plus all ports
-docker run --hostname localhost --name teleport \
+$ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
   -p 3023:3023 -p 3025:3025 -p 3080:3080 \
@@ -475,13 +474,13 @@ To create a user inside your Teleport Enterprise container, use `docker exec`.
 
 This example command will create a Teleport user called `testuser` which has the `admin` role. Feel free to change these to suit your needs.
 
-```bash
-docker exec teleport tctl users add testuser --roles=admin
+```code
+$ docker exec teleport tctl users add testuser --roles=admin
 ```
 
 When you run this command, Teleport will output a URL which you must open to complete the user signup process:
 
-```bash
+```txt
 User testuser has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s:
 https://localhost:3080/web/invite/4f2718a52ce107568b191f222ba069f7
 
@@ -494,7 +493,7 @@ You can now [follow this guide from "Adding Users"](#adding-users) onwards to cr
 
 If Teleport services do not start, take a look at the syslog:
 
-```bsh
+```code
 $ sudo journalctl -fu teleport
 ```
 

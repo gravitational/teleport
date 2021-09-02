@@ -36,18 +36,18 @@ There is no need to open any ports on your infrastructure for inbound traffic.
 
 We have made changes to allow you to log into your cluster using `tsh`, then use `tctl` remotely:
 
-```bash
-$ tsh login --proxy=myinstance.teleport.sh:443
-# tctl (Enterprise edition) can use tsh credentials as of version 5.0
+```code
+$ tsh login --proxy=myinstance.teleport.sh
 $ tctl status
 ```
-You must use the enterprise version of `tctl`. 
+
+You must use the enterprise version of `tctl`.
 
 ### Why am I getting `permission denied` errors when using `tctl`?
 
 If you have a local file `/etc/teleport.yaml` on your machine `tctl` will attempt to use the local cluster. Set the environment variable `TELEPORT_CONFIG_FILE` to `""` so it will not attempt to use that Teleport configuration file.
 
-```bash
+```code
 $ export TELEPORT_CONFIG_FILE=""
 $ tctl tokens add --type=node
 ```
@@ -57,7 +57,7 @@ $ tctl tokens add --type=node
 After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Cloud, users can generate
 [dynamic tokens](../admin-guide.mdx#short-lived-dynamic-tokens):
 
-```bash
+```code
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
 ```
 

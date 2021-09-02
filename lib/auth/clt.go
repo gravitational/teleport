@@ -406,7 +406,8 @@ func (c *Client) GetDomainName() (string, error) {
 	return domain, nil
 }
 
-// GetClusterCACert returns the CAs for the local cluster without signing keys.
+// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
+// the cluster has multiple TLS certs, they will all be concatenated.
 func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
 	out, err := c.Get(c.Endpoint("cacert"), url.Values{})
 	if err != nil {
@@ -1004,6 +1005,7 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 
 // GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
 func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
+	// TODO(codingllama): Post to /mfa/users/*/login/begin instead.
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
@@ -1013,11 +1015,11 @@ func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var signRequest *MFAAuthenticateChallenge
-	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
+	var challenge *MFAAuthenticateChallenge
+	if err := json.Unmarshal(out.Bytes(), &challenge); err != nil {
 		return nil, err
 	}
-	return signRequest, nil
+	return challenge, nil
 }
 
 // ExtendWebSession creates a new web session for a user based on another
@@ -1144,15 +1146,6 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallen
 		return nil, err
 	}
 	return &u2fRegReq, nil
-}
-
-// ChangePasswordWithToken changes user password with ResetPasswordToken
-func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // CreateOIDCAuthRequest creates OIDCAuthRequest
@@ -1689,7 +1682,7 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 }
 
 // CreateResetPasswordToken creates reset password token
-func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error) {
+func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	return c.APIClient.CreateResetPasswordToken(ctx, &proto.CreateResetPasswordTokenRequest{
 		Name: req.Name,
 		TTL:  proto.Duration(req.TTL),
@@ -1893,16 +1886,17 @@ type IdentityService interface {
 	DeleteAllUsers() error
 
 	// CreateResetPasswordToken creates a new user reset token
-	CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (types.ResetPasswordToken, error)
+	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
-	// ChangePasswordWithToken changes password with token
-	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error)
+	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
+	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
+	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
 
-	// GetResetPasswordToken returns token
-	GetResetPasswordToken(ctx context.Context, username string) (types.ResetPasswordToken, error)
+	// GetResetPasswordToken returns a reset password token.
+	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
 
-	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID
-	RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error)
+	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
+	RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
@@ -1910,6 +1904,11 @@ type IdentityService interface {
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
+
+	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
+	// This token is used as part of a URL that will be emailed to the user (not done in this request).
+	// Represents step 1 of the account recovery process.
+	StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error)
 }
 
 // ProvisioningService is a service in control
@@ -1953,6 +1952,7 @@ type ClientI interface {
 	services.DynamicAccessOracle
 	services.Restrictions
 	services.Databases
+	services.WindowsDesktops
 	WebService
 	session.Service
 	services.ClusterConfiguration
@@ -1980,7 +1980,8 @@ type ClientI interface {
 	// GetDomainName returns auth server cluster name
 	GetDomainName() (string, error)
 
-	// GetClusterCACert returns the CAs for the local cluster without signing keys.
+	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster.
+	// If the cluster has multiple TLS certs, they will all be concatenated.
 	GetClusterCACert() (*LocalCAResponse, error)
 
 	// GenerateServerKeys generates new host private keys and certificates (signed

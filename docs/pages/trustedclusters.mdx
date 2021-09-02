@@ -59,19 +59,19 @@ even need to have a direct connection to other clusters' proxy servers.
 
 The user experience looks like this:
 
-```bash
+```code
 # Log in using the root "root" cluster credentials:
-tsh login --proxy=root.example.com
+$ tsh login --proxy=root.example.com
 
 # SSH into some host inside the "root" cluster:
-tsh ssh host
+$ tsh ssh host
 
 # SSH into the host located in another cluster called "leaf"
 # The connection is established through root.example.com:
-tsh ssh --cluster=leaf host
+$ tsh ssh --cluster=leaf host
 
 # See what other clusters are available
-tsh clusters
+$ tsh clusters
 ```
 
 Leaf clusters also have their own restrictions on user access, i.e.
@@ -146,22 +146,22 @@ Creating a token dynamically with a CLI tool offers the advantage of applying a 
 To create a token using the CLI tool, execute this command on the *auth server*
 of cluster "root":
 
-```bash
+```code
 # Generates a trusted cluster token to allow an inbound connection from a leaf cluster:
-tctl tokens add --type=trusted_cluster --ttl=5m
+$ tctl tokens add --type=trusted_cluster --ttl=5m
 # Example output:
-# The cluster invite token: ba4825847f0378bcdfe18113c4998498
+# The cluster invite token: (=presets.tokens.first=)
 # This token will expire in 5 minutes
 
 # Generates a trusted cluster token with labels:
 # every cluster joined using this token will inherit env:prod labels.
-tctl tokens add --type=trusted_cluster --labels=env=prod
+$ tctl tokens add --type=trusted_cluster --labels=env=prod
 
 # You can also list the outstanding non-expired tokens:
-tctl tokens ls
+$ tctl tokens ls
 
 # ... or delete/revoke an invitation:
-tctl tokens rm ba4825847f0378bcdfe18113c4998498
+$ tctl tokens rm (=presets.tokens.first=)
 ```
 
 Users of Teleport will recognize that this is the same way you would add any
@@ -198,8 +198,8 @@ spec:
 
 Then, use `tctl create` to add the file:
 
-```bash
-tctl create cluster.yaml
+```code
+$ tctl create cluster.yaml
 ```
 
 At this point, the users of the "root" cluster should be able to see "leaf" in the list of available clusters.
@@ -241,7 +241,7 @@ First, we need to create a special role for root users on "leaf":
 # Save this into root-user-role.yaml on the leaf cluster and execute:
 # tctl create root-user-role.yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: local-admin
 spec:
@@ -264,7 +264,7 @@ spec:
 ```
 
 Now, we need to establish trust between roles "root:admin" and "leaf:admin". This is
-done by creating a trusted cluster [resource](admin-guide.mdx#resources) on "leaf"
+done by creating a trusted cluster [resource](./setup/reference/resources.mdx) on "leaf"
 which looks like this:
 
 ```yaml
@@ -327,14 +327,14 @@ Teleport Proxy UI.
 
 To update the role map for a trusted cluster, first, we'll need to remove the cluster by executing:
 
-```bash
-tctl rm tc/root-cluster
+```code
+$ tctl rm tc/root-cluster
 ```
 
 Then following updating the role map, we can re-create the cluster by executing:
 
-```bash
-tctl create root-user-updated-role.yaml
+```code
+$ tctl create root-user-updated-role.yaml
 ```
 
 ### Updating cluster labels
@@ -346,8 +346,8 @@ rogue clusters updating their labels to bad values.
 An administrator of a root cluster can control a remote/leaf cluster's
 labels using the remote cluster API without any fear of override:
 
-```bash
-tctl get rc
+```code
+$ tctl get rc
 
 # kind: remote_cluster
 # metadata:
@@ -360,16 +360,16 @@ tctl get rc
 
 Using `tctl` to update the labels on the remote/leaf cluster:
 
-```bash
-tctl update rc/two --set-labels=env=prod
+```code
+$ tctl update rc/two --set-labels=env=prod
 
 # Cluster two has been updated
 ```
 
 Using `tctl` to confirm that the updated labels have been set:
 
-```bash
-tctl get rc
+```code
+$ tctl get rc
 
 # kind: remote_cluster
 # metadata:
@@ -385,40 +385,34 @@ tctl get rc
 
 Now an admin from the "root" cluster can see and access the "leaf" cluster:
 
-```bash
+```code
 # Log into the root cluster:
-tsh --proxy=root.example.com login admin
+$ tsh --proxy=root.example.com login admin
 ```
 
-```bash
+```code
 # See the list of available clusters
-tsh clusters
+$ tsh clusters
 
-# Output
-Cluster Name   Status
-------------   ------
-root           online
-leaf           online
+# Cluster Name   Status
+# ------------   ------
+# root           online
+# leaf           online
 ```
 
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
-
-```bash
+```code
 # See the list of machines (nodes) behind the leaf cluster:
-tsh ls --cluster=leaf
+$ tsh ls --cluster=leaf
 
-# Output
-Node Name Node ID            Address        Labels
---------- ------------------ -------------- -----------
-db1.leaf  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-leader
-db2.leaf  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
+# Node Name Node ID            Address        Labels
+# --------- ------------------ -------------- -----------
+# db1.leaf  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-leader
+# db2.leaf  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
 ```
 
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
-
-```bash
+```code
 # SSH into any node in "leaf":
-tsh ssh --cluster=leaf user@db1.leaf
+$ tsh ssh --cluster=leaf user@db1.leaf
 ```
 
 <Admonition
@@ -435,8 +429,8 @@ To temporarily disable trust between clusters, i.e. to disconnect the "leaf"
 cluster from "root", edit the YAML definition of the trusted cluster resource
 and set `enabled` to "false", then update it:
 
-```bash
-tctl create --force cluster.yaml
+```code
+$ tctl create --force cluster.yaml
 ```
 
 ### Remove Leaf Cluster relationship from both sides
@@ -567,8 +561,8 @@ teleport:
 
 On systemd-based distributions, you can watch the log output via:
 
-```bash
-journalctl -fu teleport
+```code
+$ journalctl -fu teleport
 ```
 
 Most of the time you will find out that either a join token is

@@ -2,6 +2,7 @@
 title: SSH Authentication With Okta as an SSO provider
 description: How to configure SSH access using Okta for SSO
 h1: SSH Authentication with Okta
+videoBanner: SM4Am-i8cj4
 ---
 
 ## How to use Okta as a single sign-on (SSO) provider for SSH
@@ -22,15 +23,6 @@ like:
   edition of Teleport only supports [Github](../../admin-guide.mdx#github-oauth-20) as
   an SSO provider.
 </Admonition>
-
-<iframe
-  width="712"
-  height="400"
-  src="https://www.youtube-nocookie.com/embed/SM4Am-i8cj4?rel=0&modestbranding=1"
-  frameBorder="0"
-  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-/>
 
 ## Enable SAML Authentication
 
@@ -112,7 +104,7 @@ configure a Teleport connector:
 
 ## Create a SAML Connector
 
-Now, create a SAML connector [resource](../../admin-guide.mdx#resources):
+Now, create a SAML connector [resource](../../setup/reference/resources.mdx):
 
 ```yaml
 (!examples/resources/saml-connector.yaml!)
@@ -134,7 +126,7 @@ and just have the username prefix.
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: dev
 spec:
