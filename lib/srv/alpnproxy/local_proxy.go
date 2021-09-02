@@ -238,6 +238,8 @@ func (l *LocalProxy) GetAddr() string {
 	return l.cfg.Listener.Addr().String()
 }
 
+// handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the
+// traffic to the upstreamConn (TLS connection to remote host).
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn, serverName string) error {
 	defer downstreamConn.Close()
 	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
