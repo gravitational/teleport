@@ -1315,7 +1315,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:207
 ################################################
 
 kind: pipeline
@@ -1419,7 +1419,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:207
 ################################################
 
 kind: pipeline
@@ -1523,7 +1523,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:207
 ################################################
 
 kind: pipeline
@@ -1630,7 +1630,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:332
+# Generated at dronegen/tag.go:349
 ################################################
 
 kind: pipeline
@@ -1762,7 +1762,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:332
+# Generated at dronegen/tag.go:349
 ################################################
 
 kind: pipeline
@@ -1891,7 +1891,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:332
+# Generated at dronegen/tag.go:349
 ################################################
 
 kind: pipeline
@@ -2009,7 +2009,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:332
+# Generated at dronegen/tag.go:349
 ################################################
 
 kind: pipeline
@@ -2124,7 +2124,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:207
 ################################################
 
 kind: pipeline
@@ -2228,7 +2228,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:332
+# Generated at dronegen/tag.go:349
 ################################################
 
 kind: pipeline
@@ -2360,7 +2360,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:332
+# Generated at dronegen/tag.go:349
 ################################################
 
 kind: pipeline
@@ -2857,7 +2857,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:207
 ################################################
 
 kind: pipeline
@@ -2961,7 +2961,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:207
 ################################################
 
 kind: pipeline
@@ -3065,7 +3065,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:332
+# Generated at dronegen/tag.go:349
 ################################################
 
 kind: pipeline
@@ -3183,7 +3183,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:332
+# Generated at dronegen/tag.go:349
 ################################################
 
 kind: pipeline
@@ -3301,7 +3301,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:332
+# Generated at dronegen/tag.go:349
 ################################################
 
 kind: pipeline
@@ -3433,7 +3433,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:332
+# Generated at dronegen/tag.go:349
 ################################################
 
 kind: pipeline
@@ -3565,7 +3565,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:190
+# Generated at dronegen/tag.go:207
 ################################################
 
 kind: pipeline
@@ -3620,7 +3620,9 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
+  - echo -n "$WINDOWS_SIGNING_CERT" | base64 -d > windows-signing-cert.pfx
   - make -C build.assets release-amd64
+  - rm -f windows-signing-cert.pfx
   environment:
     ARCH: amd64
     GID: "1000"
@@ -3628,6 +3630,8 @@ steps:
     GOPATH: /go
     OS: windows
     UID: "1000"
+    WINDOWS_SIGNING_CERT:
+      from_secret: WINDOWS_SIGNING_CERT
   volumes:
   - name: dockersock
     path: /var/run
@@ -4403,6 +4407,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: dcc8d39c76a5ed7e66a610fc94f72f86ab3d0cd28b44bba7aea23d522a528488
+hmac: f3db6cde11f807c6622da19eade0ecb7d0bdb142670bca323f5dcbaf1ce72454
 
 ...

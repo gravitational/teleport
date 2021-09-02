@@ -47,6 +47,7 @@ RUN apt-get update -y --fix-missing && \
         mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
+        osslsigncode \
         python-pip \
         pkg-config \
         shellcheck \
