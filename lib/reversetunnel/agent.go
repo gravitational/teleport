@@ -266,7 +266,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		"no matching keys found when checking server's host signature")
 }
 
-// Ping the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
+// getReverserTunnelDetails pings the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
 // If this is Web Service port check if proxy support ALPN SNI Listener.
 func (a *Agent) getReverserTunnelDetails() *reverseTunnelDetails {
 	pd := reverseTunnelDetails{ALPNSNIListenerEnabled: false}

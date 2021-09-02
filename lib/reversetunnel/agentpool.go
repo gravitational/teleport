@@ -256,6 +256,7 @@ func (m *AgentPool) pollAndSyncAgents() {
 }
 
 // getReverseTunnelDetails gets the cached ReverserTunnelDetails obtained during the oldest cached agent.connect call.
+// This function should be called under a lock.
 func (m *AgentPool) getReverseTunnelDetails(addr utils.NetAddr) *reverseTunnelDetails {
 	agents, ok := m.agents[addr]
 	if !ok || len(agents) == 0 {
