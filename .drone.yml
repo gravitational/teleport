@@ -716,7 +716,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-amd64
+  - make -C build.assets release-windows-unsigned
   environment:
     ARCH: amd64
     GID: "1000"
@@ -4407,6 +4407,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: f3db6cde11f807c6622da19eade0ecb7d0bdb142670bca323f5dcbaf1ce72454
+hmac: be6a90b4a035e36415c2a696099768aa203e8296878e0a7238ea6fa8e635ae93
 
 ...
