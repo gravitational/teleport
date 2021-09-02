@@ -18,10 +18,12 @@ package auth
 
 import (
 	"context"
+	"encoding/base32"
 	"encoding/hex"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -31,7 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
+	"github.com/tstranex/u2f"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
@@ -145,7 +149,7 @@ func TestStartAccountRecovery(t *testing.T) {
 	defer modules.SetModules(defaultModules)
 	modules.SetModules(&testWithCloudModules{})
 
-	u, err := createUserWithSecondFactorAndRecoveryCodes(srv, "otp")
+	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
 	require.NoError(t, err)
 
 	// Test with no recover type.
@@ -211,17 +215,11 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 	defer modules.SetModules(defaultModules)
 	modules.SetModules(&testWithCloudModules{})
 
-	u, err := createUserWithSecondFactorAndRecoveryCodes(srv, "otp")
+	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
 	require.NoError(t, err)
 
 	// Trigger login lock.
-	for i := 0; i < defaults.MaxLoginAttempts; i++ {
-		_, err = srv.Auth().authenticateUser(ctx, AuthenticateUserRequest{
-			Username: u.username,
-			OTP:      &OTPCreds{},
-		})
-		require.True(t, trace.IsAccessDenied(err))
-	}
+	triggerLoginLock(t, srv.Auth(), u.username)
 
 	// Test recovery is still allowed after login lock.
 	_, err = srv.Auth().StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{
@@ -268,7 +266,7 @@ func TestStartAccountRecovery_UserErrors(t *testing.T) {
 	defer modules.SetModules(defaultModules)
 	modules.SetModules(&testWithCloudModules{})
 
-	u, err := createUserWithSecondFactorAndRecoveryCodes(srv, "otp")
+	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -317,6 +315,218 @@ func TestStartAccountRecovery_UserErrors(t *testing.T) {
 	}
 }
 
+func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+	fakeClock := srv.Clock().(clockwork.FakeClock)
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testWithCloudModules{})
+
+	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+	require.NoError(t, err)
+
+	cases := []struct {
+		name            string
+		recoverType     types.UserTokenUsage
+		getRequest      func() *proto.ApproveAccountRecoveryRequest
+		invalidAuthnReq *proto.ApproveAccountRecoveryRequest
+	}{
+		{
+			name:        "authenticate with valid and invalid totp code",
+			recoverType: types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
+			invalidAuthnReq: &proto.ApproveAccountRecoveryRequest{
+				AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: "invalid-totp-code"}},
+				}},
+			},
+			getRequest: func() *proto.ApproveAccountRecoveryRequest {
+				newTOTP, err := totp.GenerateCode(u.otpKey, srv.Clock().Now().Add(30*time.Second))
+				require.NoError(t, err)
+
+				return &proto.ApproveAccountRecoveryRequest{
+					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+						Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: newTOTP}},
+					}},
+				}
+			},
+		},
+		{
+			name:        "authenticate with valid and invalid u2f response",
+			recoverType: types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
+			invalidAuthnReq: &proto.ApproveAccountRecoveryRequest{
+				AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{ /* invalid u2f response */ }},
+				}},
+			},
+			getRequest: func() *proto.ApproveAccountRecoveryRequest {
+				chal, err := srv.Auth().GetMFAAuthenticateChallenge(u.username, u.password)
+				require.NoError(t, err)
+
+				u2fRes, err := u.u2fKey.SignResponse(&u2f.SignRequest{
+					Version:   chal.U2FChallenges[0].Version,
+					Challenge: chal.U2FChallenges[0].Challenge,
+					KeyHandle: chal.U2FChallenges[0].KeyHandle,
+					AppID:     chal.U2FChallenges[0].AppID,
+				})
+				require.NoError(t, err)
+
+				return &proto.ApproveAccountRecoveryRequest{
+					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+						Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
+							KeyHandle:  u2fRes.KeyHandle,
+							ClientData: u2fRes.ClientData,
+							Signature:  u2fRes.SignatureData,
+						}},
+					}},
+				}
+			},
+		},
+		{
+			name:        "authenticate with valid and invalid password",
+			recoverType: types.UserTokenUsage_USER_TOKEN_RECOVER_MFA,
+			invalidAuthnReq: &proto.ApproveAccountRecoveryRequest{
+				AuthnCred: &proto.ApproveAccountRecoveryRequest_Password{Password: []byte("invalid-password")},
+			},
+			getRequest: func() *proto.ApproveAccountRecoveryRequest {
+				return &proto.ApproveAccountRecoveryRequest{
+					AuthnCred: &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
+				}
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Acquire a start token.
+			startToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, c.recoverType)
+			require.NoError(t, err)
+
+			// Try a failed attempt, to test it gets cleared later.
+			c.invalidAuthnReq.Username = u.username
+			c.invalidAuthnReq.RecoveryStartTokenID = startToken.GetName()
+			_, err = srv.Auth().ApproveAccountRecovery(ctx, c.invalidAuthnReq)
+			require.True(t, trace.IsAccessDenied(err))
+			require.Equal(t, approveRecoveryBadAuthnErrMsg, err.Error())
+
+			attempts, err := srv.Auth().GetUserRecoveryAttempts(ctx, u.username)
+			require.NoError(t, err)
+			require.Len(t, attempts, 1)
+
+			// Get request with authn.
+			req := c.getRequest()
+			req.Username = u.username
+			req.RecoveryStartTokenID = startToken.GetName()
+
+			// Acquire a approve token with the start token.
+			approvedToken, err := srv.Auth().ApproveAccountRecovery(ctx, req)
+			require.NoError(t, err)
+			require.Equal(t, UserTokenTypeRecoveryApproved, approvedToken.GetSubKind())
+			require.Equal(t, c.recoverType.String(), approvedToken.GetUsage().String())
+
+			// Test events emitted.
+			event := mockEmitter.LastEvent()
+			require.Equal(t, event.GetType(), events.RecoveryTokenCreateEvent)
+			require.Equal(t, event.GetCode(), events.RecoveryTokenCreateCode)
+			require.Equal(t, event.(*apievents.UserTokenCreate).Name, u.username)
+
+			// Test start token got deleted.
+			_, err = srv.Auth().GetUserToken(ctx, startToken.GetName())
+			require.True(t, trace.IsNotFound(err))
+
+			// Test expired token.
+			fakeClock.Advance(defaults.RecoveryApprovedTokenTTL)
+			_, err = srv.Auth().GetUserToken(ctx, approvedToken.GetName())
+			require.True(t, trace.IsNotFound(err))
+
+			// Test recovery attempts are deleted.
+			attempts, err = srv.Auth().GetUserRecoveryAttempts(ctx, u.username)
+			require.NoError(t, err)
+			require.Len(t, attempts, 0)
+		})
+	}
+}
+
+func TestApproveAccountRecovery_WithLock(t *testing.T) {
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testWithCloudModules{})
+
+	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+	require.NoError(t, err)
+
+	// Acquire a start token.
+	startToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
+	require.NoError(t, err)
+
+	// Trigger login lock.
+	triggerLoginLock(t, srv.Auth(), u.username)
+
+	// Test recovery is still allowed after login lock.
+	_, err = srv.Auth().ApproveAccountRecovery(ctx, &proto.ApproveAccountRecoveryRequest{
+		Username:             u.username,
+		RecoveryStartTokenID: startToken.GetName(),
+		AuthnCred:            &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
+	})
+	require.NoError(t, err)
+
+	// Acquire another start token, as last success would have deleted it.
+	startToken, err = srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
+	require.NoError(t, err)
+
+	// Trigger max failed recovery attempts.
+	for i := 1; i <= defaults.MaxAccountRecoveryAttempts; i++ {
+		_, err = srv.Auth().ApproveAccountRecovery(ctx, &proto.ApproveAccountRecoveryRequest{
+			RecoveryStartTokenID: startToken.GetName(),
+			Username:             u.username,
+			AuthnCred:            &proto.ApproveAccountRecoveryRequest_Password{Password: []byte("wrong-password")},
+		})
+		require.True(t, trace.IsAccessDenied(err))
+
+		if i == defaults.MaxAccountRecoveryAttempts {
+			require.EqualValues(t, ErrMaxFailedAttemptsFromApproveRecovery, err)
+		}
+	}
+
+	// Test start token is deleted from max failed attempts.
+	_, err = srv.Auth().ApproveAccountRecovery(ctx, &proto.ApproveAccountRecoveryRequest{
+		Username:             u.username,
+		RecoveryStartTokenID: startToken.GetName(),
+		AuthnCred:            &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
+	})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Test only login is locked.
+	user, err := srv.Auth().GetUser(u.username, false)
+	require.NoError(t, err)
+	require.True(t, user.GetStatus().IsLocked)
+	require.True(t, user.GetStatus().RecoveryAttemptLockExpires.IsZero())
+	require.False(t, user.GetStatus().LockExpires.IsZero())
+
+	// Test recovery attempts got reset.
+	attempts, err := srv.Auth().GetUserRecoveryAttempts(ctx, u.username)
+	require.NoError(t, err)
+	require.Len(t, attempts, 0)
+}
+
+func triggerLoginLock(t *testing.T, srv *Server, username string) {
+	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
+		_, err := srv.authenticateUser(context.Background(), AuthenticateUserRequest{
+			Username: username,
+			OTP:      &OTPCreds{},
+		})
+		require.True(t, trace.IsAccessDenied(err))
+	}
+}
+
 type userAuthCreds struct {
 	recoveryCodes []string
 	username      string
@@ -326,7 +536,7 @@ type userAuthCreds struct {
 }
 
 // TODO (codingllama): Unify with test func `configureForMFA`
-func createUserWithSecondFactorAndRecoveryCodes(srv *TestTLSServer, secondFactor string) (*userAuthCreds, error) {
+func createUserWithSecondFactorAndRecoveryCodes(srv *TestTLSServer) (*userAuthCreds, error) {
 	ctx := context.Background()
 	username := "llama@goteleport.com"
 	password := []byte("abc123")
@@ -360,76 +570,39 @@ func createUserWithSecondFactorAndRecoveryCodes(srv *TestTLSServer, secondFactor
 		return nil, trace.Wrap(err)
 	}
 
-	userCreds := &userAuthCreds{
-		username: username,
-		password: password,
-	}
-
-	// Insert a password, second factor, and recovery codes.
-	if secondFactor == "otp" {
-		otpCode, otpKey, err := getOTPCodeAndKey(srv, resetToken.GetName())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		res, err := srv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
-			TokenID:     resetToken.GetName(),
-			NewPassword: password,
-			NewMFARegisterResponse: &proto.MFARegisterResponse{
-				Response: &proto.MFARegisterResponse_TOTP{
-					TOTP: &proto.TOTPRegisterResponse{Code: otpCode}},
-			},
-		},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		userCreds.recoveryCodes = res.GetRecoveryCodes()
-		userCreds.otpKey = otpKey
-		return userCreds, nil
-	}
-
-	if secondFactor == "u2f" {
-		u2fRegResp, u2fKey, err := getMockedU2FAndRegisterRes(srv, resetToken.GetName())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		res, err := srv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
-			TokenID:     resetToken.GetName(),
-			NewPassword: password,
-			NewMFARegisterResponse: &proto.MFARegisterResponse{
-				Response: &proto.MFARegisterResponse_U2F{
-					U2F: u2fRegResp},
-			},
-		},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		userCreds.recoveryCodes = res.GetRecoveryCodes()
-		userCreds.u2fKey = u2fKey
-		return userCreds, nil
-	}
-
-	// No second factor or recovery codes.
-	return userCreds, nil
-}
-
-func getOTPCodeAndKey(srv *TestTLSServer, tokenID string) (string, string, error) {
-	secrets, err := srv.Auth().RotateUserTokenSecrets(context.TODO(), tokenID)
+	// Insert a password, totp device, and recovery codes.
+	u2fRegResp, u2fKey, err := getMockedU2FAndRegisterRes(srv, resetToken.GetName())
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	otpCode, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
+	res, err := srv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: password,
+		NewMFARegisterResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_U2F{U2F: u2fRegResp}},
+	})
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return otpCode, secrets.GetOTPKey(), nil
+	// Insert a totp device manually.
+	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
+	dev, err := services.NewTOTPDevice("otp", otpSecret, srv.Auth().clock.Now())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = srv.Auth().UpsertMFADevice(ctx, username, dev); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &userAuthCreds{
+		username:      username,
+		password:      password,
+		recoveryCodes: res.GetRecoveryCodes(),
+		u2fKey:        u2fKey,
+		otpKey:        otpSecret,
+	}, nil
 }
 
 func getMockedU2FAndRegisterRes(srv *TestTLSServer, tokenID string) (*proto.U2FRegisterResponse, *mocku2f.Key, error) {
