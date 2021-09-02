@@ -3,7 +3,7 @@ authors: Marek Smoliński (marek@goteleport.com)
 state: draft
 ---
 
-# RFD 33 - SNI and ALPN teleport proxy routing
+# RFD 39 - SNI and ALPN teleport proxy routing
 
 ## What
 
@@ -68,8 +68,8 @@ ALPN SNI proxy service will be responsible for routing incoming traffic to appro
         │              │                 │                  │               │                │                    │                 
         │              │                 │                  │               │                │                    │                 
         │            ALPN:               │                  │ALPN:          │              ALPN:                  │                 
-        │       teleport-proxy-          │              teleport-mysql      │         teleport-dial-a             │                 
-       ALPN:          ssh                │                  │               │           uth@cluster               │                 
+        │       teleport-proxy-          │              teleport-mysql      │         teleport-auth@cluster       │                 
+       ALPN:          ssh                │                  │               │                |                    │                 
   teleport-revers      │                 │ALPN:             │             ALPN:              │                    │                 
       etunnel          │            teleport-postgres       │     http1.1, h2, default       │                    │                 
         │              │                 │                  │               │                │                    │                 
@@ -117,7 +117,6 @@ clusters:
 
 
 ### Local teleport proxy
-
 To handle connections established to teleport proxy by external clients like mysql, psql CLIs where setting custom ALPN value is not possible we will run local teleport proxy. Traffic sent from external teleport clients will be forwarded through the local proxy where the proxy will be responsible for wrapping incoming connections in TLS protocol, setting appropriate ALPN protocol and establishing a connection to the remote teleport proxy.
 
 For the tsh ssh and tsh scp commands scope forwarding traffic through local proxy seems to be superfluous. SSH traffic can be easily wrapped in TLS with custom teleport-ssh-proxy ALPN protocol inside tsh ssh handler after detecting that the teleport proxy_listener_addr listener was enabled but we should consider adding support for ssh proxy in order to enable external SSH and SCP clients like FileZilla, WinSCP and Putty.
@@ -227,7 +226,7 @@ In order to support connection for standalone DB clients the `tsh proxy db` comm
 
 Another possible approach is to allow `tsh proxy db` command to dynamically select what teleport DB ALPN protocol should be used  (`teleport-postgres`, `teleport-mysql`, `teleport-mongodb`) in remote proxy connection based on `RouteToDatabase.Protocol` client certs identity. In this approach, local DB proxy needs to be DB protocol aware because [MySQL](https://dev.mysql.com/doc/internals/en/initial-handshake.html) protocol use custom TLS handshake. This solution will  simplify `tsh proxy db` command integration with `Teleport Desktop Application`.
 
-###Proxy Configuration
+### Proxy Configuration
 ALPN SNI proxy service will leverage the current proxy `web_listen_addr` listener and provide additional routing functionality based on SNI ALPN TLS values without breaking the current `web_listen_addr` behavior. Old tsh clients will be still able to connect to MySQL or reverse tunnel listeners multiplexed on `web_listen_addr` address. Other proxy listeners (`listen_addr`, `mysql_listen_addr`, `tunnel_listen_addr`, `kube_listen_addr`) will preserve current functionality and at first ALPN SNI implementation won't provide any knobs mechanism to disable legacy listeners. The next stage of implementation will extend teleport configuration by versioning. Next `version: v2` teleport configuration will provide the functionality of not starting legacy listeners unless the listeners' addresses are explicitly specified in the proxy configuration.
 
 For example following configuration will ALPN SNI teleport proxy service only on the `0.0.0.0:443` listener:
@@ -256,3 +255,6 @@ teleport:
       - key_file: /etc/certs/live/example.teleport.sh/privkey.pem
         cert_file: /etc/certs/live/example.teleport.sh/fullchain.pem
 ```
+
+### Supporting direct Teleport Auth dial.
+Currently, Teleport Proxy clients use the Teleport Proxy SSH port to dial auth service through SSH tunnels. The `teleport-auth@cluster` ALPN protocol allows dialing Auth service directly without SSH tunnels. Teleport SNI ALPN Proxy will extract encoded cluster name from `teleport-auth@` protocol prefix and route connection to appropriate auth service. Teleport Client library will be aligned allowing to dial Auth service directly when Teleport Proxy supports the ALPN SNI listener.
