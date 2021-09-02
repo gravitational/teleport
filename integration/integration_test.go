@@ -4185,10 +4185,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdin = personA
 
 		err = cl.SSH(context.TODO(), []string{}, false)
-		switch trace.Unwrap(err).(type) {
-		case nil, *ssh.ExitError, *ssh.ExitMissingError:
-			break
-		default:
+		if !isSSHError(err) {
 			require.NoError(t, err)
 		}
 	}
@@ -4225,11 +4222,12 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		for i := 0; i < 10; i++ {
 			err = cl.Join(context.TODO(), apidefaults.Namespace, session.ID(sessionID), personB)
 			if err == nil || isSSHError(err) {
+				err = nil
 				break
 			}
-
-			require.NoError(t, err)
 		}
+
+		require.NoError(t, err)
 	}
 
 	// waitForOutput checks that the output of the passed in terminal contains
