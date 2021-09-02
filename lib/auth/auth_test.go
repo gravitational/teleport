@@ -569,12 +569,20 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(roles.Include(types.RoleNode), Equals, true)
 	c.Assert(roles.Include(types.RoleProxy), Equals, false)
 
+	priv, pub, err := s.a.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	tlsPublicKey, sshPublicKey, err := keypairToPublicKeys(priv, pub)
+	c.Assert(err, IsNil)
+
 	// unsuccessful registration (wrong role)
 	keys, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    tok,
-		HostID:   "bad-host-id",
-		NodeName: "bad-node-name",
-		Role:     types.RoleProxy,
+		Token:        tok,
+		HostID:       "bad-host-id",
+		NodeName:     "bad-node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: sshPublicKey,
 	})
 	c.Assert(keys, IsNil)
 	c.Assert(err, NotNil)
@@ -607,6 +615,8 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		NodeName:             "node-name",
 		Role:                 types.RoleProxy,
 		AdditionalPrincipals: []string{"example.com"},
+		PublicTLSKey:         tlsPublicKey,
+		PublicSSHKey:         sshPublicKey,
 	})
 	c.Assert(err, IsNil)
 
@@ -617,20 +627,24 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(apiutils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
 
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    multiUseToken,
-		HostID:   "twice",
-		NodeName: "node-name",
-		Role:     types.RoleProxy,
+		Token:        multiUseToken,
+		HostID:       "twice",
+		NodeName:     "node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: sshPublicKey,
 	})
 	c.Assert(err, IsNil)
 
 	// try to use after TTL:
 	s.a.SetClock(clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1)))
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    multiUseToken,
-		HostID:   "late.bird",
-		NodeName: "node-name",
-		Role:     types.RoleProxy,
+		Token:        multiUseToken,
+		HostID:       "late.bird",
+		NodeName:     "node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: sshPublicKey,
 	})
 	c.Assert(err, ErrorMatches, `"node-name" \[late.bird\] can not join the cluster with role Proxy, the token is not valid`)
 
@@ -651,17 +665,21 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	err = s.a.SetStaticTokens(st)
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    "static-token-value",
-		HostID:   "static.host",
-		NodeName: "node-name",
-		Role:     types.RoleProxy,
+		Token:        "static-token-value",
+		HostID:       "static.host",
+		NodeName:     "node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: sshPublicKey,
 	})
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    "static-token-value",
-		HostID:   "wrong.role",
-		NodeName: "node-name",
-		Role:     types.RoleAuth,
+		Token:        "static-token-value",
+		HostID:       "wrong.role",
+		NodeName:     "node-name",
+		Role:         types.RoleAuth,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: sshPublicKey,
 	})
 	c.Assert(err, NotNil)
 	r, _, err := s.a.ValidateToken("static-token-value")
