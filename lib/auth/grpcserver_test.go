@@ -1662,6 +1662,13 @@ func TestCustomRateLimiting(t *testing.T) {
 				return err
 			},
 		},
+		{
+			name: "RPC ApproveAccountRecovery",
+			fn: func() error {
+				_, err := clt.ApproveAccountRecovery(context.Background(), &proto.ApproveAccountRecoveryRequest{})
+				return err
+			},
+		},
 	}
 
 	for _, c := range cases {
