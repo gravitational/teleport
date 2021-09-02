@@ -24,7 +24,6 @@ After=network.target
 [Service]
 Type=simple
 Restart=on-failure
-EnvironmentFile=-/etc/default/teleport
 ExecStart=/usr/local/bin/teleport start --pid-file=/run/teleport.pid
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/teleport.pid
@@ -34,7 +33,6 @@ LimitNOFILE=8192
 WantedBy=multi-user.target
 EOM
 
-systemctl enable teleport
 
 # Add tasks that should be run in first login
 

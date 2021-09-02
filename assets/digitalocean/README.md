@@ -9,7 +9,6 @@ This repository contains scripts and templates to build a 1-click Teleport appli
 - `scripts/` has the teleport installation script.
 - `files/` has scripts required to configure and update droplet VM. It also has a script to configure teleport on first time login via SSH.
 - `common/` has files that are required to build VM image.
-- `assets/` is only there to hold reference and dependencies that may be used or required in the future. 
 
 
 ## Usage
