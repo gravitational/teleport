@@ -429,9 +429,17 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 			return trace.BadParameter("webauthn missing rp_id and U2F app_id is not an URL (%v)", err)
 		}
 
-		// Use the U2F host as the RPID.
-		rpID := parsedAppID.Host
-		rpID = strings.Split(rpID, ":")[0] // Remove :port, if present
+		var rpID string
+		switch {
+		case parsedAppID.Host != "":
+			rpID = parsedAppID.Host
+			rpID = strings.Split(rpID, ":")[0] // Remove :port, if present
+		case parsedAppID.Path == u.AppID:
+			// App ID is not a proper URL, take it literally.
+			rpID = u.AppID
+		default:
+			return trace.BadParameter("failed to infer webauthn RPID from U2F App ID (%q)", u.AppID)
+		}
 		log.Infof("WebAuthn: RPID inferred from U2F configuration: %q", rpID)
 		w.RPID = rpID
 	default:
