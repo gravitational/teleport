@@ -378,7 +378,8 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	return certs.ssh, nil
 }
 
-func privateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error) {
+// PrivateKeyToPublicKeyTLS gets the TLS public key from a raw private key.
+func PrivateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error) {
 	sshPrivate, err := ssh.ParseRawPrivateKey(privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -400,7 +401,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		return nil, nil, trace.Wrap(err)
 	}
 
-	tlsPublicKey, err := privateKeyToPublicKeyTLS(priv)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(priv)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -872,7 +873,7 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 		return nil, trace.Wrap(err)
 	}
 
-	publicTLS, err := privateKeyToPublicKeyTLS(priv)
+	publicTLS, err := PrivateKeyToPublicKeyTLS(priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

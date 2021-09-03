@@ -572,7 +572,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	priv, pub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	tlsPublicKey, err := privateKeyToPublicKeyTLS(priv)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(priv)
 	c.Assert(err, IsNil)
 
 	// unsuccessful registration (wrong role)
