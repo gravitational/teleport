@@ -129,6 +129,29 @@ func TestAuthPreferenceV2_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
+			name: "webauthn_derivedFromU2F_nonURL",
+			prefs: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         "local",
+					SecondFactor: "webauthn",
+					U2F: &types.U2F{
+						AppID:  "teleport", // "teleport" gets parsed as a Path, not a Host.
+						Facets: []string{"teleport"},
+					},
+					Webauthn: nil,
+				},
+			},
+			wantCmp: func(got *types.AuthPreferenceV2) error {
+				want := &types.Webauthn{
+					RPID: "teleport",
+				}
+				if diff := cmp.Diff(want, got.Spec.Webauthn); diff != "" {
+					return fmt.Errorf("webauthn mismatch (-want +got):\n%s", diff)
+				}
+				return nil
+			},
+		},
+		{
 			name: "webauthn_valid_minimal",
 			prefs: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
