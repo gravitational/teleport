@@ -87,6 +87,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 		return nil, trace.Wrap(err)
 	}
 	fwd, err := forward.New(
+		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(logrus.StandardLogger()),
 		forward.WebsocketRewriter(transport.ws),
