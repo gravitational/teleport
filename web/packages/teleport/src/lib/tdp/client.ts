@@ -103,6 +103,10 @@ export default class Client extends EventEmitter {
     this.socket.send(this.codec.encodeScreenSpec(w, h));
   }
 
+  disconnect() {
+    this.socket.close();
+  }
+
   handleError(err: Error) {
     this.emit('error', err);
     this.logger.error(err);

@@ -65,7 +65,7 @@ export function DesktopSession(props: State) {
 
     // If client parameters change or component will unmount, close the websocket.
     return () => {
-      tdpClient.socket.close();
+      tdpClient.disconnect();
     };
   }, [tdpClient]);
 
