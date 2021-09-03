@@ -3231,6 +3231,17 @@ func (g *GRPCServer) ApproveAccountRecovery(ctx context.Context, req *proto.Appr
 	return r, nil
 }
 
+// CompleteAccountRecovery is implemented by AuthService.CompleteAccountRecovery.
+func (g *GRPCServer) CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.ServerWithRoles.CompleteAccountRecovery(ctx, req)
+	return &empty.Empty{}, trace.Wrap(err)
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

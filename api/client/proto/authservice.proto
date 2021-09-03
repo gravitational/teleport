@@ -1073,6 +1073,26 @@ message ApproveAccountRecoveryRequest {
     }
 }
 
+// CompleteAccountRecoveryRequest is a request to set either a new password or
+// add a new mfa device, allowing the user to regain access to their account with the new
+// credentials. Represents the last step in the account recovery process after RPC's
+// StartAccountRecovery and ApproveAccountRecovery.
+message CompleteAccountRecoveryRequest {
+    // RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
+    // request.
+    string RecoveryApprovedTokenID = 1 [ (gogoproto.jsontag) = "recovery_approved_token_id" ];
+    // NewDeviceName is the name of a new mfa device.
+    string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
+    // NewAuthnCred contains the new authentication credential.
+    oneof NewAuthnCred {
+        // NewPassword is user's new password in plain text.
+        bytes NewPassword = 3 [ (gogoproto.jsontag) = "new_password,omitempty" ];
+        // NewMFAResponse is a user's new mfa response to a mfa register challenge.
+        MFARegisterResponse NewMFAResponse = 4
+            [ (gogoproto.jsontag) = "new_mfa_response,omitempty" ];
+    }
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1441,4 +1461,10 @@ service AuthService {
     //
     // Recovery approved tokens last RecoveryApprovedTokenTTL.
     rpc ApproveAccountRecovery(ApproveAccountRecoveryRequest) returns (types.UserTokenV3);
+    // CompleteAccountRecovery (exclusive to cloud users) is the last step in account
+    // recovery, after RPC's StartAccountRecovery and ApproveAccountRecovery. This step sets a new
+    // password or adds a new mfa device, allowing the user to regain access to their account with
+    // the new credentials. When the new authentication is successfully set, any user lock is
+    // removed so the user can login immediately afterwards.
+    rpc CompleteAccountRecovery(CompleteAccountRecoveryRequest) returns (google.protobuf.Empty);
 }
