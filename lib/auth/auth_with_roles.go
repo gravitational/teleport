@@ -3286,6 +3286,7 @@ func (a *ServerWithRoles) StartAccountRecovery(ctx context.Context, req *proto.S
 
 // ApproveAccountRecovery is implemented by AuthService.ApproveAccountRecovery.
 func (a *ServerWithRoles) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error) {
+	// The token provides its own authorization and authentication.
 	return a.authServer.ApproveAccountRecovery(ctx, req)
 }
 

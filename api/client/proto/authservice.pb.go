@@ -7232,7 +7232,7 @@ func (m *StartAccountRecoveryRequest) GetRecoverType() types.UserTokenUsage {
 
 // ApproveAccountRecoveryRequest is a request to create a recovery approved token that allows users
 // to perform protected actions while not logged in. Represents step 2 of the account recovery
-// process after RPC StartAccountRecovery, next step is RPC ChangeAuthnFromAccountRecovery.
+// process after RPC StartAccountRecovery, next step is RPC CompleteAccountRecovery.
 type ApproveAccountRecoveryRequest struct {
 	// RecoveryStartTokenID is the ID of a recovery start token that's required to verify this
 	// request.

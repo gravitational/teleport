@@ -124,13 +124,17 @@ func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string
 		return nil
 	}
 
-	lockedUntil, err := s.recordFailedRecoveryAttempt(ctx, verifyCodeErr, username)
-	if err != nil {
-		return trace.Wrap(err)
+	lockedUntil, maxedAttempts, err := s.recordFailedRecoveryAttempt(ctx, username)
+	switch {
+	case err != nil:
+		log.Error(trace.DebugReport(err))
+		return trace.Wrap(verifyCodeErr)
+	case !maxedAttempts:
+		return trace.Wrap(verifyCodeErr)
 	}
 
 	// Temp lock both user login and recovery attempts.
-	user.SetRecoveryAttemptLockExpires(*lockedUntil, accountLockedMsg)
+	user.SetRecoveryAttemptLockExpires(lockedUntil, accountLockedMsg)
 	if err := s.Identity.UpsertUser(user); err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(verifyCodeErr)
@@ -222,18 +226,14 @@ func (s *Server) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveA
 
 	startToken, err := s.GetUserToken(ctx, req.GetRecoveryStartTokenID())
 	switch {
-	case trace.IsNotFound(err):
-		return nil, trace.AccessDenied("please start over with a new recovery code")
 	case err != nil:
 		return nil, trace.AccessDenied(approveRecoveryGenericErrMsg)
+	case startToken.GetUser() != req.Username:
+		return nil, trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
 	}
 
 	if err := s.verifyUserToken(startToken, UserTokenTypeRecoveryStart); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if startToken.GetUser() != req.Username {
-		return nil, trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
 	}
 
 	// Check that correct authentication method is provided before verifying.
@@ -267,14 +267,14 @@ func (s *Server) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveA
 		return nil, trace.AccessDenied("unsupported authentication method")
 	}
 
-	// Delete start token to invalidate the recovery link sent to users.
-	if err := s.deleteUserTokens(ctx, startToken.GetUser()); err != nil {
-		log.Error(trace.DebugReport(err))
-	}
-
 	approvedToken, err := s.createRecoveryToken(ctx, startToken.GetUser(), UserTokenTypeRecoveryApproved, startToken.GetUsage())
 	if err != nil {
 		return nil, trace.AccessDenied(approveRecoveryGenericErrMsg)
+	}
+
+	// Delete start token to invalidate the recovery link sent to users.
+	if err := s.DeleteUserToken(ctx, startToken.GetName()); err != nil {
+		log.Error(trace.DebugReport(err))
 	}
 
 	return approvedToken, nil
@@ -292,13 +292,14 @@ func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken typ
 		return trace.AccessDenied(approveRecoveryGenericErrMsg)
 	}
 
+	// The error returned from authenticateFn does not guarantee sensitive info is not leaked.
+	// So we will return an obscured message to user when there are errors, while logging out real error.
 	verifyAuthnErr := authenticateFn()
-
 	switch {
 	case trace.IsConnectionProblem(verifyAuthnErr):
-		// The error returned from authenticateFn does not guarantee sensitive info is not leaked.
-		// So we will return an obscured message to user.
+		log.Error(trace.DebugReport(verifyAuthnErr))
 		return trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
+
 	case verifyAuthnErr == nil:
 		// Reset attempt counter.
 		if err := s.DeleteUserRecoveryAttempts(ctx, startToken.GetUser()); err != nil {
@@ -308,10 +309,14 @@ func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken typ
 		return nil
 	}
 
-	lockedUntil, err := s.recordFailedRecoveryAttempt(ctx, verifyAuthnErr, startToken.GetUser())
-	if err != nil {
-		// The error returned from authenticateFn does not guarantee sensitive info is not leaked.
-		// So we will return an obscured message to user.
+	log.Error(trace.DebugReport(verifyAuthnErr))
+
+	lockedUntil, maxedAttempts, err := s.recordFailedRecoveryAttempt(ctx, startToken.GetUser())
+	switch {
+	case err != nil:
+		log.Error(trace.DebugReport(err))
+		return trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
+	case !maxedAttempts:
 		return trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
 	}
 
@@ -328,7 +333,7 @@ func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken typ
 	}
 
 	// Lock the user from logging in.
-	user.SetLocked(*lockedUntil, accountLockedMsg)
+	user.SetLocked(lockedUntil, accountLockedMsg)
 	if err := s.Identity.UpsertUser(user); err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
@@ -338,28 +343,26 @@ func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken typ
 }
 
 // recordFailedRecoveryAttempt creates and inserts a recovery attempt and if user has reached max failed attempts,
-// returns the locked until time.
-//
-// Returned error means the user has not reached max attempts yet.
-func (s *Server) recordFailedRecoveryAttempt(ctx context.Context, rootErr error, username string) (*time.Time, error) {
+// returns the locked until time. The boolean determines if user reached maxed failed attempts (true) or not (false).
+func (s *Server) recordFailedRecoveryAttempt(ctx context.Context, username string) (time.Time, bool, error) {
+	maxedAttempts := true
+
 	// Record and log failed attempt.
 	now := s.clock.Now().UTC()
 	attempt := &types.RecoveryAttempt{Time: now, Expires: now.Add(defaults.AttemptTTL)}
 	if err := s.CreateUserRecoveryAttempt(ctx, username, attempt); err != nil {
-		log.Error(trace.DebugReport(err))
-		return nil, trace.Wrap(rootErr)
+		return time.Time{}, !maxedAttempts, trace.Wrap(err)
 	}
 
 	// Collect all attempts.
 	attempts, err := s.Identity.GetUserRecoveryAttempts(ctx, username)
 	if err != nil {
-		log.Error(trace.DebugReport(err))
-		return nil, trace.Wrap(rootErr)
+		return time.Time{}, !maxedAttempts, trace.Wrap(err)
 	}
 
 	if !types.IsMaxFailedRecoveryAttempt(defaults.MaxAccountRecoveryAttempts, attempts, now) {
 		log.Debugf("%v user has less than %v failed account recovery attempts", username, defaults.MaxAccountRecoveryAttempts)
-		return nil, trace.Wrap(rootErr)
+		return time.Time{}, !maxedAttempts, nil
 	}
 
 	// At this point, user has reached max attempts.
@@ -367,7 +370,7 @@ func (s *Server) recordFailedRecoveryAttempt(ctx context.Context, rootErr error,
 	log.Debugf("%v exceeds %v failed account recovery attempts, account locked until %v and an email has been sent",
 		username, defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(lockUntil))
 
-	return &lockUntil, nil
+	return lockUntil, maxedAttempts, nil
 }
 
 func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username string) ([]string, error) {

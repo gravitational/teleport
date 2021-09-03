@@ -457,7 +457,7 @@ func (s *Server) verifyUserToken(token types.UserToken, allowedKinds ...string) 
 	if token.Expiry().Before(s.clock.Now().UTC()) {
 		// Provide obscure message on purpose, while logging the real error server side.
 		log.Debugf("Expired token(%s) type(%s)", token.GetName(), token.GetSubKind())
-		return trace.AccessDenied("access denied")
+		return trace.AccessDenied("invalid token")
 	}
 
 	for _, kind := range allowedKinds {
@@ -467,5 +467,5 @@ func (s *Server) verifyUserToken(token types.UserToken, allowedKinds ...string) 
 	}
 
 	log.Debugf("Invalid token(%s) type(%s), expected type: %v", token.GetName(), token.GetSubKind(), allowedKinds)
-	return trace.AccessDenied("access denied")
+	return trace.AccessDenied("invalid token")
 }

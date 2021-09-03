@@ -330,20 +330,20 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	cases := []struct {
-		name            string
-		recoverType     types.UserTokenUsage
-		getRequest      func() *proto.ApproveAccountRecoveryRequest
-		invalidAuthnReq *proto.ApproveAccountRecoveryRequest
+		name           string
+		recoverType    types.UserTokenUsage
+		invalidReq     *proto.ApproveAccountRecoveryRequest
+		createValidReq func() *proto.ApproveAccountRecoveryRequest
 	}{
 		{
-			name:        "authenticate with valid and invalid totp code",
+			name:        "authenticate with invalid/valid totp code",
 			recoverType: types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
-			invalidAuthnReq: &proto.ApproveAccountRecoveryRequest{
+			invalidReq: &proto.ApproveAccountRecoveryRequest{
 				AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
 					Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: "invalid-totp-code"}},
 				}},
 			},
-			getRequest: func() *proto.ApproveAccountRecoveryRequest {
+			createValidReq: func() *proto.ApproveAccountRecoveryRequest {
 				newTOTP, err := totp.GenerateCode(u.otpKey, srv.Clock().Now().Add(30*time.Second))
 				require.NoError(t, err)
 
@@ -355,14 +355,14 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 			},
 		},
 		{
-			name:        "authenticate with valid and invalid u2f response",
+			name:        "authenticate with invalid/valid u2f response",
 			recoverType: types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
-			invalidAuthnReq: &proto.ApproveAccountRecoveryRequest{
+			invalidReq: &proto.ApproveAccountRecoveryRequest{
 				AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
 					Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{ /* invalid u2f response */ }},
 				}},
 			},
-			getRequest: func() *proto.ApproveAccountRecoveryRequest {
+			createValidReq: func() *proto.ApproveAccountRecoveryRequest {
 				chal, err := srv.Auth().GetMFAAuthenticateChallenge(u.username, u.password)
 				require.NoError(t, err)
 
@@ -386,12 +386,12 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 			},
 		},
 		{
-			name:        "authenticate with valid and invalid password",
+			name:        "authenticate with invalid/valid password",
 			recoverType: types.UserTokenUsage_USER_TOKEN_RECOVER_MFA,
-			invalidAuthnReq: &proto.ApproveAccountRecoveryRequest{
+			invalidReq: &proto.ApproveAccountRecoveryRequest{
 				AuthnCred: &proto.ApproveAccountRecoveryRequest_Password{Password: []byte("invalid-password")},
 			},
-			getRequest: func() *proto.ApproveAccountRecoveryRequest {
+			createValidReq: func() *proto.ApproveAccountRecoveryRequest {
 				return &proto.ApproveAccountRecoveryRequest{
 					AuthnCred: &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
 				}
@@ -406,9 +406,9 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 			require.NoError(t, err)
 
 			// Try a failed attempt, to test it gets cleared later.
-			c.invalidAuthnReq.Username = u.username
-			c.invalidAuthnReq.RecoveryStartTokenID = startToken.GetName()
-			_, err = srv.Auth().ApproveAccountRecovery(ctx, c.invalidAuthnReq)
+			c.invalidReq.Username = u.username
+			c.invalidReq.RecoveryStartTokenID = startToken.GetName()
+			_, err = srv.Auth().ApproveAccountRecovery(ctx, c.invalidReq)
 			require.True(t, trace.IsAccessDenied(err))
 			require.Equal(t, approveRecoveryBadAuthnErrMsg, err.Error())
 
@@ -417,7 +417,7 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 			require.Len(t, attempts, 1)
 
 			// Get request with authn.
-			req := c.getRequest()
+			req := c.createValidReq()
 			req.Username = u.username
 			req.RecoveryStartTokenID = startToken.GetName()
 
@@ -570,7 +570,7 @@ func createUserWithSecondFactorAndRecoveryCodes(srv *TestTLSServer) (*userAuthCr
 		return nil, trace.Wrap(err)
 	}
 
-	// Insert a password, totp device, and recovery codes.
+	// Insert a password, u2f device, and recovery codes.
 	u2fRegResp, u2fKey, err := getMockedU2FAndRegisterRes(srv, resetToken.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
