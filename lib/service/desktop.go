@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"crypto/tls"
 	"net"
 	"net/http"
 	"strconv"
@@ -26,6 +27,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -145,6 +148,26 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	// Populate the correct CAs for the incoming client connection.
+	tlsConfig.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+		var clusterName string
+		var err error
+		if info.ServerName != "" {
+			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
+			if err != nil && !trace.IsNotFound(err) {
+				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
+			}
+		}
+		pool, err := auth.ClientCertPool(accessPoint, clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsCopy := tlsConfig.Clone()
+		tlsCopy.ClientCAs = pool
+		return tlsCopy, nil
+	}
+
 	connLimiter, err := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter)
 	if err != nil {
 		return trace.Wrap(err)

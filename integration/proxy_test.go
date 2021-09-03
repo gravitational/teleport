@@ -447,3 +447,51 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 }
+
+// TestALPNProxyRootLeafAuthDial tests dialing local/remote auth service based on ALPN
+// teleport-auth protocol and ServerName as encoded cluster name.
+func TestALPNProxyRootLeafAuthDial(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	username := mustGetCurrentUser(t).Username
+
+	suite := newProxySuite(t,
+		withRootClusterConfig(rootClusterStandardConfig(t)),
+		withLeafClusterConfig(leafClusterStandardConfig(t)),
+		withRootClusterPorts(singleProxyPortSetup()),
+		withLeafClusterPorts(singleProxyPortSetup()),
+		withRootClusterRoles(newRole(t, "rootdevs", username)),
+		withLeafClusterRoles(newRole(t, "leafdevs", username)),
+		withRootAndLeafTrustedClusterReset(),
+		withTrustedCluster(),
+	)
+
+	client, err := suite.root.NewClient(t, ClientConfig{
+		Login:   username,
+		Cluster: suite.root.Hostname,
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	proxyClient, err := client.ConnectToProxy(context.Background())
+	require.NoError(t, err)
+
+	// Dial root auth service.
+	rootAuthClient, err := proxyClient.ConnectToAuthServiceThroughALPNSNIProxy(ctx, "root.example.com")
+	require.NoError(t, err)
+	pr, err := rootAuthClient.Ping(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "root.example.com", pr.ClusterName)
+	err = rootAuthClient.Close()
+	require.NoError(t, err)
+
+	// Dial leaf auth service.
+	leafAuthClient, err := proxyClient.ConnectToAuthServiceThroughALPNSNIProxy(ctx, "leaf.example.com")
+	require.NoError(t, err)
+	pr, err = leafAuthClient.Ping(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "leaf.example.com", pr.ClusterName)
+	err = leafAuthClient.Close()
+	require.NoError(t, err)
+}

@@ -203,7 +203,7 @@ API which provides access to information about nodes and users in the cluster.
 ![User Granted Node Access](../../img/user_node_access.svg)
 
 The node requests the Auth Server to provide a list of [OS users (user
-mappings)](../admin-guide.mdx#adding-and-deleting-users) for the connecting client, to make sure the client is
+mappings)](../setup/admin/users.mdx) for the connecting client, to make sure the client is
 authorized to use the requested OS login.
 
 Finally, the client is authorized to create an SSH connection to a node.
@@ -220,9 +220,9 @@ users, while `tctl` is used for cluster administration.
 `tsh` is similar in nature to OpenSSH `ssh` or `scp`. It has
 subcommands named after them so you can call:
 
-```bash
-tsh --proxy=p ssh -p 1522 user@host
-tsh --proxy=p scp -P example.txt user@host/destination/dir
+```code
+$ tsh --proxy=p ssh -p 1522 user@host
+$ tsh --proxy=p scp -P example.txt user@host/destination/dir
 ```
 
 Unlike `ssh`, `tsh` is very opinionated about authentication: it always uses

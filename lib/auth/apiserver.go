@@ -236,9 +236,15 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
 
 	// U2F
+	// DELETE IN 9.x, superseded by /mfa/ endpoints (codingllama)
 	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
-	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
+	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.mfaLoginBegin))
 	srv.GET("/:version/u2f/appid", srv.withAuth(srv.getU2FAppID))
+
+	// Generic MFA and WebAuthn
+	srv.POST("/:version/mfa/users/:user/login/begin", srv.withAuth(srv.mfaLoginBegin))
+	// The last step of MFA login is performed by either /ssh/authenticate or
+	// /web/authenticate endpoints.
 
 	// Provisioning tokens- Moved to grpc
 	// DELETE IN 8.0
@@ -740,18 +746,18 @@ type signInReq struct {
 	Password string `json:"password"`
 }
 
-func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) mfaLoginBegin(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *signInReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	user := p.ByName("user")
 	pass := []byte(req.Password)
-	u2fSignReq, err := auth.GetMFAAuthenticateChallenge(user, pass)
+	challenge, err := auth.GetMFAAuthenticateChallenge(user, pass)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return u2fSignReq, nil
+	return challenge, nil
 }
 
 type WebSessionReq struct {
@@ -1149,19 +1155,40 @@ func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *htt
 	return localCA, nil
 }
 
+// DELETE IN 9.0.0: defined in grpcserver "ChangeUserAuthentication", kept for fallback.
 func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req ChangePasswordWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	webSession, err := auth.ChangePasswordWithToken(r.Context(), req)
+	protoReq := &proto.ChangeUserAuthenticationRequest{
+		TokenID:     req.TokenID,
+		NewPassword: req.Password,
+	}
+
+	if req.U2FRegisterResponse != nil {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+			U2F: &proto.U2FRegisterResponse{
+				RegistrationData: req.U2FRegisterResponse.RegistrationData,
+				ClientData:       req.U2FRegisterResponse.ClientData,
+			},
+		}}
+	}
+
+	if req.SecondFactorToken != "" {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
+		}}
+	}
+
+	res, err := auth.ChangeUserAuthentication(r.Context(), protoReq)
 	if err != nil {
 		log.Debugf("Failed to change user password with token: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.MarshalWebSession(webSession, services.WithVersion(version)))
+	return rawMessage(services.MarshalWebSession(res.WebSession, services.WithVersion(version)))
 }
 
 // getU2FAppID returns the U2F AppID in the auth configuration

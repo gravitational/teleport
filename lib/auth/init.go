@@ -30,6 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -132,7 +133,6 @@ type InitConfig struct {
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
-	//StaticTokens []services.ProvisionToken
 	StaticTokens types.StaticTokens
 
 	// AuthPreference defines the authentication type (local, oidc) and second
@@ -751,16 +751,26 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 			// check that signing CAs have expected cluster name and that
 			// all CAs for this cluster do having signing keys.
 			seemsLocal := r.GetClusterName() == clusterName
+
 			var hasKeys bool
-			_, err := keyStore.GetSSHSigner(r)
+			var signerErr error
+			switch r.GetType() {
+			case types.HostCA, types.UserCA:
+				_, signerErr = keyStore.GetSSHSigner(r)
+			case types.JWTSigner:
+				_, signerErr = keyStore.GetJWTSigner(r)
+			default:
+				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
+			}
 			switch {
-			case err == nil:
+			case signerErr == nil:
 				hasKeys = true
-			case trace.IsNotFound(err):
+			case trace.IsNotFound(signerErr):
 				hasKeys = false
 			default:
-				return trace.Wrap(err)
+				return trace.Wrap(signerErr)
 			}
+
 			if seemsLocal && !hasKeys {
 				return trace.BadParameter("ca for local cluster %q missing signing keys", clusterName)
 			}
@@ -915,7 +925,7 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ClientCAs = certPool
-	tlsConfig.ServerName = EncodeClusterName(i.ClusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(i.ClusterName)
 	return tlsConfig, nil
 }
 
