@@ -72,7 +72,7 @@ func pushPipelines() []pipeline {
 	}
 
 	// Only amd64 Windows is supported for now.
-	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64"}))
+	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
 
 	ps = append(ps, darwinPushPipeline())
 	return ps
