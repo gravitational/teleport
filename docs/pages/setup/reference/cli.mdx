@@ -149,6 +149,41 @@ information about the cluster.
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
 
+
+### tsh Environment Variables
+
+Environment variables are available to set default values for parameters.  Setting these environment values will populate the related parameter automatically.
+
+| Name | Description | Related CLI Parameter  |
+| - | - | - | 
+| `TELEPORT_AUTH` | Default Auth Connector name | `--auth` | 
+| `TELEPORT_CLUSTER` | Default Cluster name | n/a  | 
+| `TELEPORT_KUBE_CLUSTER` | Default Kubernetes cluster name to login into | n/a | 
+| `TELEPORT_LOGIN` | the Teleport User name | `-l --login` | 
+| `TELEPORT_LOGIN_BIND_ADDR` | Address in the form of host:port to bind to for login command webhook | `--bind-addr` | 
+| `TELEPORT_PROXY` | Teleport Proxy Address | `--proxy` | 
+| `TELEPORT_HOME` | Set home directory instead of default ~/.tsh | n/a | 
+| `TELEPORT_USER` | the Teleport User name | `--user` | 
+| `TELEPORT_ADD_KEYS_TO_AGENT` | Controls how keys are handled. Valid values are [auto no yes only]. | `-k, --add-keys-to-agent` | 
+   
+By setting the environment variables you can have parameters defaulted.
+
+For a `tsh` login you typically provide the proxy and username  `tsh login --proxy=teleport.example.com --user=jeffery`.
+
+```bash
+# place these in your startup file for your default shell (`~/.bashrc, ~/.zshrc, ~/.profile`)
+export TELEPORT_PROXY=teleport.example.com
+export TELEPORT_USER=jeffery
+```
+Now the parameters are automatically set.
+
+```bash
+tsh login
+Enter password for Teleport user jeffery:
+```
+
+
+
 ### tsh help
 
 Prints help:
