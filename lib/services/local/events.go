@@ -119,6 +119,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newKubeServiceParser()
 		case types.KindDatabaseServer:
 			parser = newDatabaseServerParser()
+		case types.KindDatabase:
+			parser = newDatabaseParser()
 		case types.KindLock:
 			parser = newLockParser()
 		case types.KindNetworkRestrictions:
@@ -981,6 +983,30 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 	case types.OpPut:
 		return services.UnmarshalDatabaseServer(
 			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newDatabaseParser() *databaseParser {
+	return &databaseParser{
+		baseParser: newBaseParser(backend.Key(databasesPrefix)),
+	}
+}
+
+type databaseParser struct {
+	baseParser
+}
+
+func (p *databaseParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindDatabase, types.V3, 0)
+	case types.OpPut:
+		return services.UnmarshalDatabase(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

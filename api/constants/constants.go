@@ -120,6 +120,9 @@ const (
 	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
 	// required for all users.
 	SecondFactorU2F = SecondFactorType("u2f")
+	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA is
+	// required for all users.
+	SecondFactorWebauthn = SecondFactorType("webauthn")
 	// SecondFactorOn means that all 2FA protocols are supported and 2FA is
 	// required for all users.
 	SecondFactorOn = SecondFactorType("on")

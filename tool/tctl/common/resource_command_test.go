@@ -81,8 +81,7 @@ func TestDatabaseServerResource(t *testing.T) {
 		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
 		require.NoError(t, err)
 		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 1)
-		require.Len(t, out[0].GetDatabases(), 2)
+		require.Len(t, out, 2)
 	})
 
 	server := fmt.Sprintf("%v/%v", types.KindDatabaseServer, out[0].GetName())
@@ -92,7 +91,6 @@ func TestDatabaseServerResource(t *testing.T) {
 		require.NoError(t, err)
 		mustDecodeJSON(t, buff, &out)
 		require.Len(t, out, 1)
-		require.Len(t, out[0].GetDatabases(), 2)
 	})
 
 	t.Run("remove database server", func(t *testing.T) {
@@ -139,7 +137,8 @@ func TestDatabaseResource(t *testing.T) {
 	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
 
 	dbA, err := types.NewDatabaseV3(types.Metadata{
-		Name: "dbA",
+		Name:   "dbA",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
@@ -147,7 +146,8 @@ func TestDatabaseResource(t *testing.T) {
 	require.NoError(t, err)
 
 	dbB, err := types.NewDatabaseV3(types.Metadata{
-		Name: "dbB",
+		Name:   "dbB",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
 		URI:      "localhost:3306",

@@ -980,6 +980,7 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 
 // GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
 func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
+	// TODO(codingllama): Post to /mfa/users/*/login/begin instead.
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
@@ -989,11 +990,11 @@ func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var signRequest *MFAAuthenticateChallenge
-	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
+	var challenge *MFAAuthenticateChallenge
+	if err := json.Unmarshal(out.Bytes(), &challenge); err != nil {
 		return nil, err
 	}
-	return signRequest, nil
+	return challenge, nil
 }
 
 // ExtendWebSession creates a new web session for a user based on another
@@ -1120,15 +1121,6 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallen
 		return nil, err
 	}
 	return &u2fRegReq, nil
-}
-
-// ChangePasswordWithToken changes user password with ResetPasswordToken
-func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // CreateOIDCAuthRequest creates OIDCAuthRequest
@@ -1871,8 +1863,9 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
-	// ChangePasswordWithToken changes password with token
-	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error)
+	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
+	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
+	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
 
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
@@ -1886,6 +1879,11 @@ type IdentityService interface {
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
+
+	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
+	// This token is used as part of a URL that will be emailed to the user (not done in this request).
+	// Represents step 1 of the account recovery process.
+	StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error)
 }
 
 // ProvisioningService is a service in control

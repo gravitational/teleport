@@ -14,11 +14,11 @@ This section will cover:
 - Teleport v(=teleport.version=) Open Source or Enterprise.
 - Docker v(=docker.version=) or later and [`docker-compose`](https://docs.docker.com/compose/install/) v(=docker.compose.version=) or later.
 
-```bash
-docker-compose version
+```code
+$ docker-compose version
 # docker-compose version (=docker.compose.version=), build unknown
 
-docker version
+$ docker version
 #Client: Docker Engine - Community
 # Version:           (=docker.version=)
 ```
@@ -27,18 +27,18 @@ docker version
 
 Let's use `docker-compose` to start Teleport demo lab - a configured local cluster:
 
-```bash
+```code
 # Download the quick start file from our Github repo
-curl -Lso teleport-lab.yml https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/docker/teleport-lab.yml
+$ curl -Lso teleport-lab.yml https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/docker/teleport-lab.yml
 # Start teleport demo lab using docker-compose
-docker-compose -f teleport-lab.yml up -d
+$ docker-compose -f teleport-lab.yml up -d
 ```
 
 <Admonition type="note" title="Note">
 You can later stop the Teleport lab using:
 
-```bash
-docker-compose -f teleport-lab.yml down
+```code
+$ docker-compose -f teleport-lab.yml down
 ```
 </Admonition>
 
@@ -46,8 +46,8 @@ docker-compose -f teleport-lab.yml down
 
 Let's jump into container with setup clients and explore Teleport:
 
-```bash
-docker exec -ti term /bin/bash
+```code
+$ docker exec -ti term /bin/bash
 ```
 
 <Admonition type="note" title="Note">
@@ -59,36 +59,36 @@ Welcome to Teleport Lab. With Teleport you can access servers, databases and web
 Let's Try a couple of commands to get started.
 Teleport speaks SSH. You can SSH into it using OpenSSH:
 
-```bash
-ssh root@luna.teleport
+```code
+$ ssh root@luna.teleport
 ```
 
 Teleport is a bastion server for your OpenSSH hosts. SSH into OpenSSH server and record all commands:
 
-```bash
-ssh root@mars.openssh.teleport
+```code
+$ ssh root@mars.openssh.teleport
 ```
 
 You can also run ansible on Teleport nodes and OpenSSH servers:
 
-```bash
-cd /etc/teleport.d/ansible && ansible all -m ping
+```code
+$ cd /etc/teleport.d/ansible && ansible all -m ping
 ```
 
 Try Teleport's client command: `tsh`. It's like `ssh`, but with superpowers.
 Find all hosts matching label `env=example` and run `hostname` command:
 
-```bash
-tsh ssh root@env=example hostname
+```code
+$ tsh ssh root@env=example hostname
 ```
 
 You can see Teleport's nodes registered in the cluster using `tsh ls` command:
 
-```bash
-tsh ls
-#Node Name     Address        Labels                     
-#------------- -------------- -------------------------- 
-#luna.teleport 127.0.0.1:3022 env=example, hostname=luna 
+```code
+$ tsh ls
+# Node Name     Address        Labels                     
+# ------------- -------------- -------------------------- 
+# luna.teleport 127.0.0.1:3022 env=example, hostname=luna 
 ```
 
 ## Step 3/3. Explore web UI
@@ -99,13 +99,13 @@ This example command will create a Teleport user called `testuser` which is allo
 
 From terminal:
 
-```bash
-tctl users add testuser --roles=editor,access --logins=root,ubuntu,ec2-user
+```code
+$ tctl users add testuser --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
 
 Teleport will output a URL that you must open to complete the user sign-up process:
 
-```bash
+```code
 User testuser has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s:
 https://localhost:443/web/invite/your-token-here
 NOTE: Make sure localhost:443 points at a Teleport proxy which users can access.
@@ -169,7 +169,7 @@ Teleport's user and role for used for bot access:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: bot
 spec:
@@ -196,7 +196,7 @@ spec:
 
 Our lab uses admin tool `tctl` to generate and export certs:
 
-```bash
+```code
 # Exports user CA for OpenSSH to trust.
 tctl auth export --type=user | sed s/cert-authority\ // > ./teleport.pub
 
