@@ -614,6 +614,115 @@ func TestApproveAccountRecovery_WithErrors(t *testing.T) {
 	}
 }
 
+func TestCompleteAccountRecovery(t *testing.T) {
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testWithCloudModules{})
+
+	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+	require.NoError(t, err)
+
+	// Test new password with lock that should not affect changing authn.
+	triggerLoginLock(t, srv.Auth(), u.username)
+
+	// Acquire an approved token for recovering password.
+	approvedToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+	require.NoError(t, err)
+
+	err = srv.Auth().CompleteAccountRecovery(ctx, &proto.CompleteAccountRecoveryRequest{
+		RecoveryApprovedTokenID: approvedToken.GetName(),
+		NewAuthnCred:            &proto.CompleteAccountRecoveryRequest_NewPassword{NewPassword: []byte("llamas-are-cool")},
+	})
+	require.NoError(t, err)
+
+	// Test locks are removed.
+	user, err := srv.Auth().GetUser(u.username, false)
+	require.NoError(t, err)
+	require.False(t, user.GetStatus().IsLocked)
+	require.True(t, user.GetStatus().RecoveryAttemptLockExpires.IsZero())
+	require.True(t, user.GetStatus().LockExpires.IsZero())
+
+	// Test login attempts are removed.
+	attempts, err := srv.Auth().GetUserLoginAttempts(u.username)
+	require.NoError(t, err)
+	require.Len(t, attempts, 0)
+
+	// Test adding MFA devices.
+	approvedToken, err = srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
+	require.NoError(t, err)
+
+	cases := []struct {
+		name       string
+		getRequest func() *proto.CompleteAccountRecoveryRequest
+	}{
+		{
+			name: "add new TOTP device",
+			getRequest: func() *proto.CompleteAccountRecoveryRequest {
+				secrets, err := srv.Auth().RotateUserTokenSecrets(context.TODO(), approvedToken.GetName())
+				require.NoError(t, err)
+
+				otpCode, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
+				require.NoError(t, err)
+
+				return &proto.CompleteAccountRecoveryRequest{
+					NewDeviceName:           "new-otp",
+					RecoveryApprovedTokenID: approvedToken.GetName(),
+					NewAuthnCred: &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_TOTP{TOTP: &proto.TOTPRegisterResponse{Code: otpCode}},
+					}},
+				}
+			},
+		},
+		{
+			name: "add new U2F device",
+			getRequest: func() *proto.CompleteAccountRecoveryRequest {
+				u2fRegResp, _, err := getMockedU2FAndRegisterRes(srv, approvedToken.GetName())
+				require.NoError(t, err)
+
+				return &proto.CompleteAccountRecoveryRequest{
+					NewDeviceName:           "new-u2f",
+					RecoveryApprovedTokenID: approvedToken.GetName(),
+					NewAuthnCred: &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_U2F{U2F: u2fRegResp},
+					}},
+				}
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Get proto request.
+			req := c.getRequest()
+
+			// Change authentication.
+			err = srv.Auth().CompleteAccountRecovery(ctx, c.getRequest())
+			require.NoError(t, err)
+
+			// Test events emitted.
+			event := mockEmitter.LastEvent()
+			require.Equal(t, event.GetType(), events.MFADeviceAddEvent)
+			require.Equal(t, event.GetCode(), events.MFADeviceAddEventCode)
+			require.Equal(t, event.(*apievents.MFADeviceAdd).UserMetadata.User, u.username)
+
+			// Test new device has been added.
+			mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username, false)
+			require.NoError(t, err)
+
+			deviceNames := make([]string, 0, len(mfas))
+			for _, mfa := range mfas {
+				deviceNames = append(deviceNames, mfa.GetName())
+			}
+			require.Contains(t, deviceNames, req.NewDeviceName)
+		})
+	}
+}
+
 func triggerLoginLock(t *testing.T, srv *Server, username string) {
 	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
 		_, err := srv.authenticateUser(context.Background(), AuthenticateUserRequest{

@@ -1169,6 +1169,88 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 	}, nil
 }
 
+// verifyMFARespAndAddDeviceWithToken validates MFA register response and on success,
+// adds the new MFA device. This method is specifically for secrets and storage keys associated with a user token.
+func (a *Server) verifyMFARespAndAddDeviceWithToken(ctx context.Context, regResp *proto.MFARegisterResponse, token types.UserToken, deviceName string) error {
+	cap, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Validate MFARegisterResponse and upsert the new device on success.
+	var dev *types.MFADevice
+	switch resp := regResp.GetResponse().(type) {
+	case *proto.MFARegisterResponse_TOTP:
+		if cap.GetSecondFactor() == constants.SecondFactorU2F {
+			return trace.BadParameter("cluster only allows U2F for second factor")
+		}
+
+		secrets, err := a.Identity.GetUserTokenSecrets(ctx, token.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		dev, err = services.NewTOTPDevice(deviceName, secrets.GetOTPKey(), a.clock.Now())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := a.checkTOTP(ctx, token.GetUser(), resp.TOTP.Code, dev); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := a.UpsertMFADevice(ctx, token.GetUser(), dev); err != nil {
+			return trace.Wrap(err)
+		}
+
+	case *proto.MFARegisterResponse_U2F:
+		if cap.GetSecondFactor() == constants.SecondFactorOTP {
+			return trace.BadParameter("cluster only allows OTP for second factor")
+		}
+
+		u2fConfig, err := cap.GetU2F()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// u2f.RegisterVerify will upsert the new device internally.
+		dev, err = u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
+			DevName: deviceName,
+			Resp: u2f.RegisterChallengeResponse{
+				RegistrationData: resp.U2F.RegistrationData,
+				ClientData:       resp.U2F.ClientData,
+			},
+			ChallengeStorageKey:    token.GetName(),
+			RegistrationStorageKey: token.GetUser(),
+			Storage:                a.Identity,
+			Clock:                  a.GetClock(),
+			AttestationCAs:         u2fConfig.DeviceAttestationCAs,
+		})
+
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+	default:
+		return trace.BadParameter("MFARegisterResponse sent an unknown response type %v", regResp.Response)
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceAdd{
+		Metadata: apievents.Metadata{
+			Type: events.MFADeviceAddEvent,
+			Code: events.MFADeviceAddEventCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: token.GetUser(),
+		},
+		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit add mfa device event.")
+	}
+
+	return nil
+}
+
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
 	// before trying to register a user, see U2F is actually setup on the backend
 	cap, err := a.GetAuthPreference(ctx)
