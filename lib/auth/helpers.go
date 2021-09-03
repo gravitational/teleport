@@ -378,18 +378,18 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	return certs.ssh, nil
 }
 
-func keypairToPublicKeys(privateKey, publicKey []byte) (tlsPublicKey, sshPublicKey []byte, err error) {
+func privateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error) {
 	sshPrivate, err := ssh.ParseRawPrivateKey(privateKey)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	tlsPublicKey, err = tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivate)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return tlsPublicKey, publicKey, nil
+	return tlsPublicKey, nil
 }
 
 // generateCertificate generates certificate for identity,
@@ -400,7 +400,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		return nil, nil, trace.Wrap(err)
 	}
 
-	tlsPublicKey, sshPublicKey, err := keypairToPublicKeys(priv, pub)
+	tlsPublicKey, err := privateKeyToPublicKeyTLS(priv)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -437,7 +437,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			NodeName:     id.Username,
 			Roles:        types.SystemRoles{id.Role},
 			PublicTLSKey: tlsPublicKey,
-			PublicSSHKey: sshPublicKey,
+			PublicSSHKey: pub,
 		})
 		keys.Key = priv
 		if err != nil {
@@ -450,7 +450,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			NodeName:     id.Username,
 			Roles:        types.SystemRoles{id.Role},
 			PublicTLSKey: tlsPublicKey,
-			PublicSSHKey: sshPublicKey,
+			PublicSSHKey: pub,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -867,12 +867,12 @@ func (t *TestTLSServer) Stop() error {
 
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Identity, error) {
-	private, public, err := clt.GenerateKeyPair("")
+	priv, pub, err := clt.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	publicTLS, publicSSH, err := keypairToPublicKeys(private, public)
+	publicTLS, err := privateKeyToPublicKeyTLS(priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -882,12 +882,12 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 		NodeName:     hostID,
 		Roles:        types.SystemRoles{types.RoleAuth},
 		PublicTLSKey: publicTLS,
-		PublicSSHKey: publicSSH,
+		PublicSSHKey: pub,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = private
+	keys.Key = priv
 	return ReadIdentityFromKeyPair(keys)
 }
 

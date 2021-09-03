@@ -1508,8 +1508,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 			remoteHost)
 	}
 
-	_, _, _, _, err = ssh.ParseAuthorizedKey(req.PublicSSHKey)
-	if err != nil {
+	if _, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicSSHKey); err != nil {
 		return nil, trace.BadParameter("failed to parse SSH public key")
 	}
 	cryptoPubKey, err := tlsca.ParsePublicKeyPEM(req.PublicTLSKey)
@@ -1544,8 +1543,10 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 			return nil, trace.BadParameter("failed to load host CA for %q: %v", clusterName.GetClusterName(), err)
 		}
 		if !req.Rotation.Matches(ca.GetRotation()) {
-			return nil, trace.BadParameter("the client expected state is out of sync, server rotation state: %v, "+
-				"client rotation state: %v, re-register the client from scratch to fix the issue.", ca.GetRotation(), req.Rotation)
+			return nil, trace.BadParameter(""+
+				"the client expected state is out of sync, server rotation state: %v, "+
+				"client rotation state: %v, re-register the client from scratch to fix the issue.",
+				ca.GetRotation(), req.Rotation)
 		}
 	}
 

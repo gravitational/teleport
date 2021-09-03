@@ -572,7 +572,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	priv, pub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	tlsPublicKey, sshPublicKey, err := keypairToPublicKeys(priv, pub)
+	tlsPublicKey, err := privateKeyToPublicKeyTLS(priv)
 	c.Assert(err, IsNil)
 
 	// unsuccessful registration (wrong role)
@@ -582,7 +582,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		NodeName:     "bad-node-name",
 		Role:         types.RoleProxy,
 		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: sshPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(keys, IsNil)
 	c.Assert(err, NotNil)
@@ -616,7 +616,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		Role:                 types.RoleProxy,
 		AdditionalPrincipals: []string{"example.com"},
 		PublicTLSKey:         tlsPublicKey,
-		PublicSSHKey:         sshPublicKey,
+		PublicSSHKey:         pub,
 	})
 	c.Assert(err, IsNil)
 
@@ -632,7 +632,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		NodeName:     "node-name",
 		Role:         types.RoleProxy,
 		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: sshPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, IsNil)
 
@@ -644,7 +644,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		NodeName:     "node-name",
 		Role:         types.RoleProxy,
 		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: sshPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, ErrorMatches, `"node-name" \[late.bird\] can not join the cluster with role Proxy, the token is not valid`)
 
@@ -670,7 +670,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		NodeName:     "node-name",
 		Role:         types.RoleProxy,
 		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: sshPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
@@ -679,7 +679,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		NodeName:     "node-name",
 		Role:         types.RoleAuth,
 		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: sshPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, NotNil)
 	r, _, err := s.a.ValidateToken("static-token-value")
