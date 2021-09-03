@@ -266,9 +266,9 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		"no matching keys found when checking server's host signature")
 }
 
-// getReverserTunnelDetails pings the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
+// getReverseTunnelDetails pings the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
 // If this is Web Service port check if proxy support ALPN SNI Listener.
-func (a *Agent) getReverserTunnelDetails() *reverseTunnelDetails {
+func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
 	pd := reverseTunnelDetails{ALPNSNIListenerEnabled: false}
 	resp, err := webclient.Find(a.ctx, a.Addr.Addr, lib.IsInsecureDevMode(), nil)
 	if err != nil {
@@ -282,7 +282,7 @@ func (a *Agent) getReverserTunnelDetails() *reverseTunnelDetails {
 
 func (a *Agent) connect() (conn *ssh.Client, err error) {
 	if a.reverseTunnelDetails == nil {
-		a.reverseTunnelDetails = a.getReverserTunnelDetails()
+		a.reverseTunnelDetails = a.getReverseTunnelDetails()
 	}
 
 	var opts []proxy.DialerOptionFunc
