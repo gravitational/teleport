@@ -71,7 +71,7 @@ func TestProxyWatcher(t *testing.T) {
 	select {
 	case <-w.ResetC:
 	case <-time.After(time.Second):
-		t.Fatalf("Timeout waiting for ProxyWatcher reset.")
+		t.Fatal("Timeout waiting for ProxyWatcher reset.")
 	}
 
 	// Add a proxy server.
@@ -264,10 +264,16 @@ func TestLockWatcherStale(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
+	select {
+	case <-w.LoopC:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Timeout waiting for LockWatcher loop.")
+	}
 
 	// Subscribe to lock watcher updates.
 	target := types.LockTarget{Node: "node"}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 	sub, err := w.Subscribe(ctx, target)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sub.Close()) })
@@ -284,6 +290,7 @@ func TestLockWatcherStale(t *testing.T) {
 	case <-time.After(2 * time.Second):
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 
 	// Advance the clock to exceed LockMaxStaleness.
 	clock.Advance(defaults.LockMaxStaleness + time.Second)
@@ -292,7 +299,7 @@ func TestLockWatcherStale(t *testing.T) {
 		require.Equal(t, types.OpUnreliable, event.Type)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for OpUnreliable.")
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
@@ -324,7 +331,7 @@ ExpectPut:
 			break ExpectPut
 		case <-sub.Done():
 			t.Fatal("Lock watcher subscription has unexpectedly exited.")
-		case <-time.After(2 * time.Second):
+		case <-time.After(15 * time.Second):
 			t.Fatal("Timeout waiting for OpPut.")
 		}
 	}
@@ -353,10 +360,13 @@ func (e *withUnreliability) NewWatcher(ctx context.Context, watch types.Watch) (
 	return e.Events.NewWatcher(ctx, watch)
 }
 
-func expectLockInForce(t *testing.T, expectedLock types.Lock, lockErr error) {
-	require.Error(t, lockErr)
+func expectLockInForce(t *testing.T, expectedLock types.Lock, err error) {
+	require.Error(t, err)
+	errLock := err.(trace.Error).GetFields()["lock-in-force"]
 	if expectedLock != nil {
-		require.Empty(t, resourceDiff(expectedLock, lockErr.(trace.Error).GetFields()["lock-in-force"].(types.Lock)))
+		require.Empty(t, resourceDiff(expectedLock, errLock.(types.Lock)))
+	} else {
+		require.Nil(t, errLock)
 	}
 }
 

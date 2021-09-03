@@ -1005,6 +1005,7 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 
 // GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
 func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
+	// TODO(codingllama): Post to /mfa/users/*/login/begin instead.
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
@@ -1014,11 +1015,11 @@ func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var signRequest *MFAAuthenticateChallenge
-	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
+	var challenge *MFAAuthenticateChallenge
+	if err := json.Unmarshal(out.Bytes(), &challenge); err != nil {
 		return nil, err
 	}
-	return signRequest, nil
+	return challenge, nil
 }
 
 // ExtendWebSession creates a new web session for a user based on another

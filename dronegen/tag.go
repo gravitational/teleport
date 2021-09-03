@@ -61,11 +61,24 @@ func tagBuildCommands(b buildType) []string {
 		)
 	}
 
+	// For Windows builds, configure code signing.
+	if b.os == "windows" {
+		commands = append(commands,
+			`echo -n "$WINDOWS_SIGNING_CERT" | base64 -d > windows-signing-cert.pfx`,
+		)
+	}
+
 	commands = append(commands,
 		fmt.Sprintf(
 			`make -C build.assets %s`, releaseMakefileTarget(b),
 		),
 	)
+
+	if b.os == "windows" {
+		commands = append(commands,
+			`rm -f windows-signing-cert.pfx`,
+		)
+	}
 
 	return commands
 }
@@ -199,6 +212,10 @@ func tagPipeline(b buildType) pipeline {
 	if b.fips {
 		pipelineName += "-fips"
 		tagEnvironment["FIPS"] = value{raw: "yes"}
+	}
+
+	if b.os == "windows" {
+		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{fromSecret: "WINDOWS_SIGNING_CERT"}
 	}
 
 	p := newKubePipeline(pipelineName)
