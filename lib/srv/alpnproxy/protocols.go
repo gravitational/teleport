@@ -16,6 +16,8 @@ limitations under the License.
 
 package alpnproxy
 
+import "golang.org/x/crypto/acme"
+
 // Protocol is the TLS ALPN protocol type.
 type Protocol string
 
@@ -43,4 +45,28 @@ const (
 
 	// ProtocolDefault is default TLS ALPN value.
 	ProtocolDefault Protocol = ""
+
+	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
+	ProtocolAuth Protocol = "teleport-auth@"
 )
+
+var supportedProtocols = []Protocol{
+	acme.ALPNProto,
+	ProtocolPostgres,
+	ProtocolMySQL,
+	ProtocolMongoDB,
+	ProtocolProxySSH,
+	ProtocolReverseTunnel,
+	ProtocolHTTP,
+	ProtocolHTTP2,
+	ProtocolDefault,
+	ProtocolAuth,
+}
+
+func convProtocolsToString(protocols []Protocol) []string {
+	out := make([]string, 0, len(protocols))
+	for _, v := range protocols {
+		out = append(out, string(v))
+	}
+	return out
+}

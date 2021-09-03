@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/regular"
@@ -2981,18 +2982,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		if alpnRouter != nil && !cfg.Proxy.DisableDatabaseProxy {
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				Protocols: []alpnproxy.Protocol{alpnproxy.ProtocolMySQL},
+				MatchFunc: alpnproxy.MatchByProtocol(alpnproxy.ProtocolMySQL),
 				Handler:   dbProxyServer.MySQLProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				Protocols: []alpnproxy.Protocol{alpnproxy.ProtocolPostgres},
+				MatchFunc: alpnproxy.MatchByProtocol(alpnproxy.ProtocolPostgres),
 				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
 				// Add MongoDB teleport ALPN protocol without setting custom Handler.
 				// ALPN Proxy will handle MongoDB connection internally (terminate wrapped TLS traffic) and route
 				// extracted connection to ALPN Proxy DB TLS Handler.
-				Protocols: []alpnproxy.Protocol{alpnproxy.ProtocolMongoDB},
+				MatchFunc: alpnproxy.MatchByProtocol(alpnproxy.ProtocolMongoDB),
 			})
 		}
 
@@ -3028,6 +3029,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
+		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, accessPoint)
+		alpnRouter.Add(alpnproxy.HandlerDecs{
+			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpnproxy.ProtocolAuth)),
+			HandlerWithConnInfo: authDialerService.HandleConnection,
+			ForwardTLS:          true,
+		})
 		alpnServer, err = alpnproxy.New(alpnproxy.ProxyConfig{
 			TLSConfig: tlsConfigWeb.Clone(),
 			Router:    alpnRouter,
@@ -3202,7 +3209,7 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 	if !cfg.Proxy.DisableReverseTunnel {
 		reverseTunnel := alpnproxy.NewMuxListenerWrapper(listeners.reverseTunnel, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
-			Protocols: []alpnproxy.Protocol{alpnproxy.ProtocolReverseTunnel},
+			MatchFunc: alpnproxy.MatchByProtocol(alpnproxy.ProtocolReverseTunnel),
 			Handler:   reverseTunnel.HandleConnection,
 		})
 		listeners.reverseTunnel = reverseTunnel
@@ -3211,7 +3218,12 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 	if !cfg.Proxy.DisableWebService {
 		webWrapper := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
-			Protocols:  []alpnproxy.Protocol{alpnproxy.ProtocolHTTP, alpnproxy.ProtocolHTTP2, alpnproxy.ProtocolDefault, acme.ALPNProto},
+			MatchFunc: alpnproxy.MatchByProtocol(
+				alpnproxy.ProtocolHTTP,
+				alpnproxy.ProtocolHTTP2,
+				alpnproxy.ProtocolDefault,
+				acme.ALPNProto,
+			),
 			Handler:    webWrapper.HandleConnection,
 			ForwardTLS: false,
 		})
@@ -3219,7 +3231,7 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 	}
 	sshProxyListener := alpnproxy.NewMuxListenerWrapper(listeners.ssh, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
-		Protocols: []alpnproxy.Protocol{alpnproxy.ProtocolProxySSH},
+		MatchFunc: alpnproxy.MatchByProtocol(alpnproxy.ProtocolProxySSH),
 		Handler:   sshProxyListener.HandleConnection,
 	})
 	listeners.ssh = sshProxyListener
