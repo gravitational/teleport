@@ -15,60 +15,61 @@ import { EventEmitter } from 'events';
 import Codec, { MessageType } from './codec';
 import Logger from 'shared/libs/logger';
 
-const logger = Logger.create('TDPClient');
-
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
-// sending client commands, and recieving and processing server messages. In the case of recieving a
-// png frame from the server, it will draw the frame to the supplied canvas.
-// TODO: clipboard syncronization.
+// sending client commands, and recieving and processing server messages.
 export default class Client extends EventEmitter {
-  socketAddr: string;
   codec: Codec;
   socket: WebSocket;
+  socketAddr: string;
+  username: string;
+  logger = Logger.create('TDPClient');
 
-  constructor(socketAddr: string) {
+  constructor(socketAddr: string, username: string) {
     super();
     this.socketAddr = socketAddr;
+    this.username = username;
     this.codec = new Codec();
   }
 
   // Create the websocket and register event handlers.
-  // Passes the username and the screens initial width and height of the screen,
-  // and sends that data to the TDP server as required by the protocol.`
-  connect(username: string, width: number, height: number) {
+  connect() {
     try {
       this.socket = new WebSocket(this.socketAddr);
 
       this.socket.onopen = () => {
-        logger.info('websocket is open');
-        logger.info(`opening tdp connection with username ${username}`);
-        this.socket.send(this.codec.encodeUsername(username));
-        logger.info(
-          `sending initial screen size of width = ${width}, height = ${height}`
-        );
-        this.resize(width, height);
+        this.logger.info('websocket is open');
+        this.emit('open');
       };
       this.socket.onmessage = (ev: MessageEvent) => {
-        this.onMessage(ev);
-      };
-      this.socket.onclose = () => {
-        this.emit('close');
-        logger.info('websocket is closed');
+        this.processMessage(ev.data);
       };
       this.socket.onerror = () => {
         this.handleError(new Error('websocket internal error'));
+      };
+      this.socket.onclose = () => {
+        this.logger.info('websocket is closed');
+
+        // Clean up all of our socket's listeners and the socket itself.
+        this.socket.onopen = null;
+        this.socket.onmessage = null;
+        this.socket.onerror = null;
+        this.socket.onclose = null;
+        this.socket = null;
+
+        // Emit close event so Client's owner knows to remove all the listeners belonging to Client itself.
+        this.emit('close');
       };
     } catch (err) {
       this.handleError(err);
     }
   }
 
-  onMessage(ev: MessageEvent) {
+  processMessage(blob: Blob) {
     this.codec
-      .decodeMessageType(ev.data)
+      .decodeMessageType(blob)
       .then(messageType => {
         if (messageType === MessageType.PNG_FRAME) {
-          this.processFrame(ev.data);
+          this.processFrame(blob);
         } else {
           this.handleError(
             new Error(`recieved unsupported message type ${messageType}`)
@@ -94,12 +95,16 @@ export default class Client extends EventEmitter {
       });
   }
 
+  sendUsername() {
+    this.socket.send(this.codec.encodeUsername(this.username));
+  }
+
   resize(w: number, h: number) {
     this.socket.send(this.codec.encodeScreenSpec(w, h));
   }
 
   handleError(err: Error) {
     this.emit('error', err);
-    logger.error(err);
+    this.logger.error(err);
   }
 }

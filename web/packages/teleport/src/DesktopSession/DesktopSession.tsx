@@ -24,7 +24,7 @@ export default function Container() {
 }
 
 export function DesktopSession(props: State) {
-  const { setAttempt, tdpClient, tdpClientInitialized, username } = props;
+  const { setAttempt, tdpClient } = props;
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   // Waits for the state hook to initialize the TdpClient.
@@ -33,40 +33,41 @@ export function DesktopSession(props: State) {
   React.useEffect(() => {
     setAttempt({ status: 'processing' });
 
-    if (tdpClientInitialized) {
-      const ctx = canvasRef.current.getContext('2d');
+    tdpClient.on('open', () => {
       syncCanvasSizeToClientSize(canvasRef.current);
+      tdpClient.sendUsername();
+      tdpClient.resize(canvasRef.current.width, canvasRef.current.height);
+      setAttempt({ status: 'success' });
+    });
 
-      tdpClient.on('close', () => {
-        setAttempt({
-          status: 'failed',
-          statusText: 'connection to remote server was closed',
-        });
+    // If the websocket is closed remove all listeners that depend on it.
+    tdpClient.on('close', () => {
+      setAttempt({
+        status: 'failed',
+        statusText: 'connection to remote server was closed',
       });
+      tdpClient.removeAllListeners();
+    });
 
-      tdpClient.on('error', (err: Error) => {
-        setAttempt({
-          status: 'failed',
-          statusText: err.message,
-        });
+    tdpClient.on('error', (err: Error) => {
+      setAttempt({
+        status: 'failed',
+        statusText: err.message,
       });
+    });
 
-      tdpClient.on('render', ({ bitmap, left, top }) => {
-        ctx.drawImage(bitmap, left, top);
-      });
+    tdpClient.on('render', ({ bitmap, left, top }) => {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx.drawImage(bitmap, left, top);
+    });
 
-      try {
-        tdpClient.connect(
-          username,
-          canvasRef.current.width,
-          canvasRef.current.height
-        );
-        setAttempt({ status: 'success' });
-      } catch (err) {
-        setAttempt({ status: 'failed', statusText: err });
-      }
-    }
-  }, [tdpClientInitialized]);
+    tdpClient.connect();
+
+    // If client parameters change or component will unmount, close the websocket.
+    return () => {
+      tdpClient.socket.close();
+    };
+  }, [tdpClient]);
 
   // Canvas has two size attributes: the dimension of the pixels in the canvas (canvas.width)
   // and the display size of the html element (canvas.clientWidth). syncCanvasSizeToClientSize

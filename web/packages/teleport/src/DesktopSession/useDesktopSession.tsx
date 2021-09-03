@@ -14,36 +14,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useRef, useState, useEffect } from 'react';
+import { useMemo } from 'react';
+import { getAccessToken, getHostName } from 'teleport/services/api';
+import { useParams } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import cfg, { UrlDesktopParams } from 'teleport/config';
 import TdpClient from 'teleport/lib/tdp/client';
-import useConnectionString from './useConnectionString';
 
 export default function useDesktopSession() {
   const { attempt, setAttempt } = useAttempt('processing');
-  const { addr, username } = useConnectionString();
-  const tdpClientRef = useRef<TdpClient>();
-  // Flag for alerting the DesktopSession component that the TdpClient is initialized.
-  const [tdpClientInitialized, setTdpClientInitialized] = useState(false);
+  const { clusterId, username, desktopId } = useParams<UrlDesktopParams>();
 
-  // Triggered by a change in the url in the browser.
-  useEffect(() => {
-    // Trigger the DesktopSession component's useEffect callback that's watching tdpClientInitialized.
-    setTdpClientInitialized(false);
+  // Build a client based on url parameters.
+  const tdpClient = useMemo(() => {
+    const addr = cfg.api.desktopWsAddr
+      .replace(':fqdm', getHostName())
+      .replace(':clusterId', clusterId)
+      .replace(':desktopId', desktopId)
+      .replace(':token', getAccessToken());
 
-    // Create the TdpClient reference with the ws address and the username from the route url.
-    tdpClientRef.current = new TdpClient(addr);
-
-    // Alert the DesktopSession that the TdpClient is ready to connect.
-    setTdpClientInitialized(true);
-  }, [addr, username]);
+    return new TdpClient(addr, username);
+  }, [clusterId, username, desktopId]);
 
   return {
+    tdpClient,
     attempt,
     setAttempt,
-    tdpClient: tdpClientRef.current,
-    tdpClientInitialized,
-    username,
   };
 }
 
