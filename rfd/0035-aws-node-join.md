@@ -37,6 +37,9 @@ The second is the "IAM Method", in which the EC2 instance will create and sign
 an HTTPS API request to Amazon's public `sts:GetCallerIdentity` endpoint and
 pass it to the auth server.
 
+Update: The EC2 Method has been chosen as it does not require any IAM role on
+the nodes.
+
 ### EC2 Method
 
 In place of a join token, nodes will present an EC2 IID (Instance Identity
@@ -80,6 +83,19 @@ server is running, there are a few extra required steps:
 2. The IAM role of the Auth server needs permissions to `sts:AssumeRole` for
    the ARN of every foreign IAM role from step 1. These ARNs will need to be
    configured in the `aws_role` field of the AWS join token.
+
+#### Cloud Support
+
+The design described above is not ideal for Teleport Cloud, as the auth server
+would need permissions to access customer AWS accounts to check that the
+instance is currently running.
+
+To make this work, we could create a new type of teleport agent that the client
+would run on their own infrastructure, similar to app and db access. The
+customer would need to configure the `ec2:DescribeInstances` permissions for
+that agent only. In order to check that the joining instance is currently
+running, the Auth server would delegate the `ec2:DescribeInstances` call to the
+agent running in the customer's account.
 
 ### IAM Method
 
@@ -146,7 +162,7 @@ be assumed from other accounts, see #Teleport Configuration.
 | Requires attached IAM role on Auth                           | ✅  |     |
 | Requires IAM role in every Node account which can be assumed by Auth account   | ✅  |     | |
 | Requires IAM role in Auth account which can assume roles in every Node account | ✅  |     | |
-| Could work with Teleport Cloud                               |     | ✅  | ✅ |
+| Could work with Teleport Cloud                               | ✅\* | ✅  | ✅ |
 | Nodes can sign a challenge to prevent replays                |     | ✅  | |
 | Requires outbound access to public internet from Auth        | ✅  |  ✅ | |
 | Requires outbound access to public internet from Nodes       |     |     | |
