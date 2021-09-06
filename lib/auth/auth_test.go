@@ -147,9 +147,6 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 	if err := p.a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.SetClusterConfig(types.DefaultClusterConfig()); err != nil {
-		return p, trace.Wrap(err)
-	}
 
 	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
@@ -1677,7 +1674,7 @@ func newTestServices(t *testing.T) Services {
 		Access:               local.NewAccessService(bk),
 		DynamicAccessExt:     local.NewDynamicAccessService(bk),
 		ClusterConfiguration: configService,
-		Events:               local.NewEventsService(bk, configService.GetClusterConfig),
+		Events:               local.NewEventsService(bk),
 		IAuditLog:            events.NewDiscardAuditLog(),
 	}
 }

@@ -342,10 +342,6 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_ClusterName{
 			ClusterName: r,
 		}
-	case *types.ClusterConfigV3:
-		out.Resource = &proto.Event_ClusterConfig{
-			ClusterConfig: r,
-		}
 	case *types.UserV2:
 		out.Resource = &proto.Event_User{
 			User: r,

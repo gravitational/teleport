@@ -40,6 +40,8 @@ enum Operation {
 
 // Event returns cluster event
 message Event {
+    reserved 7;
+
     // Operation identifies operation
     Operation Type = 1 [ (gogoproto.jsontag) = "type,omitempty" ];
     // Resource contains the updated resource
@@ -58,9 +60,6 @@ message Event {
             [ (gogoproto.jsontag) = "provision_token,omitempty" ];
         // ClusterNameV2 is a cluster name resource
         types.ClusterNameV2 ClusterName = 6 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
-        // ClusterConfig is a cluster configuration resource
-        types.ClusterConfigV3 ClusterConfig = 7
-            [ (gogoproto.jsontag) = "cluster_config,omitempty" ];
         // User is a user resource
         types.UserV2 User = 8 [ (gogoproto.jsontag) = "user,omitempty" ];
         // Role is a role resource
