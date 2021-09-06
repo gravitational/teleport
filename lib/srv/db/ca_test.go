@@ -20,7 +20,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -78,7 +77,7 @@ func TestInitCACert(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	allDatabases := []*types.DatabaseV3{
+	allDatabases := []types.Database{
 		selfHosted, rds, rdsWithCert, redshift, cloudSQL,
 	}
 
@@ -114,19 +113,14 @@ func TestInitCACert(t *testing.T) {
 		},
 	}
 
-	resource, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: testCtx.hostID,
-	}, types.DatabaseServerSpecV3{
-		HostID:    testCtx.hostID,
-		Hostname:  constants.APIDomain,
+	databaseServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: allDatabases,
 	})
-	require.NoError(t, err)
-	databaseServer := testCtx.setupDatabaseServer(ctx, t, resource)
+
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			var database types.Database
-			for _, db := range databaseServer.cfg.Server.GetDatabases() {
+			for _, db := range databaseServer.getDatabases() {
 				if db.GetName() == test.database {
 					database = db
 				}
@@ -152,17 +146,16 @@ func TestInitCACertCaching(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resource, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: testCtx.hostID,
-	}, types.DatabaseServerSpecV3{
-		HostID:    testCtx.hostID,
-		Hostname:  constants.APIDomain,
-		Databases: []*types.DatabaseV3{rds},
+	databaseServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: []types.Database{rds},
+		NoStart:   true,
 	})
-	require.NoError(t, err)
-	databaseServer := testCtx.setupDatabaseServer(ctx, t, resource)
+
+	// Initialize RDS cert for the first time.
+	require.NoError(t, databaseServer.initCACert(ctx, rds))
 	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 
+	// Reset it and initialize again, it should already be downloaded.
 	rds.SetCA("")
 	require.NoError(t, databaseServer.initCACert(ctx, rds))
 	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)

@@ -125,7 +125,7 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetDatabases(), b.GetDatabases()) {
+	if !cmp.Equal(a.GetDatabase(), b.GetDatabase()) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {

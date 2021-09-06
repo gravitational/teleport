@@ -22,7 +22,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 
-	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -81,18 +80,18 @@ func (muk *Key) SignAssertion(origin string, assertion *wanlib.CredentialAsserti
 	}
 
 	return &wanlib.CredentialAssertionResponse{
-		PublicKeyCredential: protocol.PublicKeyCredential{
-			Credential: protocol.Credential{
+		PublicKeyCredential: wanlib.PublicKeyCredential{
+			Credential: wanlib.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(muk.KeyHandle),
 				Type: "public-key",
 			},
 			RawID: muk.KeyHandle,
-			Extensions: protocol.AuthenticationExtensionsClientOutputs{
-				wanlib.AppIDExtension: true, // U2F App ID used.
+			Extensions: &wanlib.AuthenticationExtensionsClientOutputs{
+				AppID: true, // U2F App ID used.
 			},
 		},
-		AssertionResponse: protocol.AuthenticatorAssertionResponse{
-			AuthenticatorResponse: protocol.AuthenticatorResponse{
+		AssertionResponse: wanlib.AuthenticatorAssertionResponse{
+			AuthenticatorResponse: wanlib.AuthenticatorResponse{
 				ClientDataJSON: ccd,
 			},
 			AuthenticatorData: res.AuthData,

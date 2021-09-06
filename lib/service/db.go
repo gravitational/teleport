@@ -31,9 +31,6 @@ import (
 )
 
 func (process *TeleportProcess) initDatabases() {
-	if len(process.Config.Databases.Databases) == 0 {
-		return
-	}
 	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
@@ -82,9 +79,8 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	// Create database server containing all databases defined
-	// in the static configuration.
-	var databases []*types.DatabaseV3
+	// Create database resources from databases defined in the static configuration.
+	var databases types.Databases
 	for _, db := range process.Config.Databases.Databases {
 		db, err := types.NewDatabaseV3(
 			types.Metadata{
@@ -112,16 +108,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			return trace.Wrap(err)
 		}
 		databases = append(databases, db)
-	}
-	databaseServer, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: process.Config.HostUUID,
-	}, types.DatabaseServerSpecV3{
-		Hostname:  process.Config.Hostname,
-		HostID:    process.Config.HostUUID,
-		Databases: databases,
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
@@ -178,7 +164,10 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		Authorizer:  authorizer,
 		TLSConfig:   tlsConfig,
 		GetRotation: process.getRotation,
-		Server:      databaseServer,
+		Hostname:    process.Config.Hostname,
+		HostID:      process.Config.HostUUID,
+		Databases:   databases,
+		Selectors:   process.Config.Databases.Selectors,
 		OnHeartbeat: func(err error) {
 			if err != nil {
 				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentDatabase})
@@ -191,7 +180,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := dbService.Start(); err != nil {
+	if err := dbService.Start(process.ExitContext()); err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
