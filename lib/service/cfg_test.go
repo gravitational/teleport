@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/require"
@@ -139,7 +139,7 @@ func TestCheckApp(t *testing.T) {
 			err: "must be a valid DNS subdomain",
 		},
 	}
-	for _, h := range app.ReservedHeaders {
+	for _, h := range common.ReservedHeaders {
 		tests = append(tests, tc{
 			desc: fmt.Sprintf("reserved header rewrite %v", h),
 			inApp: App{

@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -781,7 +781,7 @@ func (a App) Check() error {
 	// early and let the user know.
 	if a.Rewrite != nil {
 		for _, h := range a.Rewrite.Headers {
-			if app.IsReservedHeader(h.Name) {
+			if common.IsReservedHeader(h.Name) {
 				return trace.BadParameter("invalid application %q header rewrite configuration: header %q is reserved and can't be rewritten",
 					a.Name, http.CanonicalHeaderKey(h.Name))
 			}

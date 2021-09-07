@@ -87,6 +87,9 @@ type Profile struct {
 	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	ALPNSNIListenerEnabled bool `yaml:"alpn_sni_listener_enabled,omitempty"`
+
+	// CurrentAWSCLIApp stores informant about the latest AWS app that the user logged into.
+	CurrentAWSCLIApp string `yaml:"current_aws_cli_app,omitempty"`
 }
 
 // Name returns the name of the profile.

@@ -250,6 +250,13 @@ type CLIConf struct {
 
 	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
 	ConfigProxyTarget string
+
+	// AWSRoleARN is Amazon Role ARN that will be used for AWS CLI access.
+	AWSRoleARN string
+	// AWSRoleName is Amazon Role name that will be used for AWS CLI access.
+	AWSRoleName string
+	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
+	AWSCommandArgs []string
 }
 
 func main() {
@@ -365,6 +372,10 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 
+	// AWS.
+	aws := app.Command("aws", "AWS CLI wrapper")
+	aws.Arg("command", "aws command and subcommands argurments that are going to be forwarded to AWS CLI").StringsVar(&cf.AWSCommandArgs)
+
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
 	lsApps := apps.Command("ls", "List available applications.")
@@ -378,6 +389,8 @@ func Run(args []string, opts ...cliOption) error {
 	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL)).StringVar(&cf.Format)
+	appLogin.Flag("aws-role-arn", "Amazon IAM role in ARN format.").StringVar(&cf.AWSRoleARN)
+	appLogin.Flag("aws-role-name", "Amazon IAM role name.").StringVar(&cf.AWSRoleName)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
@@ -668,6 +681,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onConfig(&cf)
 	case configProxy.FullCommand():
 		err = onConfigProxy(&cf)
+	case aws.FullCommand():
+		err = onAWS(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)

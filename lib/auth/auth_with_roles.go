@@ -1526,6 +1526,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appSessionID:      req.RouteToApp.SessionID,
 		appPublicAddr:     req.RouteToApp.PublicAddr,
 		appClusterName:    req.RouteToApp.ClusterName,
+		awsRoleARN:        req.RouteToApp.AWSRoleARN,
 		checker:           checker,
 		traits:            traits,
 		activeRequests: services.RequestIDs{

@@ -17,20 +17,28 @@ limitations under the License.
 package alpnproxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/textproto"
 	"os"
+	"time"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 )
@@ -65,6 +73,10 @@ type LocalProxyConfig struct {
 	SSHHostKeyCallback ssh.HostKeyCallback
 	// SSHTrustedCluster allows to select trusted cluster ssh subsystem request.
 	SSHTrustedCluster string
+	// Certs are the client certificates used to connect to the remote Teleport Proxy.
+	Certs []tls.Certificate
+	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
+	AWSCredentials *credentials.Credentials
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -246,6 +258,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		NextProtos:         []string{string(l.cfg.Protocol)},
 		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 		ServerName:         serverName,
+		Certificates:       l.cfg.Certs,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -301,4 +314,93 @@ func (l *LocalProxy) Close() error {
 		}
 	}
 	return nil
+}
+
+// StartAWSAccessProxy starts the local AWS CLI proxy.
+func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			NextProtos:         []string{string(l.cfg.Protocol)},
+			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
+			ServerName:         l.cfg.SNI,
+			Certificates:       l.cfg.Certs,
+		},
+	}
+	proxy := &httputil.ReverseProxy{
+		Director: func(outReq *http.Request) {
+			outReq.URL.Scheme = "https"
+			outReq.URL.Host = l.cfg.RemoteProxyAddr
+		},
+		Transport: tr,
+	}
+	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if err := l.checkAccess(req); err != nil {
+			rw.WriteHeader(http.StatusForbidden)
+			return
+		}
+		proxy.ServeHTTP(rw, req)
+	}))
+	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// checkAccess validates the request signature ensuring that the request originates from tsh aws command execution
+// AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
+// the AWSCredentials LocalProxyConfig configuration.
+func (l *LocalProxy) checkAccess(req *http.Request) error {
+	sigV4, err := appaws.ParseSigV4(req.Header.Get("Authorization"))
+	if err != nil {
+		return trace.BadParameter(err.Error())
+	}
+	// Read the request body and replace the body ready with a new reader that will allow reading the body again
+	// by HTTP Transport.
+	payload, err := appaws.GetAndReplaceReqBody(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	reqCopy := req.Clone(context.Background())
+
+	// Remove all the headers that are not present in awsCred.SignedHeaders.
+	filterSingedHeaders(reqCopy, sigV4.SignedHeaders)
+
+	// Get the date that was used to create the signature of original request
+	// originated from AWS CLI and reuse it as a timestamp during request signing call.
+	t, err := time.Parse(appaws.AmzDateTimeFormat, reqCopy.Header.Get(appaws.AmzDateHeader))
+	if err != nil {
+		return trace.BadParameter(err.Error())
+	}
+
+	signer := v4.NewSigner(l.cfg.AWSCredentials)
+	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), sigV4.Service, sigV4.Region, t)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	localSigV4, err := appaws.ParseSigV4(reqCopy.Header.Get("Authorization"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Compare the origin request AWS SigV4 signature with the signature calculated in LocalProxy based on
+	// AWSCredentials taken from LocalProxyConfig.
+	if sigV4.Signature != localSigV4.Signature {
+		return trace.AccessDenied("signature verification failed")
+	}
+	return nil
+}
+
+// filterSingedHeaders removes request headers that are not in the signedHeaders list.
+func filterSingedHeaders(r *http.Request, signedHeaders []string) {
+	header := make(http.Header)
+	for _, v := range signedHeaders {
+		ck := textproto.CanonicalMIMEHeaderKey(v)
+		val, ok := r.Header[ck]
+		if ok {
+			header[ck] = val
+		}
+	}
+	r.Header = header
 }

@@ -44,10 +44,21 @@ func onAppLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	var arn string
+	if app.IsAWSConsole() {
+		var err error
+		arn, err = getARNFromFlags(cf, tc, profile, app)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	ws, err := tc.CreateAppSession(cf.Context, types.CreateAppSessionRequest{
 		Username:    tc.Username,
 		PublicAddr:  app.PublicAddr,
 		ClusterName: tc.SiteName,
+		AWSRoleARN:  arn,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -59,11 +70,22 @@ func onAppLogin(cf *CLIConf) error {
 			SessionID:   ws.GetName(),
 			PublicAddr:  app.PublicAddr,
 			ClusterName: tc.SiteName,
+			AWSRoleARN:  arn,
 		},
 		AccessRequests: profile.ActiveRequests.AccessRequests,
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Save information about current AWS CLI access app. The CurrentAWSCLIApp is used during tsh aws call
+	// to load proper client app credentials.
+	tc.CurrentAWSCLIApp = app.Name
+	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+		return trace.Wrap(err)
+	}
+	if app.IsAWSConsole() {
+		return nil
 	}
 	return appLoginTpl.Execute(os.Stdout, map[string]string{
 		"appName": app.Name,

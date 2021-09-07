@@ -236,6 +236,8 @@ message RouteToApp {
     string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
     // ClusterName is the cluster where the application resides.
     string ClusterName = 4 [ (gogoproto.jsontag) = "cluster_name" ];
+    // AWSRoleARN is the AWS role to assume when accessing AWS API.
+    string AWSRoleARN = 5 [ (gogoproto.jsontag) = "aws_role_arn" ];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
