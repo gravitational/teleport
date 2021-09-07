@@ -93,7 +93,7 @@ Before you get started you’ll need:
 
 ## Create a SAML Connector
 
-Now, create a SAML connector [resource](../../admin-guide.mdx#resources).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the entity_descriptor resource.
+Now, create a SAML connector [resource](../../setup/reference/resources.mdx).  Replace the acs element with your Teleport address, update the group IDs with the actual AzureAD group ID values, and insert the downloaded Federation Metadata XML into the entity_descriptor resource.
 Write down this template as `azure-connector.yaml`:
 
 ```yaml
@@ -116,7 +116,7 @@ spec:
 
 Create the connector using `tctl` tool:
 
-```bash
+```code
 $ tctl create azure-connector.yaml
 ```
 
@@ -131,7 +131,7 @@ $ tctl create azure-connector.yaml
 
   Alternatively, you can generate your own keypair when creating a connector using `openssl`:
 
-  ```bash
+  ```code
   $ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
   ```
 </Admonition>
@@ -148,7 +148,7 @@ obtain admin access to Teleport.
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: dev
 spec:
@@ -162,7 +162,7 @@ spec:
 
 **Notice:** Replace `ubuntu` with linux login available on your servers!
 
-```bash
+```code
 $ tctl create dev.yaml
 ```
 
@@ -181,7 +181,7 @@ auth_service:
 The Web UI will now contain a new button: "Login with Microsoft". The CLI is
 the same as before:
 
-```bash
+```code
 $ tsh --proxy=proxy.example.com login
 ```
 
@@ -213,13 +213,13 @@ AzureAD's SAML token encryption encrypts the SAML assertions sent to Teleport du
 Start with generating a public/private key and a certificate. You will setup the public
 certificate with AzureAD and the private key with Teleport.
 
-```bash
+```code
 $ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
 ```
 
 If you are modifying the existing connector, first, save it to YAML:
 
-```bash
+```code
 $ tctl get saml --with-secrets > azure-out.yaml
 ```
 
@@ -351,7 +351,7 @@ version: v2
 
 Update the connector:
 
-```bash
+```code
 $ tctl create -f azure-out.yaml 
 ```
 
@@ -388,12 +388,12 @@ Example of a user being denied due as the role `clusteradmin` wasn't setup.
 Some errors (like file-system permissions or misconfigured network) can be
 diagnosed using Teleport's `stderr` log, which is usually available via:
 
-```bash
+```code
 $ sudo journalctl -fu teleport
 ```
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass the
-[`--debug`](../../cli-docs.mdx#teleport-start) flag to `teleport start` command.
+[`--debug`](../../setup/reference/cli.mdx#teleport-start) flag to `teleport start` command.
 
 **Failed to process SAML callback**
 

@@ -19,6 +19,7 @@ package ui
 import (
 	"sort"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -160,20 +161,20 @@ type Database struct {
 	Labels []Label `json:"labels"`
 }
 
-// MakeDatabases creates server database objects.
-func MakeDatabases(clusterName string, servers []types.DatabaseServer) []Database {
-	uiServers := make([]Database, 0, len(servers))
-	for _, server := range servers {
+// MakeDatabases creates database objects.
+func MakeDatabases(clusterName string, databases []types.Database) []Database {
+	uiServers := make([]Database, 0, len(databases))
+	for _, database := range databases {
 		uiLabels := []Label{}
 
-		for name, value := range server.GetStaticLabels() {
+		for name, value := range database.GetStaticLabels() {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: value,
 			})
 		}
 
-		for name, cmd := range server.GetDynamicLabels() {
+		for name, cmd := range database.GetDynamicLabels() {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: cmd.GetResult(),
@@ -183,13 +184,38 @@ func MakeDatabases(clusterName string, servers []types.DatabaseServer) []Databas
 		sort.Sort(sortedLabels(uiLabels))
 
 		uiServers = append(uiServers, Database{
-			Name:     server.GetName(),
-			Desc:     server.GetDescription(),
-			Protocol: server.GetProtocol(),
-			Type:     server.GetType(),
+			Name:     database.GetName(),
+			Desc:     database.GetDescription(),
+			Protocol: database.GetProtocol(),
+			Type:     database.GetType(),
 			Labels:   uiLabels,
 		})
 	}
 
 	return uiServers
+}
+
+// Desktop describes a desktop to pass to the ui.
+type Desktop struct {
+	// OS is the os of this desktop. Should be one of constants.WindowsOS, constants.LinuxOS, or constants.DarwinOS.
+	OS string `json:"os"`
+	// Name is name (uuid) of the windows desktop.
+	Name string `json:"name"`
+	// Addr is the network address the desktop can be reached at.
+	Addr string `json:"addr"`
+}
+
+// MakeDesktops makes desktop objects for the ui to display
+func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
+	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
+
+	for _, windowsDesktop := range windowsDesktops {
+		uiDesktops = append(uiDesktops, Desktop{
+			OS:   constants.WindowsOS,
+			Name: windowsDesktop.GetName(),
+			Addr: windowsDesktop.GetAddr(),
+		})
+	}
+
+	return uiDesktops
 }

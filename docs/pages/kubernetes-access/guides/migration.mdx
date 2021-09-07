@@ -197,19 +197,17 @@ kubernetes_service:
 After all the Teleport agents are running, you can view the list of Kubernetes
 clusters using `tsh kube ls` and switch between them using `tsh kube login <kube_cluster_name>`:
 
-```bash
-tsh kube ls
+```code
+$ tsh kube ls
 
-# Output
-Kube Cluster Name Selected
------------------ --------
-kube-1            *
-kube-2
+# Kube Cluster Name Selected
+# ----------------- --------
+# kube-1            *
+# kube-2
 
-tsh kube login kube-2
+$ tsh kube login kube-2
 # Logged into kubernetes cluster "kube-2"
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 #### Option 2: One Teleport agent connected to multiple clusters
 
@@ -307,19 +305,16 @@ users:
 You can view the list of Kubernetes clusters using `tsh kube ls` and switch
 between them using `tsh kube login <kube_cluster_name>`:
 
-```bash
-tsh kube ls
+```code
+$ tsh kube ls
 
-# Output
-Kube Cluster Name Selected
------------------ --------
-kube-1            *
-kube-2
+# Kube Cluster Name Selected
+# ----------------- --------
+# kube-1            *
+# kube-2
 
-tsh kube login kube-2
-# Logged into kubernetes cluster "kube-2"
+$ tsh kube login kube-2
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 #### Option 3: Keep using Trusted Clusters
 
@@ -348,7 +343,7 @@ First, set the set of Kubernetes labels a user can access on their roles:
 ```yaml
 # role-admin.yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: admin
 spec:

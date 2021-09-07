@@ -68,7 +68,7 @@ func (c *DBCommand) ListDatabases(client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := &dbCollection{servers: servers}
+	coll := &databaseServerCollection{servers: servers}
 	switch c.format {
 	case teleport.Text:
 		err = coll.writeText(os.Stdout)
@@ -91,8 +91,8 @@ This token will expire in {{.minutes}} minutes.
 Fill out and run this command on a node to start proxying the database:
 
 > teleport db start \
-   --token={{.token}} \
-   --ca-pin={{.ca_pin}} \
+   --token={{.token}} \{{range .ca_pins}}
+   --ca-pin={{.}} \{{end}}
    --auth-server={{.auth_server}} \
    --name={{.db_name}} \
    --protocol={{.db_protocol}} \

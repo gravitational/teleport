@@ -87,7 +87,7 @@ release.
 
 Create local Teleport user with the built-in `access` role:
 
-```bash
+```code
 $ tctl users add --roles=access alice
 ```
 
@@ -99,7 +99,7 @@ database user.
 
 First, export the user resource:
 
-```bash
+```code
 $ tctl get users/alice > alice.yaml
 ```
 
@@ -114,7 +114,7 @@ traits:
 
 Update the user:
 
-```bash
+```code
 $ tctl create alice.yaml -f
 ```
 
@@ -178,7 +178,7 @@ proxy_service:
 
 Start the database service:
 
-```bash
+```code
 $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ```
 
@@ -200,12 +200,12 @@ in Google Cloud documentation for more details.
 Once the database service has joined the cluster, login to see the available
 databases:
 
-```bash
-$ tsh login --proxy=teleport.example.com:3080 --user=alice
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
-Name     Description         Labels
--------- ------------------- --------
-cloudsql GCP Cloud SQL MySQL env=dev
+# Name     Description         Labels
+# -------- ------------------- --------
+# cloudsql GCP Cloud SQL MySQL env=dev
 ```
 
 Note that you will only be able to see databases your role has access to. See
@@ -214,7 +214,7 @@ Note that you will only be able to see databases your role has access to. See
 To connect to a particular database server, first retrieve credentials from
 Teleport using `tsh db login` command:
 
-```bash
+```code
 $ tsh db login cloudsql
 ```
 
@@ -225,13 +225,13 @@ $ tsh db login cloudsql
 You can optionally specify the database user and database name to use by default
 when connecting to the database instance:
 
-```bash
+```code
 $ tsh db login --db-user=alice --db-name=mysql cloudsql
 ```
 
 Once logged in, connect to the database:
 
-```bash
+```code
 $ tsh db connect cloudsql
 ```
 
@@ -242,13 +242,13 @@ $ tsh db connect cloudsql
 
 If you would like to see the native `mysql` shell connect command, run:
 
-```bash
+```code
 $ tsh db config --format=cmd cloudsql
 ```
 
 To log out of the database and remove credentials:
 
-```bash
+```code
 # Remove credentials for a particular database instance.
 $ tsh db logout cloudsql
 # Remove credentials for all database instances.

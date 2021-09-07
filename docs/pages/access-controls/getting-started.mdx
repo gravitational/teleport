@@ -18,18 +18,7 @@ with creating your own role.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-Verify that your Teleport client is connected:
-
-```bash
-tctl status
-
-# Output
-Cluster  acme.example.com
-Version  (=teleport.version=)
-CA pin   sha256:sha-hash-here
-```
-
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Add local users with preset roles
 
@@ -40,30 +29,29 @@ Members of `admin`, are full cluster administrators.
 
 Invite a local user Alice as cluster `editor`:
 
-```bash
-tctl users add alice --roles=editor
+```code
+$ tctl users add alice --roles=editor
 ```
 
 Once Alice signs up, she will be able to edit cluster configuration. You can list
 users and their roles using `tctl users ls`.
 
-```bash
-tctl users ls
+```code
+$ tctl users ls
 
-# Output
-User                 Roles
--------------------- -------------- 
-alice                editor
-admin@example.com    admin
+# User                 Roles
+# -------------------- --------------
+# alice                editor
+# admin@example.com    admin
 ```
 
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 You can update user's roles using `tctl users update` command:
 
-```bash
+```code
 # Once Alice logs back in, she will be able to view audit logs
-tctl users update alice --set-roles=editor,auditor
+$ tctl users update alice --set-roles=editor,auditor
 ```
 
 Because Alice has two roles, permissions from those roles create a union -
@@ -135,7 +123,7 @@ Save this role as `interns.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: interns
 spec:
@@ -167,10 +155,10 @@ spec:
 
 Create a role using `tctl create -f` command:
 
-```bash
-tctl create -f /tmp/interns.yaml
+```code
+$ tctl create -f /tmp/interns.yaml
 # Get a list of all roles in the system
-tctl get roles --format text
+$ tctl get roles --format text
 ```
 
 ## Next steps

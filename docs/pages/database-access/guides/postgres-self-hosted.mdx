@@ -11,7 +11,7 @@ description: How to configure Teleport Database Access with self-hosted PostgreS
 
 Create the secrets:
 
-```bash
+```code
 # Export Teleport's certificate authority and generate certificate/key pair
 # for host db.example.com with a 1-year validity period.
 $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
@@ -67,10 +67,10 @@ release.
 Create the role that will allow a user to connect to any database using any
 database account:
 
-```sh
-$ tctl --config=/path/to/teleport.yaml create <<EOF
+```bash
+tctl --config=/path/to/teleport.yaml create <<EOF
 kind: role
-version: v3
+version: v4
 metadata:
   name: db
 spec:
@@ -86,7 +86,7 @@ EOF
 
 Create the user assigned the `db` role we've just created:
 
-```sh
+```code
 $ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
 ```
 
@@ -95,7 +95,7 @@ $ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
 You can start Teleport database service without configuration file, using a
 CLI command:
 
-```sh
+```code
 $ teleport db start \
    --token=/tmp/token \
    --auth-server=teleport.example.com:3080 \
@@ -161,7 +161,7 @@ proxy_service:
 
 Start the database service:
 
-```sh
+```code
 $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ```
 
@@ -170,12 +170,12 @@ $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 Once the database service has joined the cluster, login to see the available
 databases:
 
-```sh
-$ tsh login --proxy=teleport.example.com:3080 --user=testuser
+```code
+$ tsh login --proxy=teleport.example.com --user=testuser
 $ tsh db ls
-Name    Description        Labels
-------- ------------------ --------
-example Example PostgreSQL env=dev
+# Name    Description        Labels
+# ------- ------------------ --------
+# example Example PostgreSQL env=dev
 ```
 
 Note that you will only be able to see databases your role has access to. See
@@ -184,7 +184,7 @@ Note that you will only be able to see databases your role has access to. See
 To connect to a particular database server, first retrieve credentials from
 Teleport using `tsh db login` command:
 
-```sh
+```code
 $ tsh db login example
 ```
 
@@ -198,13 +198,13 @@ $ tsh db login example
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
-```sh
+```code
 $ tsh db login --db-user=postgres --db-name=postgres example
 ```
 
 Once logged in, connect to the database:
 
-```bash
+```code
 $ tsh db connect aurora
 ```
 
@@ -215,13 +215,13 @@ $ tsh db connect aurora
 
 If you would like to see the native `psql` shell connect command, run:
 
-```bash
+```code
 $ tsh db config --format=cmd aurora
 ```
 
 To log out of the database and remove credentials:
 
-```sh
+```code
 # Remove credentials for a particular database instance.
 $ tsh db logout example
 # Remove credentials for all database instances.

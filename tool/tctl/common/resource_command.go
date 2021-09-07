@@ -98,6 +98,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
 		types.KindLock:                    rc.createLock,
 		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
+		types.KindDatabase:                rc.createDatabase,
 	}
 	rc.config = config
 
@@ -542,6 +543,28 @@ func (rc *ResourceCommand) createNetworkRestrictions(client auth.ClientI, raw se
 	return nil
 }
 
+func (rc *ResourceCommand) createDatabase(client auth.ClientI, raw services.UnknownResource) error {
+	database, err := services.UnmarshalDatabase(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.CreateDatabase(context.Background(), database); err != nil {
+		if trace.IsAlreadyExists(err) {
+			if !rc.force {
+				return trace.AlreadyExists("database %q already exists", database.GetName())
+			}
+			if err := client.UpdateDatabase(context.Background(), database); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("database %q has been updated\n", database.GetName())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	fmt.Printf("database %q has been created\n", database.GetName())
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	singletonResources := []string{
@@ -636,10 +659,14 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		}
 		fmt.Printf("session recording configuration has been reset to defaults\n")
 	case types.KindLock:
-		if err = client.DeleteLock(ctx, rc.ref.Name); err != nil {
+		name := rc.ref.Name
+		if rc.ref.SubKind != "" {
+			name = rc.ref.SubKind + "/" + name
+		}
+		if err = client.DeleteLock(ctx, name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("lock %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("lock %q has been deleted\n", name)
 	case types.KindDatabaseServer:
 		dbServers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
@@ -663,6 +690,21 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
+	case types.KindDatabase:
+		if err = client.DeleteDatabase(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("database %q has been deleted\n", rc.ref.Name)
+	case types.KindWindowsDesktopService:
+		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
+	case types.KindWindowsDesktop:
+		if err = client.DeleteWindowsDesktop(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("windows desktop %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1019,7 +1061,11 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			}
 			return &lockCollection{locks: locks}, nil
 		}
-		lock, err := client.GetLock(ctx, rc.ref.Name)
+		name := rc.ref.Name
+		if rc.ref.SubKind != "" {
+			name = rc.ref.SubKind + "/" + name
+		}
+		lock, err := client.GetLock(ctx, name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1030,7 +1076,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.Wrap(err)
 		}
 		if rc.ref.Name == "" {
-			return &dbCollection{servers: servers}, nil
+			return &databaseServerCollection{servers: servers}, nil
 		}
 
 		var out []types.DatabaseServer
@@ -1042,13 +1088,64 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if len(out) == 0 {
 			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
 		}
-		return &dbCollection{servers: out}, nil
+		return &databaseServerCollection{servers: out}, nil
 	case types.KindNetworkRestrictions:
 		nr, err := client.GetNetworkRestrictions(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &netRestrictionsCollection{nr}, nil
+	case types.KindDatabase:
+		if rc.ref.Name == "" {
+			databases, err := client.GetDatabases(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &databaseCollection{databases: databases}, nil
+		}
+		database, err := client.GetDatabase(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &databaseCollection{databases: []types.Database{database}}, nil
+	case types.KindWindowsDesktopService:
+		services, err := client.GetWindowsDesktopServices(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if rc.ref.Name == "" {
+			return &windowsDesktopServiceCollection{services: services}, nil
+		}
+
+		var out []types.WindowsDesktopService
+		for _, service := range services {
+			if service.GetName() == rc.ref.Name {
+				out = append(out, service)
+			}
+		}
+		if len(out) == 0 {
+			return nil, trace.NotFound("Windows desktop service %q not found", rc.ref.Name)
+		}
+		return &windowsDesktopServiceCollection{services: out}, nil
+	case types.KindWindowsDesktop:
+		desktops, err := client.GetWindowsDesktops(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if rc.ref.Name == "" {
+			return &windowsDesktopCollection{desktops: desktops}, nil
+		}
+
+		var out []types.WindowsDesktop
+		for _, desktop := range desktops {
+			if desktop.GetName() == rc.ref.Name {
+				out = append(out, desktop)
+			}
+		}
+		if len(out) == 0 {
+			return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
+		}
+		return &windowsDesktopCollection{desktops: out}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

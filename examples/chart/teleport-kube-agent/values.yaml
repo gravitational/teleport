@@ -49,6 +49,10 @@ teleportVersionOverride: ""
 # certificate.
 insecureSkipProxyTLSVerify: false
 
+# If set, will use an existing volume mounted via extraVolumes
+# as the Teleport data directory.
+existingDataVolume: ""
+
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
 podSecurityPolicy:
@@ -84,6 +88,9 @@ storage:
 # Container image for the agent. Since this runs without the auth_service, we
 # don't need the enterprise version.
 image: quay.io/gravitational/teleport
+# Optional array of imagePullSecrets, to use when pulling from a private registry
+imagePullSecrets: []
+# - name: myRegistryKeySecretName
 # Number of replicas for the agent deployment.
 replicaCount: 1
 # (optional) Override the name of the ClusterRole used by the agent's service account.
