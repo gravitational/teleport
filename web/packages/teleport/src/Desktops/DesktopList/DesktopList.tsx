@@ -26,7 +26,6 @@ import {
 } from 'design/DataTable';
 import Table from 'design/DataTable/Paged';
 import isMatch from 'design/utils/match';
-import { AuthType } from 'teleport/services/user';
 import { Desktop } from 'teleport/services/desktops';
 import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
 
@@ -200,7 +199,6 @@ type Props = {
   pageSize?: number;
   username: string;
   clusterId: string;
-  authType: AuthType;
   searchValue: string;
   openRemoteDesktopWindow: (username: string, desktopId: string) => void;
 };

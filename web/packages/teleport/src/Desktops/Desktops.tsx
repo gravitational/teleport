@@ -38,7 +38,6 @@ export function Desktops(props: State) {
     attempt,
     username,
     clusterId,
-    authType,
     searchValue,
     setSearchValue,
     desktops,
@@ -68,7 +67,6 @@ export function Desktops(props: State) {
         desktops={desktops}
         username={username}
         clusterId={clusterId}
-        authType={authType}
         searchValue={searchValue}
         openRemoteDesktopWindow={openRemoteDesktopWindow}
       />
