@@ -22,6 +22,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,6 +46,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	u2flib "github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -72,26 +75,54 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 	cfg.Username = username
 	cfg.HostLogin = username
 	cfg.AddKeysToAgent = client.AddKeysToAgentNo
-	cfg.WebProxyAddr = sa.ProxyWebAddr
+	// Replace "127.0.0.1" with "localhost". The proxy address becomes the origin
+	// for Webauthn requests, and Webauthn doesn't take IP addresses.
+	cfg.WebProxyAddr = strings.Replace(sa.ProxyWebAddr, "127.0.0.1", "localhost", 1 /* n */)
 	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
 
 	// Replace (and later reset) user-prompting functions.
-	oldPwd, oldOTP, oldU2F := *client.PasswordFromConsoleFn, *client.PromptOTP, *client.PromptU2F
+	oldPwd, oldOTP, oldU2F, oldWAN := *client.PasswordFromConsoleFn, *client.PromptOTP, *client.PromptU2F, *client.PromptWebauthn
 	defer func() {
 		*client.PasswordFromConsoleFn = oldPwd
 		*client.PromptOTP = oldOTP
 		*client.PromptU2F = oldU2F
+		*client.PromptWebauthn = oldWAN
 	}()
 	*client.PasswordFromConsoleFn = func() (string, error) {
 		return password, nil
+	}
+
+	// The loginMocks setup below is used to avoid data races when reading or
+	// writing client.Prompt* pointers.
+	// Tests are supposed to replace loginMocks functions instead.
+	loginMocks := struct {
+		promptOTP      func(ctx context.Context) (string, error)
+		promptU2F      func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error)
+		promptWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
+	}{}
+	var loginMocksMU sync.RWMutex
+	*client.PromptOTP = func(ctx context.Context, out io.Writer, in *prompt.ContextReader, question string) (string, error) {
+		loginMocksMU.RLock()
+		defer loginMocksMU.RUnlock()
+		return loginMocks.promptOTP(ctx)
+	}
+	*client.PromptU2F = func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+		loginMocksMU.RLock()
+		defer loginMocksMU.RUnlock()
+		return loginMocks.promptU2F(ctx, facet, challenges...)
+	}
+	*client.PromptWebauthn = func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+		loginMocksMU.RLock()
+		defer loginMocksMU.RUnlock()
+		return loginMocks.promptWebauthn(ctx, origin, assertion)
 	}
 
 	promptOTPNoop := func(ctx context.Context) (string, error) {
 		<-ctx.Done() // wait for timeout
 		return "", ctx.Err()
 	}
-	promptU2FNoop := func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+	promptWebauthnNoop := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
 		<-ctx.Done() // wait for timeout
 		return nil, ctx.Err()
 	}
@@ -108,22 +139,52 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 		}
 		return nil, trace.BadParameter("key handle now found")
 	}
+	solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+		car, err := device.SignAssertion(origin, assertion)
+		if err != nil {
+			return nil, err
+		}
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+			},
+		}, nil
+	}
 
 	ctx := context.Background()
 	tests := []struct {
-		name     string
-		solveOTP func(context.Context) (string, error)
-		solveU2F func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error)
+		name          string
+		secondFactor  constants.SecondFactorType
+		solveOTP      func(context.Context) (string, error)
+		solveU2F      func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error)
+		solveWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
 	}{
 		{
-			name:     "OK OTP device login",
-			solveOTP: solveOTP,
-			solveU2F: promptU2FNoop,
+			name:         "OK OTP device login",
+			secondFactor: constants.SecondFactorOptional,
+			solveOTP:     solveOTP,
+			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+				panic("unused")
+			},
+			solveWebauthn: promptWebauthnNoop,
 		},
 		{
-			name:     "OK U2F device login",
-			solveOTP: promptOTPNoop,
-			solveU2F: solveU2F,
+			name:         "OK Webauthn device login",
+			secondFactor: constants.SecondFactorOptional,
+			solveOTP:     promptOTPNoop,
+			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+				panic("unused")
+			},
+			solveWebauthn: solveWebauthn,
+		},
+		{
+			name:         "OK U2F device login",
+			secondFactor: constants.SecondFactorU2F,
+			solveOTP:     promptOTPNoop,
+			solveU2F:     solveU2F,
+			solveWebauthn: func(context.Context, string, *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+				panic("unused")
+			},
 		},
 	}
 	for _, test := range tests {
@@ -131,11 +192,18 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			*client.PromptOTP = func(ctx context.Context, out io.Writer, in *prompt.ContextReader, question string) (string, error) {
-				return test.solveOTP(ctx)
-			}
-			*client.PromptU2F = func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
-				return test.solveU2F(ctx, facet, challenges...)
+			loginMocksMU.Lock()
+			loginMocks.promptOTP = test.solveOTP
+			loginMocks.promptU2F = test.solveU2F
+			loginMocks.promptWebauthn = test.solveWebauthn
+			loginMocksMU.Unlock()
+
+			authServer := sa.Auth.GetAuthServer()
+			pref, err := authServer.GetAuthPreference(ctx)
+			require.NoError(t, err)
+			if pref.GetSecondFactor() != test.secondFactor {
+				pref.SetSecondFactor(test.secondFactor)
+				require.NoError(t, authServer.SetAuthPreference(ctx, pref))
 			}
 
 			tc, err := client.NewClient(cfg)

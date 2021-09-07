@@ -22,3 +22,6 @@ var PromptOTP = &promptOTP
 
 // PromptU2F exports promptU2F for tests.
 var PromptU2F = &promptU2F
+
+// PromptWebauthn exports promptWebauthn for tests.
+var PromptWebauthn = &promptWebauthn
