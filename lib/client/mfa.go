@@ -22,12 +22,17 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/trace"
 )
+
+// promptOTP allows tests to override the OTP prompt function.
+var promptOTP = prompt.Input
+
+// promptU2F allows tests to override the U2F prompt function.
+var promptU2F = u2f.AuthenticateSignChallenge
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
@@ -42,7 +47,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		return &proto.MFAAuthenticateResponse{}, nil
 	// TOTP only.
 	case c.TOTP != nil && len(c.U2F) == 0:
-		totpCode, err := prompt.Input(ctx, os.Stderr, prompt.Stdin(), fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix))
+		totpCode, err := promptOTP(ctx, os.Stderr, prompt.Stdin(), fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -52,7 +57,6 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 	// U2F only.
 	case c.TOTP == nil && len(c.U2F) > 0:
 		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
-
 		return promptU2FChallenges(ctx, proxyAddr, c.U2F)
 	// Both TOTP and U2F.
 	case c.TOTP != nil && len(c.U2F) > 0:
@@ -75,14 +79,13 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		}()
 
 		go func() {
-			totpCode, err := prompt.Input(ctx, os.Stderr, prompt.Stdin(), fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix))
+			totpCode, err := promptOTP(ctx, os.Stderr, prompt.Stdin(), fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix))
 			res := response{kind: "TOTP", err: err}
 			if err == nil {
 				res.resp = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
 					TOTP: &proto.TOTPResponse{Code: totpCode},
 				}}
 			}
-
 			select {
 			case resCh <- res:
 			case <-ctx.Done():
@@ -127,7 +130,7 @@ func promptU2FChallenges(ctx context.Context, proxyAddr string, challenges []*pr
 	}
 
 	log.Debugf("prompting U2F devices with facet %q", facet)
-	resp, err := u2f.AuthenticateSignChallenge(ctx, facet, u2fChallenges...)
+	resp, err := promptU2F(ctx, facet, u2fChallenges...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
