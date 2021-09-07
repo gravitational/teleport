@@ -226,76 +226,167 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *PasswordSuite) TestChangeUserAuthenticationPasswordOnly(c *C) {
+func (s *PasswordSuite) TestChangeUserAuthentication(c *C) {
 	ctx := context.Background()
-	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
-	})
-	c.Assert(err, IsNil)
-
-	err = s.a.SetAuthPreference(ctx, authPreference)
-	c.Assert(err, IsNil)
-
 	username := "joe@example.com"
-	password := []byte("qweqweqwe")
-	_, _, err = CreateUserAndRole(s.a, username, []string{username})
+	_, _, err := CreateUserAndRole(s.a, username, []string{username})
 	c.Assert(err, IsNil)
 
-	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
-		Name: username,
-	})
-	c.Assert(err, IsNil)
-
-	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
-		TokenID:     token.GetName(),
-		NewPassword: password,
-	})
-	c.Assert(err, IsNil)
-
-	// password should be updated
-	err = s.a.checkPasswordWOToken(username, password)
-	c.Assert(err, IsNil)
-}
-
-func (s *PasswordSuite) TestChangeUserAuthenticationWithTOTP(c *C) {
-	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOTP,
+		Type: constants.Local,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
 	})
 	c.Assert(err, IsNil)
 
-	err = s.a.SetAuthPreference(ctx, authPreference)
-	c.Assert(err, IsNil)
+	tests := []struct {
+		name              string
+		setAuthPreference func()
+		getReq            func(string) *proto.ChangeUserAuthenticationRequest
+		getInvalidReq     func(string) *proto.ChangeUserAuthenticationRequest
+	}{
+		{
+			name: "with second factor off and password only",
+			setAuthPreference: func() {
+				authPreference.SetSecondFactor(constants.SecondFactorOff)
+				err = s.a.SetAuthPreference(ctx, authPreference)
+				c.Assert(err, IsNil)
+			},
+			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:     resetTokenID,
+					NewPassword: []byte("password1"),
+				}
+			},
+		},
+		{
+			name: "with second factor otp",
+			setAuthPreference: func() {
+				authPreference.SetSecondFactor(constants.SecondFactorOTP)
+				err = s.a.SetAuthPreference(ctx, authPreference)
+				c.Assert(err, IsNil)
+			},
+			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				secrets, err := s.a.RotateUserTokenSecrets(ctx, resetTokenID)
+				c.Assert(err, IsNil)
 
-	username := "joe@example.com"
-	password := []byte("qweqweqwe")
-	_, _, err = CreateUserAndRole(s.a, username, []string{username})
-	c.Assert(err, IsNil)
+				otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
+				c.Assert(err, IsNil)
 
-	token, err := s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
-		Name: username,
-	})
-	c.Assert(err, IsNil)
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:     resetTokenID,
+					NewPassword: []byte("password2"),
+					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+						TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
+					}},
+				}
+			},
+			// Invalid u2f fields when auth settings set to only otp.
+			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:                resetTokenID,
+					NewPassword:            []byte("password2"),
+					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{}},
+				}
+			},
+		},
+		{
+			name: "with second factor u2f",
+			setAuthPreference: func() {
+				authPreference.SetSecondFactor(constants.SecondFactorU2F)
+				err = s.a.SetAuthPreference(ctx, authPreference)
+				c.Assert(err, IsNil)
+			},
+			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				u2fRegResp, _, err := getMockedU2FAndRegisterRes(s.a, resetTokenID)
+				c.Assert(err, IsNil)
 
-	secrets, err := s.a.RotateUserTokenSecrets(ctx, token.GetName())
-	c.Assert(err, IsNil)
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:     resetTokenID,
+					NewPassword: []byte("password3"),
+					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+						U2F: u2fRegResp,
+					}},
+				}
+			},
+			// Invalid totp fields when auth settings set to only u2f.
+			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:                resetTokenID,
+					NewPassword:            []byte("password3"),
+					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{}},
+				}
+			},
+		},
+		{
+			name: "with second factor on",
+			setAuthPreference: func() {
+				authPreference.SetSecondFactor(constants.SecondFactorOn)
+				err = s.a.SetAuthPreference(ctx, authPreference)
+				c.Assert(err, IsNil)
+			},
+			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				u2fRegResp, _, err := getMockedU2FAndRegisterRes(s.a, resetTokenID)
+				c.Assert(err, IsNil)
 
-	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
-	c.Assert(err, IsNil)
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:     resetTokenID,
+					NewPassword: []byte("password4"),
+					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+						U2F: u2fRegResp,
+					}},
+				}
+			},
+			// Empty register response, when auth settings requires second factors.
+			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:     resetTokenID,
+					NewPassword: []byte("password4"),
+				}
+			},
+		},
+		{
+			name: "with second factor optional and no second factor",
+			setAuthPreference: func() {
+				authPreference.SetSecondFactor(constants.SecondFactorOptional)
+				err = s.a.SetAuthPreference(ctx, authPreference)
+				c.Assert(err, IsNil)
+			},
+			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:     resetTokenID,
+					NewPassword: []byte("password5"),
+				}
+			},
+		},
+	}
 
-	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
-		TokenID:     token.GetName(),
-		NewPassword: password,
-		NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-			TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
-		}},
-	})
-	c.Assert(err, IsNil)
+	for _, t := range tests {
+		comment := check.Commentf("test case %q", t.name)
 
-	err = s.a.checkPasswordWOToken(username, password)
-	c.Assert(err, IsNil)
+		t.setAuthPreference()
+
+		token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
+			Name: username,
+		})
+		c.Assert(err, IsNil, comment)
+
+		if t.getInvalidReq != nil {
+			invalidReq := t.getInvalidReq(token.GetName())
+			_, err = s.a.changeUserAuthentication(ctx, invalidReq)
+			c.Assert(trace.IsBadParameter(err), Equals, true, comment)
+		}
+
+		validReq := t.getReq(token.GetName())
+		_, err = s.a.changeUserAuthentication(ctx, validReq)
+		c.Assert(err, IsNil, comment)
+
+		// Test password is updated.
+		err = s.a.checkPasswordWOToken(username, validReq.NewPassword)
+		c.Assert(err, IsNil, comment)
+	}
 }
 
 func (s *PasswordSuite) TestChangeUserAuthenticationWithErrors(c *C) {

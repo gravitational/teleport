@@ -1082,6 +1082,7 @@ message CompleteAccountRecoveryRequest {
     // request.
     string RecoveryApprovedTokenID = 1 [ (gogoproto.jsontag) = "recovery_approved_token_id" ];
     // NewDeviceName is the name of a new mfa device.
+    // Optional if NewPassword is used.
     string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
     // NewAuthnCred contains the new authentication credential.
     oneof NewAuthnCred {

@@ -7353,6 +7353,7 @@ type CompleteAccountRecoveryRequest struct {
 	// request.
 	RecoveryApprovedTokenID string `protobuf:"bytes,1,opt,name=RecoveryApprovedTokenID,proto3" json:"recovery_approved_token_id"`
 	// NewDeviceName is the name of a new mfa device.
+	// Optional if NewPassword is used.
 	NewDeviceName string `protobuf:"bytes,2,opt,name=NewDeviceName,proto3" json:"new_device_name,omitempty"`
 	// NewAuthnCred contains the new authentication credential.
 	//

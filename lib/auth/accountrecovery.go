@@ -395,8 +395,8 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	// Check that the correct auth credential is being recovered before setting a new one.
 	switch req.GetNewAuthnCred().(type) {
 	case *proto.CompleteAccountRecoveryRequest_NewPassword:
-		if approvedToken.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_MFA {
-			log.Debugf("Failed to recover account, expected new mfa register response, but received a new password.")
+		if approvedToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD {
+			log.Debugf("Failed to recover account, expected new password, but received %T.", req.GetNewAuthnCred())
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
 
@@ -410,17 +410,17 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		}
 
 	case *proto.CompleteAccountRecoveryRequest_NewMFAResponse:
-		if approvedToken.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD {
-			log.Debugf("Failed to recover account, expected new password, but received a new mfa register response.")
+		if approvedToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_MFA {
+			log.Debugf("Failed to recover account, expected new MFA register response, but received %T.", req.GetNewAuthnCred())
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
 
-		err := s.verifyMFARespAndAddDeviceWithToken(ctx, req.GetNewMFAResponse(), approvedToken, req.GetNewDeviceName())
-		switch {
-		case trace.IsAlreadyExists(err):
-			// Return a shorter friendlier message.
-			return trace.AlreadyExists("MFA device with name %q already exists", req.GetNewDeviceName())
-		case err != nil:
+		_, err = s.verifyMFARespAndAddDevice(ctx, req.GetNewMFAResponse(), &newMFADeviceFields{
+			username:      approvedToken.GetUser(),
+			newDeviceName: req.GetNewDeviceName(),
+			tokenID:       approvedToken.GetName(),
+		})
+		if err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -429,7 +429,7 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	}
 
 	// Check and remove user locks so user can immediately sign in after finishing recovering.
-	user, err := s.GetUser(approvedToken.GetUser(), false)
+	user, err := s.GetUser(approvedToken.GetUser(), false /* without secrets */)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)

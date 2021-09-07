@@ -454,8 +454,13 @@ func (s *Server) changeUserSecondFactor(req *proto.ChangeUserAuthenticationReque
 		return nil
 	}
 
-	if req.GetNewMFARegisterResponse() == nil && secondFactor != constants.SecondFactorOptional {
-		return trace.BadParameter("no second factor sent during user %q password reset", username)
+	if req.GetNewMFARegisterResponse() == nil {
+		switch secondFactor {
+		case constants.SecondFactorOptional:
+			return nil
+		default:
+			return trace.BadParameter("no second factor sent during user %q password reset", username)
+		}
 	}
 
 	// Default device name still used as UI invite/reset
@@ -465,5 +470,11 @@ func (s *Server) changeUserSecondFactor(req *proto.ChangeUserAuthenticationReque
 		deviceName = "otp"
 	}
 
-	return trace.Wrap(s.verifyMFARespAndAddDeviceWithToken(ctx, req.GetNewMFARegisterResponse(), token, deviceName))
+	_, err = s.verifyMFARespAndAddDevice(ctx, req.GetNewMFARegisterResponse(), &newMFADeviceFields{
+		username:      token.GetUser(),
+		newDeviceName: deviceName,
+		tokenID:       token.GetName(),
+	})
+
+	return trace.Wrap(err)
 }
