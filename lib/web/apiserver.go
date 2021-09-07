@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 
@@ -2096,6 +2097,19 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 func (h *Handler) ProxyHostPort() string {
 	// addr equals to "localhost:8030" at this point
 	addr := h.cfg.ProxyWebAddr.String()
+	// Proxy web address can set in the config like 0.0.0.0:3080.
+	//
+	// In this case, the dial will succeed (dialing 0.0.0.0 is same a dialing
+	// localhost in Go) but the SSH host certificate will not validate since
+	// 0.0.0.0 is never a valid principal (auth server explicitly removes it
+	// when issuing host certs).
+	//
+	// As such, replace 0.0.0.0 with localhost in this case: proxy listens on
+	// all interfaces and localhost is always included in the valid principal
+	// set.
+	if net.ParseIP(h.cfg.ProxyWebAddr.Host()).IsUnspecified() {
+		addr = fmt.Sprintf("localhost:%v", h.cfg.ProxyWebAddr.Port(defaults.HTTPListenPort))
+	}
 	// add the SSH port number and return
 	_, sshPort, err := net.SplitHostPort(h.cfg.ProxySSHAddr.String())
 	if err != nil {
@@ -2139,6 +2153,14 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
 	}
 
+	callback, err := sshutils.NewHostKeyCallback(
+		sshutils.HostKeyCallbackConfig{
+			GetHostCheckers: ctx.getCheckers,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config := &client.Config{
 		Username:         ctx.user,
 		Agent:            agent,
@@ -2146,7 +2168,7 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		TLS:              tlsConfig,
 		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		DefaultPrincipal: cert.ValidPrincipals[0],
-		HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
+		HostKeyCallback:  callback,
 	}
 
 	return config, nil

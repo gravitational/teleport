@@ -198,7 +198,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// Check that the user certificate uses supported public key algorithms, was
 	// issued by Teleport, and check the certificate metadata (principals,
 	// timestamp, etc). Fallback to keys is not supported.
-	certChecker := utils.CertChecker{
+	certChecker := sshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
 		},
@@ -251,7 +251,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicKey) error {
 	// Check if the given host key was signed by a Teleport certificate
 	// authority (CA) or fallback to host key checking if it's allowed.
-	certChecker := utils.CertChecker{
+	certChecker := sshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsHostAuthority: h.IsHostAuthority,
 			HostKeyFallback: h.hostKeyCallback,

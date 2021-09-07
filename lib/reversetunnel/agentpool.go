@@ -89,6 +89,8 @@ type AgentPoolConfig struct {
 	ProxyAddr string
 	// Cluster is a cluster name of the proxy.
 	Cluster string
+	// FIPS indicates if Teleport was started in FIPS mode.
+	FIPS bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -264,6 +266,7 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 		LocalClusterName:    m.cfg.LocalCluster,
 		Tracker:             m.proxyTracker,
 		Lease:               lease,
+		FIPS:                m.cfg.FIPS,
 	})
 	if err != nil {
 		// ensure that lease has been released; OK to call multiple times.

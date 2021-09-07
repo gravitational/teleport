@@ -1690,6 +1690,7 @@ func (process *TeleportProcess) initSSH() error {
 					HostSigner:  conn.ServerIdentity.KeySigner,
 					Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 					Server:      s,
+					FIPS:        process.Config.FIPS,
 				})
 			if err != nil {
 				return trace.Wrap(err)
@@ -1978,7 +1979,14 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 	var addrs []utils.NetAddr
 	switch role {
 	case teleport.RoleProxy:
-		addrs = append(process.Config.Proxy.PublicAddrs, utils.NetAddr{Addr: reversetunnel.LocalKubernetes})
+		addrs = append(process.Config.Proxy.PublicAddrs,
+			process.Config.Proxy.WebAddr,
+			process.Config.Proxy.SSHAddr,
+			process.Config.Proxy.ReverseTunnelListenAddr,
+			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
+			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
+			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
+			utils.NetAddr{Addr: reversetunnel.LocalKubernetes})
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
@@ -2420,6 +2428,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 		KubeDialAddr:        utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
 		ReverseTunnelServer: tsrv,
+		FIPS:                process.Config.FIPS,
 	})
 	if err != nil {
 		return trace.Wrap(err)
