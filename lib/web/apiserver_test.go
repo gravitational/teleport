@@ -498,7 +498,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 
-	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after;connector_id=` + connector.GetName())
+	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after&connector_id=` + connector.GetName())
 	c.Assert(err, IsNil)
 	req, err := http.NewRequest("GET", baseURL.String(), nil)
 	c.Assert(err, IsNil)
