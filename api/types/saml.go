@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -134,14 +134,19 @@ func (o *SAMLConnectorV2) SetResourceID(id int64) {
 
 // WithoutSecrets returns an instance of resource without secrets.
 func (o *SAMLConnectorV2) WithoutSecrets() Resource {
-	k := o.GetSigningKeyPair()
-	if k == nil {
-		return o
-	}
-	k2 := *k
-	k2.PrivateKey = ""
+	k1 := o.GetSigningKeyPair()
+	k2 := o.GetEncryptionKeyPair()
 	o2 := *o
-	o2.SetSigningKeyPair(&k2)
+	if k1 != nil {
+		q1 := *k1
+		q1.PrivateKey = ""
+		o2.SetSigningKeyPair(&q1)
+	}
+	if k2 != nil {
+		q2 := *k2
+		q2.PrivateKey = ""
+		o2.SetEncryptionKeyPair(&q2)
+	}
 	return &o2
 }
 
