@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package sshutils
 
 import (
 	"crypto/ecdsa"
@@ -50,21 +50,21 @@ func (s *CheckerSuite) TestValidate(c *check.C) {
 	cryptoKey := rsaKey.Public()
 	sshKey, err := ssh.NewPublicKey(cryptoKey)
 	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
+	err = checker.validateFIPS(sshKey)
 	c.Assert(err, check.IsNil)
 
 	// 1024-bit RSA keys are valid.
 	cryptoKey = smallRSAKey.Public()
 	sshKey, err = ssh.NewPublicKey(cryptoKey)
 	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
+	err = checker.validateFIPS(sshKey)
 	c.Assert(err, check.IsNil)
 
 	// ECDSA keys are valid.
 	cryptoKey = ellipticKey.Public()
 	sshKey, err = ssh.NewPublicKey(cryptoKey)
 	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
+	err = checker.validateFIPS(sshKey)
 	c.Assert(err, check.IsNil)
 }
 
@@ -86,20 +86,20 @@ func (s *CheckerSuite) TestValidateFIPS(c *check.C) {
 	cryptoKey := rsaKey.Public()
 	sshKey, err := ssh.NewPublicKey(cryptoKey)
 	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
+	err = checker.validateFIPS(sshKey)
 	c.Assert(err, check.IsNil)
 
 	// 1024-bit RSA keys are not valid.
 	cryptoKey = smallRSAKey.Public()
 	sshKey, err = ssh.NewPublicKey(cryptoKey)
 	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
+	err = checker.validateFIPS(sshKey)
 	c.Assert(err, check.NotNil)
 
 	// ECDSA keys are not valid.
 	cryptoKey = ellipticKey.Public()
 	sshKey, err = ssh.NewPublicKey(cryptoKey)
 	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
+	err = checker.validateFIPS(sshKey)
 	c.Assert(err, check.NotNil)
 }

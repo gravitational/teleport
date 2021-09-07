@@ -579,7 +579,7 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 		return trace.BadParameter("at least one valid principal is required in host certificate")
 	}
 
-	certChecker := utils.CertChecker{
+	certChecker := CertChecker{
 		FIPS: fips,
 	}
 	err := certChecker.CheckCert(cert.ValidPrincipals[0], cert)

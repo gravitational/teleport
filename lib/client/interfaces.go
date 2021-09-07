@@ -150,7 +150,7 @@ func (k *Key) ClientSSHConfig() (*ssh.ClientConfig, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to convert identity file to auth method")
 	}
-	hostKeyCallback, err := k.HostKeyCallback()
+	hostKeyCallback, err := k.HostKeyCallback(false)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to convert identity file to HostKeyCallback")
 	}
@@ -334,7 +334,7 @@ func (k *Key) CheckCert() error {
 
 	// A valid principal is always passed in because the principals are not being
 	// checked here, but rather the validity period, signature, and algorithms.
-	certChecker := utils.CertChecker{
+	certChecker := sshutils.CertChecker{
 		FIPS: isFIPS(),
 	}
 	err = certChecker.CheckCert(cert.ValidPrincipals[0], cert)
@@ -351,33 +351,49 @@ func (k *Key) CheckCert() error {
 // If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
 // This causes golang.org/x/crypto/ssh to prompt the user to verify host key
 // fingerprint (same as OpenSSH does for an unknown host).
-func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
-	var trustedKeys []ssh.PublicKey
-	for _, caCert := range k.SSHCAs() {
-		_, _, publicKey, _, _, err := ssh.ParseKnownHosts(caCert)
-		if err != nil {
-			return nil, trace.BadParameter("failed parsing CA cert: %v; raw CA cert line: %q", err, caCert)
-		}
-		trustedKeys = append(trustedKeys, publicKey)
+func (k *Key) HostKeyCallback(withHostKeyFallback bool) (ssh.HostKeyCallback, error) {
+	return hostKeyCallback(k.SSHCAs(), withHostKeyFallback)
+}
+
+func hostKeyCallback(caCerts [][]byte, withHostKeyFallback bool) (ssh.HostKeyCallback, error) {
+	trustedKeys, err := sshutils.ParseKnownHosts(caCerts)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	// No CAs are provided, return a nil callback which will prompt the user
 	// for trust.
 	if len(trustedKeys) == 0 {
 		return nil, nil
 	}
 
-	return func(host string, a net.Addr, hostKey ssh.PublicKey) error {
-		clusterCert, ok := hostKey.(*ssh.Certificate)
-		if ok {
-			hostKey = clusterCert.SignatureKey
-		}
-		for _, trustedKey := range trustedKeys {
-			if sshutils.KeysEqual(trustedKey, hostKey) {
+	callbackConfig := sshutils.HostKeyCallbackConfig{
+		GetHostCheckers: func() ([]ssh.PublicKey, error) {
+			return trustedKeys, nil
+		},
+	}
+
+	if withHostKeyFallback {
+		callbackConfig.HostKeyFallback = hostKeyFallbackFunc(trustedKeys)
+	}
+
+	callback, err := sshutils.NewHostKeyCallback(callbackConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return callback, nil
+}
+
+func hostKeyFallbackFunc(knownHosts []ssh.PublicKey) func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		for _, knownHost := range knownHosts {
+			if sshutils.KeysEqual(key, knownHost) {
 				return nil
 			}
 		}
-		return trace.AccessDenied("host %v is untrusted or Teleport CA has been rotated; try getting new credentials by logging in again ('tsh login') or re-exporting the identity file ('tctl auth sign' or 'tsh login -o'), depending on how you got them initially", host)
-	}, nil
+		return trace.AccessDenied("host %v presented a public key instead of a host certificate which isn't among known hosts", hostname)
+	}
 }
 
 // ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
