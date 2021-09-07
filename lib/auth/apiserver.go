@@ -236,9 +236,15 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
 
 	// U2F
+	// DELETE IN 9.x, superseded by /mfa/ endpoints (codingllama)
 	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
-	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
+	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.mfaLoginBegin))
 	srv.GET("/:version/u2f/appid", srv.withAuth(srv.getU2FAppID))
+
+	// Generic MFA and WebAuthn
+	srv.POST("/:version/mfa/users/:user/login/begin", srv.withAuth(srv.mfaLoginBegin))
+	// The last step of MFA login is performed by either /ssh/authenticate or
+	// /web/authenticate endpoints.
 
 	// Provisioning tokens- Moved to grpc
 	// DELETE IN 8.0
@@ -740,18 +746,18 @@ type signInReq struct {
 	Password string `json:"password"`
 }
 
-func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) mfaLoginBegin(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *signInReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	user := p.ByName("user")
 	pass := []byte(req.Password)
-	u2fSignReq, err := auth.GetMFAAuthenticateChallenge(user, pass)
+	challenge, err := auth.GetMFAAuthenticateChallenge(user, pass)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return u2fSignReq, nil
+	return challenge, nil
 }
 
 type WebSessionReq struct {

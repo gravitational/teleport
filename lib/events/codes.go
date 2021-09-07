@@ -349,6 +349,13 @@ const (
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
 	DatabaseSessionQueryFailedCode = "TDB02W"
 
+	// DatabaseCreateCode is the db.create event code.
+	DatabaseCreateCode = "TDB03I"
+	// DatabaseUpdateCode is the db.update event code.
+	DatabaseUpdateCode = "TDB04I"
+	// DatabaseDeleteCode is the db.delete event code.
+	DatabaseDeleteCode = "TDB05I"
+
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
 	// SubsystemFailureCode is the subsystem failure event code.

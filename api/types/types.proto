@@ -207,8 +207,8 @@ message DatabaseServerSpecV3 {
     // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
     GCPCloudSQL GCP = 11
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty", deprecated = true ];
-    // Databases is a list of databases this database server proxies.
-    repeated DatabaseV3 Databases = 12 [ (gogoproto.jsontag) = "databases,omitempty" ];
+    // Database is the database proxied by this database server.
+    DatabaseV3 Database = 12 [ (gogoproto.jsontag) = "database,omitempty" ];
 }
 
 // DatabaseV3List represents a list of databases.

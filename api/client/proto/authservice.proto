@@ -19,6 +19,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "github.com/gravitational/teleport/api/types/types.proto";
+import "github.com/gravitational/teleport/api/types/webauthn/webauthn.proto";
 import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
 import "github.com/gravitational/teleport/api/types/events/events.proto";
 
@@ -112,6 +113,8 @@ message Event {
         // WindowsDesktop is a resource for Windows desktop host.
         types.WindowsDesktopV3 WindowsDesktop = 27
             [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+        // Database is a database resource.
+        types.DatabaseV3 Database = 28 [ (gogoproto.jsontag) = "database,omitempty" ];
     }
 }
 
@@ -637,6 +640,12 @@ message MFAAuthenticateChallenge {
     // this field is set, any TOTP device a user has registered can be used to
     // respond.
     TOTPChallenge TOTP = 2;
+    // WebauthnChallenge contains a Webauthn credential assertion used for
+    // login/authentication ceremonies.
+    // Credential assertions hold, among other information, a list of allowed
+    // credentials for the ceremony (one for each U2F or Webauthn device
+    // registered by the user).
+    webauthn.CredentialAssertion WebauthnChallenge = 3;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -645,6 +654,7 @@ message MFAAuthenticateResponse {
     oneof Response {
         U2FResponse U2F = 1;
         TOTPResponse TOTP = 2;
+        webauthn.CredentialAssertionResponse Webauthn = 3;
     }
 }
 

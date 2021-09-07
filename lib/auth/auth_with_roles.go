@@ -2594,20 +2594,17 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Filter out databases the caller doesn't have access to.
+	var filtered []types.DatabaseServer
 	for _, server := range servers {
-		// Filter out databases the caller doesn't have access to from each server.
-		var filtered []types.Database
-		for _, database := range server.GetDatabases() {
-			err := a.checkAccessToDatabase(database)
-			if err != nil && !trace.IsAccessDenied(err) {
-				return nil, trace.Wrap(err)
-			} else if err == nil {
-				filtered = append(filtered, database)
-			}
+		err := a.checkAccessToDatabase(server.GetDatabase())
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, server)
 		}
-		server.SetDatabases(filtered)
 	}
-	return servers, nil
+	return filtered, nil
 }
 
 // UpsertDatabaseServer creates or updates a new database proxy server.
