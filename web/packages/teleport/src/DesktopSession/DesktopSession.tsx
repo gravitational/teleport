@@ -17,25 +17,12 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import useDesktopSession, { State } from './useDesktopSession';
-import { Text, Flex, ButtonPrimary, TopNav } from 'design';
-import { colors } from 'teleport/Console/colors';
-import { Clipboard } from 'design/Icon';
+import TopBar from './TopBar';
 
 export default function Container() {
   const state = useDesktopSession();
   return <DesktopSession {...state} />;
 }
-
-// Ensures the UI fills the entire available screen space.
-const StyledDesktopSession = styled.div`
-  bottom: 0;
-  left: 0;
-  position: absolute;
-  right: 0;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-`;
 
 export function DesktopSession(props: State) {
   const { setAttempt, tdpClient } = props;
@@ -111,49 +98,13 @@ export function DesktopSession(props: State) {
   );
 }
 
-type TopBarProps = {
-  userHost: string;
-  clipboard: boolean;
-  recording: boolean;
-};
-
-const StyledUserHostText = styled(Text)`
-  color: ${props => props.theme.colors.text.secondary};
+// Ensures the UI fills the entire available screen space.
+const StyledDesktopSession = styled.div`
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
 `;
-
-const StyledClipboardText = styled(Text)`
-  color: ${props =>
-    props.clipboard
-      ? props.theme.colors.text.primary
-      : props.theme.colors.text.secondary};
-`;
-
-// vertical-align: text-bottom makes the text appear vertically aligned with the center of the clipboard icon.
-const StyledClipboard = styled(Clipboard)`
-  color: ${props =>
-    props.clipboard
-      ? props.theme.colors.text.primary
-      : props.theme.colors.text.secondary};
-  font-weight: ${props => props.theme.fontWeights.bold};
-  font-size: ${props => props.theme.fontSizes[4]}px;
-  vertical-align: text-bottom;
-`;
-
-const TopBar = (props: TopBarProps) => {
-  const { userHost, clipboard } = props;
-  return (
-    <TopNav
-      height="56px"
-      bg={colors.dark}
-      style={{
-        justifyContent: 'space-between',
-      }}
-    >
-      <StyledUserHostText px={3}>{userHost}</StyledUserHostText>
-      <StyledClipboardText clipboard={clipboard}>
-        <StyledClipboard clipboard={clipboard} /> Clipboard Sharing{' '}
-        {clipboard ? 'Enabled' : 'Disabled'}
-      </StyledClipboardText>
-    </TopNav>
-  );
-};
