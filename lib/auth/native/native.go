@@ -28,6 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -147,7 +148,7 @@ func (k *Keygen) precomputeKeys() {
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
 // execute.
 func GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, err
 	}
