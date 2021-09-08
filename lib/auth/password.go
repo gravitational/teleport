@@ -457,6 +457,13 @@ func (s *Server) changeUserSecondFactor(req *proto.ChangeUserAuthenticationReque
 	if req.GetNewMFARegisterResponse() == nil {
 		switch secondFactor {
 		case constants.SecondFactorOptional:
+			// Optional second factor does not enforce users to add a MFA device.
+			// No need to check if a user already has registered devices since we expect
+			// users to have no devices at this point.
+			//
+			// The ChangeUserAuthenticationRequest is made
+			// with a reset or invite token where a reset token would've reset the users MFA devices,
+			// and an invite token is a new user with no devices.
 			return nil
 		default:
 			return trace.BadParameter("no second factor sent during user %q password reset", username)
@@ -465,6 +472,8 @@ func (s *Server) changeUserSecondFactor(req *proto.ChangeUserAuthenticationReque
 
 	// Default device name still used as UI invite/reset
 	// forms does not allow user to enter own device names yet.
+	// Using default values here is safe since we don't expect users to have
+	// any devices at this point.
 	deviceName := "u2f"
 	if req.GetNewMFARegisterResponse().GetTOTP() != nil {
 		deviceName = "otp"

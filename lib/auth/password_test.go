@@ -19,8 +19,11 @@ package auth
 import (
 	"context"
 	"encoding/base32"
+	"fmt"
 	"math"
+	"math/rand"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -34,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
 
@@ -226,12 +230,10 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *PasswordSuite) TestChangeUserAuthentication(c *C) {
-	ctx := context.Background()
-	username := "joe@example.com"
-	_, _, err := CreateUserAndRole(s.a, username, []string{username})
-	c.Assert(err, IsNil)
+func TestChangeUserAuthentication(t *testing.T) {
+	srv := newTestTLSServer(t)
 
+	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type: constants.Local,
 		U2F: &types.U2F{
@@ -239,7 +241,7 @@ func (s *PasswordSuite) TestChangeUserAuthentication(c *C) {
 			Facets: []string{"teleport"},
 		},
 	})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name              string
@@ -251,8 +253,8 @@ func (s *PasswordSuite) TestChangeUserAuthentication(c *C) {
 			name: "with second factor off and password only",
 			setAuthPreference: func() {
 				authPreference.SetSecondFactor(constants.SecondFactorOff)
-				err = s.a.SetAuthPreference(ctx, authPreference)
-				c.Assert(err, IsNil)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
 				return &proto.ChangeUserAuthenticationRequest{
@@ -265,15 +267,15 @@ func (s *PasswordSuite) TestChangeUserAuthentication(c *C) {
 			name: "with second factor otp",
 			setAuthPreference: func() {
 				authPreference.SetSecondFactor(constants.SecondFactorOTP)
-				err = s.a.SetAuthPreference(ctx, authPreference)
-				c.Assert(err, IsNil)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				secrets, err := s.a.RotateUserTokenSecrets(ctx, resetTokenID)
-				c.Assert(err, IsNil)
+				secrets, err := srv.Auth().RotateUserTokenSecrets(ctx, resetTokenID)
+				require.NoError(t, err)
 
-				otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
-				c.Assert(err, IsNil)
+				otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
+				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:     resetTokenID,
@@ -296,12 +298,12 @@ func (s *PasswordSuite) TestChangeUserAuthentication(c *C) {
 			name: "with second factor u2f",
 			setAuthPreference: func() {
 				authPreference.SetSecondFactor(constants.SecondFactorU2F)
-				err = s.a.SetAuthPreference(ctx, authPreference)
-				c.Assert(err, IsNil)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				u2fRegResp, _, err := getMockedU2FAndRegisterRes(s.a, resetTokenID)
-				c.Assert(err, IsNil)
+				u2fRegResp, _, err := getMockedU2FAndRegisterRes(srv.Auth(), resetTokenID)
+				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:     resetTokenID,
@@ -324,12 +326,12 @@ func (s *PasswordSuite) TestChangeUserAuthentication(c *C) {
 			name: "with second factor on",
 			setAuthPreference: func() {
 				authPreference.SetSecondFactor(constants.SecondFactorOn)
-				err = s.a.SetAuthPreference(ctx, authPreference)
-				c.Assert(err, IsNil)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				u2fRegResp, _, err := getMockedU2FAndRegisterRes(s.a, resetTokenID)
-				c.Assert(err, IsNil)
+				u2fRegResp, _, err := getMockedU2FAndRegisterRes(srv.Auth(), resetTokenID)
+				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:     resetTokenID,
@@ -351,8 +353,8 @@ func (s *PasswordSuite) TestChangeUserAuthentication(c *C) {
 			name: "with second factor optional and no second factor",
 			setAuthPreference: func() {
 				authPreference.SetSecondFactor(constants.SecondFactorOptional)
-				err = s.a.SetAuthPreference(ctx, authPreference)
-				c.Assert(err, IsNil)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
 				return &proto.ChangeUserAuthenticationRequest{
@@ -363,29 +365,34 @@ func (s *PasswordSuite) TestChangeUserAuthentication(c *C) {
 		},
 	}
 
-	for _, t := range tests {
-		comment := check.Commentf("test case %q", t.name)
+	for _, c := range tests {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
+			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+			require.NoError(t, err)
 
-		t.setAuthPreference()
+			c.setAuthPreference()
 
-		token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
-			Name: username,
+			token, err := srv.Auth().CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
+				Name: username,
+			})
+			require.NoError(t, err)
+
+			if c.getInvalidReq != nil {
+				invalidReq := c.getInvalidReq(token.GetName())
+				_, err = srv.Auth().changeUserAuthentication(ctx, invalidReq)
+				require.True(t, trace.IsBadParameter(err))
+			}
+
+			validReq := c.getReq(token.GetName())
+			_, err = srv.Auth().changeUserAuthentication(ctx, validReq)
+			require.NoError(t, err)
+
+			// Test password is updated.
+			err = srv.Auth().checkPasswordWOToken(username, validReq.NewPassword)
+			require.NoError(t, err)
 		})
-		c.Assert(err, IsNil, comment)
-
-		if t.getInvalidReq != nil {
-			invalidReq := t.getInvalidReq(token.GetName())
-			_, err = s.a.changeUserAuthentication(ctx, invalidReq)
-			c.Assert(trace.IsBadParameter(err), Equals, true, comment)
-		}
-
-		validReq := t.getReq(token.GetName())
-		_, err = s.a.changeUserAuthentication(ctx, validReq)
-		c.Assert(err, IsNil, comment)
-
-		// Test password is updated.
-		err = s.a.checkPasswordWOToken(username, validReq.NewPassword)
-		c.Assert(err, IsNil, comment)
 	}
 }
 

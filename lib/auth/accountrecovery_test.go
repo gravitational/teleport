@@ -748,6 +748,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 	}{
 		{
 			name: "invalid token type",
+			// expectErrMsg not supplied on purpose, there is no const err message for this error.
 			getRequest: func() *proto.CompleteAccountRecoveryRequest {
 				// Generate an incorrect token type.
 				startToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
@@ -822,7 +823,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 			},
 		},
 		{
-			name:           "providing u2f fields when u2f is not enabled by auth settings",
+			name:           "providing TOTP fields when TOTP is not enabled by auth settings",
 			isBadParameter: true,
 			getRequest: func() *proto.CompleteAccountRecoveryRequest {
 				// Acquire an approved token for recovering second factor.
@@ -850,7 +851,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 			},
 		},
 		{
-			name:           "providing totp fields when totp is not enabled by auth settings",
+			name:           "providing U2F fields when U2F is not enabled by auth settings",
 			isBadParameter: true,
 			getRequest: func() *proto.CompleteAccountRecoveryRequest {
 				// Acquire an approved token for recovering second factor.
