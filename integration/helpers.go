@@ -34,6 +34,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -57,6 +58,9 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
+
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -192,24 +196,27 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	rsaKey, err := ssh.ParseRawPrivateKey(cfg.Priv)
 	fatalIf(err)
 
-	tlsCAKey, tlsCACert, err := tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
+	tlsCACert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey.(*rsa.PrivateKey), pkix.Name{
 		CommonName:   cfg.ClusterName,
 		Organization: []string{cfg.ClusterName},
 	}, nil, defaults.CATTL)
 	fatalIf(err)
 
+	signer, err := ssh.ParsePrivateKey(cfg.Priv)
+	fatalIf(err)
+
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
-		PrivateCASigningKey: cfg.Priv,
-		CASigningAlg:        defaults.CASignatureAlgorithm,
-		PublicHostKey:       cfg.Pub,
-		HostID:              cfg.HostID,
-		NodeName:            cfg.NodeName,
-		ClusterName:         cfg.ClusterName,
-		Roles:               types.SystemRoles{types.RoleAdmin},
-		TTL:                 24 * time.Hour,
+		CASigner:      signer,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicHostKey: cfg.Pub,
+		HostID:        cfg.HostID,
+		NodeName:      cfg.NodeName,
+		ClusterName:   cfg.ClusterName,
+		Roles:         types.SystemRoles{types.RoleAdmin},
+		TTL:           24 * time.Hour,
 	})
 	fatalIf(err)
-	tlsCA, err := tlsca.FromKeys(tlsCACert, tlsCAKey)
+	tlsCA, err := tlsca.FromKeys(tlsCACert, cfg.Priv)
 	fatalIf(err)
 	cryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)
@@ -254,9 +261,9 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 }
 
 // GetRoles returns a list of roles to initiate for this secret
-func (s *InstanceSecrets) GetRoles() []types.Role {
+func (s *InstanceSecrets) GetRoles(t *testing.T) []types.Role {
 	var roles []types.Role
-	for _, ca := range s.GetCAs() {
+	for _, ca := range s.GetCAs(t) {
 		if ca.GetType() != types.UserCA {
 			continue
 		}
@@ -270,26 +277,46 @@ func (s *InstanceSecrets) GetRoles() []types.Role {
 // GetCAs return an array of CAs stored by the secrets object. In i
 // case we always return hard-coded userCA + hostCA (and they share keys
 // for simplicity)
-func (s *InstanceSecrets) GetCAs() []types.CertAuthority {
-	hostCA := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         types.HostCA,
-		ClusterName:  s.SiteName,
-		SigningKeys:  [][]byte{s.PrivKey},
-		CheckingKeys: [][]byte{s.PubKey},
-		Roles:        []string{},
-		SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_512,
+func (s *InstanceSecrets) GetCAs(t *testing.T) []types.CertAuthority {
+	hostCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     s.PrivKey,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      s.PubKey,
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Key:     s.PrivKey,
+				KeyType: types.PrivateKeyType_RAW,
+				Cert:    s.TLSCACert,
+			}},
+		},
+		Roles:      []string{},
+		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	hostCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
+	require.NoError(t, err)
 
-	userCA := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:         types.UserCA,
-		ClusterName:  s.SiteName,
-		SigningKeys:  [][]byte{s.PrivKey},
-		CheckingKeys: [][]byte{s.PubKey},
-		Roles:        []string{services.RoleNameForCertAuthority(s.SiteName)},
-		SigningAlg:   types.CertAuthoritySpecV2_RSA_SHA2_512,
+	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     s.PrivKey,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      s.PubKey,
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Key:     s.PrivKey,
+				KeyType: types.PrivateKeyType_RAW,
+				Cert:    s.TLSCACert,
+			}},
+		},
+		Roles:      []string{services.RoleNameForCertAuthority(s.SiteName)},
+		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
 	})
-	userCA.SetTLSKeyPairs([]types.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
+	require.NoError(t, err)
 
 	return []types.CertAuthority{hostCA, userCA}
 }
@@ -379,16 +406,16 @@ func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
 	return siteAPI
 }
 
-// Create creates a new instance of Teleport which trusts a lsit of other clusters (other
+// Create creates a new instance of Teleport which trusts a list of other clusters (other
 // instances)
-func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
+func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
 	tconf := service.MakeDefaultConfig()
 	tconf.SSH.Enabled = enableSSH
 	tconf.Console = console
 	tconf.Log = i.log
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
-	return i.CreateEx(trustedSecrets, tconf)
+	return i.CreateEx(t, trustedSecrets, tconf)
 }
 
 // UserCreds holds user client credentials
@@ -495,7 +522,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 }
 
 // GenerateConfig generates instance config
-func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *service.Config) (*service.Config, error) {
+func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *service.Config) (*service.Config, error) {
 	var err error
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
@@ -510,7 +537,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.DataDir = dataDir
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy.Enabled = true
-	tconf.Auth.ClusterName, err = types.NewClusterName(types.ClusterNameSpecV2{
+	tconf.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})
 	if err != nil {
@@ -533,16 +560,18 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tconf.Auth.Authorities = append(tconf.Auth.Authorities, i.Secrets.GetCAs()...)
+	tconf.Auth.Authorities = append(tconf.Auth.Authorities, i.Secrets.GetCAs(t)...)
 	tconf.Identities = append(tconf.Identities, i.Secrets.GetIdentity())
 	for _, trusted := range trustedSecrets {
-		tconf.Auth.Authorities = append(tconf.Auth.Authorities, trusted.GetCAs()...)
-		tconf.Auth.Roles = append(tconf.Auth.Roles, trusted.GetRoles()...)
+		tconf.Auth.Authorities = append(tconf.Auth.Authorities, trusted.GetCAs(t)...)
+		tconf.Auth.Roles = append(tconf.Auth.Roles, trusted.GetRoles(t)...)
 		tconf.Identities = append(tconf.Identities, trusted.GetIdentity())
 		if trusted.ListenAddr != "" {
-			tconf.ReverseTunnels = []types.ReverseTunnel{
-				types.NewReverseTunnel(trusted.SiteName, []string{trusted.ListenAddr}),
+			rt, err := types.NewReverseTunnel(trusted.SiteName, []string{trusted.ListenAddr})
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			tconf.ReverseTunnels = []types.ReverseTunnel{rt}
 		}
 	}
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = i.Secrets.ListenAddr
@@ -588,9 +617,15 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
 	}
 
+	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
+
 	tconf.Keygen = testauthority.New()
 	i.Config = tconf
 	return tconf, nil
+}
+
+func nullImpersonationCheck(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {
+	return nil
 }
 
 // CreateEx creates a new instance of Teleport which trusts a list of other clusters (other
@@ -598,9 +633,9 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 //
 // Unlike Create() it allows for greater customization because it accepts
 // a full Teleport config structure
-func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *service.Config) error {
+func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *service.Config) error {
 	ctx := context.TODO()
-	tconf, err := i.GenerateConfig(trustedSecrets, tconf)
+	tconf, err := i.GenerateConfig(t, trustedSecrets, tconf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1196,7 +1231,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 
 // NewClient returns a fully configured and pre-authenticated client
 // (pre-authenticated with server CAs and signed session key)
-func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, error) {
+func (i *TeleInstance) NewClient(t *testing.T, cfg ClientConfig) (*client.TeleportClient, error) {
 	tc, err := i.NewUnauthenticatedClient(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1216,7 +1251,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 	}
 	// tell the client to trust given CAs (from secrets). this is the
 	// equivalent of 'known hosts' in openssh
-	cas := i.Secrets.GetCAs()
+	cas := i.Secrets.GetCAs(t)
 	for i := range cas {
 		err = tc.AddTrustedCA(cas[i])
 		if err != nil {

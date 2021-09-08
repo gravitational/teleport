@@ -1,6 +1,7 @@
 ---
 title: Per-session MFA
-description: Require U2F checks for user SSH and Kubernetes sessions
+description: Require U2F checks for user SSH and Kubernetes sessions.
+videoBanner: j8Ze7HhjFGw
 ---
 
 # Per-session MFA
@@ -29,19 +30,7 @@ that protects users against compromises of their on-disk Teleport certificates.
 - Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
 - [U2F configured](u2f.mdx) on this cluster
 - U2F hardware device, such as Yubikey or Solokey
-- Web browser that [supports U2F](https://caniuse.com/u2f) (if using SSH from
-  the Teleport Web UI)
-
-## Demo
-
-<iframe
-  width="712"
-  height="400"
-  src="https://www.youtube-nocookie.com/embed/j8Ze7HhjFGw?rel=0&modestbranding=1"
-  frameBorder="0"
-  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-/>
+- Web browser that [supports U2F](https://caniuse.com/u2f) (if using SSH from the Teleport Web UI)
 
 ## Configuration
 
@@ -78,8 +67,7 @@ spec:
     ...
 ```
 
-Role-specific enforcement only applies when accessing SSH nodes or Kubernetes
-clusters matching that role's `allow` section.
+Role-specific enforcement only applies when accessing SSH nodes or Kubernetes clusters matching that role's `allow` section.
 
 #### Roles example
 
@@ -95,7 +83,7 @@ Olga defines two Teleport roles: `access-dev` and `access-prod`:
 ```yaml
 # access-dev.yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: access-dev
 spec:
@@ -108,7 +96,7 @@ spec:
 ---
 # access-prod.yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: access-prod
 spec:
@@ -125,23 +113,22 @@ spec:
 
 Olga then assigns both roles to all engineers, including Jerry.
 
-When Jerry logs into node `dev1.example.com` (with label `env: dev`), nothing
-special happens:
+When Jerry logs into node `dev1.example.com` (with label `env: dev`), nothing special happens:
 
-```sh
-jerry@localhost $ tsh ssh dev1.example.com
+```code
+$ tsh ssh dev1.example.com
 
-jerry@dev1.example.com >
+# jerry@dev1.example.com >
 ```
 
 But when Jerry logs into node `prod3.example.com` (with label `env: prod`), he
 gets prompted for an MFA check:
 
-```sh
-jerry@localhost $ tsh ssh prod3.example.com
-Tap any security key <tap>
+```code
+$ tsh ssh prod3.example.com
+# Tap any security key <tap>
 
-jerry@prod3.example.com >
+# jerry@prod3.example.com >
 ```
 
 If per-session MFA was enabled cluster-wide, Jerry would be prompted for MFA

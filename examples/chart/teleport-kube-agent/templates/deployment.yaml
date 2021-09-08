@@ -1,3 +1,8 @@
+#
+# Warning to maintainers, any changes to this file that are not specific to the Deployment need to also be duplicated
+# in the statefulset.yaml file.
+#
+{{- if not .Values.storage.enabled }}
 {{- if .Values.teleportVersionOverride }}
   {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
 {{- else }}
@@ -38,6 +43,10 @@ spec:
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}
       {{- end }}
+{{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 6 }}
+{{- end }}
 {{- if .Values.initContainers }}
       initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
   {{- if .Values.resources }}
@@ -65,6 +74,10 @@ spec:
     {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
   {{- end }}
 {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
       containers:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
@@ -111,7 +124,7 @@ spec:
           name: "auth-token"
           readOnly: true
         - mountPath: /var/lib/teleport
-          name: "data"
+          name: {{ default "data" .Values.existingDataVolume }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -122,9 +135,12 @@ spec:
       - name: "auth-token"
         secret:
           secretName: {{ .Values.secretName }}
+      {{- if not .Values.existingDataVolume }}
       - name: "data"
         emptyDir: {}
+      {{- end }}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
       serviceAccountName: {{ .Values.serviceAccountName | default .Release.Name }}
+{{- end }}

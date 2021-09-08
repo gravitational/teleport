@@ -1,11 +1,12 @@
 ---
 title: Database Access with MySQL on AWS
-description: How to configure Teleport Database Access with AWS RDS/Aurora MySQL
+description: How to configure Teleport Database Access with AWS RDS/Aurora MySQL.
+videoBanner: m5fpDouqa5c
 ---
 
 # AWS RDS/Aurora MySQL
 
-## Enable IAM Authentication
+## Enable IAM authentication
 
 Teleport Database Access for AWS RDS and Aurora uses IAM authentication which
 can be enabled with the following steps.
@@ -22,7 +23,7 @@ turn it on. Make sure to use MySQL database type.
 See [Enabling and disabling IAM database authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Enabling.html)
 for more information.
 
-## Create IAM Policy
+## Create IAM policy
 
 To allow Teleport database service to log into the database instance using auth
 token, create an IAM policy and attach it to the user whose credentials the
@@ -63,7 +64,7 @@ Parameters:
 See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
 for more information.
 
-## Create Database User
+## Create database user
 
 Database accounts must have IAM authentication enabled in order to be allowed
 access. For MySQL:
@@ -82,63 +83,24 @@ GRANT ALL ON `%`.* TO 'alice'@'%';
 See [Creating a database account using IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html)
 for more information.
 
-## Configure Teleport
+## Setup Teleport Auth and Proxy services
 
-Teleport Database Access is available starting from `6.0` release.
+Teleport Database Access for MySQL on AWS is available starting from `6.0`
+release.
 
-Download the appropriate version of Teleport for your platform from
-our [downloads page](https://goteleport.com/teleport/download).
+(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-Follow the installation [instructions](../../installation.mdx).
+(!docs/pages/includes/database-access/token.mdx!)
 
-### Start Auth/Proxy Service
-
-Create a configuration file for a Teleport service that will be running
-auth and proxy servers:
-
-```yaml
-teleport:
-  data_dir: /var/lib/teleport
-  nodename: test
-auth_service:
-  enabled: "yes"
-proxy_service:
-  enabled: "yes"
-  # Set public address proxy will be reachable at.
-  public_addr: teleport.example.com:3080
-  # MySQL proxy is listening on a separate port and needs to be enabled
-  # on the proxy server.
-  mysql_listen_addr: 0.0.0.0:3036
-ssh_service:
-  enabled: "no"
-```
-
-Start the service:
-
-```sh
-$ teleport start --config=/path/to/teleport.yaml
-```
-
-Generate a short-lived join token for the database service and save it for
-example in `/tmp/token`:
-
-```sh
-$ tctl tokens add \
-    --type=db \
-    --db-name=aurora \
-    --db-protocol=mysql \
-    --db-uri=mysql-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:3306
-```
-
-### Create Role and User
+### Create role and user
 
 Create the role that will allow a user to connect to any database using any
 database account:
 
-```sh
+```bash
 $ tctl --config=/path/to/teleport.yaml create <<EOF
 kind: role
-version: v3
+version: v4
 metadata:
   name: db
 spec:
@@ -154,16 +116,16 @@ EOF
 
 Create the user assigned the `db` role we've just created:
 
-```sh
+```code
 $ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
 ```
 
-### Start Database Service with CLI Flags
+### Start Database service with CLI flags
 
 For a quick try-out, Teleport database service doesn't require a configuration
 file and can be launched using a single CLI command:
 
-```sh
+```code
 $ teleport db start \
    --token=/tmp/token \
    --auth-server=teleport.example.com:3080 \
@@ -178,7 +140,7 @@ Note that the `--auth-server` flag must point to the Teleport cluster's proxy en
 because the database service always connects back to the cluster over a reverse
 tunnel.
 
-### Start Database Service with Config File
+### Start Database service with config file
 
 Below is an example of a database service configuration file that proxies
 a single AWS Aurora MySQL database:
@@ -236,11 +198,11 @@ proxy_service:
 
 Start the database service:
 
-```sh
+```code
 $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ```
 
-### AWS Credentials
+### AWS credentials
 
 When setting up Teleport database service with AWS RDS or Aurora, it must have
 an IAM role allowing it to connect to that particular database instance. An
@@ -257,12 +219,12 @@ for more information.
 Once the database service has joined the cluster, login to see the available
 databases:
 
-```sh
-$ tsh login --proxy=teleport.example.com:3080 --user=testuser
+```code
+$ tsh login --proxy=teleport.example.com --user=testuser
 $ tsh db ls
-Name   Description      Labels
------- ---------------- --------
-aurora AWS Aurora MySQL env=dev
+# Name   Description      Labels
+# ------ ---------------- --------
+# aurora AWS Aurora MySQL env=dev
 ```
 
 Note that you will only be able to see databases your role has access to. See
@@ -271,7 +233,7 @@ Note that you will only be able to see databases your role has access to. See
 To connect to a particular database server, first retrieve credentials from
 Teleport using `tsh db login` command:
 
-```sh
+```code
 $ tsh db login aurora
 ```
 
@@ -285,28 +247,30 @@ $ tsh db login aurora
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
-```sh
+```code
 $ tsh db login --db-user=root --db-name=mysql aurora
 ```
 
-When logging into a MySQL database, `tsh` automatically configures a section
-in the [option file](https://dev.mysql.com/doc/refman/8.0/en/option-files.html)
-with the name of `client_<cluster-name>-<database-service-name>` which `mysql`
-client can refer to via "group suffix" flag.
+Once logged in, connect to the database:
 
-Suppose the cluster name is "root", then you can connect to the database using
-the following `mysql` command:
+```code
+$ tsh db connect aurora
+```
 
-```sh
-# Use default database user and database name.
-$ mysql --defaults-group-suffix=_root-aurora
-# Specify database user and database name explicitly.
-$ mysql --defaults-group-suffix=_root-aurora --user=alice --database=metrics
+<Admonition type="note" title="Note">
+  The `mysql` command-line client should be available in PATH in order to be
+  able to connect.
+</Admonition>
+
+If you would like to see the native `mysql` shell connect command, run:
+
+```code
+$ tsh db config --format=cmd aurora
 ```
 
 To log out of the database and remove credentials:
 
-```sh
+```code
 # Remove credentials for a particular database instance.
 $ tsh db logout aurora
 # Remove credentials for all database instances.

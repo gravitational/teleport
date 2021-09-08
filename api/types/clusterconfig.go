@@ -20,22 +20,24 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
 // ClusterConfig defines cluster level configuration. This is a configuration
 // resource, never create more than one instance of it.
+// DELETE IN 8.0.0
 type ClusterConfig interface {
 	// Resource provides common resource properties.
 	Resource
 
-	// GetClusterID returns the unique cluster ID
-	GetClusterID() string
+	// GetLegacyClusterID returns the legacy cluster ID.
+	// DELETE IN 8.0.0
+	GetLegacyClusterID() string
 
-	// SetClusterID sets the cluster ID
-	SetClusterID(string)
+	// SetLegacyClusterID sets the legacy cluster ID.
+	// DELETE IN 8.0.0
+	SetLegacyClusterID(string)
 
 	// HasAuditConfig returns true if audit configuration is set.
 	// DELETE IN 8.0.0
@@ -45,6 +47,10 @@ type ClusterConfig interface {
 	// DELETE IN 8.0.0
 	SetAuditConfig(ClusterAuditConfig) error
 
+	// GetClusterAuditConfig gets embedded cluster audit configuration.
+	// DELETE IN 8.0.0
+	GetClusterAuditConfig() (ClusterAuditConfig, error)
+
 	// HasNetworkingFields returns true if embedded networking configuration is set.
 	// DELETE IN 8.0.0
 	HasNetworkingFields() bool
@@ -52,6 +58,10 @@ type ClusterConfig interface {
 	// SetNetworkingFields sets embedded networking configuration.
 	// DELETE IN 8.0.0
 	SetNetworkingFields(ClusterNetworkingConfig) error
+
+	// GetClusterNetworkingConfig gets embedded cluster networking configuration.
+	// DELETE IN 8.0.0
+	GetClusterNetworkingConfig() (ClusterNetworkingConfig, error)
 
 	// HasSessionRecordingFields returns true if embedded session recording
 	// configuration is set.
@@ -62,6 +72,10 @@ type ClusterConfig interface {
 	// DELETE IN 8.0.0
 	SetSessionRecordingFields(SessionRecordingConfig) error
 
+	// GetSessionRecordingConfig gets embedded session recording configuration.
+	// DELETE IN 8.0.0
+	GetSessionRecordingConfig() (SessionRecordingConfig, error)
+
 	// HasAuthFields returns true if legacy auth fields are set.
 	// DELETE IN 8.0.0
 	HasAuthFields() bool
@@ -70,30 +84,24 @@ type ClusterConfig interface {
 	// DELETE IN 8.0.0
 	SetAuthFields(AuthPreference) error
 
-	// ClearLegacyFields clears embedded legacy fields.
-	// DELETE IN 8.0.0
-	ClearLegacyFields()
-
 	// Copy creates a copy of the resource and returns it.
 	Copy() ClusterConfig
 }
 
 // NewClusterConfig is a convenience wrapper to create a ClusterConfig resource.
 func NewClusterConfig(spec ClusterConfigSpecV3) (ClusterConfig, error) {
-	cc := ClusterConfigV3{
-		Kind:    KindClusterConfig,
-		Version: V3,
-		Metadata: Metadata{
-			Name:      MetaNameClusterConfig,
-			Namespace: defaults.Namespace,
-		},
-		Spec: spec,
-	}
+	cc := &ClusterConfigV3{Spec: spec}
 	if err := cc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return cc, nil
+}
 
-	return &cc, nil
+// DefaultClusterConfig is used as the default cluster configuration when
+// one is not specified (record at node).
+func DefaultClusterConfig() ClusterConfig {
+	config, _ := NewClusterConfig(ClusterConfigSpecV3{})
+	return config
 }
 
 // GetVersion returns resource version
@@ -146,39 +154,37 @@ func (c *ClusterConfigV3) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *ClusterConfigV3) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
-}
-
 // GetMetadata returns object metadata
 func (c *ClusterConfigV3) GetMetadata() Metadata {
 	return c.Metadata
 }
 
-// GetClusterID returns the unique cluster ID
-func (c *ClusterConfigV3) GetClusterID() string {
-	return c.Spec.ClusterID
-}
-
-// SetClusterID sets the cluster ID
-func (c *ClusterConfigV3) SetClusterID(id string) {
-	c.Spec.ClusterID = id
+// setStaticFields sets static resource header and metadata fields.
+func (c *ClusterConfigV3) setStaticFields() {
+	c.Kind = KindClusterConfig
+	c.Version = V3
+	c.Metadata.Name = MetaNameClusterConfig
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
-	// make sure we have defaults for all metadata fields
-	err := c.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	c.setStaticFields()
+	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if c.Version == "" {
-		c.Version = V3
-	}
 	return nil
+}
+
+// GetLegacyClusterID returns the legacy cluster ID.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) GetLegacyClusterID() string {
+	return c.Spec.ClusterID
+}
+
+// SetLegacyClusterID sets the legacy cluster ID.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) SetLegacyClusterID(id string) {
+	c.Spec.ClusterID = id
 }
 
 // HasAuditConfig returns true if audit configuration is set.
@@ -198,6 +204,19 @@ func (c *ClusterConfigV3) SetAuditConfig(auditConfig ClusterAuditConfig) error {
 	return nil
 }
 
+// GetClusterAuditConfig gets embedded cluster audit configuration.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) GetClusterAuditConfig() (ClusterAuditConfig, error) {
+	if !c.HasAuditConfig() {
+		return nil, nil
+	}
+	auditConfig, err := NewClusterAuditConfig(*c.Spec.Audit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return auditConfig, nil
+}
+
 // HasNetworkingFields returns true if embedded networking configuration is set.
 // DELETE IN 8.0.0
 func (c *ClusterConfigV3) HasNetworkingFields() bool {
@@ -213,6 +232,19 @@ func (c *ClusterConfigV3) SetNetworkingFields(netConfig ClusterNetworkingConfig)
 	}
 	c.Spec.ClusterNetworkingConfigSpecV2 = &netConfigV2.Spec
 	return nil
+}
+
+// GetClusterNetworkingConfig gets embedded cluster networking configuration.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) GetClusterNetworkingConfig() (ClusterNetworkingConfig, error) {
+	if !c.HasNetworkingFields() {
+		return nil, nil
+	}
+	netConfig, err := NewClusterNetworkingConfigFromConfigFile(*c.Spec.ClusterNetworkingConfigSpecV2)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return netConfig, nil
 }
 
 // HasSessionRecordingFields returns true if embedded session recording
@@ -240,6 +272,27 @@ func (c *ClusterConfigV3) SetSessionRecordingFields(recConfig SessionRecordingCo
 	return nil
 }
 
+// GetSessionRecordingConfig gets embedded session recording configuration.
+// DELETE IN 8.0.0
+func (c *ClusterConfigV3) GetSessionRecordingConfig() (SessionRecordingConfig, error) {
+	if !c.HasSessionRecordingFields() {
+		return nil, nil
+	}
+	proxyChecksHostKeys, err := utils.ParseBool(c.Spec.LegacySessionRecordingConfigSpec.ProxyChecksHostKeys)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	recConfigSpec := SessionRecordingConfigSpecV2{
+		Mode:                c.Spec.LegacySessionRecordingConfigSpec.Mode,
+		ProxyChecksHostKeys: NewBoolOption(proxyChecksHostKeys),
+	}
+	recConfig, err := NewSessionRecordingConfigFromConfigFile(recConfigSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return recConfig, nil
+}
+
 // HasAuthFields returns true if legacy auth fields are set.
 // DELETE IN 8.0.0
 func (c *ClusterConfigV3) HasAuthFields() bool {
@@ -258,15 +311,6 @@ func (c *ClusterConfigV3) SetAuthFields(authPref AuthPreference) error {
 		DisconnectExpiredCert: NewBool(authPrefV2.Spec.DisconnectExpiredCert.Value),
 	}
 	return nil
-}
-
-// ClearLegacyFields clears legacy fields.
-// DELETE IN 8.0.0
-func (c *ClusterConfigV3) ClearLegacyFields() {
-	c.Spec.Audit = nil
-	c.Spec.ClusterNetworkingConfigSpecV2 = nil
-	c.Spec.LegacySessionRecordingConfigSpec = nil
-	c.Spec.LegacyClusterConfigAuthFields = nil
 }
 
 // Copy creates a copy of the resource and returns it.

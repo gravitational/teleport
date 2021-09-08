@@ -48,6 +48,10 @@ func UnmarshalLicense(bytes []byte) (types.License, error) {
 
 // MarshalLicense marshals the License resource to JSON.
 func MarshalLicense(license types.License, opts ...MarshalOption) ([]byte, error) {
+	if err := license.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -55,9 +59,6 @@ func MarshalLicense(license types.License, opts ...MarshalOption) ([]byte, error
 
 	switch license := license.(type) {
 	case *types.LicenseV3:
-		if version := license.GetVersion(); version != types.V3 {
-			return nil, trace.BadParameter("mismatched license version %v and type %T", version, license)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

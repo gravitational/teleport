@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package proxy
 
 import (
@@ -714,7 +728,7 @@ type mockCSRClient struct {
 }
 
 func newMockCSRClient() (*mockCSRClient, error) {
-	ca, err := tlsca.FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	if err != nil {
 		return nil, err
 	}
@@ -745,7 +759,7 @@ func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse,
 	}
 	return &auth.KubeCSRResponse{
 		Cert:            cert,
-		CertAuthorities: [][]byte{[]byte(fixtures.SigningCertPEM)},
+		CertAuthorities: [][]byte{[]byte(fixtures.TLSCACertPEM)},
 		TargetAddr:      "mock addr",
 	}, nil
 }
@@ -778,7 +792,7 @@ func (ap mockAccessPoint) GetSessionRecordingConfig(context.Context, ...services
 	return ap.recordingConfig, nil
 }
 
-func (ap mockAccessPoint) GetAuthPreference() (types.AuthPreference, error) {
+func (ap mockAccessPoint) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return ap.authPref, nil
 }
 

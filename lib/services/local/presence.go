@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -249,6 +250,48 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 	}
 
 	return servers, nil
+}
+
+// ListNodes returns a paginated list of registered servers.
+// StartKey is a resource name, which is the suffix of its key.
+func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+	if namespace == "" {
+		return nil, "", trace.BadParameter("missing namespace value")
+	}
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive limit value")
+	}
+
+	// Get all items in the bucket within the given range.
+	rangeStart := backend.Key(nodesPrefix, namespace, startKey)
+	keyPrefix := backend.Key(nodesPrefix, namespace)
+	rangeEnd := backend.RangeEnd(keyPrefix)
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Marshal values into a []services.Server slice.
+	servers := make([]types.Server, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.UnmarshalServer(
+			item.Value,
+			types.KindNode,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		servers[i] = server
+	}
+
+	// If a full page was filled, set nextKey using the last node.
+	if len(result.Items) == limit {
+		nextKey = backend.NextPaginationKey(servers[len(servers)-1])
+	}
+
+	return servers, nextKey, nil
 }
 
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
@@ -1226,6 +1269,8 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 		key = backend.Key(appsPrefix, serversPrefix, h.Namespace, h.Name)
 	case constants.KeepAliveDatabase:
 		key = backend.Key(dbServersPrefix, h.Namespace, h.HostID, h.Name)
+	case constants.KeepAliveWindowsDesktopService:
+		key = backend.Key(windowsDesktopServicesPrefix, h.Name)
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
 	}
@@ -1237,19 +1282,87 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 	return trace.Wrap(err)
 }
 
+// GetWindowsDesktopServices returns all registered Windows desktop services.
+func (s *PresenceService) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	startKey := backend.Key(windowsDesktopServicesPrefix, "")
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	srvs := make([]types.WindowsDesktopService, len(result.Items))
+	for i, item := range result.Items {
+		s, err := services.UnmarshalWindowsDesktopService(
+			item.Value,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		srvs[i] = s
+	}
+	return srvs, nil
+}
+
+// UpsertWindowsDesktopService registers new Windows desktop service.
+func (s *PresenceService) UpsertWindowsDesktopService(ctx context.Context, srv types.WindowsDesktopService) (*types.KeepAlive, error) {
+	if err := srv.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalWindowsDesktopService(srv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := s.Put(ctx, backend.Item{
+		Key:     backend.Key(windowsDesktopServicesPrefix, srv.GetName()),
+		Value:   value,
+		Expires: srv.Expiry(),
+		ID:      srv.GetResourceID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if srv.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:      types.KeepAlive_WINDOWS_DESKTOP,
+		LeaseID:   lease.ID,
+		Name:      srv.GetName(),
+		Namespace: apidefaults.Namespace,
+		Expires:   srv.Expiry(),
+	}, nil
+}
+
+// DeleteWindowsDesktopService removes the specified Windows desktop service.
+func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing windows desktop service name")
+	}
+	key := backend.Key(windowsDesktopServicesPrefix, name)
+	return s.Delete(ctx, key)
+}
+
+// DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
+func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) error {
+	startKey := backend.Key(windowsDesktopServicesPrefix)
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
 const (
-	localClusterPrefix      = "localCluster"
-	reverseTunnelsPrefix    = "reverseTunnels"
-	tunnelConnectionsPrefix = "tunnelConnections"
-	trustedClustersPrefix   = "trustedclusters"
-	remoteClustersPrefix    = "remoteClusters"
-	nodesPrefix             = "nodes"
-	appsPrefix              = "apps"
-	serversPrefix           = "servers"
-	dbServersPrefix         = "databaseServers"
-	namespacesPrefix        = "namespaces"
-	authServersPrefix       = "authservers"
-	proxiesPrefix           = "proxies"
-	semaphoresPrefix        = "semaphores"
-	kubeServicesPrefix      = "kubeServices"
+	localClusterPrefix           = "localCluster"
+	reverseTunnelsPrefix         = "reverseTunnels"
+	tunnelConnectionsPrefix      = "tunnelConnections"
+	trustedClustersPrefix        = "trustedclusters"
+	remoteClustersPrefix         = "remoteClusters"
+	nodesPrefix                  = "nodes"
+	appsPrefix                   = "apps"
+	serversPrefix                = "servers"
+	dbServersPrefix              = "databaseServers"
+	namespacesPrefix             = "namespaces"
+	authServersPrefix            = "authservers"
+	proxiesPrefix                = "proxies"
+	semaphoresPrefix             = "semaphores"
+	kubeServicesPrefix           = "kubeServices"
+	windowsDesktopServicesPrefix = "windowsDesktopServices"
 )

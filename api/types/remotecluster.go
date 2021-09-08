@@ -21,8 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/defaults"
 )
 
 // RemoteCluster represents a remote cluster that has connected via reverse tunnel
@@ -46,14 +44,15 @@ type RemoteCluster interface {
 
 // NewRemoteCluster is a convenience way to create a RemoteCluster resource.
 func NewRemoteCluster(name string) (RemoteCluster, error) {
-	return &RemoteClusterV3{
-		Kind:    KindRemoteCluster,
-		Version: V3,
+	c := &RemoteClusterV3{
 		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+			Name: name,
 		},
-	}, nil
+	}
+	if err := c.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c, nil
 }
 
 // GetVersion returns resource version
@@ -86,13 +85,17 @@ func (c *RemoteClusterV3) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// setStaticFields sets static resource header and metadata fields.
+func (c *RemoteClusterV3) setStaticFields() {
+	c.Kind = KindRemoteCluster
+	c.Version = V3
+}
+
 // CheckAndSetDefaults checks and sets default values
 func (c *RemoteClusterV3) CheckAndSetDefaults() error {
+	c.setStaticFields()
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if c.Version == "" {
-		c.Version = V3
 	}
 	return nil
 }
@@ -135,13 +138,6 @@ func (c *RemoteClusterV3) SetExpiry(expires time.Time) {
 // Expiry returns object expiry setting
 func (c *RemoteClusterV3) Expiry() time.Time {
 	return c.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using the provided clock.
-// Use SetExpiry instead.
-// DELETE IN 7.0.0
-func (c *RemoteClusterV3) SetTTL(clock Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
 }
 
 // GetName returns the name of the RemoteCluster.

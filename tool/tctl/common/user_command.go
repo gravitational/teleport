@@ -140,10 +140,10 @@ func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 // ResetPassword resets user password and generates a token to setup new password
 func (u *UserCommand) ResetPassword(client auth.ClientI) error {
-	req := auth.CreateResetPasswordTokenRequest{
+	req := auth.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.ResetPasswordTokenTypePassword,
+		Type: auth.UserTokenTypeResetPassword,
 	}
 	token, err := client.CreateResetPasswordToken(context.TODO(), req)
 	if err != nil {
@@ -159,7 +159,7 @@ func (u *UserCommand) ResetPassword(client auth.ClientI) error {
 }
 
 // PrintResetPasswordToken prints ResetPasswordToken
-func (u *UserCommand) PrintResetPasswordToken(token types.ResetPasswordToken, format string) error {
+func (u *UserCommand) PrintResetPasswordToken(token types.UserToken, format string) error {
 	err := u.printResetPasswordToken(token,
 		format,
 		"User %q has been reset. Share this URL with the user to complete password reset, link is valid for %v:\n%v\n\n",
@@ -173,7 +173,7 @@ func (u *UserCommand) PrintResetPasswordToken(token types.ResetPasswordToken, fo
 }
 
 // PrintResetPasswordTokenAsInvite prints ResetPasswordToken as Invite
-func (u *UserCommand) PrintResetPasswordTokenAsInvite(token types.ResetPasswordToken, format string) error {
+func (u *UserCommand) PrintResetPasswordTokenAsInvite(token types.UserToken, format string) error {
 	err := u.printResetPasswordToken(token,
 		format,
 		"User %q has been created but requires a password. Share this URL with the user to complete user setup, link is valid for %v:\n%v\n\n")
@@ -185,7 +185,7 @@ func (u *UserCommand) PrintResetPasswordTokenAsInvite(token types.ResetPasswordT
 }
 
 // PrintResetPasswordToken prints ResetPasswordToken
-func (u *UserCommand) printResetPasswordToken(token types.ResetPasswordToken, format string, messageFormat string) (err error) {
+func (u *UserCommand) printResetPasswordToken(token types.UserToken, format string, messageFormat string) (err error) {
 	switch strings.ToLower(u.format) {
 	case teleport.JSON:
 		err = printTokenAsJSON(token)
@@ -262,10 +262,10 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 
 	}
 
-	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.ResetPasswordTokenTypeInvite,
+		Type: auth.UserTokenTypeResetPasswordInvite,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -320,10 +320,10 @@ Meanwhile we are going to assign user %q to role %q created during migration.
 		return trace.Wrap(err)
 	}
 
-	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.ResetPasswordTokenTypeInvite,
+		Type: auth.UserTokenTypeResetPasswordInvite,
 	})
 	if err != nil {
 		return err
@@ -348,7 +348,7 @@ func flattenSlice(slice []string) (retval []string) {
 	return retval
 }
 
-func printTokenAsJSON(token types.ResetPasswordToken) error {
+func printTokenAsJSON(token types.UserToken) error {
 	out, err := json.MarshalIndent(token, "", "  ")
 	if err != nil {
 		return trace.Wrap(err, "failed to marshal reset password token")
@@ -357,7 +357,7 @@ func printTokenAsJSON(token types.ResetPasswordToken) error {
 	return nil
 }
 
-func printTokenAsText(token types.ResetPasswordToken, messageFormat string) error {
+func printTokenAsText(token types.UserToken, messageFormat string) error {
 	url, err := url.Parse(token.GetURL())
 	if err != nil {
 		return trace.Wrap(err, "failed to parse reset password token url")

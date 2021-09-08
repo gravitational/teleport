@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
@@ -39,7 +40,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 	)
 	s := newTestServices(t)
 	// Set up local cluster name in the backend.
-	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
+	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: localClusterName,
 	})
 	require.NoError(t, err)
@@ -208,10 +209,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 			if err != nil {
 				return
 			}
-			require.Empty(t, cmp.Diff(id, tt.wantID,
-				cmpopts.IgnoreFields(BuiltinRole{}, "GetSessionRecordingConfig"),
-				cmpopts.EquateEmpty(),
-			))
+			require.Empty(t, cmp.Diff(id, tt.wantID, cmpopts.EquateEmpty()))
 		})
 	}
 }

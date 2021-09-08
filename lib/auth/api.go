@@ -55,6 +55,14 @@ type Announcer interface {
 
 	// UpsertDatabaseServer registers a database proxy server.
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
+
+	// UpsertWindowsDesktopService registers a Windows desktop service.
+	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
+
+	// CreateWindowsDesktop registers a Windows desktop host.
+	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
+	// UpdateWindowsDesktop updates a Windows desktop host.
+	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
 }
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
@@ -81,7 +89,7 @@ type ReadAccessPoint interface {
 	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
-	GetAuthPreference() (types.AuthPreference, error)
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
@@ -97,6 +105,9 @@ type ReadAccessPoint interface {
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+
+	// ListNodes returns a paginated list of registered servers for this cluster.
+	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
@@ -151,6 +162,24 @@ type ReadAccessPoint interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// GetDatabases returns all database resources.
+	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// GetDatabase returns the specified database resource.
+	GetDatabase(ctx context.Context, name string) (types.Database, error)
+
+	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
+	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
+
+	// GetWindowsDesktops returns windows desktop hosts.
+	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
+
+	// GetWindowsDesktop returns a named windows desktop host.
+	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+
+	// GetWindowsDesktops returns windows desktop hosts.
+	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)
@@ -209,6 +238,19 @@ type Cache interface {
 
 	// GetToken finds and returns token by ID
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+
+	// GetLock gets a lock by name.
+	// NOTE: This method is intentionally available only for the auth server
+	// cache, the other Teleport components should make use of
+	// services.LockWatcher that provides the necessary freshness guarantees.
+	GetLock(ctx context.Context, name string) (types.Lock, error)
+
+	// GetLocks gets all/in-force locks that match at least one of the targets
+	// when specified.
+	// NOTE: This method is intentionally available only for the auth server
+	// cache, the other Teleport components should make use of
+	// services.LockWatcher that provides the necessary freshness guarantees.
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 
 	// NewWatcher returns a new event watcher
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -314,6 +356,21 @@ func (w *Wrapper) UpsertAppServer(ctx context.Context, server types.Server) (*ty
 // UpsertDatabaseServer registers a database proxy server.
 func (w *Wrapper) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
 	return w.NoCache.UpsertDatabaseServer(ctx, server)
+}
+
+// UpsertWindowsDesktopService registers a Windows desktop service.
+func (w *Wrapper) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {
+	return w.NoCache.UpsertWindowsDesktopService(ctx, s)
+}
+
+// CreateWindowsDesktop registers a Windows desktop host.
+func (w *Wrapper) CreateWindowsDesktop(ctx context.Context, d types.WindowsDesktop) error {
+	return w.NoCache.CreateWindowsDesktop(ctx, d)
+}
+
+// UpdateWindowsDesktop updates a Windows desktop host.
+func (w *Wrapper) UpdateWindowsDesktop(ctx context.Context, d types.WindowsDesktop) error {
+	return w.NoCache.UpdateWindowsDesktop(ctx, d)
 }
 
 // NewCachingAcessPoint returns new caching access point using

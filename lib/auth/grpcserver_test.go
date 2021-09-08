@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -36,11 +37,15 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -60,7 +65,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
@@ -554,7 +559,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			Facets: []string{"teleport"},
 		}})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -584,12 +589,16 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	err = srv.Auth().UpsertKubeService(ctx, k8sSrv)
 	require.NoError(t, err)
 	// Register a database.
-	db := types.NewDatabaseServerV3("db-a", nil, types.DatabaseServerSpecV3{
+	db, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "db-a",
+	}, types.DatabaseServerSpecV3{
 		Protocol: "postgres",
 		URI:      "localhost",
 		Hostname: "localhost",
 		HostID:   "localhost",
 	})
+	require.NoError(t, err)
+
 	_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
 	require.NoError(t, err)
 
@@ -649,7 +658,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 	})
 	// Fetch MFA device ID.
-	devs, err := srv.Auth().GetMFADevices(ctx, user.GetName())
+	devs, err := srv.Auth().Identity.GetMFADevices(ctx, user.GetName(), false)
 	require.NoError(t, err)
 	require.Len(t, devs, 1)
 	u2fDevID := devs[0].Id
@@ -880,7 +889,7 @@ func TestIsMFARequired(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -924,6 +933,95 @@ func TestIsMFARequired(t *testing.T) {
 	}
 }
 
+func TestIsMFARequiredUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Enable MFA support.
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	// Register an SSH node.
+	node1 := &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      "node1",
+			Namespace: apidefaults.Namespace,
+			Labels:    map[string]string{"a": "b"},
+		},
+		Spec: types.ServerSpecV2{
+			Hostname: "node1",
+			Addr:     "localhost:3022",
+		},
+	}
+	_, err = srv.Auth().UpsertNode(ctx, node1)
+	require.NoError(t, err)
+
+	// Register another SSH node with a duplicate hostname.
+	node2 := &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      "node2",
+			Namespace: apidefaults.Namespace,
+			Labels:    map[string]string{"a": "c"},
+		},
+		Spec: types.ServerSpecV2{
+			Hostname: "node1",
+			Addr:     "localhost:3022",
+		},
+	}
+	_, err = srv.Auth().UpsertNode(ctx, node2)
+	require.NoError(t, err)
+
+	user, role, err := CreateUserAndRole(srv.Auth(), "alice", []string{"alice"})
+	require.NoError(t, err)
+
+	// Require MFA.
+	roleOpt := role.GetOptions()
+	roleOpt.RequireSessionMFA = true
+	role.SetOptions(roleOpt)
+	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"a": []string{"c"}})
+	err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	cl, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Call the endpoint for an authorized login. The user is only authorized
+	// for the 2nd node, but should still be asked for MFA.
+	resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+			Login: "alice",
+			Node:  "node1",
+		}},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.Required)
+
+	// Call the endpoint for an unauthorized login.
+	resp, err = cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+			Login: "bob",
+			Node:  "node1",
+		}},
+	})
+
+	// When unauthorized, expect a silent `false`.
+	require.NoError(t, err)
+	require.False(t, resp.Required)
+}
+
 func TestDeleteLastMFADevice(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -939,7 +1037,7 @@ func TestDeleteLastMFADevice(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(authPref)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
@@ -1018,29 +1116,6 @@ func TestDeleteLastMFADevice(t *testing.T) {
 		},
 		checkErr: require.Error,
 	})
-}
-
-// testOriginDynamicStored tests setting a ResourceWithOrigin via the server
-// API always results in the resource being stored with OriginDynamic.
-func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
-	srv := newTestTLSServer(t)
-
-	// Create a fake user.
-	user, _, err := CreateUserAndRole(srv.Auth(), "configurer", []string{})
-	require.NoError(t, err)
-	cl, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	for _, origin := range types.OriginValues {
-		t.Run(fmt.Sprintf("setting with origin %q", origin), func(t *testing.T) {
-			err := setWithOrigin(cl, origin)
-			require.NoError(t, err)
-
-			stored, err := getStored(srv.Auth())
-			require.NoError(t, err)
-			require.Equal(t, stored.Origin(), types.OriginDynamic)
-		})
-	}
 }
 
 // TestRoleVersions tests that downgraded V3 roles are returned to older
@@ -1154,17 +1229,41 @@ func TestRoleVersions(t *testing.T) {
 	}
 }
 
+// testOriginDynamicStored tests setting a ResourceWithOrigin via the server
+// API always results in the resource being stored with OriginDynamic.
+func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
+	srv := newTestTLSServer(t)
+
+	// Create a fake user.
+	user, _, err := CreateUserAndRole(srv.Auth(), "configurer", []string{})
+	require.NoError(t, err)
+	cl, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, origin := range types.OriginValues {
+		t.Run(fmt.Sprintf("setting with origin %q", origin), func(t *testing.T) {
+			err := setWithOrigin(cl, origin)
+			require.NoError(t, err)
+
+			stored, err := getStored(srv.Auth())
+			require.NoError(t, err)
+			require.Equal(t, stored.Origin(), types.OriginDynamic)
+		})
+	}
+}
+
 func TestAuthPreferenceOriginDynamic(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	setWithOrigin := func(cl *Client, origin string) error {
 		authPref := types.DefaultAuthPreference()
 		authPref.SetOrigin(origin)
-		return cl.SetAuthPreference(authPref)
+		return cl.SetAuthPreference(ctx, authPref)
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
-		return asrv.GetAuthPreference()
+		return asrv.GetAuthPreference(ctx)
 	}
 
 	testOriginDynamicStored(t, setWithOrigin, getStored)
@@ -1202,4 +1301,383 @@ func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
 	}
 
 	testOriginDynamicStored(t, setWithOrigin, getStored)
+}
+
+func TestNodesCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// node1 and node2 will be added to default namespace
+	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+	node2, err := types.NewServerWithLabels("node2", types.KindNode, types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	t.Run("CreateNode", func(t *testing.T) {
+		// Initially expect no nodes to be returned.
+		nodes, err := clt.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, nodes)
+
+		// Create nodes.
+		_, err = clt.UpsertNode(ctx, node1)
+		require.NoError(t, err)
+
+		_, err = clt.UpsertNode(ctx, node2)
+		require.NoError(t, err)
+	})
+
+	// Run NodeGetters in nested subtests to allow parallelization.
+	t.Run("NodeGetters", func(t *testing.T) {
+		t.Run("List Nodes", func(t *testing.T) {
+			t.Parallel()
+			// list nodes one at a time, last page should be empty
+			nodes, nextKey, err := clt.ListNodes(ctx, apidefaults.Namespace, 1, "")
+			require.NoError(t, err)
+			require.Len(t, nodes, 1)
+			require.Empty(t, cmp.Diff([]types.Server{node1}, nodes,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			require.Equal(t, backend.NextPaginationKey(node1), nextKey)
+
+			nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			require.NoError(t, err)
+			require.Len(t, nodes, 1)
+			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			require.Equal(t, backend.NextPaginationKey(node2), nextKey)
+
+			nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			require.NoError(t, err)
+			require.Empty(t, nodes)
+			require.Equal(t, "", nextKey)
+
+			// ListNodes should fail if namespace isn't provided
+			_, _, err = clt.ListNodes(ctx, "", 1, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+			// ListNodes should fail if limit is nonpositive
+			_, _, err = clt.ListNodes(ctx, apidefaults.Namespace, 0, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+			_, _, err = clt.ListNodes(ctx, apidefaults.Namespace, -1, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+		})
+		t.Run("GetNodes", func(t *testing.T) {
+			t.Parallel()
+			// Get all nodes
+			nodes, err := clt.GetNodes(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			require.Len(t, nodes, 2)
+			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+			// GetNodes should fail if namespace isn't provided
+			_, err = clt.GetNodes(ctx, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+		})
+		t.Run("GetNode", func(t *testing.T) {
+			t.Parallel()
+			// Get Node
+			node, err := clt.GetNode(ctx, apidefaults.Namespace, "node1")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(node1, node,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+			// GetNode should fail if node name isn't provided
+			_, err = clt.GetNode(ctx, apidefaults.Namespace, "")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+
+			// GetNode should fail if namespace isn't provided
+			_, err = clt.GetNode(ctx, "", "node1")
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+		})
+	})
+
+	t.Run("DeleteNode", func(t *testing.T) {
+		// Make sure can't delete with empty namespace or name.
+		err = clt.DeleteNode(ctx, apidefaults.Namespace, "")
+		require.Error(t, err)
+		require.IsType(t, trace.BadParameter(""), err)
+
+		err = clt.DeleteNode(ctx, "", node1.GetName())
+		require.Error(t, err)
+		require.IsType(t, trace.BadParameter(""), err)
+
+		// Delete node.
+		err = clt.DeleteNode(ctx, apidefaults.Namespace, node1.GetName())
+		require.NoError(t, err)
+
+		// Expect node not found
+		_, err := clt.GetNode(ctx, apidefaults.Namespace, "node1")
+		require.IsType(t, trace.NotFound(""), err)
+	})
+
+	t.Run("DeleteAllNodes", func(t *testing.T) {
+		// Make sure can't delete with empty namespace.
+		err = clt.DeleteAllNodes(ctx, "")
+		require.Error(t, err)
+		require.IsType(t, trace.BadParameter(""), err)
+
+		// Delete nodes
+		err = clt.DeleteAllNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+
+		// Now expect no nodes to be returned.
+		nodes, err := clt.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, nodes)
+	})
+}
+
+func TestLocksCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	now := srv.Clock().Now()
+	lock1, err := types.NewLock("lock1", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "user-A",
+		},
+		Expires: &now,
+	})
+	require.NoError(t, err)
+
+	lock2, err := types.NewLock("lock2", types.LockSpecV2{
+		Target: types.LockTarget{
+			Node: "node",
+		},
+		Message: "node compromised",
+	})
+	require.NoError(t, err)
+
+	t.Run("CreateLock", func(t *testing.T) {
+		// Initially expect no locks to be returned.
+		locks, err := clt.GetLocks(ctx, false)
+		require.NoError(t, err)
+		require.Empty(t, locks)
+
+		// Create locks.
+		err = clt.UpsertLock(ctx, lock1)
+		require.NoError(t, err)
+
+		err = clt.UpsertLock(ctx, lock2)
+		require.NoError(t, err)
+	})
+
+	// Run LockGetters in nested subtests to allow parallelization.
+	t.Run("LockGetters", func(t *testing.T) {
+		t.Run("GetLocks", func(t *testing.T) {
+			t.Parallel()
+			locks, err := clt.GetLocks(ctx, false)
+			require.NoError(t, err)
+			require.Len(t, locks, 2)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		})
+		t.Run("GetLocks with targets", func(t *testing.T) {
+			t.Parallel()
+			// Match both locks with the targets.
+			locks, err := clt.GetLocks(ctx, false, lock1.Target(), lock2.Target())
+			require.NoError(t, err)
+			require.Len(t, locks, 2)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+			// Match only one of the locks.
+			roleTarget := types.LockTarget{Role: "role-A"}
+			locks, err = clt.GetLocks(ctx, false, lock1.Target(), roleTarget)
+			require.NoError(t, err)
+			require.Len(t, locks, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+			// Match none of the locks.
+			locks, err = clt.GetLocks(ctx, false, roleTarget)
+			require.NoError(t, err)
+			require.Empty(t, locks)
+		})
+		t.Run("GetLock", func(t *testing.T) {
+			t.Parallel()
+			// Get one of the locks.
+			lock, err := clt.GetLock(ctx, lock1.GetName())
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(lock1, lock,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+			// Attempt to get a nonexistent lock.
+			_, err = clt.GetLock(ctx, "lock3")
+			require.Error(t, err)
+			require.True(t, trace.IsNotFound(err))
+		})
+	})
+
+	t.Run("UpsertLock", func(t *testing.T) {
+		// Get one of the locks.
+		lock, err := clt.GetLock(ctx, lock1.GetName())
+		require.NoError(t, err)
+		require.Empty(t, lock.Message())
+
+		msg := "cluster maintenance"
+		lock1.SetMessage(msg)
+		err = clt.UpsertLock(ctx, lock1)
+		require.NoError(t, err)
+
+		lock, err = clt.GetLock(ctx, lock1.GetName())
+		require.NoError(t, err)
+		require.Equal(t, msg, lock.Message())
+	})
+
+	t.Run("DeleteLock", func(t *testing.T) {
+		// Delete lock.
+		err = clt.DeleteLock(ctx, lock1.GetName())
+		require.NoError(t, err)
+
+		// Expect lock not found.
+		_, err := clt.GetLock(ctx, lock1.GetName())
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+	})
+}
+
+// TestDatabasesCRUD tests database resource operations.
+func TestDatabasesCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// Create a couple databases.
+	db1, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "db1",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+	db2, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "db2",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+	})
+	require.NoError(t, err)
+
+	// Initially we expect no databases.
+	out, err := clt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+
+	// Create both databases.
+	err = clt.CreateDatabase(ctx, db1)
+	require.NoError(t, err)
+	err = clt.CreateDatabase(ctx, db2)
+	require.NoError(t, err)
+
+	// Fetch all databases.
+	out, err = clt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Fetch a specific database.
+	db, err := clt.GetDatabase(ctx, db2.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(db2, db,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Try to fetch a database that doesn't exist.
+	_, err = clt.GetDatabase(ctx, "doesnotexist")
+	require.IsType(t, trace.NotFound(""), err)
+
+	// Try to create the same database.
+	err = clt.CreateDatabase(ctx, db1)
+	require.IsType(t, trace.AlreadyExists(""), err)
+
+	// Update a database.
+	db1.Metadata.Description = "description"
+	err = clt.UpdateDatabase(ctx, db1)
+	require.NoError(t, err)
+	db, err = clt.GetDatabase(ctx, db1.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(db1, db,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Delete a database.
+	err = clt.DeleteDatabase(ctx, db1.GetName())
+	require.NoError(t, err)
+	out, err = clt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Try to delete a database that doesn't exist.
+	err = clt.DeleteDatabase(ctx, "doesnotexist")
+	require.IsType(t, trace.NotFound(""), err)
+
+	// Delete all databases.
+	err = clt.DeleteAllDatabases(ctx)
+	require.NoError(t, err)
+	out, err = clt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 0)
+}
+
+func TestCustomRateLimiting(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	clt, err := srv.NewClient(TestNop())
+	require.NoError(t, err)
+
+	cases := []struct {
+		name string
+		fn   func() error
+	}{
+		{
+			name: "RPC ChangeUserAuthentication",
+			fn: func() error {
+				_, err := clt.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{})
+				return err
+			},
+		},
+		{
+			name: "RPC StartAccountRecovery",
+			fn: func() error {
+				_, err := clt.StartAccountRecovery(context.Background(), &proto.StartAccountRecoveryRequest{})
+				return err
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			// For now since we only have one custom rate limit,
+			// test limit for 1 request per minute with bursts up to 10 requests.
+			const maxAttempts = 11
+			var err error
+
+			for i := 0; i < maxAttempts; i++ {
+				err = c.fn()
+				require.Error(t, err)
+			}
+			require.True(t, trace.IsLimitExceeded(err))
+		})
+	}
 }

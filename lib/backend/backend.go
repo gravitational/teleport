@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/jonboulle/clockwork"
 )
 
@@ -212,8 +213,10 @@ func (p Params) GetString(key string) string {
 // NoLimit specifies no limits
 const NoLimit = 0
 
-// RangeEnd returns end of the range for given key
-func RangeEnd(key []byte) []byte {
+// nextKey returns the next possible key.
+// If used with a key prefix, this will return
+// the end of the range for that key prefix.
+func nextKey(key []byte) []byte {
 	end := make([]byte, len(key))
 	copy(end, key)
 	for i := len(end) - 1; i >= 0; i-- {
@@ -230,6 +233,27 @@ func RangeEnd(key []byte) []byte {
 var (
 	noEnd = []byte{0}
 )
+
+// RangeEnd returns end of the range for given key.
+func RangeEnd(key []byte) []byte {
+	return nextKey(key)
+}
+
+// NextPaginationKey returns the next pagination key.
+func NextPaginationKey(r types.Resource) string {
+	return string(nextKey([]byte(r.GetName())))
+}
+
+// MaskKeyName masks the given key name.
+// e.g "123456789" -> "******789"
+func MaskKeyName(keyName string) []byte {
+	maskedBytes := []byte(keyName)
+	hiddenBefore := int(0.75 * float64(len(keyName)))
+	for i := 0; i < hiddenBefore; i++ {
+		maskedBytes[i] = '*'
+	}
+	return maskedBytes
+}
 
 // Items is a sortable list of backend items
 type Items []Item

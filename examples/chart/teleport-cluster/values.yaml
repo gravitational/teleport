@@ -8,12 +8,19 @@
 # for example: teleport.example.com
 clusterName: ""
 
+# Name for this kubernetes cluster to be used by teleport users.
+kubeClusterName: ""
+
 ##################################################
 # Values that you may need to change.
 ##################################################
 
 # Version of teleport image, if different from chart version in Chart.yaml.
 teleportVersionOverride: ""
+
+# Default authentication type. Possible values are 'local' and 'github' for OSS, plus 'oidc', 'saml', and 'false' for Enterprise.
+# 'false' is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
+authenticationType: local
 
 # ACME is a protocol for getting Web X.509 certificates
 # Note: ACME can only be used for single-instance clusters. It is not suitable for use in HA configurations.
@@ -77,6 +84,8 @@ aws:
   # The S3 bucket name to use for recorded session storage. Teleport will attempt to create this bucket automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create S3 buckets.
   sessionRecordingBucket: ""
+  # Whether or not to turn on DynamoDB backups
+  backups: false
 
 ##################################################
 # GCP-specific settings (only used in "gcp" mode)
@@ -115,6 +124,11 @@ highAvailability:
   # Setting 'requireAntiAffinity' to false (the default) uses 'preferredDuringSchedulingIgnoredDuringExecution' to make this a soft requirement.
   # This setting only has any effect when replicaCount is greater than 1.
   requireAntiAffinity: false
+  # If enabled will create a Pod Disruption Budget
+  # https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
   # Settings for cert-manager (can be used for provisioning TLS certs in HA mode)
   certManager:
     # If set to true, use cert-manager to get certificates for Teleport to use for TLS termination
@@ -168,6 +182,9 @@ annotations:
 # Extra arguments to pass to 'teleport start' for the main Teleport pod
 extraArgs: []
 
+# Extra environment to be configured on the Teleport pod
+extraEnv: []
+
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/
 extraVolumes: []
@@ -189,6 +206,11 @@ initContainers: []
 #- name: "teleport-init"
 #  image: "alpine"
 #  args: ["echo test"]
+
+# If set, will run the command as a postStart handler
+# https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
+postStart:
+  command: []
 
 # Resources to request for each pod in the deployment
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/

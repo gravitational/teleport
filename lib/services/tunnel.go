@@ -75,6 +75,10 @@ func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (types.ReverseT
 
 // MarshalReverseTunnel marshals the ReverseTunnel resource to JSON.
 func MarshalReverseTunnel(reverseTunnel types.ReverseTunnel, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidateReverseTunnel(reverseTunnel); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,9 +86,6 @@ func MarshalReverseTunnel(reverseTunnel types.ReverseTunnel, opts ...MarshalOpti
 
 	switch reverseTunnel := reverseTunnel.(type) {
 	case *types.ReverseTunnelV2:
-		if version := reverseTunnel.GetVersion(); version != types.V2 {
-			return nil, trace.BadParameter("mismatched reverse tunnel version %v and type %T", version, reverseTunnel)
-		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

@@ -236,9 +236,15 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
 
 	// U2F
+	// DELETE IN 9.x, superseded by /mfa/ endpoints (codingllama)
 	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
-	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
+	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.mfaLoginBegin))
 	srv.GET("/:version/u2f/appid", srv.withAuth(srv.getU2FAppID))
+
+	// Generic MFA and WebAuthn
+	srv.POST("/:version/mfa/users/:user/login/begin", srv.withAuth(srv.mfaLoginBegin))
+	// The last step of MFA login is performed by either /ssh/authenticate or
+	// /web/authenticate endpoints.
 
 	// Provisioning tokens- Moved to grpc
 	// DELETE IN 8.0
@@ -740,18 +746,18 @@ type signInReq struct {
 	Password string `json:"password"`
 }
 
-func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) mfaLoginBegin(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *signInReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	user := p.ByName("user")
 	pass := []byte(req.Password)
-	u2fSignReq, err := auth.GetMFAAuthenticateChallenge(user, pass)
+	challenge, err := auth.GetMFAAuthenticateChallenge(user, pass)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return u2fSignReq, nil
+	return challenge, nil
 }
 
 type WebSessionReq struct {
@@ -1137,7 +1143,9 @@ func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.R
 	return domain, nil
 }
 
-// getClusterCACert returns the CAs for the local cluster without signing keys.
+// getClusterCACert returns the PEM-encoded TLS certs for the local cluster
+// without signing keys. If the cluster has multiple TLS certs, they will all
+// be appended.
 func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	localCA, err := auth.GetClusterCACert()
 	if err != nil {
@@ -1147,24 +1155,45 @@ func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *htt
 	return localCA, nil
 }
 
+// DELETE IN 9.0.0: defined in grpcserver "ChangeUserAuthentication", kept for fallback.
 func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req ChangePasswordWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	webSession, err := auth.ChangePasswordWithToken(r.Context(), req)
+	protoReq := &proto.ChangeUserAuthenticationRequest{
+		TokenID:     req.TokenID,
+		NewPassword: req.Password,
+	}
+
+	if req.U2FRegisterResponse != nil {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+			U2F: &proto.U2FRegisterResponse{
+				RegistrationData: req.U2FRegisterResponse.RegistrationData,
+				ClientData:       req.U2FRegisterResponse.ClientData,
+			},
+		}}
+	}
+
+	if req.SecondFactorToken != "" {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
+		}}
+	}
+
+	res, err := auth.ChangeUserAuthentication(r.Context(), protoReq)
 	if err != nil {
 		log.Debugf("Failed to change user password with token: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.MarshalWebSession(webSession, services.WithVersion(version)))
+	return rawMessage(services.MarshalWebSession(res.WebSession, services.WithVersion(version)))
 }
 
 // getU2FAppID returns the U2F AppID in the auth configuration
 func (s *APIServer) getU2FAppID(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cap, err := auth.GetAuthPreference()
+	cap, err := auth.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1814,7 +1843,7 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 	}
 
 	eventTypes := query[events.EventType]
-	eventsList, _, err := auth.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, "")
+	eventsList, _, err := auth.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, types.EventOrderDescending, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1854,7 +1883,7 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, "")
+	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2121,6 +2150,7 @@ type upsertRoleRawReq struct {
 	Role json.RawMessage `json:"role"`
 }
 
+// DELETE IN 7.0
 func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertRoleRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -2140,14 +2170,24 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	return message(fmt.Sprintf("'%v' role upserted", role.GetName())), nil
 }
 
+// DELETE IN 7.0
 func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	role, err := auth.GetRole(r.Context(), p.ByName("role"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID()))
+	roleV4, ok := role.(*types.RoleV4)
+	if !ok {
+		return nil, trace.BadParameter("unrecognized role version")
+	}
+	downgraded, err := downgradeRole(context.Background(), roleV4)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rawMessage(services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID()))
 }
 
+// DELETE IN 7.0
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	roles, err := auth.GetRoles(r.Context())
 	if err != nil {
@@ -2155,7 +2195,15 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	}
 	out := make([]json.RawMessage, len(roles))
 	for i, role := range roles {
-		raw, err := services.MarshalRole(role, services.WithVersion(version), services.PreserveResourceID())
+		roleV4, ok := role.(*types.RoleV4)
+		if !ok {
+			return nil, trace.BadParameter("unrecognized role version")
+		}
+		downgraded, err := downgradeRole(r.Context(), roleV4)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw, err := services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2164,6 +2212,7 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	return out, nil
 }
 
+// DELETE IN 7.0
 func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	role := p.ByName("role")
 	if err := auth.DeleteRole(r.Context(), role); err != nil {
@@ -2283,7 +2332,7 @@ func (s *APIServer) setStaticTokens(auth ClientI, w http.ResponseWriter, r *http
 }
 
 func (s *APIServer) getClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cap, err := auth.GetAuthPreference()
+	cap, err := auth.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2309,7 +2358,7 @@ func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter
 	}
 	cap.SetOrigin(types.OriginDynamic)
 
-	err = auth.SetAuthPreference(cap)
+	err = auth.SetAuthPreference(r.Context(), cap)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

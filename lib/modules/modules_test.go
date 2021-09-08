@@ -35,6 +35,7 @@ func TestOSSModules(t *testing.T) {
 }
 
 func TestValidateAuthPreferenceOnCloud(t *testing.T) {
+	ctx := context.Background()
 	testServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir: t.TempDir(),
 	})
@@ -43,11 +44,11 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 	setCloudFeatureFlag(t)
 
 	authPref := types.DefaultAuthPreference()
-	err = testServer.AuthServer.SetAuthPreference(authPref)
+	err = testServer.AuthServer.SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	authPref.SetSecondFactor(constants.SecondFactorOff)
-	err = testServer.AuthServer.SetAuthPreference(authPref)
+	err = testServer.AuthServer.SetAuthPreference(ctx, authPref)
 	require.EqualError(t, err, "cannot disable two-factor authentication on Cloud")
 }
 

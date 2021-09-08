@@ -19,15 +19,20 @@ package dynamoevents
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
@@ -673,6 +678,10 @@ type checkpointKey struct {
 
 	// A DynamoDB query iterator. Allows us to resume a partial query.
 	Iterator map[string]*dynamodb.AttributeValue `json:"iterator,omitempty"`
+
+	// EventKey is a derived identifier for an event used for resuming
+	// sub-page breaks due to size constraints.
+	EventKey string `json:"event_key,omitempty"`
 }
 
 // SearchEvents is a flexible way to find events.
@@ -680,10 +689,11 @@ type checkpointKey struct {
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
 //
-// The only mandatory requirement is a date range (UTC). Results must always
-// show up sorted by date (newest first)
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
-	rawEvents, lastKey, err := l.searchEventsRaw(fromUTC, toUTC, namespace, eventTypes, limit, startKey)
+// The only mandatory requirement is a date range (UTC).
+//
+// This function may never return more than 1 MiB of event data.
+func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	rawEvents, lastKey, err := l.searchEventsRaw(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -701,7 +711,17 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		eventArr = append(eventArr, event)
 	}
 
-	sort.Sort(byTimeAndIndex(eventArr))
+	var toSort sort.Interface
+	switch order {
+	case types.EventOrderAscending:
+		toSort = byTimeAndIndex(eventArr)
+	case types.EventOrderDescending:
+		toSort = sort.Reverse(byTimeAndIndex(eventArr))
+	default:
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
+	}
+
+	sort.Sort(toSort)
 	return eventArr, lastKey, nil
 }
 
@@ -732,9 +752,34 @@ func (notReadyYetError) Error() string {
 	return "The DynamoDB event backend is not ready to accept queries yet. Please retry in a couple of seconds."
 }
 
+// eventFilterList constructs a string of the form
+// "(:eventTypeN, :eventTypeN, ...)" where N is a succession of integers
+// starting from 0. The substrings :eventTypeN are automatically generated
+// variable names that are valid with in the DynamoDB query language.
+// The function generates a list of amount of these :eventTypeN variables that is a valid
+// list literal in the DynamoDB query language. In order for this list to work the request
+// needs to be supplied with the variable values for the event types you wish to fill the list with.
+//
+// The reason that this doesn't fill in the values as literals within the list is to prevent injection attacks.
+func eventFilterList(amount int) string {
+	var eventTypes []string
+	for i := 0; i < amount; i++ {
+		eventTypes = append(eventTypes, fmt.Sprintf(":eventType%d", i))
+	}
+	return "(" + strings.Join(eventTypes, ", ") + ")"
+}
+
+func reverseStrings(slice []string) []string {
+	newSlice := make([]string, 0, len(slice))
+	for i := len(slice) - 1; i >= 0; i-- {
+		newSlice = append(newSlice, slice[i])
+	}
+	return newSlice
+}
+
 // searchEventsRaw is a low level function for searching for events. This is kept
 // separate from the SearchEvents function in order to allow tests to grab more metadata.
-func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, startKey string) ([]event, string, error) {
+func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]event, string, error) {
 	if !l.readyForQuery.Load() {
 		return nil, "", trace.Wrap(notReadyYetError{})
 	}
@@ -749,16 +794,26 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 	}
 
 	var values []event
+	totalSize := 0
 	dates := daysBetween(fromUTC, toUTC)
+	if order == types.EventOrderDescending {
+		dates = reverseStrings(dates)
+	}
+
 	query := "CreatedAtDate = :date AND CreatedAt BETWEEN :start and :end"
-	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
+	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey, "Order": order})
 	var left int64
 	if limit != 0 {
 		left = int64(limit)
 	} else {
 		left = math.MaxInt64
 	}
-	doFilter := len(eventTypes) > 0
+
+	var typeFilter *string
+	if len(eventTypes) != 0 {
+		typeList := eventFilterList(len(eventTypes))
+		typeFilter = aws.String(fmt.Sprintf("EventType IN %s", typeList))
+	}
 
 	// Resume scanning at the correct date. We need to do this because we send individual queries per date
 	// and you can't resume a query with the wrong iterator checkpoint.
@@ -772,6 +827,17 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 	}
 
 	hasLeft := false
+	foundStart := checkpoint.EventKey == ""
+
+	var forward bool
+	switch order {
+	case types.EventOrderAscending:
+		forward = true
+	case types.EventOrderDescending:
+		forward = false
+	default:
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
+	}
 
 	// This is the main query loop, here we send individual queries for each date and
 	// we stop if we hit `limit` or process all dates, whichever comes first.
@@ -783,6 +849,10 @@ dateLoop:
 			":date":  date,
 			":start": fromUTC.Unix(),
 			":end":   toUTC.Unix(),
+		}
+
+		for i := range eventTypes {
+			attributes[fmt.Sprintf(":eventType%d", i)] = eventTypes[i]
 		}
 
 		attributeValues, err := dynamodbattribute.MarshalMap(attributes)
@@ -798,6 +868,8 @@ dateLoop:
 				IndexName:                 aws.String(indexTimeSearchV2),
 				ExclusiveStartKey:         checkpoint.Iterator,
 				Limit:                     aws.Int64(left),
+				FilterExpression:          typeFilter,
+				ScanIndexForward:          aws.Bool(forward),
 			}
 
 			start := time.Now()
@@ -805,7 +877,8 @@ dateLoop:
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-			g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items)}).Debugf("Query completed.")
+			g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items), "forward": forward, "iterator": checkpoint.Iterator}).Debugf("Query completed.")
+			oldIterator := checkpoint.Iterator
 			checkpoint.Iterator = out.LastEvaluatedKey
 
 			for _, item := range out.Items {
@@ -818,20 +891,44 @@ dateLoop:
 				if err := json.Unmarshal(data, &fields); err != nil {
 					return nil, "", trace.BadParameter("failed to unmarshal event %v", err)
 				}
-				accepted := false
-				for i := range eventTypes {
-					if e.EventType == eventTypes[i] {
-						accepted = true
-						break
+
+				if !foundStart {
+					key, err := getSubPageCheckpoint(&e)
+					if err != nil {
+						return nil, "", trace.Wrap(err)
 					}
+
+					if key != checkpoint.EventKey {
+						continue
+					}
+
+					foundStart = true
 				}
-				if accepted || !doFilter {
-					values = append(values, e)
-					left--
-					if left == 0 {
-						hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
-						break dateLoop
+
+				// Because this may break on non page boundaries an additional
+				// checkpoint is needed for sub-page breaks.
+				if totalSize+len(data) >= events.MaxEventBytesInResponse {
+					hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
+
+					key, err := getSubPageCheckpoint(&e)
+					if err != nil {
+						return nil, "", trace.Wrap(err)
 					}
+					checkpoint.EventKey = key
+
+					// We need to reset the iterator so we get the previous page again.
+					checkpoint.Iterator = oldIterator
+					break dateLoop
+				}
+
+				totalSize += len(data)
+				values = append(values, e)
+				left--
+
+				if left == 0 {
+					hasLeft = i+1 != len(dates) || len(checkpoint.Iterator) != 0
+					checkpoint.EventKey = ""
+					break dateLoop
 				}
 			}
 
@@ -854,15 +951,25 @@ dateLoop:
 	return values, string(lastKey), nil
 }
 
+func getSubPageCheckpoint(e *event) (string, error) {
+	data, err := utils.FastMarshal(e)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:]), nil
+}
+
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
+func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	// only search for specific event types
 	query := []string{
 		events.SessionStartEvent,
 		events.SessionEndEvent,
 	}
-	return l.SearchEvents(fromUTC, toUTC, apidefaults.Namespace, query, limit, startKey)
+	return l.SearchEvents(fromUTC, toUTC, apidefaults.Namespace, query, limit, order, startKey)
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to
@@ -1293,19 +1400,27 @@ func (l *Log) deleteAllItems() error {
 			},
 		})
 	}
-	if len(requests) == 0 {
-		return nil
+
+	for len(requests) > 0 {
+		top := 25
+		if top > len(requests) {
+			top = len(requests)
+		}
+		chunk := requests[:top]
+		requests = requests[top:]
+
+		req, _ := l.svc.BatchWriteItemRequest(&dynamodb.BatchWriteItemInput{
+			RequestItems: map[string][]*dynamodb.WriteRequest{
+				l.Tablename: chunk,
+			},
+		})
+		err = req.Send()
+		err = convertError(err)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	req, _ := l.svc.BatchWriteItemRequest(&dynamodb.BatchWriteItemInput{
-		RequestItems: map[string][]*dynamodb.WriteRequest{
-			l.Tablename: requests,
-		},
-	})
-	err = req.Send()
-	err = convertError(err)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	return nil
 }
 
@@ -1345,4 +1460,13 @@ func convertError(err error) error {
 	default:
 		return err
 	}
+}
+
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	e <- trace.NotImplemented("not implemented")
+	return c, e
 }

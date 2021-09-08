@@ -81,6 +81,8 @@ type CLIConf struct {
 	RequestReason string
 	// SuggestedReviewers is a list of suggested request reviewers.
 	SuggestedReviewers string
+	// NoWait can be used with an access request to exit without waiting for a request resolution.
+	NoWait bool
 	// RequestID is an access request ID
 	RequestID string
 	// ReviewReason indicates the reason for an access review.
@@ -242,6 +244,9 @@ type CLIConf struct {
 
 	// HomePath is where tsh stores profiles
 	HomePath string
+
+	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
+	ConfigProxyTarget string
 }
 
 func main() {
@@ -264,12 +269,13 @@ func main() {
 }
 
 const (
-	authEnvVar     = "TELEPORT_AUTH"
-	clusterEnvVar  = "TELEPORT_CLUSTER"
-	loginEnvVar    = "TELEPORT_LOGIN"
-	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
-	proxyEnvVar    = "TELEPORT_PROXY"
-	homeEnvVar     = "TELEPORT_HOME"
+	authEnvVar        = "TELEPORT_AUTH"
+	clusterEnvVar     = "TELEPORT_CLUSTER"
+	kubeClusterEnvVar = "TELEPORT_KUBE_CLUSTER"
+	loginEnvVar       = "TELEPORT_LOGIN"
+	bindAddrEnvVar    = "TELEPORT_LOGIN_BIND_ADDR"
+	proxyEnvVar       = "TELEPORT_PROXY"
+	homeEnvVar        = "TELEPORT_HOME"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar             = "TELEPORT_SITE"
@@ -382,9 +388,18 @@ func Run(args []string, opts ...cliOption) error {
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbEnv := db.Command("env", "Print environment variables for the configured database.")
-	dbEnv.Flag("db", "Print environment for the specified database.").StringVar(&cf.DatabaseService)
+	dbEnv.Arg("db", "Print environment for the specified database").StringVar(&cf.DatabaseService)
+	// --db flag is deprecated in favor of positional argument for consistency with other commands.
+	dbEnv.Flag("db", "Print environment for the specified database.").Hidden().StringVar(&cf.DatabaseService)
 	dbConfig := db.Command("config", "Print database connection information. Useful when configuring GUI clients.")
-	dbConfig.Flag("db", "Print information for the specified database.").StringVar(&cf.DatabaseService)
+	dbConfig.Arg("db", "Print information for the specified database.").StringVar(&cf.DatabaseService)
+	// --db flag is deprecated in favor of positional argument for consistency with other commands.
+	dbConfig.Flag("db", "Print information for the specified database.").Hidden().StringVar(&cf.DatabaseService)
+	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command.", dbFormatText, dbFormatCommand)).StringVar(&cf.Format)
+	dbConnect := db.Command("connect", "Connect to a database.")
+	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
+	dbConnect.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
+	dbConnect.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
 
 	// join
 	join := app.Command("join", "Join the active SSH session")
@@ -427,6 +442,8 @@ func Run(args []string, opts ...cliOption) error {
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Flag("request-reason", "Reason for requesting additional roles").StringVar(&cf.RequestReason)
 	login.Flag("request-reviewers", "Suggested reviewers for role request").StringVar(&cf.SuggestedReviewers)
+	login.Flag("request-nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
+	login.Flag("request-id", "Login with the roles requested in the given request").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").StringVar(&cf.KubernetesCluster)
@@ -478,6 +495,7 @@ func Run(args []string, opts ...cliOption) error {
 	reqCreate.Flag("roles", "Roles to be requested").Required().StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
+	reqCreate.Flag("nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
 
 	reqReview := req.Command("review", "Review an access request")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -489,6 +507,15 @@ func Run(args []string, opts ...cliOption) error {
 	kube := newKubeCommand(app)
 	// MFA subcommands.
 	mfa := newMFACommand(app)
+
+	config := app.Command("config", "Print OpenSSH configuration details")
+
+	// config-proxy is a wrapper to ensure Windows clients can properly use
+	// `tsh config`. As it's not intended to run by users directly and may
+	// not have a stable CLI interface, hide it.
+	configProxy := app.Command("config-proxy", "ProxyCommand wrapper for SSH config as generated by `config`").Hidden()
+	configProxy.Arg("target", "Target node host:port").Required().StringVar(&cf.ConfigProxyTarget)
+	configProxy.Arg("cluster-name", "Target cluster name").Required().StringVar(&cf.SiteName)
 
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
@@ -547,11 +574,7 @@ func Run(args []string, opts ...cliOption) error {
 		return trace.Wrap(err)
 	}
 
-	// Read in cluster flag from CLI or environment.
-	readClusterFlag(&cf, os.Getenv)
-
-	// Read in home configured home directory from environment
-	readTeleportHome(&cf, os.Getenv)
+	setEnvFlags(&cf, os.Getenv)
 
 	switch command {
 	case ver.FullCommand():
@@ -605,6 +628,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onDatabaseEnv(&cf)
 	case dbConfig.FullCommand():
 		err = onDatabaseConfig(&cf)
+	case dbConnect.FullCommand():
+		err = onDatabaseConnect(&cf)
 	case environment.FullCommand():
 		err = onEnvironment(&cf)
 	case mfa.ls.FullCommand():
@@ -621,6 +646,10 @@ func Run(args []string, opts ...cliOption) error {
 		err = onRequestCreate(&cf)
 	case reqReview.FullCommand():
 		err = onRequestReview(&cf)
+	case config.FullCommand():
+		err = onConfig(&cf)
+	case configProxy.FullCommand():
+		err = onConfigProxy(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -723,16 +752,16 @@ func onLogin(cf *CLIConf) error {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
-		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.IdentityFileOut == "":
-			if err := updateKubeConfig(cf, tc); err != nil {
+		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
 			return nil
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
-		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "":
-			if err := updateKubeConfig(cf, tc); err != nil {
+		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
@@ -752,18 +781,18 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc); err != nil {
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
 		// proxy is unspecified or the same as the currently provided proxy,
-		// but desired roles are specified, treat this as a privilege escalation
-		// request for the same login session.
-		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
+		// but desired roles or request ID is specified, treat this as a
+		// privilege escalation request for the same login session.
+		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && (cf.DesiredRoles != "" || cf.RequestID != "") && cf.IdentityFileOut == "":
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc); err != nil {
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -825,7 +854,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := updateKubeConfig(cf, tc); err != nil {
+		if err := updateKubeConfig(cf, tc, ""); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -835,7 +864,7 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if autoRequest && cf.DesiredRoles == "" {
+	if autoRequest && cf.DesiredRoles == "" && cf.RequestID == "" {
 		var requireReason, auto bool
 		var prompt string
 		roleNames, err := key.CertRoles()
@@ -878,7 +907,7 @@ func onLogin(cf *CLIConf) error {
 		}
 	}
 
-	if cf.DesiredRoles != "" {
+	if cf.DesiredRoles != "" || cf.RequestID != "" {
 		fmt.Println("") // visually separate access request output
 		if err := executeAccessRequest(cf, tc); err != nil {
 			logoutErr := tc.Logout()
@@ -1125,50 +1154,85 @@ func onListNodes(cf *CLIConf) error {
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
-	if cf.DesiredRoles == "" {
-		return trace.BadParameter("one or more roles must be specified")
+	if cf.DesiredRoles == "" && cf.RequestID == "" {
+		return trace.BadParameter("at least one role or a request ID must be specified")
 	}
-	roles := utils.SplitIdentifiers(cf.DesiredRoles)
-	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
 	if cf.Username == "" {
 		cf.Username = tc.Username
 	}
-	req, err := services.NewAccessRequest(cf.Username, roles...)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	req.SetRequestReason(cf.RequestReason)
-	req.SetSuggestedReviewers(reviewers)
-	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
 
-	var res types.AccessRequest
-	// always create access request against the root cluster
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		res, err = getRequestResolution(cf, clt, req)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if !res.GetState().IsApproved() {
-		msg := fmt.Sprintf("request %s has been set to %s", res.GetName(), res.GetState().String())
-		if reason := res.GetResolveReason(); reason != "" {
-			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
+	var req types.AccessRequest
+	var err error
+	if cf.RequestID != "" {
+		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+			reqs, err := clt.GetAccessRequests(cf.Context, types.AccessRequestFilter{
+				ID:   cf.RequestID,
+				User: cf.Username,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if len(reqs) != 1 {
+				return trace.BadParameter(`invalid access request "%v"`, cf.RequestID)
+			}
+			req = reqs[0]
+			return nil
+		})
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		return trace.Errorf(msg)
+
+		// If the request isn't pending, handle resolution
+		if !req.GetState().IsPending() {
+			err := onRequestResolution(cf, tc, req)
+			return trace.Wrap(err)
+		}
+
+		fmt.Fprint(os.Stdout, "Request pending...\n")
+	} else {
+		roles := utils.SplitIdentifiers(cf.DesiredRoles)
+		reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
+		req, err = services.NewAccessRequest(cf.Username, roles...)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetRequestReason(cf.RequestReason)
+		req.SetSuggestedReviewers(reviewers)
 	}
 
-	msg := "\nApproval received, getting updated certificates...\n\n"
-	if reason := res.GetResolveReason(); reason != "" {
-		msg = fmt.Sprintf("\nApproval received, reason=%q\nGetting updated certificates...\n\n", reason)
+	// Watch for resolution events on the given request. Start watcher before
+	// creating the request to avoid a potential race.
+	errChan := make(chan error)
+	if !cf.NoWait {
+		go func() {
+			errChan <- waitForRequestResolution(cf, tc, req)
+		}()
 	}
-	fmt.Fprint(os.Stderr, msg)
 
-	if err := reissueWithRequests(cf, tc, req.GetName()); err != nil {
-		return trace.Wrap(err)
+	// Create request if it doesn't already exist
+	if cf.RequestID == "" {
+		cf.RequestID = req.GetName()
+		fmt.Fprint(os.Stdout, "Creating request...\n")
+		// always create access request against the root cluster
+		if err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+			err := clt.CreateAccessRequest(cf.Context, req)
+			return trace.Wrap(err)
+		}); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	return nil
+
+	onRequestShow(cf)
+	fmt.Println("")
+
+	// Dont wait for request to get resolved, just print out request info
+	if cf.NoWait {
+		return nil
+	}
+
+	// Wait for watcher to return
+	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
+	return trace.Wrap(<-errChan)
 }
 
 func printNodes(nodes []types.Server, format string, verbose bool) error {
@@ -1276,11 +1340,11 @@ func showApps(servers []types.Server, active []tlsca.RouteToApp, verbose bool) {
 	}
 }
 
-func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsca.RouteToDatabase, verbose bool) {
+func showDatabases(cluster string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
-		for _, server := range servers {
-			name := server.GetName()
+		for _, database := range databases {
+			name := database.GetName()
 			var connect string
 			for _, a := range active {
 				if a.ServiceName == name {
@@ -1290,20 +1354,20 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 			}
 			t.AddRow([]string{
 				name,
-				server.GetDescription(),
-				server.GetProtocol(),
-				server.GetType(),
-				server.GetURI(),
-				server.LabelsString(),
+				database.GetDescription(),
+				database.GetProtocol(),
+				database.GetType(),
+				database.GetURI(),
+				database.LabelsString(),
 				connect,
-				server.Expiry().Format(constants.HumanDateFormatSeconds),
+				database.Expiry().Format(constants.HumanDateFormatSeconds),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Labels", "Connect"})
-		for _, server := range servers {
-			name := server.GetName()
+		for _, database := range databases {
+			name := database.GetName()
 			var connect string
 			for _, a := range active {
 				if a.ServiceName == name {
@@ -1313,8 +1377,8 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 			}
 			t.AddRow([]string{
 				name,
-				server.GetDescription(),
-				server.LabelsString(),
+				database.GetDescription(),
+				formatDatabaseLabels(database),
 				connect,
 			})
 		}
@@ -1322,33 +1386,25 @@ func showDatabases(cluster string, servers []types.DatabaseServer, active []tlsc
 	}
 }
 
+func formatDatabaseLabels(database types.Database) string {
+	labels := database.GetAllLabels()
+	// Hide the origin label unless printing verbose table.
+	delete(labels, types.OriginLabel)
+	return types.LabelsAsString(labels, nil)
+}
+
 // formatConnectCommand formats an appropriate database connection command
 // for a user based on the provided database parameters.
 func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
-	service := fmt.Sprintf("%v-%v", cluster, active.ServiceName)
-	switch active.Protocol {
-	case defaults.ProtocolPostgres:
-		switch {
-		case active.Username != "" && active.Database != "":
-			return fmt.Sprintf(`psql "service=%v"`, service)
-		case active.Username != "":
-			return fmt.Sprintf(`psql "service=%v dbname=<database>"`, service)
-		case active.Database != "":
-			return fmt.Sprintf(`psql "service=%v user=<user>"`, service)
-		}
-		return fmt.Sprintf(`psql "service=%v user=<user> dbname=<database>"`, service)
-	case defaults.ProtocolMySQL:
-		switch {
-		case active.Username != "" && active.Database != "":
-			return fmt.Sprintf("mysql --defaults-group-suffix=_%v", service)
-		case active.Username != "":
-			return fmt.Sprintf("mysql --defaults-group-suffix=_%v --database=<database>", service)
-		case active.Database != "":
-			return fmt.Sprintf("mysql --defaults-group-suffix=_%v --user=<user>", service)
-		}
-		return fmt.Sprintf("mysql --defaults-group-suffix=_%v --user=<user> --database=<database>", service)
+	switch {
+	case active.Username != "" && active.Database != "":
+		return fmt.Sprintf("tsh db connect %v", active.ServiceName)
+	case active.Username != "":
+		return fmt.Sprintf("tsh db connect --db-name=<name> %v", active.ServiceName)
+	case active.Database != "":
+		return fmt.Sprintf("tsh db connect --db-user=<user> %v", active.ServiceName)
 	}
-	return ""
+	return fmt.Sprintf("tsh db connect --db-user=<user> --db-name=<name> %v", active.ServiceName)
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {
@@ -2059,29 +2115,28 @@ func host(in string) string {
 	return out
 }
 
-// getRequestResolution registers an access request with the auth server and waits for it to be resolved.
-func getRequestResolution(cf *CLIConf, clt auth.ClientI, req types.AccessRequest) (types.AccessRequest, error) {
-	// set up request watcher before submitting the request to the admin server
-	// in order to avoid potential race.
+// waitForRequestResolution waits for an access request to be resolved.
+func waitForRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {
 	filter := types.AccessRequestFilter{
 		User: req.GetUser(),
 	}
-	watcher, err := clt.NewWatcher(cf.Context, types.Watch{
-		Name: "await-request-approval",
-		Kinds: []types.WatchKind{
-			types.WatchKind{
+	var err error
+	var watcher types.Watcher
+	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		watcher, err = tc.NewWatcher(cf.Context, types.Watch{
+			Name: "await-request-approval",
+			Kinds: []types.WatchKind{{
 				Kind:   types.KindAccessRequest,
 				Filter: filter.IntoMap(),
-			},
-		},
+			}},
+		})
+		return trace.Wrap(err)
 	})
+
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer watcher.Close()
-	if err := clt.CreateAccessRequest(cf.Context, req); err != nil {
-		return nil, trace.Wrap(err)
-	}
 Loop:
 	for {
 		select {
@@ -2093,26 +2148,45 @@ Loop:
 			case types.OpPut:
 				r, ok := event.Resource.(*types.AccessRequestV3)
 				if !ok {
-					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
+					return trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
 				if r.GetName() != req.GetName() || r.GetState().IsPending() {
 					log.Debugf("Skipping put event id=%s,state=%s.", r.GetName(), r.GetState())
 					continue Loop
 				}
-				return r, nil
+				return onRequestResolution(cf, tc, r)
 			case types.OpDelete:
 				if event.Resource.GetName() != req.GetName() {
 					log.Debugf("Skipping delete event id=%s", event.Resource.GetName())
 					continue Loop
 				}
-				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				return trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
 			default:
 				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
 		case <-watcher.Done():
-			return nil, trace.Wrap(watcher.Error())
+			return trace.Wrap(watcher.Error())
 		}
 	}
+}
+
+func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {
+	if !req.GetState().IsApproved() {
+		msg := fmt.Sprintf("request %s has been set to %s", req.GetName(), req.GetState().String())
+		if reason := req.GetResolveReason(); reason != "" {
+			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
+		}
+		return trace.Errorf(msg)
+	}
+
+	msg := "\nApproval received, getting updated certificates...\n\n"
+	if reason := req.GetResolveReason(); reason != "" {
+		msg = fmt.Sprintf("\nApproval received, reason=%q\nGetting updated certificates...\n\n", reason)
+	}
+	fmt.Fprint(os.Stderr, msg)
+
+	err := reissueWithRequests(cf, tc, req.GetName())
+	return trace.Wrap(err)
 }
 
 // reissueWithRequests handles a certificate reissue, applying new requests by ID,
@@ -2139,7 +2213,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.SaveProfile("", true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := updateKubeConfig(cf, tc); err != nil {
+	if err := updateKubeConfig(cf, tc, ""); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -2188,24 +2262,41 @@ func onEnvironment(cf *CLIConf) error {
 	case cf.unsetEnvironment:
 		fmt.Printf("unset %v\n", proxyEnvVar)
 		fmt.Printf("unset %v\n", clusterEnvVar)
+		fmt.Printf("unset %v\n", kubeClusterEnvVar)
+		fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
 	case !cf.unsetEnvironment:
 		fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
 		fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
+		if kubeName := selectedKubeCluster(profile.Cluster); kubeName != "" {
+			fmt.Printf("export %v=%v\n", kubeClusterEnvVar, kubeName)
+			fmt.Printf("# set %v to a standalone kubeconfig for the selected kube cluster\n", teleport.EnvKubeConfig)
+			fmt.Printf("export %v=%v\n", teleport.EnvKubeConfig, profile.KubeConfigPath(kubeName))
+		}
 	}
 
 	return nil
 }
 
-// readClusterFlag figures out the cluster the user is attempting to select.
-// Command line specification always has priority, after that TELEPORT_CLUSTER,
-// then the legacy terminology of TELEPORT_SITE.
-func readClusterFlag(cf *CLIConf, fn envGetter) {
-	// If the user specified something on the command line, prefer that.
-	if cf.SiteName != "" {
-		return
-	}
+// envGetter is used to read in the environment. In production "os.Getenv"
+// is used.
+type envGetter func(string) string
 
-	// Otherwise pick up cluster name from environment.
+// setEnvFlags sets flags that can be set via environment variables.
+func setEnvFlags(cf *CLIConf, fn envGetter) {
+	// prioritize CLI input
+	if cf.SiteName == "" {
+		setSiteNameFromEnv(cf, fn)
+	}
+	// prioritize CLI input
+	if cf.KubernetesCluster == "" {
+		setKubernetesClusterFromEnv(cf, fn)
+	}
+	setTeleportHomeFromEnv(cf, fn)
+}
+
+// setSiteNameFromEnv sets teleport site name from environment if configured.
+// First try reading TELEPORT_CLUSTER, then the legacy term TELEPORT_SITE.
+func setSiteNameFromEnv(cf *CLIConf, fn envGetter) {
 	if clusterName := fn(siteEnvVar); clusterName != "" {
 		cf.SiteName = clusterName
 	}
@@ -2214,9 +2305,19 @@ func readClusterFlag(cf *CLIConf, fn envGetter) {
 	}
 }
 
-// envGetter is used to read in the environment. In production "os.Getenv"
-// is used.
-type envGetter func(string) string
+// setTeleportHomeFromEnv sets home directory from environment if configured.
+func setTeleportHomeFromEnv(cf *CLIConf, fn envGetter) {
+	if homeDir := fn(homeEnvVar); homeDir != "" {
+		cf.HomePath = path.Clean(homeDir)
+	}
+}
+
+// setKubernetesClusterFromEnv sets teleport kube cluster from environment if configured.
+func setKubernetesClusterFromEnv(cf *CLIConf, fn envGetter) {
+	if kubeName := fn(kubeClusterEnvVar); kubeName != "" {
+		cf.KubernetesCluster = kubeName
+	}
+}
 
 func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error {
 	const (
@@ -2234,11 +2335,4 @@ func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error
 		return trace.WrapWithMessage(perr, errMsgFormat, unknownServerVersion, teleport.Version)
 	}
 	return trace.WrapWithMessage(perr, errMsgFormat, pr.ServerVersion, teleport.Version)
-}
-
-// readTeleportHome gets home directory from environment if configured.
-func readTeleportHome(cf *CLIConf, fn envGetter) {
-	if homeDir := fn(homeEnvVar); homeDir != "" {
-		cf.HomePath = path.Clean(homeDir)
-	}
 }

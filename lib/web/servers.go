@@ -20,8 +20,10 @@ import (
 	"net/http"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
+
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 )
@@ -50,10 +52,31 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	// Get a list of database servers.
-	dbServers, err := clt.GetDatabaseServers(r.Context(), apidefaults.Namespace)
+	servers, err := clt.GetDatabaseServers(r.Context(), apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabases(h.auth.clusterName, dbServers), nil
+	// Make a list of all proxied databases.
+	var databases []types.Database
+	for _, server := range servers {
+		databases = append(databases, server.GetDatabase())
+	}
+
+	return ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)), nil
+}
+
+// getDesktopsHandle returns a list of desktops in a form the UI can present.
+func (h *Handler) getDesktopsHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	windowsDesktops, err := clt.GetWindowsDesktops(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeDesktops(windowsDesktops), nil
 }

@@ -73,13 +73,16 @@ type testPack struct {
 	provisionerS   services.Provisioner
 	clusterConfigS services.ClusterConfiguration
 
-	usersS         services.UsersService
-	accessS        services.Access
-	dynamicAccessS services.DynamicAccessCore
-	presenceS      services.Presence
-	appSessionS    services.AppSession
-	webSessionS    types.WebSessionInterface
-	webTokenS      types.WebTokenInterface
+	usersS          services.UsersService
+	accessS         services.Access
+	dynamicAccessS  services.DynamicAccessCore
+	presenceS       services.Presence
+	appSessionS     services.AppSession
+	restrictions    services.Restrictions
+	databases       services.Databases
+	webSessionS     types.WebSessionInterface
+	webTokenS       types.WebTokenInterface
+	windowsDesktops services.WindowsDesktops
 }
 
 func (t *testPack) Close() {
@@ -103,6 +106,10 @@ func (s *CacheSuite) newPackForProxy(c *check.C) *testPack {
 	return s.newPack(c, ForProxy)
 }
 
+func (s *CacheSuite) newPackForOldRemoteProxy(c *check.C) *testPack {
+	return s.newPack(c, ForOldRemoteProxy)
+}
+
 func (s *CacheSuite) newPackForNode(c *check.C) *testPack {
 	return s.newPack(c, ForNode)
 }
@@ -121,10 +128,11 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 
 // newPackWithoutCache returns a new test pack without creating cache
 func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, error) {
+	ctx := context.Background()
 	p := &testPack{
 		dataDir: dir,
 	}
-	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
 		Path:             p.dataDir,
 		PollStreamPeriod: 200 * time.Millisecond,
 	})
@@ -135,7 +143,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 
 	p.cacheBackend, err = memory.New(
 		memory.Config{
-			Context: context.TODO(),
+			Context: ctx,
 			Mirror:  true,
 		})
 	if err != nil {
@@ -160,40 +168,50 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	p.appSessionS = local.NewIdentityService(p.backend)
 	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
+	p.restrictions = local.NewRestrictionsService(p.backend)
+	p.databases = local.NewDatabasesService(p.backend)
+	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
 
 	return p, nil
 }
 
 // newPack returns a new test pack or fails the test on error
 func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
+	ctx := context.Background()
 	p, err := newPackWithoutCache(dir, setupConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	p.cache, err = New(setupConfig(Config{
-		Context:       context.TODO(),
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		Databases:       p.databases,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	select {
-	case <-p.eventsC:
+	case event := <-p.eventsC:
+		if event.Type != WatcherStarted {
+			return nil, trace.CompareFailed("%q != %q", event.Type, WatcherStarted)
+		}
 	case <-time.After(time.Second):
 		return nil, trace.ConnectionProblem(nil, "wait for the watcher to start")
 	}
@@ -235,26 +253,30 @@ func (s *CacheSuite) TestCA(c *check.C) {
 // TestOnlyRecentInit makes sure init fails
 // with "only recent" cache strategy
 func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackWithoutCache(c, ForAuth)
 	defer p.Close()
 
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	_, err := New(ForAuth(Config{
-		Context:       context.TODO(),
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		Databases:       p.databases,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 	}))
 	fixtures.ExpectConnectionProblem(c, err)
 }
@@ -315,10 +337,11 @@ func (s *CacheSuite) onlyRecentDisconnect(c *check.C) {
 // verifies that all watchers of the cache will be closed
 // if the underlying watcher to the target backend is closed
 func (s *CacheSuite) TestWatchers(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	w, err := p.cache.NewWatcher(context.TODO(), types.Watch{Kinds: []types.WatchKind{
+	w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
 		{
 			Kind: types.KindCertAuthority,
 		},
@@ -354,7 +377,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	req, err := services.NewAccessRequest("alice", "dictator")
 	c.Assert(err, check.IsNil)
 
-	c.Assert(p.dynamicAccessS.CreateAccessRequest(context.TODO(), req), check.IsNil)
+	c.Assert(p.dynamicAccessS.CreateAccessRequest(ctx, req), check.IsNil)
 
 	select {
 	case e := <-w.Events():
@@ -364,7 +387,7 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 		c.Fatalf("Timeout waiting for event.")
 	}
 
-	c.Assert(p.dynamicAccessS.DeleteAccessRequest(context.TODO(), req.GetName()), check.IsNil)
+	c.Assert(p.dynamicAccessS.DeleteAccessRequest(ctx, req.GetName()), check.IsNil)
 
 	select {
 	case e := <-w.Events():
@@ -379,8 +402,8 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// create and then delete the non-matching request.
-	c.Assert(p.dynamicAccessS.CreateAccessRequest(context.TODO(), req2), check.IsNil)
-	c.Assert(p.dynamicAccessS.DeleteAccessRequest(context.TODO(), req2.GetName()), check.IsNil)
+	c.Assert(p.dynamicAccessS.CreateAccessRequest(ctx, req2), check.IsNil)
+	c.Assert(p.dynamicAccessS.DeleteAccessRequest(ctx, req2.GetName()), check.IsNil)
 
 	// because our filter did not match the request, the create event should never
 	// have been created, meaning that the next event on the pipe is the delete
@@ -429,6 +452,7 @@ func waitForEvent(c *check.C, eventsC <-chan Event, expectedEvent string, skipEv
 // TestCompletenessInit verifies that flaky backends don't cause
 // the cache to return partial results during init.
 func (s *CacheSuite) TestCompletenessInit(c *check.C) {
+	ctx := context.Background()
 	const caCount = 100
 	const inits = 20
 	p := s.newPackWithoutCache(c, ForAuth)
@@ -445,7 +469,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 
 		p.cacheBackend, err = memory.New(
 			memory.Config{
-				Context: context.TODO(),
+				Context: ctx,
 				Mirror:  true,
 			})
 		c.Assert(err, check.IsNil)
@@ -455,21 +479,24 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 		p.eventsS.closeWatchers()
 
 		p.cache, err = New(ForAuth(Config{
-			Context:       context.TODO(),
-			Backend:       p.cacheBackend,
-			Events:        p.eventsS,
-			ClusterConfig: p.clusterConfigS,
-			Provisioner:   p.provisionerS,
-			Trust:         p.trustS,
-			Users:         p.usersS,
-			Access:        p.accessS,
-			DynamicAccess: p.dynamicAccessS,
-			Presence:      p.presenceS,
-			AppSession:    p.appSessionS,
-			WebSession:    p.webSessionS,
-			WebToken:      p.webTokenS,
-			RetryPeriod:   200 * time.Millisecond,
-			EventsC:       p.eventsC,
+			Context:         ctx,
+			Backend:         p.cacheBackend,
+			Events:          p.eventsS,
+			ClusterConfig:   p.clusterConfigS,
+			Provisioner:     p.provisionerS,
+			Trust:           p.trustS,
+			Users:           p.usersS,
+			Access:          p.accessS,
+			DynamicAccess:   p.dynamicAccessS,
+			Presence:        p.presenceS,
+			AppSession:      p.appSessionS,
+			WebSession:      p.webSessionS,
+			WebToken:        p.webTokenS,
+			Restrictions:    p.restrictions,
+			Databases:       p.databases,
+			WindowsDesktops: p.windowsDesktops,
+			RetryPeriod:     200 * time.Millisecond,
+			EventsC:         p.eventsC,
 			PreferRecent: PreferRecent{
 				Enabled: true,
 			},
@@ -498,6 +525,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 // TestCompletenessReset verifies that flaky backends don't cause
 // the cache to return partial results during reset.
 func (s *CacheSuite) TestCompletenessReset(c *check.C) {
+	ctx := context.Background()
 	const caCount = 100
 	const resets = 20
 	p := s.newPackWithoutCache(c, ForAuth)
@@ -511,21 +539,24 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		Databases:       p.databases,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 		PreferRecent: PreferRecent{
 			Enabled: true,
 		},
@@ -560,6 +591,7 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 // on closure, giving new caches the ability to start from a known
 // good state if the origin state is unavailable.
 func (s *CacheSuite) TestTombstones(c *check.C) {
+	ctx := context.Background()
 	const caCount = 10
 	p := s.newPackWithoutCache(c, ForAuth)
 	defer p.Close()
@@ -572,21 +604,24 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		Databases:       p.databases,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 		PreferRecent: PreferRecent{
 			Enabled: true,
 		},
@@ -606,21 +641,24 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 	p.eventsS.closeWatchers()
 
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		Databases:       p.databases,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 		PreferRecent: PreferRecent{
 			Enabled: true,
 		},
@@ -645,27 +683,31 @@ func (s *CacheSuite) TestPreferRecent(c *check.C) {
 }
 
 func (s *CacheSuite) preferRecent(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackWithoutCache(c, ForAuth)
 	defer p.Close()
 
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:       context.TODO(),
-		Backend:       p.cacheBackend,
-		Events:        p.eventsS,
-		ClusterConfig: p.clusterConfigS,
-		Provisioner:   p.provisionerS,
-		Trust:         p.trustS,
-		Users:         p.usersS,
-		Access:        p.accessS,
-		DynamicAccess: p.dynamicAccessS,
-		Presence:      p.presenceS,
-		AppSession:    p.appSessionS,
-		WebSession:    p.webSessionS,
-		WebToken:      p.webTokenS,
-		RetryPeriod:   200 * time.Millisecond,
-		EventsC:       p.eventsC,
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		Databases:       p.databases,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
 		PreferRecent: PreferRecent{
 			Enabled: true,
 		},
@@ -840,45 +882,95 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 	fixtures.ExpectNotFound(c, err)
 }
 
-// TestClusterConfig tests cluster configuration
-func (s *CacheSuite) TestClusterConfig(c *check.C) {
+func (s *CacheSuite) TestAuthPreference(c *check.C) {
 	ctx := context.Background()
 	p := s.newPackForAuth(c)
 	defer p.Close()
 
-	// DELETE IN 8.0.0
-	err := p.clusterConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		AllowLocalAuth:  types.NewBoolOption(true),
+		MessageOfTheDay: "test MOTD",
+	})
+	c.Assert(err, check.IsNil)
+	err = p.clusterConfigS.SetAuthPreference(ctx, authPref)
 	c.Assert(err, check.IsNil)
 
 	select {
 	case event := <-p.eventsC:
 		c.Assert(event.Type, check.Equals, EventProcessed)
+		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterAuthPreference)
 	case <-time.After(time.Second):
 		c.Fatalf("timeout waiting for event")
 	}
 
-	// DELETE IN 8.0.0
-	err = p.clusterConfigS.SetAuthPreference(types.DefaultAuthPreference())
+	outAuthPref, err := p.cache.GetAuthPreference(ctx)
+	c.Assert(err, check.IsNil)
+
+	authPref.SetResourceID(outAuthPref.GetResourceID())
+	fixtures.DeepCompare(c, outAuthPref, authPref)
+}
+
+func (s *CacheSuite) TestClusterNetworkingConfig(c *check.C) {
+	ctx := context.Background()
+	p := s.newPackForAuth(c)
+	defer p.Close()
+
+	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout:        types.Duration(time.Minute),
+		ClientIdleTimeoutMessage: "test idle timeout message",
+	})
+	c.Assert(err, check.IsNil)
+	err = p.clusterConfigS.SetClusterNetworkingConfig(ctx, netConfig)
 	c.Assert(err, check.IsNil)
 
 	select {
 	case event := <-p.eventsC:
 		c.Assert(event.Type, check.Equals, EventProcessed)
+		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterNetworkingConfig)
 	case <-time.After(time.Second):
 		c.Fatalf("timeout waiting for event")
 	}
 
-	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	outNetConfig, err := p.cache.GetClusterNetworkingConfig(ctx)
+	c.Assert(err, check.IsNil)
+
+	netConfig.SetResourceID(outNetConfig.GetResourceID())
+	fixtures.DeepCompare(c, outNetConfig, netConfig)
+}
+
+func (s *CacheSuite) TestSessionRecordingConfig(c *check.C) {
+	ctx := context.Background()
+	p := s.newPackForAuth(c)
+	defer p.Close()
+
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode:                types.RecordAtProxySync,
+		ProxyChecksHostKeys: types.NewBoolOption(true),
+	})
+	c.Assert(err, check.IsNil)
+	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, recConfig)
 	c.Assert(err, check.IsNil)
 
 	select {
 	case event := <-p.eventsC:
 		c.Assert(event.Type, check.Equals, EventProcessed)
+		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindSessionRecordingConfig)
 	case <-time.After(time.Second):
 		c.Fatalf("timeout waiting for event")
 	}
 
-	// DELETE IN 8.0.0
+	outRecConfig, err := p.cache.GetSessionRecordingConfig(ctx)
+	c.Assert(err, check.IsNil)
+
+	recConfig.SetResourceID(outRecConfig.GetResourceID())
+	fixtures.DeepCompare(c, outRecConfig, recConfig)
+}
+
+func (s *CacheSuite) TestClusterAuditConfig(c *check.C) {
+	ctx := context.Background()
+	p := s.newPackForAuth(c)
+	defer p.Close()
+
 	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 	})
@@ -889,42 +981,33 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	select {
 	case event := <-p.eventsC:
 		c.Assert(event.Type, check.Equals, EventProcessed)
+		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterAuditConfig)
 	case <-time.After(time.Second):
 		c.Fatalf("timeout waiting for event")
 	}
 
-	err = p.clusterConfigS.SetClusterConfig(services.DefaultClusterConfig())
+	outAuditConfig, err := p.cache.GetClusterAuditConfig(ctx)
 	c.Assert(err, check.IsNil)
 
-	clusterConfig, err := p.clusterConfigS.GetClusterConfig()
-	c.Assert(err, check.IsNil)
+	auditConfig.SetResourceID(outAuditConfig.GetResourceID())
+	fixtures.DeepCompare(c, outAuditConfig, auditConfig)
+}
 
-	select {
-	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
-	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
-	}
+func (s *CacheSuite) TestClusterName(c *check.C) {
+	p := s.newPackForAuth(c)
+	defer p.Close()
 
-	out, err := p.cache.GetClusterConfig()
-	c.Assert(err, check.IsNil)
-	clusterConfig.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, clusterConfig, out)
-
-	// update cluster name resource metadata
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
 	c.Assert(err, check.IsNil)
 	err = p.clusterConfigS.SetClusterName(clusterName)
 	c.Assert(err, check.IsNil)
 
-	clusterName, err = p.clusterConfigS.GetClusterName()
-	c.Assert(err, check.IsNil)
-
 	select {
 	case event := <-p.eventsC:
 		c.Assert(event.Type, check.Equals, EventProcessed)
+		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterName)
 	case <-time.After(time.Second):
 		c.Fatalf("timeout waiting for event")
 	}
@@ -936,14 +1019,90 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	fixtures.DeepCompare(c, outName, clusterName)
 }
 
+// TestClusterConfig tests cluster configuration
+// DELETE IN 8.0.0
+func (s *CacheSuite) TestClusterConfig(c *check.C) {
+	ctx := context.Background()
+	p := s.newPackForOldRemoteProxy(c)
+	defer p.Close()
+
+	// Since changes to configuration-related resources trigger ClusterConfig events
+	// for backward compatibility reasons, ignore these additional events while waiting
+	// for expected resource updates to propagate.
+	waitForEventIgnoreClusterConfig := func(resourceKind string) {
+		timeC := time.After(5 * time.Second)
+		for {
+			select {
+			case event := <-p.eventsC:
+				c.Assert(event.Type, check.Equals, EventProcessed)
+				if event.Event.Resource.GetKind() == types.KindClusterConfig {
+					continue
+				}
+				c.Assert(event.Event.Resource.GetKind(), check.Equals, resourceKind)
+				return
+			case <-timeC:
+				c.Fatalf("Timeout waiting for update to resource %v", resourceKind)
+			}
+		}
+	}
+
+	err := p.clusterConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	c.Assert(err, check.IsNil)
+	waitForEventIgnoreClusterConfig(types.KindClusterNetworkingConfig)
+
+	err = p.clusterConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
+	c.Assert(err, check.IsNil)
+	waitForEventIgnoreClusterConfig(types.KindClusterAuthPreference)
+
+	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	c.Assert(err, check.IsNil)
+	waitForEventIgnoreClusterConfig(types.KindSessionRecordingConfig)
+
+	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
+	})
+	c.Assert(err, check.IsNil)
+	err = p.clusterConfigS.SetClusterAuditConfig(ctx, auditConfig)
+	c.Assert(err, check.IsNil)
+	waitForEventIgnoreClusterConfig(types.KindClusterAuditConfig)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "example.com",
+	})
+	c.Assert(err, check.IsNil)
+	err = p.clusterConfigS.SetClusterName(clusterName)
+	c.Assert(err, check.IsNil)
+	waitForEventIgnoreClusterConfig(types.KindClusterName)
+
+	err = p.clusterConfigS.SetClusterConfig(types.DefaultClusterConfig())
+	c.Assert(err, check.IsNil)
+
+	clusterConfig, err := p.clusterConfigS.GetClusterConfig()
+	c.Assert(err, check.IsNil)
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterConfig)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	out, err := p.cache.GetClusterConfig()
+	c.Assert(err, check.IsNil)
+	clusterConfig.SetResourceID(out.GetResourceID())
+	fixtures.DeepCompare(c, clusterConfig, out)
+}
+
 // TestNamespaces tests caching of namespaces
 func (s *CacheSuite) TestNamespaces(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	v := types.NewNamespace("universe")
+	v, err := types.NewNamespace("universe")
+	c.Assert(err, check.IsNil)
 	ns := &v
-	err := p.presenceS.UpsertNamespace(*ns)
+	err = p.presenceS.UpsertNamespace(*ns)
 	c.Assert(err, check.IsNil)
 
 	ns, err = p.presenceS.GetNamespace(ns.GetName())
@@ -997,6 +1156,7 @@ func (s *CacheSuite) TestNamespaces(c *check.C) {
 
 // TestUsers tests caching of users
 func (s *CacheSuite) TestUsers(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
@@ -1041,7 +1201,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 	user.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, user, out)
 
-	err = p.usersS.DeleteUser(context.TODO(), user.GetName())
+	err = p.usersS.DeleteUser(ctx, user.GetName())
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1128,10 +1288,10 @@ func (s *CacheSuite) TestReverseTunnels(c *check.C) {
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
-	tunnel := types.NewReverseTunnel("example.com", []string{"example.com:2023"})
+	tunnel, err := types.NewReverseTunnel("example.com", []string{"example.com:2023"})
+	c.Assert(err, check.IsNil)
 	c.Assert(p.presenceS.UpsertReverseTunnel(tunnel), check.IsNil)
 
-	var err error
 	tunnel, err = p.presenceS.GetReverseTunnel(tunnel.GetName())
 	c.Assert(err, check.IsNil)
 
@@ -1321,7 +1481,7 @@ func (s *CacheSuite) TestNodes(c *check.C) {
 	// update keep alive on the node and make sure
 	// it propagates
 	lease.Expires = time.Now().UTC().Add(time.Hour)
-	err = p.presenceS.KeepAliveNode(context.TODO(), *lease)
+	err = p.presenceS.KeepAliveNode(ctx, *lease)
 	c.Assert(err, check.IsNil)
 
 	select {
@@ -1489,6 +1649,7 @@ func (s *CacheSuite) TestAuthServers(c *check.C) {
 
 // TestRemoteClusters tests remote clusters caching
 func (s *CacheSuite) TestRemoteClusters(c *check.C) {
+	ctx := context.Background()
 	p := s.newPackForProxy(c)
 	defer p.Close()
 
@@ -1521,7 +1682,6 @@ func (s *CacheSuite) TestRemoteClusters(c *check.C) {
 	meta.Labels = map[string]string{"env": "prod"}
 	rc.SetMetadata(meta)
 
-	ctx := context.TODO()
 	err = p.presenceS.UpdateRemoteCluster(ctx, rc)
 	c.Assert(err, check.IsNil)
 
@@ -1654,13 +1814,16 @@ func TestDatabaseServers(t *testing.T) {
 	ctx := context.Background()
 
 	// Upsert database server into backend.
-	server := types.NewDatabaseServerV3("foo", nil,
-		types.DatabaseServerSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-			Hostname: "localhost",
-			HostID:   uuid.New(),
-		})
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "foo",
+	}, types.DatabaseServerSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		Hostname: "localhost",
+		HostID:   uuid.New(),
+	})
+	require.NoError(t, err)
+
 	_, err = p.presenceS.UpsertDatabaseServer(ctx, server)
 	require.NoError(t, err)
 
@@ -1724,6 +1887,91 @@ func TestDatabaseServers(t *testing.T) {
 
 	// Check that the cache is now empty.
 	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+}
+
+// TestDatabases tests that CRUD operations on database resources are
+// replicated from the backend to the cache.
+func TestDatabases(t *testing.T) {
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	// Create a database resource.
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "foo",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+
+	err = p.databases.CreateDatabase(ctx, database)
+	require.NoError(t, err)
+
+	// Check that the database is now in the backend.
+	out, err := p.databases.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{database}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single database in it.
+	out, err = p.databases.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{database}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update the database and upsert it into the backend again.
+	database.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	err = p.databases.UpdateDatabase(ctx, database)
+	require.NoError(t, err)
+
+	// Check that the database is in the backend and only one exists (so an
+	// update occurred).
+	out, err = p.databases.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{database}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single database in it.
+	out, err = p.cache.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{database}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Remove all database from the backend.
+	err = p.databases.DeleteAllDatabases(ctx)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, err = p.databases.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 }

@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -35,15 +37,18 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -102,8 +107,17 @@ type Config struct {
 	// Databases defines database proxy service configuration.
 	Databases DatabasesConfig
 
+	// Metrics defines the metrics service configuration.
+	Metrics MetricsConfig
+
+	// WindowsDesktop defines the Windows desktop service configuration.
+	WindowsDesktop WindowsDesktopConfig
+
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
+
+	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
+	KeyStore keystore.Config
 
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
@@ -190,8 +204,8 @@ type Config struct {
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
 
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
@@ -320,7 +334,7 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	//DisableTLS is enabled if we don't want self-signed certs
+	// DisableTLS is enabled if we don't want self signed certs
 	DisableTLS bool
 
 	// DisableWebInterface allows to turn off serving the Web UI interface
@@ -509,6 +523,9 @@ type AuthConfig struct {
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
 	PublicAddrs []utils.NetAddr
+
+	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
+	KeyStore keystore.Config
 }
 
 // SSHConfig configures SSH server node role
@@ -531,13 +548,16 @@ type SSHConfig struct {
 	// BPF holds BPF configuration for Teleport.
 	BPF *bpf.Config
 
-	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
-	// discovered proxy fails.
-	// This configuration is not exposed directly but can be set from environment via
-	// defaults.ProxyFallbackAddrEnvar.
-	//
-	// See github.com/gravitational/teleport/issues/4141 for details.
-	ProxyReverseTunnelFallbackAddr *utils.NetAddr
+	// RestrictedSession holds kernel objects restrictions for Teleport.
+	RestrictedSession *restricted.Config
+
+	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
+	AllowTCPForwarding bool
+
+	// IdleTimeoutMessage is sent to the client when a session expires due to
+	// the inactivity timeout expiring. The empty string indicates that no
+	// timeout message will be sent.
+	IdleTimeoutMessage string
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -566,6 +586,10 @@ type KubeConfig struct {
 
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
+
+	// CheckImpersonationPermissions is an optional override to the default
+	// impersonation permissions check, for use in testing.
+	CheckImpersonationPermissions proxy.ImpersonationPermissionsChecker
 }
 
 // DatabasesConfig configures the database proxy service.
@@ -574,6 +598,8 @@ type DatabasesConfig struct {
 	Enabled bool
 	// Databases is a list of databases proxied by this service.
 	Databases []Database
+	// Selectors is a list of resource monitor selectors.
+	Selectors []services.Selector
 }
 
 // Database represents a single database that's being proxied.
@@ -620,8 +646,8 @@ type DatabaseGCP struct {
 	InstanceID string
 }
 
-// Check validates the database proxy configuration.
-func (d *Database) Check() error {
+// CheckAndSetDefaults validates the database proxy configuration.
+func (d *Database) CheckAndSetDefaults() error {
 	if d.Name == "" {
 		return trace.BadParameter("empty database name")
 	}
@@ -635,7 +661,29 @@ func (d *Database) Check() error {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
 			d.Name, d.Protocol, defaults.DatabaseProtocols)
 	}
-	if _, _, err := net.SplitHostPort(d.URI); err != nil {
+	// Mark the database as coming from the static configuration.
+	if d.StaticLabels == nil {
+		d.StaticLabels = make(map[string]string)
+	}
+	d.StaticLabels[types.OriginLabel] = types.OriginConfigFile
+	// For MongoDB we support specifying either server address or connection
+	// string in the URI which is useful when connecting to a replica set.
+	if d.Protocol == defaults.ProtocolMongoDB &&
+		(strings.HasPrefix(d.URI, connstring.SchemeMongoDB+"://") ||
+			strings.HasPrefix(d.URI, connstring.SchemeMongoDBSRV+"://")) {
+		connString, err := connstring.ParseAndValidate(d.URI)
+		if err != nil {
+			return trace.BadParameter("invalid MongoDB database %q connection string %q: %v",
+				d.Name, d.URI, err)
+		}
+		// Validate read preference to catch typos early.
+		if connString.ReadPreference != "" {
+			if _, err := readpref.ModeFromString(connString.ReadPreference); err != nil {
+				return trace.BadParameter("invalid MongoDB database %q read preference %q",
+					d.Name, connString.ReadPreference)
+			}
+		}
+	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
 	}
@@ -645,31 +693,12 @@ func (d *Database) Check() error {
 				d.Name, err)
 		}
 	}
-	// Validate Redshift specific configuration.
-	if d.AWS.Redshift.ClusterID != "" {
-		if d.AWS.Region == "" {
-			return trace.BadParameter("missing AWS region for Redshift database %q", d.Name)
-		}
-	}
 	// Validate Cloud SQL specific configuration.
 	switch {
 	case d.GCP.ProjectID != "" && d.GCP.InstanceID == "":
 		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.Name)
 	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
-	case d.GCP.ProjectID != "" && d.GCP.InstanceID != "":
-		// Only Postgres Cloud SQL instances currently support IAM authentication.
-		// It's a relatively new feature so we'll be able to enable it once it
-		// expands to MySQL as well:
-		//   https://cloud.google.com/sql/docs/postgres/authentication
-		if d.Protocol != defaults.ProtocolPostgres {
-			return trace.BadParameter("Cloud SQL IAM authentication is currently supported only for PostgreSQL databases, can't use database %q with protocol %q", d.Name, d.Protocol)
-		}
-		// TODO(r0mant): See if we can download it automatically similar to RDS:
-		// https://cloud.google.com/sql/docs/postgres/instance-info#rest-v1beta4
-		if len(d.CACert) == 0 {
-			return trace.BadParameter("missing Cloud SQL instance root certificate for database %q", d.Name)
-		}
 	}
 	return nil
 }
@@ -756,6 +785,44 @@ func (a App) Check() error {
 		}
 	}
 	return nil
+}
+
+// MetricsConfig specifies configuration for the metrics service
+type MetricsConfig struct {
+	// Enabled turns the metrics service role on or off for this process
+	Enabled bool
+
+	// ListenAddr is the address to listen on for incoming metrics requests.
+	// Optional.
+	ListenAddr *utils.NetAddr
+
+	// MTLS turns mTLS on the metrics service on or off
+	MTLS bool
+
+	// KeyPairs are the key and certificate pairs that the metrics service will
+	// use for mTLS.
+	// Used in conjunction with MTLS = true
+	KeyPairs []KeyPairPath
+
+	// CACerts are prometheus ca certs
+	// use for mTLS.
+	// Used in conjunction with MTLS = true
+	CACerts []string
+}
+
+// WindowsDesktopConfig specifies the configuration for the Windows Desktop
+// Access service.
+type WindowsDesktopConfig struct {
+	Enabled bool
+	// ListenAddr is the address to listed on for incoming desktop connections.
+	ListenAddr utils.NetAddr
+	// PublicAddrs is a list of advertised public addresses of the service.
+	PublicAddrs []utils.NetAddr
+	// Hosts is an optional list of static Windows hosts to expose through this
+	// service.
+	Hosts []utils.NetAddr
+	// ConnLimiter limits the connection and request rates.
+	ConnLimiter limiter.Config
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -855,8 +922,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
-	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
-	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
+	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
+	cfg.Auth.ClusterConfig = types.DefaultClusterConfig()
 	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
@@ -881,6 +948,8 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+	cfg.SSH.RestrictedSession = &restricted.Config{Enabled: false}
+	cfg.SSH.AllowTCPForwarding = true
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false
@@ -891,6 +960,13 @@ func ApplyDefaults(cfg *Config) {
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false
+
+	// Metrics service defaults.
+	cfg.Metrics.Enabled = false
+
+	// Windows desktop service is disabled by default.
+	cfg.WindowsDesktop.Enabled = false
+	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

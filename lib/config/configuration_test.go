@@ -226,11 +226,15 @@ func TestConfigReading(t *testing.T) {
 			Logger: Log{
 				Output:   "stderr",
 				Severity: "INFO",
+				Format: LogFormat{
+					Output: "text",
+				},
 			},
 			Storage: backend.Config{
 				Type: "bolt",
 			},
 			DataDir: "/path/to/data",
+			CAPin:   apiutils.Strings([]string{"rsa256:123", "rsa256:456"}),
 		},
 		Auth: Auth{
 			Service: Service{
@@ -241,6 +245,7 @@ func TestConfigReading(t *testing.T) {
 			LicenseFile:           "lic.pem",
 			DisconnectExpiredCert: types.NewBoolOption(true),
 			ClientIdleTimeout:     types.Duration(17 * time.Second),
+			WebIdleTimeout:        types.Duration(19 * time.Second),
 		},
 		SSH: SSH{
 			Service: Service{
@@ -303,6 +308,34 @@ func TestConfigReading(t *testing.T) {
 					DynamicLabels: CommandLabels,
 				},
 			},
+			Selectors: []Selector{
+				{
+					MatchLabels: map[string]apiutils.Strings{
+						"*": {"*"},
+					},
+				},
+			},
+		},
+		Metrics: Metrics{
+			Service: Service{
+				ListenAddress: "tcp://metrics",
+				EnabledFlag:   "yes",
+			},
+			KeyPairs: []KeyPair{
+				KeyPair{
+					PrivateKey:  "/etc/teleport/proxy.key",
+					Certificate: "/etc/teleport/proxy.crt",
+				},
+			},
+			CACerts: []string{"/etc/teleport/ca.crt"},
+		},
+		WindowsDesktop: WindowsDesktopService{
+			Service: Service{
+				EnabledFlag:   "yes",
+				ListenAddress: "tcp://windows_desktop",
+			},
+			PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
+			Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 		},
 	}, cmp.AllowUnexported(Service{})))
 	require.True(t, conf.Auth.Configured())
@@ -317,6 +350,10 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Apps.Enabled())
 	require.True(t, conf.Databases.Configured())
 	require.True(t, conf.Databases.Enabled())
+	require.True(t, conf.Metrics.Configured())
+	require.True(t, conf.Metrics.Enabled())
+	require.True(t, conf.WindowsDesktop.Configured())
+	require.True(t, conf.WindowsDesktop.Enabled())
 
 	// good config from file
 	conf, err = ReadFromFile(testConfigs.configFileStatic)
@@ -382,11 +419,11 @@ func TestTrustedClusters(t *testing.T) {
 	require.Len(t, authorities, 2)
 	require.Equal(t, "cluster-a", authorities[0].GetClusterName())
 	require.Equal(t, types.HostCA, authorities[0].GetType())
-	require.Len(t, authorities[0].GetCheckingKeys(), 1)
+	require.Len(t, authorities[0].GetActiveKeys().SSH, 1)
 	require.Equal(t, "cluster-a", authorities[1].GetClusterName())
 	require.Equal(t, types.UserCA, authorities[1].GetType())
-	require.Len(t, authorities[1].GetCheckingKeys(), 1)
-	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetCheckingKeys()[0])
+	require.Len(t, authorities[1].GetActiveKeys().SSH, 1)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetActiveKeys().SSH[0].PublicKey)
 	require.NoError(t, err)
 
 	tunnels := conf.ReverseTunnels
@@ -523,6 +560,8 @@ func TestApplyConfig(t *testing.T) {
 	require.Len(t, cfg.Proxy.MySQLPublicAddrs, 1)
 	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
 
+	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
+
 	u2fCAFromFile, err := ioutil.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cfg.Auth.Preference, &types.AuthPreferenceV2{
@@ -565,8 +604,14 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			},
 			AllowLocalAuth:        types.NewBoolOption(true),
 			DisconnectExpiredCert: types.NewBoolOption(false),
+			LockingMode:           constants.LockingModeBestEffort,
 		},
 	}))
+
+	require.Equal(t, "/usr/local/lib/example/path.so", cfg.Auth.KeyStore.Path)
+	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
+	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
+	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -587,6 +632,8 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.Empty(t, cfg.SSH.PublicAddrs)
 	require.False(t, cfg.Apps.Enabled)
 	require.False(t, cfg.Databases.Enabled)
+	require.False(t, cfg.Metrics.Enabled)
+	require.False(t, cfg.WindowsDesktop.Enabled)
 	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
 	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
 }
@@ -822,14 +869,6 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			EnabledFlag:    "yes",
 			ListenAddress:  "auth:3025",
 		},
-		Authorities: []Authority{{
-			Type:             types.HostCA,
-			DomainName:       "example.com",
-			CheckingKeys:     []string{"checking key 1"},
-			CheckingKeyFiles: []string{"/ca.checking.key"},
-			SigningKeys:      []string{"signing key 1"},
-			SigningKeyFiles:  []string{"/ca.signing.key"},
-		}},
 		ReverseTunnels: []ReverseTunnel{
 			{
 				DomainName: "tunnel.example.com",
@@ -904,13 +943,16 @@ func makeConfigFixture() string {
 	conf.Limits.Rates = ConnectionRates
 	conf.Logger.Output = "stderr"
 	conf.Logger.Severity = "INFO"
+	conf.Logger.Format = LogFormat{Output: "text"}
 	conf.Storage.Type = "bolt"
+	conf.CAPin = []string{"rsa256:123", "rsa256:456"}
 
 	// auth service:
 	conf.Auth.EnabledFlag = "Yeah"
 	conf.Auth.ListenAddress = "tcp://auth"
 	conf.Auth.LicenseFile = "lic.pem"
 	conf.Auth.ClientIdleTimeout = types.NewDuration(17 * time.Second)
+	conf.Auth.WebIdleTimeout = types.NewDuration(19 * time.Second)
 	conf.Auth.DisconnectExpiredCert = types.NewBoolOption(true)
 
 	// ssh service:
@@ -966,6 +1008,31 @@ func makeConfigFixture() string {
 			StaticLabels:  Labels,
 			DynamicLabels: CommandLabels,
 		},
+	}
+	conf.Databases.Selectors = []Selector{
+		{
+			MatchLabels: map[string]apiutils.Strings{"*": {"*"}},
+		},
+	}
+
+	// Metrics service.
+	conf.Metrics.EnabledFlag = "yes"
+	conf.Metrics.ListenAddress = "tcp://metrics"
+	conf.Metrics.CACerts = []string{"/etc/teleport/ca.crt"}
+	conf.Metrics.KeyPairs = []KeyPair{
+		KeyPair{
+			PrivateKey:  "/etc/teleport/proxy.key",
+			Certificate: "/etc/teleport/proxy.crt",
+		},
+	}
+
+	conf.WindowsDesktop = WindowsDesktopService{
+		Service: Service{
+			EnabledFlag:   "yes",
+			ListenAddress: "tcp://windows_desktop",
+		},
+		PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
+		Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 	}
 
 	return conf.DebugDumpToYAML()
@@ -1352,6 +1419,9 @@ func TestDatabaseConfig(t *testing.T) {
 			inConfigString: `
 db_service:
   enabled: true
+  selectors:
+  - match_labels:
+      '*': '*'
   databases:
   - name: foo
     protocol: postgres
@@ -1411,21 +1481,6 @@ db_service:
 `,
 			outError: `invalid database "foo" address`,
 		},
-		{
-			desc: "missing Redshift region",
-			inConfigString: `
-db_service:
-  enabled: true
-  databases:
-  - name: foo
-    protocol: postgres
-    uri: 192.168.1.1:5438
-    aws:
-      redshift:
-        cluster_id: cluster-1
-`,
-			outError: `missing AWS region for Redshift database "foo"`,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -1464,10 +1519,11 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Labels:           "env=test,hostname=[1h:hostname]",
 			},
 			outDatabase: service.Database{
-				Name:         "foo",
-				Protocol:     defaults.ProtocolPostgres,
-				URI:          "localhost:5432",
-				StaticLabels: map[string]string{"env": "test"},
+				Name:     "foo",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				StaticLabels: map[string]string{"env": "test",
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{
 					"hostname": &types.CommandLabelV2{
 						Period:  types.Duration(time.Hour),
@@ -1517,7 +1573,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				AWS: service.DatabaseAWS{
 					Region: "us-east-1",
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -1540,7 +1597,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 						ClusterID: "redshift-cluster-1",
 					},
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -1563,7 +1621,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					ProjectID:  "gcp-project-1",
 					InstanceID: "gcp-instance-1",
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -1605,11 +1664,37 @@ func TestTextFormatter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
 			formatter := &textFormatter{
-				LogFormat: tt.formatConfig,
+				ExtraFields: tt.formatConfig,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
-
 		})
 	}
+}
 
+func TestJSONFormatter(t *testing.T) {
+	tests := []struct {
+		comment     string
+		extraFields []string
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			comment:     "invalid key (does not exist)",
+			extraFields: []string{"level", "invalid key"},
+			assertErr:   require.Error,
+		},
+		{
+			comment:     "valid keys and formatting",
+			extraFields: []string{"level", "caller", "component", "timestamp"},
+			assertErr:   require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.comment, func(t *testing.T) {
+			formatter := &jsonFormatter{
+				extraFields: tt.extraFields,
+			}
+			tt.assertErr(t, formatter.CheckAndSetDefaults())
+		})
+	}
 }

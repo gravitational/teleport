@@ -1,0 +1,386 @@
+---
+title: Teleport Resources Reference
+description: The detailed reference documentation for Teleport Configuration Resources
+h1: Teleport Configuration Resources Reference
+---
+
+## Resources
+
+A Teleport administrator has two tools to configure a Teleport cluster:
+
+- The [configuration file](./config.mdx) is used for static configuration like
+  the cluster name.
+- The [`tctl`](./cli.mdx#tctl) admin tool is used for manipulating dynamic
+  records like Teleport users.
+
+[`tctl`](./cli.mdx#tctl) has convenient sub-commands for dynamic
+configuration, like `tctl users` or `tctl nodes`. However, for dealing with
+more advanced topics, like connecting clusters together or troubleshooting
+trust, [`tctl`](./cli.mdx#tctl) offers the more powerful, although
+lower-level CLI interface called `resources`.
+
+The concept is borrowed from the REST programming pattern. A cluster is composed
+of different objects (aka, resources) and there are just three common operations
+that can be performed on them: `get` , `create` , `remove` .
+
+A resource is defined as a [YAML](https://en.wikipedia.org/wiki/YAML) file.
+Every resource in Teleport has three required fields:
+
+- `Kind` - The type of resource
+- `Name` - A required field in the `metadata` to uniquely identify the resource
+- `Version` - The version of the resource format
+
+Everything else is resource-specific and any component of a Teleport cluster can
+be manipulated with just three CLI commands:
+
+| Command | Description | Examples |
+| - | - | - |
+| [`tctl get`](./cli.mdx#tctl-get) | Get one or multiple resources | `tctl get users` or `tctl get user/joe` |
+| [`tctl rm`](./cli.mdx#tctl-rm) | Delete a resource by type/name | `tctl rm user/joe` |
+| [`tctl create`](./cli.mdx#tctl-create) | Create a new resource from a YAML file. Use `-f` to override / update | `tctl create -f joe.yaml` |
+
+<Admonition
+  type="warning"
+  title="YAML Format"
+>
+  By default Teleport uses [YAML format](https://en.wikipedia.org/wiki/YAML) to describe resources.
+  YAML is a human-readable alternative to JSON or XML, but it's sensitive to white space.
+  Pay attention to spaces vs tabs.
+</Admonition>
+
+Here's an example how the YAML resource definition for a user Joe might look
+like. It can be retrieved by executing [`tctl get user/joe`](./cli.mdx#tctl-get)
+
+```yaml
+kind: user
+version: v2
+metadata:
+  name: joe
+spec:
+  roles: admin
+  status:
+    # Users can be temporarily locked in a Teleport system, but this
+    # functionality is reserved for internal use for now.
+    is_locked: false
+    lock_expires: 0001-01-01T00:00:00Z
+    locked_time: 0001-01-01T00:00:00Z
+  traits:
+    # These are "allowed logins" which are usually specified as the
+    # last argument to `tctl users add`
+    logins:
+    - joe
+    - root
+  # Any resource in Teleport can automatically expire.
+  expires: 0001-01-01T00:00:00Z
+  # for internal use only
+  created_by:
+    time: 0001-01-01T00:00:00Z
+    user:
+      name: builtin-Admin
+```
+
+<Admonition
+  type="tip"
+  title="Note"
+>
+  Some of the fields you will see when printing resources are used only internally and are not meant to be changed. Others are reserved for future use.
+</Admonition>
+
+Here's the list of resources currently exposed via [`tctl`](./cli.mdx#tctl):
+
+| Resource Kind | Description |
+| - | - |
+| [user](#user) | A user record in the internal Teleport user DB. |
+| [role](#role) | A role assumed by interactive and non-interactive users. |
+| connector | Authentication connectors for [Single Sign-On](../../enterprise/sso.mdx) (SSO) for SAML, OIDC and Github. |
+| node | A registered SSH node. The same record is displayed via `tctl nodes ls` |
+| cluster | A trusted cluster. See [here](../../admin-guide.mdx#trusted-clusters) for more details on connecting clusters together. |
+
+**Examples:**
+
+```code
+# List all connectors:
+$ tctl get connectors
+
+# Dump a SAML connector called "okta":
+$ tctl get saml/okta
+
+# Delete a SAML connector called "okta":
+$ tctl rm saml/okta
+
+# Delete an OIDC connector called "gworkspace":
+$ tctl rm oidc/gworkspace
+
+# Delete a github connector called "myteam":
+$ tctl rm github/myteam
+
+# Delete a local user called "admin":
+$ tctl rm users/admin
+```
+
+<Admonition type="note">
+  Although `tctl get connectors` will show you every connector, when working with an individual connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each connector's `kind` at the top of its YAML output from `tctl get connectors`.
+</Admonition>
+
+## User
+
+Teleport supports interactive local users, non-interactive local users (bots)
+and single-sign on users that are represented as a resource.
+
+```yaml
+kind: user
+version: v2
+metadata:
+  name: joe
+spec:
+  # roles is a list of roles assigned to this user
+  roles:
+  - admin
+  # status sets user temporarily locked in a Teleport system, for example
+  # when users exceed predefined amount of failed login attempts
+  status:
+    is_locked: false
+    lock_expires: 0001-01-01T00:00:00Z
+    locked_time: 0001-01-01T00:00:00Z
+  # traits are key, list of values pairs assigned to a user resource.
+  # Traits can be used in role templates as variables.
+  traits:
+    logins:
+    - joe
+    - root
+  # expires, if not empty, sets automatic expiry of the resource
+  expires: 0001-01-01T00:00:00Z
+  # created_by is a system property that tracks
+  # identity of the author of this user resource.
+  created_by:
+    time: 0001-01-01T00:00:00Z
+    user:
+      name: builtin-Admin
+```
+
+## Role
+
+Interactive and non-interactive users (bots) assume one or many roles.
+Roles govern access to databases, SSH servers, kubernetes clusters, and web apps.
+
+```yaml
+---
+kind: role
+version: v4
+metadata:
+  name: example
+spec:
+  # options specify connection , in case if user has multiple non-default
+  # conflicting options, teleport chooses the least permissive value.
+  options:
+    # max_session_ttl defines the TTL (time to live) of certificates
+    # issued to the users with this role.
+    max_session_ttl: 8h
+    # forward_agent controls whether SSH agent forwarding is allowed
+    forward_agent: true
+    # port_forwarding controls whether TCP port forwarding is allowed for SSH
+    port_forwarding: true
+    # client_idle_timeout determines if SSH sessions to cluster nodes are
+    # forcefully terminated after no activity from a client (idle client).
+    # it overrides the global cluster setting. examples: "30m", "1h" or "1h30m"
+    client_idle_timeout: never
+    # Determines if the clients will be forcefully disconnected when their
+    # certificates expire in the middle of an active session.
+    # It overrides the global cluster setting.
+    disconnect_expired_cert: no
+    # max_sessions is total number of session channels that can be established
+    # across a single connection. Setting it to 10 matches OpenSSH default behavior.
+    max_sessions: 10
+    # permit_x11_forwarding allows users to use X11 forwarding with openssh
+    # clients and servers through the proxy
+    permit_x11_forwarding: true
+    # require_session_mfa require per-session MFA for any owner of this role
+    require_session_mfa: true
+    # lock sets locking mode for user of this role,
+    # valid values are "strict" or "best_effort"
+    lock: strict
+    # enterprise-only request_access field is either 'always' or 'reason'. If set to always, it instructs
+    # tsh or the web UI clients to always create an access request on login. If it is
+    # set to 'reason', the user will be required to indicate why they are
+    # generating the access request.
+    request_access: reason
+    # the `request_prompt` field can be used to tell the user what should
+    # be supplied in the request reason field.
+    request_prompt: Please provide your ticket ID
+    # enterprise-only max_connections field sets a limit of concurrent sessions within a
+    # cluster. This setting slows down Teleport performance because it has to track
+    # connections cluster-wide.
+    max_connections: 2
+
+  # The allow section declares a list of resource/verb combinations that are
+  # allowed for the users of this role. By default, nothing is allowed.
+  allow:
+    # The logins array defines the OS/UNIX logins a user is allowed to use.
+    # both strings and template variables are supported in this field
+    logins: [root, '{{internal.logins}}']
+
+    # node_labels: a user with this role will be allowed to connect to
+    # SSH nodes, which labels match expressions below.
+    node_labels:
+      # literal strings:
+      'env': 'test'
+      # the wildcard ('*') means "any node"
+      '*': '*'
+      # a list of alternative options:
+      'region': ['us-west-1', 'eu-central-1']
+      # regular expressions start with ^ and end with $
+      # Teleport uses golang regexp syntax.
+      # of the list example above can be expressed as:
+      'reg': '^us-west-1|eu-central-1$'
+
+    # kubernetes_groups specifies Kubernetes groups a user with this role will assume.
+    # You can refer to a SAML/OIDC trait via the "external" property bag.
+    # This allows you to specify Kubernetes group membership in an identity manager:
+    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]
+
+    # kubernetes_users is an optional field that specifies kubernetes users
+    # this role can assume.
+    kubernetes_users: ['IAM#{{external.foo}};']
+
+    # kubernetes_labels: a user with this role will be allowed to connect to
+    # k8s clusters, which labels match expressions below.
+    kubernetes_labels:
+      # A user can only access prod environments
+      'env': 'prod'
+      # User can access any region in us-west, e.g us-west-1, us-west-2
+      'region': 'us-west-*'
+      # regular expressions start with ^ and ending with $
+      # Teleport uses golang regexp syntax.
+      'cluster_name': '^us.*\.example\.com$'
+
+    # Functions transform variables.
+    db_users: ['{{email.local(external.email)}}']
+    db_names: ['{{external.db_names}}']
+    db_labels:
+      'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
+
+    # app_labels: a user with this role will be allowed to connect to
+    # applications, which labels match expressions below.
+    app_labels:
+      # A user can only access prod environments
+      'env': 'prod'
+      # User can access any region in us-west, e.g us-west-1, us-west-2
+      'region': 'us-west-*'
+      # regular expressions start with ^ and ending with $
+      # Teleport uses golang regexp syntax.
+      'cluster_name': '^us.*\.example\.com$'
+
+    # aws_role_arns allows a user with this role to assume AWS roles when
+    # accessing AWS console using UI or AWS API using CLI
+    aws_role_arns:
+      - 'arn:aws:iam::1234567890:role/ec2-read-only'
+      - 'arn:aws:iam::1234567890:role/ec2-full-access'
+      - 'arn:aws:iam::0987654321:role/example-role'
+
+    # impersonate allows a user with this role to issue certificates on behalf
+    # of other users and roles matching expressions below
+    impersonate:
+      users: ['*']
+      roles: ['jenkins']
+      # where is an optional where condition
+      # further limiting the scope for matching users and roles
+      where: >
+        contains(user.spec.traits["group"], impersonate_role.metadata.labels["group"]) &&
+        contains(user.spec.traits["group"], impersonate_user.metadata.labels["group"])
+
+    # review_requests allows a user holding this role
+    # to approve or deny access requests
+    review_requests:
+      roles: ['dbadmin']
+
+    # request allows a user user request roles matching
+    # expressions below
+    request:
+      # the `roles` list can be a mixture of literals and wildcard matchers
+      roles: ['common', 'dev-*']
+      # thresholds specifies minimum amount of approvers and deniers,
+      # defaults to 1 for both
+      thresholds:
+        # requires at least two qualifying approvers and at least one denier.
+        - approve: 2
+          deny: 1
+
+      # the `claims_to_roles` mapping works the same as it does in
+      # the OIDC connector, with the added benefit that the roles being mapped to
+      # can also be matchers. the below mapping says that users with
+      # the claims `groups: admins` can request any role in the system.
+      claims_to_roles:
+        - claim: 'projects'
+          # matches all group names with a leading 'product-'
+          value: '^product-(.*)$'
+          # generates a role name from the value capture
+          roles: ['$1-admin']
+
+      # Teleport can attach annotations to pending access requests. these
+      # annotations may be literals, or be variable interpolation expressions,
+      # effectively creating a means for propagating selected claims from an
+      # external identity provider to the plugin system.
+      annotations:
+        foo: ['bar']
+        groups: ['{{external.groups}}']
+
+    # rules allow a user holding this role to modify other resources
+    # matching expressions below
+    # supported resources:
+    # role               - role resource
+    # user               - user resource
+    #
+    # auth_connector     - any auth connector resource
+    # oidc               - OIDC connector resource
+    # saml               - connector resource
+    # github             - Github connector resource
+    #
+    # trusted_cluster    - trusted cluster resource
+    # remote_cluster     - remote cluster resource
+    #
+    # access_request     - access request resource
+    # access_plugin_data - allows modifying access request plugin data
+    #
+    # session            - session playback records
+    # ssh_session        - an active SSH session
+    # event              - structured audit logging event
+    #
+    #
+    # lock                  - lock resource.
+    # network_restrictions  - restrictions for SSH sessions
+    #
+    # auth_server           - auth server resource
+    # proxy                 - proxy resource
+    # node                  - SSH node resource
+    # app_server            - application server resource
+    # db_server             - database proxy server resource
+    # token                 - provisioning token resource
+    # cert_authority        - certificate authority resource
+    #
+    # cluster_name              - resource that contains the cluster name.
+    # cluster_config            - resource that holds cluster level config
+    # cluster_auth_preference   - type of authentication for this cluster
+    # session_recording_config  - resource for session recording config
+    # cluster_audit_config      - resource that holds cluster audit config
+    # cluster_networking_config - resource that holds cluster networking config
+
+    rules:
+      - resources: [role]
+        verbs: [list, create, read, update, delete]
+      - resources: [auth_connector]
+        verbs: [list, create, read, update, delete]
+      - resources: [session]
+        verbs: [list, read]
+      - resources: [trusted_cluster]
+        verbs: [list, create, read, update, delete]
+      - resources: [event]
+        verbs: [list, read]
+      - resources: [user]
+        verbs: [list, create, read, update, delete]
+      - resources: [token]
+        verbs: [list, create, read, update, delete]
+
+  # The deny section uses the identical format as the 'allow' section.
+  # The deny rules always override allow rules.
+  deny: {}
+```

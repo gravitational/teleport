@@ -119,6 +119,16 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newKubeServiceParser()
 		case types.KindDatabaseServer:
 			parser = newDatabaseServerParser()
+		case types.KindDatabase:
+			parser = newDatabaseParser()
+		case types.KindLock:
+			parser = newLockParser()
+		case types.KindNetworkRestrictions:
+			parser = newNetworkRestrictionsParser()
+		case types.KindWindowsDesktopService:
+			parser = newWindowsDesktopServicesParser()
+		case types.KindWindowsDesktop:
+			parser = newWindowsDesktopsParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -366,6 +376,7 @@ func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) 
 func newClusterConfigParser(getClusterConfig getClusterConfigFunc) *clusterConfigParser {
 	prefixes := [][]byte{
 		backend.Key(clusterConfigPrefix, generalPrefix),
+		backend.Key(clusterConfigPrefix, namePrefix),
 		backend.Key(clusterConfigPrefix, auditPrefix),
 		backend.Key(clusterConfigPrefix, networkingPrefix),
 		backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
@@ -980,6 +991,30 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 	}
 }
 
+func newDatabaseParser() *databaseParser {
+	return &databaseParser{
+		baseParser: newBaseParser(backend.Key(databasesPrefix)),
+	}
+}
+
+type databaseParser struct {
+	baseParser
+}
+
+func (p *databaseParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindDatabase, types.V3, 0)
+	case types.OpPut:
+		return services.UnmarshalDatabase(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func parseServer(event backend.Event, kind string) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
@@ -1030,6 +1065,117 @@ func (p *remoteClusterParser) parse(event backend.Event) (types.Resource, error)
 			return nil, trace.Wrap(err)
 		}
 		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newLockParser() *lockParser {
+	return &lockParser{
+		baseParser: newBaseParser(backend.Key(locksPrefix)),
+	}
+}
+
+type lockParser struct {
+	baseParser
+}
+
+func (p *lockParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindLock, types.V2, 0)
+	case types.OpPut:
+		return services.UnmarshalLock(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newNetworkRestrictionsParser() *networkRestrictionsParser {
+	return &networkRestrictionsParser{
+		matchPrefix: backend.Key(restrictionsPrefix, network),
+	}
+}
+
+type networkRestrictionsParser struct {
+	matchPrefix []byte
+}
+
+func (p *networkRestrictionsParser) prefixes() [][]byte {
+	return [][]byte{p.matchPrefix}
+}
+
+func (p *networkRestrictionsParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindNetworkRestrictions, types.V1, 0)
+	case types.OpPut:
+		resource, err := services.UnmarshalNetworkRestrictions(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newWindowsDesktopServicesParser() *windowsDesktopServicesParser {
+	return &windowsDesktopServicesParser{
+		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix)),
+	}
+}
+
+type windowsDesktopServicesParser struct {
+	baseParser
+}
+
+func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindWindowsDesktopService, types.V3, 0)
+	case types.OpPut:
+		return services.UnmarshalWindowsDesktopService(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newWindowsDesktopsParser() *windowsDesktopsParser {
+	return &windowsDesktopsParser{
+		baseParser: newBaseParser(backend.Key(windowsDeskoptsPrefix)),
+	}
+}
+
+type windowsDesktopsParser struct {
+	baseParser
+}
+
+func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindWindowsDesktop, types.V3, 0)
+	case types.OpPut:
+		return services.UnmarshalWindowsDesktop(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

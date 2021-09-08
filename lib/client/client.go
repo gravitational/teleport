@@ -38,6 +38,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
@@ -284,7 +285,13 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 		// Database certs have to be requested with CertUsage All because
 		// pre-7.0 servers do not accept usage-restricted certificates.
 		if params.RouteToDatabase.ServiceName != "" {
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+			switch params.RouteToDatabase.Protocol {
+			case defaults.ProtocolMongoDB:
+				// MongoDB expects certificate and key pair in the same pem file.
+				key.DBTLSCerts[params.RouteToDatabase.ServiceName] = append(certs.TLS, key.Priv...)
+			default:
+				key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+			}
 		}
 
 	case proto.UserCertsRequest_SSH:
@@ -292,7 +299,13 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 	case proto.UserCertsRequest_App:
 		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
 	case proto.UserCertsRequest_Database:
-		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+		switch params.RouteToDatabase.Protocol {
+		case defaults.ProtocolMongoDB:
+			// MongoDB expects certificate and key pair in the same pem file.
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = append(certs.TLS, key.Priv...)
+		default:
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
+		}
 	case proto.UserCertsRequest_Kubernetes:
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
 	}

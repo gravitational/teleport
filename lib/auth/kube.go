@@ -64,7 +64,7 @@ type KubeCSRResponse struct {
 func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if !modules.GetModules().Features().Kubernetes {
 		return nil, trace.AccessDenied(
-			"this teleport cluster does not support kubernetes, please contact system administrator for support")
+			"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -138,7 +138,11 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	// generate TLS certificate
-	tlsAuthority, err := tlsca.FromAuthority(userCA)
+	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsAuthority, err := tlsca.FromCertAndSigner(cert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,9 +161,8 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	re := &KubeCSRResponse{Cert: tlsCert}
-	for _, keyPair := range hostCA.GetTLSKeyPairs() {
-		re.CertAuthorities = append(re.CertAuthorities, keyPair.Cert)
-	}
-	return re, nil
+	return &KubeCSRResponse{
+		Cert:            tlsCert,
+		CertAuthorities: services.GetTLSCerts(hostCA),
+	}, nil
 }

@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -46,7 +47,6 @@ func ForAuth(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
@@ -69,6 +69,11 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabase},
+		{Kind: types.KindNetworkRestrictions},
+		{Kind: types.KindLock},
+		{Kind: types.KindWindowsDesktopService},
+		{Kind: types.KindWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -80,7 +85,6 @@ func ForProxy(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
@@ -100,6 +104,9 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabase},
+		{Kind: types.KindWindowsDesktopService},
+		{Kind: types.KindWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -111,11 +118,39 @@ func ForRemoteProxy(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindNamespace},
+		{Kind: types.KindNode},
+		{Kind: types.KindProxy},
+		{Kind: types.KindAuthServer},
+		{Kind: types.KindReverseTunnel},
+		{Kind: types.KindTunnelConnection},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindRemoteCluster},
+		{Kind: types.KindKubeService},
+		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabase},
+	}
+	cfg.QueueSize = defaults.ProxyQueueSize
+	return cfg
+}
+
+// ForOldRemoteProxy sets up watch configuration for older remote proxies.
+func ForOldRemoteProxy(cfg Config) Config {
+	cfg.target = "remote-proxy-old"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterAuditConfig},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindClusterConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindNamespace},
@@ -133,42 +168,12 @@ func ForRemoteProxy(cfg Config) Config {
 	return cfg
 }
 
-// DELETE IN: 7.0
-//
-// ForOldRemoteProxy sets up watch configuration for older remote proxies.
-func ForOldRemoteProxy(cfg Config) Config {
-	cfg.target = "remote-proxy-old"
-	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
-		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterConfig},
-		{Kind: types.KindClusterAuditConfig},
-		{Kind: types.KindClusterNetworkingConfig},
-		{Kind: types.KindClusterAuthPreference},
-		{Kind: types.KindSessionRecordingConfig},
-		{Kind: types.KindUser},
-		{Kind: types.KindRole},
-		{Kind: types.KindNamespace},
-		{Kind: types.KindNode},
-		{Kind: types.KindProxy},
-		{Kind: types.KindAuthServer},
-		{Kind: types.KindReverseTunnel},
-		{Kind: types.KindTunnelConnection},
-		{Kind: types.KindAppServer},
-		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindKubeService},
-	}
-	cfg.QueueSize = defaults.ProxyQueueSize
-	return cfg
-}
-
 // ForNode sets up watch configuration for node
 func ForNode(cfg Config) Config {
 	cfg.target = "node"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
@@ -179,6 +184,7 @@ func ForNode(cfg Config) Config {
 		// namespace events to avoid matching too much
 		// data about other namespaces or node events
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindNetworkRestrictions},
 	}
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
@@ -190,7 +196,6 @@ func ForKubernetes(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
@@ -210,7 +215,6 @@ func ForApps(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
@@ -231,7 +235,6 @@ func ForDatabases(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterConfig},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
@@ -242,8 +245,29 @@ func ForDatabases(cfg Config) Config {
 		// Databases only need to "know" about default namespace events to
 		// avoid matching too much data about other namespaces or events.
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindDatabase},
 	}
 	cfg.QueueSize = defaults.DatabasesQueueSize
+	return cfg
+}
+
+// ForWindowsDesktop sets up watch configuration for a Windows desktop service.
+func ForWindowsDesktop(cfg Config) Config {
+	cfg.target = "windows_desktop"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterAuditConfig},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindWindowsDesktopService},
+		{Kind: types.KindWindowsDesktop},
+	}
+	cfg.QueueSize = defaults.WindowsDesktopQueueSize
 	return cfg
 }
 
@@ -302,17 +326,20 @@ type Cache struct {
 	// collections is a map of registered collections by resource Kind/SubKind
 	collections map[resourceKind]collection
 
-	trustCache         services.Trust
-	clusterConfigCache services.ClusterConfiguration
-	provisionerCache   services.Provisioner
-	usersCache         services.UsersService
-	accessCache        services.Access
-	dynamicAccessCache services.DynamicAccessExt
-	presenceCache      services.Presence
-	appSessionCache    services.AppSession
-	webSessionCache    types.WebSessionInterface
-	webTokenCache      types.WebTokenInterface
-	eventsFanout       *services.Fanout
+	trustCache           services.Trust
+	clusterConfigCache   services.ClusterConfiguration
+	provisionerCache     services.Provisioner
+	usersCache           services.UsersService
+	accessCache          services.Access
+	dynamicAccessCache   services.DynamicAccessExt
+	presenceCache        services.Presence
+	restrictionsCache    services.Restrictions
+	databasesCache       services.Databases
+	appSessionCache      services.AppSession
+	webSessionCache      types.WebSessionInterface
+	webTokenCache        types.WebTokenInterface
+	windowsDesktopsCache services.WindowsDesktops
+	eventsFanout         *services.Fanout
 
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
@@ -352,32 +379,38 @@ func (c *Cache) read() (readGuard, error) {
 	c.rw.RLock()
 	if c.ok {
 		return readGuard{
-			trust:         c.trustCache,
-			clusterConfig: c.clusterConfigCache,
-			provisioner:   c.provisionerCache,
-			users:         c.usersCache,
-			access:        c.accessCache,
-			dynamicAccess: c.dynamicAccessCache,
-			presence:      c.presenceCache,
-			appSession:    c.appSessionCache,
-			webSession:    c.webSessionCache,
-			webToken:      c.webTokenCache,
-			release:       c.rw.RUnlock,
+			trust:           c.trustCache,
+			clusterConfig:   c.clusterConfigCache,
+			provisioner:     c.provisionerCache,
+			users:           c.usersCache,
+			access:          c.accessCache,
+			dynamicAccess:   c.dynamicAccessCache,
+			presence:        c.presenceCache,
+			restrictions:    c.restrictionsCache,
+			databases:       c.databasesCache,
+			appSession:      c.appSessionCache,
+			webSession:      c.webSessionCache,
+			webToken:        c.webTokenCache,
+			release:         c.rw.RUnlock,
+			windowsDesktops: c.windowsDesktopsCache,
 		}, nil
 	}
 	c.rw.RUnlock()
 	return readGuard{
-		trust:         c.Config.Trust,
-		clusterConfig: c.Config.ClusterConfig,
-		provisioner:   c.Config.Provisioner,
-		users:         c.Config.Users,
-		access:        c.Config.Access,
-		dynamicAccess: c.Config.DynamicAccess,
-		presence:      c.Config.Presence,
-		appSession:    c.Config.AppSession,
-		webSession:    c.Config.WebSession,
-		webToken:      c.Config.WebToken,
-		release:       nil,
+		trust:           c.Config.Trust,
+		clusterConfig:   c.Config.ClusterConfig,
+		provisioner:     c.Config.Provisioner,
+		users:           c.Config.Users,
+		access:          c.Config.Access,
+		dynamicAccess:   c.Config.DynamicAccess,
+		presence:        c.Config.Presence,
+		restrictions:    c.Config.Restrictions,
+		databases:       c.Config.Databases,
+		appSession:      c.Config.AppSession,
+		webSession:      c.Config.WebSession,
+		webToken:        c.Config.WebToken,
+		windowsDesktops: c.Config.WindowsDesktops,
+		release:         nil,
 	}, nil
 }
 
@@ -386,18 +419,21 @@ func (c *Cache) read() (readGuard, error) {
 // function for the read lock, and ensures that it is not
 // double-called.
 type readGuard struct {
-	trust         services.Trust
-	clusterConfig services.ClusterConfiguration
-	provisioner   services.Provisioner
-	users         services.UsersService
-	access        services.Access
-	dynamicAccess services.DynamicAccessCore
-	presence      services.Presence
-	appSession    services.AppSession
-	webSession    types.WebSessionInterface
-	webToken      types.WebTokenInterface
-	release       func()
-	released      bool
+	trust           services.Trust
+	clusterConfig   services.ClusterConfiguration
+	provisioner     services.Provisioner
+	users           services.UsersService
+	access          services.Access
+	dynamicAccess   services.DynamicAccessCore
+	presence        services.Presence
+	appSession      services.AppSession
+	restrictions    services.Restrictions
+	databases       services.Databases
+	webSession      types.WebSessionInterface
+	webToken        types.WebTokenInterface
+	windowsDesktops services.WindowsDesktops
+	release         func()
+	released        bool
 }
 
 // Release releases the read lock if it is held.  This method
@@ -441,12 +477,18 @@ type Config struct {
 	DynamicAccess services.DynamicAccessCore
 	// Presence is a presence service
 	Presence services.Presence
+	// Restrictions is a restrictions service
+	Restrictions services.Restrictions
+	// Databases is a databases service.
+	Databases services.Databases
 	// AppSession holds application sessions.
 	AppSession services.AppSession
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
 	WebToken types.WebTokenInterface
+	// WindowsDesktops is a windows desktop service.
+	WindowsDesktops services.WindowsDesktops
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// RetryPeriod is a period between cache retries on failures
@@ -582,23 +624,26 @@ func New(config Config) (*Cache, error) {
 
 	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
-		wrapper:            wrapper,
-		ctx:                ctx,
-		cancel:             cancel,
-		Config:             config,
-		generation:         atomic.NewUint64(0),
-		initC:              make(chan struct{}),
-		trustCache:         local.NewCAService(wrapper),
-		clusterConfigCache: clusterConfigCache,
-		provisionerCache:   local.NewProvisioningService(wrapper),
-		usersCache:         local.NewIdentityService(wrapper),
-		accessCache:        local.NewAccessService(wrapper),
-		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
-		presenceCache:      local.NewPresenceService(wrapper),
-		appSessionCache:    local.NewIdentityService(wrapper),
-		webSessionCache:    local.NewIdentityService(wrapper).WebSessions(),
-		webTokenCache:      local.NewIdentityService(wrapper).WebTokens(),
-		eventsFanout:       services.NewFanout(),
+		wrapper:              wrapper,
+		ctx:                  ctx,
+		cancel:               cancel,
+		Config:               config,
+		generation:           atomic.NewUint64(0),
+		initC:                make(chan struct{}),
+		trustCache:           local.NewCAService(wrapper),
+		clusterConfigCache:   clusterConfigCache,
+		provisionerCache:     local.NewProvisioningService(wrapper),
+		usersCache:           local.NewIdentityService(wrapper),
+		accessCache:          local.NewAccessService(wrapper),
+		dynamicAccessCache:   local.NewDynamicAccessService(wrapper),
+		presenceCache:        local.NewPresenceService(wrapper),
+		restrictionsCache:    local.NewRestrictionsService(wrapper),
+		databasesCache:       local.NewDatabasesService(wrapper),
+		appSessionCache:      local.NewIdentityService(wrapper),
+		webSessionCache:      local.NewIdentityService(wrapper).WebSessions(),
+		webTokenCache:        local.NewIdentityService(wrapper).WebTokens(),
+		windowsDesktopsCache: local.NewWindowsDesktopService(wrapper),
+		eventsFanout:         services.NewFanout(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -706,7 +751,7 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 			return
 		}
 		if err != nil {
-			c.Warningf("Re-init the cache on error: %v.", trace.Unwrap(err))
+			c.Warningf("Re-init the cache on error: %v.", err)
 			if c.OnlyRecent.Enabled {
 				c.setReadOK(false)
 			}
@@ -842,7 +887,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	// by receiving init event first.
 	select {
 	case <-watcher.Done():
-		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 	case <-c.ctx.Done():
 		return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 	case event := <-watcher.Events():
@@ -882,13 +927,47 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	retry.Reset()
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})
+
+	var lastStalenessWarning time.Time
+	var staleEventCount int
 	for {
 		select {
 		case <-watcher.Done():
-			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 		case <-c.ctx.Done():
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
+			// check for expired resources in OpPut events and log them periodically. stale OpPut events
+			// may be an indicator of poor performance, and can lead to confusing and inconsistent state
+			// as the cache may prune items that aught to exist.
+			//
+			// NOTE: The inconsistent state mentioned above is a symptom of a deeper issue with the cache
+			// design.  The cache should not expire individual items.  It should instead rely on OpDelete events
+			// from backend expiries.  As soon as the cache has expired at least one item, it is no longer
+			// a faithful representation of a real backend state, since it is 'anticipating' a change in
+			// backend state that may or may not have actually happened.  Instead, it aught to serve the
+			// most recent internally-consistent "view" of the backend, and individual consumers should
+			// determine if the resources they are handling are sufficiently fresh.  Resource-level expiry
+			// is a convenience/cleanup feature and aught not be relied upon for meaningful logic anyhow.
+			// If we need to protect against a stale cache, we aught to invalidate the cache in its entirity, rather
+			// than pruning the resources that we think *might* have been removed from the real backend.
+			// TODO(fspmarshall): ^^^
+			//
+			if event.Type == types.OpPut && !event.Resource.Expiry().IsZero() {
+				if now := c.Clock.Now(); now.After(event.Resource.Expiry()) {
+					staleEventCount++
+					if now.After(lastStalenessWarning.Add(time.Minute)) {
+						kind := event.Resource.GetKind()
+						if sk := event.Resource.GetSubKind(); sk != "" {
+							kind = fmt.Sprintf("%s/%s", kind, sk)
+						}
+						c.Warningf("Encountered %d stale event(s), may indicate degraded backend or event system performance. last_kind=%q", staleEventCount, kind)
+						lastStalenessWarning = now
+						staleEventCount = 0
+					}
+				}
+			}
+
 			err = c.processEvent(ctx, event)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1148,6 +1227,16 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	return rg.presence.GetNodes(ctx, namespace, opts...)
 }
 
+// ListNodes is a part of auth.AccessPoint implementation
+func (c *Cache) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.ListNodes(ctx, namespace, limit, startKey)
+}
+
 // GetAuthServers returns a list of registered servers
 func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	rg, err := c.read()
@@ -1299,6 +1388,26 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 	return rg.presence.GetDatabaseServers(ctx, namespace, opts...)
 }
 
+// GetDatabases returns all database resources.
+func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.databases.GetDatabases(ctx)
+}
+
+// GetDatabase returns the specified database resource.
+func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.databases.GetDatabase(ctx, name)
+}
+
 // GetWebSession gets a regular web session.
 func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	rg, err := c.read()
@@ -1320,13 +1429,13 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 }
 
 // GetAuthPreference gets the cluster authentication config.
-func (c *Cache) GetAuthPreference() (types.AuthPreference, error) {
+func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.clusterConfig.GetAuthPreference()
+	return rg.clusterConfig.GetAuthPreference(ctx)
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
@@ -1337,4 +1446,77 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 	}
 	defer rg.Release()
 	return rg.clusterConfig.GetSessionRecordingConfig(ctx, opts...)
+}
+
+// GetNetworkRestrictions gets the network restrictions.
+func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.restrictions.GetNetworkRestrictions(ctx)
+}
+
+// GetLock gets a lock by name.
+func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	lock, err := rg.access.GetLock(ctx, name)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if lock, err := c.Config.Access.GetLock(ctx, name); err == nil {
+			return lock, nil
+		}
+	}
+	return lock, trace.Wrap(err)
+}
+
+// GetLocks gets all/in-force locks that match at least one of the targets
+// when specified.
+func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.access.GetLocks(ctx, inForceOnly, targets...)
+}
+
+// GetWindowsDesktopServices returns all registered Windows desktop services.
+func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.GetWindowsDesktopServices(ctx)
+}
+
+// GetWindowsDesktops returns all registered Windows desktop hosts.
+func (c *Cache) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.windowsDesktops.GetWindowsDesktops(ctx)
+}
+
+// GetWindowsDesktop returns a registered Windows desktop host.
+func (c *Cache) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.windowsDesktops.GetWindowsDesktop(ctx, name)
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -71,8 +72,16 @@ type FileConfig struct {
 	Apps Apps `yaml:"app_service,omitempty"`
 
 	// Databases is the "db_service" section in Teleport configuration file
-	// that defined database access configuration.
+	// that defines database access configuration.
 	Databases Databases `yaml:"db_service,omitempty"`
+
+	// Metrics is the "metrics_service" section in Teleport configuration file
+	// that defines the metrics service configuration
+	Metrics Metrics `yaml:"metrics_service,omitempty"`
+
+	// WindowsDesktop is the "windows_desktop_service" that defines the
+	// configuration for Windows Desktop Access.
+	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -140,6 +149,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	g.NodeName = conf.Hostname
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
+	g.Logger.Format.Output = "text"
 	g.DataDir = defaults.DataDir
 
 	// SSH config:
@@ -246,15 +256,63 @@ type ConnectionLimits struct {
 	Rates          []ConnectionRate `yaml:"rates,omitempty"`
 }
 
+// LegacyLog contains the old format of the 'format' field
+// It is kept here for backwards compatibility and should always be maintained
+// The custom yaml unmarshaler should automatically convert it into the new
+// expected format.
+type LegacyLog struct {
+	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
+	// a path to a log file
+	Output string `yaml:"output,omitempty"`
+	// Severity defines how verbose the log will be. Possible values are "error", "info", "warn"
+	Severity string `yaml:"severity,omitempty"`
+	// Format lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
+	Format []string `yaml:"format,omitempty"`
+}
+
 // Log configures teleport logging
 type Log struct {
 	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
 	// a path to a log file
 	Output string `yaml:"output,omitempty"`
-	// Severity defines how verbose the log will be. Possible valus are "error", "info", "warn"
+	// Severity defines how verbose the log will be. Possible values are "error", "info", "warn"
 	Severity string `yaml:"severity,omitempty"`
-	// Format lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
-	Format []string `yaml:"format,omitempty"`
+	// Format defines the logs output format and extra fields
+	Format LogFormat `yaml:"format,omitempty"`
+}
+
+// LogFormat specifies the logs output format and extra fields
+type LogFormat struct {
+	// Output defines the output format. Possible values are 'text' and 'json'.
+	Output string `yaml:"output,omitempty"`
+	// ExtraFields lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
+	ExtraFields []string `yaml:"extra_fields,omitempty"`
+}
+
+func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// the next two lines are needed because of an infinite loop issue
+	// https://github.com/go-yaml/yaml/issues/107
+	type logYAML Log
+	log := (*logYAML)(l)
+	if err := unmarshal(log); err != nil {
+		if _, ok := err.(*yaml.TypeError); !ok {
+			return err
+		}
+
+		var legacyLog LegacyLog
+		if lerr := unmarshal(&legacyLog); lerr != nil {
+			// return the original unmarshal error
+			return err
+		}
+
+		l.Output = legacyLog.Output
+		l.Severity = legacyLog.Severity
+		l.Format.Output = "text"
+		l.Format.ExtraFields = legacyLog.Format
+		return nil
+	}
+
+	return nil
 }
 
 // Global is 'teleport' (global) section of the config file
@@ -292,8 +350,12 @@ type Global struct {
 	// If omitted, the default will be used.
 	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
 
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string `yaml:"ca_pin"`
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
+	// a single value or a list.
+	CAPin apiutils.Strings `yaml:"ca_pin"`
+
+	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
+	DiagAddr string `yaml:"diag_addr"`
 }
 
 // CachePolicy is used to control  local cache
@@ -386,10 +448,9 @@ func (s *Service) Disabled() bool {
 type Auth struct {
 	Service `yaml:",inline"`
 
-	// ProxyProtocol turns on support for HAProxy proxy protocol
-	// this is the option that has be turned on only by administrator,
-	// as only admin knows whether service is in front of trusted load balancer
-	// or not.
+	// ProxyProtocol enables support for HAProxy proxy protocol version 1 when it is turned 'on'.
+	// Verify whether the service is in front of a trusted load balancer.
+	// The default value is 'on'.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 
 	// ClusterName is the name of the CA who manages this cluster
@@ -416,10 +477,6 @@ type Auth struct {
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
 	LicenseFile string `yaml:"license_file,omitempty"`
-
-	// FOR INTERNAL USE:
-	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
-	Authorities []Authority `yaml:"authorities,omitempty"`
 
 	// FOR INTERNAL USE:
 	// ReverseTunnels is a list of SSH tunnels to 3rd party proxy services (used to talk
@@ -467,6 +524,48 @@ type Auth struct {
 	// KeepAliveCountMax set the number of keep-alive messages that can be
 	// missed before the server disconnects the client.
 	KeepAliveCountMax int64 `yaml:"keep_alive_count_max,omitempty"`
+
+	// ClientIdleTimeoutMessage is sent to the client when the inactivity timeout
+	// expires. The empty string implies no message should be sent prior to
+	// disconnection.
+	ClientIdleTimeoutMessage string `yaml:"client_idle_timeout_message,omitempty"`
+
+	// MessageOfTheDay is a banner that a user must acknowledge during a `tsh login`.
+	MessageOfTheDay string `yaml:"message_of_the_day,omitempty"`
+
+	// WebIdleTimeout sets global cluster default setting for WebUI client
+	// idle timeouts
+	WebIdleTimeout types.Duration `yaml:"web_idle_timeout,omitempty"`
+
+	// CAKeyParams configures how CA private keys will be created and stored.
+	CAKeyParams *CAKeyParams `yaml:"ca_key_params,omitempty"`
+}
+
+// CAKeyParams configures how CA private keys will be created and stored.
+type CAKeyParams struct {
+	// PKCS11 configures a PKCS#11 HSM to be used for private key generation and
+	// storage.
+	PKCS11 PKCS11 `yaml:"pkcs11"`
+}
+
+// PKCS11 configures a PKCS#11 HSM to be used for private key generation and
+// storage.
+type PKCS11 struct {
+	// ModulePath is the path to the PKCS#11 library.
+	ModulePath string `yaml:"module_path"`
+	// TokenLabel is the CKA_LABEL of the HSM token to use. Set this or
+	// SlotNumber to select a token.
+	TokenLabel string `yaml:"token_label,omitempty"`
+	// SlotNumber is the slot number of the HSM token to use. Set this or
+	// TokenLabel to select a token.
+	SlotNumber *int `yaml:"slot_number,omitempty"`
+	// Pin is the raw pin for connecting to the HSM. Set this or PinPath to set
+	// the pin.
+	Pin string `yaml:"pin,omitempty"`
+	// PinPath is a path to a file containing a pin for connecting to the HSM.
+	// Trailing newlines will be removed, other whitespace will be left. Set
+	// this or Pin to set the pin.
+	PinPath string `yaml:"pin_path,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -486,7 +585,7 @@ func (c ClusterName) Parse() (types.ClusterName, error) {
 	if string(c) == "" {
 		return nil, nil
 	}
-	return types.NewClusterName(types.ClusterNameSpecV2{
+	return services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: string(c),
 	})
 }
@@ -543,7 +642,9 @@ type AuthenticationConfig struct {
 	SecondFactor      constants.SecondFactorType `yaml:"second_factor,omitempty"`
 	ConnectorName     string                     `yaml:"connector_name,omitempty"`
 	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
+	Webauthn          *Webauthn                  `yaml:"webauthn,omitempty"`
 	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
+	LockingMode       constants.LockingMode      `yaml:"locking_mode,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *types.BoolOption `yaml:"local_auth"`
@@ -561,12 +662,22 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	var w *types.Webauthn
+	if a.Webauthn != nil {
+		w, err = a.Webauthn.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
 		U2F:               &u,
+		Webauthn:          w,
 		RequireSessionMFA: a.RequireSessionMFA,
+		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 	})
 }
@@ -578,31 +689,71 @@ type UniversalSecondFactor struct {
 }
 
 func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
-	res := types.U2F{
-		AppID:  u.AppID,
-		Facets: u.Facets,
+	attestationCAs, err := getAttestationPEMs(u.DeviceAttestationCAs)
+	if err != nil {
+		return types.U2F{}, trace.BadParameter("u2f.device_attestation_cas: %v", err)
 	}
-	// DeviceAttestationCAs are either file paths or raw PEM blocks.
-	for _, ca := range u.DeviceAttestationCAs {
-		_, parseErr := tlsutils.ParseCertificatePEM([]byte(ca))
-		if parseErr == nil {
-			// Successfully parsed as a PEM block, add it.
-			res.DeviceAttestationCAs = append(res.DeviceAttestationCAs, ca)
-			continue
-		}
+	return types.U2F{
+		AppID:                u.AppID,
+		Facets:               u.Facets,
+		DeviceAttestationCAs: attestationCAs,
+	}, nil
+}
 
-		// Try reading as a file and parsing that.
-		data, err := ioutil.ReadFile(ca)
+type Webauthn struct {
+	RPID                  string   `yaml:"rp_id,omitempty"`
+	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
+	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
+}
+
+func (w *Webauthn) Parse() (*types.Webauthn, error) {
+	allowedCAs, err := getAttestationPEMs(w.AttestationAllowedCAs)
+	if err != nil {
+		return nil, trace.BadParameter("webauthn.attestation_allowed_cas: %v", err)
+	}
+	deniedCAs, err := getAttestationPEMs(w.AttestationDeniedCAs)
+	if err != nil {
+		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
+	}
+	return &types.Webauthn{
+		// Allow any RPID to go through, we rely on
+		// types.Webauthn.CheckAndSetDefaults to correct it.
+		RPID:                  w.RPID,
+		AttestationAllowedCAs: allowedCAs,
+		AttestationDeniedCAs:  deniedCAs,
+	}, nil
+}
+
+func getAttestationPEMs(certOrPaths []string) ([]string, error) {
+	res := make([]string, len(certOrPaths))
+	for i, certOrPath := range certOrPaths {
+		pem, err := getAttestationPEM(certOrPath)
 		if err != nil {
-			return res, trace.BadParameter("device_attestation_cas value %q is not a valid x509 certificate (%v) and can't be read as a file (%v)", ca, parseErr, err)
+			return nil, err
 		}
-
-		if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
-			return res, trace.BadParameter("device_attestation_cas file %q contains an invalid x509 certificate: %v", ca, err)
-		}
-		res.DeviceAttestationCAs = append(res.DeviceAttestationCAs, string(data))
+		res[i] = pem
 	}
 	return res, nil
+}
+
+func getAttestationPEM(certOrPath string) (string, error) {
+	_, parseErr := tlsutils.ParseCertificatePEM([]byte(certOrPath))
+	if parseErr == nil {
+		return certOrPath, nil // OK, valid inline PEM
+	}
+
+	// Try reading as a file and parsing that.
+	data, err := ioutil.ReadFile(certOrPath)
+	if err != nil {
+		// Don't use trace in order to keep a clean error message.
+		return "", fmt.Errorf("%q is not a valid x509 certificate (%v) and can't be read as a file (%v)", certOrPath, parseErr, err)
+	}
+	if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
+		// Don't use trace in order to keep a clean error message.
+		return "", fmt.Errorf("file %q contains an invalid x509 certificate: %v", certOrPath, err)
+	}
+
+	return string(data), nil // OK, valid PEM file
 }
 
 // SSH is 'ssh_service' section of the config file
@@ -618,6 +769,26 @@ type SSH struct {
 
 	// BPF is used to configure BPF-based auditing for this node.
 	BPF *BPF `yaml:"enhanced_recording,omitempty"`
+
+	// RestrictedSession is used to restrict access to kernel objects
+	RestrictedSession *RestrictedSession `yaml:"restricted_session,omitempty"`
+
+	// MaybeAllowTCPForwarding enables or disables TCP port forwarding. We're
+	// using a pointer-to-bool here because the system default is to allow TCP
+	// forwarding, we need to distinguish between an unset value and a false
+	// value so we can an override unset value with `true`.
+	//
+	// Don't read this value directly: call the AllowTCPForwarding method
+	// instead.
+	MaybeAllowTCPForwarding *bool `yaml:"port_forwarding,omitempty"`
+}
+
+// AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
+func (ssh *SSH) AllowTCPForwarding() bool {
+	if ssh.MaybeAllowTCPForwarding == nil {
+		return true
+	}
+	return *ssh.MaybeAllowTCPForwarding
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -689,6 +860,29 @@ func (b *BPF) Parse() *bpf.Config {
 	}
 }
 
+// RestrictedSession is a configuration for limiting access to kernel objects
+type RestrictedSession struct {
+	// Enabled enables or disables enforcemant for this node.
+	Enabled string `yaml:"enabled"`
+
+	// EventsBufferSize is the size in bytes of the channel to report events
+	// from the kernel to us.
+	EventsBufferSize *int `yaml:"events_buffer_size,omitempty"`
+}
+
+// Parse will parse the enhanced session recording configuration.
+func (r *RestrictedSession) Parse() (*restricted.Config, error) {
+	enabled, err := apiutils.ParseBool(r.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &restricted.Config{
+		Enabled:          enabled,
+		EventsBufferSize: r.EventsBufferSize,
+	}, nil
+}
+
 // Databases represents the database proxy service configuration.
 //
 // In the configuration file this section will be "db_service".
@@ -697,6 +891,14 @@ type Databases struct {
 	Service `yaml:",inline"`
 	// Databases is a list of databases proxied by the service.
 	Databases []*Database `yaml:"databases"`
+	// Selectors defines resource monitor selectors.
+	Selectors []Selector `yaml:"selectors,omitempty"`
+}
+
+// Selector represents a single resource monitor selector.
+type Selector struct {
+	// MatchLabels represents a selector that matches labels.
+	MatchLabels map[string]apiutils.Strings `yaml:"match_labels,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
@@ -945,73 +1147,14 @@ func (t *ReverseTunnel) ConvertAndValidate() (types.ReverseTunnel, error) {
 		t.Addresses[i] = addr.String()
 	}
 
-	out := types.NewReverseTunnel(t.DomainName, t.Addresses)
+	out, err := types.NewReverseTunnel(t.DomainName, t.Addresses)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := services.ValidateReverseTunnel(out); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
-}
-
-// Authority is a host or user certificate authority that
-// can check and if it has private key stored as well, sign it too
-type Authority struct {
-	// Type is either user or host certificate authority
-	Type types.CertAuthType `yaml:"type"`
-	// DomainName identifies domain name this authority serves,
-	// for host authorities that means base hostname of all servers,
-	// for user authorities that means organization name
-	DomainName string `yaml:"domain_name"`
-	// Checkers is a list of SSH public keys that can be used to check
-	// certificate signatures in OpenSSH authorized keys format
-	CheckingKeys []string `yaml:"checking_keys"`
-	// CheckingKeyFiles is a list of files
-	CheckingKeyFiles []string `yaml:"checking_key_files"`
-	// SigningKeys is a list of PEM-encoded private keys used for signing
-	SigningKeys []string `yaml:"signing_keys"`
-	// SigningKeyFiles is a list of paths to PEM encoded private keys used for signing
-	SigningKeyFiles []string `yaml:"signing_key_files"`
-	// AllowedLogins is a list of allowed logins for users within
-	// this certificate authority
-	AllowedLogins []string `yaml:"allowed_logins"`
-}
-
-// Parse reads values and returns parsed CertAuthority
-func (a *Authority) Parse() (types.CertAuthority, types.Role, error) {
-	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        a.Type,
-		ClusterName: a.DomainName,
-	})
-
-	// transform old allowed logins into roles
-	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(services.Allow, a.AllowedLogins)
-	ca.AddRole(role.GetName())
-
-	for _, path := range a.CheckingKeyFiles {
-		keyBytes, err := utils.ReadPath(path)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		ca.SetCheckingKeys(append(ca.GetCheckingKeys(), keyBytes))
-	}
-
-	for _, val := range a.CheckingKeys {
-		ca.SetCheckingKeys(append(ca.GetCheckingKeys(), []byte(val)))
-	}
-
-	for _, path := range a.SigningKeyFiles {
-		keyBytes, err := utils.ReadPath(path)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		ca.SetSigningKeys(append(ca.GetSigningKeys(), keyBytes))
-	}
-
-	for _, val := range a.SigningKeys {
-		ca.SetSigningKeys(append(ca.GetSigningKeys(), []byte(val)))
-	}
-
-	return ca, role, nil
 }
 
 // ClaimMapping is OIDC claim mapping that maps
@@ -1075,7 +1218,7 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		})
 	}
 
-	v2 := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
+	v2, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
@@ -1084,11 +1227,43 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		Scope:         o.Scope,
 		ClaimsToRoles: mappings,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	v2.SetACR(o.ACR)
 	v2.SetProvider(o.Provider)
-	if err := v2.Check(); err != nil {
+	if err := v2.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return v2, nil
+}
+
+// Metrics is a `metrics_service` section of the config file:
+type Metrics struct {
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
+
+	// KeyPairs is a list of x509 serving key pairs used for securing the metrics endpoint with mTLS.
+	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
+	KeyPairs []KeyPair `yaml:"keypairs,omitempty"`
+
+	// CACerts is a list of prometheus CA certificates to validate clients against.
+	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
+	CACerts []string `yaml:"ca_certs,omitempty"`
+}
+
+// MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
+func (m *Metrics) MTLSEnabled() bool {
+	return len(m.KeyPairs) > 0 && len(m.CACerts) > 0
+}
+
+// WindowsDesktopService contains configuration for windows_desktop_service.
+type WindowsDesktopService struct {
+	Service `yaml:",inline"`
+	// PublicAddr is a list of advertised public addresses of this service.
+	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
+	// Hosts is a list of static Windows hosts connected to this service in
+	// gateway mode.
+	Hosts []string `yaml:"hosts,omitempty"`
 }

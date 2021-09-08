@@ -15,7 +15,7 @@ to use the newer `teleport-cluster` Helm chart instead.
 
 (!docs/pages/kubernetes-access/helm/includes/helm-install.mdx!)
 
-### Step 3: Get the Teleport configuration file from your existing cluster
+## Step 3. Get the Teleport configuration file from your existing cluster
 
 <Admonition type="tip" title="Teleport storage in AWS or GCP">
   If your Teleport cluster's database is currently stored in AWS DynamoDB or Google Cloud Firestore rather than
@@ -37,18 +37,19 @@ The first thing you'll need to do is extract the Teleport config file for your e
 
 Firstly, check that the `ConfigMap` is present:
 
-```bash
+```code
 $ kubectl --namespace teleport get configmap/teleport -o yaml
-apiVersion: v1
-data:
-  teleport.yaml: |
-    teleport:
-      log:
-        severity: INFO
-        output: stderr
-      storage:
-        type: dir
-...
+
+# apiVersion: v1
+# data:
+#  teleport.yaml: |
+#    teleport:
+#      log:
+#        severity: INFO
+#        output: stderr
+#      storage:
+#        type: dir
+# ...
 ```
 
 <Admonition type="note">
@@ -58,28 +59,29 @@ data:
 
 If you see a Teleport config under the `teleport.yaml` key, you can extract it to disk with a command like this:
 
-```bash
+```code
 $ kubectl --namespace teleport get configmap/teleport -o=jsonpath="{.data['teleport\.yaml']}" > teleport.yaml
-$ cat teleport.yaml
-teleport:
-  log:
-    severity: INFO
-    output: stderr
-  storage:
-    type: dir
-...
+
+cat teleport.yaml
+# teleport:
+#   log:
+#    severity: INFO
+#    output: stderr
+#  storage:
+#    type: dir
+# ...
 ```
 
 Once you have the config, you should upload this to a separate Kubernetes namespace (where you intend to run the `teleport-cluster` chart).
 
-```bash
+```code
 $ kubectl create namespace teleport-cluster
-namespace/teleport-cluster created
+# namespace/teleport-cluster created
 $ kubectl --namespace teleport-cluster create configmap teleport --from-file=teleport.yaml
-configmap/teleport created
+# configmap/teleport created
 ```
 
-### Step 4: Extracting the contents of Teleport's database
+## Step 4. Extracting the contents of Teleport's database
 
 <Admonition type="note" title="Note on namespacing">
   If you migrate your existing data, the `cluster_name` which is configured in `teleport.yaml` must stay the same.
@@ -93,8 +95,8 @@ Teleport's `tctl` tool to extract a backup of all your data.
 
 You can get the backup with a command like this:
 
-```bash
-kubectl --namespace teleport exec deploy/teleport -- tctl get all --with-secrets > backup.yaml
+```code
+$ kubectl --namespace teleport exec deploy/teleport -- tctl get all --with-secrets > backup.yaml
 ```
 
 <Admonition type="warning">
@@ -106,11 +108,11 @@ kubectl --namespace teleport exec deploy/teleport -- tctl get all --with-secrets
 
 Add the backup to your new `teleport-cluster` namespace as a secret:
 
-```bash
-kubectl --namespace teleport-cluster create secret generic bootstrap --from-file=backup.yaml
+```code
+$ kubectl --namespace teleport-cluster create secret generic bootstrap --from-file=backup.yaml
 ```
 
-### Step 5: Start the new cluster with your old config file and backup
+## Step 5. Start the new cluster with your old config file and backup
 
 We will start the new cluster and bootstrap it using the backup of your cluster's data. Once this step is complete and the cluster is working,
 we'll modify the deployment to remove references to the backup data, and remove it from Kubernetes for security.
@@ -131,8 +133,8 @@ we'll modify the deployment to remove references to the backup data, and remove 
     path: /etc/teleport-bootstrap
   ```
 
-  ```bash
-  helm install teleport teleport/teleport-cluster \
+  ```code
+  $ helm install teleport teleport/teleport-cluster \
     --namespace teleport-cluster \
     --create-namespace \
     -f teleport-cluster-values.yaml
@@ -140,8 +142,8 @@ we'll modify the deployment to remove references to the backup data, and remove 
 
   </TabItem>
   <TabItem label="Using --set via CLI">
-    ```bash
-    helm install teleport teleport/teleport-cluster \
+    ```code
+    $ helm install teleport teleport/teleport-cluster \
     --create-namespace \
     --namespace teleport-cluster \
     --set chartMode=custom \
@@ -156,20 +158,21 @@ we'll modify the deployment to remove references to the backup data, and remove 
 
 Once the chart is installed, you can use `kubectl` commands to view the deployment:
 
-```bash
+```code
 $ kubectl --namespace teleport-cluster get all
-NAME                            READY   STATUS    RESTARTS   AGE
-pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
-pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
 
-NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
-service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
+# NAME                            READY   STATUS    RESTARTS   AGE
+# pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
+# pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
 
-NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/teleport   2/2     2            2           4m21s
+# NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
+# service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
 
-NAME                                  DESIRED   CURRENT   READY   AGE
-replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
+# NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+# deployment.apps/teleport   2/2     2            2           4m21s
+
+# NAME                                  DESIRED   CURRENT   READY   AGE
+# replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
 ```
 
 <Admonition type="note">
@@ -182,7 +185,7 @@ replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
   browser to view the page successfully.
 </Admonition>
 
-### Step 6: Remove the bootstrap data and update the chart deployment
+## Step 6. Remove the bootstrap data and update the chart deployment
 
 Once you've tested your new Teleport cluster and you're confident that your data has been migrated successfully,
 you should redeploy the chart without your backup data mounted for security.
@@ -197,16 +200,16 @@ you should redeploy the chart without your backup data mounted for security.
 
   Upgrade the Helm deployment to use the new values:
 
-  ```bash
-  helm upgrade teleport teleport/teleport-cluster \
+  ```code
+  $ helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport-cluster \
     -f teleport-cluster-values.yaml
   ```
 
   </TabItem>
   <TabItem label="Using --set via CLI">
-    ```bash
-    helm upgrade teleport teleport/teleport-cluster \
+    ```code
+    $ helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport-cluster \
     --set chartMode=custom
     ```
@@ -215,20 +218,20 @@ you should redeploy the chart without your backup data mounted for security.
 
 After this, delete the Kubernetes secret containing the backup data:
 
-```bash
-kubectl --namespace delete secret/bootstrap
+```code
+$ kubectl --namespace delete secret/bootstrap
 ```
 
 Finally, you should also delete the `backup.yaml` file from your local disk:
 
-```bash
-rm -f backup.yaml
+```code
+$ rm -f backup.yaml
 ```
 
-### Uninstalling Teleport
+## Uninstalling Teleport
 
 To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
 
-```bash
-helm --namespace teleport-cluster uninstall teleport
+```code
+$ helm --namespace teleport-cluster uninstall teleport
 ```

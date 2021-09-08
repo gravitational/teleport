@@ -1,13 +1,13 @@
 ---
 title: Database Access Architecture
-description: How Teleport Database Access works
+description: How Teleport Database Access works.
 ---
 
 # Database Access Architecture
 
 This section provides an overview of Teleport Database Access inner workings.
 
-## How It Works
+## How it works
 
 Let's take a look at a sample Database Access deployment:
 
@@ -71,7 +71,7 @@ Authentication happens in 3 places:
 
 Let's take a detailed look at each authentication point.
 
-### Database Client to Proxy
+### Database client to Proxy
 
 Database clients authenticate with the Proxy using X.509 client certificates
 obtained from the `tsh db login` command.
@@ -95,7 +95,7 @@ For configuring graphical clients, there is a `tsh db config` command that
 prints detailed information about the connection such as host/port and location
 of the secrets. See [GUI Clients](./guides/gui-clients.mdx) for details.
 
-### Proxy to Database Service
+### Proxy to Database service
 
 The connection between the Proxy and the Database Service is also authenticated
 with mutual TLS.
@@ -104,12 +104,12 @@ The Proxy generates a short-lived X.509 certificate signed by the
 cluster's host authority, with the client's identity and database routing
 information encoded in it, and uses it to authenticate with the Database Service.
 
-### Database Service to Database
+### Database service to database
 
 Database authentication is handled differently for self-hosted databases and
 databases hosted by AWS.
 
-#### Self-Hosted
+#### Self-hosted
 
 Teleport Database Service uses client certificate authentication with self-hosted
 database servers.
@@ -129,7 +129,7 @@ and uses the token as a password.
 See respective configuration guides for [PostgreSQL](./guides/postgres-aws.mdx) and
 [MySQL](./guides/mysql-aws.mdx) for details on configuring IAM authentication.
 
-## Next Steps
+## Next steps
 
 Please refer to the [RFD #11](https://github.com/gravitational/teleport/blob/024fd582e62560ffc925cd4b4d42c156043c041b/rfd/0011-database-access.md)
 for a more in-depth description of the feature scope and design.

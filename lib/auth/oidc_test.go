@@ -18,12 +18,17 @@ package auth
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
@@ -48,7 +53,7 @@ func (s *OIDCSuite) SetUpSuite(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
 	c.Assert(err, check.IsNil)
@@ -82,4 +87,63 @@ func (s *OIDCSuite) TestCreateOIDCUser(c *check.C) {
 	s.c.Advance(2 * time.Minute)
 	_, err = s.a.GetUser("foo@example.com", false)
 	c.Assert(err, check.NotNil)
+}
+
+// TestUserInfo ensures that an insecure userinfo endpoint returns
+// trace.NotFound similar to an invalid userinfo endpoint. For these users,
+// all claim information is already within the token and additional claim
+// information does not need to be fetched.
+func (s *OIDCSuite) TestUserInfo(c *check.C) {
+	// Create configurable IdP to use in tests.
+	idp := newFakeIDP()
+	defer idp.Close()
+
+	// Create OIDC connector and client.
+	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV2{
+		IssuerURL:    idp.s.URL,
+		ClientID:     "00000000000000000000000000000000",
+		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
+	})
+	c.Assert(err, check.IsNil)
+	oidcClient, err := s.a.getOrCreateOIDCClient(connector)
+	c.Assert(err, check.IsNil)
+
+	// Verify HTTP endpoints return trace.NotFound.
+	_, err = claimsFromUserInfo(oidcClient, idp.s.URL, "")
+	fixtures.ExpectNotFound(c, err)
+}
+
+// fakeIDP is a configurable OIDC IdP that can be used to mock responses in
+// tests. At the moment it creates an HTTP server and only responds to the
+// "/.well-known/openid-configuration" endpoint.
+type fakeIDP struct {
+	s *httptest.Server
+}
+
+// newFakeIDP creates a new instance of a configurable IdP.
+func newFakeIDP() *fakeIDP {
+	var s fakeIDP
+	s.s = httptest.NewServer(http.HandlerFunc(s.configurationHandler))
+	return &s
+}
+
+// Close will close the underlying server.
+func (s *fakeIDP) Close() {
+	s.s.Close()
+}
+
+// configurationHandler returns OpenID configuration.
+func (s *fakeIDP) configurationHandler(w http.ResponseWriter, r *http.Request) {
+	resp := fmt.Sprintf(`
+{
+	"issuer": "%v",
+	"authorization_endpoint": "%v",
+	"token_endpoint": "%v",
+	"jwks_uri": "%v",
+	"subject_types_supported": ["public"],
+	"id_token_signing_alg_values_supported": ["HS256", "RS256"]
+}`, s.s.URL, s.s.URL, s.s.URL, s.s.URL)
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintln(w, resp)
 }
