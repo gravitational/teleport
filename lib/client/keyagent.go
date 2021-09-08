@@ -30,10 +30,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
 
@@ -64,6 +63,9 @@ type LocalKeyAgent struct {
 
 	// proxyHost is the proxy for the cluster that his key agent holds keys for.
 	proxyHost string
+
+	// insecure allows to accept public host keys.
+	insecure bool
 }
 
 // NewKeyStoreCertChecker returns a new certificate checker
@@ -72,7 +74,7 @@ func NewKeyStoreCertChecker(keyStore LocalKeyStore) ssh.HostKeyCallback {
 	// CheckHostSignature checks if the given host key was signed by a Teleport
 	// certificate authority (CA) or a host certificate the user has seen before.
 	return func(addr string, remote net.Addr, key ssh.PublicKey) error {
-		certChecker := utils.CertChecker{
+		certChecker := sshutils.CertChecker{
 			CertChecker: ssh.CertChecker{
 				IsHostAuthority: func(key ssh.PublicKey, addr string) bool {
 					keys, err := keyStore.GetKnownHostKeys("")
@@ -100,10 +102,19 @@ func NewKeyStoreCertChecker(keyStore LocalKeyStore) ssh.HostKeyCallback {
 	}
 }
 
+// LocalAgentConfig contains parameters for creating the local keys agent.
+type LocalAgentConfig struct {
+	KeysDir          string
+	ProxyHost        string
+	Username         string
+	UseLocalSSHAgent bool
+	Insecure         bool
+}
+
 // NewLocalAgent reads all Teleport certificates from disk (using FSLocalKeyStore),
 // creates a LocalKeyAgent, loads all certificates into it, and returns the agent.
-func NewLocalAgent(keyDir, proxyHost, username string, useLocalSSHAgent bool) (a *LocalKeyAgent, err error) {
-	keystore, err := NewFSLocalKeyStore(keyDir)
+func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
+	keystore, err := NewFSLocalKeyStore(conf.KeysDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -115,11 +126,12 @@ func NewLocalAgent(keyDir, proxyHost, username string, useLocalSSHAgent bool) (a
 		Agent:     agent.NewKeyring(),
 		keyStore:  keystore,
 		noHosts:   make(map[string]bool),
-		username:  username,
-		proxyHost: proxyHost,
+		username:  conf.Username,
+		proxyHost: conf.ProxyHost,
+		insecure:  conf.Insecure,
 	}
 
-	if useLocalSSHAgent {
+	if conf.UseLocalSSHAgent {
 		a.sshAgent = connectToSSHAgent()
 	} else {
 		log.Debug("Skipping connection to the local ssh-agent.")
@@ -141,7 +153,7 @@ func NewLocalAgent(keyDir, proxyHost, username string, useLocalSSHAgent bool) (a
 		return nil, trace.Wrap(err)
 	}
 
-	a.log.Infof("Loading key for %q", username)
+	a.log.Infof("Loading key for %q", conf.Username)
 
 	// load key into the agent
 	_, err = a.LoadKey(*key)
@@ -306,7 +318,7 @@ func (a *LocalKeyAgent) UserRefusedHosts() bool {
 // CheckHostSignature checks if the given host key was signed by a Teleport
 // certificate authority (CA) or a host certificate the user has seen before.
 func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, key ssh.PublicKey) error {
-	certChecker := utils.CertChecker{
+	certChecker := sshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsHostAuthority: a.checkHostCertificate,
 			HostKeyFallback: a.checkHostKey,
@@ -350,6 +362,15 @@ func (a *LocalKeyAgent) checkHostCertificate(key ssh.PublicKey, addr string) boo
 // or reject.
 func (a *LocalKeyAgent) checkHostKey(addr string, remote net.Addr, key ssh.PublicKey) error {
 	var err error
+
+	// Unless --insecure flag was given, prohibit public keys or host certs
+	// not signed by Teleport.
+	if !a.insecure {
+		a.log.Debugf("Host %s presented a public key not signed by Teleport. Rejecting due to insecure mode being OFF.", addr)
+		return trace.BadParameter("host %s presented a public key not signed by Teleport", addr)
+	}
+
+	a.log.Warnf("Host %s presented a public key not signed by Teleport. Proceeding due to insecure mode being ON.", addr)
 
 	// Check if this exact host is in the local cache.
 	keys, _ := a.keyStore.GetKnownHostKeys(addr)

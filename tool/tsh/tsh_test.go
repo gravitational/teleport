@@ -328,7 +328,7 @@ func TestIdentityRead(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, k)
 
-		cb, err := k.HostKeyCallback()
+		cb, err := k.HostKeyCallback(false)
 		require.NoError(t, err)
 		require.Nil(t, cb)
 
@@ -346,7 +346,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, k)
 
-	cb, err := k.HostKeyCallback()
+	cb, err := k.HostKeyCallback(true)
 	require.NoError(t, err)
 	require.NotNil(t, cb)
 

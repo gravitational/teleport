@@ -802,7 +802,7 @@ func (s *server) checkClientCert(logger *log.Entry, user string, clusterName str
 		return trace.NotFound("cluster %v has no matching CA keys", clusterName)
 	}
 
-	checker := utils.CertChecker{
+	checker := sshutils.CertChecker{
 		FIPS: s.FIPS,
 	}
 	if err := checker.CheckCert(user, cert); err != nil {

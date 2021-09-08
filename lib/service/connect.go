@@ -896,10 +896,15 @@ func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, 
 		return nil, trace.Wrap(err)
 	}
 
+	sshClientConfig, err := identity.SSHClientConfig(process.Config.FIPS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := auth.NewClient(apiclient.Config{
 		Dialer: &reversetunnel.TunnelAuthDialer{
 			ProxyAddr:    proxyAddr,
-			ClientConfig: identity.SSHClientConfig(),
+			ClientConfig: sshClientConfig,
 		},
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),

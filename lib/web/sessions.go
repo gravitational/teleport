@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -284,6 +285,22 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 	return keyring, cert, nil
+}
+
+func (c *SessionContext) getCheckers() ([]ssh.PublicKey, error) {
+	cas, err := c.clt.GetCertAuthorities(services.HostCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var keys []ssh.PublicKey
+	for _, ca := range cas {
+		checkers, err := sshutils.GetCheckers(ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		keys = append(keys, checkers...)
+	}
+	return keys, nil
 }
 
 // GetSSHCertificate returns the *ssh.Certificate associated with this session.
