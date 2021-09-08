@@ -1053,6 +1053,26 @@ message StartAccountRecoveryRequest {
     types.UserTokenUsage RecoverType = 3 [ (gogoproto.jsontag) = "recover_type" ];
 }
 
+// ApproveAccountRecoveryRequest is a request to create a recovery approved token that allows users
+// to perform protected actions while not logged in. Represents step 2 of the account recovery
+// process after RPC StartAccountRecovery, next step is RPC CompleteAccountRecovery.
+message ApproveAccountRecoveryRequest {
+    // RecoveryStartTokenID is the ID of a recovery start token that's required to verify this
+    // request.
+    string RecoveryStartTokenID = 1 [ (gogoproto.jsontag) = "recovery_start_token_id" ];
+    // Username is the name of the user that the token belongs to, used to verify that this name
+    // is the same as defined in token for use with emails.
+    string Username = 2 [ (gogoproto.jsontag) = "username" ];
+    // AuthnCred is the authentication cred that needs to be verified.
+    oneof AuthnCred {
+        // Password is users password in plain text.
+        bytes Password = 3 [ (gogoproto.jsontag) = "password,omitempty" ];
+        // MFAAuthenticateResponse is a response to a MFA challenge.
+        MFAAuthenticateResponse MFAAuthenticateResponse = 4
+            [ (gogoproto.jsontag) = "mfa_authenticate_response,omitempty" ];
+    }
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1400,4 +1420,25 @@ service AuthService {
     //
     // Start tokens last RecoveryStartTokenTTL.
     rpc StartAccountRecovery(StartAccountRecoveryRequest) returns (types.UserTokenV3);
+    // ApproveAccountRecovery (exclusive to cloud users) is the second step of the two step
+    // verification needed to allow a user to recover their account, after RPC StartAccountRecovery.
+    // The second form of verification is a user's password or their second factor (depending on
+    // what authentication they needed to recover). After successful verification, a recovery
+    // approved token is created which allows a user to request protected actions while not logged
+    // in e.g: setting a new password or a mfa device, viewing their MFA devices, deleting their MFA
+    // devices, and generating new recovery codes.
+    //
+    // The recovery start token to verify this request becomes deleted before
+    // creating a recovery approved token, which invalidates the recovery link users received
+    // to finish their verification.
+    //
+    // If user fails to verify themselves for MaxAccountRecoveryAttempts
+    // (combined attempts with RPC StartAccountRecovery), users account will be temporarily locked
+    // from logging in. If users still have unused recovery codes left, they still have
+    // opportunities to recover their account. To allow this, users recovery attempts are also
+    // deleted along with all user tokens which will force the user to restart the recovery process
+    // from step 1 (RPC StartAccountRecovery).
+    //
+    // Recovery approved tokens last RecoveryApprovedTokenTTL.
+    rpc ApproveAccountRecovery(ApproveAccountRecoveryRequest) returns (types.UserTokenV3);
 }
