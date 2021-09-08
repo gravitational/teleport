@@ -64,7 +64,7 @@ func ApplyOptions(options []ConstructionOption) (*ConstructionOptions, error) {
 	return &result, nil
 }
 
-// applyOptions applies a collection of option-setting functions to the
+// Apply applies a collection of option-setting functions to the
 // receiver, modifying it in-place.
 func (opts *ConstructionOptions) Apply(options []ConstructionOption) error {
 	for _, opt := range options {
