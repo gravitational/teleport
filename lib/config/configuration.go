@@ -315,8 +315,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
 	}
 
-	// Read in how nodes will validate the CA.
-	cfg.CAPins = fc.CAPin
+	// Read in how nodes will validate the CA. A single empty string in the file
+	// conf should indicate no pins.
+	if len(fc.CAPin) > 1 || (len(fc.CAPin) == 1 && fc.CAPin[0] != "") {
+		cfg.CAPins = fc.CAPin
+	}
 
 	// Set diagnostic address
 	if fc.DiagAddr != "" {
