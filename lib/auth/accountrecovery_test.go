@@ -1060,6 +1060,156 @@ func TestAccountRecoveryFlow(t *testing.T) {
 	}
 }
 
+func TestGetAccountRecoveryToken(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	cases := []struct {
+		name     string
+		isExpErr bool
+		req      CreateUserTokenRequest
+	}{
+		{
+			name:     "invalid recovery token type",
+			isExpErr: true,
+			req: CreateUserTokenRequest{
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeResetPassword,
+			},
+		},
+		{
+			name:     "token not found",
+			isExpErr: true,
+			req: CreateUserTokenRequest{
+				TTL:  5 * time.Minute,
+				Type: "Type-Does-Not-Exist",
+			},
+		},
+		{
+			name: "recovery start token type",
+			req: CreateUserTokenRequest{
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryStart,
+			},
+		},
+		{
+			name: "recovery approve token type",
+			req: CreateUserTokenRequest{
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryApproved,
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create and insert a token.
+			token, err := srv.Auth().newUserToken(c.req)
+			require.NoError(t, err)
+			_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+			require.NoError(t, err)
+
+			retToken, err := srv.Auth().GetAccountRecoveryToken(context.Background(), &proto.GetAccountRecoveryTokenRequest{
+				RecoveryTokenID: token.GetName(),
+			})
+
+			switch {
+			case c.isExpErr:
+				require.True(t, trace.IsAccessDenied(err))
+			default:
+				require.NoError(t, err)
+				require.Equal(t, c.req.Type, retToken.GetSubKind())
+			}
+		})
+	}
+}
+
+func TestCreateAccountRecoveryCodes(t *testing.T) {
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testWithCloudModules{})
+
+	// Enable second factors.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOTP,
+	})
+	require.NoError(t, err)
+
+	err = srv.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	cases := []struct {
+		name     string
+		isNotErr bool
+		req      CreateUserTokenRequest
+	}{
+		{
+			name: "invalid token type",
+			req: CreateUserTokenRequest{
+				Name: "llama@email.com",
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeResetPassword,
+			},
+		},
+		{
+			name: "token not found",
+			req: CreateUserTokenRequest{
+				TTL:  5 * time.Minute,
+				Type: "Type-Does-Not-Exist",
+			},
+		},
+		{
+			name: "invalid user name",
+			req: CreateUserTokenRequest{
+				Name: "invalid-email",
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryStart,
+			},
+		},
+		{
+			name:     "valid token",
+			isNotErr: true,
+			req: CreateUserTokenRequest{
+				Name: "llama@email.com",
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryApproved,
+			},
+		},
+	}
+
+	for _, c := range cases {
+		token, err := srv.Auth().newUserToken(c.req)
+		require.NoError(t, err)
+		_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+		require.NoError(t, err)
+
+		switch {
+		case c.isNotErr:
+			res, err := srv.Auth().CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
+				TokenID: token.GetName(),
+			})
+			require.NoError(t, err)
+			require.Len(t, res.GetRecoveryCodes(), 3)
+
+			// Check token is deleted after success.
+			_, err = srv.Auth().Identity.GetUserToken(ctx, token.GetName())
+			require.True(t, trace.IsNotFound(err))
+
+		default:
+			_, err = srv.Auth().CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
+				TokenID: token.GetName(),
+			})
+			require.True(t, trace.IsAccessDenied(err))
+		}
+	}
+}
+
 func triggerLoginLock(t *testing.T, srv *Server, username string) {
 	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
 		_, err := srv.authenticateUser(context.Background(), AuthenticateUserRequest{
