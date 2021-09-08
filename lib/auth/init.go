@@ -531,7 +531,8 @@ func createPresets(ctx context.Context, asrv *Server) error {
 	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
-		services.NewPresetAuditorRole()}
+		services.NewPresetAuditorRole(),
+	}
 	for _, role := range roles {
 		err := asrv.CreateRole(role)
 		if err != nil {
@@ -789,16 +790,29 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 
 // GenerateIdentity generates identity for the auth server
 func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames []string) (*Identity, error) {
+	priv, pub, err := a.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPub, err := PrivateKeyToPublicKeyTLS(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               id.HostUUID,
 		NodeName:             id.NodeName,
 		Roles:                types.SystemRoles{id.Role},
 		AdditionalPrincipals: additionalPrincipals,
 		DNSNames:             dnsNames,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         tlsPub,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	keys.Key = priv
 	return ReadIdentityFromKeyPair(keys)
 }
 
