@@ -18,29 +18,33 @@ import React from 'react';
 import styled from 'styled-components';
 import useDesktopSession, { State } from './useDesktopSession';
 import TopBar from './TopBar';
-import { Indicator, Box, Text, Link, Alert } from 'design';
+import { Indicator, Box, Alert } from 'design';
+import useTeleport from 'teleport/useTeleport';
 
 export default function Container() {
-  const state = useDesktopSession();
+  const ctx = useTeleport();
+  const state = useDesktopSession(ctx);
   return <DesktopSession {...state} />;
 }
 
 export function DesktopSession(props: State) {
-  const { attempt, setAttempt, tdpClient } = props;
+  const { userHost, setWsAttempt, tdpClient, attempt } = props;
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   // Waits for the state hook to initialize the TdpClient.
   // Once the client is initialized, sets attempt to 'success'.
   React.useEffect(() => {
-    setAttempt({ status: 'processing' });
+    setWsAttempt({ status: 'processing' });
 
     tdpClient.on('open', () => {
-      setAttempt({ status: 'success' });
+      setWsAttempt({ status: 'success' });
     });
 
     // If the websocket is closed remove all listeners that depend on it.
     tdpClient.on('close', () => {
-      setAttempt({
+      // TODO: this shouldn't necessarily be a failure, i.e. if the session times out or
+      // if the user selects "disconnect" from the menu
+      setWsAttempt({
         status: 'failed',
         statusText: 'connection to remote server was closed',
       });
@@ -48,7 +52,7 @@ export function DesktopSession(props: State) {
     });
 
     tdpClient.on('error', (err: Error) => {
-      setAttempt({
+      setWsAttempt({
         status: 'failed',
         statusText: err.message,
       });
@@ -96,12 +100,15 @@ export function DesktopSession(props: State) {
   return (
     <StyledDesktopSession>
       <TopBar
-        userHost="ibeckermayer@host.com" // TODO
+        userHost={userHost}
         // clipboard and recording settings will eventuall come from backend, hardcoded for now
         clipboard={false}
         recording={false}
+        attempt={attempt}
       />
-      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
+      {attempt.status === 'failed' && (
+        <Alert mx={10} my={2} children={attempt.statusText} />
+      )}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
