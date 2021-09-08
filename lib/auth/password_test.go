@@ -232,16 +232,7 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 
 func TestChangeUserAuthentication(t *testing.T) {
 	srv := newTestTLSServer(t)
-
 	ctx := context.Background()
-	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type: constants.Local,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
-		},
-	})
-	require.NoError(t, err)
 
 	tests := []struct {
 		name              string
@@ -252,7 +243,11 @@ func TestChangeUserAuthentication(t *testing.T) {
 		{
 			name: "with second factor off and password only",
 			setAuthPreference: func() {
-				authPreference.SetSecondFactor(constants.SecondFactorOff)
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOff,
+				})
+				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
@@ -266,7 +261,11 @@ func TestChangeUserAuthentication(t *testing.T) {
 		{
 			name: "with second factor otp",
 			setAuthPreference: func() {
-				authPreference.SetSecondFactor(constants.SecondFactorOTP)
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOTP,
+				})
+				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
@@ -297,7 +296,15 @@ func TestChangeUserAuthentication(t *testing.T) {
 		{
 			name: "with second factor u2f",
 			setAuthPreference: func() {
-				authPreference.SetSecondFactor(constants.SecondFactorU2F)
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorU2F,
+					U2F: &types.U2F{
+						AppID:  "teleport",
+						Facets: []string{"teleport"},
+					},
+				})
+				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
@@ -325,7 +332,15 @@ func TestChangeUserAuthentication(t *testing.T) {
 		{
 			name: "with second factor on",
 			setAuthPreference: func() {
-				authPreference.SetSecondFactor(constants.SecondFactorOn)
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOn,
+					U2F: &types.U2F{
+						AppID:  "teleport",
+						Facets: []string{"teleport"},
+					},
+				})
+				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
@@ -352,7 +367,15 @@ func TestChangeUserAuthentication(t *testing.T) {
 		{
 			name: "with second factor optional and no second factor",
 			setAuthPreference: func() {
-				authPreference.SetSecondFactor(constants.SecondFactorOptional)
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					U2F: &types.U2F{
+						AppID:  "teleport",
+						Facets: []string{"teleport"},
+					},
+				})
+				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
