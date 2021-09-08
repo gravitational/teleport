@@ -36,22 +36,29 @@ type ProvisionToken interface {
 	GetRoles() SystemRoles
 	// SetRoles sets teleport roles
 	SetRoles(SystemRoles)
+	// GetAllowRules returns the list of allow rules
+	GetAllowRules() []*TokenRule
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
 	String() string
 }
 
-// NewProvisionToken returns a new instance of provision token resource
+// NewProvisionToken returns a new provision token with the given roles.
 func NewProvisionToken(token string, roles SystemRoles, expires time.Time) (ProvisionToken, error) {
+	return NewProvisionTokenFromSpec(token, expires, ProvisionTokenSpecV2{
+		Roles: roles,
+	})
+}
+
+// NewProvisionTokenFromSpec returns a new provision token with the given spec.
+func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTokenSpecV2) (ProvisionToken, error) {
 	t := &ProvisionTokenV2{
 		Metadata: Metadata{
 			Name:    token,
 			Expires: &expires,
 		},
-		Spec: ProvisionTokenSpecV2{
-			Roles: roles,
-		},
+		Spec: spec,
 	}
 	if err := t.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -107,6 +114,11 @@ func (p *ProvisionTokenV2) GetRoles() SystemRoles {
 // SetRoles sets teleport roles
 func (p *ProvisionTokenV2) SetRoles(r SystemRoles) {
 	p.Spec.Roles = r
+}
+
+// GetAllowRules returns the list of allow rules
+func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
+	return p.Spec.Allow
 }
 
 // GetKind returns resource kind
