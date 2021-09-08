@@ -28,22 +28,22 @@
     },
     {
       "type": "file",
-      "source": "common/files/var/",
+      "source": "vendor/common/files/var/",
       "destination": "/var/"
     },
     {
       "type": "file",
-      "source": "files/etc/",
+      "source": "teleport/files/etc/",
       "destination": "/etc/"
     },
     {
       "type": "file",
-      "source": "files/opt/",
+      "source": "teleport/files/opt/",
       "destination": "/opt/"
     },
     {
       "type": "file",
-      "source": "files/var/",
+      "source": "teleport/files/var/",
       "destination": "/var/"
     },
     {
@@ -72,10 +72,10 @@
         "LC_CTYPE=en_US.UTF-8"
       ],
       "scripts": [
-        "scripts/010-install_teleport.sh",
-        "common/scripts/020-application-tag.sh",
-        "common/scripts/900-cleanup.sh",
-        "common/scripts/999-img_check.sh"
+        "teleport/scripts/010-install_teleport.sh",
+        "vendor/common/scripts/020-application-tag.sh",
+        "vendor/common/scripts/900-cleanup.sh",
+        "vendor/common/scripts/999-img_check.sh"
       ]
     }
   ]
