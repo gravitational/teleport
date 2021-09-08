@@ -359,6 +359,7 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 func getCustomRate(endpoint string) *ratelimit.RateSet {
 	switch endpoint {
 	case
+		"/proto.AuthService/ApproveAccountRecovery",
 		"/proto.AuthService/ChangeUserAuthentication",
 		"/proto.AuthService/StartAccountRecovery":
 		rates := ratelimit.NewRateSet()

@@ -1772,3 +1772,11 @@ func (c *Client) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 	res, err := c.grpc.StartAccountRecovery(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
+
+// ApproveAccountRecovery creates a recovery approved token after successful verification of users password or second factor
+// (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
+// Represents step 2 of the account recovery process after RPC StartAccountRecovery.
+func (c *Client) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error) {
+	res, err := c.grpc.ApproveAccountRecovery(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
