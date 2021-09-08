@@ -127,12 +127,21 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
+	priv, pub, err := testServer.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
 	certs, err := testServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: testServer.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		HostID:       hostID,
+		NodeName:     testServer.ClusterName(),
+		Roles:        types.SystemRoles{types.RoleNode},
+		PublicSSHKey: pub,
+		PublicTLSKey: tlsPub,
 	})
 	require.NoError(t, err)
+	certs.Key = priv
 
 	// set up user CA and set up a user that has access to the server
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
@@ -160,7 +169,8 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 			},
 		),
 		SetBPF(&bpf.NOP{}),
@@ -709,7 +719,7 @@ func TestAllowedLabels(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	var tests = []struct {
+	tests := []struct {
 		desc       string
 		inLabelMap types.Labels
 		outError   bool
@@ -933,13 +943,23 @@ func TestProxyReverseTunnel(t *testing.T) {
 
 	proxyClient, proxyID := newProxyClient(t, f.testSrv)
 
+	priv, pub, err := f.testSrv.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
 	// Create host key and certificate for proxy.
 	proxyKeys, err := f.testSrv.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: f.testSrv.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleProxy},
+		HostID:       hostID,
+		NodeName:     f.testSrv.ClusterName(),
+		Roles:        types.SystemRoles{types.RoleProxy},
+		PublicSSHKey: pub,
+		PublicTLSKey: tlsPub,
 	})
 	require.NoError(t, err)
+	proxyKeys.Key = priv
+
 	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
 	require.NoError(t, err)
 
@@ -1055,10 +1075,12 @@ func TestProxyReverseTunnel(t *testing.T) {
 			services.CommandLabels{
 				"cmdLabel1": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 				"cmdLabel2": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Second * 2),
-					Command: []string{"expr", "2", "+", "3"}},
+					Command: []string{"expr", "2", "+", "3"},
+				},
 			},
 		),
 		SetSessionServer(nodeClient),
@@ -1584,6 +1606,12 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
+	priv, pub, err := authSrv.GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
 	// Create host key and certificate for node.
 	keys, err := authSrv.GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:               "raw-node",
@@ -1591,8 +1619,11 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 		Roles:                types.SystemRoles{types.RoleNode},
 		AdditionalPrincipals: []string{hostname},
 		DNSNames:             []string{hostname},
+		PublicSSHKey:         pub,
+		PublicTLSKey:         tlsPub,
 	})
 	require.NoError(t, err)
+	keys.Key = priv
 
 	signer, err := sshutils.NewSigner(keys.Key, keys.Cert)
 	require.NoError(t, err)
@@ -1854,7 +1885,7 @@ type upack struct {
 	// pub is a public user key
 	pub []byte
 
-	//cert is a certificate signed by user CA
+	// cert is a certificate signed by user CA
 	cert []byte
 	// pcert is a parsed ssh Certificae
 	pcert *ssh.Certificate
