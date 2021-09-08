@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
@@ -127,14 +126,6 @@ func (s *ServicesSuite) TestRoles(c *check.C) {
 
 func (s *ServicesSuite) TestU2FCRUD(c *check.C) {
 	s.suite.U2FCRUD(c)
-}
-
-func (s *ServicesSuite) TestWebauthnLocalAuthUpsert(c *check.C) {
-	s.suite.WebauthnLocalAuthUpsert(c)
-}
-
-func (s *ServicesSuite) TestWebauthnSessionDataCRUD(c *check.C) {
-	s.suite.WebauthnSessionDataCRUD(c)
 }
 
 func (s *ServicesSuite) TestSAMLCRUD(c *check.C) {
