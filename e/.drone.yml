@@ -588,7 +588,7 @@ steps:
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets release OS=$OS ARCH=$ARCH
+      - make -C build.assets release-windows-unsigned OS=$OS ARCH=$ARCH
 
   - name: Send Slack notification
     image: plugins/slack
@@ -940,6 +940,6 @@ volumes:
 
 ---
 kind: signature
-hmac: c773f053533df858be5f6daa6a6ba0f817fb4e1575377946ac67dd3e382054d3
+hmac: 53f356bafebe00ba7d0132a229767123778b3a6a8e1815cf9241ce9baaa866a3
 
 ...
