@@ -177,13 +177,22 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	priv, pub, err := s.server.AuthServer.AuthServer.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	c.Assert(err, IsNil)
+
 	// start node
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: s.server.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		HostID:       hostID,
+		NodeName:     s.server.ClusterName(),
+		Roles:        types.SystemRoles{types.RoleNode},
+		PublicSSHKey: pub,
+		PublicTLSKey: tlsPub,
 	})
 	c.Assert(err, IsNil)
+	certs.Key = priv
 
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	c.Assert(err, IsNil)
@@ -815,7 +824,6 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 		c.Assert(err, NotNil, Commentf(testCase.expectedErr))
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
-
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
@@ -1922,7 +1930,8 @@ func TestClusterKubesGet(t *testing.T) {
 				{
 					Name:         "test-kube-name",
 					StaticLabels: map[string]string{"test-field": "test-value"},
-				}},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -2037,7 +2046,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	c.Assert(err, IsNil)
 
-	var tests = []struct {
+	tests := []struct {
 		inComment       CommentInterface
 		inCreateRequest *CreateAppSessionRequest
 		outError        bool
@@ -2654,13 +2663,22 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	})
 	require.NoError(t, err)
 
+	priv, pub, err := server.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
 	// start auth server
 	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: server.TLS.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		HostID:       hostID,
+		NodeName:     server.TLS.ClusterName(),
+		Roles:        types.SystemRoles{types.RoleNode},
+		PublicSSHKey: pub,
+		PublicTLSKey: tlsPub,
 	})
 	require.NoError(t, err)
+	certs.Key = priv
 
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	require.NoError(t, err)
