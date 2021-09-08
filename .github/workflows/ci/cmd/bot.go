@@ -22,18 +22,16 @@ func main() {
 	var reviewers = flag.String("reviewers", "", "reviewers is a string representing a json object that maps authors to required reviewers for that author.")
 	var defaultReviewers = flag.String("default-reviewers", "", "default-reviewers represents reviewers for external contributors or any author that does not have a key-value pair in '--reviewers'.")
 	flag.Parse()
+
 	subcommand := os.Args[len(os.Args)-1]
 	if *token == "" {
 		log.Fatal("Missing authentication token.")
 	}
+
 	switch subcommand {
 	case ci.ASSIGN:
 		log.Println("Assigning reviewers.")
-		bot, err := verifyAndConstruct(*token, *reviewers, *defaultReviewers)
-		if err != nil {
-			log.Fatal(err)
-		}
-		err = bot.Assign()
+		err := assignReviewers(*token, *reviewers, *defaultReviewers)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -41,29 +39,18 @@ func main() {
 
 	case ci.CHECK:
 		log.Println("Checking reviewers.")
-		bot, err := verifyAndConstruct(*token, *reviewers, *defaultReviewers)
-		if err != nil {
-			log.Fatal(err)
-		}
-		err = bot.Check()
+		err := checkReviewers(*token, *reviewers, *defaultReviewers)
 		if err != nil {
 			log.Fatal(err)
 		}
 		log.Print("Check completed.")
 	case ci.CRON:
-		repository := os.Getenv("GITHUB_REPOSITORY")
-		if repository == "" {
-			log.Fatal("Environment variable GITHUB_REPOSITORY is not set.")
-		}
-		metadata := strings.Split(repository, "/")
-		if len(metadata) != 2 {
-			log.Fatal("Environment variable GITHUB_REPOSITORY is not in the correct format,\n valid format is '<repo owner>/<repo name>'.")
-		}
-		err := cron.DimissStaleWorkflowRunsForExternalContributors(*token, metadata[0], metadata[1], makeGithubClient(*token))
+		log.Println("Dismissing stale runs.")
+		err := dismissRuns(*token)
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Println("Stale workflow run removal completed. ")
+		log.Println("Stale workflow run removal completed.")
 	default:
 		log.Fatalf("Unknown subcommand: %v", subcommand)
 	}
@@ -75,10 +62,10 @@ func verifyAndConstruct(token, reviewers, defaultReviewers string) (*bots.Bot, e
 		return nil, trace.BadParameter("Missing authentication token.")
 	}
 	if reviewers == "" {
-		return nil, trace.BadParameter("Missing assignments flag.")
+		return nil, trace.BadParameter("Missing assignments string.")
 	}
 	if defaultReviewers == "" {
-		return nil, trace.BadParameter("Missing default-reviewers flag.")
+		return nil, trace.BadParameter("Missing default-reviewers string.")
 	}
 
 	path := os.Getenv(ci.GITHUBEVENTPATH)
@@ -100,6 +87,38 @@ func verifyAndConstruct(token, reviewers, defaultReviewers string) (*bots.Bot, e
 		return nil, trace.Wrap(err)
 	}
 	return bot, nil
+}
+
+func assignReviewers(token, reviewers, defaultReviewers string) error {
+	bot, err := verifyAndConstruct(token, reviewers, defaultReviewers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return bot.Assign()
+}
+
+func checkReviewers(token, reviewers, defaultReviewers string) error {
+	bot, err := verifyAndConstruct(token, reviewers, defaultReviewers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return bot.Check()
+}
+
+func dismissRuns(token string) error {
+	repository := os.Getenv("GITHUB_REPOSITORY")
+	if repository == "" {
+		return trace.BadParameter("Environment variable GITHUB_REPOSITORY is not set.")
+	}
+	metadata := strings.Split(repository, "/")
+	if len(metadata) != 2 {
+		return trace.BadParameter("Environment variable GITHUB_REPOSITORY is not in the correct format,\n valid format is '<repo owner>/<repo name>'.")
+	}
+	err := cron.DimissStaleWorkflowRunsForExternalContributors(token, metadata[0], metadata[1], makeGithubClient(token))
+	if err != nil {
+		trace.Wrap(err)
+	}
+	return nil
 }
 
 func makeGithubClient(token string) *github.Client {

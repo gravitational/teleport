@@ -26,34 +26,38 @@ const (
 	// Used to verify commit was made by GH.
 	GITHUBCOMMIT = "committer GitHub <noreply@github.com>"
 
-	// APPROVED is a pull request review status
+	// APPROVED is a pull request review status.
 	APPROVED = "APPROVED"
 
 	// ASSIGNMENTS is the environment variable name that stores
-	// which reviewers should be assigned to which authors
+	// which reviewers should be assigned to which authors.
 	ASSIGNMENTS = "ASSIGNMENTS"
 
 	// TOKEN is the env variable name that stores the Github authentication token
 	TOKEN = "GITHUB_TOKEN"
 
-	// COMPLETED is a workflow run status
+	// COMPLETED is a workflow run status.
 	COMPLETED = "completed"
 
-	// CHECKWORKFLOW is the name of a workflow
+	// CHECKWORKFLOW is the name of a workflow.
 	CHECKWORKFLOW = "Check"
 
-	// SYNCHRONIZE is an event type
+	// SYNCHRONIZE is an event type that is triggered when a commit is pushed to an
+	// open pull request.
 	SYNCHRONIZE = "synchronize"
 
-	// ASSIGNED is an event type
+	// ASSIGNED is an event type that is triggered when a user is
+	// assigned to a pull request.
 	ASSIGNED = "assigned"
 
-	//OPENED is an event type
+	//OPENED is an event type that is triggered when a pull request is opened.
 	OPENED = "opened"
 
-	// REOPENED is an event type
+	// REOPENED is an event type event that is when triggered when a pull request
+	// is reopened.
 	REOPENED = "reopened"
 
-	// READY is an event type
+	// READY is an event type that is triggered when a pull request gets
+	// pulled out of a draft state.
 	READY = "ready_for_review"
 )

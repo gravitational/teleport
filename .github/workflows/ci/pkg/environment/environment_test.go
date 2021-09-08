@@ -97,51 +97,76 @@ func TestNewEnvironment(t *testing.T) {
 }
 
 func TestSetPullRequest(t *testing.T) {
-	envSync := &Environment{action: "synchronize"}
-	envPull := &Environment{action: "opened"}
-	envReview := &Environment{action: "submitted"}
-
 	tests := []struct {
 		checkErr require.ErrorAssertionFunc
 		env      *Environment
 		input    []byte
 		desc     string
+		value    *PullRequestMetadata
 	}{
 		{
-			env:      envSync,
+			env:      &Environment{action: "synchronize"},
 			checkErr: require.NoError,
 			input:    []byte(synchronize),
-			desc:     "sync, no error",
+			value: &PullRequestMetadata{Author: "quinqu",
+				RepoName:   "gh-actions-poc",
+				RepoOwner:  "gravitational",
+				Number:     28,
+				HeadSHA:    "ecabd9d97b218368ea47d17cd23815590b76e196",
+				BaseSHA:    "cbb23161d4c33d70189430d07957d2d66d42fc30",
+				BranchName: "jane/ci",
+			},
+			desc: "sync, no error",
 		},
 		{
-			env:      envPull,
+			env:      &Environment{action: "opened"},
 			checkErr: require.NoError,
 			input:    []byte(pullRequest),
-			desc:     "pull request, no error",
+			value: &PullRequestMetadata{Author: "Codertocat",
+				RepoName:   "Hello-World",
+				RepoOwner:  "Codertocat",
+				Number:     2,
+				HeadSHA:    "ec26c3e57ca3a959ca5aad62de7213c562f8c821",
+				BaseSHA:    "f95f852bd8fca8fcc58a9a2d6c842781e32a215e",
+				BranchName: "changes",
+			},
+			desc: "pull request, no error",
 		},
 		{
-			env:      envReview,
+			env:      &Environment{action: "submitted"},
 			checkErr: require.NoError,
 			input:    []byte(submitted),
-			desc:     "review, no error",
+			value: &PullRequestMetadata{Author: "Codertocat",
+				RepoName:   "Hello-World",
+				RepoOwner:  "Codertocat",
+				Number:     2,
+				HeadSHA:    "ec26c3e57ca3a959ca5aad62de7213c562f8c821",
+				BaseSHA:    "f95f852bd8fca8fcc58a9a2d6c842781e32a215e",
+				BranchName: "changes",
+				Reviewer:   "Codertocat",
+			},
+			desc: "review, no error",
 		},
 
 		{
-			env:      envSync,
+			env:      &Environment{action: "synchronize"},
 			checkErr: require.Error,
 			input:    []byte(submitted),
+			value:    nil,
 			desc:     "sync, error",
 		},
 		{
-			env:      envPull,
+			env:      &Environment{action: "opened"},
 			checkErr: require.Error,
 			input:    []byte(submitted),
+			value:    nil,
 			desc:     "pull request, error",
 		},
 		{
-			env:      envReview,
+			env:      &Environment{action: "submitted"},
 			checkErr: require.Error,
 			input:    []byte(pullRequest),
+			value:    nil,
 			desc:     "review, error",
 		},
 	}
@@ -150,6 +175,7 @@ func TestSetPullRequest(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			err := test.env.setPullRequest(test.input)
 			test.checkErr(t, err)
+			require.Equal(t, test.value, test.env.PullRequest)
 		})
 	}
 

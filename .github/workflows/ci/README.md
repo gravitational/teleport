@@ -10,7 +10,7 @@ This bot automates the workflow of the pull request process. It does this by aut
 
 #### Reviewers
 
-Reviewers is a string represented as a json object with authors mapped to their respective required reviewers. 
+Reviewers is a json object encoded as a string with authors mapped to their required reviewers. 
 
 The secret name must be `reviewers`.
 
@@ -32,12 +32,6 @@ The secret name must be `defaultreviewers`.
 ```
 ["defaultreviewer1", "defaultreviewer2", "defaultreviewer3", "defaultreviewer4"]
 ```
-
-
-### Workflow Run Credentials
-
-You will need to create an access token named `WORKFLOW_RUN_CREDENTIALS` with write permissions to actions. This is used for dimissing stale workflow runs. 
-
 ### Set up workflow configuration files 
 
 This bot supports the following events: 
@@ -54,10 +48,19 @@ This bot supports the following events:
     - `dismissed`
 
 
+The following subcommands are used in the workflow files: 
+
+| Subcommand     | Description |
+| ----------- | ----------- |
+| `assign-reviewers`      | Assigns reviewers to a pull request.      |
+| `check-reviewers`  | Checks pull request for required reviewers.       |
+| `dismiss-runs`  | Dismisses stale workflow runs on an interval configurable in the workflow configuration file.|
 
 
-Create the following workflow files in the master branch:   
-Assigning Reviewers
+
+Create the following workflow files in the master branch:
+
+_Assigning Reviewers_
 
 ```yaml
 name: Assign
@@ -82,7 +85,8 @@ jobs:
 
 ```
 
-Checking reviews
+_Checking reviews_
+
 ```yaml
 name: Check
 on: 
@@ -106,4 +110,28 @@ jobs:
       - name: Checking reviewers
         run: cd .github/workflows/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} --default-reviewers=${{ secrets.defaultreviewers }} --reviewers=${{ secrets.reviewers }} check-reviewers
 
+```
+
+_Dimiss stale workflow runs_
+
+```yaml
+# Workflow will run every 30 minutes and dismiss stale runs on all open pull requests. 
+name: Dismiss Stale Workflows Runs
+on:
+  schedule:
+    # Runs every 30 minutes. You can configure this to any interval. 
+    - cron:  '0,30 * * * *' 
+
+jobs: 
+  dismiss-stale-runs:
+    name: Dismiss Stale Workflow Runs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master branch 
+        uses: actions/checkout@master
+      - name: Installing the latest version of Go.
+        uses: actions/setup-go@v2
+        # Run "dismiss-runs" subcommand on bot.
+      - name: Dismiss
+        run: cd .github/workflows/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} dismiss-runs
 ```
