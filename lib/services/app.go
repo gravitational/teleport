@@ -17,11 +17,35 @@ limitations under the License.
 package services
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
+
+// AppGetter defines interface for fetching application resources.
+type AppGetter interface {
+	// GetApps returns all application resources.
+	GetApps(context.Context) ([]types.Application, error)
+	// GetApp returns the specified application resource.
+	GetApp(ctx context.Context, name string) (types.Application, error)
+}
+
+// Apps defines an interface for managing application resources.
+type Apps interface {
+	// AppGetter provides methods for fetching application resources.
+	AppGetter
+	// CreateApp creates a new application resource.
+	CreateApp(context.Context, types.Application) error
+	// UpdateApp updates an existing application resource.
+	UpdateApp(context.Context, types.Application) error
+	// DeleteApp removes the specified application resource.
+	DeleteApp(ctx context.Context, name string) error
+	// DeleteAllApps removes all database resources.
+	DeleteAllApps(context.Context) error
+}
 
 // MarshalApp marshals Application resource to JSON.
 func MarshalApp(app types.Application, opts ...MarshalOption) ([]byte, error) {
