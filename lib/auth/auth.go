@@ -1169,6 +1169,139 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 	}, nil
 }
 
+type newMFADeviceFields struct {
+	username      string
+	newDeviceName string
+	// tokenID is the ID of a reset/invite/recovery token.
+	// It is used as following:
+	//  - TOTP:
+	//    - look up TOTP secret stored by token ID
+	//  - U2F:
+	//    - look up U2F challenge stored by token ID
+	//    - use default u2f storage which is our services.Identity
+	// This field can be empty to indicate that fields
+	// "totpSecret" and "u2fStorage" is to be used instead.
+	tokenID string
+	// totpSecret is a secret shared by client and server to generate totp codes.
+	// Field can be empty to get secret by "tokenID".
+	totpSecret string
+	// u2fStorage is the storage used to hold the u2f challenge.
+	// Field can be empty to use default services.Identity storage.
+	u2fStorage u2f.RegistrationStorage
+}
+
+// verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
+func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, regResp *proto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
+	cap, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if cap.GetSecondFactor() == constants.SecondFactorOff {
+		return nil, trace.BadParameter("second factor disabled by cluster configuration")
+	}
+
+	// Validate MFARegisterResponse and upsert the new device on success.
+	var dev *types.MFADevice
+	switch regResp.GetResponse().(type) {
+	case *proto.MFARegisterResponse_TOTP:
+		if !cap.IsSecondFactorTOTPAllowed() {
+			return nil, trace.BadParameter("second factor TOTP not allowed by cluster")
+		}
+
+		var totpSecret string
+		switch {
+		case req.tokenID != "":
+			secrets, err := a.Identity.GetUserTokenSecrets(ctx, req.tokenID)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			totpSecret = secrets.GetOTPKey()
+		case req.totpSecret != "":
+			totpSecret = req.totpSecret
+		default:
+			return nil, trace.BadParameter("missing TOTP secret")
+		}
+
+		dev, err = services.NewTOTPDevice(req.newDeviceName, totpSecret, a.clock.Now())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := a.checkTOTP(ctx, req.username, regResp.GetTOTP().GetCode(), dev); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := a.UpsertMFADevice(ctx, req.username, dev); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	case *proto.MFARegisterResponse_U2F:
+		if !cap.IsSecondFactorU2FAllowed() {
+			return nil, trace.BadParameter("second factor U2F not allowed by cluster")
+		}
+
+		u2fConfig, err := cap.GetU2F()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var storageKey string
+		var storage u2f.RegistrationStorage
+		switch {
+		case req.tokenID != "":
+			storage = a.Identity
+			storageKey = req.tokenID
+		case req.u2fStorage != nil:
+			storage = req.u2fStorage
+			storageKey = req.username
+		default:
+			return nil, trace.BadParameter("missing U2F storage")
+		}
+
+		// u2f.RegisterVerify will upsert the new device internally.
+		dev, err = u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
+			DevName: req.newDeviceName,
+			Resp: u2f.RegisterChallengeResponse{
+				RegistrationData: regResp.GetU2F().GetRegistrationData(),
+				ClientData:       regResp.GetU2F().GetClientData(),
+			},
+			RegistrationStorageKey: req.username,
+			ChallengeStorageKey:    storageKey,
+			Storage:                storage,
+			Clock:                  a.GetClock(),
+			AttestationCAs:         u2fConfig.DeviceAttestationCAs,
+		})
+
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	default:
+		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", regResp.Response)
+	}
+
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceAdd{
+		Metadata: apievents.Metadata{
+			Type:        events.MFADeviceAddEvent,
+			Code:        events.MFADeviceAddEventCode,
+			ClusterName: clusterName.GetClusterName(),
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: req.username,
+		},
+		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit add mfa device event.")
+	}
+
+	return dev, nil
+}
+
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
 	// before trying to register a user, see U2F is actually setup on the backend
 	cap, err := a.GetAuthPreference(ctx)

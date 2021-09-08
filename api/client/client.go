@@ -1945,3 +1945,11 @@ func (c *Client) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveA
 	res, err := c.grpc.ApproveAccountRecovery(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
+
+// CompleteAccountRecovery sets a new password or adds a new mfa device,
+// allowing user to regain access to their account using the new credentials.
+// Represents the last step in the account recovery process after RPC's StartAccountRecovery and ApproveAccountRecovery.
+func (c *Client) CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error {
+	_, err := c.grpc.CompleteAccountRecovery(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}

@@ -3290,6 +3290,12 @@ func (a *ServerWithRoles) ApproveAccountRecovery(ctx context.Context, req *proto
 	return a.authServer.ApproveAccountRecovery(ctx, req)
 }
 
+// CompleteAccountRecovery is implemented by AuthService.CompleteAccountRecovery.
+func (a *ServerWithRoles) CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error {
+	// The token provides its own authorization and authentication.
+	return a.authServer.CompleteAccountRecovery(ctx, req)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
