@@ -26,7 +26,6 @@ package auth
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
@@ -1462,6 +1461,9 @@ func (req *GenerateServerKeysRequest) CheckAndSetDefaults() error {
 	if len(req.Roles) != 1 {
 		return trace.BadParameter("expected only one system role, got %v", len(req.Roles))
 	}
+	if len(req.PublicSSHKey) == 0 || len(req.PublicTLSKey) == 0 {
+		return trace.BadParameter("public keys for SSH and TLS are required")
+	}
 	return nil
 }
 
@@ -1506,31 +1508,12 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 			remoteHost)
 	}
 
-	var cryptoPubKey crypto.PublicKey
-	var privateKeyPEM, pubSSHKey []byte
-	if req.PublicSSHKey != nil || req.PublicTLSKey != nil {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicSSHKey)
-		if err != nil {
-			return nil, trace.BadParameter("failed to parse SSH public key")
-		}
-		pubSSHKey = req.PublicSSHKey
-		cryptoPubKey, err = tlsca.ParsePublicKeyPEM(req.PublicTLSKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		// generate private key
-		privateKeyPEM, pubSSHKey, err = a.GenerateKeyPair("")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// reuse the same RSA keys for SSH and TLS keys
-		cryptoPubKey, err = sshutils.CryptoPublicKey(pubSSHKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
+	if _, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicSSHKey); err != nil {
+		return nil, trace.BadParameter("failed to parse SSH public key")
+	}
+	cryptoPubKey, err := tlsca.ParsePublicKeyPEM(req.PublicTLSKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// get the certificate authority that will be signing the public key of the host,
@@ -1560,7 +1543,10 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 			return nil, trace.BadParameter("failed to load host CA for %q: %v", clusterName.GetClusterName(), err)
 		}
 		if !req.Rotation.Matches(ca.GetRotation()) {
-			return nil, trace.BadParameter("the client expected state is out of sync, server rotation state: %v, client rotation state: %v, re-register the client from scratch to fix the issue.", ca.GetRotation(), req.Rotation)
+			return nil, trace.BadParameter(""+
+				"the client expected state is out of sync, server rotation state: %v, "+
+				"client rotation state: %v, re-register the client from scratch to fix the issue.",
+				ca.GetRotation(), req.Rotation)
 		}
 	}
 
@@ -1595,11 +1581,11 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// generate hostSSH certificate
+	// generate host SSH certificate
 	hostSSHCert, err := a.generateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
 		CASigningAlg:  sshutils.GetSigningAlgName(ca),
-		PublicHostKey: pubSSHKey,
+		PublicHostKey: req.PublicSSHKey,
 		HostID:        req.HostID,
 		NodeName:      req.NodeName,
 		ClusterName:   clusterName.GetClusterName(),
@@ -1643,7 +1629,6 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		return nil, trace.Wrap(err)
 	}
 	return &PackedKeys{
-		Key:        privateKeyPEM,
 		Cert:       hostSSHCert,
 		TLSCert:    hostTLSCert,
 		TLSCACerts: services.GetTLSCerts(ca),
