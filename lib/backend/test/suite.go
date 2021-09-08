@@ -36,7 +36,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
 
 var (
@@ -961,17 +960,6 @@ func MakePrefix() func(k string) []byte {
 	id := "/" + uuid.New()
 	return func(k string) []byte {
 		return []byte(id + k)
-	}
-}
-
-// ExpectItems tests that items equal to expected list
-func ExpectItems(c *check.C, items, expected []backend.Item) {
-	if len(items) != len(expected) {
-		c.Fatalf("Expected %v items, got %v.", len(expected), len(items))
-	}
-	for i := range items {
-		c.Assert(string(items[i].Key), check.Equals, string(expected[i].Key))
-		c.Assert(string(items[i].Value), check.Equals, string(expected[i].Value))
 	}
 }
 
