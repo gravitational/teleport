@@ -10,27 +10,16 @@ This bot automates the workflow of the pull request process. It does this by aut
 
 #### Reviewers
 
-Reviewers is a json object encoded as a string with authors mapped to their required reviewers. 
-
-The secret name must be `reviewers`.
+Reviewers is a json object encoded as a string with authors mapped to their required reviewers. This map MUST contain an empty string key that maps to default reviewers. 
 
 Example: 
 
 ```json
     {
         "author1": ["reviewer0", "reviewer1"],
-        "author2": ["reviewer2", "reviewer3", "reviewer4"]
+        "author2": ["reviewer2", "reviewer3", "reviewer4"],
+        "": ["defaultreviewer0", "defaultreviewer1"]
     }
-```
-
-#### Default Reviewers
-
-Default reviewers is a string represented as a list. 
-
-The secret name must be `defaultreviewers`.
-
-```
-["defaultreviewer1", "defaultreviewer2", "defaultreviewer3", "defaultreviewer4"]
 ```
 ### Set up workflow configuration files 
 
@@ -81,7 +70,7 @@ jobs:
         uses: actions/setup-go@v2
       # Running "assign-reviewers" subcommand on bot.
       - name: Assigning reviewers 
-        run: cd .github/workflows/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} --default-reviewers=${{ secrets.defaultreviewers }} --reviewers=${{ secrets.reviewers }} assign-reviewers
+        run: cd .github/workflows/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} --reviewers=${{ secrets.reviewers }} assign-reviewers
 
 ```
 
@@ -108,7 +97,7 @@ jobs:
         uses: actions/setup-go@v2
         # Running "check-reviewers" subcommand on bot.
       - name: Checking reviewers
-        run: cd .github/workflows/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} --default-reviewers=${{ secrets.defaultreviewers }} --reviewers=${{ secrets.reviewers }} check-reviewers
+        run: cd .github/workflows/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} --reviewers=${{ secrets.reviewers }} check-reviewers
 
 ```
 

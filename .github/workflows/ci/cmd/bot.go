@@ -20,7 +20,6 @@ import (
 func main() {
 	var token = flag.String("token", "", "token is the Github authentication token.")
 	var reviewers = flag.String("reviewers", "", "reviewers is a string representing a json object that maps authors to required reviewers for that author.")
-	var defaultReviewers = flag.String("default-reviewers", "", "default-reviewers represents reviewers for external contributors or any author that does not have a key-value pair in '--reviewers'.")
 	flag.Parse()
 
 	subcommand := os.Args[len(os.Args)-1]
@@ -31,7 +30,7 @@ func main() {
 	switch subcommand {
 	case ci.ASSIGN:
 		log.Println("Assigning reviewers.")
-		err := assignReviewers(*token, *reviewers, *defaultReviewers)
+		err := assignReviewers(*token, *reviewers)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -39,7 +38,7 @@ func main() {
 
 	case ci.CHECK:
 		log.Println("Checking reviewers.")
-		err := checkReviewers(*token, *reviewers, *defaultReviewers)
+		err := checkReviewers(*token, *reviewers)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -57,26 +56,21 @@ func main() {
 
 }
 
-func verifyAndConstruct(token, reviewers, defaultReviewers string) (*bots.Bot, error) {
+func verifyAndConstruct(token, reviewers string) (*bots.Bot, error) {
 	if token == "" {
 		return nil, trace.BadParameter("Missing authentication token.")
 	}
 	if reviewers == "" {
 		return nil, trace.BadParameter("Missing assignments string.")
 	}
-	if defaultReviewers == "" {
-		return nil, trace.BadParameter("Missing default-reviewers string.")
-	}
-
 	path := os.Getenv(ci.GITHUBEVENTPATH)
 	if path == "" {
 		return nil, trace.BadParameter("Environment variable GITHUB_EVENT_PATH is not set.")
 	}
 	env, err := environment.New(environment.Config{Client: makeGithubClient(token),
-		Reviewers:        reviewers,
-		DefaultReviewers: defaultReviewers,
-		EventPath:        path,
-		Token:            token,
+		Reviewers: reviewers,
+		EventPath: path,
+		Token:     token,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -89,16 +83,16 @@ func verifyAndConstruct(token, reviewers, defaultReviewers string) (*bots.Bot, e
 	return bot, nil
 }
 
-func assignReviewers(token, reviewers, defaultReviewers string) error {
-	bot, err := verifyAndConstruct(token, reviewers, defaultReviewers)
+func assignReviewers(token, reviewers string) error {
+	bot, err := verifyAndConstruct(token, reviewers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return bot.Assign()
 }
 
-func checkReviewers(token, reviewers, defaultReviewers string) error {
-	bot, err := verifyAndConstruct(token, reviewers, defaultReviewers)
+func checkReviewers(token, reviewers string) error {
+	bot, err := verifyAndConstruct(token, reviewers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,7 +100,7 @@ func checkReviewers(token, reviewers, defaultReviewers string) error {
 }
 
 func dismissRuns(token string) error {
-	repository := os.Getenv("GITHUB_REPOSITORY")
+	repository := os.Getenv(ci.GITHUBREPOSITORY)
 	if repository == "" {
 		return trace.BadParameter("Environment variable GITHUB_REPOSITORY is not set.")
 	}

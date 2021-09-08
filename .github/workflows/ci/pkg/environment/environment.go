@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
-	"strings"
 
 	"github.com/gravitational/teleport/.github/workflows/ci"
 	"github.com/gravitational/trace"
@@ -15,13 +14,11 @@ import (
 
 // Config is used to configure Environment
 type Config struct {
-	Client               *github.Client
-	Reviewers            string
-	DefaultReviewers     string
-	EventPath            string
-	Token                string
-	unmarshalRevs        unmarshalReviewersFn
-	unmarshalDefaultRevs unmarshalDefaultReviewersFn
+	Client        *github.Client
+	Reviewers     string
+	EventPath     string
+	Token         string
+	unmarshalRevs unmarshalReviewersFn
 }
 
 // Environment contains information about the environment
@@ -35,7 +32,6 @@ type Environment struct {
 }
 
 type unmarshalReviewersFn func(str string, client *github.Client) (map[string][]string, error)
-type unmarshalDefaultReviewersFn func(str string, client *github.Client) ([]string, error)
 
 // CheckAndSetDefaults verifies configuration and sets defaults
 func (c *Config) CheckAndSetDefaults() error {
@@ -45,17 +41,11 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Reviewers == "" {
 		return trace.BadParameter("missing parameter Reviewers.")
 	}
-	if c.DefaultReviewers == "" {
-		return trace.BadParameter("missing parameter DefaultReviewers.")
-	}
 	if c.EventPath == "" {
 		return trace.BadParameter("missing parameter EventPath.")
 	}
 	if c.Token == "" {
 		return trace.BadParameter("missing parameter token.")
-	}
-	if c.unmarshalDefaultRevs == nil {
-		c.unmarshalDefaultRevs = unmarshalDefaultReviewers
 	}
 	if c.unmarshalRevs == nil {
 		c.unmarshalRevs = unmarshalReviewers
@@ -76,11 +66,7 @@ func New(c Config) (*Environment, error) {
 		return nil, trace.Wrap(err)
 	}
 	env.reviewers = revs
-	defaults, err := c.unmarshalDefaultRevs(c.DefaultReviewers, c.Client)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	env.defaultReviewers = defaults
+	env.defaultReviewers = revs[""]
 	err = env.SetPullRequest(c.EventPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -90,6 +76,7 @@ func New(c Config) (*Environment, error) {
 
 // unmarshalReviewers converts the passed in string representing json object into a map
 func unmarshalReviewers(str string, client *github.Client) (map[string][]string, error) {
+	var hasDefaultReviewers bool
 	if str == "" {
 		return nil, trace.BadParameter("reviewers not found.")
 	}
@@ -99,31 +86,27 @@ func unmarshalReviewers(str string, client *github.Client) (map[string][]string,
 	if err != nil {
 		return nil, err
 	}
-	for k := range m {
+	for k, v := range m {
+		for _, reviewer := range v {
+			err := userExists(reviewer, client)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		if k == "" {
+			hasDefaultReviewers = true
+			continue
+		}
 		err := userExists(k, client)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return m, nil
-}
-
-// unmarshalDefaultReviewers converts the passed in string representing a list into
-// a slice.
-func unmarshalDefaultReviewers(str string, client *github.Client) ([]string, error) {
-	str = strings.Trim(str, "[")
-	str = strings.Trim(str, "]")
-	reviewers := strings.Split(str, ",")
-	defaultReviewers := []string{}
-	for _, rev := range reviewers {
-		rev = strings.Trim(rev, " ")
-		err := userExists(rev, client)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defaultReviewers = append(defaultReviewers, rev)
+	if !hasDefaultReviewers {
+		return nil, trace.BadParameter("default reviewers are not set. set default reviewers with an empty string as a key.")
 	}
-	return defaultReviewers, nil
+	return m, nil
+
 }
 
 // userExists checks if a user exists

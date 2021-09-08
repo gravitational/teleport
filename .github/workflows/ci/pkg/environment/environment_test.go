@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport/.github/workflows/ci"
 	"github.com/gravitational/trace"
 
 	"github.com/google/go-github/v37/github"
@@ -14,6 +14,14 @@ import (
 )
 
 func TestNewEnvironment(t *testing.T) {
+	pr := &PullRequestMetadata{Author: "Codertocat",
+		RepoName:   "Hello-World",
+		RepoOwner:  "Codertocat",
+		Number:     2,
+		HeadSHA:    "ec26c3e57ca3a959ca5aad62de7213c562f8c821",
+		BaseSHA:    "f95f852bd8fca8fcc58a9a2d6c842781e32a215e",
+		BranchName: "changes",
+	}
 	tests := []struct {
 		cfg        Config
 		checkErr   require.ErrorAssertionFunc
@@ -23,12 +31,10 @@ func TestNewEnvironment(t *testing.T) {
 	}{
 		{
 			cfg: Config{
-				Client:               github.NewClient(nil),
-				DefaultReviewers:     "[\"admin\"]",
-				EventPath:            "",
-				unmarshalRevs:        UnmarshalReviewersTest,
-				unmarshalDefaultRevs: UnmarshalDefaultReviewersTest,
-				Token:                "testtoken",
+				Client:        github.NewClient(nil),
+				EventPath:     "",
+				unmarshalRevs: UnmarshalReviewersTest,
+				Token:         "testtoken",
 			},
 			checkErr:   require.Error,
 			desc:       "invalid Environment config with Reviewers parameter",
@@ -37,29 +43,58 @@ func TestNewEnvironment(t *testing.T) {
 		},
 		{
 			cfg: Config{
-				Client:               github.NewClient(nil),
-				DefaultReviewers:     "[\"admin\"]",
-				Reviewers:            `{"foo": ["bar", "baz"]}`,
-				unmarshalRevs:        UnmarshalReviewersTest,
-				unmarshalDefaultRevs: UnmarshalDefaultReviewersTest,
-				Token:                "testtoken",
+				Client:        github.NewClient(nil),
+				Reviewers:     `{"foo": ["bar", "baz"], "":["admin"]}`,
+				unmarshalRevs: UnmarshalReviewersTest,
+				Token:         "testtoken",
 			},
 			checkErr: require.NoError,
 			desc:     "valid Environment config",
 			expected: &Environment{
-				reviewers: map[string][]string{"foo": {"bar", "baz"}},
-				Client:    github.NewClient(nil),
+				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "": {"admin"}},
+				Client:           github.NewClient(nil),
+				PullRequest:      pr,
+				action:           ci.OPENED,
+				defaultReviewers: []string{"admin"},
 			},
 			createFile: true,
 		},
 		{
 			cfg: Config{
-				Reviewers:            `{"foo": "baz"}`,
-				Client:               github.NewClient(nil),
-				DefaultReviewers:     "[\"admin\"]",
-				unmarshalRevs:        UnmarshalReviewersTest,
-				unmarshalDefaultRevs: UnmarshalDefaultReviewersTest,
-				Token:                "testtoken",
+				Client:        github.NewClient(nil),
+				Reviewers:     `{"foo": ["bar", "baz"], "":["admin"]}`,
+				unmarshalRevs: UnmarshalReviewersTest,
+				Token:         "testtoken",
+			},
+			checkErr: require.NoError,
+			desc:     "valid Environment config",
+			expected: &Environment{
+				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "": {"admin"}},
+				Client:           github.NewClient(nil),
+				PullRequest:      pr,
+				action:           ci.OPENED,
+				defaultReviewers: []string{"admin"},
+			},
+			createFile: true,
+		},
+		{
+			cfg: Config{
+				Client:        github.NewClient(nil),
+				Reviewers:     `{"foo": ["bar", "baz"]}`,
+				unmarshalRevs: UnmarshalReviewersTest,
+				Token:         "testtoken",
+			},
+			checkErr:   require.Error,
+			desc:       "invalid Environment config, has no default reviewers key",
+			expected:   nil,
+			createFile: true,
+		},
+		{
+			cfg: Config{
+				Reviewers:     `{"foo": "baz", "":["admin"]}`,
+				Client:        github.NewClient(nil),
+				unmarshalRevs: UnmarshalReviewersTest,
+				Token:         "testtoken",
 			},
 			checkErr:   require.Error,
 			desc:       "invalid reviewers object format",
@@ -68,9 +103,8 @@ func TestNewEnvironment(t *testing.T) {
 		},
 		{
 			cfg: Config{
-				unmarshalRevs:        UnmarshalReviewersTest,
-				unmarshalDefaultRevs: UnmarshalDefaultReviewersTest,
-				Token:                "testtoken",
+				unmarshalRevs: UnmarshalReviewersTest,
+				Token:         "testtoken",
 			},
 			checkErr:   require.Error,
 			desc:       "invalid config with no client",
@@ -81,7 +115,6 @@ func TestNewEnvironment(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			if test.createFile {
-				// Valid config
 				f, err := ioutil.TempFile("", "payload")
 				require.NoError(t, err)
 				filePath := f.Name()
@@ -90,8 +123,9 @@ func TestNewEnvironment(t *testing.T) {
 				require.NoError(t, err)
 				test.cfg.EventPath = filePath
 			}
-			_, err := New(test.cfg)
+			env, err := New(test.cfg)
 			test.checkErr(t, err)
+			require.Equal(t, test.expected, env)
 		})
 	}
 }
@@ -182,6 +216,7 @@ func TestSetPullRequest(t *testing.T) {
 }
 
 func UnmarshalReviewersTest(str string, client *github.Client) (map[string][]string, error) {
+	var hasDefaultReviewers bool
 	if str == "" {
 		return nil, trace.BadParameter("reviewers not found.")
 	}
@@ -190,14 +225,14 @@ func UnmarshalReviewersTest(str string, client *github.Client) (map[string][]str
 	if err != nil {
 		return nil, err
 	}
+	for k := range m {
+		if k == "" {
+			hasDefaultReviewers = true
+			continue
+		}
+	}
+	if !hasDefaultReviewers {
+		return nil, trace.BadParameter("default reviewers are not set. set default reviewers with an empty string as a key.")
+	}
 	return m, nil
-}
-
-func UnmarshalDefaultReviewersTest(str string, client *github.Client) ([]string, error) {
-	str = strings.Trim(str, "[")
-	str = strings.Trim(str, "]")
-	reviewers := strings.Split(str, ",")
-	defaultReviewers := []string{}
-	defaultReviewers = append(defaultReviewers, reviewers...)
-	return defaultReviewers, nil
 }
