@@ -2036,3 +2036,16 @@ func (c *Client) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	_, err := c.grpc.CompleteAccountRecovery(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
 }
+
+// CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
+func (c *Client) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
+	res, err := c.grpc.CreateAccountRecoveryCodes(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// GetAccountRecoveryToken returns a user token resource after verifying the token in
+// request is not expired and is of the correct recovery type.
+func (c *Client) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error) {
+	res, err := c.grpc.GetAccountRecoveryToken(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
