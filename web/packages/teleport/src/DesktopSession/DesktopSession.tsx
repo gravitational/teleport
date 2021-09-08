@@ -18,6 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import useDesktopSession, { State } from './useDesktopSession';
 import TopBar from './TopBar';
+import { Indicator, Box, Text, Link, Alert } from 'design';
 
 export default function Container() {
   const state = useDesktopSession();
@@ -25,19 +26,15 @@ export default function Container() {
 }
 
 export function DesktopSession(props: State) {
-  const { setAttempt, tdpClient } = props;
+  const { attempt, setAttempt, tdpClient } = props;
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   // Waits for the state hook to initialize the TdpClient.
-  // Once the client is initialized, calls for the client to connect to the
-  // server and passes in the canvas for the client to render to.
+  // Once the client is initialized, sets attempt to 'success'.
   React.useEffect(() => {
     setAttempt({ status: 'processing' });
 
     tdpClient.on('open', () => {
-      syncCanvasSizeToClientSize(canvasRef.current);
-      tdpClient.sendUsername();
-      tdpClient.resize(canvasRef.current.width, canvasRef.current.height);
       setAttempt({ status: 'success' });
     });
 
@@ -70,6 +67,17 @@ export function DesktopSession(props: State) {
     };
   }, [tdpClient]);
 
+  React.useEffect(() => {
+    // When attempt is set to 'success' the canvas component gets rendered,
+    // at which point we can send its width and height to the tdpClient as part
+    // of the TDP initial handshake.
+    if (attempt.status === 'success') {
+      syncCanvasSizeToClientSize(canvasRef.current);
+      tdpClient.sendUsername();
+      tdpClient.resize(canvasRef.current.width, canvasRef.current.height);
+    }
+  }, [attempt]);
+
   // Canvas has two size attributes: the dimension of the pixels in the canvas (canvas.width)
   // and the display size of the html element (canvas.clientWidth). syncCanvasSizeToClientSize
   // ensures the two remain equal.
@@ -93,7 +101,18 @@ export function DesktopSession(props: State) {
         clipboard={false}
         recording={false}
       />
-      <canvas ref={canvasRef} />
+      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
+      {attempt.status === 'processing' && (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      )}
+
+      {attempt.status === 'success' && (
+        <>
+          <canvas ref={canvasRef} />
+        </>
+      )}
     </StyledDesktopSession>
   );
 }

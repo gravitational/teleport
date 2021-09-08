@@ -15,14 +15,12 @@ limitations under the License.
 */
 
 import React from 'react';
-import { NavLink } from 'react-router-dom';
 import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
 import * as Icons from 'design/Icon';
 import { Flex } from 'design';
-import cfg from 'teleport/config';
 import { useTheme } from 'styled-components';
 
-export default function ActionMenu() {
+export default function ActionMenu(props: Props) {
   const theme = useTheme();
 
   return (
@@ -35,14 +33,18 @@ export default function ActionMenu() {
         }}
         menuProps={menuProps}
       >
-        <MenuItem as={NavLink} to={cfg.routes.root}>
-          <MenuItemIcon as={Icons.Home} mr="2" />
-          Main
+        <MenuItem as={'a'} onClick={props.onDisconnect}>
+          <MenuItemIcon as={Icons.PowerSwitch} mr="2" />
+          Disconnect
         </MenuItem>
       </MenuIcon>
     </Flex>
   );
 }
+
+type Props = {
+  onDisconnect: VoidFunction;
+};
 
 const menuListCss = () => `
   width: 250px;

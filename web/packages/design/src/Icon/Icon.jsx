@@ -202,6 +202,7 @@ export const PhonelinkSetup = makeFontIcon(
 );
 export const Planet = makeFontIcon('Planet', 'icon-planet');
 export const Play = makeFontIcon('Play', 'icon-play');
+export const PowerSwitch = makeFontIcon('PowerSwitch', 'icon-power-switch');
 export const Profile = makeFontIcon('Profile', 'icon-profile');
 export const Question = makeFontIcon('Question', 'icon-question-circle');
 export const Restore = makeFontIcon('Restore', 'icon-restore');

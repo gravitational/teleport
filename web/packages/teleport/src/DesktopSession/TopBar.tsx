@@ -89,7 +89,11 @@ export default function TopBar(props: TopBarProps) {
             {recording ? '' : 'Not '}Recording
           </StyledRecordingText>
         </Flex>
-        <ActionMenu />
+        <ActionMenu
+          onDisconnect={() => {
+            console.log('TODO');
+          }}
+        />
       </Flex>
     </TopNav>
   );
