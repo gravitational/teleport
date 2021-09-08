@@ -28,8 +28,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
@@ -91,7 +90,7 @@ type TLSCredentials struct {
 // GenerateSelfSignedCert generates a self signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
 func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

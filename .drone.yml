@@ -179,6 +179,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -280,6 +281,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -408,6 +410,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -502,6 +505,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -600,6 +604,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -694,6 +699,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -885,6 +891,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -979,6 +986,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1123,6 +1131,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1306,6 +1315,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1402,6 +1412,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1501,6 +1512,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1599,6 +1611,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -1719,6 +1732,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -1841,6 +1855,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -1957,6 +1972,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2065,6 +2081,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2161,6 +2178,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2281,6 +2299,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -2397,6 +2416,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2879,6 +2899,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -2975,6 +2996,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3086,6 +3108,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3197,6 +3220,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3317,6 +3341,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3442,6 +3467,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: tmpfs
     path: /tmpfs
@@ -3542,6 +3568,7 @@ steps:
 services:
 - name: Start Docker
   image: docker:dind
+  privileged: true
   volumes:
   - name: dockersock
     path: /var/run
@@ -3651,6 +3678,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -3751,6 +3779,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -3854,6 +3883,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -3990,6 +4020,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -4135,6 +4166,10 @@ steps:
     image: docker
     commands:
       - |
+        if [ "${DRONE_REPO}" != "gravitational/teleport" ]; then
+          echo "---> Not publishing ${DRONE_REPO} packages to repos"
+          exit 78
+        fi
         # length will be 0 after filtering if this is a pre-release, >0 otherwise
         FILTERED_TAG_LENGTH=$(echo ${DRONE_TAG} | egrep -v '(alpha|beta|dev|rc)' | wc -c)
         if [ $$FILTERED_TAG_LENGTH -eq 0 ]; then
@@ -4278,6 +4313,7 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -4300,6 +4336,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 81e81a6ee7ef982ff05c6b1008572da8b23fab12647dec2500d769bf78d16e33
+hmac: 74c773020214cc99aa30f633c7dde1e98a9eb0f29c2cd90fb3c7c0c817e02312
 
 ...

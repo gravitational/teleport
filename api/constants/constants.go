@@ -91,6 +91,9 @@ const (
 
 	// DarwinOS is the GOOS constant for Apple macOS/darwin.
 	DarwinOS = "darwin"
+
+	// RSAKeySize is the size of the RSA key.
+	RSAKeySize = 2048
 )
 
 // SecondFactorType is the type of 2FA authentication.

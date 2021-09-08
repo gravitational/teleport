@@ -329,11 +329,12 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// The driver requires the config to be built by parsing the connection
 	// string so parse the basic template and then fill in the rest of
 	// parameters such as TLS configuration.
-	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s@%s/?database=%s",
-		sessionCtx.DatabaseUser, sessionCtx.Server.GetURI(), sessionCtx.DatabaseName))
+	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s", sessionCtx.Server.GetURI()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	config.User = sessionCtx.DatabaseUser
+	config.Database = sessionCtx.DatabaseName
 	// Pgconn adds fallbacks to retry connection without TLS if the TLS
 	// attempt fails. Reset the fallbacks to avoid retries, otherwise
 	// it's impossible to debug TLS connection errors.

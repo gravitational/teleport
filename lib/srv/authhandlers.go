@@ -236,7 +236,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	if h.Clock != nil {
 		clock = h.Clock.Now
 	}
-	certChecker := utils.CertChecker{
+	certChecker := apisshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
 			Clock:           clock,
@@ -291,7 +291,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicKey) error {
 	// Check if the given host key was signed by a Teleport certificate
 	// authority (CA) or fallback to host key checking if it's allowed.
-	certChecker := utils.CertChecker{
+	certChecker := apisshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsHostAuthority: h.IsHostAuthority,
 			HostKeyFallback: h.hostKeyCallback,
