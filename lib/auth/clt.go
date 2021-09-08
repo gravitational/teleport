@@ -1005,6 +1005,7 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 
 // GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
 func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
+	// TODO(codingllama): Post to /mfa/users/*/login/begin instead.
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
@@ -1014,11 +1015,11 @@ func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var signRequest *MFAAuthenticateChallenge
-	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
+	var challenge *MFAAuthenticateChallenge
+	if err := json.Unmarshal(out.Bytes(), &challenge); err != nil {
 		return nil, err
 	}
-	return signRequest, nil
+	return challenge, nil
 }
 
 // ExtendWebSession creates a new web session for a user based on another
@@ -1903,6 +1904,11 @@ type IdentityService interface {
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
+
+	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
+	// This token is used as part of a URL that will be emailed to the user (not done in this request).
+	// Represents step 1 of the account recovery process.
+	StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error)
 }
 
 // ProvisioningService is a service in control
