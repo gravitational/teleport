@@ -137,6 +137,8 @@ type ForwarderConfig struct {
 	// CheckImpersonationPermissions is an optional override of the default
 	// impersonation permissions check, for use in testing
 	CheckImpersonationPermissions ImpersonationPermissionsChecker
+	// PublicAddr is the addr that can be used to reach the kube cluster
+	PublicAddr string
 }
 
 // CheckAndSetDefaults checks and sets default values
