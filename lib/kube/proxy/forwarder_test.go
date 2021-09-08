@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"net/http"
 	"sort"
 	"testing"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"k8s.io/client-go/transport"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -44,7 +46,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
-	"k8s.io/client-go/transport"
 )
 
 type ForwarderSuite struct{}
@@ -54,6 +55,25 @@ var _ = check.Suite(ForwarderSuite{})
 func Test(t *testing.T) {
 	check.TestingT(t)
 }
+
+var (
+	identity = auth.WrapIdentity(tlsca.Identity{
+		Username:         "remote-bob",
+		Groups:           []string{"remote group a", "remote group b"},
+		Usage:            []string{"usage a", "usage b"},
+		Principals:       []string{"principal a", "principal b"},
+		KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
+		Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+	})
+	unmappedIdentity = auth.WrapIdentity(tlsca.Identity{
+		Username:         "bob",
+		Groups:           []string{"group a", "group b"},
+		Usage:            []string{"usage a", "usage b"},
+		Principals:       []string{"principal a", "principal b"},
+		KubernetesGroups: []string{"k8s group a", "k8s group b"},
+		Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+	})
+)
 
 func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	cl, err := newMockCSRClient()
@@ -72,23 +92,9 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 			name: "site a",
 		},
 		Context: auth.Context{
-			User: user,
-			Identity: auth.WrapIdentity(tlsca.Identity{
-				Username:         "remote-bob",
-				Groups:           []string{"remote group a", "remote group b"},
-				Usage:            []string{"usage a", "usage b"},
-				Principals:       []string{"principal a", "principal b"},
-				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
-				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			}),
-			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
-				Username:         "bob",
-				Groups:           []string{"group a", "group b"},
-				Usage:            []string{"usage a", "usage b"},
-				Principals:       []string{"principal a", "principal b"},
-				KubernetesGroups: []string{"k8s group a", "k8s group b"},
-				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			}),
+			User:             user,
+			Identity:         identity,
+			UnmappedIdentity: unmappedIdentity,
 		},
 	}
 
@@ -583,138 +589,151 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 	}
 }
 
-func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
+func TestNewClusterSession(t *testing.T) {
+	ctx := context.Background()
+
 	clientCreds, err := ttlmap.New(defaults.ClientCacheSize)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
+
 	csrClient, err := newMockCSRClient()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
+
 	f := &Forwarder{
 		log: logrus.New(),
 		cfg: ForwarderConfig{
 			Keygen:            testauthority.New(),
 			AuthClient:        csrClient,
 			CachingAuthClient: mockAccessPoint{},
+			Clock:             clockwork.NewFakeClock(),
 		},
 		clientCredentials: clientCreds,
-		ctx:               context.TODO(),
+		ctx:               ctx,
 		activeRequests:    make(map[string]context.Context),
 	}
-	user, err := types.NewUser("bob")
-	c.Assert(err, check.IsNil)
 
-	c.Log("newClusterSession for a local cluster without kubeconfig")
+	user, err := types.NewUser("bob")
+	require.NoError(t, err)
+
 	authCtx := authContext{
 		Context: auth.Context{
-			User: user,
-			Identity: auth.WrapIdentity(tlsca.Identity{
-				Username:         "remote-bob",
-				Groups:           []string{"remote group a", "remote group b"},
-				Usage:            []string{"usage a", "usage b"},
-				Principals:       []string{"principal a", "principal b"},
-				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
-				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			}),
-			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
-				Username:         "bob",
-				Groups:           []string{"group a", "group b"},
-				Usage:            []string{"usage a", "usage b"},
-				Principals:       []string{"principal a", "principal b"},
-				KubernetesGroups: []string{"k8s group a", "k8s group b"},
-				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			}),
-		},
-		teleportCluster: teleportClusterClient{
-			name: "local",
-		},
-		sessionTTL: time.Minute,
-	}
-	_, err = f.newClusterSession(authCtx)
-	c.Assert(err, check.NotNil)
-	c.Assert(trace.IsNotFound(err), check.Equals, true)
-	c.Assert(f.clientCredentials.Len(), check.Equals, 0)
-
-	f.creds = map[string]*kubeCreds{
-		"local": {
-			targetAddr:      "k8s.example.com",
-			tlsConfig:       &tls.Config{},
-			transportConfig: &transport.Config{},
-		},
-	}
-
-	c.Log("newClusterSession for a local cluster")
-	authCtx = authContext{
-		Context: auth.Context{
-			User: user,
-			Identity: auth.WrapIdentity(tlsca.Identity{
-				Username:         "remote-bob",
-				Groups:           []string{"remote group a", "remote group b"},
-				Usage:            []string{"usage a", "usage b"},
-				Principals:       []string{"principal a", "principal b"},
-				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
-				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			}),
-			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
-				Username:         "bob",
-				Groups:           []string{"group a", "group b"},
-				Usage:            []string{"usage a", "usage b"},
-				Principals:       []string{"principal a", "principal b"},
-				KubernetesGroups: []string{"k8s group a", "k8s group b"},
-				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			}),
+			User:             user,
+			Identity:         identity,
+			UnmappedIdentity: unmappedIdentity,
 		},
 		teleportCluster: teleportClusterClient{
 			name: "local",
 		},
 		sessionTTL:  time.Minute,
-		kubeCluster: "local",
+		kubeCluster: "public",
 	}
-	sess, err := f.newClusterSession(authCtx)
-	c.Assert(err, check.IsNil)
-	c.Assert(sess.authContext.teleportCluster.targetAddr, check.Equals, f.creds["local"].targetAddr)
-	c.Assert(sess.forwarder, check.NotNil)
-	// Make sure newClusterSession used f.creds instead of requesting a
-	// Teleport client cert.
-	c.Assert(sess.tlsConfig, check.Equals, f.creds["local"].tlsConfig)
-	c.Assert(csrClient.lastCert, check.IsNil)
-	c.Assert(f.clientCredentials.Len(), check.Equals, 0)
 
-	c.Log("newClusterSession for a remote cluster")
-	authCtx = authContext{
-		Context: auth.Context{
-			User: user,
-			Identity: auth.WrapIdentity(tlsca.Identity{
-				Username:         "remote-bob",
-				Groups:           []string{"remote group a", "remote group b"},
-				Usage:            []string{"usage a", "usage b"},
-				Principals:       []string{"principal a", "principal b"},
-				KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
-				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			}),
-			UnmappedIdentity: auth.WrapIdentity(tlsca.Identity{
-				Username:         "bob",
-				Groups:           []string{"group a", "group b"},
-				Usage:            []string{"usage a", "usage b"},
-				Principals:       []string{"principal a", "principal b"},
-				KubernetesGroups: []string{"k8s group a", "k8s group b"},
-				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			}),
-		},
-		teleportCluster: teleportClusterClient{
+	t.Run("newClusterSession for a local cluster without kubeconfig", func(t *testing.T) {
+		authCtx := authCtx
+		authCtx.kubeCluster = ""
+
+		_, err = f.newClusterSession(authCtx)
+		require.Error(t, err)
+		require.Equal(t, trace.IsNotFound(err), true)
+		require.Equal(t, f.clientCredentials.Len(), 0)
+	})
+
+	t.Run("newClusterSession for a local cluster", func(t *testing.T) {
+		authCtx := authCtx
+		authCtx.kubeCluster = "local"
+
+		// Set local creds for the following tests
+		f.creds = map[string]*kubeCreds{
+			"local": {
+				targetAddr:      "k8s.example.com",
+				tlsConfig:       &tls.Config{},
+				transportConfig: &transport.Config{},
+			},
+		}
+
+		sess, err := f.newClusterSession(authCtx)
+		require.NoError(t, err)
+		require.Equal(t, f.creds["local"].targetAddr, sess.authContext.teleportCluster.targetAddr)
+		require.NotNil(t, sess.forwarder)
+		// Make sure newClusterSession used f.creds instead of requesting a
+		// Teleport client cert.
+		require.Equal(t, f.creds["local"].tlsConfig, sess.tlsConfig)
+		require.Nil(t, csrClient.lastCert)
+		require.Equal(t, 0, f.clientCredentials.Len())
+	})
+
+	t.Run("newClusterSession for a remote cluster", func(t *testing.T) {
+		authCtx := authCtx
+		authCtx.kubeCluster = ""
+		authCtx.teleportCluster = teleportClusterClient{
 			name:     "remote",
 			isRemote: true,
-		},
-		sessionTTL: time.Minute,
-	}
-	sess, err = f.newClusterSession(authCtx)
-	c.Assert(err, check.IsNil)
-	c.Assert(sess.authContext.teleportCluster.targetAddr, check.Equals, reversetunnel.LocalKubernetes)
-	c.Assert(sess.forwarder, check.NotNil)
-	// Make sure newClusterSession obtained a new client cert instead of using
-	// f.creds.
-	c.Assert(sess.tlsConfig, check.Not(check.Equals), f.creds["local"].tlsConfig)
-	c.Assert(sess.tlsConfig.Certificates[0].Certificate[0], check.DeepEquals, csrClient.lastCert.Raw)
-	c.Assert(sess.tlsConfig.RootCAs.Subjects(), check.DeepEquals, [][]byte{csrClient.ca.Cert.RawSubject})
-	c.Assert(f.clientCredentials.Len(), check.Equals, 1)
+		}
+
+		sess, err := f.newClusterSession(authCtx)
+		require.NoError(t, err)
+		require.Equal(t, reversetunnel.LocalKubernetes, sess.authContext.teleportCluster.targetAddr)
+		require.NotNil(t, sess.forwarder)
+		// Make sure newClusterSession obtained a new client cert instead of using
+		// f.creds.
+		require.NotEqual(t, f.creds["local"].tlsConfig, sess.tlsConfig)
+		require.Equal(t, csrClient.lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
+		require.Equal(t, [][]byte{csrClient.ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
+		require.Equal(t, 1, f.clientCredentials.Len())
+	})
+
+	t.Run("newClusterSession with public kube_service endpoints", func(t *testing.T) {
+		publicKubeServer := &types.ServerV2{
+			Kind:    types.KindKubeService,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: "public-server",
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     "k8s.example.com:3026",
+				Hostname: "",
+				KubernetesClusters: []*types.KubernetesCluster{{
+					Name: "public",
+				}},
+			},
+		}
+
+		reverseTunnelKubeServer := &types.ServerV2{
+			Kind:    types.KindKubeService,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: "reverse-tunnel-server",
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     reversetunnel.LocalKubernetes,
+				Hostname: "",
+				KubernetesClusters: []*types.KubernetesCluster{{
+					Name: "public",
+				}},
+			},
+		}
+
+		f.cfg.CachingAuthClient = mockAccessPoint{
+			kubeServices: []types.Server{
+				publicKubeServer,
+				reverseTunnelKubeServer,
+			},
+		}
+
+		sess, err := f.newClusterSession(authCtx)
+		require.NoError(t, err)
+
+		expectedEndpoints := []endpoint{
+			{
+				addr:     publicKubeServer.GetAddr(),
+				serverID: fmt.Sprintf("%v.local", publicKubeServer.GetName()),
+			},
+			{
+				addr:     reverseTunnelKubeServer.GetAddr(),
+				serverID: fmt.Sprintf("%v.local", reverseTunnelKubeServer.GetName()),
+			},
+		}
+		require.Equal(t, expectedEndpoints, sess.authContext.teleportClusterEndpoints)
+	})
 }
 
 // mockCSRClient to intercept ProcessKubeCSR requests, record them and return a

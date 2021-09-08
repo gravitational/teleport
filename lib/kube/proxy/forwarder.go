@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1119,7 +1118,10 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	// Setup scheme, override target URL to the destination address
 	req.URL.Scheme = "https"
 	req.RequestURI = req.URL.Path + "?" + req.URL.RawQuery
-	req.URL.Host = constants.APIDomain
+	req.URL.Host = sess.teleportCluster.targetAddr
+	if sess.teleportCluster.targetAddr == "" {
+		req.URL.Host = reversetunnel.LocalKubernetes
+	}
 
 	// add origin headers so the service consuming the request on the other site
 	// is aware of where it came from
