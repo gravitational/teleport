@@ -177,13 +177,22 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	priv, pub, err := s.server.AuthServer.AuthServer.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	c.Assert(err, IsNil)
+
 	// start node
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: s.server.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		HostID:       hostID,
+		NodeName:     s.server.ClusterName(),
+		Roles:        types.SystemRoles{types.RoleNode},
+		PublicSSHKey: pub,
+		PublicTLSKey: tlsPub,
 	})
 	c.Assert(err, IsNil)
+	certs.Key = priv
 
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	c.Assert(err, IsNil)
@@ -2654,13 +2663,22 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	})
 	require.NoError(t, err)
 
+	priv, pub, err := server.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
 	// start auth server
 	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: server.TLS.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		HostID:       hostID,
+		NodeName:     server.TLS.ClusterName(),
+		Roles:        types.SystemRoles{types.RoleNode},
+		PublicSSHKey: pub,
+		PublicTLSKey: tlsPub,
 	})
 	require.NoError(t, err)
+	certs.Key = priv
 
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	require.NoError(t, err)
