@@ -52,6 +52,8 @@ type ConstructionOptions struct {
 	ConcurrentBackend backend.Backend
 }
 
+// ApplyOptions constructs a new `ConstructionOptions` value from a
+// sensible default and then applies the supplied options to it.
 func ApplyOptions(options []ConstructionOption) (*ConstructionOptions, error) {
 	result := ConstructionOptions{
 		MirrorMode: false,
@@ -62,6 +64,8 @@ func ApplyOptions(options []ConstructionOption) (*ConstructionOptions, error) {
 	return &result, nil
 }
 
+// applyOptions applies a collection of option-setting functions to the
+// receiver, modifying it in-place.
 func (opts *ConstructionOptions) Apply(options []ConstructionOption) error {
 	for _, opt := range options {
 		if err := opt(opts); err != nil {
@@ -71,8 +75,12 @@ func (opts *ConstructionOptions) Apply(options []ConstructionOption) error {
 	return nil
 }
 
+// ConstructionOption describes a named-parameter setting function for
+// configuring a ConstructionOptions instance
 type ConstructionOption func(*ConstructionOptions) error
 
+// WithMirrorMode asks the constructor to create a Backend in "mirror mode". Not
+// all backends will support this.
 func WithMirrorMode(mirror bool) ConstructionOption {
 	return func(opts *ConstructionOptions) error {
 		opts.MirrorMode = mirror
@@ -80,6 +88,7 @@ func WithMirrorMode(mirror bool) ConstructionOption {
 	}
 }
 
+// WithConcurrentBackend() asks the constructor to create a
 func WithConcurrentBackend(target backend.Backend) ConstructionOption {
 	return func(opts *ConstructionOptions) error {
 		opts.ConcurrentBackend = target
@@ -88,10 +97,16 @@ func WithConcurrentBackend(target backend.Backend) ConstructionOption {
 }
 
 // Constructor describes a function for constructing new instances of a
-// backend, with various options as required by a given test. Note that all
-// tests will create all backend interfaces.
+// backend, with various options as required by a given test.
 type Constructor func(options ...ConstructionOption) (backend.Backend, clockwork.FakeClock, error)
 
+// RunBackendComplianceSuite runs the entiore backend compliance suite,
+// createing a collection of named subtests under the context provided
+// by `t`.
+//
+// As each test requires a new backend instance it will invoke the supplied
+// `newBackend` function, which callers will use inject instances of the
+// backend under test.
 func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 	t.Run("CRUD", func(t *testing.T) {
 		testCRUD(t, newBackend)
@@ -142,6 +157,9 @@ func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 	})
 }
 
+// RequireItems asserts that the supplied `actual` items collection matches
+// the `expected` collection, in size, ordering and the key/value pairs of
+// each entry.
 func RequireItems(t *testing.T, actual, expected []backend.Item) {
 	require.Len(t, actual, len(expected))
 	for i := range expected {
@@ -286,7 +304,7 @@ func testQueryRange(t *testing.T, newBackend Constructor) {
 	require.Empty(t, result.Items)
 }
 
-// DeleteRange tests delete items by range
+// testDeleteRange tests delete items by range
 func testDeleteRange(t *testing.T, newBackend Constructor) {
 	uut, _, err := newBackend()
 	require.NoError(t, err)
@@ -314,7 +332,7 @@ func testDeleteRange(t *testing.T, newBackend Constructor) {
 	RequireItems(t, result.Items, []backend.Item{a, b})
 }
 
-// PutRange tests scenarios with put range
+// testPutRange tests scenarios with put range
 func testPutRange(t *testing.T, newBackend Constructor) {
 	uut, _, err := newBackend()
 	require.NoError(t, err)
@@ -340,7 +358,7 @@ func testPutRange(t *testing.T, newBackend Constructor) {
 	RequireItems(t, result.Items, []backend.Item{a, b})
 }
 
-// CompareAndSwap tests compare and swap functionality
+// testCompareAndSwap tests compare and swap functionality
 func testCompareAndSwap(t *testing.T, newBackend Constructor) {
 	uut, _, err := newBackend()
 	require.NoError(t, err)
@@ -620,7 +638,7 @@ func testWatchersClose(t *testing.T, newBackend Constructor) {
 	}
 }
 
-// Locking tests locking logic
+// testLocking tests locking logic
 func testLocking(t *testing.T, newBackend Constructor) {
 	tok1 := "token1"
 	tok2 := "token2"
@@ -754,7 +772,7 @@ func testLocking(t *testing.T, newBackend Constructor) {
 	require.NoError(t, lock.Release(ctx, uut))
 }
 
-// ConcurrentOperations tests concurrent operations on the same
+// testConcurrentOperations tests concurrent operations on the same
 // shared backend
 func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 	uutA, _, err := newBackend()
