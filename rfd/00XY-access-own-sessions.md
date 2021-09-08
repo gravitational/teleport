@@ -91,12 +91,12 @@ Some Teleport deployments may depend on the legacy behavior of all users being a
 
 With this RFD it becomes impossible to make a user's own session recordings unavailable to the user as the RBAC checks get skipped in those scenarios.
 
-### Future work
+## Future work
 
-#### Proxy web UI
+### Proxy web UI
 
 There is an [advanced filtering feature in the works](https://github.com/gravitational/teleport/issues/8155) with the goal to expose the event-type filtering functionality to the user through a checkbox of all the known event types. In a similar manner an autocomplete input field or a dynamic checkbox could be added to the "Session Recordings" screen to allow filtering by session participants. As for users lacking the privileges this widget would provide a useful hint about only their own sessions being shown, as they would be able to see their own username "hard-coded" in the filter.
 
-#### Event access control
+### Event access control
 
 The present solution should be seen as a preliminary measure tied with the limitations of Teleport's current schemas and/or the less expressive storage backends currently supported by Teleport. Ultimately, a full-fledged [event access control support](https://github.com/gravitational/teleport/issues/5430) should be implemented.
