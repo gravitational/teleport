@@ -1,7 +1,7 @@
 Create a local Teleport user with the built-in `access` role:
 
-```bash
-tctl users add --roles=access alice
+```code
+$ tctl users add --roles=access alice
 ```
 
 The `access` role allows users to see all connected database servers, but
@@ -12,8 +12,8 @@ connect to any database as any database user.
 
 First, export the user resource:
 
-```bash
-tctl get users/alice > alice.yaml
+```code
+$ tctl get users/alice > alice.yaml
 ```
 
 Update the resource to include the following traits:
@@ -28,8 +28,8 @@ traits:
 
 Update the user:
 
-```bash
-tctl create alice.yaml -f
+```code
+$ tctl create alice.yaml -f
 ```
 
 For more detailed information about database access controls and how to restricted

@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -44,9 +45,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 )
 
 func TestMFADeviceManagement(t *testing.T) {
@@ -588,7 +589,9 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	err = srv.Auth().UpsertKubeService(ctx, k8sSrv)
 	require.NoError(t, err)
 	// Register a database.
-	db, err := types.NewDatabaseServerV3("db-a", nil, types.DatabaseServerSpecV3{
+	db, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "db-a",
+	}, types.DatabaseServerSpecV3{
 		Protocol: "postgres",
 		URI:      "localhost",
 		Hostname: "localhost",
@@ -655,7 +658,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 	})
 	// Fetch MFA device ID.
-	devs, err := srv.Auth().GetMFADevices(ctx, user.GetName())
+	devs, err := srv.Auth().Identity.GetMFADevices(ctx, user.GetName(), false)
 	require.NoError(t, err)
 	require.Len(t, devs, 1)
 	u2fDevID := devs[0].Id
@@ -1542,4 +1545,139 @@ func TestLocksCRUD(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
+}
+
+// TestDatabasesCRUD tests database resource operations.
+func TestDatabasesCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// Create a couple databases.
+	db1, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "db1",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+	db2, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "db2",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+	})
+	require.NoError(t, err)
+
+	// Initially we expect no databases.
+	out, err := clt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+
+	// Create both databases.
+	err = clt.CreateDatabase(ctx, db1)
+	require.NoError(t, err)
+	err = clt.CreateDatabase(ctx, db2)
+	require.NoError(t, err)
+
+	// Fetch all databases.
+	out, err = clt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Fetch a specific database.
+	db, err := clt.GetDatabase(ctx, db2.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(db2, db,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Try to fetch a database that doesn't exist.
+	_, err = clt.GetDatabase(ctx, "doesnotexist")
+	require.IsType(t, trace.NotFound(""), err)
+
+	// Try to create the same database.
+	err = clt.CreateDatabase(ctx, db1)
+	require.IsType(t, trace.AlreadyExists(""), err)
+
+	// Update a database.
+	db1.Metadata.Description = "description"
+	err = clt.UpdateDatabase(ctx, db1)
+	require.NoError(t, err)
+	db, err = clt.GetDatabase(ctx, db1.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(db1, db,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Delete a database.
+	err = clt.DeleteDatabase(ctx, db1.GetName())
+	require.NoError(t, err)
+	out, err = clt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Try to delete a database that doesn't exist.
+	err = clt.DeleteDatabase(ctx, "doesnotexist")
+	require.IsType(t, trace.NotFound(""), err)
+
+	// Delete all databases.
+	err = clt.DeleteAllDatabases(ctx)
+	require.NoError(t, err)
+	out, err = clt.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 0)
+}
+
+func TestCustomRateLimiting(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	clt, err := srv.NewClient(TestNop())
+	require.NoError(t, err)
+
+	cases := []struct {
+		name string
+		fn   func() error
+	}{
+		{
+			name: "RPC ChangeUserAuthentication",
+			fn: func() error {
+				_, err := clt.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{})
+				return err
+			},
+		},
+		{
+			name: "RPC StartAccountRecovery",
+			fn: func() error {
+				_, err := clt.StartAccountRecovery(context.Background(), &proto.StartAccountRecoveryRequest{})
+				return err
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			// For now since we only have one custom rate limit,
+			// test limit for 1 request per minute with bursts up to 10 requests.
+			const maxAttempts = 11
+			var err error
+
+			for i := 0; i < maxAttempts; i++ {
+				err = c.fn()
+				require.Error(t, err)
+			}
+			require.True(t, trace.IsLimitExceeded(err))
+		})
+	}
 }

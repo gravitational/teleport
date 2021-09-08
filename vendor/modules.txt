@@ -137,6 +137,13 @@ github.com/boombuler/barcode/qr
 github.com/boombuler/barcode/utils
 # github.com/cespare/xxhash/v2 v2.1.1
 github.com/cespare/xxhash/v2
+# github.com/cloudflare/cfssl v0.0.0-20190726000631-633726f6bcb7
+github.com/cloudflare/cfssl/crypto/pkcs7
+github.com/cloudflare/cfssl/errors
+github.com/cloudflare/cfssl/helpers
+github.com/cloudflare/cfssl/helpers/derhelpers
+github.com/cloudflare/cfssl/log
+github.com/cloudflare/cfssl/revoke
 # github.com/coreos/go-oidc v0.0.4 => github.com/gravitational/go-oidc v0.0.4
 ## explicit
 github.com/coreos/go-oidc/http
@@ -166,6 +173,13 @@ github.com/dgrijalva/jwt-go
 ## explicit
 github.com/docker/spdystream
 github.com/docker/spdystream/spdy
+# github.com/duo-labs/webauthn v0.0.0-20210727191636-9f1b88ef44cc
+## explicit
+github.com/duo-labs/webauthn/metadata
+github.com/duo-labs/webauthn/protocol
+github.com/duo-labs/webauthn/protocol/googletpm
+github.com/duo-labs/webauthn/protocol/webauthncose
+github.com/duo-labs/webauthn/webauthn
 # github.com/dustin/go-humanize v1.0.0
 ## explicit
 github.com/dustin/go-humanize
@@ -182,6 +196,9 @@ github.com/flynn/u2f/u2ftoken
 ## explicit
 github.com/fsouza/fake-gcs-server/fakestorage
 github.com/fsouza/fake-gcs-server/internal/backend
+# github.com/fxamacker/cbor/v2 v2.3.0
+## explicit
+github.com/fxamacker/cbor/v2
 # github.com/ghodss/yaml v1.0.0
 ## explicit
 github.com/ghodss/yaml
@@ -224,6 +241,12 @@ github.com/golang/snappy
 # github.com/google/btree v1.0.0
 ## explicit
 github.com/google/btree
+# github.com/google/certificate-transparency-go v1.0.21
+github.com/google/certificate-transparency-go
+github.com/google/certificate-transparency-go/asn1
+github.com/google/certificate-transparency-go/tls
+github.com/google/certificate-transparency-go/x509
+github.com/google/certificate-transparency-go/x509/pkix
 # github.com/google/go-cmp v0.5.4
 ## explicit
 github.com/google/go-cmp/cmp
@@ -304,7 +327,7 @@ github.com/gravitational/teleport/api/utils
 github.com/gravitational/teleport/api/utils/keypaths
 github.com/gravitational/teleport/api/utils/sshutils
 github.com/gravitational/teleport/api/utils/tlsutils
-# github.com/gravitational/trace v1.1.16-0.20210609220119-4855e69c89fc
+# github.com/gravitational/trace v1.1.16-0.20210617142343-5335ac7a6c19
 ## explicit
 github.com/gravitational/trace
 github.com/gravitational/trace/internal
@@ -415,6 +438,8 @@ github.com/miekg/pkcs11
 # github.com/mitchellh/go-wordwrap v1.0.1
 ## explicit
 github.com/mitchellh/go-wordwrap
+# github.com/mitchellh/mapstructure v1.1.2
+github.com/mitchellh/mapstructure
 # github.com/moby/term v0.0.0-20201216013528-df9cb8a40635
 ## explicit
 github.com/moby/term
@@ -479,6 +504,9 @@ github.com/ryszard/goskiplist/skiplist
 github.com/satori/go.uuid
 # github.com/sergi/go-diff v1.1.0
 ## explicit
+# github.com/sethvargo/go-diceware v0.2.1
+## explicit
+github.com/sethvargo/go-diceware/diceware
 # github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500
 ## explicit
 github.com/shabbyrobe/gocovmerge
@@ -495,7 +523,7 @@ github.com/siddontang/go-mysql/mysql
 github.com/siddontang/go-mysql/packet
 github.com/siddontang/go-mysql/server
 github.com/siddontang/go-mysql/utils
-# github.com/sirupsen/logrus v1.8.1-0.20210219125412-f104497f2b21
+# github.com/sirupsen/logrus v1.8.1-0.20210219125412-f104497f2b21 => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 ## explicit
 github.com/sirupsen/logrus
 github.com/sirupsen/logrus/hooks/syslog
@@ -516,6 +544,8 @@ github.com/tstranex/u2f
 ## explicit
 github.com/vulcand/predicate
 github.com/vulcand/predicate/builder
+# github.com/x448/float16 v0.8.4
+github.com/x448/float16
 # github.com/xdg-go/pbkdf2 v1.0.0
 github.com/xdg-go/pbkdf2
 # github.com/xdg-go/scram v1.0.2
@@ -628,6 +658,8 @@ golang.org/x/crypto/acme/autocert
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/chacha20
+golang.org/x/crypto/cryptobyte
+golang.org/x/crypto/cryptobyte/asn1
 golang.org/x/crypto/curve25519
 golang.org/x/crypto/ed25519
 golang.org/x/crypto/ed25519/internal/edwards25519
@@ -635,6 +667,8 @@ golang.org/x/crypto/internal/subtle
 golang.org/x/crypto/nacl/secretbox
 golang.org/x/crypto/ocsp
 golang.org/x/crypto/pbkdf2
+golang.org/x/crypto/pkcs12
+golang.org/x/crypto/pkcs12/internal/rc2
 golang.org/x/crypto/poly1305
 golang.org/x/crypto/salsa20/salsa
 golang.org/x/crypto/ssh
@@ -1105,3 +1139,4 @@ sigs.k8s.io/yaml
 # github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.4
 # github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 # github.com/gravitational/teleport/api => ./api
+# github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621

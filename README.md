@@ -54,7 +54,7 @@ replacing legacy `sshd`-based setups at organizations who need:
   across many environments and cloud providers.
 * Audit log with session recording/replay for multiple protocols
 * Easily manage trust between teams, organizations and data centers.
-* Role-based access control (RBAC) and flexible access workflows (one-time access requests)
+* Role-based access control (RBAC) and flexible access workflows (one-time [access requests](https://goteleport.com/features/access-requests/)
 
 In addition to its hallmark features, Teleport is interesting for smaller teams
 because it facilitates easy adoption of the best infrastructure security

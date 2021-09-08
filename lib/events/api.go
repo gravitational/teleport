@@ -217,6 +217,8 @@ const (
 	//  - updating a user record
 	UpdatedBy = "updated_by"
 
+	// RecoveryTokenCreateEvent is emitted when a new recovery token is created.
+	RecoveryTokenCreateEvent = "recovery_token.create"
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
@@ -364,6 +366,13 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
+	// DatabaseCreateEvent is emitted when a database resource is created.
+	DatabaseCreateEvent = "db.create"
+	// DatabaseUpdateEvent is emitted when a database resource is updated.
+	DatabaseUpdateEvent = "db.update"
+	// DatabaseDeleteEvent is emitted when a database resource is deleted.
+	DatabaseDeleteEvent = "db.delete"
+
 	// DatabaseSessionStartEvent is emitted when a database client attempts
 	// to connect to a database.
 	DatabaseSessionStartEvent = "db.session.start"
@@ -396,6 +405,16 @@ const (
 	MFADeviceAddEvent = "mfa.add"
 	// MFADeviceDeleteEvent is an event type for users deleting MFA devices.
 	MFADeviceDeleteEvent = "mfa.delete"
+
+	// LockCreatedEvent fires when a lock is created/updated.
+	LockCreatedEvent = "lock.created"
+	// LockDeletedEvent fires when a lock is deleted.
+	LockDeletedEvent = "lock.deleted"
+
+	// RecoveryCodeGeneratedEvent is an event type for generating a user's recovery tokens.
+	RecoveryCodeGeneratedEvent = "recovery_code.generated"
+	// RecoveryCodeUsedEvent is an event type when a recovery token was used.
+	RecoveryCodeUsedEvent = "recovery_code.used"
 )
 
 const (

@@ -23,9 +23,12 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -631,24 +634,42 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 
 // GetAuthPreference gets cluster auth preference.
 func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	if resp, err := c.APIClient.GetAuthPreference(ctx); err != nil {
+	authPref, err := c.APIClient.GetAuthPreference(ctx)
+	if err != nil {
 		if !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
 		}
-	} else {
-		return resp, nil
+		out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authPref, err = services.UnmarshalAuthPreference(out.Bytes())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
+
+	resp, err := c.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cap, err := services.UnmarshalAuthPreference(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// AuthPreference was updated in 7.0.0 to hold legacy cluster config fields. If the
+	// server version is < 7.0.0, we must update the AuthPreference with the legacy fields.
+	if err := utils.CheckVersion(resp.ServerVersion, utils.VersionBeforeAlpha("7.0.0")); err != nil {
+		if !trace.IsBadParameter(err) {
+			return nil, trace.Wrap(err)
+		}
+		legacyConfig, err := c.GetClusterConfig()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := services.UpdateAuthPreferenceWithLegacyClusterConfig(legacyConfig, authPref); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	return cap, nil
+	return authPref, nil
 }
 
 // SetAuthPreference sets cluster auth preference.
@@ -671,4 +692,109 @@ func (c *Client) SetAuthPreference(ctx context.Context, cap types.AuthPreference
 	}
 
 	return nil
+}
+
+// GetClusterAuditConfig gets cluster audit configuration.
+func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	auditConfig, err := c.APIClient.GetClusterAuditConfig(ctx)
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return auditConfig, nil
+	}
+
+	cfg, err := c.GetClusterConfig(opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg.GetClusterAuditConfig()
+}
+
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	netConfig, err := c.APIClient.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return netConfig, nil
+	}
+
+	cfg, err := c.GetClusterConfig(opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg.GetClusterNetworkingConfig()
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	recConfig, err := c.APIClient.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		return recConfig, nil
+	}
+
+	cfg, err := c.GetClusterConfig(opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg.GetSessionRecordingConfig()
+}
+
+// ChangeUserAuthentication changes user password with a user reset token and starts a web session.
+//
+// Returns recovery tokens for cloud users with second factors turned on.
+func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
+	switch resp, err := c.APIClient.ChangeUserAuthentication(ctx, req); {
+	// ChangeUserAuthentication available
+	case err == nil:
+		return resp, nil
+	// ChangeUserAuthentication errored
+	case !trace.IsNotImplemented(err):
+		return nil, trace.Wrap(err)
+	}
+
+	// DELETE IN 9.0.0
+	// Convert request back to fallback compatible object.
+	httpReq := ChangePasswordWithTokenRequest{
+		SecondFactorToken: req.GetNewMFARegisterResponse().GetTOTP().GetCode(),
+		TokenID:           req.GetTokenID(),
+		Password:          req.GetNewPassword(),
+	}
+
+	if req.NewMFARegisterResponse.GetU2F() != nil {
+		httpReq.U2FRegisterResponse = &u2f.RegisterChallengeResponse{
+			RegistrationData: req.NewMFARegisterResponse.GetU2F().GetRegistrationData(),
+			ClientData:       req.NewMFARegisterResponse.GetU2F().GetClientData(),
+		}
+	}
+
+	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), httpReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	webSession, err := services.UnmarshalWebSession(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, ok := webSession.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected WebSessionV2 type %T", sess)
+	}
+
+	return &proto.ChangeUserAuthenticationResponse{
+		WebSession: sess,
+	}, nil
 }

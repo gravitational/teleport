@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -567,29 +568,34 @@ func (c *netRestrictionsCollection) writeText(w io.Writer) error {
 	return trace.Wrap(out.err)
 }
 
-type dbCollection struct {
+type databaseServerCollection struct {
 	servers []types.DatabaseServer
 }
 
-func (c *dbCollection) resources() (r []types.Resource) {
+func (c *databaseServerCollection) resources() (r []types.Resource) {
 	for _, resource := range c.servers {
 		r = append(r, resource)
 	}
 	return r
 }
 
-func (c *dbCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Name", "Protocol", "Address", "Labels"})
+func (c *databaseServerCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Protocol", "URI", "Labels", "Hostname", "Version"})
 	for _, server := range c.servers {
 		t.AddRow([]string{
-			server.GetName(), server.GetProtocol(), server.GetURI(), server.LabelsString(),
+			server.GetDatabase().GetName(),
+			server.GetDatabase().GetProtocol(),
+			server.GetDatabase().GetURI(),
+			server.GetDatabase().LabelsString(),
+			server.GetHostname(),
+			server.GetTeleportVersion(),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
-func (c *dbCollection) writeJSON(w io.Writer) error {
+func (c *databaseServerCollection) writeJSON(w io.Writer) error {
 	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
 	if err != nil {
 		return trace.Wrap(err)
@@ -598,12 +604,34 @@ func (c *dbCollection) writeJSON(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (c *dbCollection) toMarshal() interface{} {
+func (c *databaseServerCollection) toMarshal() interface{} {
 	return c.servers
 }
 
-func (c *dbCollection) writeYAML(w io.Writer) error {
+func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.toMarshal())
+}
+
+type databaseCollection struct {
+	databases []types.Database
+}
+
+func (c *databaseCollection) resources() (r []types.Resource) {
+	for _, resource := range c.databases {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *databaseCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Protocol", "URI", "Labels"})
+	for _, database := range c.databases {
+		t.AddRow([]string{
+			database.GetName(), database.GetProtocol(), database.GetURI(), database.LabelsString(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }
 
 type lockCollection struct {
@@ -626,6 +654,50 @@ func (c *lockCollection) writeText(w io.Writer) error {
 			expires = apiutils.HumanTimeFormat(*lock.LockExpiry())
 		}
 		t.AddRow([]string{lock.GetName(), target.String(), lock.Message(), expires})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type windowsDesktopServiceCollection struct {
+	services []types.WindowsDesktopService
+}
+
+func (c *windowsDesktopServiceCollection) resources() (r []types.Resource) {
+	for _, resource := range c.services {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *windowsDesktopServiceCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Address", "Version"})
+	for _, service := range c.services {
+		addr := service.GetAddr()
+		if addr == reversetunnel.LocalWindowsDesktop {
+			addr = "<proxy tunnel>"
+		}
+		t.AddRow([]string{service.GetName(), addr, service.GetTeleportVersion()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type windowsDesktopCollection struct {
+	desktops []types.WindowsDesktop
+}
+
+func (c *windowsDesktopCollection) resources() (r []types.Resource) {
+	for _, resource := range c.desktops {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *windowsDesktopCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"UUID", "Address"})
+	for _, desktop := range c.desktops {
+		t.AddRow([]string{desktop.GetName(), desktop.GetAddr()})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
