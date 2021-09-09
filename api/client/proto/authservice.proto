@@ -1468,4 +1468,10 @@ service AuthService {
     // the new credentials. When the new authentication is successfully set, any user lock is
     // removed so the user can login immediately afterwards.
     rpc CompleteAccountRecovery(CompleteAccountRecoveryRequest) returns (google.protobuf.Empty);
+
+    // SetClusterEncryptionConfig sets the ClusterEncryptionConfigV3 resource.
+    rpc SetClusterEncryptionConfig(types.ClusterEncryptionConfigV3) returns (google.protobuf.Empty);
+
+    // GetClusterEncryptionConfig gets the ClusterEncryptionConfigV3 resource.
+    rpc GetClusterEncryptionConfig(google.protobuf.Empty) returns (types.ClusterEncryptionConfigV3);
 }

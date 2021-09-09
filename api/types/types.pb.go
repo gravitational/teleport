@@ -7535,6 +7535,7 @@ func (m *RecoveryCode) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_RecoveryCode proto.InternalMessageInfo
 
+// ClusterEncryptionConfigV3 describes an encryption configuration resource.
 type ClusterEncryptionConfigV3 struct {
 	// Kind is a resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
@@ -7544,7 +7545,7 @@ type ClusterEncryptionConfigV3 struct {
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata holds resource metadata.
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
-	// Spec is an Github connector specification.
+	// Spec is an encryption config specification.
 	Spec                 ClusterEncryptionConfigSpecV3 `protobuf:"bytes,5,opt,name=Spec,proto3" json:"spec"`
 	XXX_NoUnkeyedLiteral struct{}                      `json:"-"`
 	XXX_unrecognized     []byte                        `json:"-"`
@@ -7584,6 +7585,7 @@ func (m *ClusterEncryptionConfigV3) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ClusterEncryptionConfigV3 proto.InternalMessageInfo
 
+// SessionEncryptionKey describes one RSA-2048 asymmetric session encryption key.
 type SessionEncryptionKey struct {
 	Identifier           string   `protobuf:"bytes,1,opt,name=Identifier,proto3" json:"identifier"`
 	KeyPair              string   `protobuf:"bytes,2,opt,name=KeyPair,proto3" json:"key_pair"`
@@ -7625,7 +7627,9 @@ func (m *SessionEncryptionKey) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SessionEncryptionKey proto.InternalMessageInfo
 
+// ClusterEncryptionConfigSpecV3 describes the spec for the ClusterEncryptionConfigV3 resource.
 type ClusterEncryptionConfigSpecV3 struct {
+	// SessionEncryptionKeys is a list of master keys for encrypting session data keys.
 	MasterKeys           []*SessionEncryptionKey `protobuf:"bytes,1,rep,name=MasterKeys,proto3" json:"master_keys"`
 	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
 	XXX_unrecognized     []byte                  `json:"-"`

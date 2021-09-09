@@ -2515,6 +2515,7 @@ message RecoveryCode {
     bool IsUsed = 2 [ (gogoproto.jsontag) = "is_used" ];
 }
 
+// ClusterEncryptionConfigV3 describes an encryption configuration resource.
 message ClusterEncryptionConfigV3 {
     // Kind is a resource kind.
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
@@ -2524,16 +2525,19 @@ message ClusterEncryptionConfigV3 {
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
     // Metadata holds resource metadata.
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
-    // Spec is an Github connector specification.
+    // Spec is an encryption config specification.
     ClusterEncryptionConfigSpecV3 Spec = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
+// SessionEncryptionKey describes one RSA-2048 asymmetric session encryption key.
 message SessionEncryptionKey {
     string Identifier = 1 [ (gogoproto.jsontag) = "identifier" ];
     string KeyPair = 2 [ (gogoproto.jsontag) = "key_pair" ];
 }
 
+// ClusterEncryptionConfigSpecV3 describes the spec for the ClusterEncryptionConfigV3 resource.
 message ClusterEncryptionConfigSpecV3 {
+    // SessionEncryptionKeys is a list of master keys for encrypting session data keys.
     repeated SessionEncryptionKey MasterKeys = 1 [ (gogoproto.jsontag) = "master_keys" ];
 }
