@@ -3,7 +3,7 @@ authors: Alan Parra (alan.parra@goteleport.com)
 state: draft
 ---
 
-# RFD 9999 - WebAuthn Support
+# RFD 40 - WebAuthn Support
 
 ## What
 
