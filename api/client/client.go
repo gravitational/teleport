@@ -1922,3 +1922,34 @@ func (c *Client) DeleteAllWindowsDesktops(ctx context.Context) error {
 	}
 	return nil
 }
+
+// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
+// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
+func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
+	res, err := c.grpc.ChangeUserAuthentication(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
+// This token is used as part of a URL that will be emailed to the user (not done in this request).
+// Represents step 1 of the account recovery process.
+func (c *Client) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
+	res, err := c.grpc.StartAccountRecovery(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// ApproveAccountRecovery creates a recovery approved token after successful verification of users password or second factor
+// (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
+// Represents step 2 of the account recovery process after RPC StartAccountRecovery.
+func (c *Client) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error) {
+	res, err := c.grpc.ApproveAccountRecovery(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// CompleteAccountRecovery sets a new password or adds a new mfa device,
+// allowing user to regain access to their account using the new credentials.
+// Represents the last step in the account recovery process after RPC's StartAccountRecovery and ApproveAccountRecovery.
+func (c *Client) CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error {
+	_, err := c.grpc.CompleteAccountRecovery(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}

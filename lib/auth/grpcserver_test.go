@@ -658,7 +658,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 	})
 	// Fetch MFA device ID.
-	devs, err := srv.Auth().GetMFADevices(ctx, user.GetName())
+	devs, err := srv.Auth().Identity.GetMFADevices(ctx, user.GetName(), false)
 	require.NoError(t, err)
 	require.Len(t, devs, 1)
 	u2fDevID := devs[0].Id
@@ -1558,14 +1558,16 @@ func TestDatabasesCRUD(t *testing.T) {
 
 	// Create a couple databases.
 	db1, err := types.NewDatabaseV3(types.Metadata{
-		Name: "db1",
+		Name:   "db1",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
 	})
 	require.NoError(t, err)
 	db2, err := types.NewDatabaseV3(types.Metadata{
-		Name: "db2",
+		Name:   "db2",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
 		URI:      "localhost:3306",
@@ -1634,4 +1636,55 @@ func TestDatabasesCRUD(t *testing.T) {
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 0)
+}
+
+func TestCustomRateLimiting(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	clt, err := srv.NewClient(TestNop())
+	require.NoError(t, err)
+
+	cases := []struct {
+		name string
+		fn   func() error
+	}{
+		{
+			name: "RPC ApproveAccountRecovery",
+			fn: func() error {
+				_, err := clt.ApproveAccountRecovery(context.Background(), &proto.ApproveAccountRecoveryRequest{})
+				return err
+			},
+		},
+		{
+			name: "RPC ChangeUserAuthentication",
+			fn: func() error {
+				_, err := clt.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{})
+				return err
+			},
+		},
+		{
+			name: "RPC StartAccountRecovery",
+			fn: func() error {
+				_, err := clt.StartAccountRecovery(context.Background(), &proto.StartAccountRecoveryRequest{})
+				return err
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			// For now since we only have one custom rate limit,
+			// test limit for 1 request per minute with bursts up to 10 requests.
+			const maxAttempts = 11
+			var err error
+
+			for i := 0; i < maxAttempts; i++ {
+				err = c.fn()
+				require.Error(t, err)
+			}
+			require.True(t, trace.IsLimitExceeded(err))
+		})
+	}
 }

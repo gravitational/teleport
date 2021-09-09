@@ -28,12 +28,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -812,7 +810,7 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
 	c.Assert(err, check.IsNil)
 
-	devs, err := s.WebS.GetMFADevices(ctx, user1)
+	devs, err := s.WebS.GetMFADevices(ctx, user1, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(devs, check.HasLen, 1)
 	// Raw registration output is not stored - it's not used for
@@ -831,177 +829,9 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	dev.Metadata.Name = "u2f-2"
 	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
 	c.Assert(err, check.IsNil)
-	devs, err = s.WebS.GetMFADevices(ctx, user1)
+	devs, err = s.WebS.GetMFADevices(ctx, user1, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(devs, check.HasLen, 2)
-}
-
-func (s *ServicesTestSuite) WebauthnLocalAuthUpsert(c *check.C) {
-	updateViaUser := func(ctx context.Context, user string, wal *types.WebauthnLocalAuth) error {
-		u, err := types.NewUser(user)
-		if err != nil {
-			return err
-		}
-		las := u.GetLocalAuth()
-		if las == nil {
-			las = &types.LocalAuthSecrets{}
-		}
-		las.Webauthn = wal
-		u.SetLocalAuth(las)
-
-		err = s.WebS.UpsertUser(u)
-		return err
-	}
-	getViaUser := func(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
-		u, err := s.WebS.GetUser(user, true /* withSecrets */)
-		if err != nil {
-			return nil, err
-		}
-		return u.GetLocalAuth().Webauthn, nil
-	}
-
-	// Create a user to begin with.
-	const name = "llama"
-	user, err := types.NewUser(name)
-	c.Assert(err, check.IsNil)
-	err = s.WebS.UpsertUser(user)
-	c.Assert(err, check.IsNil)
-
-	// Try a few empty reads.
-	ctx := context.Background()
-	_, err = s.WebS.GetUser(name, true /* withSecrets */)
-	c.Assert(err, check.IsNil) // User read should be fine.
-	_, err = s.WebS.GetWebauthnLocalAuth(ctx, name)
-	c.Assert(trace.IsNotFound(err), check.Equals, true) // Direct WAL read should fail.
-
-	// Try a few invalid updates.
-	badWAL := &types.WebauthnLocalAuth{} // missing UserID
-	err = s.WebS.UpsertWebauthnLocalAuth(ctx, name, badWAL)
-	c.Check(trace.IsBadParameter(err), check.Equals, true)
-	user.SetLocalAuth(&types.LocalAuthSecrets{Webauthn: badWAL})
-	err = s.WebS.UpdateUser(ctx, user)
-	c.Check(trace.IsBadParameter(err), check.Equals, true)
-
-	// Update/Read tests.
-	tests := []struct {
-		name   string
-		user   string
-		wal    *types.WebauthnLocalAuth
-		update func(context.Context, string, *types.WebauthnLocalAuth) error
-		get    func(context.Context, string) (*types.WebauthnLocalAuth, error)
-	}{
-		{
-			name:   "OK: Create WAL directly",
-			user:   "llama",
-			wal:    &types.WebauthnLocalAuth{UserID: []byte("webauthn user ID for llama")},
-			update: s.WebS.UpsertWebauthnLocalAuth,
-			get:    s.WebS.GetWebauthnLocalAuth,
-		},
-		{
-			name:   "OK: Update WAL directly",
-			user:   "llama", // same as above
-			wal:    &types.WebauthnLocalAuth{UserID: []byte("another ID")},
-			update: s.WebS.UpsertWebauthnLocalAuth,
-			get:    s.WebS.GetWebauthnLocalAuth,
-		},
-		{
-			name:   "OK: Create WAL via user",
-			user:   "alpaca", // new user
-			wal:    &types.WebauthnLocalAuth{UserID: []byte("webauthn user ID for alpaca")},
-			update: updateViaUser,
-			get:    getViaUser,
-		},
-		{
-			name:   "OK: Update WAL via user",
-			user:   "alpaca", // same as above
-			wal:    &types.WebauthnLocalAuth{UserID: []byte("some other ID")},
-			update: updateViaUser,
-			get:    getViaUser,
-		},
-	}
-	for _, test := range tests {
-		err := test.update(ctx, test.name, test.wal)
-		c.Check(err, check.IsNil)
-
-		want := test.wal
-		got, err := test.get(ctx, test.name)
-		c.Check(err, check.IsNil)
-		if diff := cmp.Diff(want, got); diff != "" {
-			c.Fatalf("WebauthnLocalAuth mismatch (-want +got):\n%s", diff)
-		}
-	}
-}
-
-func (s *ServicesTestSuite) WebauthnSessionDataCRUD(c *check.C) {
-	const user1 = "llama"
-	const user2 = "alpaca"
-	// Prepare a few different objects so we can assert that both "user" and
-	// "session" key components are used correctly.
-	user1Reg := &wantypes.SessionData{
-		Challenge: []byte("challenge1-reg"),
-		UserId:    []byte("llamaid"),
-	}
-	user1Login := &wantypes.SessionData{
-		Challenge:        []byte("challenge1-login"),
-		UserId:           []byte("llamaid"),
-		AllowCredentials: [][]byte{[]byte("cred1"), []byte("cred2")},
-	}
-	user2Login := &wantypes.SessionData{
-		Challenge: []byte("challenge2"),
-		UserId:    []byte("alpacaid"),
-	}
-
-	// Usually there are only 2 sessions for each user: login and registration.
-	const registerSession = "register"
-	const loginSession = "login"
-	params := []struct {
-		user, session string
-		sd            *wantypes.SessionData
-	}{
-		{user: user1, session: registerSession, sd: user1Reg},
-		{user: user1, session: loginSession, sd: user1Login},
-		{user: user2, session: loginSession, sd: user2Login},
-	}
-
-	// Verify upsert/create.
-	ctx := context.Background()
-	for _, p := range params {
-		err := s.WebS.UpsertWebauthnSessionData(ctx, p.user, p.session, p.sd)
-		c.Assert(err, check.IsNil)
-	}
-
-	// Verify read.
-	for _, p := range params {
-		got, err := s.WebS.GetWebauthnSessionData(ctx, p.user, p.session)
-		c.Assert(err, check.IsNil)
-		if diff := cmp.Diff(p.sd, got); diff != "" {
-			c.Fatalf("GetWebauthnSessionData() mismatch (-want +got):\n%s", diff)
-		}
-	}
-
-	// Verify upsert/update.
-	user1Reg = &wantypes.SessionData{
-		Challenge: []byte("challenge1reg--another"),
-		UserId:    []byte("llamaid"),
-	}
-	err := s.WebS.UpsertWebauthnSessionData(ctx, user1, registerSession, user1Reg)
-	c.Assert(err, check.IsNil)
-	got, err := s.WebS.GetWebauthnSessionData(ctx, user1, registerSession)
-	c.Assert(err, check.IsNil)
-	if diff := cmp.Diff(user1Reg, got); diff != "" {
-		c.Fatalf("GetWebauthnSessionData() mismatch (-want +got):\n%s", diff)
-	}
-
-	// Verify deletion.
-	err = s.WebS.DeleteWebauthnSessionData(ctx, user1, registerSession)
-	c.Assert(err, check.IsNil)
-	_, err = s.WebS.GetWebauthnSessionData(ctx, user1, registerSession)
-	c.Assert(trace.IsNotFound(err), check.Equals, true)
-	params = params[1:] // Remove user1/register from params
-	for _, p := range params {
-		_, err := s.WebS.GetWebauthnSessionData(ctx, p.user, p.session)
-		c.Assert(err, check.IsNil) // Other keys preserved
-	}
 }
 
 func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {

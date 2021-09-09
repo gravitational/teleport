@@ -159,6 +159,12 @@ const (
 	// ChangePasswordTokenTTL is a default password change token expiry time
 	ChangePasswordTokenTTL = 8 * time.Hour
 
+	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
+	RecoveryStartTokenTTL = 3 * time.Hour
+
+	// RecoveryApprovedTokenTTL is a default expiry time for a recovery approved token.
+	RecoveryApprovedTokenTTL = 15 * time.Minute
+
 	// ResetPasswordLength is the length of the reset user password
 	ResetPasswordLength = 16
 
@@ -223,6 +229,10 @@ const (
 	// MaxLoginAttempts sets the max. number of allowed failed login attempts
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5
+
+	// MaxAccountRecoveryAttempts sets the max number of allowed failed recovery attempts
+	// before a user is locked from login and further recovery attempts for AccountLockInterval.
+	MaxAccountRecoveryAttempts = 3
 
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts
@@ -530,7 +540,6 @@ const (
 	U2FChallengeTimeout = 5 * time.Minute
 	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
 	// or registration challenges.
-	// TODO(codingllama): Apply this to the lib/auth/webauthn package.
 	WebauthnChallengeTimeout = 5 * time.Minute
 )
 

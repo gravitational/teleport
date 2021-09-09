@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 syntax = "proto3";
 package types;
 
@@ -193,8 +207,8 @@ message DatabaseServerSpecV3 {
     // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
     GCPCloudSQL GCP = 11
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty", deprecated = true ];
-    // Databases is a list of databases this database server proxies.
-    repeated DatabaseV3 Databases = 12 [ (gogoproto.jsontag) = "databases,omitempty" ];
+    // Database is the database proxied by this database server.
+    DatabaseV3 Database = 12 [ (gogoproto.jsontag) = "database,omitempty" ];
 }
 
 // DatabaseV3List represents a list of databases.
@@ -956,11 +970,23 @@ message UserTokenV3 {
     UserTokenSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
+// UserTokenUsage contains additional information about the intended usage of a user token.
+enum UserTokenUsage {
+    // Default value that implies token usage was not set.
+    USER_TOKEN_USAGE_UNSPECIFIED = 0;
+    // USER_TOKEN_RECOVER_PASSWORD is a request to recover password.
+    USER_TOKEN_RECOVER_PASSWORD = 1;
+    // USER_TOKEN_RECOVER_MFA is a request to recover a MFA.
+    USER_TOKEN_RECOVER_MFA = 2;
+}
+
 message UserTokenSpecV3 {
     // User is user name associated with this token
     string User = 1 [ (gogoproto.jsontag) = "user" ];
     // URL is this token URL
     string URL = 2 [ (gogoproto.jsontag) = "url" ];
+    // Usage is an optional field that provides more information about how this token will be used.
+    UserTokenUsage Usage = 3 [ (gogoproto.jsontag) = "usage,omitempty" ];
     // Created holds information about when the token was created
     google.protobuf.Timestamp Created = 4 [
         (gogoproto.stdtime) = true,
@@ -1645,6 +1671,14 @@ message LoginStatus {
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "lock_expires,omitempty"
+    ];
+    // RecoveryAttemptLockExpires contains the time when this lock will expire
+    // from reaching MaxAccountRecoveryAttempts. This field is used to determine
+    // if a user got locked from recovery attempts.
+    google.protobuf.Timestamp RecoveryAttemptLockExpires = 5 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "recovery_attempt_lock_expires,omitempty"
     ];
 }
 
@@ -2440,4 +2474,43 @@ message WindowsDesktopV3 {
 message WindowsDesktopSpecV3 {
     // Addr is the address that this host can be reached at.
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
+}
+
+// RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
+// access to their account by restoring their lost password or second factor. Once a recovery code
+// is successfully verified, the code is mark used (which invalidates it), and lets the user begin
+// the recovery flow. When a user successfully finishes the recovery flow, users will get a new set
+// of codes that will replace all the previous ones.
+message RecoveryCodesV1 {
+    // Kind is the resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind. Currently unused for this resource.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the resource spec.
+    RecoveryCodesSpecV1 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// RecoveryCodesSpecV1 is the recovery codes spec.
+message RecoveryCodesSpecV1 {
+    // Codes hold a list of numOfRecoveryCodes.
+    repeated RecoveryCode Codes = 1 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "codes" ];
+    // Created is when the set of recovery codes were generated. Updated when a new set of recovery
+    // codes are inserted.
+    google.protobuf.Timestamp Created = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created"
+    ];
+}
+
+// RecoveryCode describes a recovery code.
+message RecoveryCode {
+    // HashedCode is a bcrypt hash of this recovery code.
+    bytes HashedCode = 1 [ (gogoproto.jsontag) = "hashed_code" ];
+    // IsUsed determines if this recovery code was used.
+    bool IsUsed = 2 [ (gogoproto.jsontag) = "is_used" ];
 }

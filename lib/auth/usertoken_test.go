@@ -73,7 +73,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.Equal(t, event.(*apievents.UserTokenCreate).User, teleport.UserSystem)
 
 	// verify that user has no MFA devices
-	devs, err := srv.Auth().GetMFADevices(ctx, username)
+	devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false)
 	require.NoError(t, err)
 	require.Empty(t, devs)
 

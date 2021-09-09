@@ -320,6 +320,24 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
+	case DatabaseCreateEvent:
+		var e events.DatabaseCreate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case DatabaseUpdateEvent:
+		var e events.DatabaseUpdate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case DatabaseDeleteEvent:
+		var e events.DatabaseDelete
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
 	case DatabaseSessionStartEvent:
 		var e events.DatabaseSessionStart
 		if err := utils.FastUnmarshal(data, &e); err != nil {
@@ -364,6 +382,24 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		return &e, nil
 	case LockDeletedEvent:
 		var e events.LockDelete
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case RecoveryCodeGeneratedEvent:
+		var e events.RecoveryCodeGenerate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case RecoveryCodeUsedEvent:
+		var e events.RecoveryCodeUsed
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case RecoveryTokenCreateEvent:
+		var e events.UserTokenCreate
 		if err := utils.FastUnmarshal(data, &e); err != nil {
 			return nil, trace.Wrap(err)
 		}
