@@ -1456,31 +1456,35 @@ func TestLocksCRUD(t *testing.T) {
 
 func TestChangeUserAuthenticationRateLimiting(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
-	clt, err := srv.NewClient(TestNop())
-	require.NoError(t, err)
 
 	cases := []struct {
 		name string
-		fn   func() error
+		fn   func(*Client) error
 	}{
 		{
 			name: "RPC ApproveAccountRecovery",
-			fn: func() error {
+			fn: func(clt *Client) error {
 				_, err := clt.ApproveAccountRecovery(context.Background(), &proto.ApproveAccountRecoveryRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC ChangeUserAuthentication",
-			fn: func() error {
+			fn: func(clt *Client) error {
 				_, err := clt.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{})
 				return err
 			},
 		},
 		{
+			name: "RPC GetAccountRecoveryToken",
+			fn: func(clt *Client) error {
+				_, err := clt.GetAccountRecoveryToken(context.Background(), &proto.GetAccountRecoveryTokenRequest{})
+				return err
+			},
+		},
+		{
 			name: "RPC StartAccountRecovery",
-			fn: func() error {
+			fn: func(clt *Client) error {
 				_, err := clt.StartAccountRecovery(context.Background(), &proto.StartAccountRecoveryRequest{})
 				return err
 			},
@@ -1488,6 +1492,7 @@ func TestChangeUserAuthenticationRateLimiting(t *testing.T) {
 	}
 
 	for _, c := range cases {
+		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1496,8 +1501,15 @@ func TestChangeUserAuthenticationRateLimiting(t *testing.T) {
 			const maxAttempts = 11
 			var err error
 
+			// Create new instance per test case, to troubleshoot
+			// which test case specifically failed, otherwise
+			// multiple cases can fail from running cases in parallel.
+			srv := newTestTLSServer(t)
+			clt, err := srv.NewClient(TestNop())
+			require.NoError(t, err)
+
 			for i := 0; i < maxAttempts; i++ {
-				err = c.fn()
+				err = c.fn(clt)
 				require.Error(t, err)
 			}
 			require.True(t, trace.IsLimitExceeded(err))

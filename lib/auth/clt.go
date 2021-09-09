@@ -1911,11 +1911,16 @@ type IdentityService interface {
 	// (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
 	// Represents step 2 of the account recovery process after RPC StartAccountRecovery.
 	ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error)
-
 	// CompleteAccountRecovery sets a new password or adds a new mfa device,
 	// allowing user to regain access to their account using the new credentials.
 	// Represents the last step in the account recovery process after RPC's StartAccountRecovery and ApproveAccountRecovery.
 	CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error
+
+	// CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
+	CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error)
+	// GetAccountRecoveryToken returns a user token resource after verifying the token in
+	// request is not expired and is of the correct recovery type.
+	GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error)
 }
 
 // ProvisioningService is a service in control

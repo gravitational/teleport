@@ -3218,6 +3218,16 @@ func (a *ServerWithRoles) CompleteAccountRecovery(ctx context.Context, req *prot
 	return a.authServer.CompleteAccountRecovery(ctx, req)
 }
 
+// CreateAccountRecoveryCodes is implemented by AuthService.CreateAccountRecoveryCodes.
+func (a *ServerWithRoles) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
+	return a.authServer.CreateAccountRecoveryCodes(ctx, req)
+}
+
+// GetAccountRecoveryToken is implemented by AuthService.GetAccountRecoveryToken.
+func (a *ServerWithRoles) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error) {
+	return a.authServer.GetAccountRecoveryToken(ctx, req)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
