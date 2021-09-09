@@ -461,7 +461,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Equals Sign Delimited",
 			inOptions:   []string{"AddKeysToAgent=yes"},
 			assertError: require.NoError,
@@ -471,12 +472,14 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Invalid key",
 			inOptions:   []string{"foo foo"},
 			assertError: require.Error,
 			outOptions:  Options{},
-		}, {
+		},
+		{
 			desc:        "Incomplete option",
 			inOptions:   []string{"AddKeysToAgent"},
 			assertError: require.Error,
@@ -500,7 +503,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Forward Agent No",
 			inOptions:   []string{"ForwardAgent no"},
 			assertError: require.NoError,
@@ -510,7 +514,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Forward Agent Local",
 			inOptions:   []string{"ForwardAgent local"},
 			assertError: require.NoError,
@@ -520,7 +525,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Forward Agent InvalidValue",
 			inOptions:   []string{"ForwardAgent potato"},
 			assertError: require.Error,

@@ -1731,52 +1731,14 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	}
 
 	// Validate MFARegisterResponse and upsert the new device on success.
-	var dev *types.MFADevice
-	switch resp := regResp.Response.(type) {
-	case *proto.MFARegisterResponse_TOTP:
-		challenge := regChallenge.GetTOTP()
-		if challenge == nil {
-			return nil, trace.BadParameter("got unexpected %T in response to %T", regResp.Response, regChallenge.Request)
-		}
-		dev, err = services.NewTOTPDevice(initReq.DeviceName, challenge.Secret, auth.clock.Now())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := auth.checkTOTP(ctx, user, resp.TOTP.Code, dev); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := auth.UpsertMFADevice(ctx, user, dev); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case *proto.MFARegisterResponse_U2F:
-		cap, err := auth.GetAuthPreference(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		u2fConfig, err := cap.GetU2F()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// u2f.RegisterVerify will upsert the new device internally.
-		dev, err = u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
-			DevName: initReq.DeviceName,
-			Resp: u2f.RegisterChallengeResponse{
-				RegistrationData: resp.U2F.RegistrationData,
-				ClientData:       resp.U2F.ClientData,
-			},
-			ChallengeStorageKey:    user,
-			RegistrationStorageKey: user,
-			Storage:                u2fStorage,
-			Clock:                  auth.clock,
-			AttestationCAs:         u2fConfig.DeviceAttestationCAs,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		return nil, trace.BadParameter("MFARegisterResponse sent an unknown response type %v", regResp.Response)
-	}
-	return dev, nil
+	dev, err := auth.verifyMFARespAndAddDevice(ctx, regResp, &newMFADeviceFields{
+		username:      user,
+		newDeviceName: initReq.DeviceName,
+		totpSecret:    regChallenge.GetTOTP().GetSecret(),
+		u2fStorage:    u2fStorage,
+	})
+
+	return dev, trace.Wrap(err)
 }
 
 func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceServer) error {
@@ -3209,6 +3171,37 @@ func (g *GRPCServer) StartAccountRecovery(ctx context.Context, req *proto.StartA
 	}
 
 	return r, nil
+}
+
+// ApproveAccountRecovery is implemented by AuthService.ApproveAccountRecovery.
+func (g *GRPCServer) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	approvedToken, err := auth.ServerWithRoles.ApproveAccountRecovery(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := approvedToken.(*types.UserTokenV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected UserToken type %T", approvedToken)
+	}
+
+	return r, nil
+}
+
+// CompleteAccountRecovery is implemented by AuthService.CompleteAccountRecovery.
+func (g *GRPCServer) CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.ServerWithRoles.CompleteAccountRecovery(ctx, req)
+	return &empty.Empty{}, trace.Wrap(err)
 }
 
 // GRPCServerConfig specifies GRPC server configuration

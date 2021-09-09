@@ -210,7 +210,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	var tests = []struct {
+	tests := []struct {
 		comment          string
 		inRecordLocation string
 		inForwardAgent   bool
@@ -538,7 +538,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 	teleport := suite.newTeleport(t, nil, true)
 	defer teleport.StopAll()
 
-	var tests = []struct {
+	tests := []struct {
 		inCommand   string
 		inStdin     string
 		outContains string
@@ -1321,7 +1321,7 @@ func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
 
 	now := time.Now().In(time.UTC).Round(time.Second)
 
-	var tests = []struct {
+	tests := []struct {
 		inRecordLocation  string
 		outExecCountSiteA int
 		outExecCountSiteB int
@@ -1788,7 +1788,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	require.Equal(t, "hello world\n", output.String())
 
 	// make sure both clusters have the right certificate authorities with the right signing keys.
-	var tests = []struct {
+	tests := []struct {
 		name                       string
 		mainClusterName            string
 		auxClusterName             string
@@ -2859,7 +2859,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 		return
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		desc             string
 		inRecordLocation string
 		inForwardAgent   bool
@@ -2984,7 +2984,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 		return
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		inRecordLocation string
 	}{
 		// Run tests when Teleport is recording sessions at the node.
@@ -3071,7 +3071,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	var tests = []struct {
+	tests := []struct {
 		desc           string
 		inHostKeyCheck bool
 		outError       bool
@@ -3242,7 +3242,6 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 // should be allowed to log in. If either the account or session module does
 // not return success, the user should not be able to log in.
 func testPAM(t *testing.T, suite *integrationTestSuite) {
-
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3259,7 +3258,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 		t.Skip(skipMessage)
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		desc          string
 		inEnabled     bool
 		inServiceName string
@@ -4119,7 +4118,6 @@ func (s *integrationTestSuite) waitForReload(serviceC chan *service.TeleportProc
 		}
 	}
 	return svc, nil
-
 }
 
 // runAndMatch runs command and makes sure it matches the pattern
@@ -4234,7 +4232,6 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 				return trace.BadParameter("timed out waiting for output, last output: %q doesn't contain any of the expected substrings: %q", t.Output(5000), outputs)
 			}
 		}
-
 	}
 
 	// Open session, the initial size will be 80x24.
@@ -4335,7 +4332,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	err = waitForNodes(clt, 2)
 	require.NoError(t, err)
 
-	var tests = []struct {
+	tests := []struct {
 		inRoleName string
 		inLabels   types.Labels
 		inLogin    string
@@ -4549,7 +4546,7 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 	lsPath, err := exec.LookPath("ls")
 	require.NoError(t, err)
 
-	var tests = []struct {
+	tests := []struct {
 		desc               string
 		inSessionRecording string
 		inBPFEnabled       bool
@@ -4677,7 +4674,7 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 	lsPath, err := exec.LookPath("ls")
 	require.NoError(t, err)
 
-	var tests = []struct {
+	tests := []struct {
 		desc               string
 		inSessionRecording string
 		inBPFEnabled       bool
@@ -4904,7 +4901,7 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 	main := suite.newTeleport(t, nil, true)
 	defer main.StopAll()
 
-	var execTests = []struct {
+	execTests := []struct {
 		name          string
 		isInteractive bool
 		outCommand    string
