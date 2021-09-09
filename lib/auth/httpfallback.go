@@ -732,6 +732,17 @@ func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...service
 	return cfg.GetClusterNetworkingConfig()
 }
 
+func (c *Client) GetClusterEncryptionConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterEncryptionConfig, error) {
+	config, err := c.APIClient.GetClusterEncryptionConfig(ctx)
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return config, nil
+}
+
 // GetSessionRecordingConfig gets session recording configuration.
 func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
 	recConfig, err := c.APIClient.GetSessionRecordingConfig(ctx)

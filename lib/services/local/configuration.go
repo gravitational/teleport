@@ -514,6 +514,41 @@ func (s *ClusterConfigurationService) DeleteSessionRecordingConfig(ctx context.C
 	return nil
 }
 
+func (s *ClusterConfigurationService) SetClusterEncryptionConfig(ctx context.Context, recConfig types.ClusterEncryptionConfig) error {
+	// Perform the modules-provided checks.
+	if err := modules.ValidateResource(recConfig); err != nil {
+		return trace.Wrap(err)
+	}
+
+	value, err := services.MarshalEncryptionConfig(recConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, encryptionPrefix),
+		Value: value,
+		ID:    recConfig.GetResourceID(),
+	}
+
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *ClusterConfigurationService) GetClusterEncryptionConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterEncryptionConfig, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, encryptionPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("encryption config not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalEncryptionConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+}
+
 const (
 	clusterConfigPrefix    = "cluster_configuration"
 	namePrefix             = "name"
@@ -524,4 +559,5 @@ const (
 	auditPrefix            = "audit"
 	networkingPrefix       = "networking"
 	sessionRecordingPrefix = "session_recording"
+	encryptionPrefix       =  "encryption"
 )

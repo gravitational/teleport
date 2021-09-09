@@ -455,6 +455,11 @@ func (a *Server) GetSessionRecordingConfig(ctx context.Context, opts ...services
 	return a.GetCache().GetSessionRecordingConfig(ctx, opts...)
 }
 
+// GetClusterEncryptionConfig gets the ClusterEncryptionConfig resource.
+func (a *Server) GetClusterEncryptionConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterEncryptionConfig, error) {
+	return a.GetCache().GetClusterEncryptionConfig(ctx, opts...)
+}
+
 // GetClusterName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {

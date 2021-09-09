@@ -78,4 +78,9 @@ type ClusterConfiguration interface {
 	SetClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) error
 	// DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
 	DeleteClusterNetworkingConfig(ctx context.Context) error
+
+	// GetClusterEncryptionConfig gets the ClusterEncryptionConfigV3 resource.
+	GetClusterEncryptionConfig(context.Context, ...MarshalOption) (types.ClusterEncryptionConfig, error)
+	// SetClusterEncryptionConfig sets the ClusterEncryptionConfigV3 resource.
+	SetClusterEncryptionConfig(context.Context, types.ClusterEncryptionConfig) error
 }

@@ -2290,6 +2290,26 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
 }
 
+func (a *ServerWithRoles) GetClusterEncryptionConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterEncryptionConfig, error) {
+	if err := a.action(apidefaults.Namespace, types.KindClusterEncryptionConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetClusterEncryptionConfig(ctx, opts...)
+}
+
+func (a *ServerWithRoles) SetClusterEncryptionConfig(ctx context.Context, newConfig types.ClusterEncryptionConfig) error {
+	storedConfig, err := a.authServer.GetClusterEncryptionConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.action(apidefaults.Namespace, types.KindClusterEncryptionConfig, verbsToReplaceResourceWithOrigin(storedConfig)...); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SetClusterEncryptionConfig(ctx, newConfig)
+}
+
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
 func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) error {
 	storedNetConfig, err := a.authServer.GetClusterNetworkingConfig(ctx)

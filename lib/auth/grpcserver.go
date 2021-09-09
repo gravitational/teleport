@@ -3204,6 +3204,35 @@ func (g *GRPCServer) CompleteAccountRecovery(ctx context.Context, req *proto.Com
 	return &empty.Empty{}, trace.Wrap(err)
 }
 
+func (g *GRPCServer) SetClusterEncryptionConfig(ctx context.Context, resource *types.ClusterEncryptionConfigV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.ServerWithRoles.SetClusterEncryptionConfig(ctx, resource)
+	return &empty.Empty{}, trace.Wrap(err)
+}
+
+func (g* GRPCServer) GetClusterEncryptionConfig(ctx context.Context, _empty *empty.Empty) (*types.ClusterEncryptionConfigV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resource, err := auth.ServerWithRoles.GetClusterEncryptionConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resourceV3, ok := resource.(*types.ClusterEncryptionConfigV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected ClusterEncryptionConfig type %T", resourceV3)
+	}
+
+	return resourceV3, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

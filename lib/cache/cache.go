@@ -50,6 +50,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindClusterEncryptionConfig},
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindStaticTokens},
 		{Kind: types.KindToken},
@@ -1145,6 +1146,16 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 	}
 	defer rg.Release()
 	return rg.clusterConfig.GetClusterNetworkingConfig(ctx, opts...)
+}
+
+// GetClusterEncryptionConfig gets ClusterEncryptionConfig from the backend.
+func (c *Cache) GetClusterEncryptionConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterEncryptionConfig, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.clusterConfig.GetClusterEncryptionConfig(ctx, opts...)
 }
 
 // GetClusterName gets the name of the cluster from the backend.

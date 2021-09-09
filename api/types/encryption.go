@@ -23,6 +23,8 @@ import (
 type ClusterEncryptionConfig interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
+	// ResourceWithOrigin provides common methods for objects
+	ResourceWithOrigin
 	// GetSessionEncryptionKeys fetches all session encryption keys from the resource.
 	GetSessionEncryptionKeys() []*SessionEncryptionKey
 	// SetSessionEncryptionKeys sets the session encryption keys of the resource.
@@ -93,6 +95,14 @@ func (m *ClusterEncryptionConfigV3) WithoutSecrets() Resource {
 	m2 := *m
 	m2.Spec.MasterKeys = nil
 	return &m2
+}
+
+func (c *ClusterEncryptionConfigV3) Origin() string {
+	return c.Metadata.Origin()
+}
+
+func (c *ClusterEncryptionConfigV3) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
 }
 
 func (m *ClusterEncryptionConfigV3) GetSessionEncryptionKeys() []*SessionEncryptionKey {

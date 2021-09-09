@@ -94,6 +94,9 @@ type ReadAccessPoint interface {
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
+	// GetClusterEncryptionConfig gets the ClusterEncryptionConfig resource.
+	GetClusterEncryptionConfig(context.Context, ...services.MarshalOption) (types.ClusterEncryptionConfig, error)
+
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
 
@@ -200,7 +203,6 @@ type AccessPoint interface {
 	// DeleteTunnelConnection deletes tunnel connection
 	DeleteTunnelConnection(clusterName, connName string) error
 }
-
 // AccessCache is a subset of the interface working on the certificate authorities
 type AccessCache interface {
 	// GetCertAuthority returns cert authority by id
@@ -220,6 +222,9 @@ type AccessCache interface {
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+
+	// GetClusterEncryptionConfig gets the ClusterEncryptionConfig resource.
+	GetClusterEncryptionConfig(context.Context, ...services.MarshalOption) (types.ClusterEncryptionConfig, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
