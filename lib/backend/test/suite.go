@@ -1004,10 +1004,9 @@ func requireNoDuplicateIDs(t *testing.T, obtained []backend.Event) {
 	}
 }
 
-// TODO(tcsc): I have questions about what this is actually testing
-//
 // requireExpireTimestampsIncreasing verifies that the expiry timestamps
-// of the `obtained` items expire after expected item expiry. 
+// of the `obtained` items expire _after_ the corresponding `expected`
+// item expiry times
 func requireExpireTimestamps(t *testing.T, obtained, expected []backend.Event) {
 	require.Len(t, obtained, len(expected))
 
