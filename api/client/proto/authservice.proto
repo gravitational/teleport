@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 syntax = "proto3";
 package proto;
 
@@ -5,6 +19,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "github.com/gravitational/teleport/api/types/types.proto";
+import "github.com/gravitational/teleport/api/types/webauthn/webauthn.proto";
 import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
 import "github.com/gravitational/teleport/api/types/events/events.proto";
 
@@ -98,6 +113,8 @@ message Event {
         // WindowsDesktop is a resource for Windows desktop host.
         types.WindowsDesktopV3 WindowsDesktop = 27
             [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+        // Database is a database resource.
+        types.DatabaseV3 Database = 28 [ (gogoproto.jsontag) = "database,omitempty" ];
     }
 }
 
@@ -623,6 +640,12 @@ message MFAAuthenticateChallenge {
     // this field is set, any TOTP device a user has registered can be used to
     // respond.
     TOTPChallenge TOTP = 2;
+    // WebauthnChallenge contains a Webauthn credential assertion used for
+    // login/authentication ceremonies.
+    // Credential assertions hold, among other information, a list of allowed
+    // credentials for the ceremony (one for each U2F or Webauthn device
+    // registered by the user).
+    webauthn.CredentialAssertion WebauthnChallenge = 3;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -631,6 +654,7 @@ message MFAAuthenticateResponse {
     oneof Response {
         U2FResponse U2F = 1;
         TOTPResponse TOTP = 2;
+        webauthn.CredentialAssertionResponse Webauthn = 3;
     }
 }
 
@@ -1008,10 +1032,66 @@ message ChangeUserAuthenticationResponse {
     // RecoveryCodes are user's new recovery codes. Previous recovery codes become invalid.
     // This field can be empty if a user does not meet the following
     // requirements to receive recovery codes:
-    //  - cloud feature is not enabled
-    //  - second factor is not enabled
-    //  - username is not in valid email format
+    //  - cloud feature is enabled
+    //  - username is in valid email format
     repeated string RecoveryCodes = 2 [ (gogoproto.jsontag) = "recovery_codes,omitempty" ];
+}
+
+// StartAccountRecoveryRequest defines a request to create a recovery start token for a user who is
+// allowed to recover their account. The tokens ID is used as part of a URL that will be emailed to
+// the user (not done in this request). Represents step 1 of the account recovery process, next step
+// is RPC ApproveAccountRecovery.
+message StartAccountRecoveryRequest {
+    // Username is the requesting user. The username must meet the following requirements to be
+    // allowed to recover their account:
+    //  - cloud feature is enabled
+    //  - username is in valid email format
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+    // RecoveryCode is one of the user's recovery code in plain text.
+    bytes RecoveryCode = 2 [ (gogoproto.jsontag) = "recovery_code" ];
+    // RecoverType defines what type of authentication user needs to recover.
+    types.UserTokenUsage RecoverType = 3 [ (gogoproto.jsontag) = "recover_type" ];
+}
+
+// ApproveAccountRecoveryRequest is a request to create a recovery approved token that allows users
+// to perform protected actions while not logged in. Represents step 2 of the account recovery
+// process after RPC StartAccountRecovery, next step is RPC CompleteAccountRecovery.
+message ApproveAccountRecoveryRequest {
+    // RecoveryStartTokenID is the ID of a recovery start token that's required to verify this
+    // request.
+    string RecoveryStartTokenID = 1 [ (gogoproto.jsontag) = "recovery_start_token_id" ];
+    // Username is the name of the user that the token belongs to, used to verify that this name
+    // is the same as defined in token for use with emails.
+    string Username = 2 [ (gogoproto.jsontag) = "username" ];
+    // AuthnCred is the authentication cred that needs to be verified.
+    oneof AuthnCred {
+        // Password is users password in plain text.
+        bytes Password = 3 [ (gogoproto.jsontag) = "password,omitempty" ];
+        // MFAAuthenticateResponse is a response to a MFA challenge.
+        MFAAuthenticateResponse MFAAuthenticateResponse = 4
+            [ (gogoproto.jsontag) = "mfa_authenticate_response,omitempty" ];
+    }
+}
+
+// CompleteAccountRecoveryRequest is a request to set either a new password or
+// add a new mfa device, allowing the user to regain access to their account with the new
+// credentials. Represents the last step in the account recovery process after RPC's
+// StartAccountRecovery and ApproveAccountRecovery.
+message CompleteAccountRecoveryRequest {
+    // RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
+    // request.
+    string RecoveryApprovedTokenID = 1 [ (gogoproto.jsontag) = "recovery_approved_token_id" ];
+    // NewDeviceName is the name of a new mfa device.
+    // Optional if NewPassword is used.
+    string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
+    // NewAuthnCred contains the new authentication credential.
+    oneof NewAuthnCred {
+        // NewPassword is user's new password in plain text.
+        bytes NewPassword = 3 [ (gogoproto.jsontag) = "new_password,omitempty" ];
+        // NewMFAResponse is a user's new mfa response to a mfa register challenge.
+        MFARegisterResponse NewMFAResponse = 4
+            [ (gogoproto.jsontag) = "new_mfa_response,omitempty" ];
+    }
 }
 
 // AuthService is authentication/authorization service implementation
@@ -1348,4 +1428,44 @@ service AuthService {
     // any existing codes the user previously had.
     rpc ChangeUserAuthentication(ChangeUserAuthenticationRequest)
         returns (ChangeUserAuthenticationResponse);
+
+    // StartAccountRecovery (exclusive to cloud users) is the first out of two step user
+    // verification needed to allow a user to recover their account. The first form of verification
+    // is a user's username and a recovery code. After successful verification, a recovery start
+    // token is created for the user which its ID will be used as part of a URL that will be emailed
+    // to the user (not done in this request). The user will be able to finish their second form of
+    // verification by clicking on this URL and following the prompts.
+    //
+    // If a valid user fails to provide correct recovery code for MaxAccountRecoveryAttempts,
+    // user account gets temporarily locked from further recovery attempts and from logging in.
+    //
+    // Start tokens last RecoveryStartTokenTTL.
+    rpc StartAccountRecovery(StartAccountRecoveryRequest) returns (types.UserTokenV3);
+    // ApproveAccountRecovery (exclusive to cloud users) is the second step of the two step
+    // verification needed to allow a user to recover their account, after RPC StartAccountRecovery.
+    // The second form of verification is a user's password or their second factor (depending on
+    // what authentication they needed to recover). After successful verification, a recovery
+    // approved token is created which allows a user to request protected actions while not logged
+    // in e.g: setting a new password or a mfa device, viewing their MFA devices, deleting their MFA
+    // devices, and generating new recovery codes.
+    //
+    // The recovery start token to verify this request becomes deleted before
+    // creating a recovery approved token, which invalidates the recovery link users received
+    // to finish their verification.
+    //
+    // If user fails to verify themselves for MaxAccountRecoveryAttempts
+    // (combined attempts with RPC StartAccountRecovery), users account will be temporarily locked
+    // from logging in. If users still have unused recovery codes left, they still have
+    // opportunities to recover their account. To allow this, users recovery attempts are also
+    // deleted along with all user tokens which will force the user to restart the recovery process
+    // from step 1 (RPC StartAccountRecovery).
+    //
+    // Recovery approved tokens last RecoveryApprovedTokenTTL.
+    rpc ApproveAccountRecovery(ApproveAccountRecoveryRequest) returns (types.UserTokenV3);
+    // CompleteAccountRecovery (exclusive to cloud users) is the last step in account
+    // recovery, after RPC's StartAccountRecovery and ApproveAccountRecovery. This step sets a new
+    // password or adds a new mfa device, allowing the user to regain access to their account with
+    // the new credentials. When the new authentication is successfully set, any user lock is
+    // removed so the user can login immediately afterwards.
+    rpc CompleteAccountRecovery(CompleteAccountRecoveryRequest) returns (google.protobuf.Empty);
 }

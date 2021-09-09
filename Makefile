@@ -326,19 +326,53 @@ release-unix: clean full
 	fi
 
 #
-# make release-windows - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make release-windows-unsigned - Produces a binary release archive containing only tsh.
 #
-.PHONY:
-release-windows: clean all
+.PHONY: release-windows-unsigned
+release-windows-unsigned: clean all
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
 		README.md \
 		CHANGELOG.md \
 		teleport/
-	mv teleport/tsh teleport/tsh.exe
+	mv teleport/tsh teleport/tsh-unsigned.exe
 	echo $(GITTAG) > teleport/VERSION
+	zip -9 -y -r -q $(RELEASE)-unsigned.zip teleport/
+	rm -rf teleport/
+	@echo "---> Created $(RELEASE)-unsigned.zip."
+
+#
+# make release-windows - Produces an archive containing a signed release of
+# tsh.exe
+#
+.PHONY: release-windows
+release-windows: release-windows-unsigned
+	@if [ ! -f "windows-signing-cert.pfx" ]; then \
+		echo "windows-signing-cert.pfx is missing or invalid, cannot create signed archive."; \
+		exit 1; \
+	fi
+
+	rm -rf teleport
+	@echo "---> Extracting $(RELEASE)-unsigned.zip"
+	unzip $(RELEASE)-unsigned.zip
+	
+	@echo "---> Signing Windows binary."
+	@osslsigncode sign \
+		-pkcs12 "windows-signing-cert.pfx" \
+		-n "Teleport" \
+		-i https://goteleport.com \
+		-t http://timestamp.digicert.com \
+		-h sha2 \
+		-in teleport/tsh-unsigned.exe \
+		-out teleport/tsh.exe; \
+	success=$$?; \
+	rm -f teleport/tsh-unsigned.exe; \
+	if [ "$${success}" -ne 0 ]; then \
+		echo "Failed to sign tsh.exe, aborting."; \
+		exit 1; \
+	fi
+
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
 	@echo "---> Created $(RELEASE).zip."
@@ -449,7 +483,7 @@ integration-root:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go
+lint: lint-sh lint-helm lint-api lint-go lint-license
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -510,6 +544,39 @@ lint-helm:
 			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
 		fi; \
 	done
+
+ADDLICENSE := $(GOPATH)/bin/addlicense
+ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
+		-ignore '**/*.c' \
+		-ignore '**/*.h' \
+		-ignore '**/*.html' \
+		-ignore '**/*.js' \
+		-ignore '**/*.py' \
+		-ignore '**/*.rs' \
+		-ignore '**/*.sh' \
+		-ignore '**/*.tf' \
+		-ignore '**/*.yaml' \
+		-ignore '**/*.yml' \
+		-ignore '**/Dockerfile' \
+		-ignore 'api/version.go' \
+		-ignore 'e/**' \
+		-ignore 'gitref.go' \
+		-ignore 'lib/web/build/**' \
+		-ignore 'vendor/**' \
+		-ignore 'version.go' \
+		-ignore 'webassets/**' \
+		-ignore 'ignoreme'
+
+.PHONY: lint-license
+lint-license: $(ADDLICENSE)
+	$(ADDLICENSE) $(ADDLICENSE_ARGS) -check * 2>/dev/null
+
+.PHONY: fix-license
+fix-license: $(ADDLICENSE)
+	$(ADDLICENSE) $(ADDLICENSE_ARGS) * 2>/dev/null
+
+$(ADDLICENSE):
+	cd && go install github.com/google/addlicense@v1.0.0
 
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version

@@ -1845,7 +1845,7 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context) ([]types.Database, 
 	}
 	var databases []types.Database
 	for _, server := range servers {
-		databases = append(databases, server.GetDatabases()...)
+		databases = append(databases, server.GetDatabase())
 	}
 	return types.DeduplicateDatabases(databases), nil
 }

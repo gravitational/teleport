@@ -177,13 +177,22 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	priv, pub, err := s.server.AuthServer.AuthServer.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	c.Assert(err, IsNil)
+
 	// start node
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: s.server.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		HostID:       hostID,
+		NodeName:     s.server.ClusterName(),
+		Roles:        types.SystemRoles{types.RoleNode},
+		PublicSSHKey: pub,
+		PublicTLSKey: tlsPub,
 	})
 	c.Assert(err, IsNil)
+	certs.Key = priv
 
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	c.Assert(err, IsNil)
@@ -498,7 +507,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 
-	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after;connector_id=` + connector.GetName())
+	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after&connector_id=` + connector.GetName())
 	c.Assert(err, IsNil)
 	req, err := http.NewRequest("GET", baseURL.String(), nil)
 	c.Assert(err, IsNil)
@@ -815,7 +824,6 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 		c.Assert(err, NotNil, Commentf(testCase.expectedErr))
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
-
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
@@ -1450,147 +1458,6 @@ func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
 	c.Assert(recoveryCodes, HasLen, 0)
 }
 
-func TestU2FLogin(t *testing.T) {
-	for _, sf := range []constants.SecondFactorType{
-		constants.SecondFactorU2F,
-		constants.SecondFactorOptional,
-		constants.SecondFactorOn,
-		constants.SecondFactorOff,
-	} {
-		sf := sf
-		t.Run(fmt.Sprintf("second_factor_%s", sf), func(t *testing.T) {
-			t.Parallel()
-			testU2FLogin(t, sf)
-		})
-	}
-}
-
-func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-
-	// configure cluster authentication preferences
-	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorU2F,
-		U2F: &types.U2F{
-			AppID:  "https://" + env.server.TLS.ClusterName(),
-			Facets: []string{"https://" + env.server.TLS.ClusterName()},
-		},
-	})
-	require.NoError(t, err)
-	err = env.server.Auth().SetAuthPreference(ctx, cap)
-	require.NoError(t, err)
-
-	// create user
-	env.proxies[0].createUser(ctx, t, "bob", "root", "password", "")
-
-	// create password change token
-	token, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
-		Name: "bob",
-	})
-	require.NoError(t, err)
-
-	u2fRegReq, err := env.proxies[0].client.GetSignupU2FRegisterRequest(token.GetName())
-	require.NoError(t, err)
-
-	mockU2F, err := mocku2f.Create()
-	require.NoError(t, err)
-	u2fRegResp, err := mockU2F.RegisterResponse(u2fRegReq)
-	require.NoError(t, err)
-
-	tempPass := []byte("abc123")
-	_, err = env.proxies[0].client.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
-		TokenID: token.GetName(),
-		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_U2F{
-			U2F: &apiProto.U2FRegisterResponse{
-				RegistrationData: u2fRegResp.RegistrationData,
-				ClientData:       u2fRegResp.ClientData,
-			},
-		}},
-		NewPassword: tempPass,
-	})
-	require.NoError(t, err)
-
-	// normal login
-	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
-	require.NoError(t, err)
-	re, err := clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: "bob",
-		Pass: string(tempPass),
-	})
-	require.NoError(t, err)
-	var u2fSignReq u2f.AuthenticateChallenge
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err := mockU2F.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignResp,
-	})
-	require.NoError(t, err)
-
-	// bad login: corrupted sign responses, should fail
-	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: "bob",
-		Pass: string(tempPass),
-	})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err = mockU2F.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	// corrupted KeyHandle
-	u2fSignRespCopy := u2fSignResp
-	u2fSignRespCopy.KeyHandle = u2fSignRespCopy.KeyHandle + u2fSignRespCopy.KeyHandle
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// corrupted SignatureData
-	u2fSignRespCopy = u2fSignResp
-	u2fSignRespCopy.SignatureData = u2fSignRespCopy.SignatureData[:10] + u2fSignRespCopy.SignatureData[20:]
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// corrupted ClientData
-	u2fSignRespCopy = u2fSignResp
-	u2fSignRespCopy.ClientData = u2fSignRespCopy.ClientData[:10] + u2fSignRespCopy.ClientData[20:]
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// bad login: counter not increasing, should fail
-	mockU2F.SetCounter(0)
-	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: "bob",
-		Pass: string(tempPass),
-	})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err = mockU2F.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignResp,
-	})
-	require.Error(t, err)
-}
-
 // TestPing ensures that a response is returned by /webapi/ping
 // and that that response body contains authentication information.
 func (s *WebSuite) TestPing(c *C) {
@@ -2063,7 +1930,8 @@ func TestClusterKubesGet(t *testing.T) {
 				{
 					Name:         "test-kube-name",
 					StaticLabels: map[string]string{"test-field": "test-value"},
-				}},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -2178,7 +2046,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	c.Assert(err, IsNil)
 
-	var tests = []struct {
+	tests := []struct {
 		inComment       CommentInterface
 		inCreateRequest *CreateAppSessionRequest
 		outError        bool
@@ -2795,13 +2663,22 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	})
 	require.NoError(t, err)
 
+	priv, pub, err := server.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
 	// start auth server
 	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: server.TLS.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		HostID:       hostID,
+		NodeName:     server.TLS.ClusterName(),
+		Roles:        types.SystemRoles{types.RoleNode},
+		PublicSSHKey: pub,
+		PublicTLSKey: tlsPub,
 	})
 	require.NoError(t, err)
+	certs.Key = priv
 
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	require.NoError(t, err)
