@@ -99,6 +99,10 @@ type LoginFlow struct {
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
 func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertion, error) {
+	if user == "" {
+		return nil, trace.BadParameter("user required")
+	}
+
 	// Fetch existing user devices. We need the devices both to set the allowed
 	// credentials for the user (webUser.credentials) and to determine if the U2F
 	// appid extension is necessary.
@@ -148,6 +152,15 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertio
 // Finish has the side effect of updating the counter and last used timestamp of
 // the returned device.
 func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAssertionResponse) (*types.MFADevice, error) {
+	switch {
+	case user == "":
+		return nil, trace.BadParameter("user required")
+	case resp == nil:
+		// resp != nil is good enough to proceed, we leave remaining validations to
+		// duo-labs/webauthn.
+		return nil, trace.BadParameter("credential assertion response required")
+	}
+
 	parsedResp, err := parseCredentialResponse(resp)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -160,7 +173,7 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	// TODO(codingllama): Consider ignoring appid and basing the decision solely
 	//  in the device type. May be safer than assuming compliance?
 	// Do not read from parsedResp here, extensions don't carry over.
-	switch usingAppID := resp.Extensions.AppID; {
+	switch usingAppID := resp.Extensions != nil && resp.Extensions.AppID; {
 	case usingAppID && (f.U2F == nil || f.U2F.AppID == ""):
 		return nil, trace.BadParameter("appid extension provided but U2F app_id not configured")
 	case usingAppID:

@@ -366,7 +366,9 @@ func (a *Server) runPeriodicOperations() {
 	r := rand.New(rand.NewSource(a.GetClock().Now().UnixNano()))
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
+	a.lock.RLock()
 	ticker := a.clock.NewTicker(period)
+	a.lock.RUnlock()
 	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
 		Duration: apidefaults.ServerKeepAliveTTL * 2,
