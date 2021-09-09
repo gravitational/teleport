@@ -115,6 +115,8 @@ message Event {
             [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
         // Database is a database resource.
         types.DatabaseV3 Database = 28 [ (gogoproto.jsontag) = "database,omitempty" ];
+        // AppServer is an application server resource.
+        types.AppServerV3 AppServer = 29 [ (gogoproto.jsontag) = "app_server,omitempty" ];
     }
 }
 
@@ -402,7 +404,43 @@ message CompleteStream {}
 // FlushAndCloseStream flushes the stream data and closes the stream
 message FlushAndCloseStream {}
 
+// GetApplicationServersRequest is a request to fetch all registered apps.
+message GetApplicationServersRequest {
+    // Namespace is the app servers namespace.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+}
+
+// GetApplicationServersResponse contains all registered app servers.
+message GetApplicationServersResponse {
+    // Servers is a list of proxied applications.
+    repeated types.AppServerV3 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
+}
+
+// UpsertApplicationServerRequest upserts an app server.
+message UpsertApplicationServerRequest {
+    // Server is an app server resource to register.
+    types.AppServerV3 Server = 1 [ (gogoproto.jsontag) = "server" ];
+}
+
+// DeleteApplicationServerRequest is a request to delete an app server.
+message DeleteApplicationServerRequest {
+    // Namespace is the app server namespace.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+    // HostID is the app server host uuid.
+    string HostID = 2 [ (gogoproto.jsontag) = "host_id" ];
+    // Name is the name of the application to delete.
+    string Name = 3 [ (gogoproto.jsontag) = "name" ];
+}
+
+// DeleteAllApplicationServersRequest are the parameters used to remove all applications.
+message DeleteAllApplicationServersRequest {
+    // Namespace is the app servers namespace.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+}
+
 // GetAppServersRequest are the parameters used to request application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServersRequest.
 message GetAppServersRequest {
     // Namespace is the namespace for application.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
@@ -411,15 +449,21 @@ message GetAppServersRequest {
 }
 
 // GetAppServersResponse contains all requested application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServersResponse.
 message GetAppServersResponse {
     // Servers is a slice of types.Server that represent applications.
     repeated types.ServerV2 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
 }
 
 // UpsertAppServerRequest are the parameters used to add an application.
+//
+// DELETE IN 9.0. Deprecated, use UpsertApplicationServerRequest.
 message UpsertAppServerRequest { types.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ]; }
 
 // DeleteAppServerRequest are the parameters used to remove an application.
+//
+// DELETE IN 9.0. Deprecated, use DeleteApplicationServerRequest.
 message DeleteAppServerRequest {
     // Namespace is the namespace for application.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
@@ -428,6 +472,8 @@ message DeleteAppServerRequest {
 }
 
 // DeleteAllAppServersRequest are the parameters used to remove all applications.
+//
+// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServersRequest.
 message DeleteAllAppServersRequest {
     // Namespace is the namespace for application.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
@@ -1186,14 +1232,40 @@ service AuthService {
     // CreateAuditStream creates or resumes audit events streams
     rpc CreateAuditStream(stream AuditStreamRequest) returns (stream events.StreamStatus);
 
+    // GetApplicationServers gets all application servers.
+    rpc GetApplicationServers(GetApplicationServersRequest) returns (GetApplicationServersResponse);
+    // UpsertApplicationServer adds an application server.
+    rpc UpsertApplicationServer(UpsertApplicationServerRequest) returns (types.KeepAlive);
+    // DeleteApplicationServer removes an application server.
+    rpc DeleteApplicationServer(DeleteApplicationServerRequest) returns (google.protobuf.Empty);
+    // DeleteAllApplicationServers removes all application servers.
+    rpc DeleteAllApplicationServers(DeleteAllApplicationServersRequest)
+        returns (google.protobuf.Empty);
+
     // GetAppServers gets all application servers.
-    rpc GetAppServers(GetAppServersRequest) returns (GetAppServersResponse);
+    //
+    // DELETE IN 9.0. Deprecated, use GetApplicationServers.
+    rpc GetAppServers(GetAppServersRequest) returns (GetAppServersResponse) {
+        option deprecated = true;
+    };
     // UpsertAppServer adds an application server.
-    rpc UpsertAppServer(UpsertAppServerRequest) returns (types.KeepAlive);
+    //
+    // DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
+    rpc UpsertAppServer(UpsertAppServerRequest) returns (types.KeepAlive) {
+        option deprecated = true;
+    };
     // DeleteAppServer removes an application server.
-    rpc DeleteAppServer(DeleteAppServerRequest) returns (google.protobuf.Empty);
+    //
+    // DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
+    rpc DeleteAppServer(DeleteAppServerRequest) returns (google.protobuf.Empty) {
+        option deprecated = true;
+    };
     // DeleteAllAppServers removes all application servers.
-    rpc DeleteAllAppServers(DeleteAllAppServersRequest) returns (google.protobuf.Empty);
+    //
+    // DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
+    rpc DeleteAllAppServers(DeleteAllAppServersRequest) returns (google.protobuf.Empty) {
+        option deprecated = true;
+    };
 
     // GenerateAppToken will generate a JWT token for application access.
     rpc GenerateAppToken(GenerateAppTokenRequest) returns (GenerateAppTokenResponse);

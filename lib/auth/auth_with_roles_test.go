@@ -609,6 +609,71 @@ func TestGetDatabaseServers(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.DatabaseServer{}, servers))
 }
 
+// TestGetApplicationServers verifies RBAC is applied when fetching app servers.
+func TestGetApplicationServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test app servers.
+	for i := 0; i < 5; i++ {
+		name := fmt.Sprintf("app-%v", i)
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: map[string]string{"name": name},
+		},
+			types.AppSpecV3{URI: "localhost"})
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3FromApp(app, "host", "hostid")
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to get the first app
+	role.SetAppLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, len(servers))
+	require.Empty(t, cmp.Diff(testServers[0:1], servers))
+
+	// permit user to get all apps
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+
+	// deny user to get the first app
+	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Empty(t, cmp.Diff(testServers[1:], servers))
+
+	// deny user to get all apps
+	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, len(servers))
+}
+
 func TestGetAppServers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -624,6 +689,7 @@ func TestGetAppServers(t *testing.T) {
 				Apps: []*types.App{{
 					Name:         name,
 					StaticLabels: map[string]string{"name": name},
+					URI:          "localhost",
 				}},
 			},
 			nil,

@@ -403,11 +403,6 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
 	}
-	// Update CA rotation state.
-	rotation, err := s.cfg.GetRotation(types.RoleDatabase)
-	if err != nil && !trace.IsNotFound(err) {
-		s.log.WithError(err).Warn("Failed to get rotation state.")
-	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	return types.NewDatabaseServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -416,9 +411,21 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 		Version:  teleport.Version,
 		Hostname: s.cfg.Hostname,
 		HostID:   s.cfg.HostID,
-		Rotation: *rotation,
+		Rotation: s.getRotationState(),
 		Database: copy,
 	})
+}
+
+// getRotationState is a helper to return this server's CA rotation state.
+func (s *Server) getRotationState() types.Rotation {
+	rotation, err := s.cfg.GetRotation(types.RoleDatabase)
+	if err != nil && !trace.IsNotFound(err) {
+		s.log.WithError(err).Warn("Failed to get rotation state.")
+	}
+	if rotation != nil {
+		return *rotation
+	}
+	return types.Rotation{}
 }
 
 // Start starts proxying all server's registered databases.

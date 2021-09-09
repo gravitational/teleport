@@ -772,7 +772,7 @@ type AccessChecker interface {
 	EnhancedRecordingSet() map[string]bool
 
 	// CheckAccessToApp checks access to an application.
-	CheckAccessToApp(namespace string, app *types.App, mfa AccessMFAParams, matchers ...RoleMatcher) error
+	CheckAccessToApp(namespace string, app types.Application, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckAccessToKubernetes checks access to a kubernetes cluster.
 	CheckAccessToKubernetes(namespace string, app *types.KubernetesCluster, mfa AccessMFAParams) error
@@ -1489,11 +1489,11 @@ func (m *AWSRoleARNMatcher) String() string {
 // CheckAccessToApp checks if a role has access to an application. Deny rules
 // are checked first, then allow rules. Access to an application is determined by
 // namespaces and labels.
-func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+func (set RoleSet) CheckAccessToApp(namespace string, app types.Application, mfa AccessMFAParams, matchers ...RoleMatcher) error {
 	if mfa.AlwaysRequired && !mfa.Verified {
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to app %q denied, cluster requires per-session MFA", app.Name)
+		}).Debugf("Access to app %q denied, cluster requires per-session MFA", app.GetName())
 		return ErrSessionMFARequired
 	}
 	var errs []error
@@ -1502,7 +1502,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 	// prohibits access.
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), types.CombineLabels(app.StaticLabels, app.DynamicLabels))
+		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), app.GetAllLabels())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1515,7 +1515,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to app %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
-					app.Name, role.GetName(), namespaceMessage, labelsMessage)
+					app.GetName(), role.GetName(), namespaceMessage, labelsMessage)
 			}
 			return trace.AccessDenied("access to app denied")
 		}
@@ -1525,7 +1525,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 	// Check allow rules: namespace and label both have to match to be granted access.
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), types.CombineLabels(app.StaticLabels, app.DynamicLabels))
+		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), app.GetAllLabels())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1541,7 +1541,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to app %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
-					app.Name, role.GetName(), namespaceMessage, labelsMessage)
+					app.GetName(), role.GetName(), namespaceMessage, labelsMessage)
 				return ErrSessionMFARequired
 			}
 			// Check all remaining roles, even if we found a match.
@@ -1563,7 +1563,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 	if log.GetLevel() == log.DebugLevel {
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to app %v denied, no allow rule matched; %v", app.Name, errs)
+		}).Debugf("Access to app %v denied, no allow rule matched; %v", app.GetName(), errs)
 	}
 	return trace.AccessDenied("access to app denied")
 }

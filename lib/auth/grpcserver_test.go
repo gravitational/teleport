@@ -1547,6 +1547,85 @@ func TestLocksCRUD(t *testing.T) {
 	})
 }
 
+// TestApplicationServersCRUD tests application server operations.
+func TestApplicationServersCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// Create a couple app servers.
+	app1, err := types.NewAppV3(types.Metadata{Name: "app-1"},
+		types.AppSpecV3{URI: "localhost"})
+	require.NoError(t, err)
+	server1, err := types.NewAppServerV3FromApp(app1, "server-1", "server-1")
+	require.NoError(t, err)
+	app2, err := types.NewAppV3(types.Metadata{Name: "app-2"},
+		types.AppSpecV3{URI: "localhost"})
+	require.NoError(t, err)
+	server2, err := types.NewAppServerV3FromApp(app2, "server-2", "server-2")
+	require.NoError(t, err)
+
+	// Create a legacy app server.
+	app3, err := types.NewAppV3(types.Metadata{Name: "app-3"},
+		types.AppSpecV3{URI: "localhost"})
+	require.NoError(t, err)
+	server3Legacy, err := types.NewLegacyAppServer(app3, "server-3", "server-3")
+	require.NoError(t, err)
+	server3, err := types.NewAppServerV3FromApp(app3, "server-3", "server-3")
+	require.NoError(t, err)
+
+	// Initially we expect no app servers.
+	out, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+
+	// Register all app servers.
+	_, err = clt.UpsertApplicationServer(ctx, server1)
+	require.NoError(t, err)
+	_, err = clt.UpsertApplicationServer(ctx, server2)
+	require.NoError(t, err)
+	_, err = clt.UpsertAppServer(ctx, server3Legacy)
+	require.NoError(t, err)
+
+	// Fetch all app servers.
+	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{server1, server2, server3}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Update an app server.
+	server1.Metadata.Description = "description"
+	_, err = clt.UpsertApplicationServer(ctx, server1)
+	require.NoError(t, err)
+	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{server1, server2, server3}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Delete an app server.
+	err = clt.DeleteApplicationServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
+	require.NoError(t, err)
+	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{server2, server3}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Delete all app servers.
+	err = clt.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	err = clt.DeleteAllAppServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+}
+
 // TestDatabasesCRUD tests database resource operations.
 func TestDatabasesCRUD(t *testing.T) {
 	t.Parallel()

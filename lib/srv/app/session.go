@@ -50,7 +50,7 @@ type session struct {
 }
 
 // newSession creates a new session.
-func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *types.App) (*session, error) {
+func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*session, error) {
 	// Create the stream writer that will write this chunk to the audit log.
 	streamWriter, err := s.newStreamWriter(identity)
 	if err != nil {
@@ -61,7 +61,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
 		Roles:    identity.Groups,
-		URI:      app.URI,
+		URI:      app.GetURI(),
 		Expires:  identity.Expires,
 	})
 	if err != nil {
@@ -72,13 +72,13 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	transport, err := newTransport(s.closeContext,
 		&transportConfig{
 			w:                  streamWriter,
-			uri:                app.URI,
-			publicAddr:         app.PublicAddr,
+			uri:                app.GetURI(),
+			publicAddr:         app.GetPublicAddr(),
 			publicPort:         s.proxyPort,
 			cipherSuites:       s.c.CipherSuites,
-			insecureSkipVerify: app.InsecureSkipVerify,
+			insecureSkipVerify: app.GetInsecureSkipVerify(),
 			jwt:                jwt,
-			rewrite:            app.Rewrite,
+			rewrite:            app.GetRewrite(),
 			traits:             identity.Traits,
 			log:                s.log,
 			user:               identity.Username,
@@ -133,7 +133,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		Clock:        s.c.Clock,
 		SessionID:    session_pkg.ID(chunkID),
 		Namespace:    apidefaults.Namespace,
-		ServerID:     s.c.Server.GetName(),
+		ServerID:     s.c.HostID,
 		RecordOutput: recConfig.GetMode() != types.RecordOff,
 		Component:    teleport.ComponentApp,
 		ClusterName:  clusterName.GetClusterName(),
@@ -150,7 +150,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.c.Server.GetName(),
+			ServerID:        s.c.HostID,
 			ServerNamespace: apidefaults.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{

@@ -2672,10 +2672,12 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 
 // TestCheckAccessToAWSConsole verifies AWS role ARNs access checker.
 func TestCheckAccessToAWSConsole(t *testing.T) {
-	app := &types.App{
+	app, err := types.NewAppV3(types.Metadata{
 		Name: "awsconsole",
-		URI:  constants.AWSConsoleURL,
-	}
+	}, types.AppSpecV3{
+		URI: constants.AWSConsoleURL,
+	})
+	require.NoError(t, err)
 	readOnlyARN := "readonly"
 	fullAccessARN := "fullaccess"
 	roleNoAccess := &types.RoleV4{
