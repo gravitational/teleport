@@ -66,7 +66,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	user := "fake@fake.com"
 	rc, err := srv.Auth().generateAndUpsertRecoveryCodes(ctx, user)
 	require.NoError(t, err)
-	require.Len(t, rc, 3)
+	require.Len(t, rc, numOfRecoveryCodes)
 
 	// Test codes are not marked used.
 	recovery, err := srv.Auth().GetRecoveryCodes(ctx, user)
@@ -1065,24 +1065,24 @@ func TestGetAccountRecoveryToken(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	cases := []struct {
-		name     string
-		isExpErr bool
-		req      CreateUserTokenRequest
+		name    string
+		wantErr bool
+		req     CreateUserTokenRequest
 	}{
 		{
-			name:     "invalid recovery token type",
-			isExpErr: true,
+			name:    "invalid recovery token type",
+			wantErr: true,
 			req: CreateUserTokenRequest{
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeResetPassword,
 			},
 		},
 		{
-			name:     "token not found",
-			isExpErr: true,
+			name:    "token not found",
+			wantErr: true,
 			req: CreateUserTokenRequest{
 				TTL:  5 * time.Minute,
-				Type: "Type-Does-Not-Exist",
+				Type: "unknown-token-type",
 			},
 		},
 		{
@@ -1102,6 +1102,7 @@ func TestGetAccountRecoveryToken(t *testing.T) {
 	}
 
 	for _, c := range cases {
+		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1116,7 +1117,7 @@ func TestGetAccountRecoveryToken(t *testing.T) {
 			})
 
 			switch {
-			case c.isExpErr:
+			case c.wantErr:
 				require.True(t, trace.IsAccessDenied(err))
 			default:
 				require.NoError(t, err)
@@ -1145,12 +1146,13 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 	require.NoError(t, err)
 
 	cases := []struct {
-		name     string
-		isNotErr bool
-		req      CreateUserTokenRequest
+		name    string
+		wantErr bool
+		req     CreateUserTokenRequest
 	}{
 		{
-			name: "invalid token type",
+			name:    "invalid token type",
+			wantErr: true,
 			req: CreateUserTokenRequest{
 				Name: "llama@email.com",
 				TTL:  5 * time.Minute,
@@ -1158,23 +1160,24 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 			},
 		},
 		{
-			name: "token not found",
+			name:    "token not found",
+			wantErr: true,
 			req: CreateUserTokenRequest{
 				TTL:  5 * time.Minute,
-				Type: "Type-Does-Not-Exist",
+				Type: "unknown-token-type",
 			},
 		},
 		{
-			name: "invalid user name",
+			name:    "invalid user name",
+			wantErr: true,
 			req: CreateUserTokenRequest{
 				Name: "invalid-email",
 				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryStart,
+				Type: UserTokenTypeRecoveryApproved,
 			},
 		},
 		{
-			name:     "valid token",
-			isNotErr: true,
+			name: "valid token",
 			req: CreateUserTokenRequest{
 				Name: "llama@email.com",
 				TTL:  5 * time.Minute,
@@ -1186,26 +1189,25 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 	for _, c := range cases {
 		token, err := srv.Auth().newUserToken(c.req)
 		require.NoError(t, err)
+
 		_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
 		require.NoError(t, err)
 
+		res, err := srv.Auth().CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
+			TokenID: token.GetName(),
+		})
+
 		switch {
-		case c.isNotErr:
-			res, err := srv.Auth().CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
-				TokenID: token.GetName(),
-			})
+		case c.wantErr:
+			require.True(t, trace.IsAccessDenied(err))
+
+		default:
 			require.NoError(t, err)
-			require.Len(t, res.GetRecoveryCodes(), 3)
+			require.Len(t, res.GetRecoveryCodes(), numOfRecoveryCodes)
 
 			// Check token is deleted after success.
 			_, err = srv.Auth().Identity.GetUserToken(ctx, token.GetName())
 			require.True(t, trace.IsNotFound(err))
-
-		default:
-			_, err = srv.Auth().CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
-				TokenID: token.GetName(),
-			})
-			require.True(t, trace.IsAccessDenied(err))
 		}
 	}
 }

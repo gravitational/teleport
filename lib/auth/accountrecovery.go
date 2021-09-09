@@ -453,7 +453,7 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 
 // CreateAccountRecoveryCodes implements AuthService.CreateAccountRecoveryCodes.
 func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
-	errMsg := "unable to create new recovery codes, please contact your system administrator"
+	const unableToCreateCodesMsg = "unable to create new recovery codes, please contact your system administrator"
 
 	if err := s.isAccountRecoveryAllowed(ctx); err != nil {
 		return nil, trace.Wrap(err)
@@ -462,12 +462,12 @@ func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 	approvedToken, err := s.GetUserToken(ctx, req.GetTokenID())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
-		return nil, trace.AccessDenied(errMsg)
+		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
 	if _, err := mail.ParseAddress(approvedToken.GetUser()); err != nil {
 		log.Debugf("Failed to create new recovery codes, username %q is not a valid email: %v.", approvedToken.GetUser(), err)
-		return nil, trace.AccessDenied(errMsg)
+		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
 	if err := s.verifyUserToken(approvedToken, UserTokenTypeRecoveryApproved); err != nil {
@@ -477,7 +477,7 @@ func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 	codes, err := s.generateAndUpsertRecoveryCodes(ctx, approvedToken.GetUser())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
-		return nil, trace.AccessDenied(errMsg)
+		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
 	// If used as part of the recovery flow, getting new recovery codes marks the end of the flow in the UI.

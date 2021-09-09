@@ -1147,6 +1147,9 @@ message CompleteAccountRecoveryRequest {
 //  - username is in valid email format
 message CreateAccountRecoveryCodesRequest {
     // TokenID is the ID of a user token that will be used to verify this request.
+    // Token types accepted are:
+    //   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
+    //   - TODO(kimlisa) add privilege token doc after implementation
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
 }
 
