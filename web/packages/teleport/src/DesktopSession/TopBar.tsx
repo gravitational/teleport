@@ -14,61 +14,97 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import React from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { Text, TopNav, Flex } from 'design';
 import { Clipboard } from 'design/Icon';
 import { colors } from 'teleport/Console/colors';
 import ActionMenu from './ActionMenu';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
 type TopBarProps = {
   userHost: string;
   clipboard: boolean;
   recording: boolean;
+  attempt: Attempt;
 };
 
-const StyledUserHostText = styled(Text)`
-  color: ${props => props.theme.colors.text.secondary};
-`;
-
-const StyledClipboardText = styled(Text)`
-  color: ${props =>
-    props.clipboard
-      ? props.theme.colors.text.primary
-      : props.theme.colors.text.secondary};
-`;
-
-// vertical-align: text-bottom makes the text appear vertically aligned with the center of the clipboard icon.
-const StyledClipboard = styled(Clipboard)`
-  color: ${props =>
-    props.clipboard
-      ? props.theme.colors.text.primary
-      : props.theme.colors.text.secondary};
-  font-weight: ${props => props.theme.fontWeights.bold};
-  font-size: ${props => props.theme.fontSizes[4]}px;
-  vertical-align: text-bottom;
-`;
-
-const StyledRecordingText = styled(Text)`
-  color: ${props =>
-    props.recording
-      ? props.theme.colors.text.primary
-      : props.theme.colors.text.secondary};
-`;
-
-const StyledRecordingIndicator = styled.div`
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  margin-right: 6px;
-  background-color: ${props =>
-    props.recording
-      ? props.theme.colors.error.light
-      : props.theme.colors.text.secondary};
-  vertical-align: text-bottom;
-`;
+const RecordingIndicator = styled.div``;
 
 export default function TopBar(props: TopBarProps) {
-  const { userHost, clipboard, recording } = props;
+  const { userHost, clipboard, recording, attempt } = props;
+  const theme = useTheme();
+
+  const hiddenUntilSuccess = () => {
+    return {
+      visibility: attempt.status === 'success' ? 'visible' : 'hidden',
+    };
+  };
+
+  const noneUntilSuccess = () => {
+    return {
+      display: attempt.status === 'success' ? 'flex' : 'none',
+    };
+  };
+
+  const showWhileProcessing = () => {
+    return {
+      display: attempt.status === 'processing' ? 'flex' : 'none',
+    };
+  };
+
+  const showOnFailure = () => {
+    return {
+      display: attempt.status === 'failed' ? 'flex' : 'none',
+    };
+  };
+
+  const primaryOnTrue = (b: boolean): any => {
+    return {
+      color: b ? theme.colors.text.primary : theme.colors.text.secondary,
+    };
+  };
+
+  const userHostStyle = {
+    ...hiddenUntilSuccess(),
+    color: theme.colors.text.secondary,
+  };
+
+  const clipboardTextStyle = {
+    ...noneUntilSuccess(),
+    ...primaryOnTrue(clipboard),
+    verticalAlign: 'text-bottom',
+  };
+
+  const clipboardStyle = {
+    ...primaryOnTrue(clipboard),
+    fontWeight: theme.fontWeights.bold,
+    fontSize: theme.fontSizes[4] + 'px',
+    alignSelf: 'center',
+  };
+
+  const connectingStyle = {
+    ...showWhileProcessing(),
+    color: theme.colors.text.secondary,
+  };
+
+  const topBarErrorStyle = {
+    ...showOnFailure(),
+    color: theme.colors.text.secondary,
+  };
+
+  const recordingTextStyle = primaryOnTrue(recording);
+
+  const recordingIndicatorStyle = {
+    width: '10px',
+    height: '10px',
+    borderRadius: '10px',
+    marginRight: '6px',
+    backgroundColor: recording
+      ? theme.colors.error.light
+      : theme.colors.text.secondary,
+    verticalAlign: 'text-bottom',
+  };
+
   return (
     <TopNav
       height="56px"
@@ -77,17 +113,25 @@ export default function TopBar(props: TopBarProps) {
         justifyContent: 'space-between',
       }}
     >
-      <StyledUserHostText px={3}>{userHost}</StyledUserHostText>
-      <StyledClipboardText clipboard={clipboard}>
-        <StyledClipboard clipboard={clipboard} /> Clipboard Sharing{' '}
-        {clipboard ? 'Enabled' : 'Disabled'}
-      </StyledClipboardText>
-      <Flex px={3}>
+      <Text px={3} style={userHostStyle}>
+        {userHost}
+      </Text>
+
+      <>
+        <Text style={clipboardTextStyle}>
+          <Clipboard style={clipboardStyle} pr={2} />
+          Clipboard Sharing {clipboard ? 'Enabled' : 'Disabled'}
+        </Text>
+        <Text style={connectingStyle}>Connecting...</Text>
+        <Text style={topBarErrorStyle}>Error</Text>
+      </>
+
+      <Flex px={3} style={hiddenUntilSuccess()}>
         <Flex alignItems="center">
-          <StyledRecordingIndicator recording={recording} />
-          <StyledRecordingText recording={recording}>
+          <RecordingIndicator style={recordingIndicatorStyle} />
+          <Text style={recordingTextStyle}>
             {recording ? '' : 'Not '}Recording
-          </StyledRecordingText>
+          </Text>
         </Flex>
         <ActionMenu
           onDisconnect={() => {
