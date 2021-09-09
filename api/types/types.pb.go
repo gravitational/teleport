@@ -7535,6 +7535,136 @@ func (m *RecoveryCode) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_RecoveryCode proto.InternalMessageInfo
 
+type ClusterEncryptionConfigV3 struct {
+	// Kind is a resource kind.
+	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
+	// SubKind is an optional resource sub kind, used in some resources.
+	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
+	// Version is a resource version.
+	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
+	// Metadata holds resource metadata.
+	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
+	// Spec is an Github connector specification.
+	Spec                 ClusterEncryptionConfigSpecV3 `protobuf:"bytes,5,opt,name=Spec,proto3" json:"spec"`
+	XXX_NoUnkeyedLiteral struct{}                      `json:"-"`
+	XXX_unrecognized     []byte                        `json:"-"`
+	XXX_sizecache        int32                         `json:"-"`
+}
+
+func (m *ClusterEncryptionConfigV3) Reset()         { *m = ClusterEncryptionConfigV3{} }
+func (m *ClusterEncryptionConfigV3) String() string { return proto.CompactTextString(m) }
+func (*ClusterEncryptionConfigV3) ProtoMessage()    {}
+func (*ClusterEncryptionConfigV3) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d938547f84707355, []int{148}
+}
+func (m *ClusterEncryptionConfigV3) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ClusterEncryptionConfigV3) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ClusterEncryptionConfigV3.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ClusterEncryptionConfigV3) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ClusterEncryptionConfigV3.Merge(m, src)
+}
+func (m *ClusterEncryptionConfigV3) XXX_Size() int {
+	return m.Size()
+}
+func (m *ClusterEncryptionConfigV3) XXX_DiscardUnknown() {
+	xxx_messageInfo_ClusterEncryptionConfigV3.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ClusterEncryptionConfigV3 proto.InternalMessageInfo
+
+type SessionEncryptionKey struct {
+	Identifier           string   `protobuf:"bytes,1,opt,name=Identifier,proto3" json:"identifier"`
+	KeyPair              string   `protobuf:"bytes,2,opt,name=KeyPair,proto3" json:"key_pair"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SessionEncryptionKey) Reset()         { *m = SessionEncryptionKey{} }
+func (m *SessionEncryptionKey) String() string { return proto.CompactTextString(m) }
+func (*SessionEncryptionKey) ProtoMessage()    {}
+func (*SessionEncryptionKey) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d938547f84707355, []int{149}
+}
+func (m *SessionEncryptionKey) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SessionEncryptionKey) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SessionEncryptionKey.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SessionEncryptionKey) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SessionEncryptionKey.Merge(m, src)
+}
+func (m *SessionEncryptionKey) XXX_Size() int {
+	return m.Size()
+}
+func (m *SessionEncryptionKey) XXX_DiscardUnknown() {
+	xxx_messageInfo_SessionEncryptionKey.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SessionEncryptionKey proto.InternalMessageInfo
+
+type ClusterEncryptionConfigSpecV3 struct {
+	MasterKeys           []*SessionEncryptionKey `protobuf:"bytes,1,rep,name=MasterKeys,proto3" json:"master_keys"`
+	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
+	XXX_unrecognized     []byte                  `json:"-"`
+	XXX_sizecache        int32                   `json:"-"`
+}
+
+func (m *ClusterEncryptionConfigSpecV3) Reset()         { *m = ClusterEncryptionConfigSpecV3{} }
+func (m *ClusterEncryptionConfigSpecV3) String() string { return proto.CompactTextString(m) }
+func (*ClusterEncryptionConfigSpecV3) ProtoMessage()    {}
+func (*ClusterEncryptionConfigSpecV3) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d938547f84707355, []int{150}
+}
+func (m *ClusterEncryptionConfigSpecV3) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ClusterEncryptionConfigSpecV3) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ClusterEncryptionConfigSpecV3.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ClusterEncryptionConfigSpecV3) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ClusterEncryptionConfigSpecV3.Merge(m, src)
+}
+func (m *ClusterEncryptionConfigSpecV3) XXX_Size() int {
+	return m.Size()
+}
+func (m *ClusterEncryptionConfigSpecV3) XXX_DiscardUnknown() {
+	xxx_messageInfo_ClusterEncryptionConfigSpecV3.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ClusterEncryptionConfigSpecV3 proto.InternalMessageInfo
+
 func init() {
 	proto.RegisterEnum("types.PrivateKeyType", PrivateKeyType_name, PrivateKeyType_value)
 	proto.RegisterEnum("types.UserTokenUsage", UserTokenUsage_name, UserTokenUsage_value)
@@ -7702,12 +7832,15 @@ func init() {
 	proto.RegisterType((*RecoveryCodesV1)(nil), "types.RecoveryCodesV1")
 	proto.RegisterType((*RecoveryCodesSpecV1)(nil), "types.RecoveryCodesSpecV1")
 	proto.RegisterType((*RecoveryCode)(nil), "types.RecoveryCode")
+	proto.RegisterType((*ClusterEncryptionConfigV3)(nil), "types.ClusterEncryptionConfigV3")
+	proto.RegisterType((*SessionEncryptionKey)(nil), "types.SessionEncryptionKey")
+	proto.RegisterType((*ClusterEncryptionConfigSpecV3)(nil), "types.ClusterEncryptionConfigSpecV3")
 }
 
 func init() { proto.RegisterFile("types.proto", fileDescriptor_d938547f84707355) }
 
 var fileDescriptor_d938547f84707355 = []byte{
-	// 9708 bytes of a gzipped FileDescriptorProto
+	// 9801 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xdc, 0x7d, 0x6d, 0x6c, 0x1c, 0xc9,
 	0x95, 0xd8, 0xf6, 0xcc, 0x90, 0x9c, 0x79, 0xfc, 0x1a, 0x15, 0x45, 0x89, 0xa2, 0xb4, 0x3b, 0x72,
 	0xef, 0xae, 0x56, 0x5a, 0xef, 0x52, 0x16, 0xe5, 0x5d, 0x7b, 0xbd, 0x5f, 0x1e, 0x7e, 0x48, 0xe2,
@@ -8303,18 +8436,24 @@ var fileDescriptor_d938547f84707355 = []byte{
 	0xc1, 0x56, 0xe2, 0xb1, 0x93, 0x9e, 0xae, 0xd9, 0x85, 0x31, 0xb5, 0x42, 0x76, 0xc2, 0xbd, 0xe7,
 	0x84, 0xfb, 0xd4, 0x5d, 0x94, 0x1f, 0x84, 0x19, 0xe3, 0x36, 0xcb, 0x3e, 0x42, 0x31, 0x95, 0xb4,
 	0xa5, 0xa0, 0x90, 0x17, 0x61, 0x78, 0x25, 0x7c, 0x18, 0x8a, 0xa6, 0x08, 0xc3, 0xcc, 0x43, 0x83,
-	0xda, 0xb5, 0x44, 0xd1, 0xab, 0x2f, 0xa7, 0x3f, 0x98, 0x4f, 0x46, 0x20, 0x6f, 0x55, 0xb7, 0xcb,
-	0xcf, 0x11, 0x80, 0xe1, 0x8d, 0xfb, 0x8b, 0xb5, 0x5b, 0xb7, 0xca, 0xc6, 0xab, 0x3e, 0x4c, 0xe8,
-	0xa9, 0xc9, 0xc9, 0x55, 0xb8, 0xf2, 0xb0, 0xb6, 0x6c, 0xd9, 0x9b, 0xeb, 0xf7, 0x97, 0xd7, 0xec,
-	0x87, 0xb5, 0xea, 0xdd, 0x65, 0xfb, 0xe1, 0x5a, 0x6d, 0x63, 0x79, 0x71, 0xe5, 0xce, 0xca, 0xf2,
-	0x52, 0xf9, 0x39, 0x52, 0x81, 0xcb, 0x0a, 0x86, 0xb5, 0xbc, 0xb8, 0xbe, 0xb5, 0x6c, 0xd9, 0x1b,
-	0xd5, 0x5a, 0x6d, 0x7b, 0xdd, 0x5a, 0x2a, 0x1b, 0x64, 0x16, 0x2e, 0x64, 0x20, 0x3c, 0xb8, 0x53,
-	0x2d, 0xe7, 0x5e, 0x7d, 0x9f, 0xf5, 0x3e, 0xc9, 0x0f, 0x48, 0x8a, 0x50, 0x58, 0x5b, 0x5f, 0x5b,
-	0x2e, 0x3f, 0x47, 0x46, 0x61, 0x64, 0x63, 0x79, 0x6d, 0x69, 0x65, 0xed, 0x6e, 0xd9, 0x20, 0x63,
-	0x50, 0xac, 0x6e, 0x6c, 0x58, 0xeb, 0x5b, 0xcb, 0x4b, 0xe5, 0x1c, 0x6b, 0xf1, 0xd2, 0xf2, 0x1a,
-	0xab, 0x3d, 0xbf, 0x50, 0xfe, 0xd9, 0x2f, 0x5e, 0x78, 0xee, 0x67, 0xbf, 0x7c, 0xc1, 0xf8, 0xf9,
-	0x2f, 0x5f, 0x30, 0xfe, 0xeb, 0x2f, 0x5f, 0x30, 0x76, 0x86, 0x71, 0x08, 0x6e, 0xff, 0x45, 0x00,
-	0x00, 0x00, 0xff, 0xff, 0x27, 0xb3, 0x8b, 0xec, 0x4d, 0x9a, 0x00, 0x00,
+	0xda, 0xb5, 0x44, 0x91, 0xfa, 0xed, 0xad, 0xe4, 0x9c, 0x7f, 0xc6, 0xbf, 0xb1, 0xd9, 0xf7, 0xdb,
+	0x5b, 0xe9, 0x5e, 0xf6, 0x59, 0x5c, 0x2d, 0x38, 0x2f, 0x6e, 0x1f, 0x35, 0x17, 0x08, 0x99, 0x03,
+	0xe0, 0xa1, 0xe1, 0xbb, 0x5e, 0xbc, 0xd3, 0xf3, 0x0b, 0x8d, 0x18, 0x6a, 0x29, 0x18, 0xe4, 0x1a,
+	0x8c, 0x48, 0x97, 0x8c, 0x92, 0xf0, 0x4b, 0xba, 0x5a, 0x2c, 0x59, 0x68, 0x36, 0xe3, 0x4f, 0x7d,
+	0x65, 0x37, 0x92, 0xac, 0x02, 0x3c, 0x70, 0x58, 0x39, 0x7e, 0xd9, 0x87, 0x4f, 0xce, 0xcb, 0xfa,
+	0x07, 0x93, 0xb4, 0x96, 0xf2, 0xf9, 0xd1, 0x44, 0x12, 0xfe, 0xad, 0x1f, 0x85, 0xfe, 0xd5, 0x97,
+	0x61, 0x22, 0xf1, 0x87, 0x60, 0xa4, 0xfc, 0x08, 0xe4, 0xad, 0xea, 0x76, 0xf9, 0x39, 0x02, 0x30,
+	0xbc, 0x71, 0x7f, 0xb1, 0x76, 0xeb, 0x56, 0xd9, 0x78, 0xd5, 0x87, 0x09, 0x3d, 0x2b, 0x3d, 0xb9,
+	0x0a, 0x57, 0x1e, 0xd6, 0x96, 0x2d, 0x7b, 0x73, 0xfd, 0xfe, 0xf2, 0x9a, 0xfd, 0xb0, 0x56, 0xbd,
+	0xbb, 0x6c, 0x3f, 0x5c, 0xab, 0x6d, 0x2c, 0x2f, 0xae, 0xdc, 0x59, 0x59, 0x5e, 0x2a, 0x3f, 0x47,
+	0x2a, 0x70, 0x59, 0xc1, 0xb0, 0x96, 0x17, 0xd7, 0xb7, 0x96, 0x2d, 0x7b, 0xa3, 0x5a, 0xab, 0x6d,
+	0xaf, 0x5b, 0x4b, 0x65, 0x83, 0xcc, 0xc2, 0x85, 0x0c, 0x84, 0x07, 0x77, 0xaa, 0xe5, 0xdc, 0xab,
+	0xef, 0xb3, 0x89, 0x9f, 0xa4, 0x86, 0x24, 0x45, 0x28, 0xac, 0xad, 0xaf, 0x2d, 0x97, 0x9f, 0x23,
+	0xa3, 0x30, 0xb2, 0xb1, 0xbc, 0xb6, 0xb4, 0xb2, 0x76, 0xb7, 0x6c, 0x90, 0x31, 0x28, 0x56, 0x37,
+	0x36, 0xac, 0xf5, 0xad, 0xe5, 0xa5, 0x72, 0x8e, 0xb5, 0x78, 0x69, 0x79, 0x8d, 0xd5, 0x9e, 0x5f,
+	0x28, 0xff, 0xec, 0x17, 0x2f, 0x3c, 0xf7, 0xb3, 0x5f, 0xbe, 0x60, 0xfc, 0xfc, 0x97, 0x2f, 0x18,
+	0xff, 0xf5, 0x97, 0x2f, 0x18, 0x3b, 0xc3, 0xb8, 0xfa, 0x6e, 0xff, 0x45, 0x00, 0x00, 0x00, 0xff,
+	0xff, 0x48, 0x23, 0x32, 0x3e, 0x48, 0x9c, 0x00, 0x00,
 }
 
 func (m *KeepAlive) Marshal() (dAtA []byte, err error) {
@@ -17486,6 +17625,156 @@ func (m *RecoveryCode) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *ClusterEncryptionConfigV3) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ClusterEncryptionConfigV3) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ClusterEncryptionConfigV3) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	{
+		size, err := m.Spec.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintTypes(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x2a
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintTypes(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	if len(m.Version) > 0 {
+		i -= len(m.Version)
+		copy(dAtA[i:], m.Version)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.Version)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.SubKind) > 0 {
+		i -= len(m.SubKind)
+		copy(dAtA[i:], m.SubKind)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.SubKind)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Kind) > 0 {
+		i -= len(m.Kind)
+		copy(dAtA[i:], m.Kind)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.Kind)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SessionEncryptionKey) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SessionEncryptionKey) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SessionEncryptionKey) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.KeyPair) > 0 {
+		i -= len(m.KeyPair)
+		copy(dAtA[i:], m.KeyPair)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.KeyPair)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Identifier) > 0 {
+		i -= len(m.Identifier)
+		copy(dAtA[i:], m.Identifier)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.Identifier)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ClusterEncryptionConfigSpecV3) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ClusterEncryptionConfigSpecV3) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ClusterEncryptionConfigSpecV3) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.MasterKeys) > 0 {
+		for iNdEx := len(m.MasterKeys) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.MasterKeys[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintTypes(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintTypes(dAtA []byte, offset int, v uint64) int {
 	offset -= sovTypes(v)
 	base := offset
@@ -21575,6 +21864,72 @@ func (m *RecoveryCode) Size() (n int) {
 	}
 	if m.IsUsed {
 		n += 2
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ClusterEncryptionConfigV3) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Kind)
+	if l > 0 {
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	l = len(m.SubKind)
+	if l > 0 {
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	l = len(m.Version)
+	if l > 0 {
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	l = m.Metadata.Size()
+	n += 1 + l + sovTypes(uint64(l))
+	l = m.Spec.Size()
+	n += 1 + l + sovTypes(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *SessionEncryptionKey) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Identifier)
+	if l > 0 {
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	l = len(m.KeyPair)
+	if l > 0 {
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ClusterEncryptionConfigSpecV3) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.MasterKeys) > 0 {
+		for _, e := range m.MasterKeys {
+			l = e.Size()
+			n += 1 + l + sovTypes(uint64(l))
+		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -49078,6 +49433,419 @@ func (m *RecoveryCode) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.IsUsed = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTypes(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ClusterEncryptionConfigV3) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTypes
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ClusterEncryptionConfigV3: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ClusterEncryptionConfigV3: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Kind", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Kind = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SubKind", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SubKind = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Version", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Version = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Spec", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Spec.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTypes(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SessionEncryptionKey) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTypes
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SessionEncryptionKey: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SessionEncryptionKey: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Identifier", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Identifier = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KeyPair", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.KeyPair = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTypes(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ClusterEncryptionConfigSpecV3) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTypes
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ClusterEncryptionConfigSpecV3: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ClusterEncryptionConfigSpecV3: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MasterKeys", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.MasterKeys = append(m.MasterKeys, &SessionEncryptionKey{})
+			if err := m.MasterKeys[len(m.MasterKeys)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTypes(dAtA[iNdEx:])

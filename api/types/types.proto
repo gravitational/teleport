@@ -2514,3 +2514,26 @@ message RecoveryCode {
     // IsUsed determines if this recovery code was used.
     bool IsUsed = 2 [ (gogoproto.jsontag) = "is_used" ];
 }
+
+message ClusterEncryptionConfigV3 {
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is a resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata holds resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an Github connector specification.
+    ClusterEncryptionConfigSpecV3 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+message SessionEncryptionKey {
+    string Identifier = 1 [ (gogoproto.jsontag) = "identifier" ];
+    string KeyPair = 2 [ (gogoproto.jsontag) = "key_pair" ];
+}
+
+message ClusterEncryptionConfigSpecV3 {
+    repeated SessionEncryptionKey MasterKeys = 1 [ (gogoproto.jsontag) = "master_keys" ];
+}
