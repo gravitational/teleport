@@ -240,6 +240,12 @@ const (
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
 
+	// KindClusterEncryptionConfig is the resource that holds cluster encryption configuration.
+	KindClusterEncryptionConfig = "cluster_encryption_config"
+
+	// MetaNameClusterEncryptionConfig holds the name of the singleton resource containing the cluster encryption configuration.
+	MetaNameClusterEncryptionConfig = "cluster-encryption-config"
+
 	// V4 is the fourth version of resources.
 	V4 = "v4"
 

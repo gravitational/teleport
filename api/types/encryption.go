@@ -16,9 +16,9 @@ limitations under the License.
 
 package types
 
-import "time"
-
-var ClusterEncryptionConfigName = "cluster/encryption_config"
+import (
+	"time"
+)
 
 type ClusterEncryptionConfig interface {
 	// ResourceWithSecrets provides common methods for objects
@@ -32,9 +32,10 @@ type ClusterEncryptionConfig interface {
 // NewClusterEncryptionConfig creates a `ClusterEncryptionConfig` resource from a specification.
 func NewClusterEncryptionConfig(spec ClusterEncryptionConfigSpecV3) ClusterEncryptionConfig {
 	return &ClusterEncryptionConfigV3{
-		Metadata: Metadata{
-			Name: ClusterEncryptionConfigName,
+		Metadata: Metadata {
+			Name: MetaNameClusterEncryptionConfig,
 		},
+		Kind: KindClusterEncryptionConfig,
 		Version: V3,
 		Spec: spec,
 	}
