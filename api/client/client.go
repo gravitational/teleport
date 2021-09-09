@@ -1953,3 +1953,22 @@ func (c *Client) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	_, err := c.grpc.CompleteAccountRecovery(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
 }
+
+// SetClusterEncryptionConfig sets the ClusterEncryptionConfigV3 resource.
+func (c *Client) SetClusterEncryptionConfig(ctx context.Context, resource types.ClusterEncryptionConfig) error {
+	configV3, ok := resource.(*types.ClusterEncryptionConfigV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", resource)
+	}
+	_, err := c.grpc.SetClusterEncryptionConfig(ctx, configV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetClusterEncryptionConfig gets the ClusterEncryptionConfigV3 resource.
+func (c *Client) GetClusterEncryptionConfig(ctx context.Context) (types.ClusterEncryptionConfig, error) {
+	resp, err := c.grpc.GetClusterEncryptionConfig(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
