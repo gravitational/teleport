@@ -43,12 +43,12 @@ func TestLogin(t *testing.T) {
 	// Restore package defaults after test.
 	oldDevices, oldOpen, oldNewToken := *wancli.U2FDevices, *wancli.U2FOpen, *wancli.U2FNewToken
 	oldPollInterval := wancli.DevicePollInterval
-	defer func() {
+	t.Cleanup(func() {
 		*wancli.U2FDevices = oldDevices
 		*wancli.U2FOpen = oldOpen
 		*wancli.U2FNewToken = oldNewToken
 		wancli.DevicePollInterval = oldPollInterval
-	}()
+	})
 	wancli.DevicePollInterval = 1 // as tight as possible.
 
 	const appID = "https://example.com"

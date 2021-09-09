@@ -58,7 +58,7 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 	// https://www.w3.org/TR/webauthn-2/#sctn-op-get-assertion
 
 	ccdJSON, err := json.Marshal(&CollectedClientData{
-		Type:      "webauthn.get",
+		Type:      string(protocol.AssertCeremony),
 		Challenge: base64.RawURLEncoding.EncodeToString(assertion.Response.Challenge),
 		Origin:    origin,
 	})
@@ -137,7 +137,7 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 		PublicKeyCredential: wanlib.PublicKeyCredential{
 			Credential: wanlib.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(authCred.CredentialID),
-				Type: "public-key",
+				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID:      authCred.CredentialID,
 			Extensions: exts,

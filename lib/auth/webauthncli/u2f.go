@@ -69,7 +69,7 @@ func RunOnU2FDevices(ctx context.Context, runCredentials ...func(Token) error) e
 	unknownHandles := make(map[unknownHandleKey]bool)
 	for {
 		switch err := runOnU2FDevicesOnce(unknownHandles, runCredentials); {
-		case err == errKeyMissingOrNotVerified:
+		case errors.Is(err, errKeyMissingOrNotVerified):
 			// This is expected to happen a few times.
 		case err != nil:
 			log.WithError(err).Debug("Error interacting with U2F devices")

@@ -83,12 +83,12 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 
 	// Replace (and later reset) user-prompting functions.
 	oldPwd, oldOTP, oldU2F, oldWAN := *client.PasswordFromConsoleFn, *client.PromptOTP, *client.PromptU2F, *client.PromptWebauthn
-	defer func() {
+	t.Cleanup(func() {
 		*client.PasswordFromConsoleFn = oldPwd
 		*client.PromptOTP = oldOTP
 		*client.PromptU2F = oldU2F
 		*client.PromptWebauthn = oldWAN
-	}()
+	})
 	*client.PasswordFromConsoleFn = func() (string, error) {
 		return password, nil
 	}
