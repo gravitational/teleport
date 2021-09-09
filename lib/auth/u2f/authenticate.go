@@ -25,13 +25,13 @@ import (
 	"time"
 
 	"github.com/flynn/u2f/u2ftoken"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
 
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-
-	"github.com/gravitational/teleport/api/types"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
 // Authentication sequence:
@@ -190,7 +190,7 @@ func AuthenticateSignChallenge(ctx context.Context, facet string, challenges ...
 
 	var matchedAuthReq *authenticateRequest
 	var authResp *u2ftoken.AuthenticateResponse
-	if err := pollLocalDevices(ctx, func(t *u2ftoken.Token) error {
+	if err := wancli.RunOnU2FDevices(ctx, func(t wancli.Token) error {
 		var errs []error
 		for _, req := range authRequests {
 			if err := t.CheckAuthenticate(req.converted); err != nil {
