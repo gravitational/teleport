@@ -475,6 +475,20 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCerts
 	return certs, nil
 }
 
+func (g *GRPCServer) GenerateServerKeys(ctx context.Context, req *proto.GenerateServerKeysRequest) (*proto.Certs, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := auth.ServerWithRoles.GenerateServerKeys(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return certs, nil
+}
+
 func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*types.UserV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

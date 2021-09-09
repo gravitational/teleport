@@ -588,6 +588,15 @@ func (c *Client) GenerateUserCerts(ctx context.Context, req proto.UserCertsReque
 	return certs, nil
 }
 
+// GenerateServerKeys generates host certificates.
+func (c *Client) GenerateServerKeys(ctx context.Context, req *proto.GenerateServerKeysRequest) (*proto.Certs, error) {
+	certs, err := c.grpc.GenerateServerKeys(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return certs, nil
+}
+
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)

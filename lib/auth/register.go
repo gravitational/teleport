@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -51,23 +52,29 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 	if remoteAddr == "" {
 		remoteAddr = defaults.Localhost
 	}
-	keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               id.HostUUID,
-		NodeName:             id.NodeName,
-		Roles:                types.SystemRoles{id.Role},
-		AdditionalPrincipals: additionalPrincipals,
-		RemoteAddr:           remoteAddr,
-		DNSNames:             dnsNames,
-		NoCache:              true,
-		PublicSSHKey:         pub,
-		PublicTLSKey:         tlsPub,
-	})
+	certs, err := authServer.GenerateServerKeys(context.Background(),
+		&proto.GenerateServerKeysRequest{
+			HostID:               id.HostUUID,
+			NodeName:             id.NodeName,
+			Roles:                []string{string(id.Role)},
+			AdditionalPrincipals: additionalPrincipals,
+			RemoteAddr:           remoteAddr,
+			DNSNames:             dnsNames,
+			NoCache:              true,
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = priv
 
-	identity, err := ReadIdentityFromKeyPair(keys)
+	identity, err := ReadIdentityFromKeyPair(&PackedKeys{
+		Key:        priv,
+		Cert:       certs.SSH,
+		TLSCert:    certs.TLS,
+		SSHCACerts: certs.SSHCACerts,
+		TLSCACerts: certs.TLSCACerts,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -398,22 +405,28 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys, err := params.Client.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               hostID,
-		NodeName:             params.ID.NodeName,
-		Roles:                types.SystemRoles{params.ID.Role},
-		AdditionalPrincipals: params.AdditionalPrincipals,
-		DNSNames:             params.DNSNames,
-		PublicTLSKey:         params.PublicTLSKey,
-		PublicSSHKey:         params.PublicSSHKey,
-		Rotation:             &params.Rotation,
-	})
+	certs, err := params.Client.GenerateServerKeys(context.Background(),
+		&proto.GenerateServerKeysRequest{
+			HostID:               hostID,
+			NodeName:             params.ID.NodeName,
+			Roles:                []string{params.ID.Role.String()},
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			Rotation:             &params.Rotation,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(keys)
+	return ReadIdentityFromKeyPair(&PackedKeys{
+		Key:        params.PrivateKey,
+		Cert:       certs.SSH,
+		TLSCert:    certs.TLS,
+		SSHCACerts: certs.SSHCACerts,
+		TLSCACerts: certs.TLSCACerts,
+	})
 }
 
 // PackedKeys is a collection of private key, SSH host certificate

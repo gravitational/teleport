@@ -1885,18 +1885,18 @@ func TestGenerateCerts(t *testing.T) {
 	hostClient, err := srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
-	certs, err := hostClient.GenerateServerKeys(
-		GenerateServerKeysRequest{
+	certs, err := hostClient.GenerateServerKeys(context.Background(),
+		&proto.GenerateServerKeysRequest{
 			HostID:               hostID,
 			NodeName:             srv.AuthServer.ClusterName,
-			Roles:                types.SystemRoles{types.RoleNode},
+			Roles:                []string{string(types.RoleNode)},
 			AdditionalPrincipals: []string{"example.com"},
 			PublicSSHKey:         pub,
 			PublicTLSKey:         pubTLS,
 		})
 	require.NoError(t, err)
 
-	hostCert, err := sshutils.ParseCertificate(certs.Cert)
+	hostCert, err := sshutils.ParseCertificate(certs.SSH)
 	require.NoError(t, err)
 	require.Contains(t, hostCert.ValidPrincipals, "example.com")
 
@@ -1905,41 +1905,42 @@ func TestGenerateCerts(t *testing.T) {
 	hostClient, err = srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
-	certs, err = hostClient.GenerateServerKeys(
-		GenerateServerKeysRequest{
+	certs, err = hostClient.GenerateServerKeys(context.Background(),
+		&proto.GenerateServerKeysRequest{
 			HostID:               hostID,
 			NodeName:             srv.AuthServer.ClusterName,
-			Roles:                types.SystemRoles{types.RoleNode},
+			Roles:                []string{string(types.RoleNode)},
 			AdditionalPrincipals: []string{"example.com"},
 			PublicSSHKey:         pub,
 			PublicTLSKey:         pubTLS,
 		})
 	require.NoError(t, err)
 
-	hostCert, err = sshutils.ParseCertificate(certs.Cert)
+	hostCert, err = sshutils.ParseCertificate(certs.SSH)
 	require.NoError(t, err)
 	require.Contains(t, hostCert.ValidPrincipals, "example.com")
 
 	t.Run("HostClients", func(t *testing.T) {
 		// attempt to elevate privileges by getting admin role in the certificate
-		_, err = hostClient.GenerateServerKeys(
-			GenerateServerKeysRequest{
+		_, err = hostClient.GenerateServerKeys(context.Background(),
+			&proto.GenerateServerKeysRequest{
 				HostID:       hostID,
 				NodeName:     srv.AuthServer.ClusterName,
-				Roles:        types.SystemRoles{types.RoleAdmin},
+				Roles:        []string{string(types.RoleAdmin)},
 				PublicSSHKey: pub,
 				PublicTLSKey: pubTLS,
 			})
 		require.True(t, trace.IsAccessDenied(err))
 
 		// attempt to get certificate for different host id
-		_, err = hostClient.GenerateServerKeys(GenerateServerKeysRequest{
-			HostID:       "some-other-host-id",
-			NodeName:     srv.AuthServer.ClusterName,
-			Roles:        types.SystemRoles{types.RoleNode},
-			PublicSSHKey: pub,
-			PublicTLSKey: pubTLS,
-		})
+		_, err = hostClient.GenerateServerKeys(context.Background(),
+			&proto.GenerateServerKeysRequest{
+				HostID:       "some-other-host-id",
+				NodeName:     srv.AuthServer.ClusterName,
+				Roles:        []string{string(types.RoleNode)},
+				PublicSSHKey: pub,
+				PublicTLSKey: pubTLS,
+			})
 		require.True(t, trace.IsAccessDenied(err))
 	})
 

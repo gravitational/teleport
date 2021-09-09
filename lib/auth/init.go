@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -800,20 +801,26 @@ func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames [
 		return nil, trace.Wrap(err)
 	}
 
-	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               id.HostUUID,
-		NodeName:             id.NodeName,
-		Roles:                types.SystemRoles{id.Role},
-		AdditionalPrincipals: additionalPrincipals,
-		DNSNames:             dnsNames,
-		PublicSSHKey:         pub,
-		PublicTLSKey:         tlsPub,
-	})
+	certs, err := a.GenerateServerKeys(context.Background(),
+		&proto.GenerateServerKeysRequest{
+			HostID:               id.HostUUID,
+			NodeName:             id.NodeName,
+			Roles:                []string{string(id.Role)},
+			AdditionalPrincipals: additionalPrincipals,
+			DNSNames:             dnsNames,
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = priv
-	return ReadIdentityFromKeyPair(keys)
+	return ReadIdentityFromKeyPair(&PackedKeys{
+		Key:        priv,
+		Cert:       certs.SSH,
+		TLSCert:    certs.TLS,
+		SSHCACerts: certs.SSHCACerts,
+		TLSCACerts: certs.TLSCACerts,
+	})
 }
 
 // Identity is collection of certificates and signers that represent server identity

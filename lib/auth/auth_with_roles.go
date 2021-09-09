@@ -377,7 +377,7 @@ func (a *ServerWithRoles) RegisterNewAuthServer(ctx context.Context, token strin
 
 // GenerateServerKeys generates new host private keys and certificates (signed
 // by the host certificate authority) for a node.
-func (a *ServerWithRoles) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
+func (a *ServerWithRoles) GenerateServerKeys(ctx context.Context, req *proto.GenerateServerKeysRequest) (*proto.Certs, error) {
 	clusterName, err := a.authServer.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -390,11 +390,17 @@ func (a *ServerWithRoles) GenerateServerKeys(req GenerateServerKeysRequest) (*Pa
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	requestRoles, err := types.NewTeleportRoles(req.Roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// prohibit privilege escalations through role changes
-	if !existingRoles.Equals(req.Roles) {
+	if !existingRoles.Equals(requestRoles) {
 		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Roles)
 	}
-	return a.authServer.GenerateServerKeys(req)
+	return a.authServer.GenerateServerKeys(ctx, req)
 }
 
 // UpsertNodes bulk upserts nodes into the backend.
@@ -1567,6 +1573,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(zmb3): add CA certs?
 	return &proto.Certs{
 		SSH: certs.ssh,
 		TLS: certs.tls,

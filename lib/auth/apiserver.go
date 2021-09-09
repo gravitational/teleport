@@ -1026,7 +1026,7 @@ func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r
 }
 
 func (s *APIServer) generateServerKeys(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req GenerateServerKeysRequest
+	var req proto.GenerateServerKeysRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1034,7 +1034,7 @@ func (s *APIServer) generateServerKeys(auth ClientI, w http.ResponseWriter, r *h
 	// Pass along the remote address the request came from to the registration function.
 	req.RemoteAddr = r.RemoteAddr
 
-	keys, err := auth.GenerateServerKeys(req)
+	keys, err := auth.GenerateServerKeys(r.Context(), &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -798,3 +798,30 @@ func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		WebSession: sess,
 	}, nil
 }
+
+// GenearteServerKeys generates new host certificates (signed by the host CA).
+func (c *Client) GenerateServerKeys(ctx context.Context, req *proto.GenerateServerKeysRequest) (*proto.Certs, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch certs, err := c.APIClient.GenerateServerKeys(ctx, req); {
+	case err == nil: // GRPC version is available and succeeded
+		return certs, nil
+	case !trace.IsNotImplemented(err): // GRPC version available but failed
+		return nil, trace.Wrap(err)
+	}
+
+	// DELETE IN 9.0.0
+	// fallback to legacy JSON API
+	out, err := c.PostJSON(c.Endpoint("server", "credentials"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var certs proto.Certs
+	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &certs, nil
+}

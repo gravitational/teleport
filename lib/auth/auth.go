@@ -1554,67 +1554,24 @@ func HostFQDN(hostUUID, clusterName string) string {
 	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
 
-// GenerateServerKeysRequest is a request to generate server keys
-type GenerateServerKeysRequest struct {
-	// HostID is a unique ID of the host
-	HostID string `json:"host_id"`
-	// NodeName is a user friendly host name
-	NodeName string `json:"node_name"`
-	// Roles is a list of roles assigned to node
-	Roles types.SystemRoles `json:"roles"`
-	// AdditionalPrincipals is a list of additional principals
-	// to include in OpenSSH and X509 certificates
-	AdditionalPrincipals []string `json:"additional_principals"`
-	// DNSNames is a list of DNS names
-	// to include in the x509 client certificate
-	DNSNames []string `json:"dns_names"`
-	// PublicTLSKey is a PEM encoded public key
-	// used for TLS setup
-	PublicTLSKey []byte `json:"public_tls_key"`
-	// PublicSSHKey is a SSH encoded public key,
-	// if present will be signed as a return value
-	// otherwise, new public/private key pair will be generated
-	PublicSSHKey []byte `json:"public_ssh_key"`
-	// RemoteAddr is the IP address of the remote host requesting a host
-	// certificate. RemoteAddr is used to replace 0.0.0.0 in the list of
-	// additional principals.
-	RemoteAddr string `json:"remote_addr"`
-	// Rotation allows clients to send the certificate authority rotation state
-	// expected by client of the certificate authority backends, so auth servers
-	// can avoid situation when clients request certs assuming one
-	// state, and auth servers issue another
-	Rotation *types.Rotation `json:"rotation,omitempty"`
-	// NoCache is argument that only local callers can supply to bypass cache
-	NoCache bool `json:"-"`
-}
-
-// CheckAndSetDefaults checks and sets default values
-func (req *GenerateServerKeysRequest) CheckAndSetDefaults() error {
-	if req.HostID == "" {
-		return trace.BadParameter("missing parameter HostID")
-	}
-	if len(req.Roles) != 1 {
-		return trace.BadParameter("expected only one system role, got %v", len(req.Roles))
-	}
-	if len(req.PublicSSHKey) == 0 || len(req.PublicTLSKey) == 0 {
-		return trace.BadParameter("public keys for SSH and TLS are required")
-	}
-	return nil
-}
-
 // GenerateServerKeys generates new host private keys and certificates (signed
 // by the host certificate authority) for a node.
-func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
+func (a *Server) GenerateServerKeys(ctx context.Context, req *proto.GenerateServerKeysRequest) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.limiter.AcquireConnection(req.Roles.String()); err != nil {
+	reqRoles, err := types.NewTeleportRoles(req.Roles)
+	if err != nil {
+		return nil, trace.BadParameter("invalid roles: %v", err)
+	}
+
+	if err := a.limiter.AcquireConnection(reqRoles.String()); err != nil {
 		generateThrottledRequestsCount.Inc()
-		log.Debugf("Node %q [%v] is rate limited: %v.", req.NodeName, req.HostID, req.Roles)
+		log.Debugf("Node %q [%v] is rate limited: %v.", req.NodeName, req.HostID, reqRoles)
 		return nil, trace.Wrap(err)
 	}
-	defer a.limiter.ReleaseConnection(req.Roles.String())
+	defer a.limiter.ReleaseConnection(reqRoles.String())
 
 	// only observe latencies for non-throttled requests
 	start := a.clock.Now()
@@ -1685,7 +1642,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		}
 	}
 
-	isAdminRole := req.Roles.Equals(types.SystemRoles{types.RoleAdmin})
+	isAdminRole := reqRoles.Equals(types.SystemRoles{types.RoleAdmin})
 
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
 	if trace.IsNotFound(err) && isAdminRole {
@@ -1724,7 +1681,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		HostID:        req.HostID,
 		NodeName:      req.NodeName,
 		ClusterName:   clusterName.GetClusterName(),
-		Roles:         req.Roles,
+		Roles:         reqRoles,
 		Principals:    req.AdditionalPrincipals,
 	})
 	if err != nil {
@@ -1734,7 +1691,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// generate host TLS certificate
 	identity := tlsca.Identity{
 		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
-		Groups:          req.Roles.StringSlice(),
+		Groups:          reqRoles.StringSlice(),
 		TeleportCluster: clusterName.GetClusterName(),
 	}
 	subject, err := identity.Subject()
@@ -1751,21 +1708,21 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// HTTPS requests need to specify DNS name that should be present in the
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
-	if req.Roles.IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp) {
+	if reqRoles.IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+constants.APIDomain, constants.APIDomain)
 	}
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
-	if req.Roles.IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleWindowsDesktop) {
+	if reqRoles.IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleWindowsDesktop) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &PackedKeys{
-		Cert:       hostSSHCert,
-		TLSCert:    hostTLSCert,
+	return &proto.Certs{
+		SSH:        hostSSHCert,
+		TLS:        hostTLSCert,
 		TLSCACerts: services.GetTLSCerts(ca),
 		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
@@ -1889,21 +1846,27 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys,
 	}
 
 	// generate and return host certificate and keys
-	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               req.HostID,
-		NodeName:             req.NodeName,
-		Roles:                types.SystemRoles{req.Role},
-		AdditionalPrincipals: req.AdditionalPrincipals,
-		PublicTLSKey:         req.PublicTLSKey,
-		PublicSSHKey:         req.PublicSSHKey,
-		RemoteAddr:           req.RemoteAddr,
-		DNSNames:             req.DNSNames,
-	})
+	certs, err := a.GenerateServerKeys(context.Background(),
+		&proto.GenerateServerKeysRequest{
+			HostID:               req.HostID,
+			NodeName:             req.NodeName,
+			Roles:                []string{string(req.Role)},
+			AdditionalPrincipals: req.AdditionalPrincipals,
+			PublicTLSKey:         req.PublicTLSKey,
+			PublicSSHKey:         req.PublicSSHKey,
+			RemoteAddr:           req.RemoteAddr,
+			DNSNames:             req.DNSNames,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
-	return keys, nil
+	return &PackedKeys{
+		Cert:       certs.SSH,
+		TLSCert:    certs.TLS,
+		SSHCACerts: certs.SSHCACerts,
+		TLSCACerts: certs.TLSCACerts,
+	}, nil
 }
 
 func (a *Server) RegisterNewAuthServer(ctx context.Context, token string) error {

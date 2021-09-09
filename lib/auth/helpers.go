@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -433,31 +434,31 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		}
 		return certs.tls, priv, nil
 	case BuiltinRole:
-		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
-			HostID:       id.Username,
-			NodeName:     id.Username,
-			Roles:        types.SystemRoles{id.Role},
-			PublicTLSKey: tlsPublicKey,
-			PublicSSHKey: pub,
-		})
-		keys.Key = priv
+		certs, err := authServer.GenerateServerKeys(context.Background(),
+			&proto.GenerateServerKeysRequest{
+				HostID:       id.Username,
+				NodeName:     id.Username,
+				Roles:        []string{string(id.Role)},
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: pub,
+			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return keys.TLSCert, keys.Key, nil
+		return certs.TLS, priv, nil
 	case RemoteBuiltinRole:
-		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
-			HostID:       id.Username,
-			NodeName:     id.Username,
-			Roles:        types.SystemRoles{id.Role},
-			PublicTLSKey: tlsPublicKey,
-			PublicSSHKey: pub,
-		})
+		certs, err := authServer.GenerateServerKeys(context.Background(),
+			&proto.GenerateServerKeysRequest{
+				HostID:       id.Username,
+				NodeName:     id.Username,
+				Roles:        []string{string(id.Role)},
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: pub,
+			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		keys.Key = priv
-		return keys.TLSCert, keys.Key, nil
+		return certs.TLS, priv, nil
 	default:
 		return nil, nil, trace.BadParameter("identity of unknown type %T is unsupported", identity)
 	}
@@ -878,18 +879,25 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 		return nil, trace.Wrap(err)
 	}
 
-	keys, err := clt.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:       hostID,
-		NodeName:     hostID,
-		Roles:        types.SystemRoles{types.RoleAuth},
-		PublicTLSKey: publicTLS,
-		PublicSSHKey: pub,
-	})
+	certs, err := clt.GenerateServerKeys(context.Background(),
+		&proto.GenerateServerKeysRequest{
+			HostID:       hostID,
+			NodeName:     hostID,
+			Roles:        []string{string(types.RoleAuth)},
+			PublicTLSKey: publicTLS,
+			PublicSSHKey: pub,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = priv
-	return ReadIdentityFromKeyPair(keys)
+
+	return ReadIdentityFromKeyPair(&PackedKeys{
+		Key:        priv,
+		Cert:       certs.SSH,
+		TLSCert:    certs.TLS,
+		SSHCACerts: certs.SSHCACerts,
+		TLSCACerts: certs.TLSCACerts,
+	})
 }
 
 // clt limits required interface to the necessary methods

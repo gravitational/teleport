@@ -577,24 +577,6 @@ func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys,
 	return &keys, nil
 }
 
-// RenewCredentials returns a new set of credentials associated
-// with the server with the same privileges
-func (c *Client) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(c.Endpoint("server", "credentials"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var keys PackedKeys
-	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &keys, nil
-}
-
 // RegisterNewAuthServer is used to register new auth server with token
 func (c *Client) RegisterNewAuthServer(ctx context.Context, token string) error {
 	_, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
@@ -2009,7 +1991,7 @@ type ClientI interface {
 
 	// GenerateServerKeys generates new host private keys and certificates (signed
 	// by the host certificate authority) for a node
-	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
+	GenerateServerKeys(context.Context, *proto.GenerateServerKeysRequest) (*proto.Certs, error)
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successful
 	AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error)
