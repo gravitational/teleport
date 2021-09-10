@@ -23,6 +23,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"fmt"
+	mathrand "math/rand"
 	"os"
 	"testing"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -1251,6 +1253,373 @@ func TestNewWebSession(t *testing.T) {
 	require.NotEmpty(t, ws.GetTLSCert())
 }
 
+func TestDeleteMFADeviceSync(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+
+	username := "llama@goteleport.com"
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	require.NoError(t, err)
+
+	// Insert two devices.
+	err = insertDummyTOTPDevice(srv, username, "otp")
+	require.NoError(t, err)
+	err = insertDummyU2FDevice(srv, username, "u2f")
+	require.NoError(t, err)
+
+	// Acquire an approved token.
+	token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
+		Name: username,
+		TTL:  5 * time.Minute,
+		Type: UserTokenTypeRecoveryApproved,
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+	require.NoError(t, err)
+
+	// Delete the TOTP device.
+	err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
+		TokenID:    token.GetName(),
+		DeviceName: "otp",
+	})
+	require.NoError(t, err)
+
+	// Check it's been deleted.
+	res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
+		RecoveryApprovedTokenID: token.GetName(),
+	})
+	require.NoError(t, err)
+	require.Len(t, res.GetDevices(), 1)
+	require.Equal(t, res.GetDevices()[0].GetName(), "u2f")
+
+	// Test events emitted.
+	event := mockEmitter.LastEvent()
+	require.Equal(t, events.MFADeviceDeleteEvent, event.GetType())
+	require.Equal(t, events.MFADeviceDeleteEventCode, event.GetCode())
+	require.Equal(t, event.(*apievents.MFADeviceDelete).UserMetadata.User, username)
+}
+
+func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	username := "llama@goteleport.com"
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	require.NoError(t, err)
+
+	// Insert a device.
+	defaultDeviceName := "otp"
+	err = insertDummyTOTPDevice(srv, username, defaultDeviceName)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		deviceName   string
+		tokenRequest *CreateUserTokenRequest
+	}{
+		{
+			name:       "token not found",
+			deviceName: defaultDeviceName,
+		},
+		{
+			name:       "invalid token type",
+			deviceName: defaultDeviceName,
+			tokenRequest: &CreateUserTokenRequest{
+				Name: username,
+				TTL:  5 * time.Minute,
+				Type: "unknown-token-type",
+			},
+		},
+		{
+			name:       "device name does not exist",
+			deviceName: "does-not-exist",
+			tokenRequest: &CreateUserTokenRequest{
+				Name: username,
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryApproved,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenID := "test-token-not-found"
+
+			if tc.tokenRequest != nil {
+				token, err := srv.Auth().newUserToken(*tc.tokenRequest)
+				require.NoError(t, err)
+				_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+				require.NoError(t, err)
+
+				tokenID = token.GetName()
+			}
+
+			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
+				TokenID:    tokenID,
+				DeviceName: tc.deviceName,
+			})
+
+			switch {
+			case tc.deviceName != defaultDeviceName:
+				require.True(t, trace.IsNotFound(err))
+			default:
+				require.True(t, trace.IsAccessDenied(err))
+			}
+		})
+	}
+}
+
+// TestDeleteMFADeviceSync_LastDevice tests for preventing deletion of last device
+// when second factor is required.
+func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	u2fAuthSetting := &types.U2F{
+		AppID:  "teleport",
+		Facets: []string{"teleport"},
+	}
+
+	tests := []struct {
+		name              string
+		wantErr           bool
+		secondFactorType  string
+		setAuthPreference func()
+	}{
+		{
+			name:             "with second factor optional",
+			secondFactorType: "otp",
+			setAuthPreference: func() {
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					U2F:          u2fAuthSetting,
+				})
+				require.NoError(t, err)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:             "with second factor otp",
+			wantErr:          true,
+			secondFactorType: "otp",
+			setAuthPreference: func() {
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOTP,
+				})
+				require.NoError(t, err)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:             "with second factor u2f",
+			wantErr:          true,
+			secondFactorType: "u2f",
+			setAuthPreference: func() {
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorU2F,
+					U2F:          u2fAuthSetting,
+				})
+				require.NoError(t, err)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:             "with second factor on",
+			wantErr:          true,
+			secondFactorType: "otp",
+			setAuthPreference: func() {
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOn,
+					U2F:          u2fAuthSetting,
+				})
+				require.NoError(t, err)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a user with no MFA device.
+			username := fmt.Sprintf("llama%v@goteleport.com", mathrand.Int())
+			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+			require.NoError(t, err)
+
+			// Set auth preference.
+			tc.setAuthPreference()
+
+			// Insert a MFA device.
+			switch {
+			case tc.secondFactorType == "otp":
+				err = insertDummyTOTPDevice(srv, username, tc.secondFactorType)
+				require.NoError(t, err)
+			case tc.secondFactorType == "u2f":
+				err = insertDummyU2FDevice(srv, username, tc.secondFactorType)
+				require.NoError(t, err)
+			}
+
+			// Acquire an approved token.
+			token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
+				Name: username,
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryApproved,
+			})
+			require.NoError(t, err)
+			_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+			require.NoError(t, err)
+
+			// Delete the device.
+			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
+				TokenID:    token.GetName(),
+				DeviceName: tc.secondFactorType,
+			})
+
+			switch {
+			case tc.wantErr:
+				require.Error(t, err)
+				// Check it hasn't been deleted.
+				res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
+					RecoveryApprovedTokenID: token.GetName(),
+				})
+				require.NoError(t, err)
+				require.Len(t, res.GetDevices(), 1)
+			default:
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetMFADevices_WithToken(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	username := "llama@goteleport.com"
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	// Insert a device.
+	err = insertDummyTOTPDevice(srv, username, "otp")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		wantErr      bool
+		tokenRequest *CreateUserTokenRequest
+	}{
+		{
+			name:    "token not found",
+			wantErr: true,
+		},
+		{
+			name:    "invalid token type",
+			wantErr: true,
+			tokenRequest: &CreateUserTokenRequest{
+				Name: username,
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeResetPassword,
+			},
+		},
+		{
+			name: "valid token",
+			tokenRequest: &CreateUserTokenRequest{
+				Name: username,
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryApproved,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tokenID := "test-token-not-found"
+
+			if tc.tokenRequest != nil {
+				token, err := srv.Auth().newUserToken(*tc.tokenRequest)
+				require.NoError(t, err)
+				_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+				require.NoError(t, err)
+
+				tokenID = token.GetName()
+			}
+
+			res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
+				RecoveryApprovedTokenID: tokenID,
+			})
+
+			switch {
+			case tc.wantErr:
+				require.True(t, trace.IsAccessDenied(err))
+			default:
+				require.NoError(t, err)
+				require.Len(t, res.GetDevices(), 1)
+				require.Equal(t, res.GetDevices()[0].GetName(), "otp")
+			}
+		})
+	}
+}
+
+func TestGetMFADevices_WithAuth(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	username := "llama@goteleport.com"
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	err = insertDummyTOTPDevice(srv, username, "otp")
+	require.NoError(t, err)
+
+	clt, err := srv.NewClient(TestUser(username))
+	require.NoError(t, err)
+
+	res, err := clt.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	require.NoError(t, err)
+	require.Len(t, res.GetDevices(), 1)
+	require.Equal(t, res.GetDevices()[0].GetName(), "otp")
+}
+
 func newTestServices(t *testing.T) Services {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -1269,4 +1638,26 @@ func newTestServices(t *testing.T) Services {
 		Events:               local.NewEventsService(bk, configService.GetClusterConfig),
 		IAuditLog:            events.NewDiscardAuditLog(),
 	}
+}
+
+func insertDummyTOTPDevice(srv *TestTLSServer, username, deviceName string) error {
+	dev := types.NewMFADevice(deviceName, uuid.New(), srv.Auth().clock.Now())
+	dev.Device = &types.MFADevice_Totp{Totp: &types.TOTPDevice{}}
+
+	if err := srv.Auth().UpsertMFADevice(context.Background(), username, dev); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func insertDummyU2FDevice(srv *TestTLSServer, username, deviceName string) error {
+	dev := types.NewMFADevice(deviceName, uuid.New(), srv.Auth().clock.Now())
+	dev.Device = &types.MFADevice_U2F{U2F: &types.U2FDevice{}}
+
+	if err := srv.Auth().UpsertMFADevice(context.Background(), username, dev); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
