@@ -35,6 +35,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -518,7 +519,8 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	c.Assert(err, IsNil)
 
 	// we got a redirect
-	locationURL := re.Headers().Get("Location")
+	urlPattern := regexp.MustCompile(`window.location = '([^']*)'`)
+	locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
 	u, err := url.Parse(locationURL)
 	c.Assert(err, IsNil)
 	c.Assert(u.Scheme+"://"+u.Host+u.Path, Equals, fixtures.SAMLOktaSSO)
