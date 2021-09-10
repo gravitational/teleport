@@ -356,7 +356,7 @@ release-windows: release-windows-unsigned
 	rm -rf teleport
 	@echo "---> Extracting $(RELEASE)-unsigned.zip"
 	unzip $(RELEASE)-unsigned.zip
-	
+
 	@echo "---> Signing Windows binary."
 	@osslsigncode sign \
 		-pkcs12 "windows-signing-cert.pfx" \
@@ -875,3 +875,34 @@ update-webassets:
 .PHONY: dronegen
 dronegen:
 	go run ./dronegen
+
+################################################################################
+# Temporary Teleport Terminal targets.
+################################################################################
+
+BUF ?= buf
+
+.PHONY: terminal
+terminal: terminal/pb/build
+
+.PHONY: terminal/lint
+terminal/lint: terminal/pb/lint
+
+.PHONY: terminal/pb/build
+terminal/pb/build: $(BUF)
+	$(BUF) build proto
+
+.PHONY: terminal/pb/lint
+terminal/pb/lint: $(BUF)
+	$(BUF) lint proto
+
+.PHONY: terminal/pb/generate
+terminal/pb/generate: $(BUF)
+	$(BUF) generate proto
+
+.PHONY: $(BUF)
+$(BUF):
+	@if ! type -p $(BUF) >/dev/null; then \
+		echo '$(BUF) not found, see https://docs.buf.build/installation'; \
+		exit 1; \
+	fi

@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package teleport.terminal.v1;
+
+option go_package = "github.com/gravitational/teleport/protogen/teleport/terminal/v1";
+
+message Gateway {
+  string id = 1;
+
+  // User-friendly name.
+  // Optional.
+  string name = 2;
+
+  // Eg: "/clusters/{id}".
+  string target_cluster = 3;
+  // Eg: "/databases/{id}".
+  string target_resource = 4;
+
+  // Protocol and port to connect, available for most gateway types.
+  // If supplied during gateway creation the service will try to bind (with best
+  // effort) the request address.
+  // Eg: "psql://localhost:12345/...".
+  // TODO(codingllama): Better document for the various gateways types.
+  string local_address = 5;
+
+  // If true, StreamGateway may be used with this gateway.
+  // Only supported for SSH nodes.
+  bool allow_streaming = 6;
+
+  // TODO(codingllama): Add data for specific gateways: Database, SSH, etc.
+}

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package teleport.terminal.v1;
+
+option go_package = "github.com/gravitational/teleport/protogen/teleport/terminal/v1";
+
+message ClusterLoginChallenge {
+  string id = 1;
+
+  // TODO(codingllama): Add support for password, OTP and MFA.
+}
+
+message SolvedClusterLoginChallenge {
+  // TODO(codingllama): Add support for password, OTP and MFA.
+}

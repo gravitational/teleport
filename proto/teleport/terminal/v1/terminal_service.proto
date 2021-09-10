@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package teleport.terminal.v1;
+
+option go_package = "github.com/gravitational/teleport/protogen/teleport/terminal/v1";
+
+import "google/protobuf/empty.proto";
+import "teleport/terminal/v1/cluster.proto";
+import "teleport/terminal/v1/cluster_login_challenge.proto";
+import "teleport/terminal/v1/database.proto";
+import "teleport/terminal/v1/gateway.proto";
+import "teleport/terminal/v1/node.proto";
+
+// Note: following Google API Style guide (mostly)
+// https://cloud.google.com/apis/design/.
+
+service TerminalService {
+  // POST /clusters
+  rpc CreateCluster(CreateClusterRequest) returns (Cluster);
+  // GET /clusters
+  rpc ListClusters(ListClustersRequest) returns (ListClustersResponse);
+
+  // TODO(codingllama): Names may change!
+  // POST /clusters/{cluster_id}/loginChallenges
+  rpc CreateClusterLoginChallenge(CreateClusterLoginChallengeRequest) returns (ClusterLoginChallenge);
+  // POST /clusters/{cluster_id}/loginChallenges/{challenge_id}:solve
+  rpc SolveClusterLoginChallenge(SolveClusterLoginChallengeRequest) returns (SolveClusterLoginChallengeResponse);
+
+  // GET /databases
+  // Requires login challenge to be solved beforehand.
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+
+  // POST /gateways
+  rpc CreateGateway(CreateGatewayRequest) returns (Gateway);
+  // GET /gateways
+  rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse);
+  // DELETE /gateways/{id}
+  rpc DeleteGateway(DeleteGatewayRequest) returns (google.protobuf.Empty);
+  // Streams input/output using a gateway.
+  // Requires the gateway to be created beforehand.
+  // This has no REST counterpart.
+  rpc StreamGateway(stream StreamGatewayRequest) returns (stream StreamGatewayResponse);
+
+  // GET /nodes
+  // Per Teleport nomenclature, a Node is an SSH-capable node.
+  // Requires login challenge to be solved beforehand.
+  rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
+}
+
+message CreateClusterRequest {
+  Cluster cluster = 1;
+}
+
+message ListClustersRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListClustersResponse {
+  repeated Cluster clusters = 1;
+  string next_page_token = 2;
+}
+
+message CreateClusterLoginChallengeRequest{
+  string cluster_id = 1;
+
+  // Login and password are currently required to generate Teleport challenges.
+  string login = 2;
+  string password = 3;
+}
+
+message SolveClusterLoginChallengeRequest{
+  string cluster_id = 1;
+  string challenge_id = 2;
+  SolvedClusterLoginChallenge solved_challenge = 3;
+}
+
+message SolveClusterLoginChallengeResponse{
+  // TODO(codingllama): Relay whatever we need for the UI.
+}
+
+message ListDatabasesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+
+  // Filter by clusters.
+  repeated string cluster_ids = 3;
+}
+
+message ListDatabasesResponse {
+  repeated Database databases = 1;
+  string next_page_token = 2;
+}
+
+message CreateGatewayRequest {
+  string cluster_id = 1;
+  Gateway gateway = 2;
+}
+
+message ListGatewaysRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+
+  // Filter by clusters.
+  repeated string cluster_ids = 3;
+}
+
+message ListGatewaysResponse {
+  repeated Gateway gateways = 1;
+  string next_page_token = 2;
+}
+
+message DeleteGatewayRequest {
+  string gateway_id = 1;
+}
+
+message ListNodesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+
+  // Filter by clusters.
+  repeated string cluster_ids = 3;
+}
+
+message ListNodesResponse {
+  repeated Node nodes = 1;
+  string next_page_token = 2;
+}
+
+message StreamGatewayRequest {
+  // ID of the gateway.
+  // Required only for the initial request.
+  string gateway_id = 1;
+
+  // TODO(codingllama): Design SSH streaming interface.
+}
+
+message StreamGatewayResponse {
+  // TODO(codingllama): Design SSH streaming interface.
+}

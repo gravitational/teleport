@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package teleport.terminal.v1;
+
+option go_package = "github.com/gravitational/teleport/protogen/teleport/terminal/v1";
+
+message Node {
+  string id = 1;
+  string name = 2;
+
+  // TODO(codingllama): Additional node fields.
+}
