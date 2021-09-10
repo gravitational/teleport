@@ -20,7 +20,7 @@ func (c *Bot) Check(ctx context.Context) error {
 	env := c.Environment
 	pr := c.Environment.PullRequest
 	if c.Environment.IsInternal(pr.Author) {
-		err := DismissStaleWorkflowRuns(ctx, env.GetToken(), pr.RepoOwner, pr.RepoName, pr.BranchName, env.Client)
+		err := c.GithubClient.DismissStaleWorkflowRuns(ctx, env.GetToken(), pr.RepoOwner, pr.RepoName, pr.BranchName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -43,29 +43,33 @@ func (c *Bot) Check(ctx context.Context) error {
 		}
 		currentReviewsSlice = append(currentReviewsSlice, currReview)
 	}
-	return c.check(ctx, c.Environment.IsInternal(pr.Author), pr, c.Environment.GetReviewersForAuthor(pr.Author), mostRecent(currentReviewsSlice))
+	err = c.check(ctx, pr, c.Environment.GetReviewersForAuthor(pr.Author), mostRecent(currentReviewsSlice))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if hasNewCommit(pr.HeadSHA, currentReviewsSlice) && !c.Environment.IsInternal(pr.Author) {
+		// Check file changes/commit verification
+		err := c.verifyCommit(ctx)
+		if err != nil {
+			if validationErr := c.invalidateApprovals(ctx, dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author)), currentReviewsSlice); validationErr != nil {
+				return trace.Wrap(validationErr)
+			}
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // check checks to see if all the required reviewers have approved and invalidates
 // approvals for external contributors if a new commit is pushed
-func (c *Bot) check(ctx context.Context, isInternal bool, pr *environment.PullRequestMetadata, required []string, currentReviews []review) error {
+func (c *Bot) check(ctx context.Context, pr *environment.PullRequestMetadata, required []string, currentReviews []review) error {
 	if len(currentReviews) == 0 {
 		return trace.BadParameter("pull request has no reviews")
 	}
 	log.Printf("checking if %v has approvals from the required reviewers %+v", pr.Author, required)
 	for _, requiredReviewer := range required {
 		if !containsApprovalReview(requiredReviewer, currentReviews) {
-			return trace.BadParameter("all required reviewers have not yet approved")
-		}
-	}
-	if hasNewCommit(pr.HeadSHA, currentReviews) && !isInternal {
-		// Check file changes/commit verification
-		err := c.verify(ctx, pr.RepoOwner, pr.RepoName, pr.BaseSHA, pr.HeadSHA)
-		if err != nil {
-			if validationErr := c.invalidate(ctx, pr.RepoOwner, pr.RepoName, dismissMessage(pr, required), pr.Number, currentReviews, c.Environment.Client); validationErr != nil {
-				return trace.Wrap(validationErr)
-			}
-			return trace.Wrap(err)
+			return trace.BadParameter("required reviewers have not yet approved")
 		}
 	}
 	return nil
@@ -133,16 +137,22 @@ func hasNewCommit(headSHA string, revs []review) bool {
 }
 
 // verifyCommit verfies GitHub is the commit author and that the commit is empty
-func verifyCommit(ctx context.Context, repoOwner, repoName, baseSHA, headSHA string) error {
-	client := github.NewClient(nil)
-	comparison, _, err := client.Repositories.CompareCommits(ctx, repoOwner, repoName, baseSHA, headSHA)
+func (c *Bot) verifyCommit(ctx context.Context) error {
+	pr := c.Environment.PullRequest
+	comparison, _, err := c.Environment.Client.Repositories.CompareCommits(
+		ctx,
+		pr.RepoOwner,
+		pr.RepoName,
+		pr.BaseSHA,
+		pr.HeadSHA,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(comparison.Files) != 0 {
 		return trace.BadParameter("detected file change")
 	}
-	commit, _, err := client.Repositories.GetCommit(ctx, repoOwner, repoName, headSHA)
+	commit, _, err := c.Environment.Client.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, pr.HeadSHA)
 	if err != nil {
 		return trace.Wrap(err)
 	}

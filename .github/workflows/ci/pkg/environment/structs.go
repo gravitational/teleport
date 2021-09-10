@@ -7,19 +7,6 @@ package environment
    to unmarshal appropiately.
 */
 
-// PullRequestMetadata is the current pull request metadata
-type PullRequestMetadata struct {
-	Author    string
-	RepoName  string
-	RepoOwner string
-	Number    int
-	HeadSHA   string
-	BaseSHA   string
-	// Only used for pull request review events
-	Reviewer   string
-	BranchName string
-}
-
 // PushEvent is used for unmarshalling push events
 type PushEvent struct {
 	Number      int        `json:"number"`

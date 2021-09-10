@@ -32,6 +32,19 @@ type Environment struct {
 	action           string
 }
 
+// PullRequestMetadata is the current pull request metadata
+type PullRequestMetadata struct {
+	Author    string
+	RepoName  string
+	RepoOwner string
+	Number    int
+	HeadSHA   string
+	BaseSHA   string
+	// Only used for pull request review events
+	Reviewer   string
+	BranchName string
+}
+
 type unmarshalReviewersFn func(str string, client *github.Client) (map[string][]string, error)
 
 // CheckAndSetDefaults verifies configuration and sets defaults

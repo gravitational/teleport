@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"net/http"
 	"sort"
 
 	"github.com/gravitational/teleport/.github/workflows/ci"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/google/go-github/v37/github"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/oauth2"
 )
 
 // Config is used to configure Bot
@@ -24,13 +22,12 @@ type Config struct {
 
 // Bot assigns reviewers and checks assigned reviewers for a pull request
 type Bot struct {
-	Environment *environment.Environment
-	invalidate  invalidate
-	verify      verify
+	Environment  *environment.Environment
+	GithubClient GithubClient
 }
-
-type invalidate func(context.Context, string, string, string, int, []review, *github.Client) error
-type verify func(context.Context, string, string, string, string) error
+type GithubClient struct {
+	Client *github.Client
+}
 
 // New returns a new instance of  Bot
 func New(c Config) (*Bot, error) {
@@ -40,8 +37,9 @@ func New(c Config) (*Bot, error) {
 	}
 	return &Bot{
 		Environment: c.Environment,
-		invalidate:  invalidateApprovals,
-		verify:      verifyCommit,
+		GithubClient: GithubClient{
+			Client: c.Environment.Client,
+		},
 	}, nil
 }
 
@@ -54,9 +52,31 @@ func (c *Config) CheckAndSetDefaults() error {
 }
 
 // invalidateApprovals dismisses all reviews on a pull request
-func invalidateApprovals(ctx context.Context, repoOwner, repoName, msg string, number int, reviews []review, clt *github.Client) error {
+func (c *Bot) invalidateApprovals(ctx context.Context, msg string, reviews []review) error {
+	pr := c.Environment.PullRequest
 	for _, v := range reviews {
-		_, _, err := clt.PullRequests.DismissReview(ctx, repoOwner, repoName, number, v.id, &github.PullRequestReviewDismissalRequest{Message: &msg})
+		_, _, err := c.Environment.Client.PullRequests.DismissReview(ctx,
+			pr.RepoOwner,
+			pr.RepoName,
+			pr.Number,
+			v.id,
+			&github.PullRequestReviewDismissalRequest{Message: &msg},
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// DimissStaleWorkflowRunsForExternalContributors dismisses stale workflow runs for external contributors
+func (gc GithubClient) DimissStaleWorkflowRunsForExternalContributors(ctx context.Context, token, repoOwner, repoName string) error {
+	pulls, _, err := gc.Client.PullRequests.List(ctx, repoOwner, repoName, &github.PullRequestListOptions{State: ci.Open})
+	if err != nil {
+		return err
+	}
+	for _, pull := range pulls {
+		err := gc.DismissStaleWorkflowRuns(ctx, token, *pull.Base.User.Login, *pull.Base.Repo.Name, *pull.Head.Ref)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -66,11 +86,11 @@ func invalidateApprovals(ctx context.Context, repoOwner, repoName, msg string, n
 
 // DismissStaleWorkflowRuns dismisses stale Check workflow runs.
 // Stale workflow runs are workflow runs that were previously ran/not the most recent and are no longer valid
-// due to a new event triggering/change in state. The workflow that calls this function is the source of truth for
-// the current state of the pull request.
-func DismissStaleWorkflowRuns(ctx context.Context, token, owner, repoName, branch string, cl *github.Client) error {
+// due to a new event triggering/change in state. The workflow in the current context is the source of truth for
+// the state of the pull request.
+func (gc GithubClient) DismissStaleWorkflowRuns(ctx context.Context, token, owner, repoName, branch string) error {
 	var targetWorkflow *github.Workflow
-	workflows, _, err := cl.Actions.ListWorkflows(ctx, owner, repoName, &github.ListOptions{})
+	workflows, _, err := gc.Client.Actions.ListWorkflows(ctx, owner, repoName, &github.ListOptions{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -80,7 +100,7 @@ func DismissStaleWorkflowRuns(ctx context.Context, token, owner, repoName, branc
 			break
 		}
 	}
-	list, _, err := cl.Actions.ListWorkflowRunsByID(ctx, owner, repoName, *targetWorkflow.ID, &github.ListWorkflowRunsOptions{Branch: branch})
+	list, _, err := gc.Client.Actions.ListWorkflowRunsByID(ctx, owner, repoName, *targetWorkflow.ID, &github.ListWorkflowRunsOptions{Branch: branch})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -89,7 +109,7 @@ func DismissStaleWorkflowRuns(ctx context.Context, token, owner, repoName, branc
 	// Deleting all runs except the most recently started one.
 	for i := 0; i < len(list.WorkflowRuns)-1; i++ {
 		run := list.WorkflowRuns[i]
-		err := deleteRun(ctx, token, owner, repoName, *run.ID)
+		err := gc.deleteRun(ctx, token, owner, repoName, *run.ID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -99,18 +119,14 @@ func DismissStaleWorkflowRuns(ctx context.Context, token, owner, repoName, branc
 
 // deleteRun deletes a workflow run.
 // Note: the go-github client library does not support this endpoint.
-func deleteRun(ctx context.Context, token, owner, repo string, runID int64) error {
-	// Creating and authenticating the client
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: token},
-	)
-	client := oauth2.NewClient(ctx, ts)
-	endpoint := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/runs/%v", owner, repo, runID)
-	req, err := http.NewRequest("DELETE", endpoint, nil)
+func (gc GithubClient) deleteRun(ctx context.Context, token, owner, repo string, runID int64) error {
+	// Construct url
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/runs/%v/", owner, repo, runID)
+	req, err := gc.Client.NewRequest("DELETE", url, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	resp, err := client.Do(req)
+	resp, err := gc.Client.Do(ctx, req, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}

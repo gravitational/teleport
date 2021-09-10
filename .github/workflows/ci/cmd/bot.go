@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/.github/workflows/ci"
+	"github.com/gravitational/teleport/.github/workflows/ci/pkg/bot"
 	bots "github.com/gravitational/teleport/.github/workflows/ci/pkg/bot"
-	"github.com/gravitational/teleport/.github/workflows/ci/pkg/cron"
 	"github.com/gravitational/teleport/.github/workflows/ci/pkg/environment"
 	"github.com/gravitational/trace"
 
@@ -24,7 +24,7 @@ func main() {
 
 	subcommand := os.Args[len(os.Args)-1]
 	ctx := context.Background()
-	
+
 	switch subcommand {
 	case ci.Assign:
 		log.Println("Assigning reviewers")
@@ -92,7 +92,9 @@ func dismissRuns(ctx context.Context, token string) error {
 	if len(metadata) != 2 {
 		return trace.BadParameter("environment variable GITHUB_REPOSITORY is not in the correct format,\n the valid format is '<repo owner>/<repo name>'")
 	}
-	err := cron.DimissStaleWorkflowRunsForExternalContributors(ctx, token, metadata[0], metadata[1], makeGithubClient(ctx, token))
+	clt := makeGithubClient(ctx, token)
+	githubClient := bot.GithubClient{Client: clt}
+	err := githubClient.DimissStaleWorkflowRunsForExternalContributors(ctx, token, metadata[0], metadata[1])
 	if err != nil {
 		return trace.Wrap(err)
 	}
