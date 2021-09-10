@@ -11,13 +11,13 @@ import (
 )
 
 // DimissStaleWorkflowRunsForExternalContributors dismisses stale workflow runs for external contributors
-func DimissStaleWorkflowRunsForExternalContributors(token, repoOwner, repoName string, clt *github.Client) error {
-	pulls, _, err := clt.PullRequests.List(context.TODO(), repoOwner, repoName, &github.PullRequestListOptions{State: ci.OPEN})
+func DimissStaleWorkflowRunsForExternalContributors(ctx context.Context, token, repoOwner, repoName string, clt *github.Client) error {
+	pulls, _, err := clt.PullRequests.List(ctx, repoOwner, repoName, &github.PullRequestListOptions{State: ci.Open})
 	if err != nil {
 		return err
 	}
 	for _, pull := range pulls {
-		err := bot.DismissStaleWorkflowRuns(token, *pull.Base.User.Login, *pull.Base.Repo.Name, *pull.Head.Ref, clt)
+		err := bot.DismissStaleWorkflowRuns(ctx, token, *pull.Base.User.Login, *pull.Base.Repo.Name, *pull.Head.Ref, clt)
 		if err != nil {
 			return trace.Wrap(err)
 		}

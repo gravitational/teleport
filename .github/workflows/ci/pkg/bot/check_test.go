@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gravitational/teleport/.github/workflows/ci/pkg/environment"
@@ -102,7 +103,7 @@ func TestCheck(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			err := test.botInstance.check(test.isInternal, test.pr, test.required, test.currentReviews)
+			err := test.botInstance.check(context.TODO(), test.isInternal, test.pr, test.required, test.currentReviews)
 			test.checkErr(t, err)
 		})
 	}
@@ -145,14 +146,14 @@ func TestHasNewCommit(t *testing.T) {
 	require.Equal(t, false, ok)
 }
 
-func verifyFileChange(repoOwner, repoName, base, head string) error {
+func verifyFileChange(ctx context.Context, repoOwner, repoName, base, head string) error {
 	return trace.BadParameter("file change")
 }
 
-func verifyTest(repoOwner, repoName, base, head string) error {
+func verifyTest(ctx context.Context, repoOwner, repoName, base, head string) error {
 	return nil
 }
 
-func invalidateTest(repoOwner, repoName, msg string, number int, reviews []review, clt *github.Client) error {
+func invalidateTest(ctx context.Context, repoOwner, repoName, msg string, number int, reviews []review, clt *github.Client) error {
 	return nil
 }

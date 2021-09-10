@@ -8,13 +8,13 @@ import (
 )
 
 // Assign assigns reviewers to the pull request
-func (a *Bot) Assign() error {
+func (a *Bot) Assign(ctx context.Context) error {
 	pullReq := a.Environment.PullRequest
 	// Getting and setting reviewers for author of pull request
 	r := a.Environment.GetReviewersForAuthor(pullReq.Author)
 	client := a.Environment.Client
 	// Assigning reviewers to pull request
-	pr, _, err := client.PullRequests.RequestReviewers(context.TODO(),
+	pr, _, err := client.PullRequests.RequestReviewers(ctx,
 		pullReq.RepoOwner,
 		pullReq.RepoName, pullReq.Number,
 		github.ReviewersRequest{Reviewers: r})

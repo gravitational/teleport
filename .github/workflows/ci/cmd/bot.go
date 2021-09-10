@@ -24,50 +24,49 @@ func main() {
 
 	subcommand := os.Args[len(os.Args)-1]
 	if *token == "" {
-		log.Fatal("Missing authentication token.")
+		log.Fatal("Missing authentication token")
 	}
-
+	ctx := context.Background()
 	switch subcommand {
-	case ci.ASSIGN:
-		log.Println("Assigning reviewers.")
-		err := assignReviewers(*token, *reviewers)
+	case ci.Assign:
+		log.Println("Assigning reviewers")
+		bot, err := constructBot(ctx, *token, *reviewers)
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Print("Assign completed.")
+		err = bot.Assign(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Print("Assign completed")
 
-	case ci.CHECK:
-		log.Println("Checking reviewers.")
-		err := checkReviewers(*token, *reviewers)
+	case ci.Check:
+		log.Println("Checking reviewers")
+		bot, err := constructBot(ctx, *token, *reviewers)
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Print("Check completed.")
-	case ci.CRON:
-		log.Println("Dismissing stale runs.")
-		err := dismissRuns(*token)
+		err = bot.Check(ctx)
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Println("Stale workflow run removal completed.")
+		log.Print("Check completed")
+	case ci.Dismiss:
+		log.Println("Dismissing stale runs")
+		err := dismissRuns(ctx, *token)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println("Stale workflow run removal completed")
 	default:
 		log.Fatalf("Unknown subcommand: %v", subcommand)
 	}
 
 }
 
-func verifyAndConstruct(token, reviewers string) (*bots.Bot, error) {
-	if token == "" {
-		return nil, trace.BadParameter("Missing authentication token.")
-	}
-	if reviewers == "" {
-		return nil, trace.BadParameter("Missing assignments string.")
-	}
-	path := os.Getenv(ci.GITHUBEVENTPATH)
-	if path == "" {
-		return nil, trace.BadParameter("Environment variable GITHUB_EVENT_PATH is not set.")
-	}
-	env, err := environment.New(environment.Config{Client: makeGithubClient(token),
+func constructBot(ctx context.Context, token, reviewers string) (*bots.Bot, error) {
+	path := os.Getenv(ci.GithubEventPath)
+	env, err := environment.New(environment.Config{Client: makeGithubClient(ctx, token),
 		Reviewers: reviewers,
 		EventPath: path,
 		Token:     token,
@@ -83,41 +82,24 @@ func verifyAndConstruct(token, reviewers string) (*bots.Bot, error) {
 	return bot, nil
 }
 
-func assignReviewers(token, reviewers string) error {
-	bot, err := verifyAndConstruct(token, reviewers)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return bot.Assign()
-}
-
-func checkReviewers(token, reviewers string) error {
-	bot, err := verifyAndConstruct(token, reviewers)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return bot.Check()
-}
-
-func dismissRuns(token string) error {
-	repository := os.Getenv(ci.GITHUBREPOSITORY)
+func dismissRuns(ctx context.Context, token string) error {
+	repository := os.Getenv(ci.GithubRepository)
 	if repository == "" {
-		return trace.BadParameter("Environment variable GITHUB_REPOSITORY is not set.")
+		return trace.BadParameter("Environment variable GITHUB_REPOSITORY is not set")
 	}
 	metadata := strings.Split(repository, "/")
 	if len(metadata) != 2 {
-		return trace.BadParameter("Environment variable GITHUB_REPOSITORY is not in the correct format,\n valid format is '<repo owner>/<repo name>'.")
+		return trace.BadParameter("Environment variable GITHUB_REPOSITORY is not in the correct format,\n valid format is '<repo owner>/<repo name>'")
 	}
-	err := cron.DimissStaleWorkflowRunsForExternalContributors(token, metadata[0], metadata[1], makeGithubClient(token))
+	err := cron.DimissStaleWorkflowRunsForExternalContributors(ctx, token, metadata[0], metadata[1], makeGithubClient(ctx, token))
 	if err != nil {
-		trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func makeGithubClient(token string) *github.Client {
+func makeGithubClient(ctx context.Context, token string) *github.Client {
 	// Creating and authenticating the Github client
-	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)

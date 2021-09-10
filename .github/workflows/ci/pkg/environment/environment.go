@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"net/http"
 	"os"
 
 	"github.com/gravitational/teleport/.github/workflows/ci"
@@ -112,7 +113,7 @@ func unmarshalReviewers(str string, client *github.Client) (map[string][]string,
 // userExists checks if a user exists
 func userExists(user string, client *github.Client) error {
 	_, resp, err := client.Search.Users(context.TODO(), user, &github.SearchOptions{})
-	if err != nil || resp.Status != "200 OK" {
+	if err != nil || resp.StatusCode != http.StatusOK {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -163,7 +164,7 @@ func (e *Environment) setPullRequest(body []byte) error {
 	var pr PullRequestMetadata
 
 	switch e.action {
-	case ci.SYNCHRONIZE:
+	case ci.Synchronize:
 		var push PushEvent
 		err := json.Unmarshal(body, &push)
 		if err != nil {
@@ -173,7 +174,7 @@ func (e *Environment) setPullRequest(body []byte) error {
 		if err != nil {
 			return err
 		}
-	case ci.ASSIGNED, ci.OPENED, ci.REOPENED, ci.READY:
+	case ci.Assigned, ci.Opened, ci.Reopened, ci.Ready:
 		var pull PullRequestEvent
 		err := json.Unmarshal(body, &pull)
 		if err != nil {
@@ -186,7 +187,7 @@ func (e *Environment) setPullRequest(body []byte) error {
 	default:
 		var rev ReviewEvent
 		err := json.Unmarshal(body, &rev)
-		if nil != err {
+		if err != nil {
 			return trace.Wrap(err)
 		}
 		pr, err = rev.toPullRequestMetadata()

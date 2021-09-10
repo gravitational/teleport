@@ -1,63 +1,63 @@
 package ci
 
 const (
-	// ASSIGN is the subcommand to assign reviewers
-	ASSIGN = "assign-reviewers"
+	// Assign is the subcommand to assign reviewers
+	Assign = "assign-reviewers"
 
-	// CHECK is the subcommand to check reviewers
-	CHECK = "check-reviewers"
+	// Check is the subcommand to check reviewers
+	Check = "check-reviewers"
 
-	// CRON is the subcommand to dismiss runs
-	CRON = "dismiss-runs"
+	// Dismiss is the subcommand to dismiss runs
+	Dismiss = "dismiss-runs"
 
-	// OPEN is a pull request state
-	OPEN = "open"
+	// Open is a pull request state
+	Open = "open"
 
-	// GITHUBREPOSITORY is the environment variable
+	// GithubRepository is the environment variable
 	// that contains the repo owner and name
-	GITHUBREPOSITORY = "GITHUB_REPOSITORY"
+	GithubRepository = "GITHUB_REPOSITORY"
 
-	// GITHUBEVENTPATH is the env variable that
+	// GithubEventPath is the env variable that
 	// contains the path to the event payload
-	GITHUBEVENTPATH = "GITHUB_EVENT_PATH"
+	GithubEventPath = "GITHUB_EVENT_PATH"
 
-	// GITHUBCOMMIT is a string that is contained in the payload
+	// GithubCommit is a string that is contained in the payload
 	// of a commit verified by GitHub.
 	// Used to verify commit was made by GH.
-	GITHUBCOMMIT = "committer GitHub <noreply@github.com>"
+	GithubCommit = "committer GitHub <noreply@github.com>"
 
-	// APPROVED is a pull request review status.
-	APPROVED = "APPROVED"
+	// Approved is a pull request review status.
+	Approved = "APPROVED"
 
-	// ASSIGNMENTS is the environment variable name that stores
+	// Assignments is the environment variable name that stores
 	// which reviewers should be assigned to which authors.
-	ASSIGNMENTS = "ASSIGNMENTS"
+	Assignments = "ASSIGNMENTS"
 
-	// TOKEN is the env variable name that stores the Github authentication token
-	TOKEN = "GITHUB_TOKEN"
+	// Token is the env variable name that stores the Github authentication token
+	Token = "GITHUB_TOKEN"
 
-	// COMPLETED is a workflow run status.
-	COMPLETED = "completed"
+	// Completed is a workflow run status.
+	Completed = "completed"
 
-	// CHECKWORKFLOW is the name of a workflow.
-	CHECKWORKFLOW = "Check"
+	// CheckWorkflow is the name of a workflow.
+	CheckWorkflow = "Check"
 
-	// SYNCHRONIZE is an event type that is triggered when a commit is pushed to an
+	// Synchronize is an event type that is triggered when a commit is pushed to an
 	// open pull request.
-	SYNCHRONIZE = "synchronize"
+	Synchronize = "synchronize"
 
-	// ASSIGNED is an event type that is triggered when a user is
+	// Assigned is an event type that is triggered when a user is
 	// assigned to a pull request.
-	ASSIGNED = "assigned"
+	Assigned = "assigned"
 
-	//OPENED is an event type that is triggered when a pull request is opened.
-	OPENED = "opened"
+	// Opened is an event type that is triggered when a pull request is opened.
+	Opened = "opened"
 
-	// REOPENED is an event type event that is when triggered when a pull request
+	// Reopened is an event type event that is when triggered when a pull request
 	// is reopened.
-	REOPENED = "reopened"
+	Reopened = "reopened"
 
-	// READY is an event type that is triggered when a pull request gets
+	// Ready is an event type that is triggered when a pull request gets
 	// pulled out of a draft state.
-	READY = "ready_for_review"
+	Ready = "ready_for_review"
 )

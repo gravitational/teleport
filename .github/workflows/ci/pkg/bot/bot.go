@@ -28,34 +28,34 @@ type Bot struct {
 	verify      verify
 }
 
-type invalidate func(string, string, string, int, []review, *github.Client) error
-type verify func(string, string, string, string) error
+type invalidate func(context.Context, string, string, string, int, []review, *github.Client) error
+type verify func(context.Context, string, string, string, string) error
 
 // New returns a new instance of  Bot
 func New(c Config) (*Bot, error) {
-	var ch Bot
 	err := c.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ch.Environment = c.Environment
-	ch.invalidate = invalidateApprovals
-	ch.verify = verifyCommit
-	return &ch, nil
+	return &Bot{
+		Environment: c.Environment,
+		invalidate:  invalidateApprovals,
+		verify:      verifyCommit,
+	}, nil
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Environment == nil {
-		return trace.BadParameter("missing parameter Environment.")
+		return trace.BadParameter("missing parameter Environment")
 	}
 	return nil
 }
 
 // invalidateApprovals dismisses all reviews on a pull request
-func invalidateApprovals(repoOwner, repoName, msg string, number int, reviews []review, clt *github.Client) error {
+func invalidateApprovals(ctx context.Context, repoOwner, repoName, msg string, number int, reviews []review, clt *github.Client) error {
 	for _, v := range reviews {
-		_, _, err := clt.PullRequests.DismissReview(context.TODO(), repoOwner, repoName, number, v.id, &github.PullRequestReviewDismissalRequest{Message: &msg})
+		_, _, err := clt.PullRequests.DismissReview(ctx, repoOwner, repoName, number, v.id, &github.PullRequestReviewDismissalRequest{Message: &msg})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -64,19 +64,19 @@ func invalidateApprovals(repoOwner, repoName, msg string, number int, reviews []
 }
 
 // DismissStaleWorkflowRuns dismisses stale Check workflow runs
-func DismissStaleWorkflowRuns(token, owner, repoName, branch string, cl *github.Client) error {
+func DismissStaleWorkflowRuns(ctx context.Context, token, owner, repoName, branch string, cl *github.Client) error {
 	var targetWorkflow *github.Workflow
-	workflows, _, err := cl.Actions.ListWorkflows(context.TODO(), owner, repoName, &github.ListOptions{})
+	workflows, _, err := cl.Actions.ListWorkflows(ctx, owner, repoName, &github.ListOptions{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, w := range workflows.Workflows {
-		if *w.Name == ci.CHECKWORKFLOW {
+		if *w.Name == ci.CheckWorkflow {
 			targetWorkflow = w
 			break
 		}
 	}
-	list, _, err := cl.Actions.ListWorkflowRunsByID(context.TODO(), owner, repoName, *targetWorkflow.ID, &github.ListWorkflowRunsOptions{Branch: branch})
+	list, _, err := cl.Actions.ListWorkflowRunsByID(ctx, owner, repoName, *targetWorkflow.ID, &github.ListWorkflowRunsOptions{Branch: branch})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -85,7 +85,7 @@ func DismissStaleWorkflowRuns(token, owner, repoName, branch string, cl *github.
 	// Deleting all runs except the most recently started one.
 	for i := 0; i < len(list.WorkflowRuns)-1; i++ {
 		run := list.WorkflowRuns[i]
-		err := deleteRun(token, owner, repoName, *run.ID)
+		err := deleteRun(ctx, token, owner, repoName, *run.ID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -95,12 +95,12 @@ func DismissStaleWorkflowRuns(token, owner, repoName, branch string, cl *github.
 
 // deleteRun deletes a workflow run.
 // Note: the go-github client library does not support this endpoint.
-func deleteRun(token, owner, repo string, runID int64) error {
+func deleteRun(ctx context.Context, token, owner, repo string, runID int64) error {
 	// Creating and authenticating the client
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
-	client := oauth2.NewClient(context.Background(), ts)
+	client := oauth2.NewClient(ctx, ts)
 	endpoint := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/runs/%v", owner, repo, runID)
 	req, err := http.NewRequest("DELETE", endpoint, nil)
 	if err != nil {

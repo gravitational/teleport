@@ -16,16 +16,16 @@ import (
 )
 
 // Check checks if all the reviewers have approved the pull request in the current context.
-func (c *Bot) Check() error {
+func (c *Bot) Check(ctx context.Context) error {
 	env := c.Environment
 	pr := c.Environment.PullRequest
 	if c.Environment.IsInternal(pr.Author) {
-		err := DismissStaleWorkflowRuns(env.GetToken(), pr.RepoOwner, pr.RepoName, pr.BranchName, env.Client)
+		err := DismissStaleWorkflowRuns(ctx, env.GetToken(), pr.RepoOwner, pr.RepoName, pr.BranchName, env.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	reviews, _, err := env.Client.PullRequests.ListReviews(context.TODO(), pr.RepoOwner,
+	reviews, _, err := env.Client.PullRequests.ListReviews(ctx, pr.RepoOwner,
 		pr.RepoName,
 		pr.Number,
 		&github.ListOptions{})
@@ -34,15 +34,21 @@ func (c *Bot) Check() error {
 	}
 	currentReviewsSlice := []review{}
 	for _, rev := range reviews {
-		currReview := review{name: *rev.User.Login, status: *rev.State, commitID: *rev.CommitID, id: *rev.ID, submittedAt: rev.SubmittedAt}
+		currReview := review{
+			name:        *rev.User.Login,
+			status:      *rev.State,
+			commitID:    *rev.CommitID,
+			id:          *rev.ID,
+			submittedAt: rev.SubmittedAt,
+		}
 		currentReviewsSlice = append(currentReviewsSlice, currReview)
 	}
-	return c.check(c.Environment.IsInternal(pr.Author), pr, c.Environment.GetReviewersForAuthor(pr.Author), mostRecent(currentReviewsSlice))
+	return c.check(ctx, c.Environment.IsInternal(pr.Author), pr, c.Environment.GetReviewersForAuthor(pr.Author), mostRecent(currentReviewsSlice))
 }
 
 // check checks to see if all the required reviewers have approved and invalidates
 // approvals for external contributors if a new commit is pushed
-func (c *Bot) check(isInternal bool, pr *environment.PullRequestMetadata, required []string, currentReviews []review) error {
+func (c *Bot) check(ctx context.Context, isInternal bool, pr *environment.PullRequestMetadata, required []string, currentReviews []review) error {
 	if len(currentReviews) == 0 {
 		return trace.BadParameter("pull request has no reviews.")
 	}
@@ -54,9 +60,9 @@ func (c *Bot) check(isInternal bool, pr *environment.PullRequestMetadata, requir
 	}
 	if hasNewCommit(pr.HeadSHA, currentReviews) && !isInternal {
 		// Check file changes/commit verification
-		err := c.verify(pr.RepoOwner, pr.RepoName, pr.BaseSHA, pr.HeadSHA)
+		err := c.verify(ctx, pr.RepoOwner, pr.RepoName, pr.BaseSHA, pr.HeadSHA)
 		if err != nil {
-			if validationErr := c.invalidate(pr.RepoOwner, pr.RepoName, dismissMessage(pr, required), pr.Number, currentReviews, c.Environment.Client); validationErr != nil {
+			if validationErr := c.invalidate(ctx, pr.RepoOwner, pr.RepoName, dismissMessage(pr, required), pr.Number, currentReviews, c.Environment.Client); validationErr != nil {
 				return trace.Wrap(validationErr)
 			}
 			return trace.Wrap(err)
@@ -98,7 +104,7 @@ type review struct {
 
 func containsApprovalReview(reviewer string, reviews []review) bool {
 	for _, rev := range reviews {
-		if rev.name == reviewer && rev.status == ci.APPROVED {
+		if rev.name == reviewer && rev.status == ci.Approved {
 			return true
 		}
 	}
@@ -127,23 +133,23 @@ func hasNewCommit(headSHA string, revs []review) bool {
 }
 
 // verifyCommit verfies GitHub is the commit author and that the commit is empty
-func verifyCommit(repoOwner, repoName, baseSHA, headSHA string) error {
+func verifyCommit(ctx context.Context, repoOwner, repoName, baseSHA, headSHA string) error {
 	client := github.NewClient(nil)
-	comparison, _, err := client.Repositories.CompareCommits(context.TODO(), repoOwner, repoName, baseSHA, headSHA)
+	comparison, _, err := client.Repositories.CompareCommits(ctx, repoOwner, repoName, baseSHA, headSHA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(comparison.Files) != 0 {
 		return trace.BadParameter("detected file change")
 	}
-	commit, _, err := client.Repositories.GetCommit(context.TODO(), repoOwner, repoName, headSHA)
+	commit, _, err := client.Repositories.GetCommit(ctx, repoOwner, repoName, headSHA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	verification := commit.Commit.Verification
 	// Get commit object
 	payload := *verification.Payload
-	if strings.Contains(payload, ci.GITHUBCOMMIT) && *verification.Verified {
+	if strings.Contains(payload, ci.GithubCommit) && *verification.Verified {
 		return nil
 	}
 	return trace.BadParameter("commit is not verified and/or is not signed by GitHub")
