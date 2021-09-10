@@ -126,18 +126,21 @@ func unmarshalReviewers(str string, client *github.Client) (map[string][]string,
 }
 
 // userExists checks if a user exists
-func userExists(user string, client *github.Client) (*github.User, error) {
-	users, resp, err := client.Search.Users(context.TODO(), user, &github.SearchOptions{})
+func userExists(userLogin string, client *github.Client) (*github.User, error) {
+	var targetUser *github.User
+	users, resp, err := client.Search.Users(context.TODO(), userLogin, &github.SearchOptions{})
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return nil, trace.Wrap(err)
 	}
-	switch {
-	case len(users.Users) == 0:
-		return nil, trace.NotFound("user %s does not exist", user)
-	case len(users.Users) != 1:
-		return nil, trace.BadParameter("ambiguous user %s", user)
+	for _, user := range users.Users {
+		if *user.Login == userLogin {
+			targetUser = user
+		}
 	}
-	return users.Users[0], nil
+	if targetUser == nil {
+		return nil, trace.NotFound("user %s does not exist", userLogin)
+	}
+	return targetUser, nil
 }
 
 // GetReviewersForAuthor gets the required reviewers for the current user.
