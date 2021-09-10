@@ -1983,14 +1983,13 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
-// TestGetMFADevices gets devices for the authenticated user.
-func TestGetMFADevices(t *testing.T) {
+func TestGetMFADevicesWithAuth(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "foo@example.com")
 
-	endpoint := pack.clt.Endpoint("webapi", "mfa")
+	endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
@@ -1998,8 +1997,6 @@ func TestGetMFADevices(t *testing.T) {
 	err = json.Unmarshal(re.Bytes(), &devices)
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
-	require.Equal(t, "TOTP", devices[0].Type)
-	require.Equal(t, "otp", devices[0].Name) // default device name
 }
 
 func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
@@ -2008,7 +2005,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 
-	// Create a user with a totp device.
+	// Create a user with a TOTP device.
 	username := "llama"
 	proxy.createUser(ctx, t, username, "root", "password", "some-otp-secret")
 
@@ -2031,27 +2028,27 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	approvedToken.SetUser(username)
 	approvedToken.SetSubKind(auth.UserTokenTypeRecoveryApproved)
 	approvedToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
-	_, err = env.server.Auth().Identity.CreateUserToken(context.Background(), approvedToken)
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, approvedToken)
 	require.NoError(t, err)
 
 	// Call the getter endpoint.
 	clt := proxy.newClient(t)
-	getterEndpoint := clt.Endpoint("webapi", "mfa", approvedToken.GetName())
-	res, err := clt.Get(context.Background(), getterEndpoint, url.Values{})
+	queryParam := url.Values{"token": []string{approvedToken.GetName()}}
+	getDevicesEndpoint := clt.Endpoint("webapi", "mfa", "devices")
+	res, err := clt.Get(ctx, getDevicesEndpoint, queryParam)
 	require.NoError(t, err)
 
 	var devices []ui.MFADevice
 	err = json.Unmarshal(res.Bytes(), &devices)
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
-	require.Equal(t, "TOTP", devices[0].Type)
 
 	// Call the delete endpoint.
-	_, err = clt.Delete(context.Background(), clt.Endpoint("webapi", "mfa", devices[0].Name, approvedToken.GetName()))
+	_, err = clt.DeleteWithParams(ctx, clt.Endpoint("webapi", "mfa", "devices", devices[0].Name), queryParam)
 	require.NoError(t, err)
 
 	// Check device has been deleted.
-	res, err = clt.Get(context.Background(), getterEndpoint, url.Values{})
+	res, err = clt.Get(ctx, getDevicesEndpoint, queryParam)
 	require.NoError(t, err)
 
 	err = json.Unmarshal(res.Bytes(), &devices)

@@ -349,9 +349,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/mfa/login/begin", httplib.MakeHandler(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
-	h.GET("/webapi/mfa", h.WithAuth(h.getMFADevicesHandle))
-	h.GET("/webapi/mfa/:token", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
-	h.DELETE("/webapi/mfa/:deviceName/:token", httplib.MakeHandler(h.deleteMFADeviceHandle))
+	h.GET("/webapi/mfa/devices", httplib.MakeHandler(h.getMFADevicesHandle))
+	h.DELETE("/webapi/mfa/devices/:deviceName", httplib.MakeHandler(h.deleteMFADeviceHandle))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
