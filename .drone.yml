@@ -778,6 +778,7 @@ trigger:
     include:
     - master
     - branch/*
+    - walt/test-push-build-darwin-amd64
 workspace:
   path: /tmp/push-build-darwin-amd64
 platform:
@@ -4410,6 +4411,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0c1c6a29b4b1707a52cbad665f6188f8cfd766dfa847e99ec4656a8e65a6c9b4
+hmac: fb46f96258947c1677199fc381dbbdbd9de73fac77ac7848589f46d3fbb17072
 
 ...
