@@ -32,11 +32,14 @@ export function DesktopSession(props: State) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   // Waits for the state hook to initialize the TdpClient.
-  // Once the client is initialized, sets attempt to 'success'.
+  // Once the client is initialized, sets wsAttempt to 'success'.
   React.useEffect(() => {
     setWsAttempt({ status: 'processing' });
 
     tdpClient.on('open', () => {
+      // set wsAttempt to success, triggering
+      // useDesktopSession.useEffect(..., [wsAttempt, fetchDesktopAttempt])
+      // to update the meta attempt state
       setWsAttempt({ status: 'success' });
     });
 
@@ -63,6 +66,7 @@ export function DesktopSession(props: State) {
       ctx.drawImage(bitmap, left, top);
     });
 
+    // Connect to the websocket, triggering tdpClient.on('open') above.
     tdpClient.connect();
 
     // If client parameters change or component will unmount, close the websocket.
@@ -72,9 +76,9 @@ export function DesktopSession(props: State) {
   }, [tdpClient]);
 
   React.useEffect(() => {
-    // When attempt is set to 'success' the canvas component gets rendered,
-    // at which point we can send its width and height to the tdpClient as part
-    // of the TDP initial handshake.
+    // When attempt is set to 'success' after both the websocket connection and api call have succeeded,
+    // the canvas component gets rendered at which point we can send its width and height to the tdpClient
+    // as part of the TDP initial handshake.
     if (attempt.status === 'success') {
       syncCanvasSizeToClientSize(canvasRef.current);
       tdpClient.sendUsername();
