@@ -958,6 +958,9 @@ type Apps struct {
 
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`
+
+	// Selectors defines resource monitor selectors.
+	Selectors []Selector `yaml:"selectors,omitempty"`
 }
 
 // App is the specific application that will be proxied by the application

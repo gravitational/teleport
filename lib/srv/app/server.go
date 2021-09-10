@@ -89,6 +89,12 @@ type Config struct {
 
 	// Cloud provides cloud provider access related functionality.
 	Cloud Cloud
+
+	// Selectors is a list of resource monitor selectors.
+	Selectors []services.Selector
+
+	// OnReconcile is called after each database resource reconciliation.
+	OnReconcile func(types.Apps)
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -159,6 +165,11 @@ type Server struct {
 	proxyPort string
 
 	cache *sessionCache
+
+	// watcher monitors changes to application resources.
+	watcher *services.AppWatcher
+	// reconciler reconciles proxied apps with application resources.
+	reconciler *services.Reconciler
 }
 
 // New returns a new application server.
@@ -202,6 +213,12 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	// Figure out the port the proxy is running on.
 	s.proxyPort = s.getProxyPort()
+
+	// Reconciler will be reconciling application resources with proxied apps.
+	s.reconciler, err = s.getReconciler()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return s, nil
 }
@@ -378,6 +395,22 @@ func (s *Server) registerApp(ctx context.Context, app types.Application) error {
 	return nil
 }
 
+// updateApp updates application that is already registered.
+func (s *Server) updateApp(ctx context.Context, app types.Application) error {
+	// Stop heartbeat and dynamic labels before starting new ones.
+	if err := s.stopApp(ctx, app.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.registerApp(ctx, app); err != nil {
+		// If we failed to re-register, don't keep proxying the old app.
+		if errUnregister := s.unregisterApp(ctx, app.GetName()); errUnregister != nil {
+			return trace.NewAggregate(err, errUnregister)
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // unregisterApp stops proxying the app.
 func (s *Server) unregisterApp(ctx context.Context, name string) error {
 	if err := s.stopApp(ctx, name); err != nil {
@@ -407,6 +440,22 @@ func (s *Server) Start(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	// Register all matching apps from resources.
+	apps, err := s.c.AccessPoint.GetApps(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.reconciler.Reconcile(ctx, types.Apps(apps).AsResources()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Initialize watcher that will be dynamically (un-)registering
+	// proxied apps based on the application resources.
+	if s.watcher, err = s.startWatcher(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -428,6 +477,11 @@ func (s *Server) Close() error {
 
 	// Signal to any blocking go routine that it should exit.
 	s.closeFunc()
+
+	// Stop the database resource watcher.
+	if s.watcher != nil {
+		s.watcher.Close()
+	}
 
 	return trace.NewAggregate(errs...)
 }
