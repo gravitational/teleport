@@ -36,9 +36,9 @@ type PullRequestEvent struct {
 	Repository  Repository `json:"repository"`
 }
 
-// ReviewMetadata contains metadata about the pull request
+// ReviewEvent contains metadata about the pull request
 // review (used for the pull request review event)
-type ReviewMetadata struct {
+type ReviewEvent struct {
 	Review      Review      `json:"review"`
 	Repository  Repository  `json:"repository"`
 	PullRequest PullRequest `json:"pull_request"`

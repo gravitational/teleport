@@ -160,69 +160,107 @@ func (e *Environment) SetPullRequest(path string) error {
 }
 
 func (e *Environment) setPullRequest(body []byte) error {
+	var pr PullRequestMetadata
+
 	switch e.action {
 	case ci.SYNCHRONIZE:
-		// Push events to pull requests
 		var push PushEvent
 		err := json.Unmarshal(body, &push)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if push.Number != 0 && push.Repository.Name != "" && push.Repository.Owner.Name != "" && push.PullRequest.User.Login != "" && push.CommitSHA != "" && push.PullRequest.Head.BranchName != "" && push.BeforeSHA != "" {
-			e.PullRequest = &PullRequestMetadata{
-				Author:     push.PullRequest.User.Login,
-				RepoName:   push.Repository.Name,
-				RepoOwner:  push.Repository.Owner.Name,
-				Number:     push.Number,
-				HeadSHA:    push.CommitSHA,
-				BaseSHA:    push.BeforeSHA,
-				BranchName: push.PullRequest.Head.BranchName,
-			}
-			return nil
+		pr, err = push.toPullRequestMetadata()
+		if err != nil {
+			return err
 		}
-		return trace.BadParameter("insufficient data obtained")
 	case ci.ASSIGNED, ci.OPENED, ci.REOPENED, ci.READY:
-		// PullRequestEvents
 		var pull PullRequestEvent
 		err := json.Unmarshal(body, &pull)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if pull.Number != 0 && pull.Repository.Name != "" && pull.Repository.Owner.Name != "" && pull.PullRequest.User.Login != "" && pull.PullRequest.Head.SHA != "" && pull.PullRequest.Base.SHA != "" && pull.PullRequest.Head.BranchName != "" {
-			e.PullRequest = &PullRequestMetadata{
-				Author:     pull.PullRequest.User.Login,
-				RepoName:   pull.Repository.Name,
-				RepoOwner:  pull.Repository.Owner.Name,
-				Number:     pull.Number,
-				HeadSHA:    pull.PullRequest.Head.SHA,
-				BaseSHA:    pull.PullRequest.Base.SHA,
-				BranchName: pull.PullRequest.Head.BranchName,
-			}
-			return nil
+		pr, err = pull.toPullRequestMetadata()
+		if err != nil {
+			return err
 		}
-		return trace.BadParameter("insufficient data obtained")
-
 	default:
-		// Review Events
-		var rev ReviewMetadata
+		var rev ReviewEvent
 		err := json.Unmarshal(body, &rev)
 		if nil != err {
 			return trace.Wrap(err)
 		}
-		if rev.PullRequest.Number != 0 && rev.Review.User.Login != "" && rev.Repository.Name != "" && rev.Repository.Owner.Name != "" && rev.PullRequest.Head.SHA != "" && rev.PullRequest.Base.SHA != "" && rev.PullRequest.Head.BranchName != "" {
-			e.PullRequest = &PullRequestMetadata{
-				Author:     rev.PullRequest.Author.Login,
-				Reviewer:   rev.Review.User.Login,
-				RepoName:   rev.Repository.Name,
-				RepoOwner:  rev.Repository.Owner.Name,
-				Number:     rev.PullRequest.Number,
-				HeadSHA:    rev.PullRequest.Head.SHA,
-				BaseSHA:    rev.PullRequest.Base.SHA,
-				BranchName: rev.PullRequest.Head.BranchName,
-			}
-			return nil
+		pr, err = rev.toPullRequestMetadata()
+		if err != nil {
+			return err
 		}
-		return trace.BadParameter("insufficient data obtained")
-
 	}
+	e.PullRequest = &pr
+	return nil
+}
+
+func (r ReviewEvent) toPullRequestMetadata() (PullRequestMetadata, error) {
+	pr, err := validateData(r.PullRequest.Number,
+		r.PullRequest.Author.Login,
+		r.Repository.Owner.Name,
+		r.Repository.Name,
+		r.PullRequest.Head.SHA,
+		r.PullRequest.Base.SHA,
+		r.PullRequest.Head.BranchName,
+	)
+	if err != nil {
+		return PullRequestMetadata{}, err
+	}
+	if r.Review.User.Login == "" {
+		return PullRequestMetadata{}, trace.BadParameter("missing reviewer username.")
+	}
+	pr.Reviewer = r.Review.User.Login
+	return pr, nil
+}
+
+func (p PullRequestEvent) toPullRequestMetadata() (PullRequestMetadata, error) {
+	return validateData(p.Number,
+		p.PullRequest.User.Login,
+		p.Repository.Owner.Name,
+		p.Repository.Name,
+		p.PullRequest.Head.SHA,
+		p.PullRequest.Base.SHA,
+		p.PullRequest.Head.BranchName,
+	)
+}
+
+func (s PushEvent) toPullRequestMetadata() (PullRequestMetadata, error) {
+	return validateData(s.Number,
+		s.PullRequest.User.Login,
+		s.Repository.Owner.Name,
+		s.Repository.Name,
+		s.CommitSHA,
+		s.BeforeSHA,
+		s.PullRequest.Head.BranchName,
+	)
+}
+
+func validateData(num int, login, owner, repoName, headSHA, baseSHA, branchName string) (PullRequestMetadata, error) {
+	switch {
+	case num == 0:
+		return PullRequestMetadata{}, trace.BadParameter("missing pull request number.")
+	case login == "":
+		return PullRequestMetadata{}, trace.BadParameter("missing user login.")
+	case owner == "":
+		return PullRequestMetadata{}, trace.BadParameter("missing repository owner.")
+	case repoName == "":
+		return PullRequestMetadata{}, trace.BadParameter("missing repository name.")
+	case headSHA == "":
+		return PullRequestMetadata{}, trace.BadParameter("missing head commit sha.")
+	case baseSHA == "":
+		return PullRequestMetadata{}, trace.BadParameter("missing base commit sha.")
+	case branchName == "":
+		return PullRequestMetadata{}, trace.BadParameter("missing branch name.")
+	}
+	return PullRequestMetadata{Number: num,
+		Author:     login,
+		RepoOwner:  owner,
+		RepoName:   repoName,
+		HeadSHA:    headSHA,
+		BaseSHA:    baseSHA,
+		BranchName: branchName}, nil
 }
