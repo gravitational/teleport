@@ -25,6 +25,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// getMFADevicesHandle returns list of MFA devices for the caller, where the user is extracted from this authenticated request.
 func (h *Handler) getMFADevicesHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
 	clt, err := c.GetClient()
 	if err != nil {
@@ -37,4 +38,34 @@ func (h *Handler) getMFADevicesHandle(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return ui.MakeMFADevices(mfas.GetDevices()), nil
+}
+
+// getMFADevicesWithTokenHandle returns list of MFA devices for the user defined in the token.
+// Used to retrieve mfa devices during the recovery flow when the user is not logged in.
+func (h *Handler) getMFADevicesWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	recoveryApprovedTokenID := p.ByName("token")
+
+	mfas, err := h.cfg.ProxyClient.GetMFADevices(r.Context(), &proto.GetMFADevicesRequest{
+		RecoveryApprovedTokenID: recoveryApprovedTokenID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeMFADevices(mfas.GetDevices()), nil
+}
+
+// deleteMFADeviceHandle deletes a mfa device for the user defined in the token.
+func (h *Handler) deleteMFADeviceHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	tokenID := p.ByName("token")
+	deviceName := p.ByName("deviceName")
+
+	if err := h.GetProxyClient().DeleteMFADeviceSync(r.Context(), &proto.DeleteMFADeviceSyncRequest{
+		TokenID:    tokenID,
+		DeviceName: deviceName,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
 }
