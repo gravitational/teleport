@@ -2704,7 +2704,10 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	}
 
 	webConfig, err := apref.GetWebauthn()
-	if err != nil && enableWebauthn {
+	switch {
+	case err == nil:
+		enableWebauthn = enableWebauthn && !webConfig.Disabled // Apply global disable
+	case err != nil && enableWebauthn:
 		if apref.GetSecondFactor() == constants.SecondFactorWebauthn {
 			// Fail explicitly for second_factor:"webauthn".
 			return nil, trace.BadParameter("second_factor set to %s, but webauthn config not present", constants.SecondFactorWebauthn)
