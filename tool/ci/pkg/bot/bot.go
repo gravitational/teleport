@@ -121,7 +121,7 @@ func (gc GithubClient) DismissStaleWorkflowRuns(ctx context.Context, token, owne
 // Note: the go-github client library does not support this endpoint.
 func (gc GithubClient) deleteRun(ctx context.Context, token, owner, repo string, runID int64) error {
 	// Construct url
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/runs/%v/", owner, repo, runID)
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/runs/%v", owner, repo, runID)
 	req, err := gc.Client.NewRequest("DELETE", url, nil)
 	if err != nil {
 		return trace.Wrap(err)
