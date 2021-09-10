@@ -140,7 +140,7 @@ func (s *AuthProxyDialerService) dialRemoteAuthServer(ctx context.Context, clust
 }
 
 func (s *AuthProxyDialerService) proxyConn(ctx context.Context, upstreamConn, downstreamConn net.Conn) error {
-	errC := make(chan error)
+	errC := make(chan error, 2)
 	go func() {
 		defer upstreamConn.Close()
 		defer downstreamConn.Close()
