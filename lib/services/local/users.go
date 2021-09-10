@@ -676,7 +676,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 		// Same ID and Name is OK - it means update existing resource.
 		// Different Id and same Name is not OK - it means a duplicate device.
 		if d.Metadata.Name == dd.Metadata.Name && d.Id != dd.Id {
-			return trace.AlreadyExists("MFA device with name %q already exists with ID %q", dd.Metadata.Name, dd.Id)
+			return trace.AlreadyExists("MFA device with name %q already exists", dd.Metadata.Name)
 		}
 	}
 

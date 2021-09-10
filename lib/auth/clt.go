@@ -1006,19 +1006,29 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 // GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
 func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
 	out, err := c.PostJSON(
-		c.Endpoint("u2f", "users", user, "sign"),
+		c.Endpoint("mfa", "users", user, "login", "begin"),
 		signInReq{
 			Password: string(password),
 		},
 	)
+	// DELETE IN 9.x, fallback not necessary after U2F is removed (codingllama)
+	if trace.IsNotFound(err) {
+		out, err = c.PostJSON(
+			c.Endpoint("u2f", "users", user, "sign"),
+			signInReq{
+				Password: string(password),
+			},
+		)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var signRequest *MFAAuthenticateChallenge
-	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
+
+	var challenge *MFAAuthenticateChallenge
+	if err := json.Unmarshal(out.Bytes(), &challenge); err != nil {
 		return nil, err
 	}
-	return signRequest, nil
+	return challenge, nil
 }
 
 // ExtendWebSession creates a new web session for a user based on another
@@ -1903,6 +1913,25 @@ type IdentityService interface {
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
+
+	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
+	// This token is used as part of a URL that will be emailed to the user (not done in this request).
+	// Represents step 1 of the account recovery process.
+	StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error)
+	// ApproveAccountRecovery creates a recovery approved token after successful verification of users password or second factor
+	// (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
+	// Represents step 2 of the account recovery process after RPC StartAccountRecovery.
+	ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error)
+	// CompleteAccountRecovery sets a new password or adds a new mfa device,
+	// allowing user to regain access to their account using the new credentials.
+	// Represents the last step in the account recovery process after RPC's StartAccountRecovery and ApproveAccountRecovery.
+	CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error
+
+	// CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
+	CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error)
+	// GetAccountRecoveryToken returns a user token resource after verifying the token in
+	// request is not expired and is of the correct recovery type.
+	GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error)
 }
 
 // ProvisioningService is a service in control

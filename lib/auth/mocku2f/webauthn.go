@@ -22,20 +22,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 
-	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
-
-// collectedClientData is part of the data signed by authenticators (after
-// marshaled to JSON, hashed and appended to authData).
-// https://www.w3.org/TR/webauthn-2/#dictionary-client-data
-type collectedClientData struct {
-	Type      string `json:"type"`
-	Challenge string `json:"challenge"`
-	Origin    string `json:"origin"`
-}
 
 // SignAssertion signs a WebAuthn assertion following the
 // U2F-compat-getAssertion algorithm.
@@ -65,7 +56,7 @@ func (muk *Key) SignAssertion(origin string, assertion *wanlib.CredentialAsserti
 
 	// Marshal and hash collectedClientData - the result is what gets signed,
 	// after appended to authData.
-	ccd, err := json.Marshal(&collectedClientData{
+	ccd, err := json.Marshal(&wancli.CollectedClientData{
 		Type:      "webauthn.get",
 		Challenge: base64.RawURLEncoding.EncodeToString(assertion.Response.Challenge),
 		Origin:    origin,
@@ -81,18 +72,18 @@ func (muk *Key) SignAssertion(origin string, assertion *wanlib.CredentialAsserti
 	}
 
 	return &wanlib.CredentialAssertionResponse{
-		PublicKeyCredential: protocol.PublicKeyCredential{
-			Credential: protocol.Credential{
+		PublicKeyCredential: wanlib.PublicKeyCredential{
+			Credential: wanlib.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(muk.KeyHandle),
 				Type: "public-key",
 			},
 			RawID: muk.KeyHandle,
-			Extensions: protocol.AuthenticationExtensionsClientOutputs{
-				wanlib.AppIDExtension: true, // U2F App ID used.
+			Extensions: &wanlib.AuthenticationExtensionsClientOutputs{
+				AppID: true, // U2F App ID used.
 			},
 		},
-		AssertionResponse: protocol.AuthenticatorAssertionResponse{
-			AuthenticatorResponse: protocol.AuthenticatorResponse{
+		AssertionResponse: wanlib.AuthenticatorAssertionResponse{
+			AuthenticatorResponse: wanlib.AuthenticatorResponse{
 				ClientDataJSON: ccd,
 			},
 			AuthenticatorData: res.AuthData,

@@ -22,12 +22,23 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/trace"
+
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
+
+// promptOTP allows tests to override the OTP prompt function.
+var promptOTP = prompt.Input
+
+// promptU2F allows tests to override the U2F prompt function.
+var promptU2F = u2f.AuthenticateSignChallenge
+
+// promptWebauthn allows tests to override the Webauthn prompt function.
+var promptWebauthn = wancli.Login
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
@@ -36,87 +47,104 @@ import (
 // key" or "device". This is used to emphasize between different kinds of
 // devices, like registered vs new.
 func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string) (*proto.MFAAuthenticateResponse, error) {
-	switch {
-	// No challenge.
-	case c.TOTP == nil && len(c.U2F) == 0:
+	// Is there a challenge present?
+	if c.TOTP == nil && len(c.U2F) == 0 && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil
-	// TOTP only.
-	case c.TOTP != nil && len(c.U2F) == 0:
-		totpCode, err := prompt.Input(ctx, os.Stderr, prompt.Stdin(), fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{Code: totpCode},
-		}}, nil
-	// U2F only.
-	case c.TOTP == nil && len(c.U2F) > 0:
-		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
-
-		return promptU2FChallenges(ctx, proxyAddr, c.U2F)
-	// Both TOTP and U2F.
-	case c.TOTP != nil && len(c.U2F) > 0:
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		type response struct {
-			kind string
-			resp *proto.MFAAuthenticateResponse
-			err  error
-		}
-		resCh := make(chan response, 1)
-
-		go func() {
-			resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
-			select {
-			case resCh <- response{kind: "U2F", resp: resp, err: err}:
-			case <-ctx.Done():
-			}
-		}()
-
-		go func() {
-			totpCode, err := prompt.Input(ctx, os.Stderr, prompt.Stdin(), fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix))
-			res := response{kind: "TOTP", err: err}
-			if err == nil {
-				res.resp = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
-					TOTP: &proto.TOTPResponse{Code: totpCode},
-				}}
-			}
-
-			select {
-			case resCh <- res:
-			case <-ctx.Done():
-			}
-		}()
-
-		for i := 0; i < 2; i++ {
-			select {
-			case res := <-resCh:
-				if res.err != nil {
-					log.WithError(res.err).Debugf("%s authentication failed", res.kind)
-					continue
-				}
-
-				// Print a newline after the TOTP prompt, so that any future
-				// output doesn't print on the prompt line.
-				fmt.Fprintln(os.Stderr)
-
-				return res.resp, nil
-			case <-ctx.Done():
-				return nil, trace.Wrap(ctx.Err())
-			}
-		}
-		return nil, trace.Errorf("failed to authenticate using all U2F and TOTP devices, rerun the command with '-d' to see error details for each device")
-	default:
-		return nil, trace.BadParameter("bug: non-exhaustive switch in promptMFAChallenge")
 	}
+
+	// We have three maximum challenges, from which we only pick two: TOTP and
+	// either Webauthn (preferred) or U2F.
+	hasTOTP := c.TOTP != nil
+	hasNonTOTP := len(c.U2F) > 0 || c.WebauthnChallenge != nil
+	var numGoroutines int
+	if hasTOTP && hasNonTOTP {
+		numGoroutines = 2
+	} else {
+		numGoroutines = 1
+	}
+
+	type response struct {
+		kind string
+		resp *proto.MFAAuthenticateResponse
+		err  error
+	}
+	respC := make(chan response, numGoroutines)
+
+	// Fire TOTP goroutine.
+	if hasTOTP {
+		go func() {
+			const kind = "TOTP"
+			var msg string
+			if hasNonTOTP {
+				msg = fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix)
+			} else {
+				msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
+			}
+			code, err := promptOTP(ctx, os.Stderr, prompt.Stdin(), msg)
+			fmt.Fprintln(os.Stderr) // Print a new line after the prompt
+			if err != nil {
+				respC <- response{kind: kind, err: err}
+				return
+			}
+			respC <- response{
+				kind: kind,
+				resp: &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_TOTP{
+						TOTP: &proto.TOTPResponse{Code: code},
+					},
+				},
+			}
+		}()
+	} else {
+		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
+	}
+
+	// TODO(codingllama): Make sure users get a reasonable error back when the
+	//  origin doesn't match the RPID. Webauthn isn't as flexible as U2F in this
+	//  regard.
+	origin := proxyAddr
+	if !strings.HasPrefix(origin, "https://") {
+		origin = "https://" + origin
+	}
+
+	// Fire Webauthn or U2F goroutine.
+	switch {
+	case c.WebauthnChallenge != nil:
+		go func() {
+			log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
+			resp, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
+			// Technically it's kind="Webauthn", but we are not changing CLI
+			// nomenclature yet.
+			respC <- response{kind: "U2F", resp: resp, err: err}
+		}()
+	case len(c.U2F) > 0:
+		go func() {
+			log.Debugf("prompting U2F devices with facet %q", origin)
+			resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
+			respC <- response{kind: "U2F", resp: resp, err: err}
+		}()
+	}
+
+	for i := 0; i < numGoroutines; i++ {
+		select {
+		case resp := <-respC:
+			if err := resp.err; err != nil {
+				log.WithError(err).Debugf("%s authentication failed", resp.kind)
+				continue
+			}
+
+			// Exiting cancels the context via defer, which makes the remaining
+			// goroutines stop.
+			return resp.resp, nil
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		}
+	}
+	return nil, trace.BadParameter(
+		"failed to authenticate using all U2F and TOTP devices, rerun the command with '-d' to see error details for each device")
 }
 
-func promptU2FChallenges(ctx context.Context, proxyAddr string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
-	facet := proxyAddr
-	if !strings.HasPrefix(proxyAddr, "https://") {
-		facet = "https://" + facet
-	}
+func promptU2FChallenges(ctx context.Context, origin string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
 	u2fChallenges := make([]u2f.AuthenticateChallenge, 0, len(challenges))
 	for _, chal := range challenges {
 		u2fChallenges = append(u2fChallenges, u2f.AuthenticateChallenge{
@@ -126,8 +154,7 @@ func promptU2FChallenges(ctx context.Context, proxyAddr string, challenges []*pr
 		})
 	}
 
-	log.Debugf("prompting U2F devices with facet %q", facet)
-	resp, err := u2f.AuthenticateSignChallenge(ctx, facet, u2fChallenges...)
+	resp, err := promptU2F(ctx, origin, u2fChallenges...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

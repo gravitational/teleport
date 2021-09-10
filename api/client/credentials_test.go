@@ -97,6 +97,52 @@ func TestLoadIdentityFile(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestLoadIdentityFileFromString(t *testing.T) {
+	t.Parallel()
+
+	// Load expected tls.Config and ssh.ClientConfig.
+	expectedTLSConfig := getExpectedTLSConfig(t)
+	expectedSSHConfig := getExpectedSSHConfig(t)
+
+	// Write identity file to disk.
+	path := filepath.Join(t.TempDir(), "file")
+	idFile := &identityfile.IdentityFile{
+		PrivateKey: keyPEM,
+		Certs: identityfile.Certs{
+			TLS: tlsCert,
+			SSH: sshCert,
+		},
+		CACerts: identityfile.CACerts{
+			TLS: [][]byte{tlsCACert},
+			SSH: [][]byte{sshCACert},
+		},
+	}
+	err := identityfile.Write(idFile, path)
+	require.NoError(t, err)
+
+	b, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	// Load identity file from disk.
+	creds := LoadIdentityFileFromString(string(b))
+	// Build tls.Config and compare to expected tls.Config.
+	tlsConfig, err := creds.TLSConfig()
+	require.NoError(t, err)
+	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
+
+	// Build ssh.ClientConfig and compare to expected ssh.ClientConfig.
+	sshConfig, err := creds.SSHClientConfig()
+	require.NoError(t, err)
+	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
+
+	// Load invalid identity.
+	creds = LoadIdentityFileFromString("invalid_creds")
+	_, err = creds.TLSConfig()
+	require.Error(t, err)
+	_, err = creds.SSHClientConfig()
+	require.Error(t, err)
+}
+
 func TestLoadKeyPair(t *testing.T) {
 	t.Parallel()
 
