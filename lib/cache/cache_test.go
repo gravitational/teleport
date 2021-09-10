@@ -1804,6 +1804,88 @@ func (s *CacheSuite) TestAppServers(c *check.C) {
 	c.Assert(out, check.HasLen, 0)
 }
 
+// TestApplicationServers tests that CRUD operations on app servers are
+// replicated from the backend to the cache.
+func TestApplicationServers(t *testing.T) {
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	// Upsert app server into backend.
+	app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "localhost"})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	require.NoError(t, err)
+
+	_, err = p.presenceS.UpsertApplicationServer(ctx, server)
+	require.NoError(t, err)
+
+	// Check that the app server is now in the backend.
+	out, err := p.presenceS.GetApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single app server in it.
+	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update the server and upsert it into the backend again.
+	server.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	_, err = p.presenceS.UpsertApplicationServer(context.Background(), server)
+	require.NoError(t, err)
+
+	// Check that the server is in the backend and only one exists (so an
+	// update occurred).
+	out, err = p.presenceS.GetApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single server in it.
+	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Remove all servers from the backend.
+	err = p.presenceS.DeleteAllApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+}
+
 // TestDatabaseServers tests that CRUD operations on database servers are
 // replicated from the backend to the cache.
 func TestDatabaseServers(t *testing.T) {

@@ -361,6 +361,7 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 	case
 		"/proto.AuthService/ApproveAccountRecovery",
 		"/proto.AuthService/ChangeUserAuthentication",
+		"/proto.AuthService/GetAccountRecoveryToken",
 		"/proto.AuthService/StartAccountRecovery":
 		rates := ratelimit.NewRateSet()
 		// This limit means: 1 request per minute with bursts up to 10 requests.
