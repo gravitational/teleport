@@ -23,10 +23,8 @@ func main() {
 	flag.Parse()
 
 	subcommand := os.Args[len(os.Args)-1]
-	if *token == "" {
-		log.Fatal("Missing authentication token")
-	}
 	ctx := context.Background()
+	
 	switch subcommand {
 	case ci.Assign:
 		log.Println("Assigning reviewers")

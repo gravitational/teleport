@@ -64,7 +64,10 @@ func invalidateApprovals(ctx context.Context, repoOwner, repoName, msg string, n
 	return nil
 }
 
-// DismissStaleWorkflowRuns dismisses stale Check workflow runs
+// DismissStaleWorkflowRuns dismisses stale Check workflow runs.
+// Stale workflow runs are workflow runs that were previously ran/not the most recent and are no longer valid
+// due to a new event triggering/change in state. The workflow that calls this function is the source of truth for
+// the current state of the pull request.
 func DismissStaleWorkflowRuns(ctx context.Context, token, owner, repoName, branch string, cl *github.Client) error {
 	var targetWorkflow *github.Workflow
 	workflows, _, err := cl.Actions.ListWorkflows(ctx, owner, repoName, &github.ListOptions{})

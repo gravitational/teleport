@@ -54,7 +54,6 @@ func TestNewEnvironment(t *testing.T) {
 				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "": {"admin"}},
 				Client:           github.NewClient(nil),
 				PullRequest:      pr,
-				action:           ci.Opened,
 				defaultReviewers: []string{"admin"},
 			},
 			createFile: true,
@@ -72,7 +71,6 @@ func TestNewEnvironment(t *testing.T) {
 				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "": {"admin"}},
 				Client:           github.NewClient(nil),
 				PullRequest:      pr,
-				action:           ci.Opened,
 				defaultReviewers: []string{"admin"},
 			},
 			createFile: true,
@@ -137,9 +135,10 @@ func TestSetPullRequest(t *testing.T) {
 		input    []byte
 		desc     string
 		value    *PullRequestMetadata
+		action   string
 	}{
 		{
-			env:      &Environment{action: "synchronize"},
+			env:      &Environment{},
 			checkErr: require.NoError,
 			input:    []byte(synchronize),
 			value: &PullRequestMetadata{Author: "quinqu",
@@ -150,10 +149,11 @@ func TestSetPullRequest(t *testing.T) {
 				BaseSHA:    "cbb23161d4c33d70189430d07957d2d66d42fc30",
 				BranchName: "jane/ci",
 			},
-			desc: "sync, no error",
+			desc:   "sync, no error",
+			action: ci.Synchronize,
 		},
 		{
-			env:      &Environment{action: "opened"},
+			env:      &Environment{},
 			checkErr: require.NoError,
 			input:    []byte(pullRequest),
 			value: &PullRequestMetadata{Author: "Codertocat",
@@ -164,7 +164,8 @@ func TestSetPullRequest(t *testing.T) {
 				BaseSHA:    "f95f852bd8fca8fcc58a9a2d6c842781e32a215e",
 				BranchName: "changes",
 			},
-			desc: "pull request, no error",
+			desc:   "pull request, no error",
+			action: ci.Opened,
 		},
 		{
 			env:      &Environment{action: "submitted"},
@@ -179,37 +180,41 @@ func TestSetPullRequest(t *testing.T) {
 				BranchName: "changes",
 				Reviewer:   "Codertocat",
 			},
-			desc: "review, no error",
+			desc:   "review, no error",
+			action: ci.Submitted,
 		},
 
 		{
-			env:      &Environment{action: "synchronize"},
+			env:      &Environment{},
 			checkErr: require.Error,
 			input:    []byte(submitted),
 			value:    nil,
 			desc:     "sync, error",
+			action:   ci.Synchronize,
 		},
 		{
-			env:      &Environment{action: "opened"},
+			env:      &Environment{},
 			checkErr: require.Error,
 			input:    []byte(submitted),
 			value:    nil,
 			desc:     "pull request, error",
+			action:   ci.Opened,
 		},
 		{
-			env:      &Environment{action: "submitted"},
+			env:      &Environment{},
 			checkErr: require.Error,
 			input:    []byte(pullRequest),
 			value:    nil,
 			desc:     "review, error",
+			action:   ci.Submitted,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			err := test.env.setPullRequest(test.input)
+			pr, err := getPullRequest(test.input, test.action)
 			test.checkErr(t, err)
-			require.Equal(t, test.value, test.env.PullRequest)
+			require.Equal(t, test.value, pr)
 		})
 	}
 

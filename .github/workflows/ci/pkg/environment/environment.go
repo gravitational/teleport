@@ -37,16 +37,16 @@ type unmarshalReviewersFn func(str string, client *github.Client) (map[string][]
 // CheckAndSetDefaults verifies configuration and sets defaults
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Client == nil {
-		return trace.BadParameter("missing parameter Client.")
+		return trace.BadParameter("missing parameter Client")
 	}
 	if c.Reviewers == "" {
-		return trace.BadParameter("missing parameter Reviewers.")
+		return trace.BadParameter("missing parameter Reviewers")
 	}
 	if c.EventPath == "" {
-		return trace.BadParameter("missing parameter EventPath.")
+		return trace.BadParameter("missing parameter EventPath")
 	}
 	if c.Token == "" {
-		return trace.BadParameter("missing parameter token.")
+		return trace.BadParameter("missing parameter token")
 	}
 	if c.unmarshalRevs == nil {
 		c.unmarshalRevs = unmarshalReviewers
@@ -56,23 +56,25 @@ func (c *Config) CheckAndSetDefaults() error {
 
 // New creates a new instance of Environment.
 func New(c Config) (*Environment, error) {
-	var env Environment
+
 	err := c.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	env.Client = c.Client
 	revs, err := c.unmarshalRevs(c.Reviewers, c.Client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	env.reviewers = revs
-	env.defaultReviewers = revs[""]
-	err = env.SetPullRequest(c.EventPath)
+	pr, err := GetPullRequest(c.EventPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &env, nil
+	return &Environment{
+		Client:           c.Client,
+		reviewers:        revs,
+		defaultReviewers: revs[""],
+		PullRequest:      pr,
+	}, nil
 }
 
 // unmarshalReviewers converts the passed in string representing json object into a map
@@ -89,7 +91,7 @@ func unmarshalReviewers(str string, client *github.Client) (map[string][]string,
 	}
 	for k, v := range m {
 		for _, reviewer := range v {
-			err := userExists(reviewer, client)
+			_, err := userExists(reviewer, client)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -98,7 +100,7 @@ func unmarshalReviewers(str string, client *github.Client) (map[string][]string,
 			hasDefaultReviewers = true
 			continue
 		}
-		err := userExists(k, client)
+		_, err := userExists(k, client)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -111,12 +113,18 @@ func unmarshalReviewers(str string, client *github.Client) (map[string][]string,
 }
 
 // userExists checks if a user exists
-func userExists(user string, client *github.Client) error {
-	_, resp, err := client.Search.Users(context.TODO(), user, &github.SearchOptions{})
+func userExists(user string, client *github.Client) (*github.User, error) {
+	users, resp, err := client.Search.Users(context.TODO(), user, &github.SearchOptions{})
 	if err != nil || resp.StatusCode != http.StatusOK {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	switch {
+	case len(users.Users) == 0:
+		return nil, trace.NotFound("user %s does not exist", user)
+	case len(users.Users) != 1:
+		return nil, trace.BadParameter("ambiguous user %s", user)
+	}
+	return users.Users[0], nil
 }
 
 // GetReviewersForAuthor gets the required reviewers for the current user.
@@ -140,63 +148,60 @@ func (e *Environment) GetToken() string {
 	return e.token
 }
 
-// SetPullRequest sets the pull request in which the environment
-// is processing.
-func (e *Environment) SetPullRequest(path string) error {
+// GetPullRequest gets the pull request metadata in the current context.
+func GetPullRequest(path string) (*PullRequestMetadata, error) {
 	var actionType action
 	file, err := os.Open(path)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	body, err := ioutil.ReadAll(file)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	err = json.Unmarshal(body, &actionType)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	e.action = actionType.Action
-	return e.setPullRequest(body)
+	return getPullRequest(body, actionType.Action)
 }
 
-func (e *Environment) setPullRequest(body []byte) error {
+func getPullRequest(body []byte, action string) (*PullRequestMetadata, error) {
 	var pr PullRequestMetadata
 
-	switch e.action {
+	switch action {
 	case ci.Synchronize:
 		var push PushEvent
 		err := json.Unmarshal(body, &push)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		pr, err = push.toPullRequestMetadata()
 		if err != nil {
-			return err
+			return nil, trace.Wrap(err)
 		}
 	case ci.Assigned, ci.Opened, ci.Reopened, ci.Ready:
 		var pull PullRequestEvent
 		err := json.Unmarshal(body, &pull)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		pr, err = pull.toPullRequestMetadata()
 		if err != nil {
-			return err
+			return nil, trace.Wrap(err)
 		}
 	default:
 		var rev ReviewEvent
 		err := json.Unmarshal(body, &rev)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		pr, err = rev.toPullRequestMetadata()
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	e.PullRequest = &pr
-	return nil
+	return &pr, nil
 }
 
 func (r ReviewEvent) toPullRequestMetadata() (PullRequestMetadata, error) {

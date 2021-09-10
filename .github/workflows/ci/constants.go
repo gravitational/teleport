@@ -53,11 +53,14 @@ const (
 	// Opened is an event type that is triggered when a pull request is opened.
 	Opened = "opened"
 
-	// Reopened is an event type event that is when triggered when a pull request
+	// Reopened is an event type event that is triggered when a pull request
 	// is reopened.
 	Reopened = "reopened"
 
 	// Ready is an event type that is triggered when a pull request gets
 	// pulled out of a draft state.
 	Ready = "ready_for_review"
+
+	// Submitted is an event type that is triggered when a pull request review is submitted.
+	Submitted = "submitted"
 )
