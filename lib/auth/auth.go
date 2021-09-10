@@ -562,14 +562,6 @@ func (a *Server) GetKeyStore() keystore.KeyStore {
 	return a.keyStore
 }
 
-// certs is a pair of SSH and TLS certificates
-type certs struct {
-	// ssh is PEM encoded SSH certificate
-	ssh []byte
-	// tls is PEM encoded TLS certificate
-	tls []byte
-}
-
 type certRequest struct {
 	// user is a user to generate certificate for
 	user types.User
@@ -686,7 +678,7 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return certs.ssh, certs.tls, nil
+	return certs.SSH, certs.TLS, nil
 }
 
 // AppTestCertRequest combines parameters for generating a test app access cert.
@@ -744,7 +736,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return certs.tls, nil
+	return certs.TLS, nil
 }
 
 // DatabaseTestCertRequest combines parameters for generating test database
@@ -788,11 +780,11 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return certs.tls, nil
+	return certs.TLS, nil
 }
 
 // generateUserCert generates user certificates
-func (a *Server) generateUserCert(req certRequest) (*certs, error) {
+func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	err := req.check()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -998,7 +990,12 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &certs{ssh: sshCert, tls: tlsCert}, nil
+	return &proto.Certs{
+		SSH:        sshCert,
+		TLS:        tlsCert,
+		TLSCACerts: services.GetTLSCerts(ca),
+		SSHCACerts: services.GetSSHCheckingKeys(ca),
+	}, nil
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
@@ -1986,8 +1983,8 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	sessionSpec := types.WebSessionSpecV2{
 		User:               req.User,
 		Priv:               priv,
-		Pub:                certs.ssh,
-		TLSCert:            certs.tls,
+		Pub:                certs.SSH,
+		TLSCert:            certs.TLS,
 		Expires:            startTime.UTC().Add(sessionTTL),
 		BearerToken:        bearerToken,
 		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),

@@ -1573,11 +1573,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(zmb3): add CA certs?
-	return &proto.Certs{
-		SSH: certs.ssh,
-		TLS: certs.tls,
-	}, nil
+	return certs, nil
 }
 
 func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {

@@ -376,7 +376,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return certs.ssh, nil
+	return certs.SSH, nil
 }
 
 // PrivateKeyToPublicKeyTLS gets the TLS public key from a raw private key.
@@ -432,7 +432,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return certs.tls, priv, nil
+		return certs.TLS, priv, nil
 	case BuiltinRole:
 		certs, err := authServer.GenerateServerKeys(context.Background(),
 			&proto.GenerateServerKeysRequest{
