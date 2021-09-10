@@ -20,20 +20,16 @@ import (
 	"context"
 	"encoding/base64"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
+
 	"github.com/stretchr/testify/require"
-	"go.etcd.io/etcd/clientv3"
-	"gopkg.in/check.v1"
 )
 
 const (
@@ -46,158 +42,117 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestEtcd(t *testing.T) { check.TestingT(t) }
-
-type EtcdSuite struct {
-	bk     *EtcdBackend
-	suite  test.BackendSuite
-	config backend.Params
+// commonEtcdParams holds the common etcd configuration for all tests.
+var commonEtcdParams = backend.Params{
+	"peers":         []string{"https://127.0.0.1:2379"},
+	"prefix":        examplePrefix,
+	"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
+	"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
+	"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
 }
 
-var _ = check.Suite(&EtcdSuite{})
-
-func (s *EtcdSuite) SetUpSuite(c *check.C) {
-	// This config must match examples/etcd/teleport.yaml
-	s.config = backend.Params{
-		"peers":         []string{"https://127.0.0.1:2379"},
-		"prefix":        examplePrefix,
-		"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
-		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
-		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
-	}
-
-	clock := clockwork.NewFakeClock()
-	newBackend := func() (backend.Backend, error) {
-		bk, err := New(context.Background(), s.config)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		bk.clock = clock
-		return bk, nil
-	}
-	s.suite.NewBackend = newBackend
-	s.suite.Clock = fakeClock{FakeClock: clock}
-}
-
-func (s *EtcdSuite) SetUpTest(c *check.C) {
+func TestEtcd(t *testing.T) {
 	if !etcdTestEnabled() {
-		c.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
+		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
 	}
-	// Initiate a backend with a registry
-	b, err := s.suite.NewBackend()
-	c.Assert(err, check.IsNil)
-	s.bk = b.(*EtcdBackend)
-	s.suite.B = s.bk
 
-	// Clean up any pre-stored records for all used prefixes
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+		opts, err := test.ApplyOptions(options)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		if opts.MirrorMode {
+			return nil, nil, test.ErrMirrorNotSupported
+		}
+
+		// No need to check target backend - all Etcd backends create by this test
+		// point to the same datastore.
+
+		bk, err := New(context.Background(), commonEtcdParams)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// we can't fiddle with clocks inside the etcd client, so instead of creating
+		// and returning a fake clock, we wrap the real clock used by the etcd client
+		// in a FakeClock interface that sleeps instead of instantly advancing.
+		sleepingClock := blockingFakeClock{bk.clock}
+
+		return bk, sleepingClock, nil
+	}
+
+	test.RunBackendComplianceSuite(t, newBackend)
+}
+
+func TestPrefix(t *testing.T) {
 	ctx := context.Background()
-	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(examplePrefix, "/"), clientv3.WithPrefix())
-	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(customPrefix, "/"), clientv3.WithPrefix())
-	c.Assert(err, check.IsNil)
-}
 
-func (s *EtcdSuite) TearDownTest(c *check.C) {
-	if s.bk == nil {
-		return
-	}
-	err := s.bk.Close()
-	c.Assert(err, check.IsNil)
-}
+	// Given an etcd backend with a minimal configuration...
+	unprefixedUut, err := New(context.Background(), commonEtcdParams)
+	require.NoError(t, err)
+	defer unprefixedUut.Close()
 
-func (s *EtcdSuite) TestCRUD(c *check.C) {
-	s.suite.CRUD(c)
-}
-
-func (s *EtcdSuite) TestRange(c *check.C) {
-	s.suite.Range(c)
-}
-
-func (s *EtcdSuite) TestDeleteRange(c *check.C) {
-	s.suite.DeleteRange(c)
-}
-
-func (s *EtcdSuite) TestCompareAndSwap(c *check.C) {
-	s.suite.CompareAndSwap(c)
-}
-
-func (s *EtcdSuite) TestExpiration(c *check.C) {
-	s.suite.Expiration(c)
-}
-
-func (s *EtcdSuite) TestKeepAlive(c *check.C) {
-	s.suite.KeepAlive(c)
-}
-
-func (s *EtcdSuite) TestEvents(c *check.C) {
-	s.suite.Events(c)
-}
-
-func (s *EtcdSuite) TestWatchersClose(c *check.C) {
-	s.suite.WatchersClose(c)
-}
-
-func (s *EtcdSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c, s.bk)
-}
-
-func (s *EtcdSuite) TestPrefix(c *check.C) {
-
+	// ...and an etcd backend configured to use a custom prefix
 	cfg := make(backend.Params)
-	for k, v := range s.config {
+	for k, v := range commonEtcdParams {
 		cfg[k] = v
 	}
-
 	cfg["prefix"] = customPrefix
 
-	bk, err := New(context.Background(), cfg)
-	c.Assert(err, check.IsNil)
+	prefixedUut, err := New(context.Background(), cfg)
+	require.NoError(t, err)
+	defer prefixedUut.Close()
 
-	var (
-		ctx  = context.Background()
-		item = backend.Item{
-			Key:   []byte("/foo"),
-			Value: []byte("bar"),
-		}
-	)
+	// When I push an item with a key starting with "/" into etcd via the
+	// _prefixed_ client...
+	item := backend.Item{
+		Key:   []byte("/foo"),
+		Value: []byte("bar"),
+	}
+	_, err = prefixedUut.Put(ctx, item)
+	require.NoError(t, err)
 
-	// Item key starts with '/'.
-	_, err = bk.Put(ctx, item)
-	c.Assert(err, check.IsNil)
+	// Expect that I can retrieve it from the _un_prefixed client by
+	// manually prepending a prefix to the key and asking for it.
+	wantKey := prefixedUut.cfg.Key + string(item.Key)
+	requireKV(ctx, t, unprefixedUut, wantKey, string(item.Value))
+	got, err := prefixedUut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, item.Key, got.Key)
+	require.Equal(t, item.Value, got.Value)
 
-	wantKey := bk.cfg.Key + string(item.Key)
-	s.assertKV(ctx, c, wantKey, string(item.Value))
-	got, err := bk.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-	item.ID = got.ID
-	c.Assert(*got, check.DeepEquals, item)
-
-	// Item key does not start with '/'.
+	// When I push an item with a key that does _not_ start with a separator
+	// char (i.e. "/") into etcd via the _prefixed_ client...
 	item = backend.Item{
 		Key:   []byte("foo"),
 		Value: []byte("bar"),
 	}
-	_, err = bk.Put(ctx, item)
-	c.Assert(err, check.IsNil)
+	_, err = prefixedUut.Put(ctx, item)
+	require.NoError(t, err)
 
-	wantKey = bk.cfg.Key + string(item.Key)
-	s.assertKV(ctx, c, wantKey, string(item.Value))
-	got, err = bk.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-	item.ID = got.ID
-	c.Assert(*got, check.DeepEquals, item)
+	// Expect, again, that I can retrieve it from the _un_prefixed client
+	// by manually prepending a prefix to the key and asking for it.
+	wantKey = prefixedUut.cfg.Key + string(item.Key)
+	requireKV(ctx, t, unprefixedUut, wantKey, string(item.Value))
+	got, err = prefixedUut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, item.Key, got.Key)
+	require.Equal(t, item.Value, got.Value)
 }
 
-func (s *EtcdSuite) assertKV(ctx context.Context, c *check.C, key, val string) {
-	c.Logf("assert that key %q contains value %q", key, val)
-	resp, err := s.bk.client.Get(ctx, key)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(resp.Kvs), check.Equals, 1)
-	c.Assert(string(resp.Kvs[0].Key), check.Equals, key)
+func requireKV(ctx context.Context, t *testing.T, bk *EtcdBackend, key, val string) {
+	t.Logf("assert that key %q contains value %q", key, val)
+
+	resp, err := bk.client.Get(ctx, key)
+	require.NoError(t, err)
+	require.Len(t, resp.Kvs, 1)
+	require.Equal(t, key, string(resp.Kvs[0].Key))
+
 	// Note: EtcdBackend stores all values base64-encoded.
 	gotValue, err := base64.StdEncoding.DecodeString(string(resp.Kvs[0].Value))
-	c.Assert(err, check.IsNil)
-	c.Assert(string(gotValue), check.Equals, val)
+	require.NoError(t, err)
+	require.Equal(t, val, string(gotValue))
 }
 
 // TestCompareAndSwapOversizedValue ensures that the backend reacts with a proper
@@ -237,12 +192,20 @@ func etcdTestEnabled() bool {
 	return os.Getenv("TELEPORT_ETCD_TEST") != ""
 }
 
-func (r fakeClock) Advance(d time.Duration) {
+func (r blockingFakeClock) Advance(d time.Duration) {
+	if d < 0 {
+		panic("Invalid argument, negative duration")
+	}
+
 	// We cannot rewind time for etcd since it will not have any effect on the server
 	// so we actually sleep in this case
 	time.Sleep(d)
 }
 
-type fakeClock struct {
-	clockwork.FakeClock
+func (r blockingFakeClock) BlockUntil(int) {
+	panic("Not implemented")
+}
+
+type blockingFakeClock struct {
+	clockwork.Clock
 }
