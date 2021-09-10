@@ -1183,7 +1183,8 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleNode}, time.Minute)
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{},
+		p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.NoError(t, err)
 
 	target := types.LockTarget{Node: hostID}
@@ -1203,12 +1204,12 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for lock update.")
 	}
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleNode}, time.Minute)
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.Error(t, err)
 	require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
 
 	// Locks targeting nodes should not apply to other system roles.
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleProxy}, time.Minute)
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
 	require.NoError(t, err)
 }
 

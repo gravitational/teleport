@@ -52,11 +52,11 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 	if remoteAddr == "" {
 		remoteAddr = defaults.Localhost
 	}
-	certs, err := authServer.GenerateServerKeys(context.Background(),
-		&proto.GenerateServerKeysRequest{
+	certs, err := authServer.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
 			HostID:               id.HostUUID,
 			NodeName:             id.NodeName,
-			Roles:                []string{string(id.Role)},
+			Role:                 id.Role,
 			AdditionalPrincipals: additionalPrincipals,
 			RemoteAddr:           remoteAddr,
 			DNSNames:             dnsNames,
@@ -397,11 +397,11 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := params.Client.GenerateServerKeys(context.Background(),
-		&proto.GenerateServerKeysRequest{
+	certs, err := params.Client.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
 			HostID:               hostID,
 			NodeName:             params.ID.NodeName,
-			Roles:                []string{params.ID.Role.String()},
+			Role:                 params.ID.Role,
 			AdditionalPrincipals: params.AdditionalPrincipals,
 			DNSNames:             params.DNSNames,
 			PublicTLSKey:         params.PublicTLSKey,

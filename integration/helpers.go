@@ -213,7 +213,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		HostID:        cfg.HostID,
 		NodeName:      cfg.NodeName,
 		ClusterName:   cfg.ClusterName,
-		Roles:         types.SystemRoles{types.RoleAdmin},
+		Role:          types.RoleAdmin,
 		TTL:           24 * time.Hour,
 	})
 	fatalIf(err)

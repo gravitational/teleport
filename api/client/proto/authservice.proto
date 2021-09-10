@@ -156,15 +156,18 @@ message Certs {
     repeated bytes SSHCACerts = 4 [ (gogoproto.jsontag) = "ssh_ca_certs,omitempty" ];
 }
 
-// GenerateServerKeysRequest specifies certificate-generation parameters
+// HostCertsRequest specifies certificate-generation parameters
 // for a server.
-message GenerateServerKeysRequest {
+message HostCertsRequest {
     // HostID is a unique ID of the host.
     string HostID = 1 [ (gogoproto.jsontag) = "host_id" ];
     // NodeName is a user-friendly host name.
     string NodeName = 2 [ (gogoproto.jsontag) = "node_name" ];
-    // Roles is a list of roles assigned to the host.
-    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles" ];
+    // Role is a system role assigned to the host.
+    string Role = 3 [
+        (gogoproto.jsontag) = "role",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
     // AdditionalPrincipals is a list of additional principals
     // to include in OpenSSH and X509 certificates
     repeated string AdditionalPrincipals = 4
@@ -1227,8 +1230,8 @@ service AuthService {
 
     // GenerateUserCerts generates a set of user certificates.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
-    // GenerateServerKeys generates a set of host certificates.
-    rpc GenerateServerKeys(GenerateServerKeysRequest) returns (Certs);
+    // GenerateHostCerts generates a set of host certificates.
+    rpc GenerateHostCerts(HostCertsRequest) returns (Certs);
     // GenerateUserSingleUseCerts generates a set of single-use user
     // certificates.
     rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest)

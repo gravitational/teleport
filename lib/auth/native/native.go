@@ -198,7 +198,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 
 	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
-	principals := BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
+	principals := BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, types.SystemRoles{c.Role})
 	principals = append(principals, c.Principals...)
 	if len(principals) == 0 {
 		return nil, trace.BadParameter("no principals provided: %v, %v, %v",
@@ -220,7 +220,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 		CertType:        ssh.HostCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Roles.String()
+	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Role.String()
 	cert.Permissions.Extensions[utils.CertExtensionAuthority] = c.ClusterName
 
 	// sign host certificate with private signing key of certificate authority
@@ -229,7 +229,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 	}
 
 	log.Debugf("Generated SSH host certificate for role %v with principals: %v.",
-		c.Roles, principals)
+		c, principals)
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 

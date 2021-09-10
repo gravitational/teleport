@@ -134,11 +134,11 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
-	certs, err := testServer.Auth().GenerateServerKeys(ctx,
-		&proto.GenerateServerKeysRequest{
+	certs, err := testServer.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     testServer.ClusterName(),
-			Roles:        []string{string(types.RoleNode)},
+			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
 		})
@@ -950,12 +950,12 @@ func TestProxyReverseTunnel(t *testing.T) {
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
-	// Create host key and certificate for proxy.
-	proxyCerts, err := f.testSrv.Auth().GenerateServerKeys(ctx,
-		&proto.GenerateServerKeysRequest{
+	// Create certificate for proxy.
+	proxyCerts, err := f.testSrv.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     f.testSrv.ClusterName(),
-			Roles:        []string{string(types.RoleProxy)},
+			Role:         types.RoleProxy,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
 		})
@@ -1614,11 +1614,11 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	require.NoError(t, err)
 
 	// Create host key and certificate for node.
-	certs, err := authSrv.GenerateServerKeys(context.Background(),
-		&proto.GenerateServerKeysRequest{
+	certs, err := authSrv.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
 			HostID:               "raw-node",
 			NodeName:             "raw-node",
-			Roles:                []string{string(types.RoleNode)},
+			Role:                 types.RoleNode,
 			AdditionalPrincipals: []string{hostname},
 			DNSNames:             []string{hostname},
 			PublicSSHKey:         pub,

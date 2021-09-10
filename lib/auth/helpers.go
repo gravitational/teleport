@@ -434,11 +434,11 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		}
 		return certs.TLS, priv, nil
 	case BuiltinRole:
-		certs, err := authServer.GenerateServerKeys(context.Background(),
-			&proto.GenerateServerKeysRequest{
+		certs, err := authServer.GenerateHostCerts(context.Background(),
+			&proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
-				Roles:        []string{string(id.Role)},
+				Role:         id.Role,
 				PublicTLSKey: tlsPublicKey,
 				PublicSSHKey: pub,
 			})
@@ -447,11 +447,11 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		}
 		return certs.TLS, priv, nil
 	case RemoteBuiltinRole:
-		certs, err := authServer.GenerateServerKeys(context.Background(),
-			&proto.GenerateServerKeysRequest{
+		certs, err := authServer.GenerateHostCerts(context.Background(),
+			&proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
-				Roles:        []string{string(id.Role)},
+				Role:         id.Role,
 				PublicTLSKey: tlsPublicKey,
 				PublicSSHKey: pub,
 			})
@@ -879,11 +879,11 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := clt.GenerateServerKeys(context.Background(),
-		&proto.GenerateServerKeysRequest{
+	certs, err := clt.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     hostID,
-			Roles:        []string{string(types.RoleAuth)},
+			Role:         types.RoleAuth,
 			PublicTLSKey: publicTLS,
 			PublicSSHKey: pub,
 		})

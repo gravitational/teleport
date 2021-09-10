@@ -253,8 +253,6 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	// Generate a host certificate for node with role "node".
 	_, hostPub, err := keygen.GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
-	roles, err := types.ParseTeleportRoles("node")
-	c.Assert(err, check.IsNil)
 	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
 		CASigningAlg:  defaults.CASignatureAlgorithm,
@@ -265,7 +263,7 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 			"127.0.0.1",
 		},
 		ClusterName: "example.com",
-		Roles:       roles,
+		Role:        types.RoleNode,
 		TTL:         1 * time.Hour,
 	})
 	c.Assert(err, check.IsNil)

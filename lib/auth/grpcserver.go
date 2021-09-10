@@ -475,13 +475,13 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCerts
 	return certs, nil
 }
 
-func (g *GRPCServer) GenerateServerKeys(ctx context.Context, req *proto.GenerateServerKeysRequest) (*proto.Certs, error) {
+func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := auth.ServerWithRoles.GenerateServerKeys(ctx, req)
+	certs, err := auth.ServerWithRoles.GenerateHostCerts(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

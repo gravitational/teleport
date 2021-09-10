@@ -184,11 +184,11 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// start node
-	certs, err := s.server.Auth().GenerateServerKeys(s.ctx,
-		&apiProto.GenerateServerKeysRequest{
+	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
+		&apiProto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     s.server.ClusterName(),
-			Roles:        []string{string(types.RoleNode)},
+			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
 		})
@@ -2652,11 +2652,11 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	require.NoError(t, err)
 
 	// start auth server
-	certs, err := server.Auth().GenerateServerKeys(ctx,
-		&apiProto.GenerateServerKeysRequest{
+	certs, err := server.Auth().GenerateHostCerts(ctx,
+		&apiProto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     server.TLS.ClusterName(),
-			Roles:        []string{string(types.RoleNode)},
+			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
 		})

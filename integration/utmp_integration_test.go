@@ -212,11 +212,11 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
-	certs, err := s.server.Auth().GenerateServerKeys(ctx,
-		&proto.GenerateServerKeysRequest{
+	certs, err := s.server.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     s.server.ClusterName(),
-			Roles:        []string{string(types.RoleNode)},
+			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
 		})

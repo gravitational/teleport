@@ -801,11 +801,11 @@ func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames [
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.GenerateServerKeys(context.Background(),
-		&proto.GenerateServerKeysRequest{
+	certs, err := a.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
 			HostID:               id.HostUUID,
 			NodeName:             id.NodeName,
-			Roles:                []string{string(id.Role)},
+			Role:                 id.Role,
 			AdditionalPrincipals: additionalPrincipals,
 			DNSNames:             dnsNames,
 			PublicSSHKey:         pub,
