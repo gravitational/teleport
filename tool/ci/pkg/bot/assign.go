@@ -3,8 +3,9 @@ package bot
 import (
 	"context"
 
-	"github.com/google/go-github/v37/github"
 	"github.com/gravitational/trace"
+
+	"github.com/google/go-github/v37/github"
 )
 
 // Assign assigns reviewers to the pull request

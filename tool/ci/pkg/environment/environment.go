@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gravitational/teleport/.github/workflows/ci"
+	"github.com/gravitational/teleport/tool/ci"
 	"github.com/gravitational/trace"
 
 	"github.com/google/go-github/v37/github"

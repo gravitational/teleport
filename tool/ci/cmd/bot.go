@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport/.github/workflows/ci"
-	"github.com/gravitational/teleport/.github/workflows/ci/pkg/bot"
-	bots "github.com/gravitational/teleport/.github/workflows/ci/pkg/bot"
-	"github.com/gravitational/teleport/.github/workflows/ci/pkg/environment"
+	"github.com/gravitational/teleport/tool/ci"
+	"github.com/gravitational/teleport/tool/ci/pkg/bot"
+	bots "github.com/gravitational/teleport/tool/ci/pkg/bot"
+	"github.com/gravitational/teleport/tool/ci/pkg/environment"
 	"github.com/gravitational/trace"
 
 	"github.com/google/go-github/v37/github"

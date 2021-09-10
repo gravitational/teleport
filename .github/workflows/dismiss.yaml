@@ -16,4 +16,4 @@ jobs:
         uses: actions/setup-go@v2
         # Run "dismiss-runs" subcommand on bot.
       - name: Dismiss
-        run: cd .github/workflows/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} dismiss-runs
+        run: cd tool/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} dismiss-runs
