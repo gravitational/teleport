@@ -24,9 +24,9 @@ This guide will explain how to:
 - AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
 
 
-## Step 1. Configure Read Only and Power User roles
+## Step 1. [Optional] Configure Read Only and Power User roles
 
-AWS provides the `ReadOnlyAccess` and `PowerUserAccess` IAM policies that can be incorporated into roles.
+AWS provides the `ReadOnlyAccess` and `PowerUserAccess` IAM policies that can be incorporated into roles.  <b>Skip this step</b> if you already have the roles you want to provide access to.
 
 <Admonition type="note">
 These policies may provide too much or not enough access for your intentions. Validate these meet your expectations if you plan on using them.
