@@ -576,7 +576,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// unsuccessful registration (wrong role)
-	keys, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	certs, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:        tok,
 		HostID:       "bad-host-id",
 		NodeName:     "bad-node-name",
@@ -584,7 +584,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		PublicTLSKey: tlsPublicKey,
 		PublicSSHKey: pub,
 	})
-	c.Assert(keys, IsNil)
+	c.Assert(certs, IsNil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `node "bad-node-name" \[bad-host-id\] can not join the cluster, the token does not allow "Proxy" role`)
 
@@ -609,7 +609,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// use it twice:
-	keys, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	certs, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:                multiUseToken,
 		HostID:               "once",
 		NodeName:             "node-name",
@@ -621,7 +621,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// along the way, make sure that additional principals work
-	hostCert, err := sshutils.ParseCertificate(keys.Cert)
+	hostCert, err := sshutils.ParseCertificate(certs.SSH)
 	c.Assert(err, IsNil)
 	comment := Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
 	c.Assert(apiutils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)

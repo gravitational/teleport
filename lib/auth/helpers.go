@@ -891,13 +891,7 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 		return nil, trace.Wrap(err)
 	}
 
-	return ReadIdentityFromKeyPair(&PackedKeys{
-		Key:        priv,
-		Cert:       certs.SSH,
-		TLSCert:    certs.TLS,
-		SSHCACerts: certs.SSHCACerts,
-		TLSCACerts: certs.TLSCACerts,
-	})
+	return ReadIdentityFromKeyPair(priv, certs)
 }
 
 // clt limits required interface to the necessary methods

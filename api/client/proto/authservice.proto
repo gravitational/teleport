@@ -171,9 +171,11 @@ message GenerateServerKeysRequest {
         [ (gogoproto.jsontag) = "additional_principals,omitempty" ];
     // DNSNames is a list of DNS names to include in x509 certificates.
     repeated string DNSNames = 5 [ (gogoproto.jsontag) = "dns_names,omitempty" ];
-    // PublicTLSKey is a PEM encoded public key used for TLS setup,
+    // PublicTLSKey is a PEM encoded public key, which the auth server will use
+    // to create a signed TLS certificate. This field is required.
     bytes PublicTLSKey = 6 [ (gogoproto.jsontag) = "public_tls_key" ];
-    // PublicSSHKey is a SSH encoded public key.
+    // PublicSSHKey is a SSH encoded public key, which the auth server will use
+    // to create a signed SSH certificate. This field is required.
     bytes PublicSSHKey = 7 [ (gogoproto.jsontag) = "public_ssh_key" ];
     // RemoteAddr is the IP address of the remote host requesting a certificate.
     // RemoteAddr is used to replace 0.0.0.0 in the list of additional principals.

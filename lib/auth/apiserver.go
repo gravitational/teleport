@@ -1025,6 +1025,7 @@ func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r
 	return message("ok"), nil
 }
 
+// DELETE IN 9.0 (now available in GRPC server)
 func (s *APIServer) generateServerKeys(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req proto.GenerateServerKeysRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {

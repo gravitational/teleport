@@ -40,6 +40,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -351,10 +352,9 @@ func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
 }
 
 func (s *InstanceSecrets) GetIdentity() *auth.Identity {
-	i, err := auth.ReadIdentityFromKeyPair(&auth.PackedKeys{
-		Key:        s.PrivKey,
-		Cert:       s.Cert,
-		TLSCert:    s.TLSCert,
+	i, err := auth.ReadIdentityFromKeyPair(s.PrivKey, &proto.Certs{
+		SSH:        s.Cert,
+		TLS:        s.TLSCert,
 		TLSCACerts: [][]byte{s.TLSCACert},
 	})
 	fatalIf(err)
