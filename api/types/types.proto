@@ -1828,6 +1828,7 @@ message MFADevice {
     oneof device {
         TOTPDevice totp = 8;
         U2FDevice u2f = 9;
+        WebauthnDevice webauthn = 10;
     }
 }
 
@@ -1842,6 +1843,27 @@ message U2FDevice {
     bytes pub_key = 2;
     // Counter is the latest seen value of the U2F usage counter.
     uint32 counter = 3;
+}
+
+// WebauthnDevice holds Webauthn-specific fields of MFADevice.
+message WebauthnDevice {
+    // Credential ID for the authenticator.
+    bytes credential_id = 1;
+    // Public key encoded in CBOR format.
+    // Webauthn support various key algorithms; CBOR encoding is used to reflect
+    // those choices.
+    // See https://w3c.github.io/webauthn/#sctn-alg-identifier for a starter
+    // reference.
+    bytes public_key_cbor = 2;
+    // Attestation format used by the authenticator, if any.
+    string attestation_type = 3;
+    // AAGUID is the globally unique identifier of the authenticator model.
+    // Zeroed for U2F devices.
+    bytes aaguid = 4;
+    // Signature counter for login operations.
+    // Actual counter values received from the authenticator are expected to be
+    // higher than the previously-stored value.
+    uint32 signature_counter = 5;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.

@@ -564,6 +564,8 @@ func (d *MFADevice) MFAType() string {
 		return "TOTP"
 	case *MFADevice_U2F:
 		return "U2F"
+	case *MFADevice_Webauthn:
+		return "WebAuthn"
 	default:
 		return "unknown"
 	}
