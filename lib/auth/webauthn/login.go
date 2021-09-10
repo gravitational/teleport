@@ -228,6 +228,10 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if credential.Authenticator.CloneWarning {
+		log.Warnf(
+			"WebAuthn: Clone warning detected for user %q / device %q. Device counter may be malfunctioning.", user, dev.GetName())
+	}
 
 	// Update last used timestamp and device counter.
 	if err := setCounterAndTimestamps(dev, credential); err != nil {
