@@ -59,7 +59,10 @@ func main() {
 		}
 		log.Println("Stale workflow run removal completed")
 	default:
-		log.Fatalf("Unknown subcommand: %v", subcommand)
+		log.Fatalf("Unknown subcommand: %v.\nThe following subcommands are supported:\n"+
+			"\tassign-reviewers \n\t assigns reviewers to a pull request.\n"+
+			"\tcheck-reviewers \n\t checks pull request for required reviewers.\n"+
+			"\tdismiss-runs \n\t dismisses stale workflow runs for external contributors.\n", subcommand)
 	}
 
 }
@@ -85,11 +88,11 @@ func constructBot(ctx context.Context, token, reviewers string) (*bots.Bot, erro
 func dismissRuns(ctx context.Context, token string) error {
 	repository := os.Getenv(ci.GithubRepository)
 	if repository == "" {
-		return trace.BadParameter("Environment variable GITHUB_REPOSITORY is not set")
+		return trace.BadParameter("environment variable GITHUB_REPOSITORY is not set")
 	}
 	metadata := strings.Split(repository, "/")
 	if len(metadata) != 2 {
-		return trace.BadParameter("Environment variable GITHUB_REPOSITORY is not in the correct format,\n valid format is '<repo owner>/<repo name>'")
+		return trace.BadParameter("environment variable GITHUB_REPOSITORY is not in the correct format,\n the valid format is '<repo owner>/<repo name>'")
 	}
 	err := cron.DimissStaleWorkflowRunsForExternalContributors(ctx, token, metadata[0], metadata[1], makeGithubClient(ctx, token))
 	if err != nil {

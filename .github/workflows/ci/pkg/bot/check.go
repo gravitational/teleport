@@ -50,12 +50,12 @@ func (c *Bot) Check(ctx context.Context) error {
 // approvals for external contributors if a new commit is pushed
 func (c *Bot) check(ctx context.Context, isInternal bool, pr *environment.PullRequestMetadata, required []string, currentReviews []review) error {
 	if len(currentReviews) == 0 {
-		return trace.BadParameter("pull request has no reviews.")
+		return trace.BadParameter("pull request has no reviews")
 	}
 	log.Printf("checking if %v has approvals from the required reviewers %+v", pr.Author, required)
 	for _, requiredReviewer := range required {
 		if !containsApprovalReview(requiredReviewer, currentReviews) {
-			return trace.BadParameter("all required reviewers have not yet approved.")
+			return trace.BadParameter("all required reviewers have not yet approved")
 		}
 	}
 	if hasNewCommit(pr.HeadSHA, currentReviews) && !isInternal {
@@ -114,7 +114,7 @@ func containsApprovalReview(reviewer string, reviews []review) bool {
 // dimissMessage returns the dimiss message when a review is dismissed
 func dismissMessage(pr *environment.PullRequestMetadata, required []string) string {
 	var buffer bytes.Buffer
-	buffer.WriteString("New commit pushed, please rereview ")
+	buffer.WriteString("new commit pushed, please re-review")
 	for _, reviewer := range required {
 		buffer.WriteString(fmt.Sprintf("@%v ", reviewer))
 	}

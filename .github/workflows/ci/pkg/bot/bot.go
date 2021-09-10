@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
+
 	"net/http"
 	"sort"
 
 	"github.com/gravitational/teleport/.github/workflows/ci"
 	"github.com/gravitational/teleport/.github/workflows/ci/pkg/environment"
+	"github.com/gravitational/trace"
 
 	"github.com/google/go-github/v37/github"
-	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
 

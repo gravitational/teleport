@@ -79,7 +79,7 @@ func New(c Config) (*Environment, error) {
 func unmarshalReviewers(str string, client *github.Client) (map[string][]string, error) {
 	var hasDefaultReviewers bool
 	if str == "" {
-		return nil, trace.BadParameter("reviewers not found.")
+		return nil, trace.NotFound("reviewers not found")
 	}
 	m := make(map[string][]string)
 
@@ -104,7 +104,7 @@ func unmarshalReviewers(str string, client *github.Client) (map[string][]string,
 		}
 	}
 	if !hasDefaultReviewers {
-		return nil, trace.BadParameter("default reviewers are not set. set default reviewers with an empty string as a key.")
+		return nil, trace.BadParameter("default reviewers are not set. set default reviewers with an empty string as a key")
 	}
 	return m, nil
 
@@ -243,19 +243,19 @@ func (s PushEvent) toPullRequestMetadata() (PullRequestMetadata, error) {
 func validateData(num int, login, owner, repoName, headSHA, baseSHA, branchName string) (PullRequestMetadata, error) {
 	switch {
 	case num == 0:
-		return PullRequestMetadata{}, trace.BadParameter("missing pull request number.")
+		return PullRequestMetadata{}, trace.BadParameter("missing pull request number")
 	case login == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing user login.")
+		return PullRequestMetadata{}, trace.BadParameter("missing user login")
 	case owner == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing repository owner.")
+		return PullRequestMetadata{}, trace.BadParameter("missing repository owner")
 	case repoName == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing repository name.")
+		return PullRequestMetadata{}, trace.BadParameter("missing repository name")
 	case headSHA == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing head commit sha.")
+		return PullRequestMetadata{}, trace.BadParameter("missing head commit sha")
 	case baseSHA == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing base commit sha.")
+		return PullRequestMetadata{}, trace.BadParameter("missing base commit sha")
 	case branchName == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing branch name.")
+		return PullRequestMetadata{}, trace.BadParameter("missing branch name")
 	}
 	return PullRequestMetadata{Number: num,
 		Author:     login,
