@@ -68,14 +68,20 @@ type Config struct {
 	// for this process.
 	CipherSuites []uint16
 
+	// Hostname is the hostname where this application agent is running.
+	Hostname string
+
+	// HostID is the id of the host where this application agent is running.
+	HostID string
+
 	// Authorizer is used to authorize requests.
 	Authorizer auth.Authorizer
 
 	// GetRotation returns the certificate rotation state.
 	GetRotation RotationGetter
 
-	// Server contains the list of applications that will be proxied.
-	Server types.Server
+	// Apps is a list of statically registered apps this agent proxies.
+	Apps types.Apps
 
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
@@ -106,14 +112,17 @@ func (c *Config) CheckAndSetDefaults() error {
 	if len(c.CipherSuites) == 0 {
 		return trace.BadParameter("cipersuites missing")
 	}
+	if c.Hostname == "" {
+		return trace.BadParameter("hostname missing")
+	}
+	if c.HostID == "" {
+		return trace.BadParameter("host id missing")
+	}
 	if c.Authorizer == nil {
 		return trace.BadParameter("authorizer missing")
 	}
 	if c.GetRotation == nil {
 		return trace.BadParameter("rotation getter missing")
-	}
-	if c.Server == nil {
-		return trace.BadParameter("server missing")
 	}
 	if c.OnHeartbeat == nil {
 		return trace.BadParameter("heartbeat missing")
@@ -138,16 +147,14 @@ type Server struct {
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 
-	mu     sync.RWMutex
-	server types.Server
-
 	httpServer *http.Server
 	tlsConfig  *tls.Config
 
-	heartbeat     *srv.Heartbeat
+	mu            sync.RWMutex
+	heartbeats    map[string]*srv.Heartbeat
 	dynamicLabels map[string]*labels.Dynamic
+	apps          map[string]types.Application
 
-	keepAlive time.Duration
 	proxyPort string
 
 	cache *sessionCache
@@ -165,7 +172,9 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentApp,
 		}),
-		server: c.Server,
+		heartbeats:    make(map[string]*srv.Heartbeat),
+		dynamicLabels: make(map[string]*labels.Dynamic),
+		apps:          make(map[string]types.Application),
 	}
 
 	s.closeContext, s.closeFunc = context.WithCancel(ctx)
@@ -190,113 +199,230 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create dynamic labels for all applications that are being proxied and
-	// sync them right away so the first heartbeat has correct dynamic labels.
-	s.dynamicLabels = make(map[string]*labels.Dynamic)
-	for _, a := range s.server.GetApps() {
-		if len(a.DynamicLabels) == 0 {
-			continue
-		}
-		dl, err := labels.NewDynamic(s.closeContext, &labels.DynamicConfig{
-			Labels: types.V2ToLabels(a.DynamicLabels),
-			Log:    s.log,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		dl.Sync()
-		s.dynamicLabels[a.Name] = dl
-	}
-
-	// Create heartbeat loop so applications keep sending presence to backend.
-	s.heartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
-		Mode:            srv.HeartbeatModeApp,
-		Context:         s.closeContext,
-		Component:       teleport.ComponentApp,
-		Announcer:       c.AccessPoint,
-		GetServerInfo:   s.GetServerInfo,
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
-		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/2),
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		ServerTTL:       apidefaults.ServerAnnounceTTL,
-		OnHeartbeat:     c.OnHeartbeat,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Pick up TCP keep-alive settings from the cluster level.
-	netConfig, err := s.c.AccessPoint.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	s.keepAlive = netConfig.GetKeepAliveInterval()
-
 	// Figure out the port the proxy is running on.
 	s.proxyPort = s.getProxyPort()
 
 	return s, nil
 }
 
-// GetServerInfo returns a services.Server representing the application. Used
-// in heartbeat code.
-func (s *Server) GetServerInfo() (types.Resource, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Update dynamic labels on all apps.
-	apps := s.server.GetApps()
-	for _, a := range s.server.GetApps() {
-		dl, ok := s.dynamicLabels[a.Name]
-		if !ok {
-			continue
-		}
-		a.DynamicLabels = types.LabelsToV2(dl.Get())
+// startApp registers the specified application.
+func (s *Server) startApp(ctx context.Context, app types.Application) error {
+	// Start a goroutine that will be updating apps's command labels (if any)
+	// on the defined schedule.
+	if err := s.startDynamicLabels(ctx, app); err != nil {
+		return trace.Wrap(err)
 	}
-	s.server.SetApps(apps)
-
-	// Update the TTL.
-	s.server.SetExpiry(s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
-
-	// Update rotation state.
-	rotation, err := s.c.GetRotation(types.RoleApp)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			s.log.Warningf("Failed to get rotation state: %v.", err)
-		}
-	} else {
-		s.server.SetRotation(*rotation)
+	// Heartbeat will periodically report the presence of this proxied app
+	// to the auth server.
+	if err := s.startHeartbeat(ctx, app); err != nil {
+		return trace.Wrap(err)
 	}
-
-	return s.server, nil
+	s.log.Debugf("Started %v.", app)
+	return nil
 }
 
-// Start starts heartbeating the presence of service.Apps that this
-// server is proxying along with any dynamic labels.
-func (s *Server) Start() {
-	for _, dynamicLabel := range s.dynamicLabels {
-		go dynamicLabel.Start()
+// stopApp uninitializes the app with the specified name.
+func (s *Server) stopApp(ctx context.Context, name string) error {
+	s.stopDynamicLabels(name)
+	if err := s.stopHeartbeat(name); err != nil {
+		return trace.Wrap(err)
 	}
-	go s.heartbeat.Run()
+	// Heartbeat is stopped but if we don't remove this app server,
+	// it can linger for up to ~10m until its TTL expires.
+	if err := s.removeAppServer(ctx, name); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	s.log.Debugf("Stopped app %q.", name)
+	return nil
+}
+
+// removeAppServer deletes app server for the specified app.
+func (s *Server) removeAppServer(ctx context.Context, name string) error {
+	return s.c.AuthClient.DeleteApplicationServer(ctx, apidefaults.Namespace,
+		s.c.HostID, name)
+}
+
+// startDynamicLabels starts dynamic labels for the app if it has them.
+func (s *Server) startDynamicLabels(ctx context.Context, app types.Application) error {
+	if len(app.GetDynamicLabels()) == 0 {
+		return nil // Nothing to do.
+	}
+	dynamic, err := labels.NewDynamic(ctx, &labels.DynamicConfig{
+		Labels: app.GetDynamicLabels(),
+		Log:    s.log,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dynamic.Sync()
+	dynamic.Start()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dynamicLabels[app.GetName()] = dynamic
+	return nil
+}
+
+// getDynamicLabels returns dynamic labels for the specified app.
+func (s *Server) getDynamicLabels(name string) *labels.Dynamic {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	dynamic, ok := s.dynamicLabels[name]
+	if !ok {
+		return nil
+	}
+	return dynamic
+}
+
+// stopDynamicLabels stops dynamic labels for the specified app.
+func (s *Server) stopDynamicLabels(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	dynamic, ok := s.dynamicLabels[name]
+	if !ok {
+		return
+	}
+	delete(s.dynamicLabels, name)
+	dynamic.Close()
+}
+
+// startHeartbeat starts the registration heartbeat to the auth server.
+func (s *Server) startHeartbeat(ctx context.Context, app types.Application) error {
+	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Context:         s.closeContext,
+		Component:       teleport.ComponentApp,
+		Mode:            srv.HeartbeatModeApp,
+		Announcer:       s.c.AccessPoint,
+		GetServerInfo:   s.getServerInfoFunc(app),
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
+		OnHeartbeat:     s.c.OnHeartbeat,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go heartbeat.Run()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.heartbeats[app.GetName()] = heartbeat
+	return nil
+}
+
+// stopHeartbeat stops the heartbeat for the specified app.
+func (s *Server) stopHeartbeat(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	heartbeat, ok := s.heartbeats[name]
+	if !ok {
+		return nil
+	}
+	delete(s.heartbeats, name)
+	return heartbeat.Close()
+}
+
+// getServerInfoFunc returns function that the heartbeater uses to report the
+// provided application to the auth server.
+func (s *Server) getServerInfoFunc(app types.Application) func() (types.Resource, error) {
+	return func() (types.Resource, error) {
+		return s.getServerInfo(app)
+	}
+}
+
+// getServerInfo returns up-to-date app resource.
+func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
+	// Make sure to return a new object, because it gets cached by
+	// heartbeat and will always compare as equal otherwise.
+	s.mu.RLock()
+	copy := app.Copy()
+	s.mu.RUnlock()
+	// Update dynamic labels if the app has them.
+	labels := s.getDynamicLabels(copy.GetName())
+	if labels != nil {
+		copy.SetDynamicLabels(labels.Get())
+	}
+	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
+	return types.NewAppServerV3(types.Metadata{
+		Name:    copy.GetName(),
+		Expires: &expires,
+	}, types.AppServerSpecV3{
+		Version:  teleport.Version,
+		Hostname: s.c.Hostname,
+		HostID:   s.c.HostID,
+		Rotation: s.getRotationState(),
+		App:      copy,
+	})
+}
+
+// getRotationState is a helper to return this server's CA rotation state.
+func (s *Server) getRotationState() types.Rotation {
+	rotation, err := s.c.GetRotation(types.RoleApp)
+	if err != nil && !trace.IsNotFound(err) {
+		s.log.WithError(err).Warn("Failed to get rotation state.")
+	}
+	if rotation != nil {
+		return *rotation
+	}
+	return types.Rotation{}
+}
+
+// registerApp starts proxying the app.
+func (s *Server) registerApp(ctx context.Context, app types.Application) error {
+	if err := s.startApp(ctx, app); err != nil {
+		return trace.Wrap(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.apps[app.GetName()] = app
+	return nil
+}
+
+// unregisterApp stops proxying the app.
+func (s *Server) unregisterApp(ctx context.Context, name string) error {
+	if err := s.stopApp(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.apps, name)
+	return nil
+}
+
+// getApps returns a list of all apps this server is proxying.
+func (s *Server) getApps() (apps types.Apps) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, app := range s.apps {
+		apps = append(apps, app)
+	}
+	return apps
+}
+
+// Start starts proxying all registered apps.
+func (s *Server) Start(ctx context.Context) error {
+	// Register all apps from static configuration.
+	for _, app := range s.c.Apps {
+		if err := s.registerApp(ctx, app); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // Close will shut the server down and unblock any resources.
 func (s *Server) Close() error {
 	var errs []error
 
+	// Stop all proxied apps.
+	for _, app := range s.getApps() {
+		if err := s.unregisterApp(s.closeContext, app.GetName()); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	// Stop HTTP server.
 	if err := s.httpServer.Close(); err != nil {
 		errs = append(errs, err)
-	}
-
-	// Stop heartbeat to auth.
-	if err := s.heartbeat.Close(); err != nil {
-		errs = append(errs, err)
-	}
-
-	// Stop all dynamic labels from being updated.
-	for _, dynamicLabel := range s.dynamicLabels {
-		dynamicLabel.Close()
 	}
 
 	// Signal to any blocking go routine that it should exit.
@@ -311,11 +437,15 @@ func (s *Server) Wait() error {
 	return s.closeContext.Err()
 }
 
-// ForceHeartbeat is used in tests to force updating of services.Server.
+// ForceHeartbeat is used in tests to force updating of app servers.
 func (s *Server) ForceHeartbeat() error {
-	err := s.heartbeat.ForceSend(time.Second)
-	if err != nil {
-		return trace.Wrap(err)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for name, heartbeat := range s.heartbeats {
+		s.log.Debugf("Forcing heartbeat for %q.", name)
+		if err := heartbeat.ForceSend(time.Second); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
@@ -358,8 +488,8 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 			identity.Username, identity.RouteToApp.AWSRoleARN)
 		url, err := s.c.Cloud.GetAWSSigninURL(AWSSigninRequest{
 			Identity:  identity,
-			TargetURL: app.URI,
-			Issuer:    app.PublicAddr,
+			TargetURL: app.GetURI(),
+			Issuer:    app.GetPublicAddr(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -382,7 +512,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 
 // authorize will check if request carries a session cookie matching a
 // session in the backend.
-func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identity, *types.App, error) {
+func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identity, types.Application, error) {
 	// Only allow local and remote identities to proxy to an application.
 	userType := r.Context().Value(auth.ContextUser)
 	switch userType.(type) {
@@ -432,7 +562,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 // getSession returns a request session used to proxy the request to the
 // target application. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
-func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app *types.App) (*session, error) {
+func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*session, error) {
 	// If a cached forwarder exists, return it right away.
 	session, err := s.cache.get(identity.RouteToApp.SessionID)
 	if err == nil {
@@ -461,12 +591,12 @@ func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app *
 // (or round robin) does not need to occur here because they will all point
 // to the same target address. Random selection (or round robin) occurs at the
 // web proxy to load balance requests to the application service.
-func (s *Server) getApp(ctx context.Context, publicAddr string) (*types.App, error) {
+func (s *Server) getApp(ctx context.Context, publicAddr string) (types.Application, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	for _, a := range s.server.GetApps() {
-		if publicAddr == a.PublicAddr {
+	for _, a := range s.getApps() {
+		if publicAddr == a.GetPublicAddr() {
 			return a, nil
 		}
 	}

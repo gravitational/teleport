@@ -19,44 +19,59 @@ package main
 import (
 	"fmt"
 	"net"
+	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"text/template"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/trace"
 )
 
 const sshConfigTemplate = `
-# Common flags for all {{ .clusterName }} hosts
-Host *.{{ .clusterName }} {{ .proxyHost }}
-    UserKnownHostsFile "{{ .knownHostsPath }}"
+# Common flags for all {{ .ClusterName }} hosts
+Host *.{{ .ClusterName }} {{ .ProxyHost }}
+    UserKnownHostsFile "{{ .KnownHostsPath }}"
+    IdentityFile "{{ .IdentityFilePath }}"
+    CertificateFile "{{ .CertificateFilePath }}"
 
-# Flags for all {{ .clusterName }} hosts except the proxy
-Host *.{{ .clusterName }} !{{ .proxyHost }}
+# Flags for all {{ .ClusterName }} hosts except the proxy
+Host *.{{ .ClusterName }} !{{ .ProxyHost }}
     Port 3022
-    {{- if .leaf }}
-    ProxyCommand ssh -p {{ .proxyPort }} {{ .proxyHost }} -s proxy:$(echo %h | cut -d '.' -f 1):%p@{{ .clusterName }}	
-    {{- else }}
-    ProxyCommand ssh -p {{ .proxyPort }} {{ .proxyHost }} -s proxy:$(echo %h | cut -d '.' -f 1):%p
-    {{- end }}
+    ProxyCommand "{{ .TSHPath }}" config-proxy --login="%r" --proxy={{ .ProxyHost }}:{{ .ProxyPort }} %h:%p "{{ .ClusterName }}"
 `
+
+type hostConfigParameters struct {
+	ClusterName         string
+	KnownHostsPath      string
+	IdentityFilePath    string
+	CertificateFilePath string
+	ProxyHost           string
+	ProxyPort           string
+	TSHPath             string
+}
+
+// getSSHPath returns a sane `ssh` path for the current platform.
+func getSSHPath() (string, error) {
+	if runtime.GOOS == constants.WindowsOS {
+		return exec.LookPath("ssh.exe")
+	}
+
+	return exec.LookPath("ssh")
+}
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
 // template string.
-func writeSSHConfig(sb *strings.Builder, clusterName string, knownHostsPath string, proxyHost string, proxyPort string, leaf bool) error {
+func writeSSHConfig(sb *strings.Builder, params hostConfigParameters) error {
 	t, err := template.New("ssh-config").Parse(sshConfigTemplate)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = t.Execute(sb, map[string]interface{}{
-		"clusterName":    clusterName,
-		"proxyPort":      proxyPort,
-		"proxyHost":      proxyHost,
-		"knownHostsPath": knownHostsPath,
-		"leaf":           leaf,
-	})
+	err = t.Execute(sb, params)
 	if err != nil {
 		return trace.WrapWithMessage(err, "error generating SSH configuration from template")
 	}
@@ -97,6 +112,7 @@ func onConfig(cf *CLIConf) error {
 
 	keysDir := profile.FullProfilePath(tc.Config.KeysDir)
 	knownHostsPath := keypaths.KnownHostsPath(keysDir)
+	identityFilePath := keypaths.UserKeyPath(keysDir, proxyHost, tc.Config.Username)
 
 	var sb strings.Builder
 
@@ -105,13 +121,29 @@ func onConfig(cf *CLIConf) error {
 	fmt.Fprintln(&sb)
 	fmt.Fprintf(&sb, "#\n# Begin generated Teleport configuration for %s from `tsh config`\n#\n", tc.Config.WebProxyAddr)
 
-	err = writeSSHConfig(&sb, rootClusterName, knownHostsPath, proxyHost, proxyPort, false)
+	err = writeSSHConfig(&sb, hostConfigParameters{
+		ClusterName:         rootClusterName,
+		KnownHostsPath:      knownHostsPath,
+		IdentityFilePath:    identityFilePath,
+		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName),
+		ProxyHost:           proxyHost,
+		ProxyPort:           proxyPort,
+		TSHPath:             cf.executablePath,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	for _, leafCluster := range leafClusters {
-		err = writeSSHConfig(&sb, leafCluster.GetName(), knownHostsPath, proxyHost, proxyPort, true)
+		err = writeSSHConfig(&sb, hostConfigParameters{
+			ClusterName:         leafCluster.GetName(),
+			KnownHostsPath:      knownHostsPath,
+			IdentityFilePath:    identityFilePath,
+			CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName),
+			ProxyHost:           proxyHost,
+			ProxyPort:           proxyPort,
+			TSHPath:             cf.executablePath,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -120,4 +152,44 @@ func onConfig(cf *CLIConf) error {
 	fmt.Fprintf(&sb, "\n# End generated Teleport configuration\n")
 	fmt.Print(sb.String())
 	return nil
+}
+
+func onConfigProxy(cf *CLIConf) error {
+	proxyHost, proxyPort, err := net.SplitHostPort(cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	targetHost, targetPort, err := net.SplitHostPort(cf.ConfigProxyTarget)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the node is suffixed by either the root or leaf cluster name, remove it.
+	targetHost = strings.TrimSuffix(targetHost, "."+proxyHost)
+	targetHost = strings.TrimSuffix(targetHost, "."+cf.SiteName)
+
+	// NOTE: This should eventually make use of `tsh proxy ssh`.
+	sshPath, err := getSSHPath()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	args := []string{
+		"-p",
+		proxyPort,
+		proxyHost,
+		"-s",
+		fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, cf.SiteName),
+	}
+
+	if cf.NodeLogin != "" {
+		args = append([]string{"-l", cf.NodeLogin}, args...)
+	}
+
+	child := exec.Command(sshPath, args...)
+	child.Stdin = os.Stdin
+	child.Stdout = os.Stdout
+	child.Stderr = os.Stderr
+	return child.Run()
 }

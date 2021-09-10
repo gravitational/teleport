@@ -47,14 +47,20 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	// Get a list of application servers.
+	// Get a list of application servers and their proxied apps.
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	appServers, err := clt.GetAppServers(r.Context(), apidefaults.Namespace)
+
+	appServers, err := clt.GetApplicationServers(r.Context(), apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	var apps types.Apps
+	for _, server := range appServers {
+		apps = append(apps, server.GetApp())
 	}
 
 	return makeResponse(ui.MakeApps(ui.MakeAppsConfig{
@@ -62,7 +68,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		LocalProxyDNSName: h.proxyDNSName(),
 		AppClusterName:    appClusterName,
 		Identity:          identity,
-		Apps:              appServers,
+		Apps:              types.DeduplicateApps(apps),
 	}))
 }
 
@@ -252,8 +258,7 @@ type resolveAppResult struct {
 
 func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, params resolveAppParams) (*resolveAppResult, error) {
 	var (
-		app            *types.App
-		server         types.Server
+		server         types.AppServer
 		appClusterName string
 		err            error
 	)
@@ -263,9 +268,9 @@ func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reverset
 	// application that the caller is requesting. If it does not, do best effort FQDN resolution.
 	switch {
 	case params.PublicAddr != "" && params.ClusterName != "":
-		app, server, appClusterName, err = h.resolveDirect(ctx, proxy, params.PublicAddr, params.ClusterName)
+		server, appClusterName, err = h.resolveDirect(ctx, proxy, params.PublicAddr, params.ClusterName)
 	case params.FQDNHint != "":
-		app, server, appClusterName, err = h.resolveFQDN(ctx, clt, proxy, params.FQDNHint)
+		server, appClusterName, err = h.resolveFQDN(ctx, clt, proxy, params.FQDNHint)
 	default:
 		err = trace.BadParameter("no inputs to resolve application")
 	}
@@ -273,40 +278,40 @@ func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reverset
 		return nil, trace.Wrap(err)
 	}
 
-	fqdn := ui.AssembleAppFQDN(h.auth.clusterName, h.proxyDNSName(), appClusterName, app)
+	fqdn := ui.AssembleAppFQDN(h.auth.clusterName, h.proxyDNSName(), appClusterName, server.GetApp())
 
 	return &resolveAppResult{
 		ServerID:    server.GetName(),
 		FQDN:        fqdn,
-		PublicAddr:  app.PublicAddr,
+		PublicAddr:  server.GetApp().GetPublicAddr(),
 		ClusterName: appClusterName,
 	}, nil
 }
 
 // resolveDirect takes a public address and cluster name and exactly resolves
 // the application and the server on which it is running.
-func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel, publicAddr string, clusterName string) (*types.App, types.Server, string, error) {
+func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel, publicAddr string, clusterName string) (types.AppServer, string, error) {
 	clusterClient, err := proxy.GetSite(clusterName)
 	if err != nil {
-		return nil, nil, "", trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	authClient, err := clusterClient.GetClient()
 	if err != nil {
-		return nil, nil, "", trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
-	app, server, err := app.Match(ctx, authClient, app.MatchPublicAddr(publicAddr))
+	server, err := app.Match(ctx, authClient, app.MatchPublicAddr(publicAddr))
 	if err != nil {
-		return nil, nil, "", trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
-	return app, server, clusterName, nil
+	return server, clusterName, nil
 }
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running within a root or leaf cluster.
-func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, fqdn string) (*types.App, types.Server, string, error) {
+func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, fqdn string) (types.AppServer, string, error) {
 	return app.ResolveFQDN(ctx, clt, proxy, h.proxyDNSNames(), fqdn)
 }
 

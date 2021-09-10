@@ -612,6 +612,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
 	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
 	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
+	require.Empty(t, cfg.CAPins)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,

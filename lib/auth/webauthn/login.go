@@ -21,9 +21,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -37,22 +35,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// CredentialAssertion is the payload sent to authenticators to initiate login.
-type CredentialAssertion protocol.CredentialAssertion
-
-// CredentialAssertionResponse is the reply from authenticators to complete
-// login.
-type CredentialAssertionResponse protocol.CredentialAssertionResponse
-
 // loginSessionID is used as the per-user session identifier.
 // A fixed identifier means, in essence, that only one concurrent login is
 // allowed.
 const loginSessionID = "login"
 
-// loginIdentity represents the subset of Identity methods used by LoginFlow.
+// LoginIdentity represents the subset of Identity methods used by LoginFlow.
 // It exists to better scope LoginFlow's use of Identity and to facilitate
 // testing.
-type loginIdentity interface {
+type LoginIdentity interface {
 	userIDStorage
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
@@ -60,6 +51,24 @@ type loginIdentity interface {
 	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
 	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
+}
+
+// WithDevices returns a LoginIdentity backed by a fixed set of devices.
+// The supplied devices are returned in all GetMFADevices calls.
+func WithDevices(identity LoginIdentity, devs []*types.MFADevice) LoginIdentity {
+	return &loginWithDevices{
+		LoginIdentity: identity,
+		devices:       devs,
+	}
+}
+
+type loginWithDevices struct {
+	LoginIdentity
+	devices []*types.MFADevice
+}
+
+func (l *loginWithDevices) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
+	return l.devices, nil
 }
 
 // LoginFlow represents the WebAuthn login procedure (aka authentication).
@@ -80,7 +89,7 @@ type LoginFlow struct {
 	Webauthn *types.Webauthn
 	// Identity is typically an implementation of the Identity service, ie, an
 	// object with access to user, device and MFA storage.
-	Identity loginIdentity
+	Identity LoginIdentity
 }
 
 // Begin is the first step of the LoginFlow.
@@ -90,6 +99,10 @@ type LoginFlow struct {
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
 func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertion, error) {
+	if user == "" {
+		return nil, trace.BadParameter("user required")
+	}
+
 	// Fetch existing user devices. We need the devices both to set the allowed
 	// credentials for the user (webUser.credentials) and to determine if the U2F
 	// appid extension is necessary.
@@ -139,6 +152,15 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertio
 // Finish has the side effect of updating the counter and last used timestamp of
 // the returned device.
 func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAssertionResponse) (*types.MFADevice, error) {
+	switch {
+	case user == "":
+		return nil, trace.BadParameter("user required")
+	case resp == nil:
+		// resp != nil is good enough to proceed, we leave remaining validations to
+		// duo-labs/webauthn.
+		return nil, trace.BadParameter("credential assertion response required")
+	}
+
 	parsedResp, err := parseCredentialResponse(resp)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -151,19 +173,11 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	// TODO(codingllama): Consider ignoring appid and basing the decision solely
 	//  in the device type. May be safer than assuming compliance?
 	// Do not read from parsedResp here, extensions don't carry over.
-	appidExt, ok := resp.Extensions[AppIDExtension]
-	if ok {
-		// Let's be as lenient as we can with the contents of "appid".
-		var err error
-		usingAppID, err = strconv.ParseBool(strings.ToLower(fmt.Sprint(appidExt)))
-		switch {
-		case err != nil:
-			log.Warnf("WebAuthn: failed to parse appid extension (%v)", appidExt)
-		case usingAppID && (f.U2F == nil || f.U2F.AppID == ""):
-			return nil, trace.BadParameter("appid extension provided but U2F app_id not configured")
-		case usingAppID:
-			rpID = f.U2F.AppID // Allow RPID = AppID for legacy devices
-		}
+	switch usingAppID := resp.Extensions != nil && resp.Extensions.AppID; {
+	case usingAppID && (f.U2F == nil || f.U2F.AppID == ""):
+		return nil, trace.BadParameter("appid extension provided but U2F app_id not configured")
+	case usingAppID:
+		rpID = f.U2F.AppID // Allow RPID = AppID for legacy devices
 	}
 
 	origin := parsedResp.Response.CollectedClientData.Origin
@@ -180,10 +194,10 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	dev, ok := findDeviceByID(devices, parsedResp.RawID)
 	switch {
 	case !ok:
-		return nil, trace.Errorf(
+		return nil, trace.BadParameter(
 			"unknown device credential: %q", base64.RawURLEncoding.EncodeToString(parsedResp.RawID))
 	case usingAppID && dev.GetU2F() == nil:
-		return nil, trace.Errorf(
+		return nil, trace.BadParameter(
 			"appid extension is true, but credential is not for an U2F device: %q", base64.RawURLEncoding.EncodeToString(parsedResp.RawID))
 	}
 
@@ -231,10 +245,11 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 }
 
 func parseCredentialResponse(resp *CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {
-	// Remove extensions before Marshal, they are not supported.
-	exts := resp.PublicKeyCredential.Extensions
-	resp.PublicKeyCredential.Extensions = nil
-	defer func() { resp.PublicKeyCredential.Extensions = exts }()
+	// Do not pass extensions on to duo-labs/webauthn, they won't go past JSON
+	// unmarshal.
+	exts := resp.Extensions
+	resp.Extensions = nil
+	defer func() { resp.Extensions = exts }()
 
 	// This is a roundabout way of getting resp validated, but unfortunately the
 	// APIs don't provide a better method (and it seems better than duplicating
