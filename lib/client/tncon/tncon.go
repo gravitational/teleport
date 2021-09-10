@@ -20,7 +20,7 @@ limitations under the License.
 package tncon
 
 /*
-#include <Windows.h>
+#include <windows.h>
 #include <stdlib.h>
 #include <synchapi.h>
 #include "tncon.h"
