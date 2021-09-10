@@ -16,15 +16,58 @@ limitations under the License.
 
 package proto
 
-import "github.com/gravitational/trace"
+import (
+	"time"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
+)
+
+// Duration is a wrapper around duration
+type Duration time.Duration
+
+// Get returns time.Duration value
+func (d Duration) Get() time.Duration {
+	return time.Duration(d)
+}
+
+// Set sets time.Duration value
+func (d *Duration) Set(value time.Duration) {
+	*d = Duration(value)
+}
+
+// FromWatchKind converts the watch kind value between internal
+// and the protobuf format
+func FromWatchKind(wk types.WatchKind) WatchKind {
+	return WatchKind{
+		Name:        wk.Name,
+		Kind:        wk.Kind,
+		SubKind:     wk.SubKind,
+		LoadSecrets: wk.LoadSecrets,
+		Filter:      wk.Filter,
+	}
+}
+
+// ToWatchKind converts the watch kind value between the protobuf
+// and the internal format
+func ToWatchKind(wk WatchKind) types.WatchKind {
+	return types.WatchKind{
+		Name:        wk.Name,
+		Kind:        wk.Kind,
+		SubKind:     wk.SubKind,
+		LoadSecrets: wk.LoadSecrets,
+		Filter:      wk.Filter,
+	}
+}
 
 // CheckAndSetDefaults checks and sets default values
-func (req *GenerateServerKeysRequest) CheckAndSetDefaults() error {
+func (req *HostCertsRequest) CheckAndSetDefaults() error {
 	if req.HostID == "" {
 		return trace.BadParameter("missing parameter HostID")
 	}
-	if len(req.Roles) != 1 {
-		return trace.BadParameter("expected only one system role, got %v", len(req.Roles))
+	if err := req.Role.Check(); err != nil {
+		return err
 	}
+
 	return nil
 }
