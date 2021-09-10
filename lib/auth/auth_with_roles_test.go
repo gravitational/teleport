@@ -955,10 +955,10 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	}
 }
 
-// TestMetaKindClusterConfig verifies that metaKindClusterConfig can be used as
-// an alternative privilege to provide access to cluster configuration
+// TestKindClusterConfig verifies that types.KindClusterConfig can be used
+// as an alternative privilege to provide access to cluster configuration
 // resources.
-func TestMetaKindClusterConfig(t *testing.T) {
+func TestKindClusterConfig(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
@@ -979,7 +979,7 @@ func TestMetaKindClusterConfig(t *testing.T) {
 		return []error{err1, err2, err3}
 	}
 
-	t.Run("without metaKindClusterConfig privilege", func(t *testing.T) {
+	t.Run("without KindClusterConfig privilege", func(t *testing.T) {
 		user, err := CreateUser(srv.AuthServer, "test-user")
 		require.NoError(t, err)
 		for _, err := range getClusterConfigResources(ctx, user) {
@@ -988,11 +988,11 @@ func TestMetaKindClusterConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("with metaKindClusterConfig privilege", func(t *testing.T) {
+	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
 		role, err := types.NewRole("test-role", types.RoleSpecV4{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
-					types.NewRule(metaKindClusterConfig, []string{types.VerbRead}),
+					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),
 				},
 			},
 		})
