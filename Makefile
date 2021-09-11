@@ -18,7 +18,7 @@ DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
-SHELL := /bin/bash
+SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
 ASSETS_BUILDDIR ?= lib/web/build
@@ -111,12 +111,39 @@ endif
 endif
 endif
 
+# Check if rust and cargo are installed before compiling
+with_roletester := no
+ROLETESTER_MESSAGE := "without access tester"
+CHECK_CARGO := $(shell cargo --version 2>/dev/null)
+CHECK_RUST := $(shell rustc --version 2>/dev/null)
+
+ifneq ($(CHECK_RUST),)
+ifneq ($(CHECK_CARGO),)
+with_roletester := yes
+ROLETESTER_MESSAGE := "with access tester"
+ROLETESTER_TAG := roletester
+ROLETESTER_BUILDDIR := lib/datalog/roletester/Cargo.toml
+endif
+endif
+
+# Reproducible builds are only availalbe on select targets, and only when OS=linux.
+REPRODUCIBLE ?=
+ifneq ("$(OS)","linux")
+REPRODUCIBLE = no
+endif
+
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(ROLETESTER_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
+endif
+
+# On platforms that support reproducible builds, ensure the archive is created in a reproducible manner.
+TAR_FLAGS ?=
+ifeq ("$(REPRODUCIBLE)","yes")
+TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
 VERSRC = version.go gitref.go api/version.go
@@ -143,8 +170,8 @@ all: version
 # * Manual change detection was broken on a large dependency tree
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
-$(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+$(BUILDDIR)/tctl: roletester
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode
@@ -192,6 +219,19 @@ update-vmlinux-h:
 else
 .PHONY: bpf-bytecode
 bpf-bytecode:
+endif
+
+#
+# tctl role tester
+# Requires a recent version of Rust and Cargo installed (tested rustc >= 1.52.1 and cargo >= 1.52.0)
+#
+ifeq ("$(with_roletester)", "yes")
+.PHONY: roletester
+roletester:
+	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release
+else
+.PHONY: roletester
+roletester:
 endif
 
 #
@@ -277,7 +317,7 @@ release-unix: clean full
 		CHANGELOG.md \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
-	tar --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu -c teleport | gzip -n > $(RELEASE).tar.gz
+	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 	@if [ -f e/Makefile ]; then \
@@ -286,19 +326,53 @@ release-unix: clean full
 	fi
 
 #
-# make release-windows - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make release-windows-unsigned - Produces a binary release archive containing only tsh.
 #
-.PHONY:
-release-windows: clean all
+.PHONY: release-windows-unsigned
+release-windows-unsigned: clean all
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
 		README.md \
 		CHANGELOG.md \
 		teleport/
-	mv teleport/tsh teleport/tsh.exe
+	mv teleport/tsh teleport/tsh-unsigned.exe
 	echo $(GITTAG) > teleport/VERSION
+	zip -9 -y -r -q $(RELEASE)-unsigned.zip teleport/
+	rm -rf teleport/
+	@echo "---> Created $(RELEASE)-unsigned.zip."
+
+#
+# make release-windows - Produces an archive containing a signed release of
+# tsh.exe
+#
+.PHONY: release-windows
+release-windows: release-windows-unsigned
+	@if [ ! -f "windows-signing-cert.pfx" ]; then \
+		echo "windows-signing-cert.pfx is missing or invalid, cannot create signed archive."; \
+		exit 1; \
+	fi
+
+	rm -rf teleport
+	@echo "---> Extracting $(RELEASE)-unsigned.zip"
+	unzip $(RELEASE)-unsigned.zip
+	
+	@echo "---> Signing Windows binary."
+	@osslsigncode sign \
+		-pkcs12 "windows-signing-cert.pfx" \
+		-n "Teleport" \
+		-i https://goteleport.com \
+		-t http://timestamp.digicert.com \
+		-h sha2 \
+		-in teleport/tsh-unsigned.exe \
+		-out teleport/tsh.exe; \
+	success=$$?; \
+	rm -f teleport/tsh-unsigned.exe; \
+	if [ "$${success}" -ne 0 ]; then \
+		echo "Failed to sign tsh.exe, aborting."; \
+		exit 1; \
+	fi
+
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
 	@echo "---> Created $(RELEASE).zip."
@@ -343,24 +417,24 @@ test: test-sh test-api test-go
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test-go
-test-go: ensure-webassets bpf-bytecode
+test-go: ensure-webassets bpf-bytecode roletester
 test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover $(ADDFLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets bpf-bytecode
+test-go-root: ensure-webassets bpf-bytecode roletester
 test-go-root: FLAGS ?= '-race'
 test-go-root: PACKAGES := $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
-	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Runs API Go tests. These have to be run separately as the package name is different.
 #
@@ -369,7 +443,7 @@ test-api:
 test-api: FLAGS ?= '-race'
 test-api: PACKAGES := $(shell cd api && go list ./...)
 test-api: $(VERSRC)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -390,7 +464,7 @@ integration: FLAGS ?= -v -race
 integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS)
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -409,7 +483,7 @@ integration-root:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go
+lint: lint-sh lint-helm lint-api lint-go lint-license
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -470,6 +544,39 @@ lint-helm:
 			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
 		fi; \
 	done
+
+ADDLICENSE := $(GOPATH)/bin/addlicense
+ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
+		-ignore '**/*.c' \
+		-ignore '**/*.h' \
+		-ignore '**/*.html' \
+		-ignore '**/*.js' \
+		-ignore '**/*.py' \
+		-ignore '**/*.rs' \
+		-ignore '**/*.sh' \
+		-ignore '**/*.tf' \
+		-ignore '**/*.yaml' \
+		-ignore '**/*.yml' \
+		-ignore '**/Dockerfile' \
+		-ignore 'api/version.go' \
+		-ignore 'e/**' \
+		-ignore 'gitref.go' \
+		-ignore 'lib/web/build/**' \
+		-ignore 'vendor/**' \
+		-ignore 'version.go' \
+		-ignore 'webassets/**' \
+		-ignore 'ignoreme'
+
+.PHONY: lint-license
+lint-license: $(ADDLICENSE)
+	$(ADDLICENSE) $(ADDLICENSE_ARGS) -check * 2>/dev/null
+
+.PHONY: fix-license
+fix-license: $(ADDLICENSE)
+	$(ADDLICENSE) $(ADDLICENSE_ARGS) * 2>/dev/null
+
+$(ADDLICENSE):
+	cd && go install github.com/google/addlicense@v1.0.0
 
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
@@ -592,6 +699,10 @@ buildbox-grpc:
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
 	  --gogofast_out=plugins=grpc:.\
     *.proto
+
+	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
+	  --gogofast_out=plugins=grpc:.\
+    types.proto
 
 .PHONY: goinstall
 goinstall:

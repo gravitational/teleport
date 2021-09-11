@@ -427,6 +427,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RW()),
+						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
 					},
@@ -728,6 +729,22 @@ func ClientUsername(ctx context.Context) string {
 		return teleport.UserSystem
 	}
 	return identity.Username
+}
+
+// GetClientUsername returns the username of a remote HTTP client making the call.
+// If ctx didn't pass through auth middleware or did not come from an HTTP
+// request, returns an error.
+func GetClientUsername(ctx context.Context) (string, error) {
+	userI := ctx.Value(ContextUser)
+	userWithIdentity, ok := userI.(IdentityGetter)
+	if !ok {
+		return "", trace.AccessDenied("missing identity")
+	}
+	identity := userWithIdentity.GetIdentity()
+	if identity.Username == "" {
+		return "", trace.AccessDenied("missing identity username")
+	}
+	return identity.Username, nil
 }
 
 // ClientImpersonator returns the impersonator username of a remote client

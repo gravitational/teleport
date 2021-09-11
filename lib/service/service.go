@@ -83,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
+	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1571,6 +1572,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		DynamicAccess:   cfg.services,
 		Presence:        cfg.services,
 		Restrictions:    cfg.services,
+		Databases:       cfg.services,
 		AppSession:      cfg.services,
 		WindowsDesktops: cfg.services,
 		WebSession:      cfg.services.WebSessions(),
@@ -2337,6 +2339,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
 			utils.NetAddr{Addr: reversetunnel.LocalWindowsDesktop},
+			utils.NetAddr{Addr: desktop.WildcardServiceDNS},
 		)
 		addrs = append(addrs, process.Config.WindowsDesktop.PublicAddrs...)
 	}
@@ -3277,28 +3280,20 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		// Loop over each application and create a server.
-		var applications []*types.App
+		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
 			publicAddr, err := getPublicAddr(accessPoint, app)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
-			a := &types.App{
-				Name:               app.Name,
-				Description:        app.Description,
-				URI:                app.URI,
-				PublicAddr:         publicAddr,
-				StaticLabels:       app.StaticLabels,
-				DynamicLabels:      types.LabelsToV2(app.DynamicLabels),
-				InsecureSkipVerify: app.InsecureSkipVerify,
-			}
+			var rewrite *types.Rewrite
 			if app.Rewrite != nil {
-				a.Rewrite = &types.Rewrite{
+				rewrite = &types.Rewrite{
 					Redirect: app.Rewrite.Redirect,
 				}
 				for _, header := range app.Rewrite.Headers {
-					a.Rewrite.Headers = append(a.Rewrite.Headers,
+					rewrite.Headers = append(rewrite.Headers,
 						&types.Header{
 							Name:  header.Name,
 							Value: header.Value,
@@ -3306,21 +3301,24 @@ func (process *TeleportProcess) initApps() {
 				}
 			}
 
+			a, err := types.NewAppV3(types.Metadata{
+				Name:        app.Name,
+				Description: app.Description,
+				Labels:      app.StaticLabels,
+			}, types.AppSpecV3{
+				URI:                app.URI,
+				PublicAddr:         publicAddr,
+				DynamicLabels:      types.LabelsToV2(app.DynamicLabels),
+				InsecureSkipVerify: app.InsecureSkipVerify,
+				Rewrite:            rewrite,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			applications = append(applications, a)
 		}
-		server := &types.ServerV2{
-			Kind:    types.KindAppServer,
-			Version: types.V2,
-			Metadata: types.Metadata{
-				Namespace: apidefaults.Namespace,
-				Name:      process.Config.HostUUID,
-			},
-			Spec: types.ServerSpecV2{
-				Hostname: process.Config.Hostname,
-				Version:  teleport.Version,
-				Apps:     applications,
-			},
-		}
+
 		clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
@@ -3349,8 +3347,10 @@ func (process *TeleportProcess) initApps() {
 			Authorizer:   authorizer,
 			TLSConfig:    tlsConfig,
 			CipherSuites: process.Config.CipherSuites,
+			HostID:       process.Config.HostUUID,
+			Hostname:     process.Config.Hostname,
 			GetRotation:  process.getRotation,
-			Server:       server,
+			Apps:         applications,
 			OnHeartbeat: func(err error) {
 				if err != nil {
 					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentApp})
@@ -3365,7 +3365,9 @@ func (process *TeleportProcess) initApps() {
 
 		// Start the apps server. This starts the server, heartbeat (services.App),
 		// and (dynamic) label update.
-		appServer.Start()
+		if err := appServer.Start(process.ExitContext()); err != nil {
+			return trace.Wrap(err)
+		}
 
 		// Create and start an agent pool.
 		agentPool, err = reversetunnel.NewAgentPool(process.ExitContext(),

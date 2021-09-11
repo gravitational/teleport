@@ -46,11 +46,9 @@ Typical sequence of messages in a desktop session:
 +--------+                                +--------+
 | client |                                | server |
 +--------+                                +--------+
-     |           1 - client screen spec       |
+     |           7 - client username          |
      |--------------------------------------->|
-     |     7 - username/password required     |
-     |<---------------------------------------|
-     |     8 - username/password response     |
+     |           1 - client screen spec       |
      |--------------------------------------->|
      |             2 - PNG frame              |
      |<---------------------------------------|
@@ -68,6 +66,10 @@ Typical sequence of messages in a desktop session:
      |<---------------------------------------|
      |                ....                    |
 ```
+
+Note that `client username` and `client screen spec` **must** be the first two
+messages sent by the client, in that order. Any other incoming messages will be
+discarded until those two are received.
 
 ### Message encoding
 
@@ -170,22 +172,11 @@ This message contains clipboard data. Sent in either direction.
 When this message is sent from server to client, it's a "copy" action.
 When this message is sent from client to server, it's a "paste" action.
 
-#### 7 - username/password required
+#### 7 - client username
 
 ```
-| message type (7) |
+| message type (7) | username_length uint32 | username []byte
 ```
 
-This message indicates that automatic authentication at the transport layer
-failed and the server requests the client to enter their username/password.
-Sent from server to client, usually when RDP server does not accept Teleport's
-certificate authentication.
-
-#### 8 - username/password response
-
-```
-| message type (8) | user_length uint32 | username []byte | pass_length uint32 | password []byte
-```
-
-This message is a response to message 7, carrying user-provided username and
-password. Sent from client to server.
+This is the first message of the protocol and contains the username to login as
+on the remote desktop.

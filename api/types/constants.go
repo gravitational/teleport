@@ -112,6 +112,9 @@ const (
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
+	// KindApp is a web app resource.
+	KindApp = "app"
+
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
@@ -236,6 +239,9 @@ const (
 
 	// KindWindowsDesktop is a Windows desktop host.
 	KindWindowsDesktop = "windows_desktop"
+
+	// KindRecoveryCodes is a resource that holds users recovery codes.
+	KindRecoveryCodes = "recovery_codes"
 
 	// V4 is the fourth version of resources.
 	V4 = "v4"

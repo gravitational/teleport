@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"gopkg.in/check.v1"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 func TestMain(m *testing.M) {
@@ -36,70 +36,37 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestDynamoDB(t *testing.T) { check.TestingT(t) }
+const tableName = "teleport.dynamo.test"
 
-type DynamoDBSuite struct {
-	bk        *Backend
-	suite     test.BackendSuite
-	tableName string
-}
-
-var _ = check.Suite(&DynamoDBSuite{})
-
-func (s *DynamoDBSuite) SetUpSuite(c *check.C) {
-	s.tableName = "teleport.dynamo.test"
-	newBackend := func() (backend.Backend, error) {
-		return New(context.Background(), map[string]interface{}{
-			"table_name":         s.tableName,
-			"poll_stream_period": 300 * time.Millisecond,
-		})
+func TestDynamoDB(t *testing.T) {
+	dynamoCfg := map[string]interface{}{
+		"table_name":         tableName,
+		"poll_stream_period": 300 * time.Millisecond,
 	}
-	bk, err := newBackend()
-	c.Assert(err, check.IsNil)
-	s.bk = bk.(*Backend)
-	s.suite.B = s.bk
-	s.suite.NewBackend = newBackend
-}
 
-func (s *DynamoDBSuite) TearDownSuite(c *check.C) {
-	if s.bk != nil && s.bk.svc != nil {
-		//		s.bk.deleteTable(context.Background(), s.tableName, false)
-		c.Assert(s.bk.Close(), check.IsNil)
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+		testCfg, err := test.ApplyOptions(options)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		if testCfg.MirrorMode {
+			return nil, nil, test.ErrMirrorNotSupported
+		}
+
+		// This would seem to be a bad thing for dynamo to omit
+		if testCfg.ConcurrentBackend != nil {
+			return nil, nil, test.ErrConcurrentAccessNotSupported
+		}
+
+		uut, err := New(context.Background(), dynamoCfg)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		clock := clockwork.NewFakeClock()
+		uut.clock = clock
+		return uut, clock, nil
 	}
-}
 
-func (s *DynamoDBSuite) TestCRUD(c *check.C) {
-	s.suite.CRUD(c)
-}
-
-func (s *DynamoDBSuite) TestRange(c *check.C) {
-	s.suite.Range(c)
-}
-
-func (s *DynamoDBSuite) TestDeleteRange(c *check.C) {
-	s.suite.DeleteRange(c)
-}
-
-func (s *DynamoDBSuite) TestCompareAndSwap(c *check.C) {
-	s.suite.CompareAndSwap(c)
-}
-
-func (s *DynamoDBSuite) TestExpiration(c *check.C) {
-	s.suite.Expiration(c)
-}
-
-func (s *DynamoDBSuite) TestKeepAlive(c *check.C) {
-	s.suite.KeepAlive(c)
-}
-
-func (s *DynamoDBSuite) TestEvents(c *check.C) {
-	s.suite.Events(c)
-}
-
-func (s *DynamoDBSuite) TestWatchersClose(c *check.C) {
-	s.suite.WatchersClose(c)
-}
-
-func (s *DynamoDBSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c, s.bk)
+	test.RunBackendComplianceSuite(t, newBackend)
 }
