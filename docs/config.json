@@ -120,7 +120,8 @@
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
             { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
             {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"},
-            {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"}
+            {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"},
+            {"title": "Visual Studio Code", "slug": "/server-access/guides/vscode/"}
           ]
         }
       ]
