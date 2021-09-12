@@ -142,7 +142,9 @@ $ helm install teleport teleport/teleport
 ## Windows (tsh client only)
 
 As of version v3.0.1 we have `tsh` client binary available for Windows 64-bit
-architecture - `teleport` and `tctl` are not supported.
+architecture - `teleport` and `tctl` are not supported. Most `tsh` features are
+supported under Windows 10 1607+ as of Teleport v7.2. We support running
+`tsh ssh` under `cmd.exe`, PowerShell, and the Windows Terminal app.
 
 <Tabs>
   <TabItem label="Powershell">
@@ -233,6 +235,4 @@ that the open-source community has been successful in building and running Telep
 any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
 
 \[2] *Teleport server does not run on Windows yet, but `tsh` (the Teleport client)
-can be used on Windows to execute `tsh login` to retrieve a user's SSH
-certificate and use it with `ssh`, the OpenSSH client, running on a Windows
-client machine.*
+supports most features on Windows 10 and later.*
