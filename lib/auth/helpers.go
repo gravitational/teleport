@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -377,9 +378,34 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	return certs.ssh, nil
 }
 
+// PrivateKeyToPublicKeyTLS gets the TLS public key from a raw private key.
+func PrivateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error) {
+	sshPrivate, err := ssh.ParseRawPrivateKey(privateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPublicKey, err = tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tlsPublicKey, nil
+}
+
 // generateCertificate generates certificate for identity,
 // returns private public key pair
 func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []byte, error) {
+	priv, pub, err := authServer.GenerateKeyPair("")
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(priv)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	switch id := identity.I.(type) {
 	case LocalUser:
 		user, err := authServer.GetUser(id.Username, false)
@@ -392,10 +418,6 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		}
 		if identity.TTL == 0 {
 			identity.TTL = time.Hour
-		}
-		priv, pub, err := authServer.GenerateKeyPair("")
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
 		}
 		certs, err := authServer.generateUserCert(certRequest{
 			publicKey:      pub,
@@ -412,23 +434,29 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		return certs.tls, priv, nil
 	case BuiltinRole:
 		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
-			HostID:   id.Username,
-			NodeName: id.Username,
-			Roles:    types.SystemRoles{id.Role},
+			HostID:       id.Username,
+			NodeName:     id.Username,
+			Roles:        types.SystemRoles{id.Role},
+			PublicTLSKey: tlsPublicKey,
+			PublicSSHKey: pub,
 		})
+		keys.Key = priv
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		return keys.TLSCert, keys.Key, nil
 	case RemoteBuiltinRole:
 		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
-			HostID:   id.Username,
-			NodeName: id.Username,
-			Roles:    types.SystemRoles{id.Role},
+			HostID:       id.Username,
+			NodeName:     id.Username,
+			Roles:        types.SystemRoles{id.Role},
+			PublicTLSKey: tlsPublicKey,
+			PublicSSHKey: pub,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		keys.Key = priv
 		return keys.TLSCert, keys.Key, nil
 	default:
 		return nil, nil, trace.BadParameter("identity of unknown type %T is unsupported", identity)
@@ -840,14 +868,27 @@ func (t *TestTLSServer) Stop() error {
 
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Identity, error) {
+	priv, pub, err := clt.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	publicTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	keys, err := clt.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: hostID,
-		Roles:    types.SystemRoles{types.RoleAuth},
+		HostID:       hostID,
+		NodeName:     hostID,
+		Roles:        types.SystemRoles{types.RoleAuth},
+		PublicTLSKey: publicTLS,
+		PublicSSHKey: pub,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	keys.Key = priv
 	return ReadIdentityFromKeyPair(keys)
 }
 
