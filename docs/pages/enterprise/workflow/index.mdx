@@ -24,6 +24,7 @@ This role allows the contractor to request the role DBA.
 
 ```yaml
 kind: role
+version: v4
 metadata:
   name: contractor
 spec:
@@ -42,6 +43,7 @@ This role allows the contractor to request the role DBA.
 
 ```yaml
 kind: role
+version: v4
 metadata:
   name: dba
 spec:
@@ -60,6 +62,7 @@ This role allows the admin to approve the contractor's request.
 
 ```yaml
 kind: role
+version: v4
 metadata:
   name: admin
 spec:
@@ -78,21 +81,21 @@ spec:
         verbs: [list, read, update, delete]
 ```
 
-```bash
+```code
 $ tsh login teleport-cluster --request-roles=dba
-Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
+# Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
 ```
 
 As a Teleport Administrator:
 
-```bash
+```code
 $ tctl request ls
-Token                                Requestor Metadata       Created At (UTC)    Status
------------------------------------- --------- -------------- ------------------- -------
-bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UTC PENDING
+# Token                                Requestor Metadata       Created At (UTC)    Status
+# ------------------------------------ --------- -------------- ------------------- -------
+# bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UTC PENDING
 ```
 
-```bash
+```code
 $ tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 ```
 
@@ -114,6 +117,7 @@ the permission of the `dba`.
 # Example role that explicitly denies a contractor from requesting the admin
 # role.
 kind: role
+version: v4
 metadata:
 name: contractor
 spec:
@@ -198,11 +202,11 @@ version: v3
 
 **Unprivileged User Login**<br/>
 
-```bash
+```code
 # Login: This will prompt the user to provide a reason in the UI.
-tsh login
+$ tsh login
 # Login: The user can provide a reason using tsh.
-tsh login --request-reason="..."
+$ tsh login --request-reason="..."
 ```
 
 <Admonition
@@ -216,13 +220,13 @@ tsh login --request-reason="..."
 
 A number of new parameters are now available that grant the plugin or administrator greater insight into approvals/denials:
 
-```bash
+```code
 $ tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
 Because automatically generated requests always include all roles that the user is allowed to request, approvers can now specify a smaller subset of the requested roles that should actually be applied, allowing for sub-selection in cases where full escalation is not a desirable default:
 
-```bash
+```code
 $ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 

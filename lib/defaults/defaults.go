@@ -63,6 +63,16 @@ const (
 	// MetricsListenPort is the default listen port for the metrics service.
 	MetricsListenPort = 3081
 
+	// WindowsDesktopListenPort is the default listed port for
+	// windows_desktop_service.
+	//
+	// TODO(awly): update to match HTTPListenPort once SNI routing is
+	// implemented.
+	WindowsDesktopListenPort = 3028
+
+	// RDPListenPort is the standard port for RDP servers.
+	RDPListenPort = 3389
+
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
 
@@ -149,6 +159,12 @@ const (
 	// ChangePasswordTokenTTL is a default password change token expiry time
 	ChangePasswordTokenTTL = 8 * time.Hour
 
+	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
+	RecoveryStartTokenTTL = 3 * time.Hour
+
+	// RecoveryApprovedTokenTTL is a default expiry time for a recovery approved token.
+	RecoveryApprovedTokenTTL = 15 * time.Minute
+
 	// ResetPasswordLength is the length of the reset user password
 	ResetPasswordLength = 16
 
@@ -213,6 +229,10 @@ const (
 	// MaxLoginAttempts sets the max. number of allowed failed login attempts
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5
+
+	// MaxAccountRecoveryAttempts sets the max number of allowed failed recovery attempts
+	// before a user is locked from login and further recovery attempts for AccountLockInterval.
+	MaxAccountRecoveryAttempts = 3
 
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts
@@ -367,6 +387,9 @@ var (
 	// DatabasesQueueSize is db service queue size.
 	DatabasesQueueSize = 128
 
+	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
+	WindowsDesktopQueueSize = 128
+
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
 	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
@@ -515,6 +538,9 @@ const (
 const (
 	// U2FChallengeTimeout is hardcoded in the U2F library
 	U2FChallengeTimeout = 5 * time.Minute
+	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
+	// or registration challenges.
+	WebauthnChallengeTimeout = 5 * time.Minute
 )
 
 const (

@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -568,12 +569,20 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(roles.Include(types.RoleNode), Equals, true)
 	c.Assert(roles.Include(types.RoleProxy), Equals, false)
 
+	priv, pub, err := s.a.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(priv)
+	c.Assert(err, IsNil)
+
 	// unsuccessful registration (wrong role)
 	keys, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    tok,
-		HostID:   "bad-host-id",
-		NodeName: "bad-node-name",
-		Role:     types.RoleProxy,
+		Token:        tok,
+		HostID:       "bad-host-id",
+		NodeName:     "bad-node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(keys, IsNil)
 	c.Assert(err, NotNil)
@@ -606,6 +615,8 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		NodeName:             "node-name",
 		Role:                 types.RoleProxy,
 		AdditionalPrincipals: []string{"example.com"},
+		PublicTLSKey:         tlsPublicKey,
+		PublicSSHKey:         pub,
 	})
 	c.Assert(err, IsNil)
 
@@ -616,20 +627,24 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(apiutils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
 
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    multiUseToken,
-		HostID:   "twice",
-		NodeName: "node-name",
-		Role:     types.RoleProxy,
+		Token:        multiUseToken,
+		HostID:       "twice",
+		NodeName:     "node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, IsNil)
 
 	// try to use after TTL:
 	s.a.SetClock(clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1)))
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    multiUseToken,
-		HostID:   "late.bird",
-		NodeName: "node-name",
-		Role:     types.RoleProxy,
+		Token:        multiUseToken,
+		HostID:       "late.bird",
+		NodeName:     "node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, ErrorMatches, `"node-name" \[late.bird\] can not join the cluster with role Proxy, the token is not valid`)
 
@@ -650,17 +665,21 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	err = s.a.SetStaticTokens(st)
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    "static-token-value",
-		HostID:   "static.host",
-		NodeName: "node-name",
-		Role:     types.RoleProxy,
+		Token:        "static-token-value",
+		HostID:       "static.host",
+		NodeName:     "node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    "static-token-value",
-		HostID:   "wrong.role",
-		NodeName: "node-name",
-		Role:     types.RoleAuth,
+		Token:        "static-token-value",
+		HostID:       "wrong.role",
+		NodeName:     "node-name",
+		Role:         types.RoleAuth,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, NotNil)
 	r, _, err := s.a.ValidateToken("static-token-value")
@@ -1112,7 +1131,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 
 	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
-	mfaID := uuid.New()
+	mfaID := "test-mfa-id"
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
@@ -1191,6 +1210,44 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	// Locks targeting nodes should not apply to other system roles.
 	_, err = p.a.GenerateHostCert(pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleProxy}, time.Minute)
 	require.NoError(t, err)
+}
+
+func TestNewWebSession(t *testing.T) {
+	t.Parallel()
+	p, err := newTestPack(context.Background(), t.TempDir())
+	require.NoError(t, err)
+
+	// Set a web idle timeout.
+	duration := time.Duration(5) * time.Minute
+	cfg := types.DefaultClusterNetworkingConfig()
+	cfg.SetWebIdleTimeout(duration)
+	p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+
+	// Create a user.
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"})
+	require.NoError(t, err)
+
+	// Create a new web session.
+	req := types.NewWebSessionRequest{
+		User:       user.GetName(),
+		Roles:      user.GetRoles(),
+		Traits:     user.GetTraits(),
+		LoginTime:  p.a.clock.Now().UTC(),
+		SessionTTL: apidefaults.CertDuration,
+	}
+	bearerTokenTTL := utils.MinTTL(req.SessionTTL, BearerTokenTTL)
+
+	ws, err := p.a.NewWebSession(req)
+	require.NoError(t, err)
+	require.Equal(t, user.GetName(), ws.GetUser())
+	require.Equal(t, duration, ws.GetIdleTimeout())
+	require.Equal(t, req.LoginTime, ws.GetLoginTime())
+	require.Equal(t, req.LoginTime.UTC().Add(req.SessionTTL), ws.GetExpiryTime())
+	require.Equal(t, req.LoginTime.UTC().Add(bearerTokenTTL), ws.GetBearerTokenExpiryTime())
+	require.NotEmpty(t, ws.GetBearerToken())
+	require.NotEmpty(t, ws.GetPriv())
+	require.NotEmpty(t, ws.GetPub())
+	require.NotEmpty(t, ws.GetTLSCert())
 }
 
 func newTestServices(t *testing.T) Services {

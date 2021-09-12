@@ -799,7 +799,84 @@ func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	return servers, nil
 }
 
+// GetApplicationServers returns all registered application servers.
+func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	resp, err := c.grpc.GetApplicationServers(ctx, &proto.GetApplicationServersRequest{
+		Namespace: namespace,
+	}, c.callOpts...)
+	if err != nil {
+		if trace.IsNotImplemented(trail.FromGRPC(err)) {
+			servers, err := c.getApplicationServersFallback(ctx, namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return servers, nil
+		}
+		return nil, trail.FromGRPC(err)
+	}
+	var servers []types.AppServer
+	for _, server := range resp.GetServers() {
+		servers = append(servers, server)
+	}
+	return servers, nil
+}
+
+// getApplicationServersFallback fetches app servers using legacy API call
+// from clusters that haven't been upgraded yet.
+//
+// DELETE IN 9.0.
+func (c *Client) getApplicationServersFallback(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	legacyServers, err := c.GetAppServers(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var servers []types.AppServer
+	for _, legacyServer := range legacyServers {
+		converted, err := types.NewAppServersV3FromServer(legacyServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers = append(servers, converted...)
+	}
+	return servers, nil
+}
+
+// UpsertApplicationServer registers an application server.
+func (c *Client) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	s, ok := server.(*types.AppServerV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", server)
+	}
+	keepAlive, err := c.grpc.UpsertApplicationServer(ctx, &proto.UpsertApplicationServerRequest{
+		Server: s,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteApplicationServer removes specified application server.
+func (c *Client) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+	_, err := c.grpc.DeleteApplicationServer(ctx, &proto.DeleteApplicationServerRequest{
+		Namespace: namespace,
+		HostID:    hostID,
+		Name:      name,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllApplicationServers removes all registered application servers.
+func (c *Client) DeleteAllApplicationServers(ctx context.Context, namespace string) error {
+	_, err := c.grpc.DeleteAllApplicationServers(ctx, &proto.DeleteAllApplicationServersRequest{
+		Namespace: namespace,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GetAppServers gets all application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string) ([]types.Server, error) {
 	resp, err := c.grpc.GetAppServers(ctx, &proto.GetAppServersRequest{
 		Namespace: namespace,
@@ -817,6 +894,8 @@ func (c *Client) GetAppServers(ctx context.Context, namespace string) ([]types.S
 }
 
 // UpsertAppServer adds an application server.
+//
+// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
 func (c *Client) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	s, ok := server.(*types.ServerV2)
 	if !ok {
@@ -833,6 +912,8 @@ func (c *Client) UpsertAppServer(ctx context.Context, server types.Server) (*typ
 }
 
 // DeleteAppServer removes an application server.
+//
+// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
 func (c *Client) DeleteAppServer(ctx context.Context, namespace string, name string) error {
 	_, err := c.grpc.DeleteAppServer(ctx, &proto.DeleteAppServerRequest{
 		Namespace: namespace,
@@ -842,6 +923,8 @@ func (c *Client) DeleteAppServer(ctx context.Context, namespace string, name str
 }
 
 // DeleteAllAppServers removes all application servers.
+//
+// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
 func (c *Client) DeleteAllAppServers(ctx context.Context, namespace string) error {
 	_, err := c.grpc.DeleteAllAppServers(ctx, &proto.DeleteAllAppServersRequest{
 		Namespace: namespace,
@@ -1813,4 +1896,156 @@ func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
 func (c *Client) DeleteAllDatabases(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllDatabases(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
+}
+
+// GetWindowsDesktopServices returns all registered windows desktop services.
+func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	services := make([]types.WindowsDesktopService, 0, len(resp.GetServices()))
+	for _, service := range resp.GetServices() {
+		services = append(services, service)
+	}
+	return services, nil
+}
+
+// UpsertWindowsDesktopService registers a new windows desktop service.
+func (c *Client) UpsertWindowsDesktopService(ctx context.Context, service types.WindowsDesktopService) (*types.KeepAlive, error) {
+	s, ok := service.(*types.WindowsDesktopServiceV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", service)
+	}
+	keepAlive, err := c.grpc.UpsertWindowsDesktopService(ctx, s, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteWindowsDesktopService removes the specified windows desktop service.
+func (c *Client) DeleteWindowsDesktopService(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteWindowsDesktopService(ctx, &proto.DeleteWindowsDesktopServiceRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAllWindowsDesktopServices removes all registered windows desktop services.
+func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllWindowsDesktopServices(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// GetWindowsDesktops returns all registered windows desktop hosts.
+func (c *Client) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+	resp, err := c.grpc.GetWindowsDesktops(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	desktops := make([]types.WindowsDesktop, 0, len(resp.GetDesktops()))
+	for _, desktop := range resp.GetDesktops() {
+		desktops = append(desktops, desktop)
+	}
+	return desktops, nil
+}
+
+// GetWindowsDesktop returns a registered windows desktop host.
+func (c *Client) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
+	desktop, err := c.grpc.GetWindowsDesktop(ctx, &proto.GetWindowsDesktopRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return desktop, nil
+}
+
+// CreateWindowsDesktop registers a new windows desktop host.
+func (c *Client) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	d, ok := desktop.(*types.WindowsDesktopV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.CreateWindowsDesktop(ctx, d, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateWindowsDesktop updates an existing windows desktop host.
+func (c *Client) UpdateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	d, ok := desktop.(*types.WindowsDesktopV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpdateWindowsDesktop(ctx, d, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteWindowsDesktop removes the specified windows desktop host.
+func (c *Client) DeleteWindowsDesktop(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteWindowsDesktop(ctx, &proto.DeleteWindowsDesktopRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAllWindowsDesktops removes all registered windows desktop hosts.
+func (c *Client) DeleteAllWindowsDesktops(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllWindowsDesktops(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
+// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
+func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
+	res, err := c.grpc.ChangeUserAuthentication(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
+// This token is used as part of a URL that will be emailed to the user (not done in this request).
+// Represents step 1 of the account recovery process.
+func (c *Client) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
+	res, err := c.grpc.StartAccountRecovery(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// ApproveAccountRecovery creates a recovery approved token after successful verification of users password or second factor
+// (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
+// Represents step 2 of the account recovery process after RPC StartAccountRecovery.
+func (c *Client) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error) {
+	res, err := c.grpc.ApproveAccountRecovery(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// CompleteAccountRecovery sets a new password or adds a new mfa device,
+// allowing user to regain access to their account using the new credentials.
+// Represents the last step in the account recovery process after RPC's StartAccountRecovery and ApproveAccountRecovery.
+func (c *Client) CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error {
+	_, err := c.grpc.CompleteAccountRecovery(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
+func (c *Client) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
+	res, err := c.grpc.CreateAccountRecoveryCodes(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// GetAccountRecoveryToken returns a user token resource after verifying the token in
+// request is not expired and is of the correct recovery type.
+func (c *Client) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error) {
+	res, err := c.grpc.GetAccountRecoveryToken(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
 }

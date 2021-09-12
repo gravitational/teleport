@@ -505,10 +505,8 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 	// connecting to using routing information from identity.
 	var result []types.DatabaseServer
 	for _, server := range servers {
-		for _, database := range server.GetDatabases() {
-			if database.GetName() == identity.RouteToDatabase.ServiceName {
-				result = append(result, server)
-			}
+		if server.GetDatabase().GetName() == identity.RouteToDatabase.ServiceName {
+			result = append(result, server)
 		}
 	}
 	if len(result) != 0 {

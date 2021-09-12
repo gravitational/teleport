@@ -45,6 +45,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
+	apiProto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -176,13 +177,22 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	priv, pub, err := s.server.AuthServer.AuthServer.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	c.Assert(err, IsNil)
+
 	// start node
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: s.server.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		HostID:       hostID,
+		NodeName:     s.server.ClusterName(),
+		Roles:        types.SystemRoles{types.RoleNode},
+		PublicSSHKey: pub,
+		PublicTLSKey: tlsPub,
 	})
 	c.Assert(err, IsNil)
+	certs.Key = priv
 
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	c.Assert(err, IsNil)
@@ -497,7 +507,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 
-	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after;connector_id=` + connector.GetName())
+	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after&connector_id=` + connector.GetName())
 	c.Assert(err, IsNil)
 	req, err := http.NewRequest("GET", baseURL.String(), nil)
 	c.Assert(err, IsNil)
@@ -814,7 +824,6 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 		c.Assert(err, NotNil, Commentf(testCase.expectedErr))
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
-
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
@@ -1331,7 +1340,7 @@ func (s *WebSuite) TestLogin(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
-func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
+func (s *WebSuite) TestChangePasswordAndAddTOTPDeviceWithToken(c *C) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
@@ -1386,12 +1395,13 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var rawSess *CreateSessionResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
-	c.Assert(rawSess.Token != "", Equals, true)
+	// Test that no recovery codes are returned b/c cloud feature isn't enabled.
+	var recoveryCodes []string
+	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
+	c.Assert(recoveryCodes, HasLen, 0)
 }
 
-func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
+func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorU2F,
@@ -1442,145 +1452,10 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var rawSess *CreateSessionResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
-	c.Assert(rawSess.Token != "", Equals, true)
-}
-
-func TestU2FLogin(t *testing.T) {
-	for _, sf := range []constants.SecondFactorType{
-		constants.SecondFactorU2F,
-		constants.SecondFactorOptional,
-		constants.SecondFactorOn,
-		constants.SecondFactorOff,
-	} {
-		sf := sf
-		t.Run(fmt.Sprintf("second_factor_%s", sf), func(t *testing.T) {
-			t.Parallel()
-			testU2FLogin(t, sf)
-		})
-	}
-}
-
-func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-
-	// configure cluster authentication preferences
-	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorU2F,
-		U2F: &types.U2F{
-			AppID:  "https://" + env.server.TLS.ClusterName(),
-			Facets: []string{"https://" + env.server.TLS.ClusterName()},
-		},
-	})
-	require.NoError(t, err)
-	err = env.server.Auth().SetAuthPreference(ctx, cap)
-	require.NoError(t, err)
-
-	// create user
-	env.proxies[0].createUser(ctx, t, "bob", "root", "password", "")
-
-	// create password change token
-	token, err := env.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
-		Name: "bob",
-	})
-	require.NoError(t, err)
-
-	u2fRegReq, err := env.proxies[0].client.GetSignupU2FRegisterRequest(token.GetName())
-	require.NoError(t, err)
-
-	mockU2F, err := mocku2f.Create()
-	require.NoError(t, err)
-	u2fRegResp, err := mockU2F.RegisterResponse(u2fRegReq)
-	require.NoError(t, err)
-
-	tempPass := []byte("abc123")
-	_, err = env.proxies[0].client.ChangePasswordWithToken(context.TODO(), auth.ChangePasswordWithTokenRequest{
-		TokenID:             token.GetName(),
-		U2FRegisterResponse: u2fRegResp,
-		Password:            tempPass,
-	})
-	require.NoError(t, err)
-
-	// normal login
-	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
-	require.NoError(t, err)
-	re, err := clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: "bob",
-		Pass: string(tempPass),
-	})
-	require.NoError(t, err)
-	var u2fSignReq u2f.AuthenticateChallenge
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err := mockU2F.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignResp,
-	})
-	require.NoError(t, err)
-
-	// bad login: corrupted sign responses, should fail
-	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: "bob",
-		Pass: string(tempPass),
-	})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err = mockU2F.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	// corrupted KeyHandle
-	u2fSignRespCopy := u2fSignResp
-	u2fSignRespCopy.KeyHandle = u2fSignRespCopy.KeyHandle + u2fSignRespCopy.KeyHandle
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// corrupted SignatureData
-	u2fSignRespCopy = u2fSignResp
-	u2fSignRespCopy.SignatureData = u2fSignRespCopy.SignatureData[:10] + u2fSignRespCopy.SignatureData[20:]
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// corrupted ClientData
-	u2fSignRespCopy = u2fSignResp
-	u2fSignRespCopy.ClientData = u2fSignRespCopy.ClientData[:10] + u2fSignRespCopy.ClientData[20:]
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// bad login: counter not increasing, should fail
-	mockU2F.SetCounter(0)
-	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: "bob",
-		Pass: string(tempPass),
-	})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err = mockU2F.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignResp,
-	})
-	require.Error(t, err)
+	// Test that no recovery codes are returned b/c cloud is not turned on.
+	var recoveryCodes []string
+	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
+	c.Assert(recoveryCodes, HasLen, 0)
 }
 
 // TestPing ensures that a response is returned by /webapi/ping
@@ -2055,7 +1930,8 @@ func TestClusterKubesGet(t *testing.T) {
 				{
 					Name:         "test-kube-name",
 					StaticLabels: map[string]string{"test-field": "test-value"},
-				}},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -2085,25 +1961,16 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	pack := proxy.authPack(t, "foo@example.com")
 
 	// Register an application.
-	server := &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
-		},
-		Spec: types.ServerSpecV2{
-			Version: teleport.Version,
-			Apps: []*types.App{
-				{
-					Name:       "panel",
-					PublicAddr: "panel.example.com",
-					URI:        "http://127.0.0.1:8080",
-				},
-			},
-		},
-	}
-	_, err := env.server.Auth().UpsertAppServer(context.Background(), server)
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), server)
 	require.NoError(t, err)
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
@@ -2116,31 +1983,41 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
+// TestGetMFADevices gets devices for the authenticated user.
+func TestGetMFADevices(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "mfa")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var devices []ui.MFADevice
+	err = json.Unmarshal(re.Bytes(), &devices)
+	require.NoError(t, err)
+	require.Len(t, devices, 1)
+	require.Equal(t, "TOTP", devices[0].Type)
+	require.Equal(t, "otp", devices[0].Name) // default device name
+}
+
 // TestCreateAppSession verifies that an existing session to the Web UI can
 // be exchanged for a application specific session.
 func (s *WebSuite) TestCreateAppSession(c *C) {
 	pack := s.authPack(c, "foo@example.com")
 
 	// Register an application called "panel".
-	server := &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
-		},
-		Spec: types.ServerSpecV2{
-			Version: teleport.Version,
-			Apps: []*types.App{
-				{
-					Name:       "panel",
-					PublicAddr: "panel.example.com",
-					URI:        "http://127.0.0.1:8080",
-				},
-			},
-		},
-	}
-	_, err := s.server.Auth().UpsertAppServer(context.Background(), server)
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "panel.example.com",
+	})
+	c.Assert(err, IsNil)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	c.Assert(err, IsNil)
+	_, err = s.server.Auth().UpsertApplicationServer(context.Background(), server)
 	c.Assert(err, IsNil)
 
 	// Extract the session ID and bearer token for the current session.
@@ -2151,7 +2028,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	c.Assert(err, IsNil)
 
-	var tests = []struct {
+	tests := []struct {
 		inComment       CommentInterface
 		inCreateRequest *CreateAppSessionRequest
 		outError        bool
@@ -2264,6 +2141,30 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	}
 }
 
+func TestNewSessionResponseWithRenewSession(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+
+	// Set a web idle timeout.
+	duration := time.Duration(5) * time.Minute
+	cfg := types.DefaultClusterNetworkingConfig()
+	cfg.SetWebIdleTimeout(duration)
+	env.server.Auth().SetClusterNetworkingConfig(context.Background(), cfg)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo")
+
+	var ns *CreateSessionResponse
+	resp := pack.renewSession(context.Background(), t)
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &ns))
+
+	require.Equal(t, int(duration.Milliseconds()), ns.SessionInactiveTimeoutMS)
+	require.Equal(t, roundtrip.AuthBearer, ns.TokenType)
+	require.NotEmpty(t, ns.SessionExpires)
+	require.NotEmpty(t, ns.Token)
+	require.NotEmpty(t, ns.TokenExpiresIn)
+}
+
 // TestWebSessionsRenewDoesNotBreakExistingTerminalSession validates that the
 // session renewed via one proxy does not force the terminals created by another
 // proxy to disconnect
@@ -2367,6 +2268,91 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	// subsequent requests to use this session will fail
 	_, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	require.True(t, trace.IsAccessDenied(err))
+}
+
+type testCloudModules struct {
+	modules.Modules
+}
+
+func (m *testCloudModules) Features() modules.Features {
+	return modules.Features{
+		Cloud: true, // Explicily turn on cloud feature.
+	}
+}
+
+// TestChangeUserAuthentication_recoveryCodesReturnedForCloud tests for following:
+//  - Recovery codes are not returned for usernames that are not emails
+//  - Recovery codes are returned for usernames that are valid emails
+func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOTP,
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Enable cloud feature.
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testCloudModules{})
+
+	// Creaet a username that is not a valid email format for recovery.
+	teleUser, err := types.NewUser("invalid-name-for-recovery")
+	require.NoError(t, err)
+	env.server.Auth().CreateUser(ctx, teleUser)
+
+	// Create a reset password token and secrets.
+	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: "invalid-name-for-recovery",
+	})
+	require.NoError(t, err)
+	secrets, err := env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
+	require.NoError(t, err)
+	totpCode, err := totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	require.NoError(t, err)
+
+	// Test invalid username does not receive codes.
+	clt := env.proxies[0].client
+	re, err := clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: []byte("abc123"),
+		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
+			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
+		}},
+	})
+	require.NoError(t, err)
+	require.Empty(t, re.RecoveryCodes)
+
+	// Create a user that is valid for recovery.
+	teleUser, err = types.NewUser("valid-username@example.com")
+	require.NoError(t, err)
+	env.server.Auth().CreateUser(ctx, teleUser)
+
+	// Create a reset password token and secrets.
+	resetToken, err = env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: "valid-username@example.com",
+	})
+	require.NoError(t, err)
+	secrets, err = env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
+	require.NoError(t, err)
+	totpCode, err = totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	require.NoError(t, err)
+
+	// Test valid username (email) returns codes.
+	re, err = clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: []byte("abc123"),
+		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
+			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, re.RecoveryCodes, 3)
 }
 
 type authProviderMock struct {
@@ -2625,7 +2611,7 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
-	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn}, nil
+	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn, SessionInactiveTimeoutMS: r.SessionInactiveTimeoutMS}, nil
 }
 
 func newWebPack(t *testing.T, numProxies int) *webPack {
@@ -2659,13 +2645,22 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	})
 	require.NoError(t, err)
 
+	priv, pub, err := server.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
 	// start auth server
 	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: server.TLS.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		HostID:       hostID,
+		NodeName:     server.TLS.ClusterName(),
+		Roles:        types.SystemRoles{types.RoleNode},
+		PublicSSHKey: pub,
+		PublicTLSKey: tlsPub,
 	})
 	require.NoError(t, err)
+	certs.Key = priv
 
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	require.NoError(t, err)

@@ -112,6 +112,9 @@ const (
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
+	// KindApp is a web app resource.
+	KindApp = "app"
+
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
@@ -231,6 +234,15 @@ const (
 	// network restrictions
 	MetaNameNetworkRestrictions = "network-restrictions"
 
+	// KindWindowsDesktopService is a Windows desktop service resource.
+	KindWindowsDesktopService = "windows_desktop_service"
+
+	// KindWindowsDesktop is a Windows desktop host.
+	KindWindowsDesktop = "windows_desktop"
+
+	// KindRecoveryCodes is a resource that holds users recovery codes.
+	KindRecoveryCodes = "recovery_codes"
+
 	// V4 is the fourth version of resources.
 	V4 = "v4"
 
@@ -334,4 +346,7 @@ const (
 
 	// DatabaseTunnel is a tunnel where a database proxy dials back to the proxy.
 	DatabaseTunnel TunnelType = "db"
+
+	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
+	WindowsDesktopTunnel TunnelType = "windows_desktop"
 )

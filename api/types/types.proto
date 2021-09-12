@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 syntax = "proto3";
 package types;
 
@@ -29,6 +43,7 @@ message KeepAlive {
         NODE = 1;
         APP = 2;
         DATABASE = 3;
+        WINDOWS_DESKTOP = 4;
     }
     KeepAliveType Type = 9 [ (gogoproto.jsontag) = "type" ];
     // HostID is an optional UUID of the host the resource belongs to.
@@ -192,8 +207,8 @@ message DatabaseServerSpecV3 {
     // DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
     GCPCloudSQL GCP = 11
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty", deprecated = true ];
-    // Databases is a list of databases this database server proxies.
-    repeated DatabaseV3 Databases = 12 [ (gogoproto.jsontag) = "databases,omitempty" ];
+    // Database is the database proxied by this database server.
+    DatabaseV3 Database = 12 [ (gogoproto.jsontag) = "database,omitempty" ];
 }
 
 // DatabaseV3List represents a list of databases.
@@ -305,7 +320,9 @@ message ServerSpecV2 {
     // TeleportVersion is the teleport version that the server is running on
     string Version = 7 [ (gogoproto.jsontag) = "version" ];
     // Apps is a list of applications this server is proxying.
-    repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty" ];
+    //
+    // DELETE IN 9.0. Deprecated, moved to AppServerSpecV3.
+    repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty", deprecated = true ];
     // KubernetesClusters is a list of kubernetes clusters provided by this
     // Proxy or KubeService server.
     //
@@ -316,7 +333,79 @@ message ServerSpecV2 {
         [ (gogoproto.jsontag) = "kube_clusters,omitempty" ];
 }
 
+// AppServerV3 represents a single proxied web app.
+message AppServerV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is the app server resource kind. Always "app_server".
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the app server metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the app server spec.
+    AppServerSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// AppServerSpecV3 is the app access server spec.
+message AppServerSpecV3 {
+    // Version is the Teleport version that the server is running.
+    string Version = 1 [ (gogoproto.jsontag) = "version" ];
+    // Hostname is the app server hostname.
+    string Hostname = 2 [ (gogoproto.jsontag) = "hostname" ];
+    // HostID is the app server host uuid.
+    string HostID = 3 [ (gogoproto.jsontag) = "host_id" ];
+    // Rotation contains the app server CA rotation information.
+    Rotation Rotation = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
+    // App is the app proxied by this app server.
+    AppV3 App = 5 [ (gogoproto.jsontag) = "app" ];
+}
+
+// AppV3List represents a list of app resources.
+message AppV3List {
+    // Apps is a list of app resources.
+    repeated AppV3 App = 1;
+}
+
+// AppV3 represents an app resource.
+message AppV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is the app resource kind. Always "app".
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the app resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the app resource spec.
+    AppSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// AppSpecV3 is the AppV3 resource spec.
+message AppSpecV3 {
+    // URI is the web app endpoint.
+    string URI = 1 [ (gogoproto.jsontag) = "uri" ];
+    // PublicAddr is the public address the application is accessible at.
+    string PublicAddr = 2 [ (gogoproto.jsontag) = "public_addr,omitempty" ];
+    // DynamicLabels are the app's command labels.
+    map<string, CommandLabelV2> DynamicLabels = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
+    // InsecureSkipVerify disables app's TLS certificate verification.
+    bool InsecureSkipVerify = 4 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
+    // Rewrite is a list of rewriting rules to apply to requests and responses.
+    Rewrite Rewrite = 5 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
+}
+
 // App is a specific application that a server proxies.
+//
+// DELETE IN 9.0. Deprecated, use AppV3.
 message App {
     // Name is the name of the application.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
@@ -860,6 +949,9 @@ message AuthPreferenceSpecV2 {
         (gogoproto.jsontag) = "locking_mode,omitempty",
         (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
     ];
+
+    // Webauthn are the settings for server-side Web Authentication support.
+    Webauthn Webauthn = 10 [ (gogoproto.jsontag) = "webauthn,omitempty" ];
 }
 
 // LegacyClusterConfigAuthFields facilitates a backward compatible transition
@@ -883,6 +975,48 @@ message U2F {
     // devices.
     repeated string DeviceAttestationCAs = 3
         [ (gogoproto.jsontag) = "device_attestation_cas,omitempty" ];
+}
+
+// Webauthn defines user-visible settings for server-side Web Authentication
+// support.
+message Webauthn {
+    // RPID is the ID of the Relying Party.
+    // It should be set to the domain name of the Teleport installation.
+    //
+    // IMPORTANT: RPID must never change in the lifetime of the cluster, because
+    // it's recorded in the registration data on the WebAuthn device. If the
+    // RPID changes, all existing WebAuthn key registrations will become invalid
+    // and all users who use WebAuthn as the second factor will need to
+    // re-register.
+    string RPID = 1 [ (gogoproto.jsontag) = "rp_id,omitempty" ];
+    // Allow list of device attestation CAs in PEM format.
+    // If present, only devices whose attestation certificates match the
+    // certificates specified here may be registered (existing registrations are
+    // unchanged).
+    // If supplied in conjunction with AttestationDeniedCAs, then both
+    // conditions need to be true for registration to be allowed (the device
+    // MUST match an allowed CA and MUST NOT match a denied CA).
+    // By default all devices are allowed.
+    repeated string AttestationAllowedCAs = 2
+        [ (gogoproto.jsontag) = "attestation_allowed_cas,omitempty" ];
+    // Deny list of device attestation CAs in PEM format.
+    // If present, only devices whose attestation certificates don't match the
+    // certificates specified here may be registered (existing registrations are
+    // unchanged).
+    // If supplied in conjunction with AttestationAllowedCAs, then both
+    // conditions need to be true for registration to be allowed (the device
+    // MUST match an allowed CA and MUST NOT match a denied CA).
+    // By default no devices are denied.
+    repeated string AttestationDeniedCAs = 3
+        [ (gogoproto.jsontag) = "attestation_denied_cas,omitempty" ];
+    // Disables Webauthn, regardless of other cluster settings.
+    // Allows fallback to pure U2F in clusters with second_factor:on or
+    // second_factor:optional.
+    // Must not be set for clusters with second_factor:webauthn.
+    // Temporary safety switch for Webauthn, to be removed in future versions of
+    // Teleport.
+    // DELETE IN 9.x, fallback not possible without U2F (codingllama).
+    bool Disabled = 4 [ (gogoproto.jsontag) = "disabled,omitempty" ];
 }
 
 // Namespace represents namespace resource specification
@@ -918,11 +1052,23 @@ message UserTokenV3 {
     UserTokenSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
+// UserTokenUsage contains additional information about the intended usage of a user token.
+enum UserTokenUsage {
+    // Default value that implies token usage was not set.
+    USER_TOKEN_USAGE_UNSPECIFIED = 0;
+    // USER_TOKEN_RECOVER_PASSWORD is a request to recover password.
+    USER_TOKEN_RECOVER_PASSWORD = 1;
+    // USER_TOKEN_RECOVER_MFA is a request to recover a MFA.
+    USER_TOKEN_RECOVER_MFA = 2;
+}
+
 message UserTokenSpecV3 {
     // User is user name associated with this token
     string User = 1 [ (gogoproto.jsontag) = "user" ];
     // URL is this token URL
     string URL = 2 [ (gogoproto.jsontag) = "url" ];
+    // Usage is an optional field that provides more information about how this token will be used.
+    UserTokenUsage Usage = 3 [ (gogoproto.jsontag) = "usage,omitempty" ];
     // Created holds information about when the token was created
     google.protobuf.Timestamp Created = 4 [
         (gogoproto.stdtime) = true,
@@ -1608,6 +1754,14 @@ message LoginStatus {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "lock_expires,omitempty"
     ];
+    // RecoveryAttemptLockExpires contains the time when this lock will expire
+    // from reaching MaxAccountRecoveryAttempts. This field is used to determine
+    // if a user got locked from recovery attempts.
+    google.protobuf.Timestamp RecoveryAttemptLockExpires = 5 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "recovery_attempt_lock_expires,omitempty"
+    ];
 }
 
 // CreatedBy holds information about the person or agent who created the user
@@ -1648,6 +1802,10 @@ message LocalAuthSecrets {
     uint32 U2FCounter = 4 [ (gogoproto.jsontag) = "u2f_counter,omitempty" ];
 
     repeated MFADevice MFA = 5 [ (gogoproto.jsontag) = "mfa,omitempty" ];
+    // Webauthn holds settings necessary for webauthn local auth.
+    // May be null for legacy users or users that haven't yet used webauthn as
+    // their second factor.
+    WebauthnLocalAuth Webauthn = 6 [ (gogoproto.jsontag) = "webauthn,omitempty" ];
 }
 
 // MFADevice is a multi-factor authentication device, such as a security key or
@@ -1684,6 +1842,13 @@ message U2FDevice {
     bytes pub_key = 2;
     // Counter is the latest seen value of the U2F usage counter.
     uint32 counter = 3;
+}
+
+// WebauthnLocalAuth holds settings necessary for local webauthn use.
+message WebauthnLocalAuth {
+    // UserID is the random user handle generated for the user.
+    // See https://www.w3.org/TR/webauthn-2/#sctn-user-handle-privacy.
+    bytes UserID = 1 [ (gogoproto.jsontag) = "user_id,omitempty" ];
 }
 
 // ConnectorRef holds information about OIDC connector
@@ -1895,6 +2060,9 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "login_time"
     ];
+    // IdleTimeout is the max time a user can be inactive in a session.
+    int64 IdleTimeout = 9
+        [ (gogoproto.jsontag) = "idle_timeout", (gogoproto.casttype) = "Duration" ];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
@@ -2355,4 +2523,76 @@ message NetworkRestrictionsV4 {
     // Spec contains the network restrictions data
     NetworkRestrictionsSpecV4 Spec = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WindowsDesktopServiceV3 represents a windows desktop access service.
+message WindowsDesktopServiceV3 {
+    // Header is the common resource header.
+    ResourceHeader Header = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+    // Spec is the windows desktop service spec.
+    WindowsDesktopServiceSpecV3 Spec = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WindowsDesktopServiceSpecV3 is the windows desktop service spec.
+message WindowsDesktopServiceSpecV3 {
+    // Addr is the address that this service can be reached at.
+    string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
+    // TeleportVersion is teleport binary version running this service.
+    string TeleportVersion = 2 [ (gogoproto.jsontag) = "teleport_version" ];
+}
+
+// WindowsDesktopV3 represents a Windows host for desktop access.
+message WindowsDesktopV3 {
+    // Header is the common resource header.
+    ResourceHeader Header = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+    // Spec is the Windows host spec.
+    WindowsDesktopSpecV3 Spec = 2 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WindowsDesktopSpecV3 is the Windows host spec.
+message WindowsDesktopSpecV3 {
+    // Addr is the address that this host can be reached at.
+    string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
+}
+
+// RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
+// access to their account by restoring their lost password or second factor. Once a recovery code
+// is successfully verified, the code is mark used (which invalidates it), and lets the user begin
+// the recovery flow. When a user successfully finishes the recovery flow, users will get a new set
+// of codes that will replace all the previous ones.
+message RecoveryCodesV1 {
+    // Kind is the resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind. Currently unused for this resource.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the resource spec.
+    RecoveryCodesSpecV1 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// RecoveryCodesSpecV1 is the recovery codes spec.
+message RecoveryCodesSpecV1 {
+    // Codes hold a list of numOfRecoveryCodes.
+    repeated RecoveryCode Codes = 1 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "codes" ];
+    // Created is when the set of recovery codes were generated. Updated when a new set of recovery
+    // codes are inserted.
+    google.protobuf.Timestamp Created = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created"
+    ];
+}
+
+// RecoveryCode describes a recovery code.
+message RecoveryCode {
+    // HashedCode is a bcrypt hash of this recovery code.
+    bytes HashedCode = 1 [ (gogoproto.jsontag) = "hashed_code" ];
+    // IsUsed determines if this recovery code was used.
+    bool IsUsed = 2 [ (gogoproto.jsontag) = "is_used" ];
 }

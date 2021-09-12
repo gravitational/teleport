@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )

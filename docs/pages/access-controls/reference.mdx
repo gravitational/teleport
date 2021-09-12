@@ -30,11 +30,11 @@ all of the available resources and verbs under the `allow` section in the `admin
 below.
 
 To manage cluster roles, a Teleport administrator can use the Web UI or the command
-line using [tctl resource commands](../admin-guide.mdx#resources). To see the list of
+line using [tctl resource commands](../setup/reference/resources.mdx). To see the list of
 roles in a Teleport cluster, an administrator can execute:
 
-```bash
-tctl get roles
+```code
+$ tctl get roles
 ```
 
 (!docs/pages/includes/backup-warning.mdx!)
@@ -43,7 +43,7 @@ By default there is always one role called `admin` which looks like this:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: admin
 spec:
@@ -222,7 +222,7 @@ Access to any other nodes will be denied:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: example-role
 spec:
@@ -252,7 +252,7 @@ Below are a few examples for more complex filtering using various regexes.
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: example-role
 spec:

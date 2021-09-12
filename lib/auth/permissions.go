@@ -427,6 +427,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RW()),
+						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
 					},
@@ -477,6 +478,8 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 							types.NewRule(types.KindKubeService, services.RW()),
 							types.NewRule(types.KindDatabaseServer, services.RO()),
 							types.NewRule(types.KindLock, services.RO()),
+							types.NewRule(types.KindWindowsDesktopService, services.RO()),
+							types.NewRule(types.KindWindowsDesktop, services.RO()),
 							// this rule allows local proxy to update the remote cluster's host certificate authorities
 							// during certificates renewal
 							{
@@ -538,6 +541,8 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindKubeService, services.RW()),
 						types.NewRule(types.KindDatabaseServer, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindWindowsDesktopService, services.RO()),
+						types.NewRule(types.KindWindowsDesktop, services.RO()),
 						// this rule allows local proxy to update the remote cluster's host certificate authorities
 						// during certificates renewal
 						{
@@ -616,6 +621,30 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
+					},
+				},
+			})
+	case types.RoleWindowsDesktop:
+		return services.FromSpec(
+			role.String(),
+			types.RoleSpecV4{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterConfig, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindWindowsDesktopService, services.RW()),
+						types.NewRule(types.KindWindowsDesktop, services.RW()),
 					},
 				},
 			})
@@ -700,6 +729,22 @@ func ClientUsername(ctx context.Context) string {
 		return teleport.UserSystem
 	}
 	return identity.Username
+}
+
+// GetClientUsername returns the username of a remote HTTP client making the call.
+// If ctx didn't pass through auth middleware or did not come from an HTTP
+// request, returns an error.
+func GetClientUsername(ctx context.Context) (string, error) {
+	userI := ctx.Value(ContextUser)
+	userWithIdentity, ok := userI.(IdentityGetter)
+	if !ok {
+		return "", trace.AccessDenied("missing identity")
+	}
+	identity := userWithIdentity.GetIdentity()
+	if identity.Username == "" {
+		return "", trace.AccessDenied("missing identity username")
+	}
+	return identity.Username, nil
 }
 
 // ClientImpersonator returns the impersonator username of a remote client

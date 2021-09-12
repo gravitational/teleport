@@ -18,8 +18,8 @@ For simplicity's sake, we'll use Grafana running in a
 and execute API queries against it. You can launch Grafana too with a single Docker
 command:
 
-```bash
-docker run -d -p 3000:3000 grafana/grafana
+```code
+$ docker run -d -p 3000:3000 grafana/grafana
 ```
 
 Connect Grafana to your Teleport cluster by adding the following section in
@@ -40,24 +40,22 @@ app_service:
 
 Log into your Teleport cluster and view available applications:
 
-```bash
-tsh login --proxy=teleport.example.com:443
-tsh app ls
+```code
+$ tsh login --proxy=teleport.example.com
+$ tsh app ls
 
-# Output
-Application Description         Public Address               Labels
------------ ------------------- ---------------------------- -------
-grafana     Test Grafana server grafana.teleport.example.com env=dev
+# Application Description         Public Address               Labels
+# ----------- ------------------- ---------------------------- -------
+# grafana     Test Grafana server grafana.teleport.example.com env=dev
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Retrieve short-lived X.509 certificate for the application:
 
-```bash
-tsh app login grafana
+```code
+$ tsh app login grafana
 # Logged into app grafana. Example curl command:
 
-curl \
+$ curl \
   --cacert /Users/alice/.tsh/keys/teleport.example.com/certs.pem \
   --cert /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem \
   --key /Users/alice/.tsh/keys/teleport.example.com/alice \
@@ -78,8 +76,8 @@ As Grafana's API requires authentication, let's update the `curl` command to
 provide basic auth information using default Grafana username/password and
 call its `/api/users` endpoint:
 
-```bash
-curl --user admin:admin \
+```code
+$ curl --user admin:admin \
   --cacert /Users/alice/.tsh/keys/teleport.example.com/certs.pem \
   --cert /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem \
   --key /Users/alice/.tsh/keys/teleport.example.com/alice \
@@ -91,57 +89,55 @@ curl --user admin:admin \
 The app's X.509 certificate will expire on its own after the TTL allowed by
 your user's role. You can also remove it explicitly:
 
-```bash
-tsh app logout
+```code
+$ tsh app logout
 # Logged out of app "grafana"
 ```
 
 ## Application information
 
-```bash
-tsh app config
+```code
+$ tsh app config
 ```
 
-shows current app URI and paths to the secrets. 
+shows current app URI and paths to the secrets.
 
 This is useful when configuring CLI tools (such as `curl`) or GUI tools (such as Postman).
 
 Let's print the app information in a table format:
 
-```bash
-tsh app config
+```code
+$ tsh app config
 
-# Output
-Name:      grafana
-URI:       https://grafana.teleport.example.com:3080
-CA:        /Users/alice/.tsh/keys/teleport.example.com/certs.pem
-Cert:      /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
-Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
+# Name:      grafana
+# URI:       https://grafana.teleport.example.com:3080
+# CA:        /Users/alice/.tsh/keys/teleport.example.com/certs.pem
+# Cert:      /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
+# Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 We can also provide different `--format` values to print specific parts
 of the app configuration:
 
-```bash
-tsh app config --format=uri
+```code
+$ tsh app config --format=uri
 # https://grafana-root.gravitational.io:3080
 
-tsh app config --format=ca
+$ tsh app config --format=ca
 # /Users/alice/.tsh/keys/teleport.example.com/certs.pem
 
-tsh app config --format=cert
+$ tsh app config --format=cert
 # /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
 
-tsh app config --format=key
+$ tsh app config --format=key
 # /Users/alice/.tsh/keys/teleport.example.com/alice
 ```
 
 This can be useful in automation for simple templating e.g. to construct an
 appropriate `curl` command. Using our Grafana `/api/users` example above:
 
-```bash
-curl --user admin:admin \
+```code
+$ curl --user admin:admin \
   --cacert $(tsh app config --format=ca) \
   --cert $(tsh app config --format=cert) \
   --key $(tsh app config --format=key) \

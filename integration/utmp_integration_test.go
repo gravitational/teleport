@@ -200,16 +200,26 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			ClusterName: "localhost",
 			Dir:         tempdir,
 			Clock:       s.clock,
-		}})
+		},
+	})
 	require.NoError(t, err)
 
 	// set up host private key and certificate
+	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
 	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: s.server.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		HostID:       hostID,
+		NodeName:     s.server.ClusterName(),
+		Roles:        types.SystemRoles{types.RoleNode},
+		PublicSSHKey: pub,
+		PublicTLSKey: tlsPub,
 	})
 	require.NoError(t, err)
+	certs.Key = priv
 
 	// set up user CA and set up a user that has access to the server
 	s.signer, err = sshutils.NewSigner(certs.Key, certs.Cert)
@@ -262,7 +272,8 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 			},
 		),
 		regular.SetBPF(&bpf.NOP{}),

@@ -27,6 +27,16 @@
       "title": "Setup",
       "entries": [
         {
+          "title": "Admin Guides",
+          "slug": "/setup/admin/",
+          "entries": [
+            { "title": "Local users", "slug": "/setup/admin/users/" },
+            { "title": "Troubleshooting", "slug": "/setup/admin/troubleshooting/" },
+            { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
+            { "title": "Daemon", "slug": "/setup/admin/daemon/" }
+          ]
+        },
+        {
           "title": "Deployments",
           "slug": "/setup/deployments/",
           "entries": [
@@ -48,7 +58,11 @@
           "title": "Reference",
           "slug": "/setup/reference/",
           "entries": [
-            { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" }
+            { "title": "Config File", "slug": "/setup/reference/config/" },
+            { "title": "Config Resources", "slug": "/setup/reference/resources/" },            
+            { "title": "Command Line", "slug": "/setup/reference/cli/" },
+            { "title": "Metrics", "slug": "/setup/reference/metrics/" },
+            { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" }            
           ]
         }
       ]
@@ -144,6 +158,7 @@
             { "title": "AWS Redshift", "slug": "/database-access/guides/postgres-redshift/" },
             { "title": "GCP Cloud SQL PostgreSQL", "slug": "/database-access/guides/postgres-cloudsql/" },
             { "title": "GCP Cloud SQL MySQL", "slug": "/database-access/guides/mysql-cloudsql/" },
+            { "title": "MongoDB Atlas", "slug": "/database-access/guides/mongodb-atlas/" },
             { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
             { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
             { "title": "Self-Hosted MongoDB", "slug": "/database-access/guides/mongodb-self-hosted/" },
@@ -176,6 +191,7 @@
           "slug": "/access-controls/guides/",
           "entries": [
             { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" },
+            { "title": "Session Locking", "slug": "/access-controls/guides/locking/" },
             { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
@@ -186,6 +202,15 @@
         { "title": "FAQ", "slug": "/access-controls/faq/" }
       ]
     },
+    {
+      "icon": "list",
+      "title": "API",
+      "entries": [
+        {"title": "Introduction", "slug": "/api/introduction/"},
+        {"title": "Getting Started", "slug": "/api/getting-started/"},
+        {"title": "Architecture", "slug": "/api/architecture/"}
+      ]
+    },    
     {
       "icon": "wand",
       "title": "Preview",
@@ -249,24 +274,6 @@
         { "title": "Teleport Proxy", "slug": "/architecture/proxy/" },
         { "title": "Trusted Clusters", "slug": "/trustedclusters/" }
       ]
-    },
-    {
-      "icon": "list",
-      "title": "Reference",
-      "entries": [
-        { "title": "YAML", "slug": "/config-reference/" },
-        { "title": "CLI", "slug": "/cli-docs/" },
-        { "title": "Metrics", "slug": "/metrics-logs-reference/" },
-        {
-          "title": "API",
-          "slug": "/reference/api/",
-          "entries": [
-            {"title": "Introduction", "slug": "/reference/api/introduction/"},
-            {"title": "Getting Started", "slug": "/reference/api/getting-started/"},
-            {"title": "Architecture", "slug": "/reference/api/architecture/"}
-          ]
-        }
-      ]
     }
   ],
   "variables": {
@@ -276,6 +283,13 @@
     },
     "terraform": {
       "version": "0.12.0"
+    },
+    "presets": {
+      "tokens": {
+        "first": "abcd123-insecure-do-not-use-this",
+        "second": "efgh456-insecure-do-not-use-this",
+        "third": "ijkl789-insecure-do-not-use-this"
+      }
     },
     "fedramp": {
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
@@ -297,6 +311,9 @@
       "compose": {
         "version": "1.25.0"
       }
+    },
+    "helm": {
+      "version": "3.4.2"
     },
     "kubernetes": {
       "major_version": "1",
@@ -320,6 +337,36 @@
     }
   },
   "redirects": [
+    {
+      "source": "/reference/api/architecture/",
+      "destination": "/api/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/getting-started/",
+      "destination": "/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/api/introduction/",
+      "destination": "/api/introduction/",
+      "permanent": true
+    },    
+    {
+      "source": "/metrics-logs-reference/",
+      "destination": "/setup/reference/metrics/",
+      "permanent": true
+    },
+    {
+      "source": "/config-reference/",
+      "destination": "/setup/reference/config/",
+      "permanent": true
+    },    
+    {
+      "source": "/cli-docs/",
+      "destination": "/setup/reference/cli/",
+      "permanent": true
+    },
     {
       "source": "/enterprise/ssh-kubernetes-fedramp/",
       "destination": "/enterprise/fedramp/",

@@ -189,6 +189,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionRequest{
 			AppSessionRequest: e,
 		}
+	case *DatabaseCreate:
+		out.Event = &OneOf_DatabaseCreate{
+			DatabaseCreate: e,
+		}
+	case *DatabaseUpdate:
+		out.Event = &OneOf_DatabaseUpdate{
+			DatabaseUpdate: e,
+		}
+	case *DatabaseDelete:
+		out.Event = &OneOf_DatabaseDelete{
+			DatabaseDelete: e,
+		}
 	case *DatabaseSessionStart:
 		out.Event = &OneOf_DatabaseSessionStart{
 			DatabaseSessionStart: e,
@@ -228,6 +240,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *LockDelete:
 		out.Event = &OneOf_LockDelete{
 			LockDelete: e,
+		}
+	case *BillingInformationUpdate:
+		out.Event = &OneOf_BillingInformationUpdate{
+			BillingInformationUpdate: e,
+		}
+	case *RecoveryCodeGenerate:
+		out.Event = &OneOf_RecoveryCodeGenerate{
+			RecoveryCodeGenerate: e,
+		}
+	case *RecoveryCodeUsed:
+		out.Event = &OneOf_RecoveryCodeUsed{
+			RecoveryCodeUsed: e,
 		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
@@ -315,6 +339,12 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 		return e, nil
 	} else if e := in.GetAppSessionRequest(); e != nil {
 		return e, nil
+	} else if e := in.GetDatabaseCreate(); e != nil {
+		return e, nil
+	} else if e := in.GetDatabaseUpdate(); e != nil {
+		return e, nil
+	} else if e := in.GetDatabaseDelete(); e != nil {
+		return e, nil
 	} else if e := in.GetDatabaseSessionStart(); e != nil {
 		return e, nil
 	} else if e := in.GetDatabaseSessionEnd(); e != nil {
@@ -334,6 +364,12 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	} else if e := in.GetLockCreate(); e != nil {
 		return e, nil
 	} else if e := in.GetLockDelete(); e != nil {
+		return e, nil
+	} else if e := in.GetBillingInformationUpdate(); e != nil {
+		return e, nil
+	} else if e := in.GetRecoveryCodeGenerate(); e != nil {
+		return e, nil
+	} else if e := in.GetRecoveryCodeUsed(); e != nil {
 		return e, nil
 	} else {
 		if in.Event == nil {

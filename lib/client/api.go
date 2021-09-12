@@ -403,14 +403,14 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 
 // CACertPath returns path to the CA certificate for this profile.
 //
-// It's stored in ~/.tsh/keys/<proxy>/certs.pem by default.
+// It's stored in <profile-dir>/keys/<proxy>/certs.pem by default.
 func (p *ProfileStatus) CACertPath() string {
 	return keypaths.TLSCAsPath(p.Dir, p.Name)
 }
 
 // KeyPath returns path to the private key for this profile.
 //
-// It's kept in ~/.tsh/keys/<proxy>/<user>.
+// It's kept in <profile-dir>/keys/<proxy>/<user>.
 func (p *ProfileStatus) KeyPath() string {
 	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
 }
@@ -418,7 +418,7 @@ func (p *ProfileStatus) KeyPath() string {
 // DatabaseCertPath returns path to the specified database access certificate
 // for this profile.
 //
-// It's kept in ~/.tsh/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
+// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) DatabaseCertPath(name string) string {
 	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
@@ -426,10 +426,17 @@ func (p *ProfileStatus) DatabaseCertPath(name string) string {
 // AppCertPath returns path to the specified app access certificate
 // for this profile.
 //
-// It's kept in ~/.tsh/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) AppCertPath(name string) string {
 	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 
+}
+
+// KubeConfigPath returns path to the specified kubeconfig for this profile.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-kube/<cluster>/<name>-kubeconfig
+func (p *ProfileStatus) KubeConfigPath(name string) string {
+	return keypaths.KubeConfigPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
 // DatabaseServices returns a list of database service names for this profile.
@@ -1790,7 +1797,7 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error)
 }
 
 // ListAppServers returns a list of application servers.
-func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, error) {
+func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.AppServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1798,6 +1805,19 @@ func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, e
 	defer proxyClient.Close()
 
 	return proxyClient.GetAppServers(ctx, tc.Namespace)
+}
+
+// ListApps returns all registered applications.
+func (tc *TeleportClient) ListApps(ctx context.Context) ([]types.Application, error) {
+	servers, err := tc.ListAppServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var apps []types.Application
+	for _, server := range servers {
+		apps = append(apps, server.GetApp())
+	}
+	return types.DeduplicateApps(apps), nil
 }
 
 // CreateAppSession creates a new application access session.
@@ -1838,7 +1858,7 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context) ([]types.Database, 
 	}
 	var databases []types.Database
 	for _, server := range servers {
-		databases = append(databases, server.GetDatabases()...)
+		databases = append(databases, server.GetDatabase())
 	}
 	return types.DeduplicateDatabases(databases), nil
 }
@@ -2598,7 +2618,7 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case constants.SecondFactorU2F, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
 		response, err = tc.mfaLocalLogin(ctx, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2821,7 +2841,7 @@ func (tc *TeleportClient) AskOTP() (token string, err error) {
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
-	pwd, err = passwordFromConsole()
+	pwd, err = passwordFromConsoleFn()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
 		return "", trace.Wrap(err)
@@ -2869,6 +2889,10 @@ func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, erro
 		return "", trace.NotFound("timed out waiting for server response")
 	}
 }
+
+// passwordFromConsoleFn allows tests to replace the passwordFromConsole
+// function.
+var passwordFromConsoleFn = passwordFromConsole
 
 // passwordFromConsole reads from stdin without echoing typed characters to stdout
 func passwordFromConsole() (string, error) {

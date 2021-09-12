@@ -25,7 +25,7 @@ Teleport was designed under the following principles:
 - **Off the Shelf Security**: Teleport does not re-implement any security primitives and uses well-established, popular implementations of the encryption and network protocols.
 - **Open Standards**: There is no security through obscurity. Teleport is fully
   compatible with existing and open standards and other software, including
-  [OpenSSH](../admin-guide.mdx#using-teleport-with-openssh).
+  [OpenSSH](../server-access/guides/openssh.mdx).
 - **Cluster-Oriented Design**: Teleport is built for managing clusters, not individual servers. In practice this means that hosts and [Users](../user-manual.mdx)
   have cluster memberships. Identity management and authorization happen on a
   cluster level.
@@ -59,8 +59,8 @@ SSH. The Teleport Node service runs on a machine and is similar to the `sshd`
 daemon you may be familiar with. Users can log in to a Teleport Node with all
 of the following clients:
 
-- [OpenSSH: `ssh`](../admin-guide.mdx#using-teleport-with-openssh) (works on Linux, macOS and Windows)
-- [Teleport CLI client: `tsh ssh`](../cli-docs.mdx#tsh-ssh) (works on Linux and macOS)
+- [OpenSSH: `ssh`](../server-access/guides/openssh.mdx) (works on Linux, macOS and Windows)
+- [Teleport CLI client: `tsh ssh`](../setup/reference/cli.mdx#tsh-ssh) (works on Linux and macOS)
 - [Teleport Proxy UI](proxy.mdx#web-to-ssh-proxy) accessed via any modern web browser (including Safari on iOS and Chrome on Android)
 
 [**Teleport Auth**](authentication.mdx) authenticates Users and Nodes, authorizes User
@@ -161,7 +161,7 @@ proper HTTPS certificate on a proxy.
 If the credentials are correct, the auth server generates and signs a new
 certificate and returns it to the client via the proxy. The client stores this certificate
 and will use it for subsequent logins. The certificate will automatically expire after
-12 hours by default. This [TTL](https://en.wikipedia.org/wiki/Time_to_live) can be [configured](../cli-docs.mdx#tctl-users-add)
+12 hours by default. This [TTL](https://en.wikipedia.org/wiki/Time_to_live) can be [configured](../setup/reference/cli.mdx#tctl-users-add)
 to another value by the cluster administrator.
 
 ### 3: Lookup Node
@@ -203,7 +203,7 @@ API which provides access to information about nodes and users in the cluster.
 ![User Granted Node Access](../../img/user_node_access.svg)
 
 The node requests the Auth Server to provide a list of [OS users (user
-mappings)](../admin-guide.mdx#adding-and-deleting-users) for the connecting client, to make sure the client is
+mappings)](../setup/admin/users.mdx) for the connecting client, to make sure the client is
 authorized to use the requested OS login.
 
 Finally, the client is authorized to create an SSH connection to a node.
@@ -220,9 +220,9 @@ users, while `tctl` is used for cluster administration.
 `tsh` is similar in nature to OpenSSH `ssh` or `scp`. It has
 subcommands named after them so you can call:
 
-```bash
-tsh --proxy=p ssh -p 1522 user@host
-tsh --proxy=p scp -P example.txt user@host/destination/dir
+```code
+$ tsh --proxy=p ssh -p 1522 user@host
+$ tsh --proxy=p scp -P example.txt user@host/destination/dir
 ```
 
 Unlike `ssh`, `tsh` is very opinionated about authentication: it always uses

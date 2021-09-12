@@ -14,7 +14,7 @@ This guide provides more in-depth details for running Teleport in Production.
 
 - Read the [Architecture Overview](architecture/overview.mdx)
 - Read through the [Installation Guide](installation.mdx) to see the available packages and binaries available.
-- Read the CLI Docs for [`teleport`](cli-docs.mdx#teleport)
+- Read the CLI Docs for [`teleport`](./setup/reference/cli.mdx#teleport)
 
 ## Designing your cluster
 
@@ -82,30 +82,30 @@ There are a couple of important things to notice about this file:
 You can start Teleport via systemd unit by enabling the `.service` file
 with the `systemctl` tool.
 
-```bash
+```code
 # sudo cp teleport/examples/systemd/teleport.service /etc/systemd/system
-cd /etc/systemd/system
+$ cd /etc/systemd/system
 
 # Use your text editor of choice to create the .service file
 # Here we use vim
-vi teleport.service
+$ vi teleport.service
 
 # Use the file linked above as is or customize as needed
 # save the file
-systemctl enable teleport
-systemctl start teleport
+$ systemctl enable teleport
+$ systemctl start teleport
 
 # Show the status of the unit
-systemctl status teleport
+$ systemctl status teleport
 
 # Follow the tail of service logs
-journalctl -fu teleport
+$ journalctl -fu teleport
 
 # If you modify teleport.service later you will need to
 # reload the systemctl daemon and reload teleport
 # to apply your changes
-systemctl daemon-reload
-systemctl reload teleport
+$ systemctl daemon-reload
+$ systemctl reload teleport
 ```
 
 You can also perform restarts or upgrades by sending `kill` signals
@@ -211,24 +211,22 @@ is a hashed value of its private key, i.e. it cannot be forged by an attacker.
 
 To get the current CA pin run the following code on the auth server:
 
-```bash
+```code
 tctl status
 
-# Output
-Cluster  staging.example.com
-User CA  never updated
-Host CA  never updated
-CA pin   sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
+# Cluster  staging.example.com
+# User CA  never updated
+# Host CA  never updated
+# CA pin   sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 The CA pin at the bottom needs to be passed to the new nodes when they're starting
 for the first time, i.e. when they join a cluster:
 
 Via CLI:
 
-```bash
-sudo teleport start \
+```code
+$ sudo teleport start \
    --roles=node \
    --token=/path/to/token.file \
    --ca-pin=sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1 \
@@ -269,16 +267,16 @@ unauthorized access to this directory. Make sure that regular/non-admin users
 do not have access to this folder, particularly on the `auth` server. Change
 the ownership of the directory with [`chown`](https://linuxize.com/post/linux-chown-command/)
 
-```bash
-sudo teleport start
+```code
+$ sudo teleport start
 ```
 
 If you are logged in as `root` you may want to create a new OS-level user first.
 On Linux, create a new user called `<username>` with the following commands:
 
-```bash
-adduser <username>
-su <username>
+```code
+$ adduser <username>
+$ su <username>
 ```
 
 {

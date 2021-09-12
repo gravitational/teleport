@@ -358,7 +358,6 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		}
 
 		identity, err = auth.Register(auth.RegisterParams{
-			DataDir:              process.Config.DataDir,
 			Token:                process.Config.Token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
@@ -368,7 +367,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			PublicTLSKey:         keyPair.PublicTLSKey,
 			PublicSSHKey:         keyPair.PublicSSHKey,
 			CipherSuites:         process.Config.CipherSuites,
-			CAPin:                process.Config.CAPin,
+			CAPins:               process.Config.CAPins,
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
