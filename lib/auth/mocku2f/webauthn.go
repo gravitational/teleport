@@ -25,16 +25,8 @@ import (
 	"github.com/gravitational/trace"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
-
-// collectedClientData is part of the data signed by authenticators (after
-// marshaled to JSON, hashed and appended to authData).
-// https://www.w3.org/TR/webauthn-2/#dictionary-client-data
-type collectedClientData struct {
-	Type      string `json:"type"`
-	Challenge string `json:"challenge"`
-	Origin    string `json:"origin"`
-}
 
 // SignAssertion signs a WebAuthn assertion following the
 // U2F-compat-getAssertion algorithm.
@@ -64,7 +56,7 @@ func (muk *Key) SignAssertion(origin string, assertion *wanlib.CredentialAsserti
 
 	// Marshal and hash collectedClientData - the result is what gets signed,
 	// after appended to authData.
-	ccd, err := json.Marshal(&collectedClientData{
+	ccd, err := json.Marshal(&wancli.CollectedClientData{
 		Type:      "webauthn.get",
 		Challenge: base64.RawURLEncoding.EncodeToString(assertion.Response.Challenge),
 		Origin:    origin,

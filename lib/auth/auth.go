@@ -366,7 +366,9 @@ func (a *Server) runPeriodicOperations() {
 	r := rand.New(rand.NewSource(a.GetClock().Now().UnixNano()))
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
+	a.lock.RLock()
 	ticker := a.clock.NewTicker(period)
+	a.lock.RUnlock()
 	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
 		Duration: apidefaults.ServerKeepAliveTTL * 2,
@@ -2702,7 +2704,10 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	}
 
 	webConfig, err := apref.GetWebauthn()
-	if err != nil && enableWebauthn {
+	switch {
+	case err == nil:
+		enableWebauthn = enableWebauthn && !webConfig.Disabled // Apply global disable
+	case err != nil && enableWebauthn:
 		if apref.GetSecondFactor() == constants.SecondFactorWebauthn {
 			// Fail explicitly for second_factor:"webauthn".
 			return nil, trace.BadParameter("second_factor set to %s, but webauthn config not present", constants.SecondFactorWebauthn)
