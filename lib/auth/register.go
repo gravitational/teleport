@@ -36,6 +36,16 @@ import (
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
 func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string) (*Identity, error) {
+	priv, pub, err := authServer.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPub, err := PrivateKeyToPublicKeyTLS(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// If local registration is happening and no remote address was passed in
 	// (which means no advertise IP was set), use localhost.
 	if remoteAddr == "" {
@@ -49,10 +59,13 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 		RemoteAddr:           remoteAddr,
 		DNSNames:             dnsNames,
 		NoCache:              true,
+		PublicSSHKey:         pub,
+		PublicTLSKey:         tlsPub,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	keys.Key = priv
 
 	identity, err := ReadIdentityFromKeyPair(keys)
 	if err != nil {

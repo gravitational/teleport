@@ -28,13 +28,13 @@ version: v4
 metadata:
   name: contractor
 spec:
-  options:
-    # ...
   allow:
     request:
       roles: ['dba']
     # ...
   deny:
+    # ...
+  options:
     # ...
 ```
 
@@ -47,14 +47,14 @@ version: v4
 metadata:
   name: dba
 spec:
-  options:
-    # ...
-    # Only allows the contractor to use this role for 1 hour from time of request.
-    max_session_ttl: 1h
   allow:
     # ...
   deny:
     # ...
+  options:
+    # ...
+    # Only allows the contractor to use this role for 1 hour from time of request.
+    max_session_ttl: 1h
 ```
 
 **Admin Role**
@@ -66,19 +66,27 @@ version: v4
 metadata:
   name: admin
 spec:
-  options:
-    # ...
   allow:
-    # ...
+    # `review_requests` permits the listed roles to be approved
+    review_requests:
+      roles:
+      - 'dba'
+    rules:
+    # `access_request` is part of Access Workflows introduced in 4.2
+    # `access_request` should only be given to Teleport Admins.
+    # For a full list of allow-rules, see
+    # https://goteleport.com/docs/access-controls/reference/
+    - resources:
+      - access_request
+      verbs:
+      - list
+      - read
+      - update
+      - delete
   deny:
     # ...
-  # list of allow-rules, see
-  # https://gravitational.com/teleport/docs/enterprise/ssh-rbac/
-  rules:
-      # Access Request is part of Access Workflows introduced in 4.2
-      # `access_request` should only be given to Teleport Admins.
-      - resources: [access_request]
-        verbs: [list, read, update, delete]
+  options:
+    # ...
 ```
 
 ```code

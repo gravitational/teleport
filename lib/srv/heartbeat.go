@@ -451,11 +451,16 @@ func (h *Heartbeat) announce() error {
 			h.setState(HeartbeatStateAnnounceWait)
 			return nil
 		case HeartbeatModeApp:
-			app, ok := h.current.(types.Server)
-			if !ok {
-				return trace.BadParameter("expected services.Server, got %#v", h.current)
+			var keepAlive *types.KeepAlive
+			var err error
+			switch current := h.current.(type) {
+			case types.Server:
+				keepAlive, err = h.Announcer.UpsertAppServer(h.cancelCtx, current)
+			case types.AppServer:
+				keepAlive, err = h.Announcer.UpsertApplicationServer(h.cancelCtx, current)
+			default:
+				return trace.BadParameter("expected types.AppServer, got %#v", h.current)
 			}
-			keepAlive, err := h.Announcer.UpsertAppServer(h.cancelCtx, app)
 			if err != nil {
 				return trace.Wrap(err)
 			}

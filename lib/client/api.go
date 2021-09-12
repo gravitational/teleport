@@ -1797,7 +1797,7 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error)
 }
 
 // ListAppServers returns a list of application servers.
-func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, error) {
+func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.AppServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1805,6 +1805,19 @@ func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, e
 	defer proxyClient.Close()
 
 	return proxyClient.GetAppServers(ctx, tc.Namespace)
+}
+
+// ListApps returns all registered applications.
+func (tc *TeleportClient) ListApps(ctx context.Context) ([]types.Application, error) {
+	servers, err := tc.ListAppServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var apps []types.Application
+	for _, server := range servers {
+		apps = append(apps, server.GetApp())
+	}
+	return types.DeduplicateApps(apps), nil
 }
 
 // CreateAppSession creates a new application access session.
@@ -1845,7 +1858,7 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context) ([]types.Database, 
 	}
 	var databases []types.Database
 	for _, server := range servers {
-		databases = append(databases, server.GetDatabases()...)
+		databases = append(databases, server.GetDatabase())
 	}
 	return types.DeduplicateDatabases(databases), nil
 }
@@ -2605,7 +2618,7 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case constants.SecondFactorU2F, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
 		response, err = tc.mfaLocalLogin(ctx, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2828,7 +2841,7 @@ func (tc *TeleportClient) AskOTP() (token string, err error) {
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
-	pwd, err = passwordFromConsole()
+	pwd, err = passwordFromConsoleFn()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
 		return "", trace.Wrap(err)
@@ -2876,6 +2889,10 @@ func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, erro
 		return "", trace.NotFound("timed out waiting for server response")
 	}
 }
+
+// passwordFromConsoleFn allows tests to replace the passwordFromConsole
+// function.
+var passwordFromConsoleFn = passwordFromConsole
 
 // passwordFromConsole reads from stdin without echoing typed characters to stdout
 func passwordFromConsole() (string, error) {

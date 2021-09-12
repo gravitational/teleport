@@ -598,6 +598,8 @@ type DatabasesConfig struct {
 	Enabled bool
 	// Databases is a list of databases proxied by this service.
 	Databases []Database
+	// Selectors is a list of resource monitor selectors.
+	Selectors []services.Selector
 }
 
 // Database represents a single database that's being proxied.
@@ -644,8 +646,8 @@ type DatabaseGCP struct {
 	InstanceID string
 }
 
-// Check validates the database proxy configuration.
-func (d *Database) Check() error {
+// CheckAndSetDefaults validates the database proxy configuration.
+func (d *Database) CheckAndSetDefaults() error {
 	if d.Name == "" {
 		return trace.BadParameter("empty database name")
 	}
@@ -659,6 +661,11 @@ func (d *Database) Check() error {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
 			d.Name, d.Protocol, defaults.DatabaseProtocols)
 	}
+	// Mark the database as coming from the static configuration.
+	if d.StaticLabels == nil {
+		d.StaticLabels = make(map[string]string)
+	}
+	d.StaticLabels[types.OriginLabel] = types.OriginConfigFile
 	// For MongoDB we support specifying either server address or connection
 	// string in the URI which is useful when connecting to a replica set.
 	if d.Protocol == defaults.ProtocolMongoDB &&

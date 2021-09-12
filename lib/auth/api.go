@@ -51,7 +51,12 @@ type Announcer interface {
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
 
 	// UpsertAppServer adds an application server.
+	//
+	// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
 	UpsertAppServer(context.Context, types.Server) (*types.KeepAlive, error)
+
+	// UpsertApplicationServer registers an application server.
+	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 
 	// UpsertDatabaseServer registers a database proxy server.
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
@@ -140,7 +145,12 @@ type ReadAccessPoint interface {
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
 
 	// GetAppServers gets all application servers.
+	//
+	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
 	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+
+	// GetApplicationServers returns all registered application servers.
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
@@ -162,6 +172,12 @@ type ReadAccessPoint interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// GetDatabases returns all database resources.
+	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// GetDatabase returns the specified database resource.
+	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
@@ -343,8 +359,15 @@ func (w *Wrapper) UpsertKubeService(ctx context.Context, s types.Server) error {
 }
 
 // UpsertAppServer adds an application server.
+//
+// DELETE IN 9.0. Deprecated, use UpsertAppServer.
 func (w *Wrapper) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	return w.NoCache.UpsertAppServer(ctx, server)
+}
+
+// UpsertApplicationServer registers an application server.
+func (w *Wrapper) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	return w.NoCache.UpsertApplicationServer(ctx, server)
 }
 
 // UpsertDatabaseServer registers a database proxy server.

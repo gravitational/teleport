@@ -60,7 +60,7 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	// Make a list of all proxied databases.
 	var databases []types.Database
 	for _, server := range servers {
-		databases = append(databases, server.GetDatabases()...)
+		databases = append(databases, server.GetDatabase())
 	}
 
 	return ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)), nil

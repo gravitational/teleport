@@ -107,7 +107,7 @@ func NewKey() (key *Key, err error) {
 // KeyFromIdentityFile loads the private key + certificate
 // from an identity file into a Key.
 func KeyFromIdentityFile(path string) (*Key, error) {
-	ident, err := identityfile.Read(path)
+	ident, err := identityfile.ReadFile(path)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse identity file")
 	}

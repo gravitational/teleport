@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package webauthn
+package webauthncli
 
-import (
-	"github.com/gravitational/teleport/lib/services"
-)
-
-// Assert that Identity satisfies loginIdentity.
-// TODO(codingllama): Delete once real code wires Identity to loginIdentity.
-var _ loginIdentity = services.Identity(nil)
+// CollectedClientData is part of the data signed by authenticators
+// (after marshaled to JSON, hashed and appended to authData).
+// https://www.w3.org/TR/webauthn-2/#dictionary-client-data
+type CollectedClientData struct {
+	Type      string `json:"type"`
+	Challenge string `json:"challenge"`
+	Origin    string `json:"origin"`
+}

@@ -108,6 +108,106 @@ func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 }
 
+// TestApplicationServersCRUD verifies backend operations on app servers.
+func TestApplicationServersCRUD(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	backend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+
+	presence := NewPresenceService(backend)
+
+	// Make an app and an app server.
+	appA, err := types.NewAppV3(types.Metadata{Name: "a"},
+		types.AppSpecV3{URI: "http://localhost:8080"})
+	require.NoError(t, err)
+	serverA, err := types.NewAppServerV3(types.Metadata{
+		Name: appA.GetName(),
+	}, types.AppServerSpecV3{
+		Hostname: "localhost",
+		HostID:   uuid.New(),
+		App:      appA,
+	})
+	require.NoError(t, err)
+
+	// Make a legacy app server.
+	appBLegacy := &types.App{Name: "b", URI: "http://localhost:8081"}
+	appB, err := types.NewAppV3FromLegacyApp(appBLegacy)
+	require.NoError(t, err)
+	serverBLegacy, err := types.NewServer(uuid.New(), types.KindAppServer,
+		types.ServerSpecV2{
+			Hostname: "localhost",
+			Apps:     []*types.App{appBLegacy},
+		})
+	require.NoError(t, err)
+	serverB, err := types.NewAppServerV3(types.Metadata{
+		Name: appBLegacy.Name,
+	}, types.AppServerSpecV3{
+		Hostname: "localhost",
+		HostID:   serverBLegacy.GetName(),
+		App:      appB,
+	})
+	require.NoError(t, err)
+
+	// No app servers should be registered initially
+	out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+
+	// Create app server.
+	lease, err := presence.UpsertApplicationServer(ctx, serverA)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{}, lease)
+
+	// Create legacy app server.
+	lease, err = presence.UpsertAppServer(ctx, serverBLegacy)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{}, lease)
+
+	// Make sure all app servers are registered.
+	out, err = presence.GetApplicationServers(ctx, serverA.GetNamespace())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Delete app server.
+	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
+	require.NoError(t, err)
+
+	// Expect only the legacy one to be returned.
+	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Upsert server with TTL.
+	serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
+	lease, err = presence.UpsertApplicationServer(ctx, serverA)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{
+		Type:      types.KeepAlive_APP,
+		LeaseID:   lease.LeaseID,
+		Name:      serverA.GetName(),
+		Namespace: serverA.GetNamespace(),
+		HostID:    serverA.GetHostID(),
+		Expires:   serverA.Expiry(),
+	}, lease)
+
+	// Delete all app servers.
+	err = presence.DeleteAllApplicationServers(ctx, serverA.GetNamespace())
+	require.NoError(t, err)
+
+	// Expect only legacy one to be returned.
+	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+}
+
 func TestDatabaseServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
