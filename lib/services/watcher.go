@@ -176,6 +176,15 @@ func (p *resourceWatcher) runWatchLoop() {
 	for {
 		p.Log.WithField("retry", p.retry).Debug("Starting watch.")
 		err := p.watch()
+		if err != nil && p.failureStartedAt.IsZero() {
+			// Note that failureStartedAt is zeroed in the watch routine immediately
+			// after the local resource set has been successfully updated.
+			p.failureStartedAt = p.Clock.Now()
+		}
+		if p.hasStaleView() {
+			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
+			p.collector.notifyStale()
+		}
 		select {
 		case <-p.retry.After():
 			p.retry.Inc()
@@ -185,15 +194,8 @@ func (p *resourceWatcher) runWatchLoop() {
 		}
 		if err != nil {
 			p.Log.Warningf("Restart watch on error: %v.", err)
-			if p.failureStartedAt.IsZero() {
-				p.failureStartedAt = p.Clock.Now()
-			}
-			// failureStartedAt is zeroed in the watch routine immediately after
-			// the local resource set has been successfully updated.
-		}
-		if p.hasStaleView() {
-			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
-			p.collector.notifyStale()
+		} else {
+			p.Log.Debug("Triggering scheduled refetch.")
 		}
 		// Used for testing that the watch routine has exited and is about
 		// to be restarted.
@@ -236,7 +238,6 @@ func (p *resourceWatcher) watch() error {
 	case <-watcher.Done():
 		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 	case <-refetchC:
-		p.Log.Debug("Triggering scheduled refetch.")
 		return nil
 	case <-p.ctx.Done():
 		return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
@@ -257,7 +258,6 @@ func (p *resourceWatcher) watch() error {
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 		case <-refetchC:
-			p.Log.Debug("Triggering scheduled refetch.")
 			return nil
 		case <-p.ctx.Done():
 			return trace.ConnectionProblem(p.ctx.Err(), "context is closing")

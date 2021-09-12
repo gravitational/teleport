@@ -46,6 +46,12 @@ const (
 	// UserTokenTypeRecoveryStart describes a recovery token issued to users who
 	// successfully verified their recovery code.
 	UserTokenTypeRecoveryStart = "recovery_start"
+	// UserTokenTypeRecoveryApproved describes a recovery token issued to users who
+	// successfully verified their second auth credential (either password or a second factor) and
+	// can now start changing their password or add a new second factor device.
+	// This token is also used to allow users to delete exisiting second factor devices
+	// and retrieve their new set of recovery codes as part of the recovery flow.
+	UserTokenTypeRecoveryApproved = "recovery_approved"
 )
 
 // CreateUserTokenRequest is a request to create a new user token.
@@ -98,7 +104,8 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 	case UserTokenTypeRecoveryStart:
 		r.TTL = defaults.RecoveryStartTokenTTL
 
-	// TODO (kimlisa): add RecoveryApprovedToken type
+	case UserTokenTypeRecoveryApproved:
+		r.TTL = defaults.RecoveryApprovedTokenTTL
 
 	default:
 		return trace.BadParameter("unknown user token request type(%v)", r.Type)
@@ -396,8 +403,7 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 
 // createRecoveryToken creates a user token for account recovery.
 func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType string, usage types.UserTokenUsage) (types.UserToken, error) {
-	// TODO (kimlisa): add RecoveryApprovedToken type
-	if tokenType != UserTokenTypeRecoveryStart {
+	if tokenType != UserTokenTypeRecoveryStart && tokenType != UserTokenTypeRecoveryApproved {
 		return nil, trace.BadParameter("invalid recovery token type: %s", tokenType)
 	}
 
@@ -444,4 +450,22 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 	}
 
 	return newToken, nil
+}
+
+// verifyUserToken verifies that the token is not expired and is of the allowed kinds.
+func (s *Server) verifyUserToken(token types.UserToken, allowedKinds ...string) error {
+	if token.Expiry().Before(s.clock.Now().UTC()) {
+		// Provide obscure message on purpose, while logging the real error server side.
+		log.Debugf("Expired token(%s) type(%s)", token.GetName(), token.GetSubKind())
+		return trace.AccessDenied("invalid token")
+	}
+
+	for _, kind := range allowedKinds {
+		if token.GetSubKind() == kind {
+			return nil
+		}
+	}
+
+	log.Debugf("Invalid token(%s) type(%s), expected type: %v", token.GetName(), token.GetSubKind(), allowedKinds)
+	return trace.AccessDenied("invalid token")
 }

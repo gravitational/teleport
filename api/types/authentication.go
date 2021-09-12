@@ -51,6 +51,10 @@ type AuthPreference interface {
 	// IsSecondFactorEnforced checks if second factor is enforced
 	// (not disabled or set to optional).
 	IsSecondFactorEnforced() bool
+	// IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
+	IsSecondFactorTOTPAllowed() bool
+	// IsSecondFactorU2FAllowed checks if users are allowed to register U2F devices.
+	IsSecondFactorU2FAllowed() bool
 
 	// GetConnectorName gets the name of the OIDC or SAML connector to use. If
 	// this value is empty, we fall back to the first connector in the backend.
@@ -223,6 +227,16 @@ func (c *AuthPreferenceV2) IsSecondFactorEnforced() bool {
 	return c.Spec.SecondFactor != constants.SecondFactorOff && c.Spec.SecondFactor != constants.SecondFactorOptional
 }
 
+// IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
+func (c *AuthPreferenceV2) IsSecondFactorTOTPAllowed() bool {
+	return c.Spec.SecondFactor == constants.SecondFactorOTP || c.Spec.SecondFactor == constants.SecondFactorOptional || c.Spec.SecondFactor == constants.SecondFactorOn
+}
+
+// IsSecondFactorU2FAllowed checks if users are allowed to register U2F devices.
+func (c *AuthPreferenceV2) IsSecondFactorU2FAllowed() bool {
+	return c.Spec.SecondFactor == constants.SecondFactorU2F || c.Spec.SecondFactor == constants.SecondFactorOptional || c.Spec.SecondFactor == constants.SecondFactorOn
+}
+
 // GetConnectorName gets the name of the OIDC or SAML connector to use. If
 // this value is empty, we fall back to the first connector in the backend.
 func (c *AuthPreferenceV2) GetConnectorName() string {
@@ -347,7 +361,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	// make sure second factor makes sense
-	switch c.Spec.SecondFactor {
+	switch sf := c.Spec.SecondFactor; sf {
 	case constants.SecondFactorOff, constants.SecondFactorOTP:
 	case constants.SecondFactorU2F:
 		if c.Spec.U2F == nil {
@@ -366,7 +380,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 				return trace.Wrap(err)
 			}
 		}
-		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
+		if err := c.Spec.Webauthn.CheckAndSetDefaults(sf, c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.SecondFactorOn, constants.SecondFactorOptional:
@@ -379,7 +393,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		if c.Spec.Webauthn == nil {
 			c.Spec.Webauthn = &Webauthn{} // Try to get the defaults from U2F.
 		}
-		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
+		if err := c.Spec.Webauthn.CheckAndSetDefaults(sf, c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -415,7 +429,7 @@ func (u *U2F) Check() error {
 	return nil
 }
 
-func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
+func (w *Webauthn) CheckAndSetDefaults(secondFactor constants.SecondFactorType, u *U2F) error {
 	// RPID.
 	switch {
 	case w.RPID != "": // Explicit RPID
@@ -429,9 +443,17 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 			return trace.BadParameter("webauthn missing rp_id and U2F app_id is not an URL (%v)", err)
 		}
 
-		// Use the U2F host as the RPID.
-		rpID := parsedAppID.Host
-		rpID = strings.Split(rpID, ":")[0] // Remove :port, if present
+		var rpID string
+		switch {
+		case parsedAppID.Host != "":
+			rpID = parsedAppID.Host
+			rpID = strings.Split(rpID, ":")[0] // Remove :port, if present
+		case parsedAppID.Path == u.AppID:
+			// App ID is not a proper URL, take it literally.
+			rpID = u.AppID
+		default:
+			return trace.BadParameter("failed to infer webauthn RPID from U2F App ID (%q)", u.AppID)
+		}
 		log.Infof("WebAuthn: RPID inferred from U2F configuration: %q", rpID)
 		w.RPID = rpID
 	default:
@@ -456,6 +478,11 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 		if err := isValidAttestationCert(pem); err != nil {
 			return trace.BadParameter("webauthn denied CAs entry invalid: %v", err)
 		}
+	}
+
+	// Global disable flag.
+	if secondFactor == constants.SecondFactorWebauthn && w.Disabled {
+		return trace.BadParameter("webauthn cannot be disabled when second_factor = %v", constants.SecondFactorWebauthn)
 	}
 
 	return nil

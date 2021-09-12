@@ -441,7 +441,7 @@ func (c *semaphoreCollection) writeText(w io.Writer) error {
 }
 
 type appCollection struct {
-	servers []types.Server
+	servers []types.AppServer
 }
 
 func (a *appCollection) resources() (r []types.Resource) {
@@ -454,11 +454,10 @@ func (a *appCollection) resources() (r []types.Resource) {
 func (a *appCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})
 	for _, server := range a.servers {
-		for _, app := range server.GetApps() {
-			t.AddRow([]string{
-				app.Name, server.GetName(), app.PublicAddr, app.URI, types.LabelsAsString(app.StaticLabels, app.DynamicLabels),
-			})
-		}
+		app := server.GetApp()
+		t.AddRow([]string{
+			app.GetName(), server.GetHostname(), app.GetPublicAddr(), app.GetURI(), app.LabelsString(),
+		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
