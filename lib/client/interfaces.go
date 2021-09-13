@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/identityfile"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -214,7 +215,7 @@ func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte) (*tls.Co
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert")
 	}
-	tlsConfig.ServerName = auth.EncodeClusterName(leaf.Issuer.CommonName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(leaf.Issuer.CommonName)
 	return tlsConfig, nil
 }
 

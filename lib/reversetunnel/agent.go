@@ -28,10 +28,12 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -98,6 +100,12 @@ type AgentConfig struct {
 	Lease track.Lease
 	// Log optionally specifies the logger
 	Log log.FieldLogger
+	// reverseTunnelDetails cacheable details about the Addr endpoint used to reduce proxy ping calls in order to prevent
+	// proxy endpoint stagnation where even numbers of proxy are hidden behind RoundRobbin Load Balancer.
+	// For instance in a situation where only two proxies [A, B] are configured behind RoundRobbin Load Balancer
+	// due to sequential Ping, Dial method order and sequential backend picking by RoundRobbing Load Balancer
+	// the Ping call will always reach Proxy A and the Dial call will always be forwarded by the LB to Proxy B.
+	reverseTunnelDetails *reverseTunnelDetails
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -161,6 +169,13 @@ type Agent struct {
 	// principals is the list of principals of the server this agent
 	// is currently connected to
 	principals []string
+}
+
+// ReverseTunnelDetails contains catchable details about the reverse tunnel.
+type reverseTunnelDetails struct {
+	// ALPNSNIListenerEnabled indicates that remote address listener supports ALPN SNI Listener and
+	// the client needs to dial the remote proxy with proper TLS ALPN protocol.
+	ALPNSNIListenerEnabled bool
 }
 
 // NewAgent returns a new reverse tunnel agent
@@ -251,13 +266,36 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		"no matching keys found when checking server's host signature")
 }
 
+// getReverseTunnelDetails pings the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
+// If this is Web Service port check if proxy support ALPN SNI Listener.
+func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
+	pd := reverseTunnelDetails{ALPNSNIListenerEnabled: false}
+	resp, err := webclient.Find(a.ctx, a.Addr.Addr, lib.IsInsecureDevMode(), nil)
+	if err != nil {
+		a.log.WithError(err).Errorf("Failed to ping web proxy %q addr.", a.Addr.Addr)
+	}
+	if err == nil && resp.Proxy.ALPNSNIListenerEnabled {
+		pd.ALPNSNIListenerEnabled = resp.Proxy.ALPNSNIListenerEnabled
+	}
+	return &pd
+}
+
 func (a *Agent) connect() (conn *ssh.Client, err error) {
+	if a.reverseTunnelDetails == nil {
+		a.reverseTunnelDetails = a.getReverseTunnelDetails()
+	}
+
+	var opts []proxy.DialerOptionFunc
+	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.ALPNSNIListenerEnabled {
+		opts = append(opts, proxy.WithALPNDialer())
+	}
+
 	for _, authMethod := range a.authMethods {
 		// Create a dialer (that respects HTTP proxies) and connect to remote host.
-		dialer := proxy.DialerFromEnvironment(a.Addr.Addr)
+		dialer := proxy.DialerFromEnvironment(a.Addr.Addr, opts...)
 		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
 		if err != nil {
-			a.log.Debugf("Dial to %v failed: %v.", a.Addr.Addr, err)
+			a.log.WithError(err).Debugf("Dial to %v failed.", a.Addr.Addr)
 			continue
 		}
 
@@ -270,7 +308,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 			Timeout:         apidefaults.DefaultDialTimeout,
 		})
 		if err != nil {
-			a.log.Debugf("Failed to create client to %v: %v.", a.Addr.Addr, err)
+			a.log.WithError(err).Debugf("Failed to create client to %v.", a.Addr.Addr)
 			continue
 		}
 

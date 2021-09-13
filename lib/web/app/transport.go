@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -224,7 +225,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 
 	// Use SNI to tell the other side which cluster signed the CA so it doesn't
 	// have to fetch all CAs when verifying the cert.
-	tlsConfig.ServerName = auth.EncodeClusterName(c.clusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(c.clusterName)
 
 	return tlsConfig, nil
 }

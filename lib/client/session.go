@@ -265,7 +265,7 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 	}
 	// wait for the session to end
 	<-ns.closer.C
-	return nil
+	return sess.Wait()
 }
 
 // allocateTerminal creates (allocates) a server-side terminal for this session.

@@ -7752,6 +7752,9 @@ func (*CompleteAccountRecoveryRequest) XXX_OneofWrappers() []interface{} {
 //  - username is in valid email format
 type CreateAccountRecoveryCodesRequest struct {
 	// TokenID is the ID of a user token that will be used to verify this request.
+	// Token types accepted are:
+	//   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
+	//   - TODO(kimlisa) add privilege token doc after implementation
 	TokenID              string   `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"token_id"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
