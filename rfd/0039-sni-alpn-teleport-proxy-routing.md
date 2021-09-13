@@ -1,6 +1,6 @@
 ---
 authors: Marek Smoliński (marek@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 39 - SNI and ALPN teleport proxy routing
