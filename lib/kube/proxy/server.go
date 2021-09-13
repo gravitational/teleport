@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -200,7 +201,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	var err error
 	if info.ServerName != "" {
 		// Newer clients will set SNI that encodes the cluster name.
-		clusterName, err = auth.DecodeClusterName(info.ServerName)
+		clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				log.Debugf("Ignoring unsupported cluster name name %q.", info.ServerName)

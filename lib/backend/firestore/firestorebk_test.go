@@ -24,12 +24,13 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
 	"google.golang.org/protobuf/proto"
-	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {
@@ -51,111 +52,73 @@ func TestMarshal(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestFirestoreDB(t *testing.T) { check.TestingT(t) }
-
-type FirestoreSuite struct {
-	bk    *Backend
-	suite test.BackendSuite
+var commonFirestoreParams = map[string]interface{}{
+	"collection_name":                   "tp-cluster-data-test",
+	"project_id":                        "tp-testproj",
+	"endpoint":                          "localhost:8618",
+	"purgeExpiredDocumentsPollInterval": time.Second,
 }
 
-var _ = check.Suite(&FirestoreSuite{})
+func TestFirestoreDB(t *testing.T) {
+	ensureEmulatorRunning(t)
 
-func (s *FirestoreSuite) SetUpSuite(c *check.C) {
-	if !emulatorRunning() {
-		c.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+		testCfg, err := test.ApplyOptions(options)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		if testCfg.MirrorMode {
+			return nil, nil, test.ErrMirrorNotSupported
+		}
+
+		// This would seem to be a bad thing for firestore to omit
+		if testCfg.ConcurrentBackend != nil {
+			return nil, nil, test.ErrConcurrentAccessNotSupported
+		}
+
+		uut, err := New(context.Background(), commonFirestoreParams)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		clock := clockwork.NewFakeClock()
+		uut.clock = clock
+		return uut, clock, nil
 	}
 
-	newBackend := func() (backend.Backend, error) {
-		return New(context.Background(), map[string]interface{}{
-			"collection_name":                   "tp-cluster-data-test",
-			"project_id":                        "tp-testproj",
-			"endpoint":                          "localhost:8618",
-			"purgeExpiredDocumentsPollInterval": time.Second,
-		})
-	}
-	bk, err := newBackend()
-	c.Assert(err, check.IsNil)
-	s.bk = bk.(*Backend)
-	s.suite.B = s.bk
-	s.suite.NewBackend = newBackend
-	clock := clockwork.NewFakeClock()
-	s.bk.clock = clock
-	s.suite.Clock = clock
+	test.RunBackendComplianceSuite(t, newBackend)
 }
 
-func emulatorRunning() bool {
+func ensureEmulatorRunning(t *testing.T) {
 	con, err := net.Dial("tcp", "localhost:8618")
 	if err != nil {
-		return false
+		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
 	con.Close()
-	return true
 }
 
-func (s *FirestoreSuite) TearDownTest(c *check.C) {
-	// Delete all documents.
-	ctx := context.Background()
-	docSnaps, err := s.bk.svc.Collection(s.bk.CollectionName).Documents(ctx).GetAll()
-	c.Assert(err, check.IsNil)
-	if len(docSnaps) == 0 {
-		return
-	}
-	batch := s.bk.svc.Batch()
-	for _, docSnap := range docSnaps {
-		batch.Delete(docSnap.Ref)
-	}
-	_, err = batch.Commit(ctx)
-	c.Assert(err, check.IsNil)
+// newBackend creates a self-closing firestore backend
+func newBackend(t *testing.T) *Backend {
+	uut, err := New(context.Background(), commonFirestoreParams)
+	require.NoError(t, err)
+	t.Cleanup(func() { uut.Close() })
+
+	clock := clockwork.NewFakeClock()
+	uut.clock = clock
+
+	return uut
 }
 
-func (s *FirestoreSuite) TearDownSuite(c *check.C) {
-	if s.bk != nil {
-		s.bk.Close()
-	}
-}
+func TestReadLegacyRecord(t *testing.T) {
+	ensureEmulatorRunning(t)
 
-func (s *FirestoreSuite) TestCRUD(c *check.C) {
-	s.suite.CRUD(c)
-}
+	uut := newBackend(t)
 
-func (s *FirestoreSuite) TestRange(c *check.C) {
-	s.suite.Range(c)
-}
-
-func (s *FirestoreSuite) TestDeleteRange(c *check.C) {
-	s.suite.DeleteRange(c)
-}
-
-func (s *FirestoreSuite) TestCompareAndSwap(c *check.C) {
-	s.suite.CompareAndSwap(c)
-}
-
-func (s *FirestoreSuite) TestExpiration(c *check.C) {
-	s.suite.Expiration(c)
-}
-
-func (s *FirestoreSuite) TestKeepAlive(c *check.C) {
-	s.suite.KeepAlive(c)
-}
-
-func (s *FirestoreSuite) TestEvents(c *check.C) {
-	s.suite.Events(c)
-}
-
-func (s *FirestoreSuite) TestWatchersClose(c *check.C) {
-	s.suite.WatchersClose(c)
-}
-
-func (s *FirestoreSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c, s.bk)
-}
-
-func (s *FirestoreSuite) TestReadLegacyRecord(c *check.C) {
 	item := backend.Item{
 		Key:     []byte("legacy-record"),
 		Value:   []byte("foo"),
-		Expires: s.bk.clock.Now().Add(time.Minute).Round(time.Second).UTC(),
-		ID:      s.bk.clock.Now().UTC().UnixNano(),
+		Expires: uut.clock.Now().Add(time.Minute).Round(time.Second).UTC(),
+		ID:      uut.clock.Now().UTC().UnixNano(),
 	}
 
 	// Write using legacy record format, emulating data written by an older
@@ -165,27 +128,28 @@ func (s *FirestoreSuite) TestReadLegacyRecord(c *check.C) {
 		Key:       string(item.Key),
 		Value:     string(item.Value),
 		Expires:   item.Expires.UTC().Unix(),
-		Timestamp: s.bk.clock.Now().UTC().Unix(),
+		Timestamp: uut.clock.Now().UTC().Unix(),
 		ID:        item.ID,
 	}
-	_, err := s.bk.svc.Collection(s.bk.CollectionName).Doc(s.bk.keyToDocumentID(item.Key)).Set(ctx, rl)
-	c.Assert(err, check.IsNil)
+	_, err := uut.svc.Collection(uut.CollectionName).Doc(uut.keyToDocumentID(item.Key)).Set(ctx, rl)
+	require.NoError(t, err)
 
 	// Read the data back and make sure it matches the original item.
-	got, err := s.bk.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-	c.Assert(got.Key, check.DeepEquals, item.Key)
-	c.Assert(got.Value, check.DeepEquals, item.Value)
-	c.Assert(got.ID, check.DeepEquals, item.ID)
-	c.Assert(got.Expires.Equal(item.Expires), check.Equals, true)
+	got, err := uut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, item.Key, got.Key)
+	require.Equal(t, item.Value, got.Value)
+	require.Equal(t, item.ID, got.ID)
+	require.Equal(t, item.Expires, got.Expires)
 
 	// Read the data back using a range query too.
-	gotRange, err := s.bk.GetRange(ctx, item.Key, item.Key, 1)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(gotRange.Items), check.Equals, 1)
+	gotRange, err := uut.GetRange(ctx, item.Key, item.Key, 1)
+	require.NoError(t, err)
+	require.Len(t, gotRange.Items, 1)
+
 	got = &gotRange.Items[0]
-	c.Assert(got.Key, check.DeepEquals, item.Key)
-	c.Assert(got.Value, check.DeepEquals, item.Value)
-	c.Assert(got.ID, check.DeepEquals, item.ID)
-	c.Assert(got.Expires.Equal(item.Expires), check.Equals, true)
+	require.Equal(t, item.Key, got.Key)
+	require.Equal(t, item.Value, got.Value)
+	require.Equal(t, item.ID, got.ID)
+	require.Equal(t, item.Expires, got.Expires)
 }

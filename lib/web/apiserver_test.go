@@ -1961,25 +1961,16 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	pack := proxy.authPack(t, "foo@example.com")
 
 	// Register an application.
-	server := &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
-		},
-		Spec: types.ServerSpecV2{
-			Version: teleport.Version,
-			Apps: []*types.App{
-				{
-					Name:       "panel",
-					PublicAddr: "panel.example.com",
-					URI:        "http://127.0.0.1:8080",
-				},
-			},
-		},
-	}
-	_, err := env.server.Auth().UpsertAppServer(context.Background(), server)
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), server)
 	require.NoError(t, err)
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
@@ -2017,25 +2008,16 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	pack := s.authPack(c, "foo@example.com")
 
 	// Register an application called "panel".
-	server := &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
-		},
-		Spec: types.ServerSpecV2{
-			Version: teleport.Version,
-			Apps: []*types.App{
-				{
-					Name:       "panel",
-					PublicAddr: "panel.example.com",
-					URI:        "http://127.0.0.1:8080",
-				},
-			},
-		},
-	}
-	_, err := s.server.Auth().UpsertAppServer(context.Background(), server)
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "panel.example.com",
+	})
+	c.Assert(err, IsNil)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	c.Assert(err, IsNil)
+	_, err = s.server.Auth().UpsertApplicationServer(context.Background(), server)
 	c.Assert(err, IsNil)
 
 	// Extract the session ID and bearer token for the current session.
