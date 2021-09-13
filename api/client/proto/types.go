@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package proto provides the protobuf API specification for Teleport.
 package proto
 
 import (
