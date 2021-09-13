@@ -33,76 +33,121 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
-const currentCounter = 10
-
-func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
-	// Let's simulate a previously registered U2F device, without going through
-	// the trouble of actually registering it.
-	dev, err := mocku2f.Create()
+func TestLoginFlow_BeginFinish(t *testing.T) {
+	// Simulate a previously registered U2F device.
+	u2fKey, err := mocku2f.Create()
 	require.NoError(t, err)
-	dev.SetCounter(currentCounter)
+	u2fKey.SetCounter(10)                          // Arbitrary
 	devAddedAt := time.Now().Add(-5 * time.Minute) // Make sure devAddedAt is in the past.
-	mfaDev, err := keyToMFADevice(dev, currentCounter-1, devAddedAt /* addedAt */, devAddedAt /* lastUsed */)
+	u2fDev, err := keyToMFADevice(u2fKey, devAddedAt /* addedAt */, devAddedAt /* lastUsed */)
 	require.NoError(t, err)
 
+	// Prepare identity and configs
 	const user = "llama"
-	identity := newFakeIdentity(user, mfaDev)
-	u2fConfig := types.U2F{AppID: "https://example.com:3080"}
-	webConfig := types.Webauthn{RPID: "example.com"}
-	webLogin := wanlib.LoginFlow{
-		U2F:      &u2fConfig,
-		Webauthn: &webConfig,
+	identity := newFakeIdentity(user, u2fDev)
+	u2fConfig := &types.U2F{AppID: "https://example.com:3080"}
+	webConfig := &types.Webauthn{RPID: "example.com"}
+
+	const u2fOrigin = "https://example.com:3080"
+	const webOrigin = "https://example.com"
+	ctx := context.Background()
+
+	// Register a Webauthn device.
+	// Last registration step adds the created device to identity.
+	webKey, err := mocku2f.Create()
+	require.NoError(t, err)
+	webKey.PreferRPID = true // Webauthn-registered device
+	webKey.SetCounter(20)    // Arbitrary, recorded during registration
+	webRegistration := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: identity,
+	}
+	cc, err := webRegistration.Begin(ctx, user)
+	require.NoError(t, err)
+	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
+	require.NoError(t, err)
+	_, err = webRegistration.Finish(ctx, user, "webauthn1" /* deviceName */, ccr)
+	require.NoError(t, err)
+
+	webLogin := &wanlib.LoginFlow{
+		U2F:      u2fConfig,
+		Webauthn: webConfig,
 		Identity: identity,
 	}
 
-	ctx := context.Background()
-
-	// webLogin.Begin and webLogin.Finish are the actual methods under test, the
-	// rest is setup/sanity checking.
-	assertion, err := webLogin.Begin(ctx, user)
-	require.NoError(t, err)
-	// We care about RPID and AppID, for everything else defaults are OK.
-	require.Equal(t, webConfig.RPID, assertion.Response.RelyingPartyID)
-	require.Equal(t, u2fConfig.AppID, assertion.Response.Extensions["appid"])
-	// Did we record the SessionData in storage?
-	require.Len(t, identity.SessionData, 1)
-	// Retrieve session data without guessing the "sessionID" component of the
-	// key.
-	var sd *wantypes.SessionData
-	for _, v := range identity.SessionData {
-		sd = v
-		break
+	tests := []struct {
+		name         string
+		user, origin string
+		key          *mocku2f.Key
+	}{
+		{
+			name:   "OK U2F device login",
+			user:   user,
+			origin: u2fOrigin,
+			key:    u2fKey,
+		},
+		{
+			name:   "OK Webauthn device login",
+			user:   user,
+			origin: u2fOrigin,
+			key:    u2fKey,
+		},
 	}
-	// Did we create a new web user ID? Was it used?
-	webID := identity.User.GetLocalAuth().Webauthn.UserID
-	require.NotEmpty(t, webID)
-	require.Equal(t, webID, sd.UserId)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// 1st step of the login ceremony.
+			assertion, err := webLogin.Begin(ctx, user)
+			require.NoError(t, err)
+			// We care about RPID and AppID, for everything else defaults are OK.
+			require.Equal(t, webConfig.RPID, assertion.Response.RelyingPartyID)
+			require.Equal(t, u2fConfig.AppID, assertion.Response.Extensions["appid"])
+			// Did we record the SessionData in storage?
+			require.Len(t, identity.SessionData, 1)
+			// Retrieve session data without guessing the "sessionID" component of the
+			// key.
+			var sd *wantypes.SessionData
+			for _, v := range identity.SessionData {
+				sd = v
+				break
+			}
+			// Did we create a new web user ID? Was it used?
+			webID := identity.User.GetLocalAuth().Webauthn.UserID
+			require.NotEmpty(t, webID)
+			require.Equal(t, webID, sd.UserId)
 
-	// User interaction would happen here.
-	assertionResp, err := dev.SignAssertion("https://example.com:3080" /* origin */, assertion)
-	require.NoError(t, err)
+			// User interaction would happen here.
+			wantCounter := test.key.Counter()
+			assertionResp, err := test.key.SignAssertion(test.origin, assertion)
+			require.NoError(t, err)
 
-	// webLogin.Finish is the other part of the test, completing the login flow.
-	beforeLastUsed := time.Now().Add(-1 * time.Second)
-	loginDevice, err := webLogin.Finish(ctx, user, assertionResp)
-	require.NoError(t, err)
-	require.True(t, beforeLastUsed.Before(loginDevice.LastUsed))
-
-	// Last used time and counter are be updated, everything else is equal.
-	wantDev, _ := keyToMFADevice(dev, currentCounter, devAddedAt, loginDevice.LastUsed)
-	if diff := cmp.Diff(wantDev, loginDevice); diff != "" {
-		t.Errorf("Finish() mismatch (-want +got):\n%s", diff)
+			// 2nd and last step of the login ceremony.
+			beforeLastUsed := time.Now().Add(-1 * time.Second)
+			loginDevice, err := webLogin.Finish(ctx, user, assertionResp)
+			require.NoError(t, err)
+			// Last used time and counter are be updated.
+			require.True(t, beforeLastUsed.Before(loginDevice.LastUsed))
+			require.Equal(t, wantCounter, getSignatureCounter(loginDevice))
+			// Did we update the device in storage?
+			require.NotEmpty(t, identity.UpdatedDevices)
+			got := identity.UpdatedDevices[len(identity.UpdatedDevices)-1]
+			if diff := cmp.Diff(loginDevice, got); diff != "" {
+				t.Errorf("Updated device mismatch (-want +got):\n%s", diff)
+			}
+			// Did we delete the challenge?
+			require.Empty(t, identity.SessionData)
+		})
 	}
+}
 
-	// Did we update the device in storage?
-	require.Len(t, identity.UpdatedDevices, 1)
-	got := identity.UpdatedDevices[0]
-	if diff := cmp.Diff(wantDev, got); diff != "" {
-		t.Errorf("Updated device mismatch (-want +got):\n%s", diff)
+func getSignatureCounter(dev *types.MFADevice) uint32 {
+	switch d := dev.Device.(type) {
+	case *types.MFADevice_U2F:
+		return d.U2F.Counter
+	case *types.MFADevice_Webauthn:
+		return d.Webauthn.SignatureCounter
+	default:
+		return 0
 	}
-
-	// Did we delete the challenge?
-	require.Empty(t, identity.SessionData)
 }
 
 func TestLoginFlow_Begin_errors(t *testing.T) {
@@ -120,7 +165,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	key, err := mocku2f.Create()
 	require.NoError(t, err)
 	now := time.Now()
-	device, err := keyToMFADevice(key, 0 /* counter */, now /* addedAt */, now /* lastUsed */)
+	device, err := keyToMFADevice(key, now /* addedAt */, now /* lastUsed */)
 	require.NoError(t, err)
 
 	const user = "llama"
@@ -165,7 +210,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	}
 }
 
-func keyToMFADevice(dev *mocku2f.Key, counter uint32, addedAt, lastUsed time.Time) (*types.MFADevice, error) {
+func keyToMFADevice(dev *mocku2f.Key, addedAt, lastUsed time.Time) (*types.MFADevice, error) {
 	pubKeyDER, err := x509.MarshalPKIXPublicKey(&dev.PrivateKey.PublicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -177,7 +222,7 @@ func keyToMFADevice(dev *mocku2f.Key, counter uint32, addedAt, lastUsed time.Tim
 			U2F: &types.U2FDevice{
 				KeyHandle: dev.KeyHandle,
 				PubKey:    pubKeyDER,
-				Counter:   counter,
+				Counter:   dev.Counter(),
 			},
 		},
 	}, nil

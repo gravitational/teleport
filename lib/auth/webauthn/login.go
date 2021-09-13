@@ -269,8 +269,13 @@ func parseCredentialResponse(resp *CredentialAssertionResponse) (*protocol.Parse
 
 func findDeviceByID(devices []*types.MFADevice, id []byte) (*types.MFADevice, bool) {
 	for _, dev := range devices {
-		if innerDev, ok := dev.Device.(*types.MFADevice_U2F); ok {
-			if bytes.Equal(innerDev.U2F.KeyHandle, id) {
+		switch d := dev.Device.(type) {
+		case *types.MFADevice_U2F:
+			if bytes.Equal(d.U2F.KeyHandle, id) {
+				return dev, true
+			}
+		case *types.MFADevice_Webauthn:
+			if bytes.Equal(d.Webauthn.CredentialId, id) {
 				return dev, true
 			}
 		}
@@ -279,12 +284,14 @@ func findDeviceByID(devices []*types.MFADevice, id []byte) (*types.MFADevice, bo
 }
 
 func setCounterAndTimestamps(dev *types.MFADevice, credential *wan.Credential) error {
-	u2f := dev.GetU2F()
-	if u2f == nil {
-		return trace.BadParameter("webauthn only implemented for U2F devices, got %T", dev.Device)
+	switch d := dev.Device.(type) {
+	case *types.MFADevice_U2F:
+		d.U2F.Counter = credential.Authenticator.SignCount
+	case *types.MFADevice_Webauthn:
+		d.Webauthn.SignatureCounter = credential.Authenticator.SignCount
+	default:
+		return trace.BadParameter("unexpected device type for webauthn: %T", d)
 	}
-
 	dev.LastUsed = time.Now()
-	u2f.Counter = credential.Authenticator.SignCount
 	return nil
 }
