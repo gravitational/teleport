@@ -23,6 +23,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -34,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -235,6 +236,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 			Dialer: &reversetunnel.TunnelAuthDialer{
 				ProxyAddr:    tunAddr,
 				ClientConfig: clientConfig.SSH,
+				Log:          cfg.Log,
 			},
 			Credentials: []apiclient.Credentials{
 				apiclient.LoadTLS(clientConfig.TLS),

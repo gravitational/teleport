@@ -245,6 +245,9 @@ type CLIConf struct {
 	// HomePath is where tsh stores profiles
 	HomePath string
 
+	// LocalProxyPort is a port used by local proxy listener.
+	LocalProxyPort string
+
 	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
 	ConfigProxyTarget string
 }
@@ -375,6 +378,15 @@ func Run(args []string, opts ...cliOption) error {
 	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL)).StringVar(&cf.Format)
+
+	// Local TLS proxy.
+	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
+	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode")
+	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	proxySSH.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
+	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode")
+	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
+	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -618,6 +630,12 @@ func Run(args []string, opts ...cliOption) error {
 		err = kube.ls.run(&cf)
 	case kube.login.FullCommand():
 		err = kube.login.run(&cf)
+
+	case proxySSH.FullCommand():
+		err = onProxyCommandSSH(&cf)
+	case proxyDB.FullCommand():
+		err = onProxyCommandDB(&cf)
+
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
 	case dbLogin.FullCommand():

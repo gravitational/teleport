@@ -31,6 +31,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -250,7 +251,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 		// return an error.
 		t.log.Debugf("Client %q sent %q in SNI, which causes this auth server to send all known CAs in TLS handshake. If this client is version 4.2 or older, this is expected; if this client is version 4.3 or above, please let us know at https://github.com/gravitational/teleport/issues/new", info.Conn.RemoteAddr(), info.ServerName)
 	default:
-		clusterName, err = DecodeClusterName(info.ServerName)
+		clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				t.log.Warningf("Client sent unsupported cluster name %q, what resulted in error %v.", info.ServerName, err)
