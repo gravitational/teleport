@@ -265,7 +265,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	}
 	defer upstreamConn.Close()
 
-	errC := make(chan error)
+	errC := make(chan error, 2)
 	go func() {
 		defer downstreamConn.Close()
 		defer upstreamConn.Close()

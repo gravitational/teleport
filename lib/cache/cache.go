@@ -63,6 +63,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
+		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
 		{Kind: types.KindWebToken},
@@ -98,6 +99,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
+		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
 		{Kind: types.KindWebToken},
@@ -131,6 +133,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
+		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
@@ -159,7 +162,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
-		{Kind: types.KindAppServer},
+		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
@@ -1358,7 +1361,19 @@ func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	return rg.presence.GetKubeServices(ctx)
 }
 
+// GetApplicationServers returns all registered application servers.
+func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.GetApplicationServers(ctx, namespace)
+}
+
 // GetAppServers gets all application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServers.
 func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {

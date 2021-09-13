@@ -361,7 +361,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	// make sure second factor makes sense
-	switch c.Spec.SecondFactor {
+	switch sf := c.Spec.SecondFactor; sf {
 	case constants.SecondFactorOff, constants.SecondFactorOTP:
 	case constants.SecondFactorU2F:
 		if c.Spec.U2F == nil {
@@ -380,7 +380,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 				return trace.Wrap(err)
 			}
 		}
-		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
+		if err := c.Spec.Webauthn.CheckAndSetDefaults(sf, c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.SecondFactorOn, constants.SecondFactorOptional:
@@ -393,7 +393,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		if c.Spec.Webauthn == nil {
 			c.Spec.Webauthn = &Webauthn{} // Try to get the defaults from U2F.
 		}
-		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
+		if err := c.Spec.Webauthn.CheckAndSetDefaults(sf, c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -429,7 +429,7 @@ func (u *U2F) Check() error {
 	return nil
 }
 
-func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
+func (w *Webauthn) CheckAndSetDefaults(secondFactor constants.SecondFactorType, u *U2F) error {
 	// RPID.
 	switch {
 	case w.RPID != "": // Explicit RPID
@@ -478,6 +478,11 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 		if err := isValidAttestationCert(pem); err != nil {
 			return trace.BadParameter("webauthn denied CAs entry invalid: %v", err)
 		}
+	}
+
+	// Global disable flag.
+	if secondFactor == constants.SecondFactorWebauthn && w.Disabled {
+		return trace.BadParameter("webauthn cannot be disabled when second_factor = %v", constants.SecondFactorWebauthn)
 	}
 
 	return nil

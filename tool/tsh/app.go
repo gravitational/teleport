@@ -56,7 +56,7 @@ func onAppLogin(cf *CLIConf) error {
 
 	ws, err := tc.CreateAppSession(cf.Context, types.CreateAppSessionRequest{
 		Username:    tc.Username,
-		PublicAddr:  app.PublicAddr,
+		PublicAddr:  app.GetPublicAddr(),
 		ClusterName: tc.SiteName,
 		AWSRoleARN:  arn,
 	})
@@ -66,9 +66,9 @@ func onAppLogin(cf *CLIConf) error {
 	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: tc.SiteName,
 		RouteToApp: proto.RouteToApp{
-			Name:        app.Name,
+			Name:        app.GetName(),
 			SessionID:   ws.GetName(),
-			PublicAddr:  app.PublicAddr,
+			PublicAddr:  app.GetPublicAddr(),
 			ClusterName: tc.SiteName,
 			AWSRoleARN:  arn,
 		},
@@ -88,8 +88,8 @@ func onAppLogin(cf *CLIConf) error {
 		return nil
 	}
 	return appLoginTpl.Execute(os.Stdout, map[string]string{
-		"appName": app.Name,
-		"curlCmd": formatAppConfig(tc, profile, app.Name, app.PublicAddr, appFormatCURL),
+		"appName": app.GetName(),
+		"curlCmd": formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL),
 	})
 }
 
@@ -101,15 +101,13 @@ var appLoginTpl = template.Must(template.New("").Parse(
 `))
 
 // getRegisteredApp returns the registered application with the specified name.
-func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app *types.App, err error) {
+func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Application, err error) {
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		allServers, err := tc.ListAppServers(cf.Context)
-		for _, server := range allServers {
-			for _, a := range server.GetApps() {
-				if a.Name == cf.AppName {
-					app = a
-					return nil
-				}
+		allApps, err := tc.ListApps(cf.Context)
+		for _, a := range allApps {
+			if a.GetName() == cf.AppName {
+				app = a
+				return nil
 			}
 		}
 		return trace.Wrap(err)
