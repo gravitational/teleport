@@ -327,7 +327,7 @@ type Config struct {
 	// all proxy services are exposed on single TLS listener (Proxy Web Listener).
 	ALPNSNIListenerEnabled bool
 
-	// CurrentAWSCLIApp stores informant about the latest AWS app that the user logged into.
+	// CurrentAWSCLIApp stores information about the latest AWS app that the user logged into.
 	CurrentAWSCLIApp string
 }
 

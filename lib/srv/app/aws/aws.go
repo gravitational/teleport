@@ -133,7 +133,7 @@ func GetAndReplaceReqBody(req *http.Request) ([]byte, error) {
 	return payload, nil
 }
 
-// drainBody drains the body,  close the reader and returns the read bytes.
+// drainBody drains the body, close the reader and returns the read bytes.
 func drainBody(b io.ReadCloser) ([]byte, error) {
 	payload, err := io.ReadAll(b)
 	if err != nil {

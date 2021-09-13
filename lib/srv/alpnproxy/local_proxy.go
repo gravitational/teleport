@@ -366,7 +366,7 @@ func (l *LocalProxy) checkAccess(req *http.Request) error {
 	// Remove all the headers that are not present in awsCred.SignedHeaders.
 	filterSingedHeaders(reqCopy, sigV4.SignedHeaders)
 
-	// Get the date that was used to create the signature of original request
+	// Get the date that was used to create the signature of the original request
 	// originated from AWS CLI and reuse it as a timestamp during request signing call.
 	t, err := time.Parse(appaws.AmzDateTimeFormat, reqCopy.Header.Get(appaws.AmzDateHeader))
 	if err != nil {

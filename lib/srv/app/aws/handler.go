@@ -18,7 +18,7 @@ package appaws
 
 import (
 	"bytes"
-	"io"
+	"context"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws/client"
@@ -65,6 +65,7 @@ type SigningService struct {
 	// SigningServiceConfig is the SigningService configuration.
 	SigningServiceConfig
 
+	// fwd signs and forwards the request to AWS API.
 	fwd *forward.Forwarder
 }
 
@@ -79,10 +80,12 @@ type SigningServiceConfig struct {
 	// Clock is used to override time in
 	Clock clockwork.Clock
 
+	// getSigningCredentials allows so set the function responsible for obtaining STS credentials.
+	// Used in tests to set static AWS credentials and skip API call.
 	getSigningCredentials getSigningCredentialsFunc
 }
 
-// CheckAndSetDefaults validates the config.
+// CheckAndSetDefaults validates the SigningServiceConfig config.
 func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 	if s.Client == nil {
 		s.Client = http.DefaultClient
@@ -130,18 +133,15 @@ func (s *SigningService) Handle(rw http.ResponseWriter, r *http.Request) {
 // 5) Sign HTTP request.
 // 6) Forward the signed HTTP request to the AWS API.
 func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.RequestURI = ""
-	ctxUser := req.Context().Value(auth.ContextUser)
-	userI, ok := ctxUser.(auth.IdentityGetter)
-	if !ok {
-		return nil, trace.BadParameter("failed to get user identity")
+	identity, err := getUserIdentityFromContext(req.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	identity := userI.GetIdentity()
 	resolvedEndpoint, err := resolveEndpoint(req)
 	if err != nil {
 		return nil, err
 	}
-	signedReq, err := s.paperSignedRequest(req, resolvedEndpoint, &identity)
+	signedReq, err := s.paperSignedRequest(req, resolvedEndpoint, identity)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +150,16 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	return resp, err
+}
+
+func getUserIdentityFromContext(ctx context.Context) (*tlsca.Identity, error) {
+	ctxUser := ctx.Value(auth.ContextUser)
+	userI, ok := ctxUser.(auth.IdentityGetter)
+	if !ok {
+		return nil, trace.BadParameter("failed to get user identity")
+	}
+	identity := userI.GetIdentity()
+	return &identity, nil
 }
 
 func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
@@ -180,15 +190,26 @@ func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 
 // paperSignedRequest creates a new HTTP request and rewrites the header from the original request and returns a new
 // HTTP request signed by STS AWS API.
-func (s *SigningService) paperSignedRequest(r *http.Request, resolvedEndpoint *endpoints.ResolvedEndpoint, identity *tlsca.Identity) (*http.Request, error) {
+func (s *SigningService) paperSignedRequest(r *http.Request, re *endpoints.ResolvedEndpoint, identity *tlsca.Identity) (*http.Request, error) {
 	payload, err := GetAndReplaceReqBody(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	reqCopy, err := http.NewRequest(r.Method, resolvedEndpoint.URL+r.URL.Opaque, bytes.NewReader(payload))
+	reqCopy, err := http.NewRequest(r.Method, re.URL+r.URL.Opaque, bytes.NewReader(payload))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rewriteHeaders(r, reqCopy)
+	// Sign the copy of the request.
+	signer := v4.NewSigner(s.getSigningCredentials(s.Session, identity))
+	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), re.SigningName, re.SigningRegion, s.Clock.Now())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return reqCopy, nil
+}
+
+func rewriteHeaders(r *http.Request, reqCopy *http.Request) {
 	for k, kv := range r.Header {
 		// Remove Teleport app headers.
 		if appcommon.IsReservedHeader(k) {
@@ -198,17 +219,6 @@ func (s *SigningService) paperSignedRequest(r *http.Request, resolvedEndpoint *e
 			reqCopy.Header.Add(k, v)
 		}
 	}
-	err = s.sign(
-		reqCopy,
-		bytes.NewReader(payload),
-		resolvedEndpoint.SigningName,
-		resolvedEndpoint.SigningRegion,
-		identity,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return reqCopy, nil
 }
 
 type getSigningCredentialsFunc func(c client.ConfigProvider, identity *tlsca.Identity) *credentials.Credentials
@@ -220,13 +230,4 @@ func getAWSCredentialsFromSTSAPI(provider client.ConfigProvider, identity *tlsca
 			cred.Expiry.SetExpiration(identity.Expires, 0)
 		},
 	)
-}
-
-func (s *SigningService) sign(r *http.Request, b io.ReadSeeker, service, region string, identity *tlsca.Identity) error {
-	signer := v4.NewSigner(s.getSigningCredentials(s.Session, identity))
-	_, err := signer.Sign(r, b, service, region, s.Clock.Now())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
