@@ -36,6 +36,8 @@ type ProvisionToken interface {
 	GetRoles() SystemRoles
 	// SetRoles sets teleport roles
 	SetRoles(SystemRoles)
+	// GetAllowRules returns the list of allow rules
+	GetAllowRules() []*TokenRule
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
@@ -107,6 +109,11 @@ func (p *ProvisionTokenV2) GetRoles() SystemRoles {
 // SetRoles sets teleport roles
 func (p *ProvisionTokenV2) SetRoles(r SystemRoles) {
 	p.Spec.Roles = r
+}
+
+// GetAllowRules returns the list of allow rules
+func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
+	return p.Spec.Allow
 }
 
 // GetKind returns resource kind
