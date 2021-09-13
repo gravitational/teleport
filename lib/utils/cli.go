@@ -26,12 +26,14 @@ import (
 	stdlog "log"
 	"math"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"unicode"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
@@ -159,7 +161,11 @@ func UserMessageFromError(err error) string {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
-	fmt.Fprint(&buf, Color(Red, "ERROR: "))
+	if runtime.GOOS == constants.WindowsOS {
+		fmt.Fprint(&buf, "ERROR: ")
+	} else {
+		fmt.Fprint(&buf, Color(Red, "ERROR: "))
+	}
 	formatErrorWriter(err, &buf)
 	return buf.String()
 }
