@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 
 	"github.com/sethvargo/go-diceware/diceware"
@@ -48,6 +49,8 @@ const (
 
 	approveRecoveryGenericErrMsg  = "unable to approve account recovery, please contact your system administrator"
 	approveRecoveryBadAuthnErrMsg = "invalid username, password, or second factor"
+
+	completeRecoveryGenericErrMsg = "unable to recover your account, please contact your system administrator"
 )
 
 // fakeRecoveryCodeHash is bcrypt hash for "fake-barbaz x 8".
@@ -371,6 +374,135 @@ func (s *Server) recordFailedRecoveryAttempt(ctx context.Context, username strin
 		username, defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(lockUntil))
 
 	return lockUntil, maxedAttempts, nil
+}
+
+// CompleteAccountRecovery implements AuthService.CompleteAccountRecovery.
+func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error {
+	if err := s.isAccountRecoveryAllowed(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	approvedToken, err := s.GetUserToken(ctx, req.GetRecoveryApprovedTokenID())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return trace.AccessDenied(completeRecoveryGenericErrMsg)
+	}
+
+	if err := s.verifyUserToken(approvedToken, UserTokenTypeRecoveryApproved); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Check that the correct auth credential is being recovered before setting a new one.
+	switch req.GetNewAuthnCred().(type) {
+	case *proto.CompleteAccountRecoveryRequest_NewPassword:
+		if approvedToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD {
+			log.Debugf("Failed to recover account, expected new password, but received %T.", req.GetNewAuthnCred())
+			return trace.AccessDenied(completeRecoveryGenericErrMsg)
+		}
+
+		if err := services.VerifyPassword(req.GetNewPassword()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := s.UpsertPassword(approvedToken.GetUser(), req.GetNewPassword()); err != nil {
+			log.Error(trace.DebugReport(err))
+			return trace.AccessDenied(completeRecoveryGenericErrMsg)
+		}
+
+	case *proto.CompleteAccountRecoveryRequest_NewMFAResponse:
+		if approvedToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_MFA {
+			log.Debugf("Failed to recover account, expected new MFA register response, but received %T.", req.GetNewAuthnCred())
+			return trace.AccessDenied(completeRecoveryGenericErrMsg)
+		}
+
+		_, err = s.verifyMFARespAndAddDevice(ctx, req.GetNewMFAResponse(), &newMFADeviceFields{
+			username:      approvedToken.GetUser(),
+			newDeviceName: req.GetNewDeviceName(),
+			tokenID:       approvedToken.GetName(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+	default:
+		return trace.AccessDenied("unsupported authentication method")
+	}
+
+	// Check and remove user locks so user can immediately sign in after finishing recovering.
+	user, err := s.GetUser(approvedToken.GetUser(), false /* without secrets */)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return trace.AccessDenied(completeRecoveryGenericErrMsg)
+	}
+
+	if user.GetStatus().IsLocked {
+		user.ResetLocks()
+		if err := s.Identity.UpsertUser(user); err != nil {
+			log.Error(trace.DebugReport(err))
+			return trace.AccessDenied(completeRecoveryGenericErrMsg)
+		}
+
+		if err := s.DeleteUserLoginAttempts(approvedToken.GetUser()); err != nil {
+			log.Error(trace.DebugReport(err))
+			return trace.AccessDenied(completeRecoveryGenericErrMsg)
+		}
+	}
+
+	return nil
+}
+
+// CreateAccountRecoveryCodes implements AuthService.CreateAccountRecoveryCodes.
+func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
+	const unableToCreateCodesMsg = "unable to create new recovery codes, please contact your system administrator"
+
+	if err := s.isAccountRecoveryAllowed(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	approvedToken, err := s.GetUserToken(ctx, req.GetTokenID())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+	}
+
+	if _, err := mail.ParseAddress(approvedToken.GetUser()); err != nil {
+		log.Debugf("Failed to create new recovery codes, username %q is not a valid email: %v.", approvedToken.GetUser(), err)
+		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+	}
+
+	if err := s.verifyUserToken(approvedToken, UserTokenTypeRecoveryApproved); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	codes, err := s.generateAndUpsertRecoveryCodes(ctx, approvedToken.GetUser())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+	}
+
+	// If used as part of the recovery flow, getting new recovery codes marks the end of the flow in the UI.
+	if err := s.deleteUserTokens(ctx, approvedToken.GetUser()); err != nil {
+		log.Error(trace.DebugReport(err))
+	}
+
+	return &proto.CreateAccountRecoveryCodesResponse{
+		RecoveryCodes: codes,
+	}, nil
+}
+
+// GetAccountRecoveryToken implements AuthService.GetAccountRecoveryToken.
+func (s *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error) {
+	token, err := s.GetUserToken(ctx, req.GetRecoveryTokenID())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	if err := s.verifyUserToken(token, UserTokenTypeRecoveryStart, UserTokenTypeRecoveryApproved); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return token, nil
 }
 
 func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username string) ([]string, error) {

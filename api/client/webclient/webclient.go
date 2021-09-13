@@ -30,9 +30,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/trace"
 )
 
 // newWebClient creates a new client to the HTTPS web proxy.
@@ -119,7 +120,7 @@ func GetTunnelAddr(ctx context.Context, proxyAddr string, insecure bool, pool *x
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return tunnelAddr(proxyAddr, pr.Proxy.SSH)
+	return tunnelAddr(proxyAddr, pr.Proxy)
 }
 
 func GetMOTD(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (*MotD, error) {
@@ -177,6 +178,9 @@ type ProxySettings struct {
 	SSH SSHProxySettings `json:"ssh"`
 	// DB contains database access specific proxy settings
 	DB DBProxySettings `json:"db"`
+	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	ALPNSNIListenerEnabled bool `json:"alpn_sni_listener_enabled"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -274,19 +278,27 @@ type GithubSettings struct {
 
 // The tunnel addr is retrieved in the following preference order:
 //  1. Reverse Tunnel Public Address.
-//  2. SSH Proxy Public Address Host + Tunnel Port.
-//  3. HTTP Proxy Public Address Host + Tunnel Port.
-//  4. Proxy Address Host + Tunnel Port.
-func tunnelAddr(proxyAddr string, settings SSHProxySettings) (string, error) {
+//  2. If proxy support ALPN listener where all services are exposed on single port return proxy address.
+//  3. SSH Proxy Public Address Host + Tunnel Port.
+//  4. HTTP Proxy Public Address Host + Tunnel Port.
+//  5. Proxy Address Host + Tunnel Port.
+func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
 	// If a tunnel public address is set, nothing else has to be done, return it.
-	if settings.TunnelPublicAddr != "" {
-		return extractHostPort(settings.TunnelPublicAddr)
+	sshSettings := settings.SSH
+	if sshSettings.TunnelPublicAddr != "" {
+		return extractHostPort(sshSettings.TunnelPublicAddr)
 	}
 
 	// Extract the port the tunnel server is listening on.
 	tunnelPort := strconv.Itoa(defaults.SSHProxyTunnelListenPort)
-	if settings.TunnelListenAddr != "" {
-		if port, err := extractPort(settings.TunnelListenAddr); err == nil {
+	if sshSettings.TunnelListenAddr != "" {
+		if port, err := extractPort(sshSettings.TunnelListenAddr); err == nil {
+			tunnelPort = port
+		}
+	}
+
+	if settings.ALPNSNIListenerEnabled && proxyAddr != "" {
+		if port, err := extractPort(proxyAddr); err == nil {
 			tunnelPort = port
 		}
 	}
@@ -294,13 +306,13 @@ func tunnelAddr(proxyAddr string, settings SSHProxySettings) (string, error) {
 	// If a tunnel public address has not been set, but a related HTTP or SSH
 	// public address has been set, extract the hostname but use the port from
 	// the tunnel listen address.
-	if settings.SSHPublicAddr != "" {
-		if host, err := extractHost(settings.SSHPublicAddr); err == nil {
+	if sshSettings.SSHPublicAddr != "" {
+		if host, err := extractHost(sshSettings.SSHPublicAddr); err == nil {
 			return net.JoinHostPort(host, tunnelPort), nil
 		}
 	}
-	if settings.PublicAddr != "" {
-		if host, err := extractHost(settings.PublicAddr); err == nil {
+	if sshSettings.PublicAddr != "" {
+		if host, err := extractHost(sshSettings.PublicAddr); err == nil {
 			return net.JoinHostPort(host, tunnelPort), nil
 		}
 	}

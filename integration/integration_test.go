@@ -78,18 +78,6 @@ const (
 	Site   = "local-site"
 )
 
-// ports contains tcp ports allocated for all integration tests.
-var ports utils.PortList
-
-func init() {
-	// Allocate tcp ports for all integration tests. 5000 should be plenty.
-	var err error
-	ports, err = utils.GetFreeTCPPorts(5000, utils.PortStartingNumber)
-	if err != nil {
-		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
-	}
-}
-
 type integrationTestSuite struct {
 	me *user.User
 	// priv/pub pair to avoid re-generating it
@@ -855,7 +843,7 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	conf.SSH.Enabled = false
 
 	instanceConfig := suite.defaultInstanceConfig()
-	instanceConfig.MultiplexProxy = true
+	instanceConfig.Ports = webReverseTunnelMuxPortSetup()
 	main := NewInstance(instanceConfig)
 
 	require.NoError(t, main.CreateEx(t, nil, conf))
@@ -869,7 +857,7 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
-	os.Setenv(apidefaults.TunnelPublicAddrEnvar, main.Secrets.WebProxyAddr)
+	os.Setenv(apidefaults.TunnelPublicAddrEnvar, main.GetWebAddr())
 	t.Cleanup(func() { os.Unsetenv(apidefaults.TunnelPublicAddrEnvar) })
 
 	// verify the node is able to join the cluster
@@ -1646,9 +1634,17 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 
 	// Stop cluster "a" to force existing tunnels to close.
 	require.NoError(t, a.StopAuth(true))
+
+	// Reset KeyPair set by the first start by ACME. After introducing the ALPN TLS listener TLS proxy
+	// certs are generated even if WebService and WebInterface was disabled and only DisableTLS
+	// flag skips the TLS cert initialization. the First start call creates the ACME certs
+	// where Resets() call deletes certs dir thus KeyPairs is no longer valid.
+	a.Config.Proxy.KeyPairs = nil
+
 	// Restart cluster "a".
 	require.NoError(t, a.Reset())
 	require.NoError(t, a.Start())
+
 	// Wait for the tunnels to reconnect.
 	abortTime = time.Now().Add(time.Second * 10)
 	for len(checkGetClusters(t, a.Tunnel)) < 2 && len(checkGetClusters(t, b.Tunnel)) < 2 {
@@ -1729,7 +1725,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
-	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
@@ -1967,6 +1963,13 @@ func testMultiplexingTrustedClusters(t *testing.T, suite *integrationTestSuite) 
 	trustedClusters(t, suite, trustedClusterTest{multiplex: true})
 }
 
+func standardPortsOrMuxSetup(mux bool) *InstancePorts {
+	if mux {
+		return webReverseTunnelMuxPortSetup()
+	}
+	return standardPortSetup()
+}
+
 func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClusterTest) {
 	ctx := context.Background()
 	username := suite.me.Username
@@ -1974,14 +1977,13 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	clusterMain := "cluster-main"
 	clusterAux := "cluster-aux"
 	main := NewInstance(InstanceConfig{
-		ClusterName:    clusterMain,
-		HostID:         HostID,
-		NodeName:       Host,
-		Ports:          ports.PopIntSlice(6),
-		Priv:           suite.priv,
-		Pub:            suite.pub,
-		MultiplexProxy: test.multiplex,
-		log:            suite.log,
+		ClusterName: clusterMain,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		log:         suite.log,
+		Ports:       standardPortsOrMuxSetup(test.multiplex),
 	})
 	aux := suite.newNamedTeleportInstance(t, clusterAux)
 
@@ -2063,7 +2065,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, err)
 	// Note that the mapping omits admins role, this is to cover the scenario
 	// when root cluster and leaf clusters have different role sets
-	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
@@ -2262,7 +2264,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
-	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
@@ -2386,9 +2388,9 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, main.Create(t, remote.Secrets.AsSlice(), false, nil))
 	mainSecrets := main.Secrets
 	// switch listen address of the main cluster to load balancer
-	mainProxyAddr := *utils.MustParseAddr(mainSecrets.ListenAddr)
+	mainProxyAddr := *utils.MustParseAddr(mainSecrets.TunnelAddr)
 	lb.AddBackend(mainProxyAddr)
-	mainSecrets.ListenAddr = frontend.String()
+	mainSecrets.TunnelAddr = frontend.String()
 	require.NoError(t, remote.Create(t, mainSecrets.AsSlice(), true, nil))
 
 	require.NoError(t, main.Start())
@@ -2519,9 +2521,9 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, main.Create(t, remote.Secrets.AsSlice(), false, nil))
 	mainSecrets := main.Secrets
 	// switch listen address of the main cluster to load balancer
-	mainProxyAddr := *utils.MustParseAddr(mainSecrets.ListenAddr)
+	mainProxyAddr := *utils.MustParseAddr(mainSecrets.TunnelAddr)
 	lb.AddBackend(mainProxyAddr)
-	mainSecrets.ListenAddr = frontend.String()
+	mainSecrets.TunnelAddr = frontend.String()
 	require.NoError(t, remote.Create(t, mainSecrets.AsSlice(), true, nil))
 
 	require.NoError(t, main.Start())
@@ -2652,6 +2654,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 		}
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
+		tconf.Proxy.DisableALPNSNIListener = true
 
 		tconf.SSH.Enabled = false
 
@@ -2799,7 +2802,12 @@ func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 
 // waitForNodeCount waits for a certain number of nodes to show up in the remote site.
 func waitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, count int) error {
-	for i := 0; i < 30; i++ {
+	const (
+		deadline     = time.Second * 30
+		iterWaitTime = time.Second
+	)
+
+	err := utils.RetryStaticFor(deadline, iterWaitTime, func() error {
 		remoteSite, err := t.Tunnel.GetSite(clusterName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2815,10 +2823,13 @@ func waitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 		if len(nodes) == count {
 			return nil
 		}
-		time.Sleep(1 * time.Second)
-	}
+		return trace.BadParameter("did not find %v nodes", count)
 
-	return trace.BadParameter("did not find %v nodes", count)
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // waitForTunnelConnections waits for remote tunnels connections
@@ -3735,7 +3746,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	err = svc.GetAuthServer().UpsertToken(ctx,
 		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
-	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 	require.NoError(t, aux.Start())
@@ -5208,23 +5219,41 @@ func (s *integrationTestSuite) defaultInstanceConfig() InstanceConfig {
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
+		Ports:       standardPortSetup(),
 	}
 }
 
-func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterName string) *TeleInstance {
-	return NewInstance(InstanceConfig{
+type InstanceConfigOption func(config *InstanceConfig)
+
+func WithInstanceConfigPortsSetup(instancePorts *InstancePorts) InstanceConfigOption {
+	return func(config *InstanceConfig) {
+		config.Ports = instancePorts
+	}
+}
+
+func WithInstanceConfigClusterName(clusterName string) InstanceConfigOption {
+	return func(config *InstanceConfig) {
+		config.ClusterName = clusterName
+	}
+}
+
+func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterName string, opts ...InstanceConfigOption) *TeleInstance {
+	cfg := InstanceConfig{
 		ClusterName: clusterName,
 		HostID:      HostID,
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        s.priv,
 		Pub:         s.pub,
 		log:         s.log,
-	})
+		Ports:       standardPortSetup(),
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return NewInstance(cfg)
 }
 
 func (s *integrationTestSuite) defaultServiceConfig() *service.Config {
@@ -5309,7 +5338,6 @@ func TestWebProxyInsecure(t *testing.T) {
 		ClusterName: "example.com",
 		HostID:      uuid.New(),
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         testlog.FailureOnly(t),
@@ -5354,7 +5382,6 @@ func TestTraitsPropagation(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New(),
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
@@ -5365,7 +5392,6 @@ func TestTraitsPropagation(t *testing.T) {
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New(),
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,

@@ -24,11 +24,11 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jonboulle/clockwork"
-	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {
@@ -36,95 +36,63 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestLite(t *testing.T) { check.TestingT(t) }
+func TestLite(t *testing.T) {
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+		clock := clockwork.NewFakeClock()
 
-type LiteSuite struct {
-	bk    *Backend
-	suite test.BackendSuite
-}
+		cfg, err := test.ApplyOptions(options)
+		if err != nil {
+			return nil, nil, err
+		}
 
-var _ = check.Suite(&LiteSuite{})
+		if cfg.ConcurrentBackend != nil {
+			return nil, nil, test.ErrConcurrentAccessNotSupported
+		}
 
-func (s *LiteSuite) SetUpSuite(c *check.C) {
-	clock := clockwork.NewFakeClock()
-	newBackend := func() (backend.Backend, error) {
-		return NewWithConfig(context.Background(), Config{
-			Path:             c.MkDir(),
+		if cfg.MirrorMode {
+			return nil, nil, test.ErrMirrorNotSupported
+		}
+
+		backend, err := NewWithConfig(context.Background(), Config{
+			Path:             t.TempDir(),
 			PollStreamPeriod: 300 * time.Millisecond,
 			Clock:            clock,
 		})
+
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		return backend, clock, nil
 	}
-	s.suite.NewBackend = newBackend
-	s.suite.Clock = clock
+
+	test.RunBackendComplianceSuite(t, newBackend)
 }
 
-func (s *LiteSuite) SetUpTest(c *check.C) {
-	bk, err := s.suite.NewBackend()
-	c.Assert(err, check.IsNil)
-	s.bk = bk.(*Backend)
-	s.suite.B = s.bk
-}
-
-func (s *LiteSuite) TearDownTest(c *check.C) {
-	if s.bk != nil {
-		c.Assert(s.bk.Close(), check.IsNil)
-	}
-}
-
-func (s *LiteSuite) TestCRUD(c *check.C) {
-	s.suite.CRUD(c)
-}
-
-func (s *LiteSuite) TestRange(c *check.C) {
-	s.suite.Range(c)
-}
-
-func (s *LiteSuite) TestCompareAndSwap(c *check.C) {
-	s.suite.CompareAndSwap(c)
-}
-
-func (s *LiteSuite) TestExpiration(c *check.C) {
-	s.suite.Expiration(c)
-}
-
-func (s *LiteSuite) TestKeepAlive(c *check.C) {
-	s.suite.KeepAlive(c)
-}
-
-func (s *LiteSuite) TestEvents(c *check.C) {
-	s.suite.Events(c)
-}
-
-func (s *LiteSuite) TestWatchersClose(c *check.C) {
-	s.suite.WatchersClose(c)
-}
-
-func (s *LiteSuite) TestDeleteRange(c *check.C) {
-	s.suite.DeleteRange(c)
-}
-
-func (s *LiteSuite) TestPutRange(c *check.C) {
-	s.suite.PutRange(c)
-}
-
-func (s *LiteSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c, s.bk)
+// newBackend creates a backend instance that automatically deletes itself
+// at the end of the supplied test
+func newBackend(t *testing.T) *Backend {
+	clock := clockwork.NewFakeClock()
+	backend, err := NewWithConfig(context.Background(), Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 300 * time.Millisecond,
+		Clock:            clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { backend.Close() })
+	return backend
 }
 
 // Import tests importing values
-func (s *LiteSuite) TestImport(c *check.C) {
+func TestImport(t *testing.T) {
 	ctx := context.Background()
 	prefix := test.MakePrefix()
 
-	backendI, err := s.suite.NewBackend()
-	c.Assert(err, check.IsNil)
-	defer backendI.Close()
+	uut := newBackend(t)
 
-	b := backendI.(*Backend)
-
-	imported, err := b.Imported(ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(imported, check.Equals, false)
+	imported, err := uut.Imported(ctx)
+	require.NoError(t, err)
+	require.False(t, imported)
 
 	// add one element that should not show up
 	items := []backend.Item{
@@ -132,26 +100,26 @@ func (s *LiteSuite) TestImport(c *check.C) {
 		{Key: prefix("/prefix/b"), Value: []byte("val b")},
 		{Key: prefix("/prefix/a"), Value: []byte("val a")},
 	}
-	err = b.Import(ctx, items)
-	c.Assert(err, check.IsNil)
+	err = uut.Import(ctx, items)
+	require.NoError(t, err)
 
 	// prefix range fetch
-	result, err := b.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
-	c.Assert(err, check.IsNil)
+	result, err := uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
+	require.NoError(t, err)
 	expected := []backend.Item{
 		{Key: prefix("/prefix/a"), Value: []byte("val a")},
 		{Key: prefix("/prefix/b"), Value: []byte("val b")},
 	}
-	test.ExpectItems(c, result.Items, expected)
+	test.RequireItems(t, result.Items, expected)
 
-	imported, err = b.Imported(ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(imported, check.Equals, true)
+	imported, err = uut.Imported(ctx)
+	require.NoError(t, err)
+	require.True(t, imported)
 
-	err = b.Import(ctx, items)
-	fixtures.ExpectAlreadyExists(c, err)
+	err = uut.Import(ctx, items)
+	require.True(t, trace.IsAlreadyExists(err))
 
-	imported, err = b.Imported(ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(imported, check.Equals, true)
+	imported, err = uut.Imported(ctx)
+	require.NoError(t, err)
+	require.True(t, imported)
 }
