@@ -28,17 +28,16 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
-
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -46,6 +45,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 )
 
@@ -61,7 +62,6 @@ type Suite struct {
 	tlsServer    *auth.TestTLSServer
 	authClient   *auth.Client
 	appServer    *Server
-	server       types.Server
 	hostCertPool *x509.CertPool
 
 	hostUUID              string
@@ -84,6 +84,7 @@ func TestApp(t *testing.T) { check.TestingT(t) }
 func (s *Suite) SetUpSuite(c *check.C) {
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = c.MkDir()
+	s.hostUUID = uuid.New()
 
 	var err error
 	// Create Auth Server.
@@ -153,34 +154,24 @@ func (s *Suite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	s.hostport = u.Host
 
-	// Create a services.App that will be used for each test.
-	s.hostUUID = uuid.New()
-	s.server = &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Namespace: defaults.Namespace,
-			Name:      s.hostUUID,
-		},
-		Spec: types.ServerSpecV2{
-			Version: teleport.Version,
-			Apps: []*types.App{
-				{
-					Name:          "foo",
-					URI:           s.testhttp.URL,
-					PublicAddr:    "foo.example.com",
-					StaticLabels:  staticLabels,
-					DynamicLabels: types.LabelsToV2(dynamicLabels),
-				},
-				{
-					Name:         "awsconsole",
-					URI:          constants.AWSConsoleURL,
-					PublicAddr:   "aws.example.com",
-					StaticLabels: staticLabels,
-				},
-			},
-		},
-	}
+	// Create apps that will be used for each test.
+	appFoo, err := types.NewAppV3(types.Metadata{
+		Name:   "foo",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:           s.testhttp.URL,
+		PublicAddr:    "foo.example.com",
+		DynamicLabels: types.LabelsToV2(dynamicLabels),
+	})
+	c.Assert(err, check.IsNil)
+	appAWS, err := types.NewAppV3(types.Metadata{
+		Name:   "awsconsole",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL,
+		PublicAddr: "aws.example.com",
+	})
+	c.Assert(err, check.IsNil)
 
 	// Create a client with a machine role of RoleApp.
 	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
@@ -245,24 +236,27 @@ func (s *Suite) SetUpTest(c *check.C) {
 		AuthClient:   s.authClient,
 		TLSConfig:    tlsConfig,
 		CipherSuites: utils.DefaultCipherSuites(),
+		HostID:       s.hostUUID,
+		Hostname:     "test",
 		Authorizer:   authorizer,
 		GetRotation:  testRotationGetter,
-		Server:       s.server,
+		Apps:         types.Apps{appFoo, appAWS},
 		OnHeartbeat:  func(err error) {},
 		Cloud:        &testCloud{},
 	})
 	c.Assert(err, check.IsNil)
 
-	s.appServer.Start()
+	err = s.appServer.Start(s.closeContext)
+	c.Assert(err, check.IsNil)
 	err = s.appServer.ForceHeartbeat()
 	c.Assert(err, check.IsNil)
 }
 
 func (s *Suite) TearDownTest(c *check.C) {
-	err := s.authClient.Close()
+	err := s.appServer.Close()
 	c.Assert(err, check.IsNil)
 
-	err = s.appServer.Close()
+	err = s.authClient.Close()
 	c.Assert(err, check.IsNil)
 
 	s.testhttp.Close()
@@ -277,39 +271,48 @@ func (s *Suite) TearDownTest(c *check.C) {
 // has been created.
 func (s *Suite) TestStart(c *check.C) {
 	// Fetch the services.App that the service heartbeat.
-	servers, err := s.authServer.AuthServer.GetAppServers(s.closeContext, apidefaults.Namespace)
+	servers, err := s.authServer.AuthServer.GetApplicationServers(s.closeContext, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
-	c.Assert(servers, check.HasLen, 1)
-	server := servers[0]
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-
-	c.Assert(server.GetApps(), check.DeepEquals, []*types.App{
-		{
-			Name:         "foo",
-			URI:          s.testhttp.URL,
-			PublicAddr:   "foo.example.com",
-			StaticLabels: staticLabels,
-			DynamicLabels: map[string]types.CommandLabelV2{
-				dynamicLabelName: {
-					Period:  dynamicLabelPeriod,
-					Command: dynamicLabelCommand,
-					Result:  "4",
-				},
+	appFoo, err := types.NewAppV3(types.Metadata{
+		Name:   "foo",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:        s.testhttp.URL,
+		PublicAddr: "foo.example.com",
+		DynamicLabels: map[string]types.CommandLabelV2{
+			dynamicLabelName: {
+				Period:  dynamicLabelPeriod,
+				Command: dynamicLabelCommand,
+				Result:  "4",
 			},
 		},
-		{
-			Name:         "awsconsole",
-			URI:          constants.AWSConsoleURL,
-			PublicAddr:   "aws.example.com",
-			StaticLabels: staticLabels,
-		},
 	})
+	c.Assert(err, check.IsNil)
+	serverFoo, err := types.NewAppServerV3FromApp(appFoo, "test", s.hostUUID)
+	c.Assert(err, check.IsNil)
+	appAWS, err := types.NewAppV3(types.Metadata{
+		Name:   "awsconsole",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL,
+		PublicAddr: "aws.example.com",
+	})
+	c.Assert(err, check.IsNil)
+	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
+	c.Assert(err, check.IsNil)
+
+	sort.Sort(types.AppServers(servers))
+	c.Assert(cmp.Diff([]types.AppServer{serverAWS, serverFoo}, servers,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Expires")), check.Equals, "")
 
 	// Check the expiry time is correct.
-	c.Assert(s.clock.Now().Before(server.Expiry()), check.Equals, true)
-	c.Assert(s.clock.Now().Add(2*apidefaults.ServerAnnounceTTL).After(server.Expiry()), check.Equals, true)
+	for _, server := range servers {
+		c.Assert(s.clock.Now().Before(server.Expiry()), check.Equals, true)
+		c.Assert(s.clock.Now().Add(2*apidefaults.ServerAnnounceTTL).After(server.Expiry()), check.Equals, true)
+	}
 }
 
 // TestWaitStop makes sure the server will block and unlock.

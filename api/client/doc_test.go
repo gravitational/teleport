@@ -20,6 +20,7 @@ package client_test
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gravitational/teleport/api/client"
@@ -113,6 +114,7 @@ func ExampleNew() {
 			client.LoadProfile("", ""),
 			client.LoadIdentityFile("identity-path"),
 			client.LoadKeyPair("cert.crt", "cert.key", "cert.cas"),
+			client.LoadIdentityFileFromString(os.Getenv("TELEPORT_IDENTITY")),
 		},
 		// set to true if your web proxy doesn't have HTTP/TLS certificate
 		// configured yet (never use this in production).
@@ -151,6 +153,20 @@ func ExampleCredentials_loadIdentity() {
 // Load credentials from the specified identity file.
 func ExampleLoadIdentityFile() {
 	client.LoadIdentityFile("identity-file-path")
+}
+
+// Generate identity file with tsh or tctl.
+//  $ tsh login --user=api-user --out=identity-file-path
+//  $ tctl auth sign --user=api-user --out=identity-file-path
+//  $ export TELEPORT_IDENTITY=$(cat identity-file-path)
+// Load credentials from the envrironment variable.
+func ExampleCredentials_loadIdentityString() {
+	client.LoadIdentityFileFromString(os.Getenv("TELEPORT_IDENTITY"))
+}
+
+// Load credentials from the specified environment variable.
+func ExampleLoadIdentityFileFromString() {
+	client.LoadIdentityFileFromString(os.Getenv("TELEPORT_IDENTITY"))
 }
 
 // Generate certificate key pair with tctl.

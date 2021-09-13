@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -153,7 +154,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		var clusterName string
 		var err error
 		if info.ServerName != "" {
-			clusterName, err = auth.DecodeClusterName(info.ServerName)
+			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 			if err != nil && !trace.IsNotFound(err) {
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}

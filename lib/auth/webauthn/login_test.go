@@ -118,6 +118,75 @@ func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
 	require.Empty(t, identity.SessionData)
 }
 
+func TestLoginFlow_Begin_errors(t *testing.T) {
+	webLogin := wanlib.LoginFlow{
+		Webauthn: &types.Webauthn{RPID: "localhost"},
+		Identity: &fakeIdentity{},
+	}
+
+	ctx := context.Background()
+	_, err := webLogin.Begin(ctx, "")
+	require.True(t, trace.IsBadParameter(err))
+}
+
+func TestLoginFlow_Finish_errors(t *testing.T) {
+	key, err := mocku2f.Create()
+	require.NoError(t, err)
+	now := time.Now()
+	device, err := keyToMFADevice(key, 0 /* counter */, now /* addedAt */, now /* lastUsed */)
+	require.NoError(t, err)
+
+	webLogin := wanlib.LoginFlow{
+		U2F:      &types.U2F{AppID: "https://localhost"},
+		Webauthn: &types.Webauthn{RPID: "localhost"},
+		Identity: &fakeIdentity{
+			User: &types.UserV2{
+				Spec: types.UserSpecV2{
+					LocalAuth: &types.LocalAuthSecrets{
+						MFA: []*types.MFADevice{device},
+					},
+				},
+			},
+			SessionData: make(map[string]*wantypes.SessionData),
+		},
+	}
+
+	ctx := context.Background()
+	const user = "llama"
+	assertion, err := webLogin.Begin(ctx, user)
+	require.NoError(t, err)
+	okResp, err := key.SignAssertion("https://localhost", assertion)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		user string
+		resp *wanlib.CredentialAssertionResponse
+	}{
+		{
+			name: "NOK empty user",
+			user: "",
+			resp: okResp,
+		},
+		{
+			name: "NOK nil resp",
+			user: user,
+			resp: nil,
+		},
+		{
+			name: "NOK empty resp",
+			user: user,
+			resp: &wanlib.CredentialAssertionResponse{},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := webLogin.Finish(ctx, test.user, test.resp)
+			require.Error(t, err)
+		})
+	}
+}
+
 func keyToMFADevice(dev *mocku2f.Key, counter uint32, addedAt, lastUsed time.Time) (*types.MFADevice, error) {
 	pubKeyDER, err := x509.MarshalPKIXPublicKey(&dev.PrivateKey.PublicKey)
 	if err != nil {
