@@ -89,8 +89,8 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 		{
 			name:   "OK Webauthn device login",
 			user:   user,
-			origin: u2fOrigin,
-			key:    u2fKey,
+			origin: webOrigin,
+			key:    webKey,
 		},
 	}
 	for _, test := range tests {
