@@ -111,6 +111,8 @@ type WatchKind struct {
 	// if specified, only the events with the given resource
 	// name will be sent
 	Name string
+	// Version optionally specifies the resource version to watch.
+	Version string
 	// LoadSecrets specifies whether to load secrets
 	LoadSecrets bool
 	// Filter supplies custom event filter parameters that differ by

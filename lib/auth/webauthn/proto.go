@@ -15,6 +15,8 @@
 package webauthn
 
 import (
+	"encoding/base64"
+
 	"github.com/duo-labs/webauthn/protocol"
 
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
@@ -34,6 +36,22 @@ func CredentialAssertionToProto(assertion *CredentialAssertion) *wantypes.Creden
 	}
 }
 
+// CredentialAssertionResponseToProto converts a CredentialAssertionResponse to
+// its proto counterpart.
+func CredentialAssertionResponseToProto(car *CredentialAssertionResponse) *wantypes.CredentialAssertionResponse {
+	return &wantypes.CredentialAssertionResponse{
+		Type:  car.Type,
+		RawId: car.RawID,
+		Response: &wantypes.AuthenticatorAssertionResponse{
+			ClientDataJson:    car.AssertionResponse.ClientDataJSON,
+			AuthenticatorData: car.AssertionResponse.AuthenticatorData,
+			Signature:         car.AssertionResponse.Signature,
+			UserHandle:        car.AssertionResponse.UserHandle,
+		},
+		Extensions: outputExtensionsToProto(car.Extensions),
+	}
+}
+
 // CredentialAssertionFromProto converts a CredentialAssertion proto to its lib
 // counterpart.
 func CredentialAssertionFromProto(assertion *wantypes.CredentialAssertion) *CredentialAssertion {
@@ -44,6 +62,29 @@ func CredentialAssertionFromProto(assertion *wantypes.CredentialAssertion) *Cred
 			RelyingPartyID:     assertion.PublicKey.RpId,
 			AllowedCredentials: credentialDescriptorsFromProto(assertion.PublicKey.AllowCredentials),
 			Extensions:         inputExtensionsFromProto(assertion.PublicKey.Extensions),
+		},
+	}
+}
+
+// CredentialAssertionResponseFromProto converts a CredentialAssertionResponse
+// proto to its lib counterpart.
+func CredentialAssertionResponseFromProto(car *wantypes.CredentialAssertionResponse) *CredentialAssertionResponse {
+	return &CredentialAssertionResponse{
+		PublicKeyCredential: PublicKeyCredential{
+			Credential: Credential{
+				ID:   base64.RawURLEncoding.EncodeToString(car.RawId),
+				Type: car.Type,
+			},
+			RawID:      car.RawId,
+			Extensions: outputExtensionsFromProto(car),
+		},
+		AssertionResponse: AuthenticatorAssertionResponse{
+			AuthenticatorResponse: AuthenticatorResponse{
+				ClientDataJSON: car.Response.ClientDataJson,
+			},
+			AuthenticatorData: car.Response.AuthenticatorData,
+			Signature:         car.Response.Signature,
+			UserHandle:        car.Response.UserHandle,
 		},
 	}
 }
@@ -74,6 +115,15 @@ func inputExtensionsToProto(exts protocol.AuthenticationExtensions) *wantypes.Au
 	return res
 }
 
+func outputExtensionsToProto(exts *AuthenticationExtensionsClientOutputs) *wantypes.AuthenticationExtensionsClientOutputs {
+	if exts == nil {
+		return nil
+	}
+	return &wantypes.AuthenticationExtensionsClientOutputs{
+		AppId: exts.AppID,
+	}
+}
+
 func credentialDescriptorsFromProto(creds []*wantypes.CredentialDescriptor) []protocol.CredentialDescriptor {
 	res := make([]protocol.CredentialDescriptor, len(creds))
 	for i, cred := range creds {
@@ -94,4 +144,13 @@ func inputExtensionsFromProto(exts *wantypes.AuthenticationExtensionsClientInput
 		res[AppIDExtension] = exts.AppId
 	}
 	return res
+}
+
+func outputExtensionsFromProto(car *wantypes.CredentialAssertionResponse) *AuthenticationExtensionsClientOutputs {
+	if car.Extensions == nil {
+		return nil
+	}
+	return &AuthenticationExtensionsClientOutputs{
+		AppID: car.Extensions.AppId,
+	}
 }
