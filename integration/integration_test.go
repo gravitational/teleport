@@ -5228,18 +5228,6 @@ func (s *integrationTestSuite) defaultInstanceConfig() InstanceConfig {
 
 type InstanceConfigOption func(config *InstanceConfig)
 
-func WithInstanceConfigPortsSetup(instancePorts *InstancePorts) InstanceConfigOption {
-	return func(config *InstanceConfig) {
-		config.Ports = instancePorts
-	}
-}
-
-func WithInstanceConfigClusterName(clusterName string) InstanceConfigOption {
-	return func(config *InstanceConfig) {
-		config.ClusterName = clusterName
-	}
-}
-
 func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterName string, opts ...InstanceConfigOption) *TeleInstance {
 	cfg := InstanceConfig{
 		ClusterName: clusterName,
