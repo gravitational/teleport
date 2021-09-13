@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 
-	log "github.com/sirupsen/logrus"
+	"log"
 )
 
 // newWebClient creates a new client to the HTTPS web proxy.
@@ -59,7 +59,7 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 func getWithFallback(ctx context.Context, clt *http.Client, allowPlainHTTP bool, proxyAddr string, path string) (*http.Response, error) {
 	// first try https and see how that goes
 	endpoint := fmt.Sprintf("https://%s%s", proxyAddr, path)
-	log.Debugf("Attempting %s", endpoint)
+	log.Printf("Attempting %s", endpoint)
 	resp, err := clt.Get(endpoint)
 
 	// If the HTTPS succeeds, return that.
@@ -77,7 +77,7 @@ func getWithFallback(ctx context.Context, clt *http.Client, allowPlainHTTP bool,
 	// If we get to here a) the HTTPS attempt failed, and b) we're allowed to try
 	// clear-text HTTP to see if that works.
 	endpoint = fmt.Sprintf("http://%s%s", proxyAddr, path)
-	log.Debugf("Falling back to plain %s", endpoint)
+	log.Printf("Falling back to plain %s", endpoint)
 	resp, err = clt.Get(endpoint)
 	return resp, err
 }
