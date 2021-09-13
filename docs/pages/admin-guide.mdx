@@ -96,14 +96,14 @@ teleport:
   # (https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster).
   ca_pin: "sha256:ca-pin-hash-goes-here"
 
-  # List of auth servers in a cluster. you will have more than one auth server
-  # if you configure teleport auth to run in High Availability configuration.
+  # Auth Server address and port to connect to. If you configure teleport auth to run in High
+  # Availability configuration the address should point to a Load Balancer.
   # If adding a node located behind NAT, use the Proxy URL. e.g.
   #  auth_servers:
-  #     - teleport-proxy.example.com:3080
+  #     - teleport-proxy.example.com:443
   auth_servers:
       - 10.1.0.5:3025
-      - 10.1.0.6:3025
+
 
   # Logging configuration. Possible output values to disk via '/var/lib/teleport/teleport.log',
   # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN
@@ -1596,4 +1596,3 @@ The `license_file` path can be either absolute or relative to the configured
 >
   Only Auth servers require the license. Proxies and Nodes that do not also have Auth role enabled do not need the license.
 </Admonition>
-

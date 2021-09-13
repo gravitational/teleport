@@ -50,17 +50,23 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 	}
 }
 
-// getWithFallback attempts to execute an HTTP GET using https, and then fall
-// back to plain HTTP under certain, very specific circumstances.
+// doWithFallback attempts to execute an HTTP request using https, and then
+// fall back to plain HTTP under certain, very specific circumstances.
 //  * The caller must specifically allow it via the allowPlainHTTP parameter, and
 //  * The target host must resolve to the loopback address.
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
-func getWithFallback(ctx context.Context, clt *http.Client, allowPlainHTTP bool, proxyAddr string, path string) (*http.Response, error) {
+func doWithFallback(ctx context.Context, clt *http.Client, allowPlainHTTP bool, method string, proxyAddr string, path string) (*http.Response, error) {
 	// first try https and see how that goes
 	endpoint := fmt.Sprintf("https://%s%s", proxyAddr, path)
-	log.Printf("Attempting %s", endpoint)
-	resp, err := clt.Get(endpoint)
+
+	log.Printf("Attempting %s %s", method, endpoint)
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.Do(req)
 
 	// If the HTTPS succeeds, return that.
 	if err == nil {
@@ -77,8 +83,18 @@ func getWithFallback(ctx context.Context, clt *http.Client, allowPlainHTTP bool,
 	// If we get to here a) the HTTPS attempt failed, and b) we're allowed to try
 	// clear-text HTTP to see if that works.
 	endpoint = fmt.Sprintf("http://%s%s", proxyAddr, path)
-	log.Printf("Falling back to plain %s", endpoint)
-	resp, err = clt.Get(endpoint)
+	log.Printf("Falling back to plain %s %s", method, endpoint)
+
+	req, err = http.NewRequestWithContext(ctx, method, endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err = clt.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return resp, err
 }
 
@@ -88,7 +104,7 @@ func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 	clt := newWebClient(insecure, pool)
 	defer clt.CloseIdleConnections()
 
-	resp, err := getWithFallback(ctx, clt, insecure, proxyAddr, "/webapi/find")
+	resp, err := doWithFallback(ctx, clt, insecure, http.MethodGet, proxyAddr, "/webapi/find")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -116,7 +132,7 @@ func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 		endpoint = fmt.Sprintf("%s/%s", endpoint, connectorName)
 	}
 
-	resp, err := getWithFallback(ctx, clt, insecure, proxyAddr, endpoint)
+	resp, err := doWithFallback(ctx, clt, insecure, http.MethodGet, proxyAddr, endpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -151,7 +167,12 @@ func GetMOTD(ctx context.Context, proxyAddr string, insecure bool, pool *x509.Ce
 
 	endpoint := fmt.Sprintf("https://%s/webapi/motd", proxyAddr)
 
-	resp, err := clt.Get(endpoint)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

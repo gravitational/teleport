@@ -364,7 +364,7 @@ func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (*u2f.RegisterCh
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.getResetPasswordToken(context.TODO(), tokenID)
+	_, err = s.GetUserToken(context.TODO(), tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -453,55 +453,37 @@ func (s *Server) changeUserSecondFactor(req *proto.ChangeUserAuthenticationReque
 	if secondFactor == constants.SecondFactorOff {
 		return nil
 	}
-	switch req.NewMFARegisterResponse.GetResponse().(type) {
-	case *proto.MFARegisterResponse_TOTP:
-		if secondFactor == constants.SecondFactorU2F {
-			return trace.BadParameter("user %q sent an OTP token during password reset but cluster only allows U2F for second factor", username)
-		}
-		secrets, err := s.Identity.GetUserTokenSecrets(ctx, req.TokenID)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
-		dev, err := services.NewTOTPDevice("otp", secrets.GetOTPKey(), s.clock.Now())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := s.checkTOTP(ctx, username, req.GetNewMFARegisterResponse().GetTOTP().GetCode(), dev); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := s.UpsertMFADevice(ctx, username, dev); err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-
-	case *proto.MFARegisterResponse_U2F:
-		if secondFactor == constants.SecondFactorOTP {
-			return trace.BadParameter("user %q sent a U2F registration during password reset but cluster only allows OTP for second factor", username)
-		}
-		cfg, err := cap.GetU2F()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		_, err = u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
-			DevName:                "u2f",
-			ChallengeStorageKey:    req.TokenID,
-			RegistrationStorageKey: username,
-			Resp: u2f.RegisterChallengeResponse{
-				RegistrationData: req.GetNewMFARegisterResponse().GetU2F().GetRegistrationData(),
-				ClientData:       req.GetNewMFARegisterResponse().GetU2F().GetClientData(),
-			},
-			Storage:        s.Identity,
-			Clock:          s.GetClock(),
-			AttestationCAs: cfg.DeviceAttestationCAs,
-		})
-		return trace.Wrap(err)
-	default:
-		if secondFactor != constants.SecondFactorOptional {
+	if req.GetNewMFARegisterResponse() == nil {
+		switch secondFactor {
+		case constants.SecondFactorOptional:
+			// Optional second factor does not enforce users to add a MFA device.
+			// No need to check if a user already has registered devices since we expect
+			// users to have no devices at this point.
+			//
+			// The ChangeUserAuthenticationRequest is made
+			// with a reset or invite token where a reset token would've reset the users MFA devices,
+			// and an invite token is a new user with no devices.
+			return nil
+		default:
 			return trace.BadParameter("no second factor sent during user %q password reset", username)
 		}
 	}
-	return nil
+
+	// Default device name still used as UI invite/reset
+	// forms does not allow user to enter own device names yet.
+	// Using default values here is safe since we don't expect users to have
+	// any devices at this point.
+	deviceName := "u2f"
+	if req.GetNewMFARegisterResponse().GetTOTP() != nil {
+		deviceName = "otp"
+	}
+
+	_, err = s.verifyMFARespAndAddDevice(ctx, req.GetNewMFARegisterResponse(), &newMFADeviceFields{
+		username:      token.GetUser(),
+		newDeviceName: deviceName,
+		tokenID:       token.GetName(),
+	})
+
+	return trace.Wrap(err)
 }
