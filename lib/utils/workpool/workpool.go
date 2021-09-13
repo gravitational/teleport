@@ -20,7 +20,6 @@ import (
 	"context"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
 )
 
@@ -204,41 +203,41 @@ func (g *group) setTarget(target uint64) {
 // run manages the issuing of leases and handling their return to the pool for
 // a given work group.
 func (g *group) run() {
-	log.Debugf("Entering dispatcher for group at %p", g)
-	defer log.Debugf("Leaving dispatcher for group at %p", g)
-
 	var counts Counts
 	var nextLease Lease
 	var grant chan Lease
 	for {
+		// Are we able to grant new leases? We are only allowed to grant a lease
+		// while the number of outstanding leases is less than the target value.
+		// If anyone else wants one after that, they will have to wait until a
+		// lease is returned to the pool.
 		counts = g.loadCounts()
 		if counts.Active < counts.Target {
-			// we are in a "granting" state; ensure that the grant channel
-			// is non-nil so that the lease can be exported to the outside
-			// world, and initialize the `nextLease` to be issued,
-			// if it hasn't been already.
+			// We are in a "granting" state; prepare to issue the lease to the
+			// next person who asks.
 			grant = g.grantC
 			if nextLease.id == 0 {
 				nextLease = newLease(g)
 			}
-			log.Debugf("Granting lease #%d for group %p", nextLease.id, g)
-
 		} else {
-			// we are not in a "granting" state, ensure that the
-			// grant channel is nil, preventing us sending a lease to the
-			// outside world when we attempt to write to the channel later.
+			// we are in a non-"granting" state; prepare to block until a new
+			// event wakes the routine.
 			grant = nil
 		}
 
-		// if `grant` is nil, this select statement blocks until notify() is
-		// called (usually by a lease being returned), or the context is
-		// canceled. Otherwise we post the lease to the outside world and
-		// block on someone picking it up.
+		// Remembering that writes to a `nil` channel block indefinitely,
+		// if we're in a non-granting state this select blocks until `notify()`
+		// is called (usually by a lease being returned), or the context is
+		// canceled.
+		//
+		// Otherwise we post the lease to the outside world and block on
+		// someone picking it up (or cancellation)
 		select {
 		case grant <- nextLease:
 			g.incrActive()
 			nextLease = Lease{}
 		case <-g.notifyC:
+			// some event has woken the dispatch routine. Go back around.
 		case <-g.ctx.Done():
 			return
 		}
@@ -284,7 +283,6 @@ func (l Lease) Release() {
 		return
 	}
 	l.relOnce.Do(func() {
-		log.Debugf("Releasing lease #%d from group at %p", l.id, l.group)
 		l.decrActive()
 	})
 }

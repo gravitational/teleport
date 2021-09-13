@@ -1914,11 +1914,8 @@ func (process *TeleportProcess) initSSH() error {
 
 		// Block and wait while the node is running.
 		s.Wait()
-		log.Debug("SSH server has exited")
 		if conn.UseTunnel() {
-			log.Debug("Waiting on agent pool to return...")
 			agentPool.Wait()
-			log.Debug("Agent pool has returned")
 		}
 
 		log.Infof("Exited.")
