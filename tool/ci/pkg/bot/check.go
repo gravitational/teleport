@@ -47,11 +47,12 @@ func (c *Bot) Check(ctx context.Context) error {
 		}
 		currentReviewsSlice = append(currentReviewsSlice, currReview)
 	}
-	err = c.check(ctx, pr, c.Environment.GetReviewersForAuthor(pr.Author), mostRecent(currentReviewsSlice))
+	mostRecentReviews := mostRecent(currentReviewsSlice)
+	err = c.check(ctx, pr, c.Environment.GetReviewersForAuthor(pr.Author), mostRecentReviews)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if hasNewCommit(pr.HeadSHA, currentReviewsSlice) && !c.Environment.IsInternal(pr.Author) {
+	if hasNewCommit(pr.HeadSHA, mostRecentReviews) && !c.Environment.IsInternal(pr.Author) {
 		// Check file changes/commit verification
 		err := c.verifyCommit(ctx)
 		if err != nil {
