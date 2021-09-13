@@ -30,6 +30,10 @@
           "title": "Admin Guides",
           "slug": "/setup/admin/",
           "entries": [
+            { "title": "Github SSO", "slug": "/setup/admin/github-sso/" },
+            { "title": "Adding nodes", "slug": "/setup/admin/adding-nodes/" },
+            { "title": "Trusted Clusters", "slug": "/setup/admin/trustedclusters/" },
+            { "title": "Labels", "slug": "/setup/admin/labels/" },
             { "title": "Local users", "slug": "/setup/admin/users/" },
             { "title": "Troubleshooting", "slug": "/setup/admin/troubleshooting/" },
             { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
@@ -342,6 +346,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/trustedclusters/",
+      "destination": "/setup/admin/trustedclusters/",
+      "permanent": true
+    },
     {
       "source": "/reference/api/architecture/",
       "destination": "/api/architecture/",
