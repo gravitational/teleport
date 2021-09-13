@@ -21,13 +21,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	wan "github.com/duo-labs/webauthn/webauthn"
@@ -243,7 +240,7 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	// The user just solved this challenge, so let's make sure it won't be used
 	// again.
 	if err := f.Identity.DeleteWebauthnSessionData(ctx, user, loginSessionID); err != nil {
-		log.Warnf("WebAuthn: failed to delete SessionData for user %v", user)
+		log.Warnf("WebAuthn: failed to delete login SessionData for user %v", user)
 	}
 
 	return dev, nil
@@ -264,42 +261,6 @@ func parseCredentialResponse(resp *CredentialAssertionResponse) (*protocol.Parse
 		return nil, trace.Wrap(err)
 	}
 	return protocol.ParseCredentialRequestResponseBody(bytes.NewReader(body))
-}
-
-func validateOrigin(origin, rpID string) error {
-	parsedOrigin, err := url.Parse(origin)
-	if err != nil {
-		return trace.BadParameter("origin is not a valid URL: %v", err)
-	}
-	host, err := utils.Host(parsedOrigin.Host)
-	if err != nil {
-		return trace.BadParameter("extracting host from origin: %v", err)
-	}
-
-	// TODO(codingllama): Check origin against the public addresses of Proxies and
-	//  Auth Servers
-
-	// Accept origins whose host matches the RPID.
-	if host == rpID {
-		return nil
-	}
-
-	// Accept origins whose host is a subdomain of RPID.
-	originParts := strings.Split(host, ".")
-	rpParts := strings.Split(rpID, ".")
-	if len(originParts) <= len(rpParts) {
-		return trace.BadParameter("origin doesn't match RPID")
-	}
-	i := len(originParts) - 1
-	j := len(rpParts) - 1
-	for j >= 0 {
-		if originParts[i] != rpParts[j] {
-			return trace.BadParameter("origin doesn't match RPID")
-		}
-		i--
-		j--
-	}
-	return nil
 }
 
 func findDeviceByID(devices []*types.MFADevice, id []byte) (*types.MFADevice, bool) {

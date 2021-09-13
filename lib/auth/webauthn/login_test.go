@@ -45,21 +45,8 @@ func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
 	mfaDev, err := keyToMFADevice(dev, currentCounter-1, devAddedAt /* addedAt */, devAddedAt /* lastUsed */)
 	require.NoError(t, err)
 
-	user := &types.UserV2{
-		Metadata: types.Metadata{
-			Name: "llama",
-		},
-		Spec: types.UserSpecV2{
-			LocalAuth: &types.LocalAuthSecrets{
-				MFA: []*types.MFADevice{mfaDev},
-			},
-		},
-	}
-	identity := &fakeIdentity{
-		User:        user,
-		SessionData: make(map[string]*wantypes.SessionData),
-	}
-
+	const user = "llama"
+	identity := newFakeIdentity(user, mfaDev)
 	u2fConfig := types.U2F{AppID: "https://example.com:3080"}
 	webConfig := types.Webauthn{RPID: "example.com"}
 	webLogin := wanlib.LoginFlow{
@@ -72,7 +59,7 @@ func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
 
 	// webLogin.Begin and webLogin.Finish are the actual methods under test, the
 	// rest is setup/sanity checking.
-	assertion, err := webLogin.Begin(ctx, user.GetName())
+	assertion, err := webLogin.Begin(ctx, user)
 	require.NoError(t, err)
 	// We care about RPID and AppID, for everything else defaults are OK.
 	require.Equal(t, webConfig.RPID, assertion.Response.RelyingPartyID)
@@ -97,7 +84,7 @@ func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
 
 	// webLogin.Finish is the other part of the test, completing the login flow.
 	beforeLastUsed := time.Now().Add(-1 * time.Second)
-	loginDevice, err := webLogin.Finish(ctx, user.GetName(), assertionResp)
+	loginDevice, err := webLogin.Finish(ctx, user, assertionResp)
 	require.NoError(t, err)
 	require.True(t, beforeLastUsed.Before(loginDevice.LastUsed))
 
@@ -121,7 +108,7 @@ func TestLoginFlow_BeginFinish_u2f(t *testing.T) {
 func TestLoginFlow_Begin_errors(t *testing.T) {
 	webLogin := wanlib.LoginFlow{
 		Webauthn: &types.Webauthn{RPID: "localhost"},
-		Identity: &fakeIdentity{},
+		Identity: newFakeIdentity("llama" /* user */),
 	}
 
 	ctx := context.Background()
@@ -136,23 +123,14 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	device, err := keyToMFADevice(key, 0 /* counter */, now /* addedAt */, now /* lastUsed */)
 	require.NoError(t, err)
 
+	const user = "llama"
 	webLogin := wanlib.LoginFlow{
 		U2F:      &types.U2F{AppID: "https://localhost"},
 		Webauthn: &types.Webauthn{RPID: "localhost"},
-		Identity: &fakeIdentity{
-			User: &types.UserV2{
-				Spec: types.UserSpecV2{
-					LocalAuth: &types.LocalAuthSecrets{
-						MFA: []*types.MFADevice{device},
-					},
-				},
-			},
-			SessionData: make(map[string]*wantypes.SessionData),
-		},
+		Identity: newFakeIdentity(user, device),
 	}
 
 	ctx := context.Background()
-	const user = "llama"
 	assertion, err := webLogin.Begin(ctx, user)
 	require.NoError(t, err)
 	okResp, err := key.SignAssertion("https://localhost", assertion)
@@ -211,12 +189,39 @@ type fakeIdentity struct {
 	SessionData    map[string]*wantypes.SessionData
 }
 
+func newFakeIdentity(user string, devices ...*types.MFADevice) *fakeIdentity {
+	return &fakeIdentity{
+		User: &types.UserV2{
+			Metadata: types.Metadata{
+				Name: user,
+			},
+			Spec: types.UserSpecV2{
+				LocalAuth: &types.LocalAuthSecrets{
+					MFA: devices,
+				},
+			},
+		},
+		SessionData: make(map[string]*wantypes.SessionData),
+	}
+}
+
 func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	return f.User.GetLocalAuth().MFA, nil
 }
 
 func (f *fakeIdentity) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	f.UpdatedDevices = append(f.UpdatedDevices, d)
+
+	// Is this an update?
+	for i, dev := range f.User.GetLocalAuth().MFA {
+		if dev.Id == d.Id {
+			f.User.GetLocalAuth().MFA[i] = dev
+			return nil
+		}
+	}
+
+	// Insert new device.
+	f.User.GetLocalAuth().MFA = append(f.User.GetLocalAuth().MFA, d)
 	return nil
 }
 
