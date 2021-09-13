@@ -139,7 +139,7 @@ func containsApprovalReview(reviewer string, reviews []review) bool {
 // dimissMessage returns the dimiss message when a review is dismissed
 func dismissMessage(pr *environment.PullRequestMetadata, required []string) string {
 	var buffer bytes.Buffer
-	buffer.WriteString("new commit pushed, please re-review")
+	buffer.WriteString("new commit pushed, please re-review ")
 	for _, reviewer := range required {
 		buffer.WriteString(fmt.Sprintf("@%v ", reviewer))
 	}
@@ -178,10 +178,13 @@ func (c *Bot) verifyCommit(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	verification := commit.Commit.Verification
-	// Get commit object
-	payload := *verification.Payload
-	if strings.Contains(payload, ci.GithubCommit) && *verification.Verified {
-		return nil
+	if verification != nil {
+		if verification.Payload != nil && verification.Verified != nil {
+			payload := *verification.Payload
+			if strings.Contains(payload, ci.GithubCommit) && *verification.Verified {
+				return nil
+			}
+		}
 	}
 	return trace.BadParameter("commit is not verified and/or is not signed by GitHub")
 }

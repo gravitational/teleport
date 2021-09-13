@@ -51,19 +51,21 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// invalidateApprovals dismisses all reviews on a pull request
+// invalidateApprovals dismisses all approved reviews on a pull request.
 func (c *Bot) invalidateApprovals(ctx context.Context, msg string, reviews []review) error {
 	pr := c.Environment.PullRequest
 	for _, v := range reviews {
-		_, _, err := c.Environment.Client.PullRequests.DismissReview(ctx,
-			pr.RepoOwner,
-			pr.RepoName,
-			pr.Number,
-			v.id,
-			&github.PullRequestReviewDismissalRequest{Message: &msg},
-		)
-		if err != nil {
-			return trace.Wrap(err)
+		if v.status == ci.Approved {
+			_, _, err := c.Environment.Client.PullRequests.DismissReview(ctx,
+				pr.RepoOwner,
+				pr.RepoName,
+				pr.Number,
+				v.id,
+				&github.PullRequestReviewDismissalRequest{Message: &msg},
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 	return nil
