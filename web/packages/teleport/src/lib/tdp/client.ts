@@ -23,6 +23,7 @@ export default class Client extends EventEmitter {
   socketAddr: string;
   username: string;
   logger = Logger.create('TDPClient');
+  userDisconnected = false;
 
   constructor(socketAddr: string, username: string) {
     super();
@@ -44,7 +45,7 @@ export default class Client extends EventEmitter {
         this.processMessage(ev.data);
       };
       this.socket.onerror = () => {
-        this.handleError(new Error('websocket internal error'));
+        this.handleError(new Error('websocket connection error'));
       };
       this.socket.onclose = () => {
         this.logger.info('websocket is closed');
@@ -55,9 +56,8 @@ export default class Client extends EventEmitter {
         this.socket.onerror = null;
         this.socket.onclose = null;
         this.socket = null;
-
         // Emit close event so Client's owner knows to remove all the listeners belonging to Client itself.
-        this.emit('close');
+        this.emit('close', { userDisconnected: this.userDisconnected });
       };
     } catch (err) {
       this.handleError(err);
@@ -104,6 +104,7 @@ export default class Client extends EventEmitter {
   }
 
   disconnect() {
+    this.userDisconnected = true;
     this.socket.close();
   }
 

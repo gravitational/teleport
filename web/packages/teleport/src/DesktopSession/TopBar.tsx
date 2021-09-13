@@ -19,26 +19,21 @@ import { Text, TopNav, Flex } from 'design';
 import { Clipboard } from 'design/Icon';
 import { colors } from 'teleport/Console/colors';
 import ActionMenu from './ActionMenu';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import { DesktopSessionAttempt } from './useDesktopSession';
 
 type TopBarProps = {
   userHost: string;
   clipboard: boolean;
   recording: boolean;
-  attempt: Attempt;
+  attempt: DesktopSessionAttempt;
+  onDisconnect: VoidFunction;
 };
 
 const RecordingIndicator = styled.div``;
 
 export default function TopBar(props: TopBarProps) {
-  const { userHost, clipboard, recording, attempt } = props;
+  const { userHost, clipboard, recording, attempt, onDisconnect } = props;
   const theme = useTheme();
-
-  const hiddenUntilSuccess = () => {
-    return {
-      visibility: attempt.status === 'success' ? 'visible' : 'hidden',
-    };
-  };
 
   const noneUntilSuccess = () => {
     return {
@@ -46,7 +41,7 @@ export default function TopBar(props: TopBarProps) {
     };
   };
 
-  const showWhileProcessing = () => {
+  const showOnProcessing = () => {
     return {
       display: attempt.status === 'processing' ? 'flex' : 'none',
     };
@@ -58,6 +53,24 @@ export default function TopBar(props: TopBarProps) {
     };
   };
 
+  const showOnDisconnected = () => {
+    return {
+      display: attempt.status === 'disconnected' ? 'flex' : 'none',
+    };
+  };
+
+  // Used for centering the middle component in the TopBar in certain states
+  const centeringDivStyle = () => {
+    return {
+      display:
+        attempt.status === 'processing' ||
+        attempt.status === 'disconnected' ||
+        attempt.status === 'failed'
+          ? 'flex'
+          : 'none',
+    };
+  };
+
   const primaryOnTrue = (b: boolean): any => {
     return {
       color: b ? theme.colors.text.primary : theme.colors.text.secondary,
@@ -65,7 +78,7 @@ export default function TopBar(props: TopBarProps) {
   };
 
   const userHostStyle = {
-    ...hiddenUntilSuccess(),
+    ...noneUntilSuccess(),
     color: theme.colors.text.secondary,
   };
 
@@ -83,12 +96,18 @@ export default function TopBar(props: TopBarProps) {
   };
 
   const connectingStyle = {
-    ...showWhileProcessing(),
+    ...showOnProcessing(),
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  };
+
+  const errorStyle = {
+    ...showOnFailure(),
     color: theme.colors.text.secondary,
   };
 
-  const topBarErrorStyle = {
-    ...showOnFailure(),
+  const disconnectedStyle = {
+    ...showOnDisconnected(),
     color: theme.colors.text.secondary,
   };
 
@@ -113,32 +132,36 @@ export default function TopBar(props: TopBarProps) {
         justifyContent: 'space-between',
       }}
     >
-      <Text px={3} style={userHostStyle}>
-        {userHost}
-      </Text>
+      <>
+        <div style={centeringDivStyle()}></div>
+        <Text px={3} style={userHostStyle}>
+          {userHost}
+        </Text>
+      </>
 
       <>
+        {/* Center element. Only one of these is shown at a time depending on attempt.status */}
         <Text style={clipboardTextStyle}>
           <Clipboard style={clipboardStyle} pr={2} />
           Clipboard Sharing {clipboard ? 'Enabled' : 'Disabled'}
         </Text>
         <Text style={connectingStyle}>Connecting...</Text>
-        <Text style={topBarErrorStyle}>Error</Text>
+        <Text style={errorStyle}>Error</Text>
+        <Text style={disconnectedStyle}>Disconnected</Text>
       </>
 
-      <Flex px={3} style={hiddenUntilSuccess()}>
-        <Flex alignItems="center">
-          <RecordingIndicator style={recordingIndicatorStyle} />
-          <Text style={recordingTextStyle}>
-            {recording ? '' : 'Not '}Recording
-          </Text>
+      <>
+        <div style={centeringDivStyle()}></div>
+        <Flex px={3} style={noneUntilSuccess()}>
+          <Flex alignItems="center">
+            <RecordingIndicator style={recordingIndicatorStyle} />
+            <Text style={recordingTextStyle}>
+              {recording ? '' : 'Not '}Recording
+            </Text>
+          </Flex>
+          <ActionMenu onDisconnect={onDisconnect} />
         </Flex>
-        <ActionMenu
-          onDisconnect={() => {
-            console.log('TODO');
-          }}
-        />
-      </Flex>
+      </>
     </TopNav>
   );
 }

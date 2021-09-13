@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import useDesktopSession, { State } from './useDesktopSession';
 import TopBar from './TopBar';
-import { Indicator, Box, Alert } from 'design';
+import { Indicator, Box, Alert, Text } from 'design';
 import useTeleport from 'teleport/useTeleport';
 
 export default function Container() {
@@ -28,7 +28,15 @@ export default function Container() {
 }
 
 export function DesktopSession(props: State) {
-  const { userHost, setWsAttempt, tdpClient, attempt } = props;
+  const {
+    userHost,
+    setWsAttempt,
+    tdpClient,
+    attempt,
+    setAttempt,
+    clipboard,
+    recording,
+  } = props;
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   // Waits for the state hook to initialize the TdpClient.
@@ -44,20 +52,24 @@ export function DesktopSession(props: State) {
     });
 
     // If the websocket is closed remove all listeners that depend on it.
-    tdpClient.on('close', () => {
-      // TODO: this shouldn't necessarily be a failure, i.e. if the session times out or
-      // if the user selects "disconnect" from the menu
-      setWsAttempt({
-        status: 'failed',
-        statusText: 'connection to remote server was closed',
-      });
+    // If it was closed intentionally by the user, set attempt to disconnected,
+    // otherwise assume a server error.
+    tdpClient.on('close', (message: { userDisconnected: boolean }) => {
+      if (message.userDisconnected) {
+        setAttempt({ status: 'disconnected' });
+      } else {
+        setWsAttempt({
+          status: 'failed',
+          statusText: 'server error',
+        });
+      }
       tdpClient.removeAllListeners();
     });
 
-    tdpClient.on('error', (err: Error) => {
+    tdpClient.on('error', () => {
       setWsAttempt({
         status: 'failed',
-        statusText: err.message,
+        statusText: 'connection error',
       });
     });
 
@@ -104,18 +116,34 @@ export function DesktopSession(props: State) {
   return (
     <StyledDesktopSession>
       <TopBar
+        onDisconnect={() => {
+          tdpClient.disconnect();
+        }}
         userHost={userHost}
-        // clipboard and recording settings will eventuall come from backend, hardcoded for now
-        clipboard={false}
-        recording={false}
+        clipboard={clipboard}
+        recording={recording}
         attempt={attempt}
       />
       {attempt.status === 'failed' && (
-        <Alert mx={10} my={2} children={attempt.statusText} />
+        <Alert
+          style={{
+            maxWidth: '500px',
+            alignSelf: 'center',
+          }}
+          px={10}
+          my={2}
+          children={attempt.statusText}
+        />
       )}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
+        </Box>
+      )}
+
+      {attempt.status === 'disconnected' && (
+        <Box textAlign="center" m={10}>
+          <Text>Remote desktop successfully disconnected.</Text>
         </Box>
       )}
 

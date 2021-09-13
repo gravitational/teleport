@@ -17,12 +17,20 @@ limitations under the License.
 import { useMemo, useEffect, useState } from 'react';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import { useParams } from 'react-router';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import cfg, { UrlDesktopParams } from 'teleport/config';
 import TdpClient from 'teleport/lib/tdp/client';
 import Ctx from 'teleport/teleportContext';
 import { Desktop } from 'teleport/services/desktops';
 import { stripRdpPort } from '../Desktops/DesktopList';
+
+// Extends Attempt to allow for an additional 'disconnected' state,
+// which allows us to display a non-error for instances where the connection
+// was intentionally disconnected.
+export type DesktopSessionAttempt = {
+  status: Attempt['status'] | 'disconnected';
+  statusText?: string;
+};
 
 export default function useDesktopSession(ctx: Ctx) {
   // tracks tdpclient/websocket connection states
@@ -32,11 +40,13 @@ export default function useDesktopSession(ctx: Ctx) {
   // tracks api call states
   const {
     attempt: fetchDesktopAttempt,
-    setAttempt: setFetchDesktopAttempt,
     run: runFetchDesktopAttempt,
   } = useAttempt('processing');
-  // tracks combination of tdpclient/websocket and api call state
-  const { attempt, setAttempt } = useAttempt('processing');
+  // Tracks combination of tdpclient/websocket and api call state,
+  // as well as whether the tdp client for this session was intentionally disconnected.
+  const [attempt, setAttempt] = useState<DesktopSessionAttempt>({
+    status: 'processing',
+  });
   const { clusterId, username, desktopId } = useParams<UrlDesktopParams>();
   const [userHost, setUserHost] = useState<string>('user@hostname');
 
@@ -67,7 +77,7 @@ export default function useDesktopSession(ctx: Ctx) {
     );
   }, [clusterId, username, desktopId]);
 
-  // Synchronizes the attempt meta state of wsAttempt and fetchDesktopAttempt
+  // Synchronizes the attempt meta state of wsAttempt and fetchDesktopAttempt.
   useEffect(() => {
     if (wsAttempt.status === 'failed') {
       setAttempt(wsAttempt);
@@ -90,12 +100,13 @@ export default function useDesktopSession(ctx: Ctx) {
 
   return {
     tdpClient,
-    wsAttempt,
     setWsAttempt,
-    fetchDesktopAttempt,
-    setFetchDesktopAttempt,
     userHost,
     attempt,
+    setAttempt,
+    // clipboard and recording settings will eventuall come from backend, hardcoded for now
+    clipboard: false,
+    recording: false,
   };
 }
 
