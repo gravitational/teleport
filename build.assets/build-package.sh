@@ -322,12 +322,14 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     if [[ "${SIGN_PKG}" == "true" ]]; then
         # run codesign to sign binaries
         for FILE in ${FILE_LIST}; do
+            set -o xtrace
             codesign -s "${DEVELOPER_ID_APPLICATION}" \
                 -f \
                 -v \
                 --timestamp \
                 --options runtime \
                 ${PACKAGE_TEMPDIR}/${FILE}
+            set +o xtrace
         done
     fi
 
@@ -344,11 +346,13 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         mv ${PKG_FILENAME} ${PKG_FILENAME}.unsigned
 
         # run productsign to sign package
+        set -o xtrace
         productsign \
             --sign "${DEVELOPER_ID_INSTALLER}" \
             --timestamp \
             ${PKG_FILENAME}.unsigned \
             ${PKG_FILENAME}
+        set +o xtrace
 
         # remove unsigned package after successful signing
         rm -f ${PKG_FILENAME}.unsigned
