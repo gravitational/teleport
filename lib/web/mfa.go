@@ -27,10 +27,8 @@ import (
 
 // getMFADevicesWithTokenHandle retrieves the list of registered MFA devices for the user defined in token.
 func (h *Handler) getMFADevicesWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	recoveryApprovedTokenID := r.URL.Query().Get("token")
-
 	mfas, err := h.cfg.ProxyClient.GetMFADevices(r.Context(), &proto.GetMFADevicesRequest{
-		RecoveryApprovedTokenID: recoveryApprovedTokenID,
+		RecoveryApprovedTokenID: p.ByName("token"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -54,18 +52,11 @@ func (h *Handler) getMFADevicesHandle(w http.ResponseWriter, r *http.Request, p 
 	return ui.MakeMFADevices(mfas.GetDevices()), nil
 }
 
-// deleteMFADeviceHandle deletes a mfa device for the user defined in the `token`, given as a query parameter.
-func (h *Handler) deleteMFADeviceHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	tokenID := r.URL.Query().Get("token")
-	deviceName := p.ByName("deviceName")
-
-	if tokenID == "" || deviceName == "" {
-		return nil, trace.BadParameter("missing token or device name")
-	}
-
+// deleteMFADeviceWithTokenHandle deletes a mfa device for the user defined in the `token`, given as a query parameter.
+func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	if err := h.GetProxyClient().DeleteMFADeviceSync(r.Context(), &proto.DeleteMFADeviceSyncRequest{
-		TokenID:    tokenID,
-		DeviceName: deviceName,
+		TokenID:    p.ByName("token"),
+		DeviceName: p.ByName("devicename"),
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
