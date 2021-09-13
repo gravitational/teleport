@@ -259,7 +259,7 @@ func TestProxySSHConfig(t *testing.T) {
 		HostID:        "127.0.0.1",
 		NodeName:      "127.0.0.1",
 		ClusterName:   "host-cluster-name",
-		Roles:         types.SystemRoles{types.RoleNode},
+		Role:          types.RoleNode,
 	})
 	require.NoError(t, err)
 
