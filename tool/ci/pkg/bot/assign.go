@@ -35,6 +35,7 @@ func (a *Bot) assign(required []string, currentAssignedReviewers []*github.User)
 	return nil
 }
 
+// containsRequiredReviewer checks if the assigned reviewers contain a user.
 func containsRequiredReviewer(reviewers []*github.User, rev string) bool {
 	for _, ghRev := range reviewers {
 		if *ghRev.Login == rev {

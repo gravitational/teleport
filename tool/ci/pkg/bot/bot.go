@@ -85,9 +85,9 @@ func (gc GithubClient) DimissStaleWorkflowRunsForExternalContributors(ctx contex
 }
 
 // DismissStaleWorkflowRuns dismisses stale Check workflow runs.
-// Stale workflow runs are workflow runs that were previously ran/not the most recent and are no longer valid
-// due to a new event triggering/change in state. The workflow in the current context is the source of truth for
-// the state of the pull request.
+// Stale workflow runs are workflow runs that were previously ran and are no longer valid
+// due to a new event triggering thus a change in state. The workflow running in the current context is the source of truth for
+// the state of checks.
 func (gc GithubClient) DismissStaleWorkflowRuns(ctx context.Context, token, owner, repoName, branch string) error {
 	var targetWorkflow *github.Workflow
 	workflows, _, err := gc.Client.Actions.ListWorkflows(ctx, owner, repoName, &github.ListOptions{})
@@ -106,7 +106,7 @@ func (gc GithubClient) DismissStaleWorkflowRuns(ctx context.Context, token, owne
 	}
 	sort.Sort(ByTime(list.WorkflowRuns))
 
-	// Deleting all runs except the most recently started one.
+	// Deleting all runs except the most recent one.
 	for i := 0; i < len(list.WorkflowRuns)-1; i++ {
 		run := list.WorkflowRuns[i]
 		err := gc.deleteRun(ctx, token, owner, repoName, *run.ID)

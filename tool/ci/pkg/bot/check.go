@@ -34,6 +34,10 @@ func (c *Bot) Check(ctx context.Context) error {
 	}
 	currentReviewsSlice := []review{}
 	for _, rev := range reviews {
+		err := checkReviewFields(rev)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		currReview := review{
 			name:        *rev.User.Login,
 			status:      *rev.State,
@@ -75,7 +79,32 @@ func (c *Bot) check(ctx context.Context, pr *environment.PullRequestMetadata, re
 	return nil
 }
 
-// mostRecent returns a list of the most recent review from each required reviewer
+// review is a pull request review
+type review struct {
+	name        string
+	status      string
+	commitID    string
+	id          int64
+	submittedAt *time.Time
+}
+
+func checkReviewFields(review *github.PullRequestReview) error {
+	switch {
+	case review.ID == nil:
+		return trace.Errorf("review ID is nil. review: %+v", review)
+	case review.State == nil:
+		return trace.Errorf("review State is nil. review: %+v", review)
+	case review.CommitID == nil:
+		return trace.Errorf("review CommitID is nil. review: %+v", review)
+	case review.SubmittedAt == nil:
+		return trace.Errorf("review SubmittedAt is nil. review: %+v", review)
+	case review.User.Login == nil:
+		return trace.Errorf("reviewer User.Login is nil. review: %+v", review)
+	}
+	return nil
+}
+
+// mostRecent returns a list of the most recent review from each required reviewer.
 func mostRecent(currentReviews []review) []review {
 	mostRecentReviews := make(map[string]review)
 	for _, rev := range currentReviews {
@@ -95,15 +124,6 @@ func mostRecent(currentReviews []review) []review {
 		reviews = append(reviews, v)
 	}
 	return reviews
-}
-
-// review is a pull request review
-type review struct {
-	name        string
-	status      string
-	commitID    string
-	id          int64
-	submittedAt *time.Time
 }
 
 func containsApprovalReview(reviewer string, reviews []review) bool {

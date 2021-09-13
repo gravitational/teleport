@@ -102,7 +102,6 @@ func dismissRuns(ctx context.Context, token string) error {
 }
 
 func makeGithubClient(ctx context.Context, token string) *github.Client {
-	// Creating and authenticating the Github client
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)

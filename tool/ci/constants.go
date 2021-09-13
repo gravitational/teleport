@@ -29,10 +29,6 @@ const (
 	// Approved is a pull request review status.
 	Approved = "APPROVED"
 
-	// Assignments is the environment variable name that stores
-	// which reviewers should be assigned to which authors.
-	Assignments = "ASSIGNMENTS"
-
 	// Token is the env variable name that stores the Github authentication token
 	Token = "GITHUB_TOKEN"
 
