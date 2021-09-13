@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,90 +21,212 @@ package test
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"math/rand"
+	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
 
-type BackendSuite struct {
-	B backend.Backend
-	// B2 is a backend opened to the same database,
-	// used for concurrent operations tests
-	B2         backend.Backend
-	NewBackend func() (backend.Backend, error)
-	Clock      clockwork.FakeClock
+var (
+	ErrMirrorNotSupported           = errors.New("mirror mode not supported")
+	ErrConcurrentAccessNotSupported = errors.New("concurrent access not supported")
+)
+
+type ConstructionOptions struct {
+	MirrorMode bool
+
+	// ConcurrentBackend indicates that the Backend Constructor function should not
+	// create an entirely independent data store, but instead should create a
+	// new interface to the same underlying data store as `ConcurrentBackend`.
+	ConcurrentBackend backend.Backend
+}
+
+// ApplyOptions constructs a new `ConstructionOptions` value from a
+// sensible default and then applies the supplied options to it.
+func ApplyOptions(options []ConstructionOption) (*ConstructionOptions, error) {
+	result := ConstructionOptions{
+		MirrorMode: false,
+	}
+	if err := result.Apply(options); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Apply applies a collection of option-setting functions to the
+// receiver, modifying it in-place.
+func (opts *ConstructionOptions) Apply(options []ConstructionOption) error {
+	for _, opt := range options {
+		if err := opt(opts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ConstructionOption describes a named-parameter setting function for
+// configuring a ConstructionOptions instance
+type ConstructionOption func(*ConstructionOptions) error
+
+// WithMirrorMode asks the constructor to create a Backend in "mirror mode". Not
+// all backends will support this.
+func WithMirrorMode(mirror bool) ConstructionOption {
+	return func(opts *ConstructionOptions) error {
+		opts.MirrorMode = mirror
+		return nil
+	}
+}
+
+// WithConcurrentBackend() asks the constructor to create a
+func WithConcurrentBackend(target backend.Backend) ConstructionOption {
+	return func(opts *ConstructionOptions) error {
+		opts.ConcurrentBackend = target
+		return nil
+	}
+}
+
+// Constructor describes a function for constructing new instances of a
+// backend, with various options as required by a given test.
+type Constructor func(options ...ConstructionOption) (backend.Backend, clockwork.FakeClock, error)
+
+// RunBackendComplianceSuite runs the entiore backend compliance suite,
+// createing a collection of named subtests under the context provided
+// by `t`.
+//
+// As each test requires a new backend instance it will invoke the supplied
+// `newBackend` function, which callers will use inject instances of the
+// backend under test.
+func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
+	t.Run("CRUD", func(t *testing.T) {
+		testCRUD(t, newBackend)
+	})
+
+	t.Run("QueryRange", func(t *testing.T) {
+		testQueryRange(t, newBackend)
+	})
+
+	t.Run("DeleteRange", func(t *testing.T) {
+		testDeleteRange(t, newBackend)
+	})
+
+	t.Run("PutRange", func(t *testing.T) {
+		testPutRange(t, newBackend)
+	})
+
+	t.Run("CompareAndSwap", func(t *testing.T) {
+		testCompareAndSwap(t, newBackend)
+	})
+
+	t.Run("Expiration", func(t *testing.T) {
+		testExpiration(t, newBackend)
+	})
+
+	t.Run("KeepAlive", func(t *testing.T) {
+		testKeepAlive(t, newBackend)
+	})
+
+	t.Run("Events", func(t *testing.T) {
+		testEvents(t, newBackend)
+	})
+
+	t.Run("WatchersClose", func(t *testing.T) {
+		testWatchersClose(t, newBackend)
+	})
+
+	t.Run("Locking", func(t *testing.T) {
+		testLocking(t, newBackend)
+	})
+
+	t.Run("ConcurrentOperations", func(t *testing.T) {
+		testConcurrentOperations(t, newBackend)
+	})
+
+	t.Run("Mirror", func(t *testing.T) {
+		testMirror(t, newBackend)
+	})
+}
+
+// RequireItems asserts that the supplied `actual` items collection matches
+// the `expected` collection, in size, ordering and the key/value pairs of
+// each entry.
+func RequireItems(t *testing.T, actual, expected []backend.Item) {
+	require.Len(t, actual, len(expected))
+	for i := range expected {
+		require.Equal(t, actual[i].Key, expected[i].Key)
+		require.Equal(t, actual[i].Value, expected[i].Value)
+	}
 }
 
 // CRUD tests create read update scenarios
-func (s *BackendSuite) CRUD(c *check.C) {
-	ctx := context.Background()
+func testCRUD(t *testing.T, newBackend Constructor) {
+	uut, _, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
 
+	ctx := context.Background()
 	prefix := MakePrefix()
 
 	item := backend.Item{Key: prefix("/hello"), Value: []byte("world")}
 
 	// update will fail on non-existent item
-	_, err := s.B.Update(ctx, item)
-	fixtures.ExpectNotFound(c, err)
+	_, err = uut.Update(ctx, item)
+	require.True(t, trace.IsNotFound(err))
 
-	_, err = s.B.Create(ctx, item)
-	c.Assert(err, check.IsNil)
+	_, err = uut.Create(ctx, item)
+	require.NoError(t, err)
 
 	// create will fail on existing item
-	_, err = s.B.Create(context.Background(), item)
-	fixtures.ExpectAlreadyExists(c, err)
+	_, err = uut.Create(context.Background(), item)
+	require.True(t, trace.IsAlreadyExists(err))
 
 	// get succeeds
-	out, err := s.B.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out.Value), check.Equals, string(item.Value))
+	out, err := uut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, out.Value, item.Value)
 
 	// get range succeeds
-	res, err := s.B.GetRange(ctx, item.Key, backend.RangeEnd(item.Key), backend.NoLimit)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(res.Items), check.Equals, 1)
-	c.Assert(string(res.Items[0].Value), check.Equals, string(item.Value))
-	c.Assert(string(res.Items[0].Key), check.Equals, string(item.Key))
+	res, err := uut.GetRange(ctx, item.Key, backend.RangeEnd(item.Key), backend.NoLimit)
+	require.NoError(t, err)
+	require.Len(t, res.Items, 1)
+	RequireItems(t, res.Items, []backend.Item{item})
 
 	// update succeeds
 	updated := backend.Item{Key: prefix("/hello"), Value: []byte("world 2")}
-	_, err = s.B.Update(ctx, updated)
-	c.Assert(err, check.IsNil)
+	_, err = uut.Update(ctx, updated)
+	require.NoError(t, err)
 
-	out, err = s.B.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out.Value), check.Equals, string(updated.Value))
+	out, err = uut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, out.Value, updated.Value)
 
 	// delete succeeds
-	err = s.B.Delete(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-
-	_, err = s.B.Get(ctx, item.Key)
-	fixtures.ExpectNotFound(c, err)
+	require.NoError(t, uut.Delete(ctx, item.Key))
+	_, err = uut.Get(ctx, item.Key)
+	require.True(t, trace.IsNotFound(err))
 
 	// second delete won't find the item
-	err = s.B.Delete(ctx, item.Key)
-	fixtures.ExpectNotFound(c, err)
+	err = uut.Delete(ctx, item.Key)
+	require.True(t, trace.IsNotFound(err))
 
 	// put new item succeeds
 	item = backend.Item{Key: prefix("/put"), Value: []byte("world")}
-	_, err = s.B.Put(ctx, item)
-	c.Assert(err, check.IsNil)
+	_, err = uut.Put(ctx, item)
+	require.NoError(t, err)
 
-	out, err = s.B.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out.Value), check.Equals, string(item.Value))
+	out, err = uut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, out.Value, item.Value)
 
 	// put with large key and binary value succeeds.
 	// NB: DynamoDB has a maximum overall key length of 1024 bytes, so
@@ -120,197 +242,179 @@ func (s *BackendSuite) CRUD(c *check.C) {
 	data := make([]byte, 1024)
 	rand.Read(data)
 	item = backend.Item{Key: prefix(key), Value: data}
-	_, err = s.B.Put(ctx, item)
-	c.Assert(err, check.IsNil)
+	_, err = uut.Put(ctx, item)
+	require.NoError(t, err)
 
-	out, err = s.B.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-	c.Assert(out.Value, check.DeepEquals, item.Value)
+	out, err = uut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, out.Value, item.Value)
 }
 
-// Range tests scenarios with range queries
-func (s *BackendSuite) Range(c *check.C) {
+func testQueryRange(t *testing.T, newBackend Constructor) {
+	uut, _, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
 	ctx := context.Background()
 	prefix := MakePrefix()
 
-	// add one element that should not show up
-	_, err := s.B.Create(ctx, backend.Item{Key: prefix("/a"), Value: []byte("should not show up")})
-	c.Assert(err, check.IsNil)
+	outOfScope := backend.Item{Key: prefix("/a"), Value: []byte("should not show up")}
+	a := backend.Item{Key: prefix("/prefix/a"), Value: []byte("val a")}
+	b := backend.Item{Key: prefix("/prefix/b"), Value: []byte("val b")}
+	c1 := backend.Item{Key: prefix("/prefix/c/c1"), Value: []byte("val c1")}
+	c2 := backend.Item{Key: prefix("/prefix/c/c2"), Value: []byte("val c2")}
 
-	_, err = s.B.Create(ctx, backend.Item{Key: prefix("/prefix/a"), Value: []byte("val a")})
-	c.Assert(err, check.IsNil)
-
-	_, err = s.B.Create(ctx, backend.Item{Key: prefix("/prefix/b"), Value: []byte("val b")})
-	c.Assert(err, check.IsNil)
-
-	_, err = s.B.Create(ctx, backend.Item{Key: prefix("/prefix/c/c1"), Value: []byte("val c1")})
-	c.Assert(err, check.IsNil)
-
-	_, err = s.B.Create(ctx, backend.Item{Key: prefix("/prefix/c/c2"), Value: []byte("val c2")})
-	c.Assert(err, check.IsNil)
-
-	// add element that does not match the range to make
-	// sure it won't get included in the list
-	_, err = s.B.Create(ctx, backend.Item{Key: prefix("a"), Value: []byte("no match a")})
-	c.Assert(err, check.IsNil)
+	for _, item := range []backend.Item{outOfScope, a, b, c1, c2} {
+		_, err := uut.Create(ctx, item)
+		require.NoError(t, err, "Failed creating value: %q => %q", item.Key, item.Value)
+	}
 
 	// prefix range fetch
-	result, err := s.B.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
-	c.Assert(err, check.IsNil)
-	expected := []backend.Item{
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
-		{Key: prefix("/prefix/b"), Value: []byte("val b")},
-		{Key: prefix("/prefix/c/c1"), Value: []byte("val c1")},
-		{Key: prefix("/prefix/c/c2"), Value: []byte("val c2")},
-	}
-	ExpectItems(c, result.Items, expected)
+	result, err := uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
+	require.NoError(t, err)
+	RequireItems(t, result.Items, []backend.Item{a, b, c1, c2})
 
 	// sub prefix range fetch
-	result, err = s.B.GetRange(ctx, prefix("/prefix/c"), backend.RangeEnd(prefix("/prefix/c")), backend.NoLimit)
-	c.Assert(err, check.IsNil)
-	expected = []backend.Item{
-		{Key: prefix("/prefix/c/c1"), Value: []byte("val c1")},
-		{Key: prefix("/prefix/c/c2"), Value: []byte("val c2")},
-	}
-	ExpectItems(c, result.Items, expected)
+	result, err = uut.GetRange(ctx, prefix("/prefix/c"), backend.RangeEnd(prefix("/prefix/c")), backend.NoLimit)
+	require.NoError(t, err)
+	RequireItems(t, result.Items, []backend.Item{c1, c2})
 
 	// range match
-	result, err = s.B.GetRange(ctx, prefix("/prefix/c/c1"), backend.RangeEnd(prefix("/prefix/c/cz")), backend.NoLimit)
-	c.Assert(err, check.IsNil)
-	ExpectItems(c, result.Items, expected)
+	result, err = uut.GetRange(ctx, prefix("/prefix/c/c1"), backend.RangeEnd(prefix("/prefix/c/cz")), backend.NoLimit)
+	require.NoError(t, err)
+	RequireItems(t, result.Items, []backend.Item{c1, c2})
 
 	// pagination
-	result, err = s.B.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), 2)
-	c.Assert(err, check.IsNil)
+	result, err = uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), 2)
+	require.NoError(t, err)
+
 	// expect two first records
-	expected = []backend.Item{
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
-		{Key: prefix("/prefix/b"), Value: []byte("val b")},
-	}
-	ExpectItems(c, result.Items, expected)
+	RequireItems(t, result.Items, []backend.Item{a, b})
 
 	// fetch next two items
-	result, err = s.B.GetRange(ctx, backend.RangeEnd(prefix("/prefix/b")), backend.RangeEnd(prefix("/prefix")), 2)
-	c.Assert(err, check.IsNil)
+	result, err = uut.GetRange(ctx, backend.RangeEnd(prefix("/prefix/b")), backend.RangeEnd(prefix("/prefix")), 2)
+	require.NoError(t, err)
 
 	// expect two last records
-	expected = []backend.Item{
-		{Key: prefix("/prefix/c/c1"), Value: []byte("val c1")},
-		{Key: prefix("/prefix/c/c2"), Value: []byte("val c2")},
-	}
-	ExpectItems(c, result.Items, expected)
+	RequireItems(t, result.Items, []backend.Item{c1, c2})
 
 	// next fetch is empty
-	result, err = s.B.GetRange(ctx, backend.RangeEnd(prefix("/prefix/c/c2")), backend.RangeEnd(prefix("/prefix")), 2)
-	c.Assert(err, check.IsNil)
-	c.Assert(result.Items, check.HasLen, 0)
+	result, err = uut.GetRange(ctx, backend.RangeEnd(prefix("/prefix/c/c2")), backend.RangeEnd(prefix("/prefix")), 2)
+	require.NoError(t, err)
+	require.Empty(t, result.Items)
 }
 
-// DeleteRange tests delete items by range
-func (s *BackendSuite) DeleteRange(c *check.C) {
+// testDeleteRange tests delete items by range
+func testDeleteRange(t *testing.T, newBackend Constructor) {
+	uut, _, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
 	ctx := context.Background()
 	prefix := MakePrefix()
 
-	_, err := s.B.Create(ctx, backend.Item{Key: prefix("/prefix/a"), Value: []byte("val a")})
-	c.Assert(err, check.IsNil)
+	a := backend.Item{Key: prefix("/prefix/a"), Value: []byte("val a")}
+	b := backend.Item{Key: prefix("/prefix/b"), Value: []byte("val b")}
+	c1 := backend.Item{Key: prefix("/prefix/c/c1"), Value: []byte("val c1")}
+	c2 := backend.Item{Key: prefix("/prefix/c/c2"), Value: []byte("val c2")}
 
-	_, err = s.B.Create(ctx, backend.Item{Key: prefix("/prefix/b"), Value: []byte("val b")})
-	c.Assert(err, check.IsNil)
+	for _, item := range []backend.Item{a, b, c1, c2} {
+		_, err := uut.Create(ctx, item)
+		require.NoError(t, err, "Failed creating value: %q => %q", item.Key, item.Value)
+	}
 
-	_, err = s.B.Create(ctx, backend.Item{Key: prefix("/prefix/c/c1"), Value: []byte("val c1")})
-	c.Assert(err, check.IsNil)
-
-	_, err = s.B.Create(ctx, backend.Item{Key: prefix("/prefix/c/c2"), Value: []byte("val c2")})
-	c.Assert(err, check.IsNil)
-
-	err = s.B.DeleteRange(ctx, prefix("/prefix/c"), backend.RangeEnd(prefix("/prefix/c")))
-	c.Assert(err, check.IsNil)
+	err = uut.DeleteRange(ctx, prefix("/prefix/c"), backend.RangeEnd(prefix("/prefix/c")))
+	require.NoError(t, err)
 
 	// make sure items with "/prefix/c" are gone
-	result, err := s.B.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
-	c.Assert(err, check.IsNil)
-	expected := []backend.Item{
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
-		{Key: prefix("/prefix/b"), Value: []byte("val b")},
-	}
-	ExpectItems(c, result.Items, expected)
+	result, err := uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
+	require.NoError(t, err)
+	RequireItems(t, result.Items, []backend.Item{a, b})
 }
 
-// PutRange tests scenarios with put range
-func (s *BackendSuite) PutRange(c *check.C) {
+// testPutRange tests scenarios with put range
+func testPutRange(t *testing.T, newBackend Constructor) {
+	uut, _, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
+	batchUut, ok := uut.(backend.Batch)
+	if !ok {
+		t.Skip("Backend should support Batch interface for this test")
+	}
+
 	ctx := context.Background()
 	prefix := MakePrefix()
+	a := backend.Item{Key: prefix("/prefix/a"), Value: []byte("val a")}
+	b := backend.Item{Key: prefix("/prefix/b"), Value: []byte("val b")}
 
-	b, ok := s.B.(backend.Batch)
-	if !ok {
-		c.Fatalf("Backend should support Batch interface for this test")
-	}
-
-	// add one element that should not show up
-	items := []backend.Item{
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
-		{Key: prefix("/prefix/b"), Value: []byte("val b")},
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
-	}
-	err := b.PutRange(ctx, items)
-	c.Assert(err, check.IsNil)
+	// add one element that should not show up (i.e. a duplicate `a`)
+	err = batchUut.PutRange(ctx, []backend.Item{a, b, a})
+	require.NoError(t, err)
 
 	// prefix range fetch
-	result, err := s.B.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
-	c.Assert(err, check.IsNil)
-	expected := []backend.Item{
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
-		{Key: prefix("/prefix/b"), Value: []byte("val b")},
-	}
-	ExpectItems(c, result.Items, expected)
+	result, err := uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
+	require.NoError(t, err)
+	RequireItems(t, result.Items, []backend.Item{a, b})
 }
 
-// CompareAndSwap tests compare and swap functionality
-func (s *BackendSuite) CompareAndSwap(c *check.C) {
+// testCompareAndSwap tests compare and swap functionality
+func testCompareAndSwap(t *testing.T, newBackend Constructor) {
+	uut, _, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
 	prefix := MakePrefix()
 	ctx := context.Background()
 
 	// compare and swap on non existing value will fail
-	_, err := s.B.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("2")})
-	fixtures.ExpectCompareFailed(c, err)
+	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("2")})
+	require.True(t, trace.IsCompareFailed(err))
 
-	_, err = s.B.Create(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")})
-	c.Assert(err, check.IsNil)
+	// create value and try again...
+	_, err = uut.Create(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")})
+	require.NoError(t, err)
 
 	// success CAS!
-	_, err = s.B.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("2")})
-	c.Assert(err, check.IsNil)
+	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("2")})
+	require.NoError(t, err)
 
-	out, err := s.B.Get(ctx, prefix("one"))
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out.Value), check.Equals, "2")
+	out, err := uut.Get(ctx, prefix("one"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("2"), out.Value)
 
 	// value has been updated - not '1' any more
-	_, err = s.B.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("3")})
-	fixtures.ExpectCompareFailed(c, err)
+	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("3")})
+	require.True(t, trace.IsCompareFailed(err))
 
 	// existing value has not been changed by the failed CAS operation
-	out, err = s.B.Get(ctx, prefix("one"))
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out.Value), check.Equals, "2")
+	out, err = uut.Get(ctx, prefix("one"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("2"), out.Value)
 }
 
 // Expiration tests scenario with expiring values
-func (s *BackendSuite) Expiration(c *check.C) {
+func testExpiration(t *testing.T, newBackend Constructor) {
+	uut, clock, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
 	prefix := MakePrefix()
 	ctx := context.Background()
 
 	itemA := backend.Item{Key: prefix("a"), Value: []byte("val1")}
-	_, err := s.B.Put(ctx, itemA)
-	c.Assert(err, check.IsNil)
+	_, err = uut.Put(ctx, itemA)
+	require.NoError(t, err)
 
-	_, err = s.B.Put(ctx, backend.Item{Key: prefix("b"), Value: []byte("val1"), Expires: s.Clock.Now().Add(1 * time.Second)})
-	c.Assert(err, check.IsNil)
+	itemB := backend.Item{Key: prefix("b"), Value: []byte("val1"), Expires: clock.Now().Add(1 * time.Second)}
+	_, err = uut.Put(ctx, itemB)
+	require.NoError(t, err)
 
-	s.Clock.Advance(4 * time.Second)
-	res, err := s.B.GetRange(ctx, prefix(""), backend.RangeEnd(prefix("")), backend.NoLimit)
-	c.Assert(err, check.IsNil)
-	ExpectItems(c, res.Items, []backend.Item{itemA})
+	clock.Advance(4 * time.Second)
+
+	res, err := uut.GetRange(ctx, prefix(""), backend.RangeEnd(prefix("")), backend.NoLimit)
+	require.NoError(t, err)
+	RequireItems(t, res.Items, []backend.Item{itemA})
 }
 
 // addSeconds adds seconds with a seconds precision
@@ -321,183 +425,196 @@ func addSeconds(t time.Time, seconds int64) time.Time {
 }
 
 // KeepAlive tests keep alive API
-func (s *BackendSuite) KeepAlive(c *check.C) {
+func testKeepAlive(t *testing.T, newBackend Constructor) {
+	uut, clock, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
 	prefix := MakePrefix()
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	watcher, err := s.B.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
-	c.Assert(err, check.IsNil)
-	defer watcher.Close()
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, watcher.Close()) }()
 
-	init := collectEvents(c, watcher, 1)
-	verifyEvents(c, init, []backend.Event{
+	init := collectEvents(ctx, t, watcher, 1)
+	requireEvents(t, init, []backend.Event{
 		{Type: types.OpInit, Item: backend.Item{}},
 	})
 
-	expiresAt := addSeconds(s.Clock.Now(), 2)
-	item, lease := s.addItem(context.TODO(), c, prefix("key"), "val1", expiresAt)
+	expiresAt := addSeconds(clock.Now(), 2)
+	item, lease := AddItem(ctx, t, uut, prefix("key"), "val1", expiresAt)
 
-	s.Clock.Advance(1 * time.Second)
+	clock.Advance(1 * time.Second)
 
 	// Move the expiration further in the future to avoid processing
 	// skew and ensure the item is available when we delete it.
 	// It does not affect the running time of the test
-	updatedAt := addSeconds(s.Clock.Now(), 60)
-	err = s.B.KeepAlive(context.TODO(), lease, updatedAt)
-	c.Assert(err, check.IsNil)
+	updatedAt := addSeconds(clock.Now(), 60)
+	err = uut.KeepAlive(ctx, lease, updatedAt)
+	require.NoError(t, err)
 
 	// Since the backend translates absolute expiration timestamp to a TTL
 	// and collecting events takes arbitrary time, the expiration timestamps
 	// on the collected events might have a slight skew
-	events := collectEvents(c, watcher, 2)
-	verifyEvents(c, events, []backend.Event{
+	events := collectEvents(ctx, t, watcher, 2)
+	requireEvents(t, events, []backend.Event{
 		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
 		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
 	})
 
-	err = s.B.Delete(context.TODO(), item.Key)
-	require.NoError(c, err)
-	c.Assert(err, check.IsNil)
+	err = uut.Delete(context.TODO(), item.Key)
+	require.NoError(t, err)
 
-	_, err = s.B.Get(context.TODO(), item.Key)
-	c.Assert(err, check.FitsTypeOf, trace.NotFound(""))
+	_, err = uut.Get(context.TODO(), item.Key)
+	require.True(t, trace.IsNotFound(err))
 
 	// keep alive on deleted or expired object should fail
-	err = s.B.KeepAlive(context.TODO(), lease, updatedAt.Add(1*time.Second))
-	c.Assert(err, check.FitsTypeOf, trace.NotFound(""))
+	err = uut.KeepAlive(context.TODO(), lease, updatedAt.Add(1*time.Second))
+	require.True(t, trace.IsNotFound(err))
 }
 
-func collectEvents(c *check.C, watcher backend.Watcher, count int) []backend.Event {
+func collectEvents(ctx context.Context, t *testing.T, watcher backend.Watcher, count int) []backend.Event {
 	var events []backend.Event
 	for i := 0; i < count; i++ {
 		select {
 		case e := <-watcher.Events():
 			events = append(events, e)
 		case <-watcher.Done():
-			c.Fatalf("Watcher has unexpectedly closed.")
-		case <-time.After(2 * time.Second):
-			c.Fatalf("Timeout waiting for event.")
+			require.FailNow(t, "Watcher has unexpectedly closed.")
+		case <-ctx.Done():
+			require.FailNowf(t, "Context expired waiting for event.", "Captured so far: %v", events)
 		}
 	}
 	return events
 }
 
 // Events tests scenarios with event watches
-func (s *BackendSuite) Events(c *check.C) {
+func testEvents(t *testing.T, newBackend Constructor) {
+	eventTimeout := 2 * time.Second
+
+	uut, clock, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
 	prefix := MakePrefix()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Create a new watcher for the test prefix.
-	watcher, err := s.B.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
-	c.Assert(err, check.IsNil)
-	defer watcher.Close()
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, watcher.Close()) }()
 
 	// Make sure INIT event is emitted.
-	select {
-	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, types.OpInit)
-	case <-watcher.Done():
-		c.Fatalf("Watcher has unexpectedly closed.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for event.")
-	}
+	requireEvent(t, watcher, types.OpInit, nil, eventTimeout)
 
 	// Add item to backend.
 	item := &backend.Item{Key: prefix("b"), Value: []byte("val")}
-	_, err = s.B.Put(ctx, *item)
-	c.Assert(err, check.IsNil)
+	_, err = uut.Put(ctx, *item)
+	require.NoError(t, err)
 
 	// Make sure item was added into backend.
-	item, err = s.B.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
+	item, err = uut.Get(ctx, item.Key)
+	require.NoError(t, err)
 
 	// Make sure a PUT event is emitted.
-	select {
-	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, types.OpPut)
-		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
-		c.Assert(string(e.Item.Value), check.Equals, string(item.Value))
-	case <-watcher.Done():
-		c.Fatalf("Watcher has unexpectedly closed.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for event.")
-	}
+	e := requireEvent(t, watcher, types.OpPut, item.Key, eventTimeout)
+	require.Equal(t, item.Value, e.Item.Value)
 
 	// Delete item from backend.
-	err = s.B.Delete(ctx, item.Key)
-	c.Assert(err, check.IsNil)
+	err = uut.Delete(ctx, item.Key)
+	require.NoError(t, err)
 
 	// Make sure item is no longer in backend.
-	_, err = s.B.Get(ctx, item.Key)
-	c.Assert(err, check.NotNil)
+	_, err = uut.Get(ctx, item.Key)
+	require.True(t, trace.IsNotFound(err), "Item should have been be deleted")
 
 	// Make sure a DELETE event is emitted.
-	select {
-	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, types.OpDelete)
-		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
-	case <-watcher.Done():
-		c.Fatalf("Watcher has unexpectedly closed.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for event.")
-	}
+	requireEvent(t, watcher, types.OpDelete, item.Key, eventTimeout)
 
 	// Add item to backend with a 1 second TTL.
 	item = &backend.Item{
 		Key:     prefix("c"),
 		Value:   []byte("val"),
-		Expires: s.Clock.Now().Add(1 * time.Second),
+		Expires: clock.Now().Add(1 * time.Second),
 	}
-	_, err = s.B.Put(ctx, *item)
-	c.Assert(err, check.IsNil)
+	_, err = uut.Put(ctx, *item)
+	require.NoError(t, err)
 
 	// Make sure item was added into backend.
-	item, err = s.B.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
+	item, err = uut.Get(ctx, item.Key)
+	require.NoError(t, err)
 
 	// Make sure a PUT event is emitted.
-	select {
-	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, types.OpPut)
-		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
-		c.Assert(string(e.Item.Value), check.Equals, string(item.Value))
-	case <-watcher.Done():
-		c.Fatalf("Watcher has unexpectedly closed.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for event.")
-	}
+	e = requireEvent(t, watcher, types.OpPut, item.Key, eventTimeout)
+	require.Equal(t, item.Value, e.Item.Value)
 
 	// Wait a few seconds for the item to expire.
-	s.Clock.Advance(3 * time.Second)
+	clock.Advance(3 * time.Second)
 
 	// Make sure item has been removed.
-	_, err = s.B.Get(ctx, item.Key)
-	c.Assert(err, check.NotNil)
+	_, err = uut.Get(ctx, item.Key)
+	require.Error(t, err)
 
 	// Make sure a DELETE event is emitted.
+	requireEvent(t, watcher, types.OpDelete, item.Key, 2*time.Second)
+}
+
+// requireEvent asserts that a given event type with the given key is emitted
+// by a watcher within the supplied timeout, returning that event for further
+// inspection if successful.
+func requireEvent(t *testing.T, watcher backend.Watcher, eventType types.OpType, key []byte, timeout time.Duration) backend.Event {
 	select {
 	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, types.OpDelete)
-		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
+		require.Equal(t, eventType, e.Type)
+		require.Equal(t, key, e.Item.Key)
+		return e
+
 	case <-watcher.Done():
-		c.Fatalf("Watcher has unexpectedly closed.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for event.")
+		require.FailNow(t, "Watcher has unexpectedly closed.")
+
+	case <-time.After(timeout):
+		require.FailNow(t, "Timeout waiting for event.")
+	}
+
+	return backend.Event{}
+}
+
+// requireNoEvent asserts that no events of any kind are emitted by the given
+// watcher in the supplied timeframe.
+func requireNoEvent(t *testing.T, watcher backend.Watcher, timeout time.Duration) {
+	select {
+	case e := <-watcher.Events():
+		require.FailNowf(t, "Unexpected event", "%s %q => %q", e.Type, e.Item.Key, e.Item.Value)
+
+	case <-watcher.Done():
+		require.FailNow(t, "Watcher has unexpectedly closed.")
+
+	case <-time.After(timeout):
+		return // Success!
 	}
 }
 
 // WatchersClose tests scenarios with watches close
-func (s *BackendSuite) WatchersClose(c *check.C) {
+func testWatchersClose(t *testing.T, newBackend Constructor) {
+	uut, _, err := newBackend()
+	require.NoError(t, err)
+
+	// The test function explicitly closes the UUT backend, so we only
+	// want this deferred call for emergency cleanup, rather than part
+	// of the tests itself. This is why we're not checking the error
+	// here as it will almost always fail with something like "already
+	// closed"
+	defer uut.Close()
+
 	prefix := MakePrefix()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	b, err := s.NewBackend()
-	c.Assert(err, check.IsNil)
-
-	watcher, err := b.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
-	c.Assert(err, check.IsNil)
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	require.NoError(t, err)
 
 	// cancel context -> get watcher to close
 	cancel()
@@ -505,27 +622,31 @@ func (s *BackendSuite) WatchersClose(c *check.C) {
 	select {
 	case <-watcher.Done():
 	case <-time.After(time.Second):
-		c.Fatalf("Timeout waiting for watcher to close")
+		require.FailNow(t, "Timeout waiting for watcher to close")
 	}
 
 	// closing backend should close associated watcher too
-	watcher, err = b.NewWatcher(context.Background(), backend.Watch{Prefixes: [][]byte{prefix("")}})
-	c.Assert(err, check.IsNil)
+	watcher, err = uut.NewWatcher(context.Background(), backend.Watch{Prefixes: [][]byte{prefix("")}})
+	require.NoError(t, err)
 
-	b.Close()
+	require.NoError(t, uut.Close())
 
 	select {
 	case <-watcher.Done():
 	case <-time.After(time.Second):
-		c.Fatalf("Timeout waiting for watcher to close")
+		require.FailNow(t, "Timeout waiting for watcher to close")
 	}
 }
 
-// Locking tests locking logic
-func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
+// testLocking tests locking logic
+func testLocking(t *testing.T, newBackend Constructor) {
 	tok1 := "token1"
 	tok2 := "token2"
 	ttl := 5 * time.Second
+
+	uut, clock, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
 
 	// If all this takes more than a minute then something external to the test
 	// has probably gone bad (e.g. db server has ceased to exist), so it's
@@ -547,233 +668,308 @@ func (s *BackendSuite) Locking(c *check.C, bk backend.Backend) {
 				return
 
 			case <-t.C:
-				s.Clock.Advance(1 * time.Second)
+				clock.Advance(1 * time.Second)
 			}
 		}
 	}()
 
-	lock, err := backend.AcquireLock(ctx, bk, tok1, ttl)
-	c.Assert(err, check.IsNil)
-	x := int32(7)
+	// some bookkeeping to make sure that any errors that happen asynchronously
+	// will be tracked and bubble back to fail this test. Note that this will
+	// also ensure that the `uut` Backend will remain alive until all async
+	// operations have completed.
+	asyncOps := sync.WaitGroup{}
+	asyncErrs := make(chan error, 10)
+	requireNoAsyncErrors := func() {
+		requireWaitGroupToFinish(ctx, t, &asyncOps)
+		select {
+		case err := <-asyncErrs:
+			require.NoError(t, err)
+		default:
+			// Happy path - there were no async errors!
+		}
+	}
+	defer requireNoAsyncErrors()
 
+	// Given a lock named `tok1` on the backend...
+	lock, err := backend.AcquireLock(ctx, uut, tok1, ttl)
+	require.NoError(t, err)
+
+	//  When I asynchronously release the lock...
+	marker := int32(7)
+	asyncOps.Add(1)
 	go func() {
-		atomic.StoreInt32(&x, 9)
-		c.Assert(lock.Release(ctx, bk), check.IsNil)
+		defer asyncOps.Done()
+		atomic.StoreInt32(&marker, 9)
+		if err := lock.Release(ctx, uut); err != nil {
+			asyncErrs <- err
+		}
 	}()
-	lock, err = backend.AcquireLock(ctx, bk, tok1, ttl)
-	c.Assert(err, check.IsNil)
-	atomic.AddInt32(&x, 9)
 
-	c.Assert(atomic.LoadInt32(&x), check.Equals, int32(18))
-	c.Assert(lock.Release(ctx, bk), check.IsNil)
+	// ...and simultaneously attempt to create a new lock with the same name
+	lock, err = backend.AcquireLock(ctx, uut, tok1, ttl)
 
-	lock, err = backend.AcquireLock(ctx, bk, tok1, ttl)
-	c.Assert(err, check.IsNil)
-	atomic.StoreInt32(&x, 7)
+	// expect that the asynchronous Release() has executed - we're using the
+	// change in the value of the marker value as a proxy for the Release().
+	atomic.AddInt32(&marker, 9)
+	require.Equal(t, int32(18), atomic.LoadInt32(&marker))
+
+	// ...and also expect that the acquire succeeded, and will release safely.
+	require.NoError(t, err)
+	require.NoError(t, lock.Release(ctx, uut))
+
+	// Given a lock with the same name as previously-existing, manually-released lock
+	lock, err = backend.AcquireLock(ctx, uut, tok1, ttl)
+	require.NoError(t, err)
+	atomic.StoreInt32(&marker, 7)
+
+	//  When I asynchronously release the lock...
+	asyncOps.Add(1)
 	go func() {
-		atomic.StoreInt32(&x, 9)
-		c.Assert(lock.Release(ctx, bk), check.IsNil)
+		defer asyncOps.Done()
+		atomic.StoreInt32(&marker, 9)
+		if err := lock.Release(ctx, uut); err != nil {
+			asyncErrs <- err
+		}
 	}()
-	lock, err = backend.AcquireLock(ctx, bk, tok1, ttl)
-	c.Assert(err, check.IsNil)
-	atomic.AddInt32(&x, 9)
-	c.Assert(atomic.LoadInt32(&x), check.Equals, int32(18))
-	c.Assert(lock.Release(ctx, bk), check.IsNil)
 
+	// ...and simultaneously try to acquire another lock with the same name
+	lock, err = backend.AcquireLock(ctx, uut, tok1, ttl)
+
+	// expect that the asynchronous Release() has executed - we're using the
+	// change in the value of the marker value as a proxy for the call to
+	// Release().
+	atomic.AddInt32(&marker, 9)
+	require.Equal(t, int32(18), atomic.LoadInt32(&marker))
+
+	// ...and also expect that the acquire succeeded, and will release safely.
+	require.NoError(t, err)
+	require.NoError(t, lock.Release(ctx, uut))
+
+	// Given a pair of locks named `tok1` and `tok2`
 	y := int32(0)
-	lock1, err := backend.AcquireLock(ctx, bk, tok1, ttl)
-	c.Assert(err, check.IsNil)
-	lock2, err := backend.AcquireLock(ctx, bk, tok2, ttl)
-	c.Assert(err, check.IsNil)
+	lock1, err := backend.AcquireLock(ctx, uut, tok1, ttl)
+	require.NoError(t, err)
+	lock2, err := backend.AcquireLock(ctx, uut, tok2, ttl)
+	require.NoError(t, err)
+
+	//  When I asynchronously release the locks...
+	asyncOps.Add(1)
 	go func() {
+		defer asyncOps.Done()
 		atomic.StoreInt32(&y, 15)
-		c.Assert(lock1.Release(ctx, bk), check.IsNil)
-		c.Assert(lock2.Release(ctx, bk), check.IsNil)
+		if err := lock1.Release(ctx, uut); err != nil {
+			asyncErrs <- err
+		}
+
+		if err := lock2.Release(ctx, uut); err != nil {
+			asyncErrs <- err
+		}
 	}()
 
-	lock, err = backend.AcquireLock(ctx, bk, tok1, ttl)
-	c.Assert(err, check.IsNil)
-	c.Assert(atomic.LoadInt32(&y), check.Equals, int32(15))
-
-	c.Assert(lock.Release(ctx, bk), check.IsNil)
+	lock, err = backend.AcquireLock(ctx, uut, tok1, ttl)
+	require.NoError(t, err)
+	require.Equal(t, int32(15), atomic.LoadInt32(&y))
+	require.NoError(t, lock.Release(ctx, uut))
 }
 
-// ConcurrentOperations tests concurrent operations on the same
+// testConcurrentOperations tests concurrent operations on the same
 // shared backend
-func (s *BackendSuite) ConcurrentOperations(c *check.C) {
-	l := s.B
-	c.Assert(l, check.NotNil)
-	l2 := s.B2
-	c.Assert(l2, check.NotNil)
+func testConcurrentOperations(t *testing.T, newBackend Constructor) {
+	uutA, _, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uutA.Close()) }()
+
+	uutB, _, err := newBackend(WithConcurrentBackend(uutA))
+	if err == ErrConcurrentAccessNotSupported {
+		t.Skip("Backend does not support concurrent access")
+	}
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uutB.Close()) }()
 
 	prefix := MakePrefix()
 	ctx := context.TODO()
 	value1 := "this first value should not be corrupted by concurrent ops"
 	value2 := "this second value should not be corrupted too"
 	const attempts = 50
-	resultsC := make(chan struct{}, attempts*4)
+
+	asyncOps := sync.WaitGroup{}
+	asyncErrs := make(chan error, 5*attempts)
+
 	for i := 0; i < attempts; i++ {
+		asyncOps.Add(5)
+
 		go func(cnt int) {
-			_, err := l.Put(ctx, backend.Item{Key: prefix("key"), Value: []byte(value1)})
-			resultsC <- struct{}{}
-			c.Assert(err, check.IsNil)
+			defer asyncOps.Done()
+			_, err := uutA.Put(ctx, backend.Item{Key: prefix("key"), Value: []byte(value1)})
+			if err != nil {
+				asyncErrs <- err
+			}
 		}(i)
 
 		go func(cnt int) {
-			_, err := l2.CompareAndSwap(ctx,
+			defer asyncOps.Done()
+			_, err := uutB.CompareAndSwap(ctx,
 				backend.Item{Key: prefix("key"), Value: []byte(value2)},
 				backend.Item{Key: prefix("key"), Value: []byte(value1)})
-			resultsC <- struct{}{}
 			if err != nil && !trace.IsCompareFailed(err) {
-				c.Assert(err, check.IsNil)
+				asyncErrs <- err
 			}
 		}(i)
 
 		go func(cnt int) {
-			_, err := l2.Create(ctx, backend.Item{Key: prefix("key"), Value: []byte(value2)})
-			resultsC <- struct{}{}
+			defer asyncOps.Done()
+			_, err := uutB.Create(ctx, backend.Item{Key: prefix("key"), Value: []byte(value2)})
 			if err != nil && !trace.IsAlreadyExists(err) {
-				c.Assert(err, check.IsNil)
+				asyncErrs <- err
 			}
 		}(i)
 
 		go func(cnt int) {
-			item, err := l.Get(ctx, prefix("key"))
-			resultsC <- struct{}{}
+			defer asyncOps.Done()
+			item, err := uutA.Get(ctx, prefix("key"))
 			if err != nil && !trace.IsNotFound(err) {
-				c.Assert(err, check.IsNil)
+				asyncErrs <- err
 			}
+
 			// make sure data is not corrupted along the way
 			if err == nil {
 				val := string(item.Value)
 				if val != value1 && val != value2 {
-					c.Fatalf("expected one of %q or %q and got %q", value1, value2, val)
+					asyncErrs <- trace.Errorf(
+						"corruption detected. expected one of %q or %q and got %q", value1, value2, val)
 				}
 			}
 		}(i)
 
 		go func(cnt int) {
-			err := l2.Delete(ctx, prefix("key"))
+			defer asyncOps.Done()
+			err := uutB.Delete(ctx, prefix("key"))
 			if err != nil && !trace.IsNotFound(err) {
-				c.Assert(err, check.IsNil)
+				t.Logf("Error %v", err)
+				asyncErrs <- err
 			}
-			resultsC <- struct{}{}
 		}(i)
 	}
-	timeoutC := time.After(3 * time.Second)
-	for i := 0; i < attempts*5; i++ {
-		select {
-		case <-resultsC:
-		case <-timeoutC:
-			c.Fatalf("timeout waiting for goroutines to finish")
-		}
+
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer timeoutCancel()
+	requireWaitGroupToFinish(timeoutCtx, t, &asyncOps)
+
+	select {
+	case e := <-asyncErrs:
+		require.NoError(t, e)
+	default:
+		// Happy path - no async errors occurred
 	}
 }
 
 // Mirror tests mirror mode for backends (used in caches). Only some backends
 // support mirror mode (like memory).
-func (s *BackendSuite) Mirror(c *check.C, b backend.Backend) {
+func testMirror(t *testing.T, newBackend Constructor) {
+	uut, _, err := newBackend(WithMirrorMode(true))
+	if err == ErrMirrorNotSupported {
+		t.Skip("Backend does not support mirror mode")
+	}
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
 	prefix := MakePrefix()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Create a new watcher for the test prefix.
-	watcher, err := b.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
-	c.Assert(err, check.IsNil)
-	defer watcher.Close()
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, watcher.Close()) }()
 
 	// Make sure INIT event is emitted.
-	select {
-	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, types.OpInit)
-	case <-watcher.Done():
-		c.Fatalf("Watcher has unexpectedly closed.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for event.")
-	}
+	requireEvent(t, watcher, types.OpInit, nil, 2*time.Second)
 
 	// Add item to backend with a 1 second TTL.
 	item := &backend.Item{
 		Key:     prefix("a"),
 		Value:   []byte("val"),
-		Expires: time.Now().Add(1 * time.Second),
+		Expires: uut.Clock().Now().Add(1 * time.Second),
 	}
-	_, err = b.Put(ctx, *item)
-	c.Assert(err, check.IsNil)
+	_, err = uut.Put(ctx, *item)
+	require.NoError(t, err)
 
 	// Make sure item was added into backend.
-	item, err = b.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
+	item, err = uut.Get(ctx, item.Key)
+	require.NoError(t, err)
 
 	// Save the original ID, later in this test after an update, the ID should
 	// not have changed in mirror mode.
 	originalID := item.ID
 
 	// Make sure a PUT event is emitted.
-	select {
-	case e := <-watcher.Events():
-		c.Assert(e.Type, check.Equals, types.OpPut)
-		c.Assert(string(e.Item.Key), check.Equals, string(item.Key))
-		c.Assert(string(e.Item.Value), check.Equals, string(item.Value))
-	case <-watcher.Done():
-		c.Fatalf("Watcher has unexpectedly closed.")
-	case <-time.After(2 * time.Second):
-		c.Fatalf("Timeout waiting for event.")
-	}
+	e := requireEvent(t, watcher, types.OpPut, item.Key, 2*time.Second)
+	require.Equal(t, item.Value, e.Item.Value)
 
 	// Wait 1 second for the item to expire.
 	time.Sleep(time.Second)
 
 	// Make sure item has not been removed.
-	nitem, err := b.Get(ctx, item.Key)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(item.Key), check.Equals, string(nitem.Key))
-	c.Assert(string(item.Value), check.Equals, string(nitem.Value))
+	nitem, err := uut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, item.Key, nitem.Key)
+	require.Equal(t, item.Value, nitem.Value)
 
 	// Make sure a DELETE event was not emitted.
-	select {
-	case e := <-watcher.Events():
-		c.Fatalf("Received event: %v.", e)
-	case <-watcher.Done():
-		c.Fatalf("Watcher has unexpectedly closed.")
-	case <-time.After(2 * time.Second):
-	}
+	requireNoEvent(t, watcher, 2*time.Second)
 
 	// Update the existing item.
-	_, err = b.Put(ctx, backend.Item{
+	_, err = uut.Put(ctx, backend.Item{
 		Key:   prefix("a"),
 		Value: []byte("val2"),
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Get update item and make sure that the ID has not changed.
-	item, err = b.Get(ctx, prefix("a"))
-	c.Assert(err, check.IsNil)
-	c.Assert(item.ID, check.Equals, originalID)
+	item, err = uut.Get(ctx, prefix("a"))
+	require.NoError(t, err)
+	require.Equal(t, originalID, item.ID)
 
 	// Add item to backend that is already expired.
 	item2 := &backend.Item{
 		Key:     prefix("b"),
 		Value:   []byte("val"),
-		Expires: time.Now().Add(-1 * time.Second),
+		Expires: uut.Clock().Now().Add(-1 * time.Second),
 	}
-	_, err = b.Put(ctx, *item2)
-	c.Assert(err, check.IsNil)
+	_, err = uut.Put(ctx, *item2)
+	require.NoError(t, err)
 
 	// Make sure item was added into backend despite being expired.
-	_, err = b.Get(ctx, item2.Key)
-	c.Assert(err, check.IsNil)
+	_, err = uut.Get(ctx, item2.Key)
+	require.NoError(t, err)
 }
 
-func (s *BackendSuite) addItem(ctx context.Context, c *check.C, key []byte, value string, expires time.Time) (backend.Item, backend.Lease) {
+func AddItem(ctx context.Context, t *testing.T, uut backend.Backend, key []byte, value string, expires time.Time) (backend.Item, backend.Lease) {
 	item := backend.Item{
 		Key:     key,
 		Value:   []byte(value),
 		Expires: expires,
 	}
-	lease, err := s.B.Put(ctx, item)
-	c.Assert(err, check.IsNil)
+	lease, err := uut.Put(ctx, item)
+	require.NoError(t, err)
 	return item, *lease
+}
+
+// requireWaitGroupToFinish asserts that the given WaitGroup must finish all of
+// its outstanding tasks before the supplied context expires.
+func requireWaitGroupToFinish(ctx context.Context, t *testing.T, waitGroup *sync.WaitGroup) {
+	wgDone := make(chan struct{})
+	go func() {
+		defer close(wgDone)
+		waitGroup.Wait()
+	}()
+	select {
+	case <-wgDone:
+		return
+
+	case <-ctx.Done():
+		require.FailNowf(t, "Context expired waiting for WaitGroup", "context: %s", ctx.Err())
+	}
 }
 
 // MakePrefix returns function that appends unique prefix
@@ -785,49 +981,41 @@ func MakePrefix() func(k string) []byte {
 	}
 }
 
-// ExpectItems tests that items equal to expected list
-func ExpectItems(c *check.C, items, expected []backend.Item) {
-	if len(items) != len(expected) {
-		c.Fatalf("Expected %v items, got %v.", len(expected), len(items))
-	}
-	for i := range items {
-		c.Assert(string(items[i].Key), check.Equals, string(expected[i].Key))
-		c.Assert(string(items[i].Value), check.Equals, string(expected[i].Value))
-	}
+func requireEvents(t *testing.T, obtained, expected []backend.Event) {
+	requireIncreasingIDs(t, obtained)
+	requireNoDuplicateIDs(t, obtained)
+	requireExpireTimestamps(t, obtained, expected)
 }
 
-func verifyEvents(c *check.C, obtained, expected []backend.Event) {
-	verifyIncreasingIDs(c, obtained)
-	verifyNoDuplicateIDs(c, obtained)
-	verifyExpireTimestampsIncreasing(c, obtained, expected)
-}
-
-func verifyIncreasingIDs(c *check.C, obtained []backend.Event) {
+func requireIncreasingIDs(t *testing.T, obtained []backend.Event) {
 	lastID := int64(-1)
 	for _, item := range obtained {
-		c.Assert(item.Item.ID > lastID, check.Equals, true, check.Commentf("must be increasing"))
+		require.Greater(t, item.Item.ID, lastID)
 		lastID = item.Item.ID
 	}
 }
 
-func verifyNoDuplicateIDs(c *check.C, obtained []backend.Event) {
-	dedup := make(map[int64]struct{})
+func requireNoDuplicateIDs(t *testing.T, obtained []backend.Event) {
+	set := make(map[int64]struct{})
 	for _, event := range obtained {
-		if _, ok := dedup[event.Item.ID]; ok {
-			c.Fatalf("Duplicate ID for %v.", event.Item.ID)
-		}
-		dedup[event.Item.ID] = struct{}{}
+		_, ok := set[event.Item.ID]
+		require.False(t, ok, "Duplicate ID for %v.", event.Item.ID)
+		set[event.Item.ID] = struct{}{}
 	}
 }
 
-func verifyExpireTimestampsIncreasing(c *check.C, obtained, expected []backend.Event) {
-	c.Assert(obtained, check.HasLen, len(expected))
+// requireExpireTimestampsIncreasing verifies that the expiry timestamps
+// of the `obtained` items expire _after_ the corresponding `expected`
+// item expiry times
+func requireExpireTimestamps(t *testing.T, obtained, expected []backend.Event) {
+	require.Len(t, obtained, len(expected))
+
 	for i := range expected {
-		if obtained[i].Item.Expires.After(expected[i].Item.Expires) {
-			c.Errorf("Expected %v >= %v",
-				expected[i].Item.Expires,
-				obtained[i].Item.Expires,
-			)
-		}
+		require.False(t,
+			obtained[i].Item.Expires.After(expected[i].Item.Expires),
+			"Expected %v >= %v",
+			expected[i].Item.Expires,
+			obtained[i].Item.Expires,
+		)
 	}
 }

@@ -40,6 +40,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -58,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 
@@ -89,9 +90,6 @@ type TeleInstance struct {
 	// Secrets holds the keys (pub, priv and derived cert) of i instance
 	Secrets InstanceSecrets
 
-	// Slice of TCP ports used by Teleport services
-	Ports []int
-
 	// Hostname is the name of the host where instance is running
 	Hostname string
 
@@ -114,6 +112,7 @@ type TeleInstance struct {
 
 	// log specifies the instance logger
 	log utils.Logger
+	InstancePorts
 }
 
 type User struct {
@@ -137,14 +136,10 @@ type InstanceSecrets struct {
 	TLSCACert []byte `json:"tls_ca_cert"`
 	// TLSCert is client TLS X509 certificate
 	TLSCert []byte `json:"tls_cert"`
-	// ListenAddr is a reverse tunnel listening port, allowing
+	// TunnelAddr is a reverse tunnel listening port, allowing
 	// other sites to connect to i instance. Set to empty
 	// string if i instance is not allowing incoming tunnels
-	ListenAddr string `json:"tunnel_addr"`
-	// WebProxyAddr is address for web proxy
-	WebProxyAddr string `json:"web_proxy_addr"`
-	// MySQLProxyAddr is the address of MySQL proxy.
-	MySQLProxyAddr string `json:"mysql_proxy_addr"`
+	TunnelAddr string `json:"tunnel_addr"`
 	// list of users i instance trusts (key in the map is username)
 	Users map[string]*User `json:"users"`
 }
@@ -162,17 +157,14 @@ type InstanceConfig struct {
 	HostID string
 	// NodeName is a node name of the instance
 	NodeName string
-	// Ports is a list of assigned ports to use
-	Ports []int
 	// Priv is SSH private key of the instance
 	Priv []byte
 	// Pub is SSH public key of the instance
 	Pub []byte
-	// MultiplexProxy uses the same port for web and SSH reverse tunnel proxy
-	MultiplexProxy bool
-
 	// log specifies the logger
 	log utils.Logger
+	// Ports is a collection of instance ports.
+	Ports *InstancePorts
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -181,13 +173,18 @@ type InstanceConfig struct {
 // clean up spawned processes.
 func NewInstance(cfg InstanceConfig) *TeleInstance {
 	var err error
-	if len(cfg.Ports) < 5 {
-		fatalIf(fmt.Errorf("not enough free ports given: %v", cfg.Ports))
-	}
 	if cfg.NodeName == "" {
 		cfg.NodeName, err = os.Hostname()
 		fatalIf(err)
 	}
+
+	if cfg.Ports == nil {
+		cfg.Ports = standardPortSetup()
+	}
+	if cfg.Ports.Host == "" {
+		cfg.Ports.Host = cfg.NodeName
+	}
+
 	// generate instance secrets (keys):
 	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
 	if cfg.Priv == nil || cfg.Pub == nil {
@@ -236,26 +233,23 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	fatalIf(err)
 
 	i := &TeleInstance{
-		Ports:         cfg.Ports,
 		Hostname:      cfg.NodeName,
 		UploadEventsC: make(chan events.UploadEvent, 100),
 		log:           cfg.log,
+		InstancePorts: *cfg.Ports,
 	}
+
 	secrets := InstanceSecrets{
-		SiteName:       cfg.ClusterName,
-		PrivKey:        cfg.Priv,
-		PubKey:         cfg.Pub,
-		Cert:           cert,
-		TLSCACert:      tlsCACert,
-		TLSCert:        tlsCert,
-		ListenAddr:     net.JoinHostPort(cfg.NodeName, i.GetPortReverseTunnel()),
-		WebProxyAddr:   net.JoinHostPort(cfg.NodeName, i.GetPortWeb()),
-		MySQLProxyAddr: net.JoinHostPort(cfg.NodeName, i.GetPortMySQL()),
-		Users:          make(map[string]*User),
+		SiteName:   cfg.ClusterName,
+		PrivKey:    cfg.Priv,
+		PubKey:     cfg.Pub,
+		Cert:       cert,
+		TLSCACert:  tlsCACert,
+		TLSCert:    tlsCert,
+		TunnelAddr: net.JoinHostPort(cfg.NodeName, i.GetPortReverseTunnel()),
+		Users:      make(map[string]*User),
 	}
-	if cfg.MultiplexProxy {
-		secrets.ListenAddr = secrets.WebProxyAddr
-	}
+
 	i.Secrets = secrets
 	return i
 }
@@ -329,18 +323,18 @@ func (s *InstanceSecrets) AllowedLogins() []string {
 	return logins
 }
 
-func (s *InstanceSecrets) AsTrustedCluster(token string, roleMap types.RoleMap) types.TrustedCluster {
+func (i *TeleInstance) AsTrustedCluster(token string, roleMap types.RoleMap) types.TrustedCluster {
 	return &types.TrustedClusterV2{
 		Kind:    types.KindTrustedCluster,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name: s.SiteName,
+			Name: i.Secrets.SiteName,
 		},
 		Spec: types.TrustedClusterSpecV2{
 			Token:                token,
 			Enabled:              true,
-			ProxyAddress:         s.WebProxyAddr,
-			ReverseTunnelAddress: s.ListenAddr,
+			ProxyAddress:         i.GetWebAddr(),
+			ReverseTunnelAddress: i.GetReverseTunnelAddr(),
 			RoleMap:              roleMap,
 		},
 	}
@@ -359,34 +353,6 @@ func (s *InstanceSecrets) GetIdentity() *auth.Identity {
 	})
 	fatalIf(err)
 	return i
-}
-
-func (i *TeleInstance) GetPortSSHInt() int {
-	return i.Ports[0]
-}
-
-func (i *TeleInstance) GetPortSSH() string {
-	return strconv.Itoa(i.GetPortSSHInt())
-}
-
-func (i *TeleInstance) GetPortAuth() string {
-	return strconv.Itoa(i.Ports[1])
-}
-
-func (i *TeleInstance) GetPortProxy() string {
-	return strconv.Itoa(i.Ports[2])
-}
-
-func (i *TeleInstance) GetPortWeb() string {
-	return strconv.Itoa(i.Ports[3])
-}
-
-func (i *TeleInstance) GetPortReverseTunnel() string {
-	return strconv.Itoa(i.Ports[4])
-}
-
-func (i *TeleInstance) GetPortMySQL() string {
-	return strconv.Itoa(i.Ports[5])
 }
 
 // GetSiteAPI() is a helper which returns an API endpoint to a site with
@@ -566,15 +532,14 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		tconf.Auth.Authorities = append(tconf.Auth.Authorities, trusted.GetCAs(t)...)
 		tconf.Auth.Roles = append(tconf.Auth.Roles, trusted.GetRoles(t)...)
 		tconf.Identities = append(tconf.Identities, trusted.GetIdentity())
-		if trusted.ListenAddr != "" {
-			rt, err := types.NewReverseTunnel(trusted.SiteName, []string{trusted.ListenAddr})
+		if trusted.TunnelAddr != "" {
+			rt, err := types.NewReverseTunnel(trusted.SiteName, []string{trusted.TunnelAddr})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			tconf.ReverseTunnels = []types.ReverseTunnel{rt}
 		}
 	}
-	tconf.Proxy.ReverseTunnelListenAddr.Addr = i.Secrets.ListenAddr
 	tconf.HostUUID = i.Secrets.GetIdentity().ID.HostUUID
 	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, i.GetPortSSH())
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
@@ -594,9 +559,6 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			Addr:        i.Hostname,
 		},
 	}
-	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
-	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
-	tconf.Proxy.MySQLAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMySQL())
 	tconf.Proxy.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -610,6 +572,19 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			AddrNetwork: "tcp",
 			Addr:        Host,
 		},
+	}
+
+	if i.isSinglePortSetup {
+		tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
+		// Reset other addresses to ensure that teleport instance will expose only web port listener.
+		tconf.Proxy.ReverseTunnelListenAddr = utils.NetAddr{}
+		tconf.Proxy.MySQLAddr = utils.NetAddr{}
+		tconf.Proxy.SSHAddr = utils.NetAddr{}
+	} else {
+		tconf.Proxy.ReverseTunnelListenAddr.Addr = i.Secrets.TunnelAddr
+		tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
+		tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
+		tconf.Proxy.MySQLAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMySQL())
 	}
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 	tconf.Auth.StorageConfig = backend.Config{
@@ -1182,17 +1157,20 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	proxyConf := &i.Config.Proxy
-	proxyHost, _, err := net.SplitHostPort(proxyConf.SSHAddr.Addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var proxyHost string
+	if !proxyConf.SSHAddr.IsEmpty() {
+		proxyHost, _, err = net.SplitHostPort(proxyConf.SSHAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	var webProxyAddr string
 	var sshProxyAddr string
 
 	if cfg.Proxy == nil {
-		webProxyAddr = proxyConf.WebAddr.Addr
-		sshProxyAddr = proxyConf.SSHAddr.Addr
+		webProxyAddr = i.GetWebAddr()
+		sshProxyAddr = i.GetProxyAddr()
 	} else {
 		webProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.WebPort))
 		sshProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.SSHPort))
@@ -1204,18 +1182,19 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	cconf := &client.Config{
-		Username:           cfg.Login,
-		Host:               cfg.Host,
-		HostPort:           cfg.Port,
-		HostLogin:          cfg.Login,
-		InsecureSkipVerify: true,
-		KeysDir:            keyDir,
-		SiteName:           cfg.Cluster,
-		ForwardAgent:       fwdAgentMode,
-		Labels:             cfg.Labels,
-		WebProxyAddr:       webProxyAddr,
-		SSHProxyAddr:       sshProxyAddr,
-		Interactive:        cfg.Interactive,
+		Username:               cfg.Login,
+		Host:                   cfg.Host,
+		HostPort:               cfg.Port,
+		HostLogin:              cfg.Login,
+		InsecureSkipVerify:     true,
+		KeysDir:                keyDir,
+		SiteName:               cfg.Cluster,
+		ForwardAgent:           fwdAgentMode,
+		Labels:                 cfg.Labels,
+		WebProxyAddr:           webProxyAddr,
+		SSHProxyAddr:           sshProxyAddr,
+		Interactive:            cfg.Interactive,
+		ALPNSNIListenerEnabled: i.isSinglePortSetup,
 	}
 
 	// JumpHost turns on jump host mode

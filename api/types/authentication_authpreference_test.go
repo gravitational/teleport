@@ -227,6 +227,48 @@ func TestAuthPreferenceV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "webauthn denied CAs",
 		},
 		{
+			name: "webauthn_invalid_disabled",
+			prefs: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         "local",
+					SecondFactor: "webauthn",
+					Webauthn: &types.Webauthn{
+						RPID:     "example.com",
+						Disabled: true, // Cannot disable when second_factor=webauthn
+					},
+				},
+			},
+			wantErr: "webauthn cannot be disabled",
+		},
+		{
+			name: "webauthn_valid_disabledSecondFactorOn",
+			prefs: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         "local",
+					SecondFactor: "on",
+					U2F:          validU2FPref.Spec.U2F,
+					Webauthn: &types.Webauthn{
+						RPID:     "example.com",
+						Disabled: true, // OK, fallback to U2F
+					},
+				},
+			},
+		},
+		{
+			name: "webauthn_valid_disabledSecondFactorOptional",
+			prefs: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         "local",
+					SecondFactor: "optional",
+					U2F:          validU2FPref.Spec.U2F,
+					Webauthn: &types.Webauthn{
+						RPID:     "example.com",
+						Disabled: true, // OK, fallback to U2F
+					},
+				},
+			},
+		},
+		{
 			name: "on_valid",
 			prefs: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
