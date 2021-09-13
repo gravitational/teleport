@@ -21,8 +21,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 func TestGetTunnelAddr(t *testing.T) {
@@ -39,7 +40,7 @@ func TestGetTunnelAddr(t *testing.T) {
 func TestTunnelAddr(t *testing.T) {
 	type testCase struct {
 		proxyAddr          string
-		settings           SSHProxySettings
+		settings           ProxySettings
 		expectedTunnelAddr string
 	}
 
@@ -54,42 +55,61 @@ func TestTunnelAddr(t *testing.T) {
 
 	t.Run("should use TunnelPublicAddr", testTunnelAddr(testCase{
 		proxyAddr: "proxy.example.com",
-		settings: SSHProxySettings{
-			TunnelPublicAddr: "tunnel.example.com:4024",
-			PublicAddr:       "public.example.com",
-			SSHPublicAddr:    "ssh.example.com",
-			TunnelListenAddr: "[::]:5024",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				TunnelPublicAddr: "tunnel.example.com:4024",
+				PublicAddr:       "public.example.com",
+				SSHPublicAddr:    "ssh.example.com",
+				TunnelListenAddr: "[::]:5024",
+			},
 		},
 		expectedTunnelAddr: "tunnel.example.com:4024",
 	}))
 	t.Run("should use SSHPublicAddr and TunnelListenAddr", testTunnelAddr(testCase{
 		proxyAddr: "proxy.example.com",
-		settings: SSHProxySettings{
-			SSHPublicAddr:    "ssh.example.com",
-			PublicAddr:       "public.example.com",
-			TunnelListenAddr: "[::]:5024",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				SSHPublicAddr:    "ssh.example.com",
+				PublicAddr:       "public.example.com",
+				TunnelListenAddr: "[::]:5024",
+			},
 		},
 		expectedTunnelAddr: "ssh.example.com:5024",
 	}))
 	t.Run("should use PublicAddr and TunnelListenAddr", testTunnelAddr(testCase{
 		proxyAddr: "proxy.example.com",
-		settings: SSHProxySettings{
-			PublicAddr:       "public.example.com",
-			TunnelListenAddr: "[::]:5024",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				PublicAddr:       "public.example.com",
+				TunnelListenAddr: "[::]:5024",
+			},
 		},
 		expectedTunnelAddr: "public.example.com:5024",
 	}))
 	t.Run("should use PublicAddr and SSHProxyTunnelListenPort", testTunnelAddr(testCase{
 		proxyAddr: "proxy.example.com",
-		settings: SSHProxySettings{
-			PublicAddr: "public.example.com",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				PublicAddr: "public.example.com",
+			},
 		},
 		expectedTunnelAddr: "public.example.com:3024",
 	}))
 	t.Run("should use proxyAddr and SSHProxyTunnelListenPort", testTunnelAddr(testCase{
 		proxyAddr:          "proxy.example.com",
-		settings:           SSHProxySettings{},
+		settings:           ProxySettings{SSH: SSHProxySettings{}},
 		expectedTunnelAddr: "proxy.example.com:3024",
+	}))
+	t.Run("should use PublicAddr and WebAddrPort if ALPNSNIListenerEnabled was enabled", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com:443",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				PublicAddr:       "public.example.com",
+				TunnelListenAddr: "[::]:5024",
+			},
+			ALPNSNIListenerEnabled: true,
+		},
+		expectedTunnelAddr: "public.example.com:443",
 	}))
 }
 

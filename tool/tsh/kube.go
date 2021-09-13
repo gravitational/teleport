@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -293,6 +294,7 @@ type kubernetesStatus struct {
 	teleportClusterName string
 	kubeClusters        []string
 	credentials         *client.Key
+	tlsServerName       string
 }
 
 // fetchKubeStatus returns a kubernetesStatus populated from the given TeleportClient.
@@ -309,7 +311,14 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	k8host, _ := tc.KubeProxyHostPort()
+	kubeStatus.tlsServerName = addSubdomainPrefix(k8host, alpnproxy.KubeSNIPrefix)
 	return kubeStatus, nil
+}
+
+func addSubdomainPrefix(domain, prefix string) string {
+	return fmt.Sprintf("%s.%s", prefix, domain)
 }
 
 // buildKubeConfigUpdate returns a kubeconfig.Values suitable for updating the user's kubeconfig
@@ -319,6 +328,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		ClusterAddr:         kubeStatus.clusterAddr,
 		TeleportClusterName: kubeStatus.teleportClusterName,
 		Credentials:         kubeStatus.credentials,
+		TLSServerName:       kubeStatus.tlsServerName,
 	}
 
 	if cf.executablePath == "" {

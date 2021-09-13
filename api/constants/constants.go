@@ -159,4 +159,7 @@ const (
 	// RemoteAuthServer is a special non-resolvable address that indicates client
 	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
+
+	// ALPNSNIAuthProtocol allows dialing local/remote auth service based on SNI cluster name value.
+	ALPNSNIAuthProtocol = "teleport-auth@"
 )
