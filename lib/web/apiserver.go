@@ -345,12 +345,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.mfaLoginFinishSession))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.mfaLoginFinish))
 
-	// MFA related endpoints
+	// MFA public endpoints.
 	h.POST("/webapi/mfa/login/begin", httplib.MakeHandler(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
-	h.GET("/webapi/mfa/devices", httplib.MakeHandler(h.getMFADevicesHandle))
-	h.DELETE("/webapi/mfa/devices/:deviceName", httplib.MakeHandler(h.deleteMFADeviceHandle))
+	h.DELETE("/webapi/mfa/devices/:deviceName/byToken", httplib.MakeHandler(h.deleteMFADeviceHandle))
+	h.GET("/webapi/mfa/devices/byToken", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
+
+	// MFA private endpoints.
+	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))

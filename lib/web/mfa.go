@@ -25,20 +25,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-// getMFADevicesHandle returns a list of MFA devices and can be invoked in two ways:
-//  - With a query param `token`, which means to retrieve devices for the user defined in token
-//  - Without the query param `token`, which means to retrieve devices for the user defined in context (logged in user)
-func (h *Handler) getMFADevicesHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+// getMFADevicesWithTokenHandle retrieves the list of registered MFA devices for the user defined in token.
+func (h *Handler) getMFADevicesWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	recoveryApprovedTokenID := r.URL.Query().Get("token")
-
-	if recoveryApprovedTokenID == "" {
-		ctx, err := h.AuthenticateRequest(w, r, true)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return h.getMFADevicesWithAuthHandle(w, r, p, ctx)
-	}
 
 	mfas, err := h.cfg.ProxyClient.GetMFADevices(r.Context(), &proto.GetMFADevicesRequest{
 		RecoveryApprovedTokenID: recoveryApprovedTokenID,
@@ -50,7 +39,8 @@ func (h *Handler) getMFADevicesHandle(w http.ResponseWriter, r *http.Request, p 
 	return ui.MakeMFADevices(mfas.GetDevices()), nil
 }
 
-func (h *Handler) getMFADevicesWithAuthHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+// getMFADevicesHandle retrieves the list of registered MFA devices for the user in context (logged in user).
+func (h *Handler) getMFADevicesHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)

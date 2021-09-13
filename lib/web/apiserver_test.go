@@ -2034,7 +2034,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	// Call the getter endpoint.
 	clt := proxy.newClient(t)
 	queryParam := url.Values{"token": []string{approvedToken.GetName()}}
-	getDevicesEndpoint := clt.Endpoint("webapi", "mfa", "devices")
+	getDevicesEndpoint := clt.Endpoint("webapi", "mfa", "devices", "byToken")
 	res, err := clt.Get(ctx, getDevicesEndpoint, queryParam)
 	require.NoError(t, err)
 
@@ -2044,7 +2044,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	require.Len(t, devices, 1)
 
 	// Call the delete endpoint.
-	_, err = clt.DeleteWithParams(ctx, clt.Endpoint("webapi", "mfa", "devices", devices[0].Name), queryParam)
+	_, err = clt.DeleteWithParams(ctx, clt.Endpoint("webapi", "mfa", "devices", devices[0].Name, "byToken"), queryParam)
 	require.NoError(t, err)
 
 	// Check device has been deleted.
