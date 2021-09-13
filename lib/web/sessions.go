@@ -33,6 +33,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -240,7 +241,7 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
-	tlsConfig.ServerName = auth.EncodeClusterName(c.parent.clusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(c.parent.clusterName)
 	tlsConfig.Time = c.parent.clock.Now
 	return tlsConfig, nil
 }
@@ -837,7 +838,7 @@ func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
-	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(s.clusterName)
 	tlsConfig.Time = s.clock.Now
 	return tlsConfig, nil
 }

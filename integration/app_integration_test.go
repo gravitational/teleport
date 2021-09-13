@@ -588,10 +588,12 @@ type pack struct {
 }
 
 type appTestOptions struct {
-	extraRootApps []service.App
-	extraLeafApps []service.App
-	userLogins    []string
-	userTraits    map[string][]string
+	extraRootApps    []service.App
+	extraLeafApps    []service.App
+	userLogins       []string
+	userTraits       map[string][]string
+	rootClusterPorts *InstancePorts
+	leafClusterPorts *InstancePorts
 }
 
 // setup configures all clusters and servers needed for a test.
@@ -702,10 +704,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		ClusterName: "example.com",
 		HostID:      uuid.New(),
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
+		Ports:       opts.rootClusterPorts,
 	})
 
 	// Create a new Teleport instance with passed in configuration.
@@ -713,10 +715,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New(),
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
+		Ports:       opts.leafClusterPorts,
 	})
 
 	rcConf := service.MakeDefaultConfig()

@@ -99,7 +99,10 @@ type LoginFlow struct {
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
 func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertion, error) {
-	if user == "" {
+	switch {
+	case f.Webauthn.Disabled:
+		return nil, trace.BadParameter("webauthn disabled")
+	case user == "":
 		return nil, trace.BadParameter("user required")
 	}
 
@@ -153,6 +156,8 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertio
 // the returned device.
 func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAssertionResponse) (*types.MFADevice, error) {
 	switch {
+	case f.Webauthn.Disabled:
+		return nil, trace.BadParameter("webauthn disabled")
 	case user == "":
 		return nil, trace.BadParameter("user required")
 	case resp == nil:

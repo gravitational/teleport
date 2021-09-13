@@ -20,6 +20,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -106,7 +107,7 @@ func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client 
 	return &Client{
 		c:          cfg,
 		dialer:     dialer,
-		tlsConfig:  tlsConfig,
+		tlsConfig:  ConfigureALPN(tlsConfig, cfg.ALPNSNIAuthDialClusterName),
 		closedFlag: new(int32),
 	}
 }
@@ -358,6 +359,21 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	return nil
 }
 
+// ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
+// allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
+func ConfigureALPN(tlsConfig *tls.Config, clusterName string) *tls.Config {
+	if tlsConfig == nil {
+		return nil
+	}
+	if clusterName == "" {
+		return tlsConfig
+	}
+	out := tlsConfig.Clone()
+	routeInfo := fmt.Sprintf("%s%s", constants.ALPNSNIAuthProtocol, utils.EncodeClusterName(clusterName))
+	out.NextProtos = append([]string{routeInfo}, out.NextProtos...)
+	return out
+}
+
 // grpcDialer wraps the client's dialer with a grpcDialer.
 func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, error) {
 	return func(ctx context.Context, addr string) (net.Conn, error) {
@@ -420,6 +436,9 @@ type Config struct {
 	// requires this field to be set. If the web proxy was provided with
 	// signed TLS certificates, this field should not be set.
 	InsecureAddressDiscovery bool
+	// ALPNSNIAuthDialClusterName if present the client will include ALPN SNI routing information in TLS Hello message
+	// allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
+	ALPNSNIAuthDialClusterName string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
