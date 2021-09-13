@@ -66,7 +66,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	user := "fake@fake.com"
 	rc, err := srv.Auth().generateAndUpsertRecoveryCodes(ctx, user)
 	require.NoError(t, err)
-	require.Len(t, rc, 3)
+	require.Len(t, rc, numOfRecoveryCodes)
 
 	// Test codes are not marked used.
 	recovery, err := srv.Auth().GetRecoveryCodes(ctx, user)
@@ -1057,6 +1057,158 @@ func TestAccountRecoveryFlow(t *testing.T) {
 			err = srv.Auth().CompleteAccountRecovery(ctx, c.getCompleteRequest(user, approvedToken.GetName()))
 			require.NoError(t, err)
 		})
+	}
+}
+
+func TestGetAccountRecoveryToken(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	cases := []struct {
+		name    string
+		wantErr bool
+		req     CreateUserTokenRequest
+	}{
+		{
+			name:    "invalid recovery token type",
+			wantErr: true,
+			req: CreateUserTokenRequest{
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeResetPassword,
+			},
+		},
+		{
+			name:    "token not found",
+			wantErr: true,
+			req: CreateUserTokenRequest{
+				TTL:  5 * time.Minute,
+				Type: "unknown-token-type",
+			},
+		},
+		{
+			name: "recovery start token type",
+			req: CreateUserTokenRequest{
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryStart,
+			},
+		},
+		{
+			name: "recovery approve token type",
+			req: CreateUserTokenRequest{
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryApproved,
+			},
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create and insert a token.
+			token, err := srv.Auth().newUserToken(c.req)
+			require.NoError(t, err)
+			_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+			require.NoError(t, err)
+
+			retToken, err := srv.Auth().GetAccountRecoveryToken(context.Background(), &proto.GetAccountRecoveryTokenRequest{
+				RecoveryTokenID: token.GetName(),
+			})
+
+			switch {
+			case c.wantErr:
+				require.True(t, trace.IsAccessDenied(err))
+			default:
+				require.NoError(t, err)
+				require.Equal(t, c.req.Type, retToken.GetSubKind())
+			}
+		})
+	}
+}
+
+func TestCreateAccountRecoveryCodes(t *testing.T) {
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testWithCloudModules{})
+
+	// Enable second factors.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOTP,
+	})
+	require.NoError(t, err)
+
+	err = srv.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	cases := []struct {
+		name    string
+		wantErr bool
+		req     CreateUserTokenRequest
+	}{
+		{
+			name:    "invalid token type",
+			wantErr: true,
+			req: CreateUserTokenRequest{
+				Name: "llama@email.com",
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeResetPassword,
+			},
+		},
+		{
+			name:    "token not found",
+			wantErr: true,
+			req: CreateUserTokenRequest{
+				TTL:  5 * time.Minute,
+				Type: "unknown-token-type",
+			},
+		},
+		{
+			name:    "invalid user name",
+			wantErr: true,
+			req: CreateUserTokenRequest{
+				Name: "invalid-email",
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryApproved,
+			},
+		},
+		{
+			name: "valid token",
+			req: CreateUserTokenRequest{
+				Name: "llama@email.com",
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryApproved,
+			},
+		},
+	}
+
+	for _, c := range cases {
+		token, err := srv.Auth().newUserToken(c.req)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+		require.NoError(t, err)
+
+		res, err := srv.Auth().CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
+			TokenID: token.GetName(),
+		})
+
+		switch {
+		case c.wantErr:
+			require.True(t, trace.IsAccessDenied(err))
+
+		default:
+			require.NoError(t, err)
+			require.Len(t, res.GetRecoveryCodes(), numOfRecoveryCodes)
+
+			// Check token is deleted after success.
+			_, err = srv.Auth().Identity.GetUserToken(ctx, token.GetName())
+			require.True(t, trace.IsNotFound(err))
+		}
 	}
 }
 

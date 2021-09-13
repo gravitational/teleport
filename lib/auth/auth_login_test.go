@@ -177,6 +177,25 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 		},
 		{
+			name: "OK second_factor:optional with global Webauthn disable",
+			spec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				U2F: &types.U2F{
+					AppID:  "https://localhost",
+					Facets: []string{"https://localhost"},
+				},
+				Webauthn: &types.Webauthn{
+					Disabled: true,
+				},
+			},
+			assertChallenge: func(challenge *MFAAuthenticateChallenge) {
+				require.True(t, challenge.TOTPChallenge)
+				require.NotEmpty(t, challenge.U2FChallenges)
+				require.Empty(t, challenge.WebauthnChallenge)
+			},
+		},
+		{
 			name: "OK second_factor:on",
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
