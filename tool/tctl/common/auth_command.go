@@ -349,7 +349,7 @@ func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
 
 	key.Cert, err = clusterAPI.GenerateHostCert(key.Pub,
 		"", "", principals,
-		clusterName, types.SystemRoles{types.RoleNode}, 0)
+		clusterName, types.RoleNode, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
