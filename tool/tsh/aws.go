@@ -48,7 +48,7 @@ func onAWS(cf *CLIConf) error {
 	// sign the request and provide Authorization Header where service-name and region-name are encoded.
 	// When endpoint-url AWS CLI flag provides the destination AWS API address is override by endpoint-url value.
 	// Teleport AWS Signing APP will resolve aws-service and aws-region to the proper Amazon API URL.
-	awsFakeCred, err := generateAndEnvSetAWSCredentials()
+	awsFakeCred, err := genAndSetAWSCredentials()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -89,7 +89,7 @@ func onAWS(cf *CLIConf) error {
 	return nil
 }
 
-func generateAndEnvSetAWSCredentials() (*credentials.Credentials, error) {
+func genAndSetAWSCredentials() (*credentials.Credentials, error) {
 	id := uuid.NewUUID().String()
 	secret := uuid.NewUUID().String()
 	if err := setFakeAWSEnvCredentials(id, secret); err != nil {
@@ -239,7 +239,7 @@ func setFakeAWSEnvCredentials(keyID, accessKey string) error {
 	return nil
 }
 
-func getARNFromFlags(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, app *types.App) (string, error) {
+func getARNFromFlags(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, app types.Application) (string, error) {
 	if cf.AWSRoleARN == "" && cf.AWSRoleName == "" {
 		return "", trace.BadParameter("either --aws-role-arn or --aws-role-name flag is required")
 	}
@@ -250,7 +250,7 @@ func getARNFromFlags(cf *CLIConf, tc *client.TeleportClient, profile *client.Pro
 		return cf.AWSRoleARN, nil
 	}
 	// Try to construct ARN value based on RoleName and APP AWSAccountID.
-	accountID, ok := app.StaticLabels[constants.AWSAccountIDLabel]
+	accountID, ok := app.GetAllLabels()[constants.AWSAccountIDLabel]
 	if !ok {
 		// APP configuration doesn't contain an accountID value.
 		return "", trace.BadParameter("the role name is ambiguous, please provide role ARN by --aws-role-arn flag")

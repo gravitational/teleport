@@ -80,7 +80,7 @@ func onAppLogin(cf *CLIConf) error {
 
 	// Save information about the current AWS CLI access app. The CurrentAWSCLIApp is used during tsh aws call
 	// to load proper client app credentials.
-	tc.CurrentAWSCLIApp = app.Name
+	tc.CurrentAWSCLIApp = app.GetName()
 	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 		return trace.Wrap(err)
 	}
