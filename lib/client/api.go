@@ -1953,6 +1953,13 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 		return trace.Wrap(err)
 	}
 	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
+		switch e := trace.Unwrap(err).(type) {
+		case *ssh.ExitError:
+			tc.ExitStatus = e.ExitStatus()
+		case *ssh.ExitMissingError:
+			tc.ExitStatus = 1
+		}
+
 		return trace.Wrap(err)
 	}
 	if nodeSession.ExitMsg == "" {
