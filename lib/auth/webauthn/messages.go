@@ -33,6 +33,22 @@ type CredentialAssertionResponse struct {
 	AssertionResponse AuthenticatorAssertionResponse `json:"response"`
 }
 
+// CredentialCreation is the payload sent to authenticators to initiate
+// registration.
+type CredentialCreation protocol.CredentialCreation
+
+// CredentialCreationResponse is the reply from authenticators to complete
+// registration.
+type CredentialCreationResponse struct {
+	// CredentialCreationResponse is manually redefined, instead of directly based
+	// in protocol.CredentialCreationResponse, for the same reasoning that
+	// CredentialAssertionResponse is - in short, we want a clean package.
+	// The nesting of types is identical to protocol.CredentialCreationResponse.
+
+	PublicKeyCredential
+	AttestationResponse AuthenticatorAttestationResponse `json:"response"`
+}
+
 type PublicKeyCredential struct {
 	Credential
 	RawID      protocol.URLEncodedBase64              `json:"rawId"`
@@ -53,3 +69,8 @@ type AuthenticatorAssertionResponse struct {
 }
 
 type AuthenticatorResponse protocol.AuthenticatorResponse
+
+type AuthenticatorAttestationResponse struct {
+	AuthenticatorResponse
+	AttestationObject protocol.URLEncodedBase64 `json:"attestationObject"`
+}
