@@ -775,6 +775,7 @@ message MFARegisterChallenge {
     oneof Request {
         U2FRegisterChallenge U2F = 1;
         TOTPRegisterChallenge TOTP = 2;
+        webauthn.CredentialCreation Webauthn = 3;
     }
 }
 
@@ -783,6 +784,7 @@ message MFARegisterResponse {
     oneof Response {
         U2FRegisterResponse U2F = 1;
         TOTPRegisterResponse TOTP = 2;
+        webauthn.CredentialCreationResponse Webauthn = 3;
     }
 }
 
@@ -853,6 +855,7 @@ message AddMFADeviceRequestInit {
     enum DeviceType {
         TOTP = 0;
         U2F = 1;
+        Webauthn = 2;
     }
     DeviceType Type = 2;
 }
@@ -889,12 +892,25 @@ message DeleteMFADeviceRequestInit {
 // DeleteMFADeviceResponseAck is a confirmation of successful device deletion.
 message DeleteMFADeviceResponseAck {}
 
+// DeleteMFADeviceSyncRequest is a request to delete a MFA device (nonstream).
+message DeleteMFADeviceSyncRequest {
+    // TokenID is the ID of a user token that will be used to verify this request.
+    // Token types accepted are:
+    //   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
+    //   - TODO(kimlisa) add privilege token doc after implementation
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
+    // DeviceName is the name of the device to delete.
+    string DeviceName = 2 [ (gogoproto.jsontag) = "device_name" ];
+}
+
 // GetMFADeviceRequest is a request for MFA devices for the calling user.
 message GetMFADevicesRequest {
-    // RecoveryApprovedTokenID is the ID of a recovery approved token that allows a user to view
-    // their devices without being logged in. Recovery approved tokens are obtained after user goes
-    // through a two step verification process.
-    string RecoveryApprovedTokenID = 1;
+    // RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
+    // request. Token is obtained with RPC ApproveAccountRecovery and allows users to view their
+    // MFA devices without being logged in.
+    // This field can be empty which implies the logged in user wants to view their devices.
+    string RecoveryApprovedTokenID = 1
+        [ (gogoproto.jsontag) = "recovery_approved_token_id,omitempty" ];
 }
 
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
@@ -1426,6 +1442,8 @@ service AuthService {
     // -> MFAResponse
     // <- Ack
     rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
+    // DeleteMFADeviceSync deletes a users MFA device (nonstream).
+    rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
