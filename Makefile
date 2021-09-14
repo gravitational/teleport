@@ -21,7 +21,8 @@ ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
-ASSETS_BUILDDIR ?= lib/web/build
+ASSETS_BUILDDIR ?= embed.assets
+WEB_ASSETS_BUILDDIR := $(ASSETS_BUILDDIR)/web
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
@@ -92,8 +93,9 @@ CLANG_FORMAT ?= $(shell which clang-format || which clang-format-10)
 LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
 KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/')
 INCLUDES :=
-ER_BPF_BUILDDIR := lib/bpf/bytecode
-RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
+
+ER_BPF_BUILDDIR := $(ASSETS_BUILDDIR)/enhancedrecording
+RS_BPF_BUILDDIR := $(ASSETS_BUILDDIR)/restrictedsession
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
@@ -256,7 +258,7 @@ endif
 # only tsh is built.
 #
 .PHONY:full
-full: $(ASSETS_BUILDDIR)/webassets
+full: $(WEB_ASSETS_BUILDDIR)
 ifneq ("$(OS)", "windows")
 	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
@@ -268,7 +270,7 @@ endif
 full-ent:
 ifneq ("$(OS)", "windows")
 	@if [ -f e/Makefile ]; then \
-	rm $(ASSETS_BUILDDIR)/webassets; \
+	rm $(WEB_ASSETS_BUILDDIR); \
 	$(MAKE) -C e full; fi
 endif
 
@@ -337,7 +339,7 @@ release-unix: clean full
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 	@if [ -f e/Makefile ]; then \
-		rm -fr $(ASSETS_BUILDDIR)/webassets; \
+		rm -fr $(WEB_ASSETS_BUILDDIR); \
 		$(MAKE) -C e release; \
 	fi
 
@@ -577,7 +579,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'api/version.go' \
 		-ignore 'e/**' \
 		-ignore 'gitref.go' \
-		-ignore 'lib/web/build/**' \
+		-ignore 'embed.assets/**' \
 		-ignore 'vendor/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
@@ -616,19 +618,18 @@ update-tag:
 	git tag api/$(GITTAG)
 	git push origin $(GITTAG) && git push origin api/$(GITTAG)
 
-# build/webassets directory contains the web assets (UI) which get
+# embed.assets/web directory contains the web assets (UI) which get
 # embedded in the teleport binary
-$(ASSETS_BUILDDIR)/webassets: ensure-webassets $(ASSETS_BUILDDIR)
+$(WEB_ASSETS_BUILDDIR): ensure-webassets $(ASSETS_BUILDDIR)
 ifneq ("$(OS)", "windows")
 	@echo "---> Copying OSS web assets."; \
-	rm -rf $(ASSETS_BUILDDIR)/webassets; \
-	mkdir $(ASSETS_BUILDDIR)/webassets; \
+	rm -rf $(WEB_ASSETS_BUILDDIR); \
+	mkdir $(WEB_ASSETS_BUILDDIR); \
 	cd webassets/teleport/ ; cp -r . ../../$@
 endif
 
 $(ASSETS_BUILDDIR):
 	mkdir -p $@
-
 
 .PHONY: test-package
 test-package: remove-temp-files

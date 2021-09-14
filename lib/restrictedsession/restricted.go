@@ -20,15 +20,15 @@ package restrictedsession
 
 import (
 	"bytes"
-	"embed"
 	"encoding/binary"
+	"path/filepath"
 	"sync"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/bpf"
+
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/sirupsen/logrus"
 )
@@ -45,9 +45,6 @@ var (
 		},
 	)
 )
-
-//go:embed bytecode
-var embedFS embed.FS
 
 func init() {
 	prometheus.MustRegister(lostRestrictedEvents)
@@ -95,7 +92,7 @@ func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
 
 	log.Debugf("Starting restricted session.")
 
-	restrictedBPF, err := embedFS.ReadFile("bytecode/restricted.bpf.o")
+	restrictedBPF, err := teleport.EmbedFS().ReadFile(filepath.Join(teleport.RestrictedSessionBuildDir, "restricted.bpf.o"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

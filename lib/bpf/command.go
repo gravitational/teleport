@@ -19,15 +19,15 @@ limitations under the License.
 package bpf
 
 import (
+	_ "embed"
+	"path/filepath"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/aquasecurity/libbpfgo"
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-
-	_ "embed"
 )
 
 var (
@@ -85,7 +85,7 @@ func startExec(bufferSize int) (*exec, error) {
 
 	e := &exec{}
 
-	commandBPF, err := embedFS.ReadFile("bytecode/command.bpf.o")
+	commandBPF, err := teleport.EmbedFS().ReadFile(filepath.Join(teleport.EnhancedRecordingBuildDir, "command.bpf.o"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

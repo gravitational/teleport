@@ -6,7 +6,7 @@ default.etcd
 darwin
 
 # web asset directory
-/lib/web/build
+/embed.assets/web/*
 
 # usually release tarballs get in the way
 *.gz

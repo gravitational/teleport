@@ -19,14 +19,15 @@ limitations under the License.
 package bpf
 
 import (
-	"github.com/aquasecurity/libbpfgo"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
+	_ "embed"
+	"path/filepath"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 
-	_ "embed"
+	"github.com/aquasecurity/libbpfgo"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -110,7 +111,7 @@ func startConn(bufferSize int) (*conn, error) {
 
 	c := &conn{}
 
-	networkBPF, err := embedFS.ReadFile("bytecode/network.bpf.o")
+	networkBPF, err := teleport.EmbedFS().ReadFile(filepath.Join(teleport.EnhancedRecordingBuildDir, "network.bpf.o"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -27,12 +27,14 @@ import (
 	"net/http/httptest"
 	"os"
 	os_exec "os/exec"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
 	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -395,7 +397,7 @@ func (s *Suite) TestBPFCounter(c *check.C) {
 		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}
 
-	counterTestBPF, err := embedFS.ReadFile("bytecode/counter_test.bpf.o")
+	counterTestBPF, err := teleport.EmbedFS().ReadFile(filepath.Join(teleport.EnhancedRecordingBuildDir, "counter_test.bpf.o"))
 	if err != nil {
 		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}
