@@ -73,6 +73,7 @@
       ],
       "scripts": [
         "teleport/scripts/010-install_teleport.sh",
+        "teleport/scripts/020-ufw_teleport.sh",
         "vendor/common/scripts/020-application-tag.sh",
         "vendor/common/scripts/900-cleanup.sh",
         "vendor/common/scripts/999-img_check.sh"
