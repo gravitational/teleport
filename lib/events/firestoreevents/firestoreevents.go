@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"time"
 
+	"google.golang.org/genproto/googleapis/firestore/admin/v1"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
@@ -614,12 +616,19 @@ func (l *Log) getIndexParent() string {
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	tuples := make([]*firestorebk.IndexTuple, 0)
 	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:  eventNamespaceDocProperty,
-		SecondField: createdAtDocProperty,
+		FirstField:       eventNamespaceDocProperty,
+		SecondField:      createdAtDocProperty,
+		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
 	})
 	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:  sessionIDDocProperty,
-		SecondField: eventIndexDocProperty,
+		FirstField:       eventNamespaceDocProperty,
+		SecondField:      createdAtDocProperty,
+		SecondFieldOrder: admin.Index_IndexField_DESCENDING,
+	})
+	tuples = append(tuples, &firestorebk.IndexTuple{
+		FirstField:       sessionIDDocProperty,
+		SecondField:      eventIndexDocProperty,
+		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
 	})
 	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
 	return err

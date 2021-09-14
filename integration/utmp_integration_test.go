@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -211,18 +212,18 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
-	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:       hostID,
-		NodeName:     s.server.ClusterName(),
-		Roles:        types.SystemRoles{types.RoleNode},
-		PublicSSHKey: pub,
-		PublicTLSKey: tlsPub,
-	})
+	certs, err := s.server.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     s.server.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
 	require.NoError(t, err)
-	certs.Key = priv
 
 	// set up user CA and set up a user that has access to the server
-	s.signer, err = sshutils.NewSigner(certs.Key, certs.Cert)
+	s.signer, err = sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
 	s.nodeID = uuid.New()
