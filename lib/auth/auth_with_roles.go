@@ -140,12 +140,12 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 // hasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
 func (a *ServerWithRoles) hasBuiltinRole(name string) bool {
-	return hasBuiltinRole(a.context.Checker, name)
+	return HasBuiltinRole(a.context.Checker, name)
 }
 
-// hasBuiltinRole checks the type of the role set returned and the name.
+// HasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
-func hasBuiltinRole(checker services.AccessChecker, name string) bool {
+func HasBuiltinRole(checker services.AccessChecker, name string) bool {
 	if _, ok := checker.(BuiltinRoleSet); !ok {
 		return false
 	}
