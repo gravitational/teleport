@@ -88,10 +88,9 @@ export function DesktopSession(props: State) {
       {attempt.status === 'failed' && (
         <Alert
           style={{
-            maxWidth: '500px',
             alignSelf: 'center',
           }}
-          px={10}
+          width={'450px'}
           my={2}
           children={attempt.statusText}
         />
