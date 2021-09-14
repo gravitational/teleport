@@ -20,7 +20,6 @@ package bpf
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 	"io/ioutil"
 	"net/http"

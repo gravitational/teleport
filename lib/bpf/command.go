@@ -19,7 +19,6 @@ limitations under the License.
 package bpf
 
 import (
-	_ "embed"
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
