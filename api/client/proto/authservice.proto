@@ -1223,6 +1223,30 @@ message GetAccountRecoveryTokenRequest {
     string RecoveryTokenID = 1 [ (gogoproto.jsontag) = "recovery_token_id" ];
 }
 
+// UserCredentials describes fields for a user's username and password.
+message UserCredentials {
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+    bytes Password = 2 [ (gogoproto.jsontag) = "password" ];
+}
+
+// CreateAuthenticateChallengeRequest is a request for creating MFA authentication challenges for a
+// users mfa devices.
+message CreateAuthenticateChallengeRequest {
+    // Request defines how the request will be verified before creating challenges.
+    // This field can be empty, which implies the request is to create challenges for the
+    // user in context (logged in user).
+    oneof Request {
+        // UserCredentials verifies request with username and password. Used with logins or
+        // when the logged in user wants to change their password.
+        UserCredentials UserCredentials = 1 [ (gogoproto.jsontag) = "user_credentials,omitempty" ];
+        // RecoveryStartTokenID is the ID of a recovery start token obtained with RPC
+        // StartAccountRecovery. This token allows a user to retrieve their MFA challenges for RPC
+        // ApproveAccountRecovery (step 2 of the recovery process after RPC StartAccountRecovery).
+        string RecoveryStartTokenID = 2
+            [ (gogoproto.jsontag) = "recovery_start_token_id,omitempty" ];
+    }
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1447,6 +1471,10 @@ service AuthService {
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+    // CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA
+    // devices.
+    rpc CreateAuthenticateChallenge(CreateAuthenticateChallengeRequest)
+        returns (MFAAuthenticateChallenge);
 
     // GetOIDCConnector gets an OIDC connector resource by name.
     rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
