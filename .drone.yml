@@ -3218,6 +3218,10 @@ steps:
     image: docker
     commands:
       - |
+        if [ "${DRONE_REPO}" != "gravitational/teleport" ]; then
+          echo "---> Not publishing ${DRONE_REPO} packages to repos"
+          exit 78
+        fi
         # length will be 0 after filtering if this is a pre-release, >0 otherwise
         FILTERED_TAG_LENGTH=$(echo ${DRONE_TAG} | egrep -v '(alpha|beta|dev|rc)' | wc -c)
         if [ $$FILTERED_TAG_LENGTH -eq 0 ]; then
@@ -3385,6 +3389,6 @@ volumes:
 
 ---
 kind: signature
-hmac: b801065f4a0baaf6d353877510b6535f6530e0844c854f981a6e345ebf6470d9
+hmac: 45e3ba7312b372ba3e892098cbc4ea200abd109397ef89e775e7d8f6188aad2a
 
 ...

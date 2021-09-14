@@ -234,7 +234,7 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 		k, err := common.LoadIdentity(fmt.Sprintf("../../fixtures/certs/identities/%s", id))
 		c.Assert(err, check.IsNil)
 		c.Assert(k, check.NotNil)
-		cb, err := k.HostKeyCallback()
+		cb, err := k.HostKeyCallback(false)
 		c.Assert(err, check.IsNil)
 		c.Assert(cb, check.IsNil)
 
@@ -251,7 +251,7 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 	k, err = common.LoadIdentity("../../fixtures/certs/identities/key-cert-ca.pem")
 	c.Assert(err, check.IsNil)
 	c.Assert(k, check.NotNil)
-	cb, err := k.HostKeyCallback()
+	cb, err := k.HostKeyCallback(true)
 	c.Assert(err, check.IsNil)
 	c.Assert(cb, check.NotNil)
 	// prepare the cluster CA separately

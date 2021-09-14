@@ -244,7 +244,7 @@ func TestProxySSHConfig(t *testing.T) {
 		[]ssh.Signer{hostSigner},
 		sshutils.AuthMethods{
 			PublicKey: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-				certChecker := utils.CertChecker{
+				certChecker := sshutils.CertChecker{
 					CertChecker: ssh.CertChecker{
 						IsUserAuthority: func(cert ssh.PublicKey) bool {
 							// Makes sure that user presented key signed by or with trusted authority.

@@ -23,7 +23,6 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
-	"net"
 	"sync"
 	"time"
 
@@ -94,6 +93,8 @@ type AgentConfig struct {
 	// Lease manages gossip and exclusive claims.  Lease may be nil
 	// when used in the context of tests.
 	Lease track.Lease
+	// FIPS indicates if Teleport was started in FIPS mode.
+	FIPS bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -217,29 +218,20 @@ func (a *Agent) getPrincipalsList() []string {
 	return out
 }
 
-func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.PublicKey) error {
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return trace.BadParameter("expected certificate")
-	}
+func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
 	cas, err := a.AccessPoint.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
-		return trace.Wrap(err, "failed to fetch remote certs")
+		return nil, trace.Wrap(err)
 	}
+	var keys []ssh.PublicKey
 	for _, ca := range cas {
 		checkers, err := ca.Checkers()
 		if err != nil {
-			return trace.BadParameter("error parsing key: %v", err)
+			return nil, trace.Wrap(err)
 		}
-		for _, checker := range checkers {
-			if sshutils.KeysEqual(checker, cert.SignatureKey) {
-				a.setPrincipals(cert.ValidPrincipals)
-				return nil
-			}
-		}
+		keys = append(keys, checkers...)
 	}
-	return trace.NotFound(
-		"no matching keys found when checking server's host signature")
+	return keys, nil
 }
 
 func (a *Agent) connect() (conn *ssh.Client, err error) {
@@ -252,12 +244,25 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 			continue
 		}
 
+		callback, err := sshutils.NewHostKeyCallback(
+			sshutils.HostKeyCallbackConfig{
+				GetHostCheckers: a.getHostCheckers,
+				OnCheckCert: func(cert *ssh.Certificate) {
+					a.setPrincipals(cert.ValidPrincipals)
+				},
+				FIPS: a.FIPS,
+			})
+		if err != nil {
+			a.Debugf("Failed to create host key callback for %v: %v.", a.Addr.Addr, err)
+			continue
+		}
+
 		// Build a new client connection. This is done to get access to incoming
 		// global requests which dialer.Dial would not provide.
 		conn, chans, reqs, err := ssh.NewClientConn(pconn, a.Addr.Addr, &ssh.ClientConfig{
 			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: a.checkHostSignature,
+			HostKeyCallback: callback,
 			Timeout:         defaults.DefaultDialTimeout,
 		})
 		if err != nil {
