@@ -91,8 +91,8 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
 		User:    req.Username,
 		Priv:    privateKey,
-		Pub:     certs.ssh,
-		TLSCert: certs.tls,
+		Pub:     certs.SSH,
+		TLSCert: certs.TLS,
 		Expires: s.clock.Now().Add(ttl),
 	})
 	if err != nil {
@@ -231,5 +231,5 @@ func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, pu
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return certs.ssh, certs.tls, nil
+	return certs.SSH, certs.TLS, nil
 }

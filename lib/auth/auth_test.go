@@ -569,14 +569,22 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(roles.Include(types.RoleNode), Equals, true)
 	c.Assert(roles.Include(types.RoleProxy), Equals, false)
 
+	priv, pub, err := s.a.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(priv)
+	c.Assert(err, IsNil)
+
 	// unsuccessful registration (wrong role)
-	keys, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    tok,
-		HostID:   "bad-host-id",
-		NodeName: "bad-node-name",
-		Role:     types.RoleProxy,
+	certs, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+		Token:        tok,
+		HostID:       "bad-host-id",
+		NodeName:     "bad-node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
 	})
-	c.Assert(keys, IsNil)
+	c.Assert(certs, IsNil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `node "bad-node-name" \[bad-host-id\] can not join the cluster, the token does not allow "Proxy" role`)
 
@@ -601,36 +609,42 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// use it twice:
-	keys, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	certs, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:                multiUseToken,
 		HostID:               "once",
 		NodeName:             "node-name",
 		Role:                 types.RoleProxy,
 		AdditionalPrincipals: []string{"example.com"},
+		PublicTLSKey:         tlsPublicKey,
+		PublicSSHKey:         pub,
 	})
 	c.Assert(err, IsNil)
 
 	// along the way, make sure that additional principals work
-	hostCert, err := sshutils.ParseCertificate(keys.Cert)
+	hostCert, err := sshutils.ParseCertificate(certs.SSH)
 	c.Assert(err, IsNil)
 	comment := Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
 	c.Assert(apiutils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
 
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    multiUseToken,
-		HostID:   "twice",
-		NodeName: "node-name",
-		Role:     types.RoleProxy,
+		Token:        multiUseToken,
+		HostID:       "twice",
+		NodeName:     "node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, IsNil)
 
 	// try to use after TTL:
 	s.a.SetClock(clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1)))
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    multiUseToken,
-		HostID:   "late.bird",
-		NodeName: "node-name",
-		Role:     types.RoleProxy,
+		Token:        multiUseToken,
+		HostID:       "late.bird",
+		NodeName:     "node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, ErrorMatches, `"node-name" \[late.bird\] can not join the cluster with role Proxy, the token is not valid`)
 
@@ -651,17 +665,21 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	err = s.a.SetStaticTokens(st)
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    "static-token-value",
-		HostID:   "static.host",
-		NodeName: "node-name",
-		Role:     types.RoleProxy,
+		Token:        "static-token-value",
+		HostID:       "static.host",
+		NodeName:     "node-name",
+		Role:         types.RoleProxy,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:    "static-token-value",
-		HostID:   "wrong.role",
-		NodeName: "node-name",
-		Role:     types.RoleAuth,
+		Token:        "static-token-value",
+		HostID:       "wrong.role",
+		NodeName:     "node-name",
+		Role:         types.RoleAuth,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: pub,
 	})
 	c.Assert(err, NotNil)
 	r, _, err := s.a.ValidateToken("static-token-value")
@@ -1165,7 +1183,8 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleNode}, time.Minute)
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{},
+		p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.NoError(t, err)
 
 	target := types.LockTarget{Node: hostID}
@@ -1185,12 +1204,12 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for lock update.")
 	}
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleNode}, time.Minute)
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.Error(t, err)
 	require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
 
 	// Locks targeting nodes should not apply to other system roles.
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.SystemRoles{types.RoleProxy}, time.Minute)
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
 	require.NoError(t, err)
 }
 

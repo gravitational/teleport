@@ -177,15 +177,24 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	// start node
-	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: s.server.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
-	})
+	priv, pub, err := s.server.AuthServer.AuthServer.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	c.Assert(err, IsNil)
+
+	// start node
+	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
+		&apiProto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     s.server.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	c.Assert(err, IsNil)
+
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	c.Assert(err, IsNil)
 
 	nodeID := "node"
@@ -815,7 +824,6 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 		c.Assert(err, NotNil, Commentf(testCase.expectedErr))
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
-
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
@@ -1922,7 +1930,8 @@ func TestClusterKubesGet(t *testing.T) {
 				{
 					Name:         "test-kube-name",
 					StaticLabels: map[string]string{"test-field": "test-value"},
-				}},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1952,25 +1961,16 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	pack := proxy.authPack(t, "foo@example.com")
 
 	// Register an application.
-	server := &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
-		},
-		Spec: types.ServerSpecV2{
-			Version: teleport.Version,
-			Apps: []*types.App{
-				{
-					Name:       "panel",
-					PublicAddr: "panel.example.com",
-					URI:        "http://127.0.0.1:8080",
-				},
-			},
-		},
-	}
-	_, err := env.server.Auth().UpsertAppServer(context.Background(), server)
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), server)
 	require.NoError(t, err)
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
@@ -2008,25 +2008,16 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	pack := s.authPack(c, "foo@example.com")
 
 	// Register an application called "panel".
-	server := &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
-		},
-		Spec: types.ServerSpecV2{
-			Version: teleport.Version,
-			Apps: []*types.App{
-				{
-					Name:       "panel",
-					PublicAddr: "panel.example.com",
-					URI:        "http://127.0.0.1:8080",
-				},
-			},
-		},
-	}
-	_, err := s.server.Auth().UpsertAppServer(context.Background(), server)
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "panel.example.com",
+	})
+	c.Assert(err, IsNil)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	c.Assert(err, IsNil)
+	_, err = s.server.Auth().UpsertApplicationServer(context.Background(), server)
 	c.Assert(err, IsNil)
 
 	// Extract the session ID and bearer token for the current session.
@@ -2037,7 +2028,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	c.Assert(err, IsNil)
 
-	var tests = []struct {
+	tests := []struct {
 		inComment       CommentInterface
 		inCreateRequest *CreateAppSessionRequest
 		outError        bool
@@ -2654,15 +2645,24 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	})
 	require.NoError(t, err)
 
-	// start auth server
-	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: server.TLS.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
-	})
+	priv, pub, err := server.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
 
-	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	// start auth server
+	certs, err := server.Auth().GenerateHostCerts(ctx,
+		&apiProto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     server.TLS.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 	hostSigners := []ssh.Signer{signer}
 
