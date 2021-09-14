@@ -240,6 +240,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if _, err := cfg.ApplyToken(fc.AuthToken); err != nil {
 		return trace.Wrap(err)
 	}
+	cfg.AWSToken = fc.AWSToken.Name
 
 	if fc.Global.DataDir != "" {
 		cfg.DataDir = fc.Global.DataDir
