@@ -1822,6 +1822,7 @@ func (process *TeleportProcess) initSSH() error {
 					HostSigner:  conn.ServerIdentity.KeySigner,
 					Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 					Server:      s,
+					FIPS:        process.Config.FIPS,
 				})
 			if err != nil {
 				return trace.Wrap(err)
@@ -2112,6 +2113,10 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 	switch role {
 	case teleport.RoleProxy:
 		addrs = append(process.Config.Proxy.PublicAddrs,
+			process.Config.Proxy.WebAddr,
+			process.Config.Proxy.SSHAddr,
+			process.Config.Proxy.ReverseTunnelListenAddr,
+			process.Config.Proxy.MySQLAddr,
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
@@ -2712,6 +2717,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 		KubeDialAddr:        utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
 		ReverseTunnelServer: tsrv,
+		FIPS:                process.Config.FIPS,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3108,6 +3114,7 @@ func (process *TeleportProcess) initApps() {
 				AccessPoint: accessPoint,
 				HostSigner:  conn.ServerIdentity.KeySigner,
 				Cluster:     clusterName,
+				FIPS:        process.Config.FIPS,
 			})
 		if err != nil {
 			return trace.Wrap(err)
