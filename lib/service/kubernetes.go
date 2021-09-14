@@ -218,6 +218,11 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		Streamer: streamer,
 	}
 
+	var publicAddr string
+	if len(cfg.Kube.PublicAddrs) > 0 {
+		publicAddr = cfg.Kube.PublicAddrs[0].String()
+	}
+
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:         apidefaults.Namespace,
@@ -237,6 +242,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			StaticLabels:      cfg.Kube.StaticLabels,
 			DynamicLabels:     dynLabels,
 			LockWatcher:       lockWatcher,
+			PublicAddr:        publicAddr,
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,

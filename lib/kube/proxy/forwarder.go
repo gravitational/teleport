@@ -134,6 +134,8 @@ type ForwarderConfig struct {
 	DynamicLabels *labels.Dynamic
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+	// PublicAddr is the address that can be used to reach the kube cluster
+	PublicAddr string
 }
 
 // CheckAndSetDefaults checks and sets default values
