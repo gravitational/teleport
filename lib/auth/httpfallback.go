@@ -751,7 +751,7 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services
 	return cfg.GetSessionRecordingConfig()
 }
 
-// DELETE IN 9.0.0
+// DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
 //
 // ChangeUserAuthentication changes user password with a user reset token and starts a web session.
 // Returns recovery tokens for cloud users with second factors turned on.
@@ -832,7 +832,7 @@ func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	return &certs, nil
 }
 
-// DELETE IN 9.0.0
+// DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
 //
 // CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
 func (c *Client) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {

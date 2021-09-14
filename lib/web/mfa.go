@@ -20,6 +20,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -77,7 +78,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeAuthenticateChallenge(chal), nil
+	return client.MakeAuthenticateChallenge(chal), nil
 }
 
 // createAuthenticateChallengeWithTokenHandle creates and returns MFA authenticate challenges for the user defined in token.
@@ -89,5 +90,5 @@ func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWrit
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeAuthenticateChallenge(chal), nil
+	return client.MakeAuthenticateChallenge(chal), nil
 }

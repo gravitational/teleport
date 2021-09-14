@@ -1607,7 +1607,7 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
-	return ui.MakeAuthenticateChallenge(mfaChallenge), nil
+	return client.MakeAuthenticateChallenge(mfaChallenge), nil
 }
 
 // mfaLoginFinish completes the MFA login ceremony, returning a new SSH

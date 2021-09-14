@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
 
@@ -100,5 +99,5 @@ func (h *Handler) u2fChangePasswordRequest(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeAuthenticateChallenge(chal), nil
+	return client.MakeAuthenticateChallenge(chal), nil
 }

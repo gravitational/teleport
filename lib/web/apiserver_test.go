@@ -2056,104 +2056,82 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	require.Len(t, devices, 0)
 }
 
-func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
-	t.Parallel()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-
-	// Creates a user with a TOTP device, with second factor preference to OTP only.
-	pack := proxy.authPack(t, "llama@example.com")
-
-	endpoint := pack.clt.Endpoint("webapi", "mfa", "authnchallenge")
-	re, err := pack.clt.PostJSON(context.Background(), endpoint, url.Values{})
-	require.NoError(t, err)
-
-	var chal auth.MFAAuthenticateChallenge
-	err = json.Unmarshal(re.Bytes(), &chal)
-	require.NoError(t, err)
-	require.True(t, chal.TOTPChallenge)
-	require.Empty(t, chal.U2FChallenges)
-	require.Empty(t, chal.WebauthnChallenge)
-}
-
-func TestCreateAuthenticateChallenge_WithToken(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-
-	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOTP,
-	})
-	require.NoError(t, err)
-	err = env.server.Auth().SetAuthPreference(ctx, ap)
-	require.NoError(t, err)
-
-	// Create a user with a TOTP device.
-	username := "llama"
-	proxy.createUser(ctx, t, username, "root", "password", "some-otp-secret")
-
-	// Acquire a start token.
-	startToken, err := types.NewUserToken("some-token-id")
-	require.NoError(t, err)
-	startToken.SetUser(username)
-	startToken.SetSubKind(auth.UserTokenTypeRecoveryStart)
-	startToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
-	_, err = env.server.Auth().Identity.CreateUserToken(ctx, startToken)
-	require.NoError(t, err)
-
-	// Call the endpoint.
-	clt := proxy.newClient(t)
-	endpoint := clt.Endpoint("webapi", "mfa", "token", startToken.GetName(), "authnchallenge")
-	res, err := clt.PostJSON(ctx, endpoint, url.Values{})
-	require.NoError(t, err)
-
-	var chal auth.MFAAuthenticateChallenge
-	err = json.Unmarshal(res.Bytes(), &chal)
-	require.NoError(t, err)
-	require.True(t, chal.TOTPChallenge)
-	require.Empty(t, chal.U2FChallenges)
-	require.Empty(t, chal.WebauthnChallenge)
-}
-
-func TestCreateAuthenticateChallenge_WithUserCreds(t *testing.T) {
+func TestCreateAuthenticateChallenge(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 
 	// Create a user with a TOTP device, with second factor preference to OTP only.
-	pack := proxy.authPack(t, "llama@example.com")
+	authPack := proxy.authPack(t, "llama@example.com")
 
-	requestBody := client.MFAChallengeRequest{
-		User: pack.user,
-		Pass: pack.password,
+	// Authenticated client for private endpoints.
+	authnClt := authPack.clt
+
+	// Unauthenticated client for public endpoints.
+	publicClt := proxy.newClient(t)
+
+	// Acquire a start token, for the request the requires it.
+	startToken, err := types.NewUserToken("some-token-id")
+	require.NoError(t, err)
+	startToken.SetUser(authPack.user)
+	startToken.SetSubKind(auth.UserTokenTypeRecoveryStart)
+	startToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, startToken)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		clt     *client.WebClient
+		ep      []string
+		reqBody client.MFAChallengeRequest
+	}{
+		{
+			name: "/webapi/u2f/password/changerequest",
+			clt:  authnClt,
+			ep:   []string{"webapi", "u2f", "password", "changerequest"},
+			reqBody: client.MFAChallengeRequest{
+				User: authPack.user,
+				Pass: authPack.password,
+			},
+		},
+		{
+			name: "/webapi/mfa/login/begin",
+			clt:  publicClt,
+			ep:   []string{"webapi", "mfa", "login", "begin"},
+			reqBody: client.MFAChallengeRequest{
+				User: authPack.user,
+				Pass: authPack.password,
+			},
+		},
+		{
+			name: "/webapi/mfa/authenticatchallenge",
+			clt:  authnClt,
+			ep:   []string{"webapi", "mfa", "authenticatechallenge"},
+		},
+		{
+			name: "/webapi/mfa/token/:token/authenticatechallenge",
+			clt:  publicClt,
+			ep:   []string{"webapi", "mfa", "token", startToken.GetName(), "authenticatechallenge"},
+		},
 	}
 
-	// Test private endpoint.
-	endpoint := pack.clt.Endpoint("webapi", "u2f", "password", "changerequest")
-	re, err := pack.clt.PostJSON(ctx, endpoint, requestBody)
-	require.NoError(t, err)
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			endpoint := tc.clt.Endpoint(tc.ep...)
+			res, err := tc.clt.PostJSON(ctx, endpoint, tc.reqBody)
+			require.NoError(t, err)
 
-	var chal auth.MFAAuthenticateChallenge
-	err = json.Unmarshal(re.Bytes(), &chal)
-	require.NoError(t, err)
-	require.True(t, chal.TOTPChallenge)
-	require.Empty(t, chal.U2FChallenges)
-	require.Empty(t, chal.WebauthnChallenge)
-
-	// Test public endpoint.
-	clt := proxy.newClient(t)
-	endpoint = clt.Endpoint("webapi", "mfa", "login", "begin")
-	res, err := clt.PostJSON(ctx, endpoint, requestBody)
-	require.NoError(t, err)
-
-	err = json.Unmarshal(res.Bytes(), &chal)
-	require.NoError(t, err)
-	require.True(t, chal.TOTPChallenge)
-	require.Empty(t, chal.U2FChallenges)
-	require.Empty(t, chal.WebauthnChallenge)
+			var chal auth.MFAAuthenticateChallenge
+			err = json.Unmarshal(res.Bytes(), &chal)
+			require.NoError(t, err)
+			require.True(t, chal.TOTPChallenge)
+			require.Empty(t, chal.U2FChallenges)
+			require.Empty(t, chal.WebauthnChallenge)
+		})
+	}
 }
 
 // TestCreateAppSession verifies that an existing session to the Web UI can

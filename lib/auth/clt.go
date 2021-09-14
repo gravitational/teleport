@@ -960,34 +960,6 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 	return trace.Wrap(err)
 }
 
-// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
-func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
-	out, err := c.PostJSON(
-		c.Endpoint("mfa", "users", user, "login", "begin"),
-		signInReq{
-			Password: string(password),
-		},
-	)
-	// DELETE IN 9.x, fallback not necessary after U2F is removed (codingllama)
-	if trace.IsNotFound(err) {
-		out, err = c.PostJSON(
-			c.Endpoint("u2f", "users", user, "sign"),
-			signInReq{
-				Password: string(password),
-			},
-		)
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var challenge *MFAAuthenticateChallenge
-	if err := json.Unmarshal(out.Bytes(), &challenge); err != nil {
-		return nil, err
-	}
-	return challenge, nil
-}
-
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
 func (c *Client) ExtendWebSession(req WebSessionReq) (types.WebSession, error) {

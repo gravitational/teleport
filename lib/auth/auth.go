@@ -1094,8 +1094,8 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 // MFAAuthenticateChallenge is an MFA authentication challenge sent on user
 // login / authentication ceremonies.
 //
-// TODO(kimlisa): Move this closer to web directory, after deleting the auth HTTP endpoint
-// "/:version/u2f/users/:user/sign" from lib/auth/apiserver.go (replaced by grpc CreateAuthenticateChallenge).
+// TODO(kimlisa): Move this to lib/client/mfa.go, after deleting the auth HTTP endpoint
+// "/u2f/users/sign" and its friends from lib/auth/apiserver.go (replaced by grpc CreateAuthenticateChallenge).
 // After the endpoint removal, this struct is only used in the web directory.
 type MFAAuthenticateChallenge struct {
 	// Before 6.0 teleport would only send 1 U2F challenge. Embed the old
