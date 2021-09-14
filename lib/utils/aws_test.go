@@ -32,6 +32,10 @@ func TestFilterAWSRoles(t *testing.T) {
 		ARN:     "arn:aws:iam::1234567890:role/EC2ReadOnly",
 		Display: "EC2ReadOnly",
 	}
+	acc1ARN3 := AWSRole{
+		ARN:     "arn:aws:iam::1234567890:role/path/to/customrole",
+		Display: "customrole",
+	}
 	acc2ARN1 := AWSRole{
 		ARN:     "arn:aws:iam::0987654321:role/test-role",
 		Display: "test-role",
@@ -40,7 +44,7 @@ func TestFilterAWSRoles(t *testing.T) {
 		ARN: "invalid-arn",
 	}
 	allARNS := []string{
-		acc1ARN1.ARN, acc1ARN2.ARN, acc2ARN1.ARN, invalidARN.ARN,
+		acc1ARN1.ARN, acc1ARN2.ARN, acc1ARN3.ARN, acc2ARN1.ARN, invalidARN.ARN,
 	}
 	tests := []struct {
 		name      string
@@ -50,7 +54,7 @@ func TestFilterAWSRoles(t *testing.T) {
 		{
 			name:      "first account roles",
 			accountID: "1234567890",
-			outARNs:   []AWSRole{acc1ARN1, acc1ARN2},
+			outARNs:   []AWSRole{acc1ARN1, acc1ARN2, acc1ARN3},
 		},
 		{
 			name:      "second account roles",
@@ -60,7 +64,7 @@ func TestFilterAWSRoles(t *testing.T) {
 		{
 			name:      "all roles",
 			accountID: "",
-			outARNs:   []AWSRole{acc1ARN1, acc1ARN2, acc2ARN1},
+			outARNs:   []AWSRole{acc1ARN1, acc1ARN2, acc1ARN3, acc2ARN1},
 		},
 	}
 	for _, test := range tests {
