@@ -254,7 +254,9 @@ func (t *TLSServer) GetServerInfo() (services.Resource, error) {
 	defer t.mu.Unlock()
 
 	var addr string
-	if t.listener != nil {
+	if t.TLSServerConfig.ForwarderConfig.PublicAddr != "" {
+		addr = t.TLSServerConfig.ForwarderConfig.PublicAddr
+	} else if t.listener != nil {
 		addr = t.listener.Addr().String()
 	}
 
