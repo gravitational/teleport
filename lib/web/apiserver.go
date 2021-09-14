@@ -2393,7 +2393,8 @@ func (h *Handler) ProxyWithRoles(ctx *SessionContext) (reversetunnel.Tunnel, err
 // ProxyHostPort returns the address of the proxy server using --proxy
 // notation, i.e. "localhost:8030,8023"
 func (h *Handler) ProxyHostPort() string {
-	// Proxy web address can set in the config like 0.0.0.0:3080.
+	// Proxy web address can be set in the config with unspecified host, like
+	// 0.0.0.0:3080 or :443.
 	//
 	// In this case, the dial will succeed (dialing 0.0.0.0 is same a dialing
 	// localhost in Go) but the SSH host certificate will not validate since
@@ -2403,7 +2404,7 @@ func (h *Handler) ProxyHostPort() string {
 	// As such, replace 0.0.0.0 with localhost in this case: proxy listens on
 	// all interfaces and localhost is always included in the valid principal
 	// set.
-	if net.ParseIP(h.cfg.ProxyWebAddr.Host()).IsUnspecified() {
+	if h.cfg.ProxyWebAddr.IsHostUnspecified() {
 		return fmt.Sprintf("localhost:%v,%s", h.cfg.ProxyWebAddr.Port(defaults.HTTPListenPort), h.sshPort)
 	}
 	return fmt.Sprintf("%s,%s", h.cfg.ProxyWebAddr.String(), h.sshPort)

@@ -2174,9 +2174,9 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 		if addr.IsEmpty() {
 			continue
 		}
-		host, err := utils.Host(addr.Addr)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
+		host := addr.Host()
+		if host == "" {
+			host = defaults.BindIP
 		}
 		principals = append(principals, host)
 	}
