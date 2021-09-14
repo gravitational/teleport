@@ -1087,7 +1087,13 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		tc.localAgent, err = NewLocalAgent(keystore, webProxyHost, c.Username, c.AddKeysToAgent)
+		tc.localAgent, err = NewLocalAgent(LocalAgentConfig{
+			Keystore:   keystore,
+			ProxyHost:  webProxyHost,
+			Username:   c.Username,
+			KeysOption: c.AddKeysToAgent,
+			Insecure:   c.InsecureSkipVerify,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2028,7 +2034,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		signers, err := tc.localAgent.certsForCluster("")
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
 		// should be passing auth methods via tc.Config.AuthMethods.
-		if err != nil && !errors.Is(err, errNoLocalKeyStore) {
+		if err != nil && !errors.Is(err, errNoLocalKeyStore) && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 		if len(signers) > 0 {

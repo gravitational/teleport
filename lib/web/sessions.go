@@ -33,13 +33,14 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/sshutils"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -304,9 +305,25 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 	return keyring, cert, nil
 }
 
+func (c *SessionContext) getCheckers() ([]ssh.PublicKey, error) {
+	cas, err := c.unsafeAccessPoint.GetCertAuthorities(types.HostCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var keys []ssh.PublicKey
+	for _, ca := range cas {
+		checkers, err := sshutils.GetCheckers(ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		keys = append(keys, checkers...)
+	}
+	return keys, nil
+}
+
 // GetSSHCertificate returns the *ssh.Certificate associated with this session.
 func (c *SessionContext) GetSSHCertificate() (*ssh.Certificate, error) {
-	return sshutils.ParseCertificate(c.session.GetPub())
+	return apisshutils.ParseCertificate(c.session.GetPub())
 }
 
 // GetX509Certificate returns the *x509.Certificate associated with this session.
