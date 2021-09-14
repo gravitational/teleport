@@ -725,8 +725,9 @@ func (b *Backend) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 }
 
 type IndexTuple struct {
-	FirstField  string
-	SecondField string
+	FirstField       string
+	SecondField      string
+	SecondFieldOrder adminpb.Index_IndexField_Order
 }
 
 // EnsureIndexes is a function used by Firestore events and backend to generate indexes and will block until
@@ -741,6 +742,10 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 	tuplesToIndexNames := make(map[*IndexTuple]string)
 	// create the indexes
 	for _, tuple := range tuples {
+		secondFieldOrder := &adminpb.Index_IndexField_Order_{
+			Order: tuple.SecondFieldOrder,
+		}
+
 		fields := []*adminpb.Index_IndexField{
 			{
 				FieldPath: tuple.FirstField,
@@ -748,7 +753,7 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 			},
 			{
 				FieldPath: tuple.SecondField,
-				ValueMode: ascendingFieldOrder,
+				ValueMode: secondFieldOrder,
 			},
 		}
 		operation, err := adminSvc.CreateIndex(ctx, &adminpb.CreateIndexRequest{
