@@ -19,10 +19,12 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
 
@@ -80,7 +82,12 @@ func (h *Handler) u2fChangePasswordRequest(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	u2fReq, err := clt.GetMFAAuthenticateChallenge(ctx.GetUser(), []byte(req.Pass))
+	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+			Username: req.User,
+			Password: []byte(req.Pass),
+		}},
+	})
 	if err != nil && trace.IsAccessDenied(err) {
 		// logout in case of access denied
 		logoutErr := h.logout(w, ctx)
@@ -93,5 +100,5 @@ func (h *Handler) u2fChangePasswordRequest(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return u2fReq, nil
+	return ui.MakeAuthenticateChallenge(chal), nil
 }
