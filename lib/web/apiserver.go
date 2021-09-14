@@ -351,9 +351,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
 	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
 	h.GET("/webapi/mfa/token/:token/devices", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
+	h.POST("/webapi/mfa/token/:token/authenticatechallenge", httplib.MakeHandler(h.createAuthenticateChallengeWithTokenHandle))
 
 	// MFA private endpoints.
 	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
+	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
@@ -1595,11 +1597,17 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	mfaChallenge, err := h.auth.GetMFAAuthenticateChallenge(req.User, req.Pass)
+
+	mfaChallenge, err := h.auth.proxyClient.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+			Username: req.User,
+			Password: []byte(req.Pass),
+		}},
+	})
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
-	return mfaChallenge, nil
+	return client.MakeAuthenticateChallenge(mfaChallenge), nil
 }
 
 // mfaLoginFinish completes the MFA login ceremony, returning a new SSH

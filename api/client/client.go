@@ -2086,3 +2086,9 @@ func (c *Client) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 	res, err := c.grpc.GetAccountRecoveryToken(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
+
+// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
+func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	resp, err := c.grpc.CreateAuthenticateChallenge(ctx, in, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
