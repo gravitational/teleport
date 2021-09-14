@@ -349,6 +349,8 @@ const (
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption = "disablesse"
 
+	SSEKMSKey = "sse_kms_key"
+
 	// SchemeFile is a local disk file storage
 	SchemeFile = "file"
 
