@@ -2,12 +2,16 @@ package auth
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
+	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/stretchr/testify/require"
 	check "gopkg.in/check.v1"
 )
 
@@ -344,5 +348,14 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 
 		err = s.a.DeleteToken(context.Background(), token.GetName())
 		c.Assert(err, check.IsNil)
+	}
+}
+
+// TestAWSCerts asserts that all certificates parse
+func TestAWSCerts(t *testing.T) {
+	for _, certBytes := range awsCertBytes {
+		certPEM, _ := pem.Decode(certBytes)
+		_, err := x509.ParseCertificate(certPEM.Bytes)
+		require.NoError(t, err)
 	}
 }
