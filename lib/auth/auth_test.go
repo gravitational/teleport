@@ -61,6 +61,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
+	fidou2f "github.com/tstranex/u2f"
 	. "gopkg.in/check.v1"
 )
 
@@ -1622,6 +1623,157 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, len(res.GetDevices()), 1)
 	require.ElementsMatch(t, []*types.MFADevice{totpDev, u2fDev}, res.GetDevices())
+}
+
+func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	clt, err := srv.NewClient(TestUser(u.username))
+	require.NoError(t, err)
+
+	res, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
+	require.NoError(t, err)
+	require.NotNil(t, res.GetTOTP())
+	require.NotEmpty(t, res.GetU2F())
+
+	// Test u2f authn works.
+	u2fRes, err := u.u2fKey.SignResponse(&fidou2f.SignRequest{
+		Version:   res.GetU2F()[0].Version,
+		Challenge: res.GetU2F()[0].Challenge,
+		KeyHandle: res.GetU2F()[0].KeyHandle,
+		AppID:     res.GetU2F()[0].AppID,
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().checkU2F(ctx, u.username, *u2fRes, srv.Auth().Identity)
+	require.NoError(t, err)
+}
+
+func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		wantErr  bool
+		userCred *proto.UserCredentials
+	}{
+		{
+			name:    "invalid password",
+			wantErr: true,
+			userCred: &proto.UserCredentials{
+				Username: u.username,
+				Password: []byte("invalid-password"),
+			},
+		},
+		{
+			name:    "invalid username",
+			wantErr: true,
+			userCred: &proto.UserCredentials{
+				Username: "invalid-username",
+				Password: u.password,
+			},
+		},
+		{
+			name: "valid credentials",
+			userCred: &proto.UserCredentials{
+				Username: u.username,
+				Password: u.password,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			res, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: tc.userCred},
+			})
+
+			switch {
+			case tc.wantErr:
+				require.True(t, trace.IsAccessDenied(err))
+			default:
+				require.NoError(t, err)
+				require.NotNil(t, res.GetTOTP())
+				require.NotEmpty(t, res.GetU2F())
+			}
+		})
+	}
+}
+
+func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		wantErr    bool
+		getRequest func() *proto.CreateAuthenticateChallengeRequest
+	}{
+		{
+			name:    "invalid token type",
+			wantErr: true,
+			getRequest: func() *proto.CreateAuthenticateChallengeRequest {
+				wrongToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+				require.NoError(t, err)
+
+				return &proto.CreateAuthenticateChallengeRequest{
+					Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{RecoveryStartTokenID: wrongToken.GetName()},
+				}
+			},
+		},
+		{
+			name:    "token not found",
+			wantErr: true,
+			getRequest: func() *proto.CreateAuthenticateChallengeRequest {
+				return &proto.CreateAuthenticateChallengeRequest{
+					Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{RecoveryStartTokenID: "token-not-found"},
+				}
+			},
+		},
+		{
+			name: "valid token",
+			getRequest: func() *proto.CreateAuthenticateChallengeRequest {
+				startToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+				require.NoError(t, err)
+
+				return &proto.CreateAuthenticateChallengeRequest{
+					Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{RecoveryStartTokenID: startToken.GetName()},
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			res, err := srv.Auth().CreateAuthenticateChallenge(ctx, tc.getRequest())
+
+			switch {
+			case tc.wantErr:
+				require.True(t, trace.IsAccessDenied(err))
+			default:
+				require.NoError(t, err)
+				require.NotNil(t, res.GetTOTP())
+				require.NotEmpty(t, res.GetU2F())
+			}
+		})
+	}
 }
 
 func newTestServices(t *testing.T) Services {

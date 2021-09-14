@@ -150,7 +150,7 @@ func TestStartAccountRecovery(t *testing.T) {
 	defer modules.SetModules(defaultModules)
 	modules.SetModules(&testWithCloudModules{})
 
-	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
 
 	// Test with no recover type.
@@ -216,7 +216,7 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 	defer modules.SetModules(defaultModules)
 	modules.SetModules(&testWithCloudModules{})
 
-	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
 
 	// Trigger login lock.
@@ -267,7 +267,7 @@ func TestStartAccountRecovery_UserErrors(t *testing.T) {
 	defer modules.SetModules(defaultModules)
 	modules.SetModules(&testWithCloudModules{})
 
-	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -327,7 +327,7 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 	defer modules.SetModules(defaultModules)
 	modules.SetModules(&testWithCloudModules{})
 
-	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -364,14 +364,19 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 				}},
 			},
 			createValidReq: func() *proto.ApproveAccountRecoveryRequest {
-				chal, err := srv.Auth().GetMFAAuthenticateChallenge(u.username, u.password)
+				chal, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+						Username: u.username,
+						Password: u.password,
+					}},
+				})
 				require.NoError(t, err)
 
 				u2fRes, err := u.u2fKey.SignResponse(&u2f.SignRequest{
-					Version:   chal.U2FChallenges[0].Version,
-					Challenge: chal.U2FChallenges[0].Challenge,
-					KeyHandle: chal.U2FChallenges[0].KeyHandle,
-					AppID:     chal.U2FChallenges[0].AppID,
+					Version:   chal.GetU2F()[0].Version,
+					Challenge: chal.GetU2F()[0].Challenge,
+					KeyHandle: chal.GetU2F()[0].KeyHandle,
+					AppID:     chal.GetU2F()[0].AppID,
 				})
 				require.NoError(t, err)
 
@@ -461,7 +466,7 @@ func TestApproveAccountRecovery_WithLock(t *testing.T) {
 	defer modules.SetModules(defaultModules)
 	modules.SetModules(&testWithCloudModules{})
 
-	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
 
 	// Acquire a start token.
@@ -528,7 +533,7 @@ func TestApproveAccountRecovery_WithErrors(t *testing.T) {
 	defer modules.SetModules(defaultModules)
 	modules.SetModules(&testWithCloudModules{})
 
-	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -625,7 +630,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 	defer modules.SetModules(defaultModules)
 	modules.SetModules(&testWithCloudModules{})
 
-	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
 
 	// Test new password with lock that should not affect changing authn.
@@ -736,7 +741,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 	defer modules.SetModules(defaultModules)
 	modules.SetModules(&testWithCloudModules{})
 
-	u, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -947,14 +952,19 @@ func TestAccountRecoveryFlow(t *testing.T) {
 				}
 			},
 			getApproveRequest: func(u *userAuthCreds, startTokenID string) *proto.ApproveAccountRecoveryRequest {
-				chal, err := srv.Auth().GetMFAAuthenticateChallenge(u.username, u.password)
+				chal, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+						Username: u.username,
+						Password: []byte(u.password),
+					}},
+				})
 				require.NoError(t, err)
 
 				u2fRes, err := u.u2fKey.SignResponse(&u2f.SignRequest{
-					Version:   chal.U2FChallenges[0].Version,
-					Challenge: chal.U2FChallenges[0].Challenge,
-					KeyHandle: chal.U2FChallenges[0].KeyHandle,
-					AppID:     chal.U2FChallenges[0].AppID,
+					Version:   chal.GetU2F()[0].Version,
+					Challenge: chal.GetU2F()[0].Challenge,
+					KeyHandle: chal.GetU2F()[0].KeyHandle,
+					AppID:     chal.GetU2F()[0].AppID,
 				})
 				require.NoError(t, err)
 
@@ -1042,7 +1052,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			user, err := createUserWithSecondFactorAndRecoveryCodes(srv)
+			user, err := createUserWithSecondFactors(srv)
 			require.NoError(t, err)
 
 			// Step 1: Obtain a start token.
@@ -1231,7 +1241,7 @@ type userAuthCreds struct {
 }
 
 // TODO (codingllama): Unify with test func `configureForMFA`
-func createUserWithSecondFactorAndRecoveryCodes(srv *TestTLSServer) (*userAuthCreds, error) {
+func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	ctx := context.Background()
 	username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
 	password := []byte("abc123")
