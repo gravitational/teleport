@@ -18,22 +18,20 @@ import React from 'react';
 import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
 import * as Icons from 'design/Icon';
 import { Flex } from 'design';
-import { useTheme } from 'styled-components';
 
 export default function ActionMenu(props: Props) {
-  const theme = useTheme();
-
   return (
     <Flex alignItems="center">
       <MenuIcon
         buttonIconProps={{
           ml: 4,
           size: 0,
-          style: { fontSize: '20px', color: theme.colors.text.secondary },
+          color: 'text.secondary',
+          style: { fontSize: '20px' },
         }}
         menuProps={menuProps}
       >
-        <MenuItem as={'a'} onClick={props.onDisconnect}>
+        <MenuItem onClick={props.onDisconnect}>
           <MenuItemIcon as={Icons.PowerSwitch} mr="2" />
           Disconnect
         </MenuItem>
@@ -52,12 +50,4 @@ const menuListCss = () => `
 
 const menuProps = {
   menuListCss,
-  anchorOrigin: {
-    vertical: 'center',
-    horizontal: 'center',
-  },
-  transformOrigin: {
-    vertical: 'top',
-    horizontal: 'center',
-  },
 } as const;

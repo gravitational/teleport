@@ -21,17 +21,9 @@ import { colors } from 'teleport/Console/colors';
 import ActionMenu from './ActionMenu';
 import { DesktopSessionAttempt } from './useDesktopSession';
 
-type TopBarProps = {
-  userHost: string;
-  clipboard: boolean;
-  recording: boolean;
-  attempt: DesktopSessionAttempt;
-  onDisconnect: VoidFunction;
-};
-
 const RecordingIndicator = styled.div``;
 
-export default function TopBar(props: TopBarProps) {
+export default function TopBar(props: Props) {
   const { userHost, clipboard, recording, attempt, onDisconnect } = props;
   const theme = useTheme();
 
@@ -62,12 +54,7 @@ export default function TopBar(props: TopBarProps) {
   // Used for centering the middle component in the TopBar in certain states
   const centeringDivStyle = () => {
     return {
-      display:
-        attempt.status === 'processing' ||
-        attempt.status === 'disconnected' ||
-        attempt.status === 'failed'
-          ? 'flex'
-          : 'none',
+      display: attempt.status !== 'success' ? 'flex' : 'none',
     };
   };
 
@@ -165,3 +152,11 @@ export default function TopBar(props: TopBarProps) {
     </TopNav>
   );
 }
+
+type Props = {
+  userHost: string;
+  clipboard: boolean;
+  recording: boolean;
+  attempt: DesktopSessionAttempt;
+  onDisconnect: VoidFunction;
+};

@@ -51,13 +51,5 @@ const menuListCss = () => `
 `;
 
 const menuProps = {
-  menuListCss: menuListCss,
-  anchorOrigin: {
-    vertical: 'center',
-    horizontal: 'center',
-  },
-  transformOrigin: {
-    vertical: 'top',
-    horizontal: 'center',
-  },
+  menuListCss,
 } as const;

@@ -68,7 +68,38 @@ export default function useDesktopSession(ctx: Ctx) {
       .replace(':desktopId', desktopId)
       .replace(':token', getAccessToken());
 
-    return new TdpClient(addr, username);
+    const cli = new TdpClient(addr, username);
+
+    cli.on('open', () => {
+      // set wsAttempt to success, triggering
+      // useDesktopSession.useEffect(..., [wsAttempt, fetchDesktopAttempt])
+      // to update the meta attempt state
+      setWsAttempt({ status: 'success' });
+    });
+
+    // If the websocket is closed remove all listeners that depend on it.
+    // If it was closed intentionally by the user, set attempt to disconnected,
+    // otherwise assume a server error.
+    cli.on('close', (message: { userDisconnected: boolean }) => {
+      if (message.userDisconnected) {
+        setAttempt({ status: 'disconnected' });
+      } else {
+        setWsAttempt({
+          status: 'failed',
+          statusText: 'server error',
+        });
+      }
+      cli.removeAllListeners();
+    });
+
+    cli.on('error', () => {
+      setWsAttempt({
+        status: 'failed',
+        statusText: 'connection error',
+      });
+    });
+
+    return cli;
   }, [clusterId, username, desktopId]);
 
   useEffect(() => {

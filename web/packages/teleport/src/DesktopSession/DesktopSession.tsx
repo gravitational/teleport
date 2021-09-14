@@ -28,57 +28,18 @@ export default function Container() {
 }
 
 export function DesktopSession(props: State) {
-  const {
-    userHost,
-    setWsAttempt,
-    tdpClient,
-    attempt,
-    setAttempt,
-    clipboard,
-    recording,
-  } = props;
+  const { userHost, tdpClient, attempt, clipboard, recording } = props;
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   // Waits for the state hook to initialize the TdpClient.
   // Once the client is initialized, sets wsAttempt to 'success'.
   React.useEffect(() => {
-    setWsAttempt({ status: 'processing' });
-
-    tdpClient.on('open', () => {
-      // set wsAttempt to success, triggering
-      // useDesktopSession.useEffect(..., [wsAttempt, fetchDesktopAttempt])
-      // to update the meta attempt state
-      setWsAttempt({ status: 'success' });
-    });
-
-    // If the websocket is closed remove all listeners that depend on it.
-    // If it was closed intentionally by the user, set attempt to disconnected,
-    // otherwise assume a server error.
-    tdpClient.on('close', (message: { userDisconnected: boolean }) => {
-      if (message.userDisconnected) {
-        setAttempt({ status: 'disconnected' });
-      } else {
-        setWsAttempt({
-          status: 'failed',
-          statusText: 'server error',
-        });
-      }
-      tdpClient.removeAllListeners();
-    });
-
-    tdpClient.on('error', () => {
-      setWsAttempt({
-        status: 'failed',
-        statusText: 'connection error',
-      });
-    });
-
     tdpClient.on('render', ({ bitmap, left, top }) => {
       const ctx = canvasRef.current.getContext('2d');
       ctx.drawImage(bitmap, left, top);
     });
 
-    // Connect to the websocket, triggering tdpClient.on('open') above.
+    // Connect to the websocket
     tdpClient.connect();
 
     // If client parameters change or component will unmount, close the websocket.
