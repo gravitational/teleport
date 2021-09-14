@@ -281,11 +281,13 @@ github.com/gravitational/teleport/api/client/webclient
 github.com/gravitational/teleport/api/constants
 github.com/gravitational/teleport/api/defaults
 github.com/gravitational/teleport/api/identityfile
+github.com/gravitational/teleport/api/metadata
 github.com/gravitational/teleport/api/profile
 github.com/gravitational/teleport/api/types
 github.com/gravitational/teleport/api/types/events
 github.com/gravitational/teleport/api/types/wrappers
 github.com/gravitational/teleport/api/utils
+github.com/gravitational/teleport/api/utils/keypaths
 github.com/gravitational/teleport/api/utils/sshutils
 github.com/gravitational/teleport/api/utils/tlsutils
 # github.com/gravitational/trace v1.1.14
@@ -571,11 +573,10 @@ golang.org/x/crypto/ssh/terminal
 ## explicit
 golang.org/x/lint
 golang.org/x/lint/golint
-# golang.org/x/mod v0.4.1
-## explicit
+# golang.org/x/mod v0.4.2
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.0.0-20210222171744-9060382bd457
+# golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 ## explicit
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
@@ -595,7 +596,7 @@ golang.org/x/oauth2/google
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
-# golang.org/x/sys v0.0.0-20210223095934-7937bea0104d
+# golang.org/x/sys v0.0.0-20210510120138-977fb7262007
 ## explicit
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
@@ -628,7 +629,7 @@ golang.org/x/text/unicode/norm
 golang.org/x/text/width
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate
-# golang.org/x/tools v0.1.0
+# golang.org/x/tools v0.1.5
 ## explicit
 golang.org/x/tools/cmd/goimports
 golang.org/x/tools/cover
@@ -656,6 +657,7 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/lsp/fuzzy
 golang.org/x/tools/internal/packagesinternal
+golang.org/x/tools/internal/typeparams
 golang.org/x/tools/internal/typesinternal
 # golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 golang.org/x/xerrors
