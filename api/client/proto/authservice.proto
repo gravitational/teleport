@@ -150,6 +150,45 @@ message Certs {
     bytes SSH = 1 [ (gogoproto.jsontag) = "ssh,omitempty" ];
     // TLS X509 cert (PEM-encoded).
     bytes TLS = 2 [ (gogoproto.jsontag) = "tls,omitempty" ];
+    // TLSCACerts is a list of TLS certificate authorities.
+    repeated bytes TLSCACerts = 3 [ (gogoproto.jsontag) = "tls_ca_certs,omitempty" ];
+    // SSHCACerts is a list of SSH certificate authorities.
+    repeated bytes SSHCACerts = 4 [ (gogoproto.jsontag) = "ssh_ca_certs,omitempty" ];
+}
+
+// HostCertsRequest specifies certificate-generation parameters
+// for a server.
+message HostCertsRequest {
+    // HostID is a unique ID of the host.
+    string HostID = 1 [ (gogoproto.jsontag) = "host_id" ];
+    // NodeName is a user-friendly host name.
+    string NodeName = 2 [ (gogoproto.jsontag) = "node_name" ];
+    // Role is a system role assigned to the host.
+    string Role = 3 [
+        (gogoproto.jsontag) = "role",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+    // AdditionalPrincipals is a list of additional principals
+    // to include in OpenSSH and X509 certificates
+    repeated string AdditionalPrincipals = 4
+        [ (gogoproto.jsontag) = "additional_principals,omitempty" ];
+    // DNSNames is a list of DNS names to include in x509 certificates.
+    repeated string DNSNames = 5 [ (gogoproto.jsontag) = "dns_names,omitempty" ];
+    // PublicTLSKey is a PEM encoded public key, which the auth server will use
+    // to create a signed TLS certificate. This field is required.
+    bytes PublicTLSKey = 6 [ (gogoproto.jsontag) = "public_tls_key" ];
+    // PublicSSHKey is a SSH encoded public key, which the auth server will use
+    // to create a signed SSH certificate. This field is required.
+    bytes PublicSSHKey = 7 [ (gogoproto.jsontag) = "public_ssh_key" ];
+    // RemoteAddr is the IP address of the remote host requesting a certificate.
+    // RemoteAddr is used to replace 0.0.0.0 in the list of additional principals.
+    string RemoteAddr = 8 [ (gogoproto.jsontag) = "remote_addr" ];
+    // Rotation allows clients to send the certificate authority rotation state
+    // expected by the client so that auth servers can avoid the situation when
+    // clients request certs assuming one state and auth servers issue another.
+    types.Rotation Rotation = 9 [ (gogoproto.jsontag) = "rotation,omitempty" ];
+    // NoCache is argument that only local callers can supply to bypass cache
+    bool NoCache = 10 [ (gogoproto.jsontag) = "-" ];
 }
 
 // UserCertRequest specifies certificate-generation parameters
@@ -1191,6 +1230,8 @@ service AuthService {
 
     // GenerateUserCerts generates a set of user certificates.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
+    // GenerateHostCerts generates a set of host certificates.
+    rpc GenerateHostCerts(HostCertsRequest) returns (Certs);
     // GenerateUserSingleUseCerts generates a set of single-use user
     // certificates.
     rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest)

@@ -69,7 +69,7 @@ func TestReadIdentity(t *testing.T) {
 		HostID:        "id1",
 		NodeName:      "node-name",
 		ClusterName:   "example.com",
-		Roles:         types.SystemRoles{types.RoleNode},
+		Role:          types.RoleNode,
 		TTL:           0,
 	})
 	require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestReadIdentity(t *testing.T) {
 		HostID:        "id1",
 		NodeName:      "node-name",
 		ClusterName:   "example.com",
-		Roles:         types.SystemRoles{types.RoleNode},
+		Role:          types.RoleNode,
 		TTL:           ttl,
 	})
 	require.NoError(t, err)
@@ -119,7 +119,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:        "id2",
 		NodeName:      "",
 		ClusterName:   "",
-		Roles:         types.SystemRoles{types.RoleNode},
+		Role:          types.RoleNode,
 		TTL:           0,
 	})
 	require.NoError(t, err)
@@ -135,7 +135,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:        "example.com",
 		NodeName:      "",
 		ClusterName:   "",
-		Roles:         types.SystemRoles{types.RoleNode},
+		Role:          types.RoleNode,
 		TTL:           0,
 	})
 	require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:        "example.com",
 		NodeName:      "",
 		ClusterName:   "id1",
-		Roles:         types.SystemRoles{types.SystemRole("bad role")},
+		Role:          types.SystemRole("bad role"),
 		TTL:           0,
 	})
 	require.NoError(t, err)
