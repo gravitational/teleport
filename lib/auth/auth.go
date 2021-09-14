@@ -1797,6 +1797,9 @@ type RegisterUsingTokenRequest struct {
 	// RemoteAddr is the remote address of the host requesting a host certificate.
 	// It is used to replace 0.0.0.0 in the list of additional principals.
 	RemoteAddr string `json:"remote_addr"`
+	// EC2IdentityDocument is used for Simplified Node Joining to prove the
+	// identity of a joining EC2 instance.
+	EC2IdentityDocument []byte `json:"ec2_id"`
 }
 
 // CheckAndSetDefaults checks for errors and sets defaults
@@ -1824,6 +1827,13 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs
 	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
 
 	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the request uses Simplified Node Joining check that the identity is
+	// valid and matches the token allow rules.
+	err := a.CheckEC2Request(context.Background(), req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 

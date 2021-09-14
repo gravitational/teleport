@@ -633,7 +633,14 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
 			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
 		} else {
-			cfg.HostUUID = uuid.New()
+			if len(cfg.AWSToken) != 0 {
+				cfg.HostUUID, err = getEC2NodeID()
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				cfg.HostUUID = uuid.New()
+			}
 			cfg.Log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
 		}
 		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {

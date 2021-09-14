@@ -99,6 +99,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindLock:                    rc.createLock,
 		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
 		types.KindDatabase:                rc.createDatabase,
+		types.KindToken:                   rc.createToken,
 	}
 	rc.config = config
 
@@ -563,6 +564,16 @@ func (rc *ResourceCommand) createDatabase(client auth.ClientI, raw services.Unkn
 	}
 	fmt.Printf("database %q has been created\n", database.GetName())
 	return nil
+}
+
+func (rc *ResourceCommand) createToken(client auth.ClientI, raw services.UnknownResource) error {
+	token, err := services.UnmarshalProvisionToken(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = client.UpsertToken(context.Background(), token)
+	return trace.Wrap(err)
 }
 
 // Delete deletes resource by name
@@ -1146,6 +1157,19 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
 		}
 		return &windowsDesktopCollection{desktops: out}, nil
+	case types.KindToken:
+		if rc.ref.Name == "" {
+			tokens, err := client.GetTokens(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &tokenCollection{tokens: tokens}, nil
+		}
+		token, err := client.GetToken(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

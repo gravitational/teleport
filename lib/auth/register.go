@@ -107,6 +107,9 @@ type RegisterParams struct {
 	// for TLS certificate verification.
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
+	// EC2IdentityDocument is used for Simplified Node Joining to prove the
+	// identity of a joining EC2 instance.
+	EC2IdentityDocument []byte
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -194,6 +197,7 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 			DNSNames:             params.DNSNames,
 			PublicTLSKey:         params.PublicTLSKey,
 			PublicSSHKey:         params.PublicSSHKey,
+			EC2IdentityDocument:  params.EC2IdentityDocument,
 		})
 	if err != nil {
 		return nil, trace.Unwrap(err)
@@ -231,6 +235,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 		DNSNames:             params.DNSNames,
 		PublicTLSKey:         params.PublicTLSKey,
 		PublicSSHKey:         params.PublicSSHKey,
+		EC2IdentityDocument:  params.EC2IdentityDocument,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -347,10 +347,23 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 	} else {
+		token := process.Config.Token
+		if process.Config.AWSToken != "" {
+			token = process.Config.AWSToken
+		}
 		// Auth server is remote, so we need a provisioning token.
-		if process.Config.Token == "" {
+		if token == "" {
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
+
+		var ec2IdentityDocument []byte
+		if process.Config.AWSToken != "" {
+			ec2IdentityDocument, err = getEC2IdentityDocument()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		process.log.Infof("Joining the cluster with a secure token.")
 		const reason = "first-time-connect"
 		keyPair, err := process.generateKeyPair(role, reason)
@@ -359,7 +372,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		}
 
 		identity, err = auth.Register(auth.RegisterParams{
-			Token:                process.Config.Token,
+			Token:                token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
 			AdditionalPrincipals: additionalPrincipals,
@@ -372,6 +385,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
+			EC2IdentityDocument:  ec2IdentityDocument,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
