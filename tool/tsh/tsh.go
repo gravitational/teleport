@@ -943,7 +943,10 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 			},
 		}
 		err := checker.CheckHostKey(hostname, remote, hostKey)
-		if err != nil && oldHostKeyCallback != nil {
+		if err != nil {
+			if oldHostKeyCallback == nil {
+				return trace.Wrap(err)
+			}
 			errOld := oldHostKeyCallback(hostname, remote, hostKey)
 			if errOld != nil {
 				return trace.NewAggregate(err, errOld)
@@ -1613,7 +1616,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		hostAuthFunc, err := key.HostKeyCallback()
+		hostAuthFunc, err := key.HostKeyCallback(cf.InsecureSkipVerify)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
