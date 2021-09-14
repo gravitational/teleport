@@ -386,7 +386,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		// ACME uses TLS-ALPN-01 challenge that requires port 443
 		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
 		p.PublicAddr = utils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
-		p.WebAddr = fmt.Sprintf(":%d", teleport.StandardHTTPSPort)
+		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
 	}
 
 	fc = &FileConfig{
