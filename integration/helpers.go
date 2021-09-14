@@ -40,6 +40,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -209,7 +210,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		HostID:        cfg.HostID,
 		NodeName:      cfg.NodeName,
 		ClusterName:   cfg.ClusterName,
-		Roles:         types.SystemRoles{types.RoleAdmin},
+		Role:          types.RoleAdmin,
 		TTL:           24 * time.Hour,
 	})
 	fatalIf(err)
@@ -345,10 +346,9 @@ func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
 }
 
 func (s *InstanceSecrets) GetIdentity() *auth.Identity {
-	i, err := auth.ReadIdentityFromKeyPair(&auth.PackedKeys{
-		Key:        s.PrivKey,
-		Cert:       s.Cert,
-		TLSCert:    s.TLSCert,
+	i, err := auth.ReadIdentityFromKeyPair(s.PrivKey, &proto.Certs{
+		SSH:        s.Cert,
+		TLS:        s.TLSCert,
 		TLSCACerts: [][]byte{s.TLSCACert},
 	})
 	fatalIf(err)

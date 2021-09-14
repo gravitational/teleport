@@ -429,8 +429,8 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 	UserLoginCount.Inc()
 	return &SSHLoginResponse{
 		Username:    req.Username,
-		Cert:        certs.ssh,
-		TLSCert:     certs.tls,
+		Cert:        certs.SSH,
+		TLSCert:     certs.TLS,
 		HostSigners: AuthoritiesToTrustedCerts(hostCertAuthorities),
 	}, nil
 }
