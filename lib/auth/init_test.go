@@ -31,7 +31,11 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/proxy"
+	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
@@ -389,4 +393,118 @@ func (s *AuthInitSuite) TestCASigningAlg(c *C) {
 	auth, err = Init(conf)
 	c.Assert(err, IsNil)
 	verifyCAs(auth, ssh.SigAlgoRSA)
+}
+
+// TestIdentityChecker verifies auth identity properly validates host
+// certificates when connecting to an SSH server.
+func TestIdentityChecker(t *testing.T) {
+	backendDir, err := ioutil.TempDir("", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(backendDir) })
+
+	bk, err := lite.New(context.TODO(), backend.Params{"path": backendDir})
+	require.NoError(t, err)
+
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	require.NoError(t, err)
+
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type: "local",
+	})
+	require.NoError(t, err)
+
+	dataDir, err := ioutil.TempDir("", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(dataDir) })
+
+	conf := InitConfig{
+		DataDir:        dataDir,
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		ClusterConfig:  services.DefaultClusterConfig(),
+		ClusterName:    clusterName,
+		StaticTokens:   services.DefaultStaticTokens(),
+		AuthPreference: authPreference,
+	}
+
+	authServer, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() { authServer.Close() })
+
+	ca, err := authServer.GetCertAuthority(services.CertAuthID{
+		Type:       services.HostCA,
+		DomainName: "me.localhost",
+	}, true)
+	require.NoError(t, err)
+
+	signers, err := ca.Signers()
+	require.NoError(t, err)
+	require.Len(t, signers, 1)
+
+	realCert, err := sshutils.MakeRealHostCert(signers[0])
+	require.NoError(t, err)
+
+	spoofedCert, err := sshutils.MakeSpoofedHostCert(signers[0])
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc string
+		cert ssh.Signer
+		err  bool
+	}{
+		{
+			desc: "should be able to connect with real cert",
+			cert: realCert,
+			err:  false,
+		},
+		{
+			desc: "should not be able to connect with spoofed cert",
+			cert: spoofedCert,
+			err:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			handler := sshutils.NewChanHandlerFunc(func(_ context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
+				ch, _, err := nch.Accept()
+				require.NoError(t, err)
+				require.NoError(t, ch.Close())
+			})
+			sshServer, err := sshutils.NewServer(
+				"test",
+				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+				handler,
+				[]ssh.Signer{test.cert},
+				sshutils.AuthMethods{NoClient: true},
+				sshutils.SetInsecureSkipHostValidation(),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { sshServer.Close() })
+			require.NoError(t, sshServer.Start())
+
+			identity, err := GenerateIdentity(authServer, IdentityID{
+				Role:     teleport.RoleNode,
+				HostUUID: uuid.New(),
+				NodeName: "node-1",
+			}, nil, nil)
+			require.NoError(t, err)
+
+			sshClientConfig, err := identity.SSHClientConfig(false)
+			require.NoError(t, err)
+
+			dialer := proxy.DialerFromEnvironment(sshServer.Addr())
+			sconn, err := dialer.Dial("tcp", sshServer.Addr(), sshClientConfig)
+			if test.err {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NoError(t, sconn.Close())
+			}
+		})
+	}
 }

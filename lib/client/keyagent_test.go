@@ -100,7 +100,13 @@ func (s *KeyAgentTestSuite) SetUpTest(c *check.C) {
 //     a teleport key with the teleport username.
 func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	lka, err := NewLocalAgent(
+		LocalAgentConfig{
+			KeysDir:          s.keyDir,
+			ProxyHost:        s.hostname,
+			Username:         s.username,
+			UseLocalSSHAgent: true,
+		})
 	c.Assert(err, check.IsNil)
 
 	// add the key to the local agent, this should write the key
@@ -159,7 +165,12 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 	userdata := []byte("hello, world")
 
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	lka, err := NewLocalAgent(LocalAgentConfig{
+		KeysDir:          s.keyDir,
+		ProxyHost:        s.hostname,
+		Username:         s.username,
+		UseLocalSSHAgent: true,
+	})
 	c.Assert(err, check.IsNil)
 
 	// unload any keys that might be in the agent for this user
@@ -217,7 +228,12 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 
 func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	// Make a new local agent.
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	lka, err := NewLocalAgent(LocalAgentConfig{
+		KeysDir:          s.keyDir,
+		ProxyHost:        s.hostname,
+		Username:         s.username,
+		UseLocalSSHAgent: true,
+	})
 	c.Assert(err, check.IsNil)
 
 	// By default user has not refused any hosts.
@@ -298,7 +314,13 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 
 func (s *KeyAgentTestSuite) TestHostKeyVerification(c *check.C) {
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	lka, err := NewLocalAgent(LocalAgentConfig{
+		KeysDir:          s.keyDir,
+		ProxyHost:        s.hostname,
+		Username:         s.username,
+		UseLocalSSHAgent: true,
+		Insecure:         true,
+	})
 	c.Assert(err, check.IsNil)
 
 	// by default user has not refused any hosts:
@@ -352,7 +374,12 @@ func (s *KeyAgentTestSuite) TestHostKeyVerification(c *check.C) {
 func (s *KeyAgentTestSuite) TestDefaultHostPromptFunc(c *check.C) {
 	keygen := testauthority.New()
 
-	a, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
+	a, err := NewLocalAgent(LocalAgentConfig{
+		KeysDir:          s.keyDir,
+		ProxyHost:        s.hostname,
+		Username:         s.username,
+		UseLocalSSHAgent: true,
+	})
 	c.Assert(err, check.IsNil)
 
 	_, keyBytes, err := keygen.GenerateKeyPair("")

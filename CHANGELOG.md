@@ -1,5 +1,45 @@
 # Changelog
 
+### 4.4.11
+
+As part of a routine security audit of Teleport, several security vulnerabilities
+and miscellaneous issues were discovered. Below are the issues found, their
+impact, and the components of Teleport they affect.
+
+#### Server Access
+
+An attacker with privileged network position could forge SSH host certificates
+that Teleport would incorrectly validate in specific code paths. The specific
+paths of concern are:
+
+* Using `tsh` with an identity file (commonly used for service accounts). This
+  could lead to potentially leaking of sensitive commands the service account
+  runs or in the case of proxy recording mode, the attacker could also gain
+  control of the SSH agent being used.
+
+* Teleport agents could incorrectly connect to an attacker controlled cluster.
+  Note, this would not give the attacker access or control of resources (like
+  SSH or Kubernetes servers) because Teleport agents
+  will still reject all connections without a valid x509 or SSH user
+  certificate.
+
+#### All
+
+During an internal security exercise our engineers have discovered a
+vulnerability in Teleport build infrastructure that could have been potentially
+used to alter build artifacts. We have found no evidence of any exploitation. In
+an effort to be open and transparent with our customers, we encourage all
+customers to upgrade to the latest patch release.
+
+#### Actions
+
+For all users, we recommend upgrading all components of their Teleport cluster.
+If upgrading all components is not possible, we recommend upgrading `tsh` and
+Teleport agents (including trusted cluster proxies) that use reverse tunnels.
+
+Upgrades should follow the normal Teleport upgrade procedure:
+https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport.
+
 ### 4.4.10
 
 This release of Teleport contains bug fixes and a new feature.
