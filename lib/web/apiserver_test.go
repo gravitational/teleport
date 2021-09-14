@@ -2105,7 +2105,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			},
 		},
 		{
-			name: "/webapi/mfa/authenticatchallenge",
+			name: "/webapi/mfa/authenticatechallenge",
 			clt:  authnClt,
 			ep:   []string{"webapi", "mfa", "authenticatechallenge"},
 		},
