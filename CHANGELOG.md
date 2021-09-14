@@ -1,5 +1,15 @@
 # Changelog
 
+## 7.1.2
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed an issue with `teleport configure` generating empty hostname for web proxy address. [#8245](https://github.com/gravitational/teleport/pull/8245)
+* Fixed an issue with interactive sessions always exiting with code 0. [#8252](https://github.com/gravitational/teleport/pull/8252)
+* Fixed an issue with AWS console access silently filtering out IAM roles with paths. [#8225](https://github.com/gravitational/teleport/pull/8225)
+* Fixed an issue with `fsGroup` not being set in teleport-kube-agent chart when using persistent storage. [#8085](https://github.com/gravitational/teleport/pull/8085)
+* Fixed an issue with Kubernetes service not respecting `public_addr` setting. [#8258](https://github.com/gravitational/teleport/pull/8258)
+
 ## 7.1.1
 
 This release of Teleport contains multiple bug fixes and security fixes.
