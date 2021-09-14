@@ -955,7 +955,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 				chal, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
 						Username: u.username,
-						Password: []byte(u.password),
+						Password: u.password,
 					}},
 				})
 				require.NoError(t, err)
