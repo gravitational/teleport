@@ -36,34 +36,42 @@ const curveP256CBOR = 1
 func deviceToCredential(dev *types.MFADevice, idOnly bool) (wan.Credential, bool) {
 	switch dev := dev.Device.(type) {
 	case *types.MFADevice_U2F:
-		var pubKey []byte
+		var pubKeyCBOR []byte
 		if !idOnly {
 			var err error
-			pubKey, err = keyDERToCBOR(dev.U2F.PubKey)
+			pubKeyCBOR, err = u2fDERKeyToCBOR(dev.U2F.PubKey)
 			if err != nil {
 				log.Warnf("WebAuthn: failed to convert U2F device key to CBOR: %v", err)
 				return wan.Credential{}, false
 			}
 		}
-
-		var authenticator wan.Authenticator
-		if !idOnly {
-			authenticator = wan.Authenticator{
-				SignCount: dev.U2F.Counter,
-			}
-		}
-
 		return wan.Credential{
-			ID:            dev.U2F.KeyHandle,
-			PublicKey:     pubKey,
-			Authenticator: authenticator,
+			ID:        dev.U2F.KeyHandle,
+			PublicKey: pubKeyCBOR,
+			Authenticator: wan.Authenticator{
+				SignCount: dev.U2F.Counter,
+			},
+		}, true
+	case *types.MFADevice_Webauthn:
+		var pubKeyCBOR []byte
+		if !idOnly {
+			pubKeyCBOR = dev.Webauthn.PublicKeyCbor
+		}
+		return wan.Credential{
+			ID:              dev.Webauthn.CredentialId,
+			PublicKey:       pubKeyCBOR,
+			AttestationType: dev.Webauthn.AttestationType,
+			Authenticator: wan.Authenticator{
+				AAGUID:    dev.Webauthn.Aaguid,
+				SignCount: dev.Webauthn.SignatureCounter,
+			},
 		}, true
 	default:
 		return wan.Credential{}, false
 	}
 }
 
-func keyDERToCBOR(der []byte) ([]byte, error) {
+func u2fDERKeyToCBOR(der []byte) ([]byte, error) {
 	pubKeyI, err := x509.ParsePKIXPublicKey(der)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -74,6 +82,11 @@ func keyDERToCBOR(der []byte) ([]byte, error) {
 	if !ok {
 		return nil, trace.Wrap(err)
 	}
+	return U2FKeyToCBOR(pubKey)
+}
+
+// U2FKeyToCBOR transforms a DER-encoded U2F into its CBOR counterpart.
+func U2FKeyToCBOR(pubKey *ecdsa.PublicKey) ([]byte, error) {
 
 	// X and Y coordinates must be exactly 32 bytes.
 	xBytes := make([]byte, 32)
