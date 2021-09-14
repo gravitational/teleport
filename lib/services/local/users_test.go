@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -178,6 +179,208 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, attempts, 0)
 	})
+}
+
+func TestIdentityService_UpsertMFADevice(t *testing.T) {
+	t.Parallel()
+	identity, _ := newIdentityService(t)
+
+	tests := []struct {
+		name string
+		user string
+		dev  *types.MFADevice
+	}{
+		{
+			name: "OK TOTP device",
+			user: "llama",
+			dev: &types.MFADevice{
+				Metadata: types.Metadata{
+					Name: "totp",
+				},
+				Id:       uuid.NewString(),
+				AddedAt:  time.Now(),
+				LastUsed: time.Now(),
+				Device: &types.MFADevice_Totp{
+					Totp: &types.TOTPDevice{
+						Key: "supersecretkey",
+					},
+				},
+			},
+		},
+		{
+			name: "OK Webauthn device",
+			user: "llama",
+			dev: &types.MFADevice{
+				Metadata: types.Metadata{
+					Name: "webauthn",
+				},
+				Id:       uuid.NewString(),
+				AddedAt:  time.Now(),
+				LastUsed: time.Now(),
+				Device: &types.MFADevice_Webauthn{
+					Webauthn: &types.WebauthnDevice{
+						CredentialId:     []byte("credential ID"),
+						PublicKeyCbor:    []byte("public key"),
+						AttestationType:  "none",
+						Aaguid:           []byte{1, 2, 3, 4, 5},
+						SignatureCounter: 10,
+					},
+				},
+			},
+		},
+	}
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := identity.UpsertMFADevice(ctx, test.user, test.dev)
+			require.NoError(t, err)
+
+			devs, err := identity.GetMFADevices(ctx, test.user, true /* withSecrets */)
+			require.NoError(t, err)
+			found := false
+			for _, dev := range devs {
+				if dev.GetName() == test.dev.GetName() {
+					found = true
+					if diff := cmp.Diff(dev, test.dev); diff != "" {
+						t.Fatalf("GetMFADevices() mismatch (-want +got):\n%s", diff)
+					}
+					break
+				}
+			}
+			require.True(t, found, "device %q not found", test.dev.GetName())
+		})
+	}
+}
+
+func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
+	t.Parallel()
+	identity, _ := newIdentityService(t)
+
+	totpDev := &types.MFADevice{
+		Metadata: types.Metadata{
+			Name: "totp",
+		},
+		Id:       uuid.NewString(),
+		AddedAt:  time.Now(),
+		LastUsed: time.Now(),
+		Device: &types.MFADevice_Totp{
+			Totp: &types.TOTPDevice{
+				Key: "supersecretkey",
+			},
+		},
+	}
+	u2fDev := &types.MFADevice{
+		Metadata: types.Metadata{
+			Name: "u2f",
+		},
+		Id:       uuid.NewString(),
+		AddedAt:  time.Now(),
+		LastUsed: time.Now(),
+		Device: &types.MFADevice_U2F{
+			U2F: &types.U2FDevice{
+				KeyHandle: []byte("u2f key handle"),
+				PubKey:    []byte("u2f public key"),
+			},
+		},
+	}
+	webauthnDev := &types.MFADevice{
+		Metadata: types.Metadata{
+			Name: "webauthn",
+		},
+		Id:       uuid.NewString(),
+		AddedAt:  time.Now(),
+		LastUsed: time.Now(),
+		Device: &types.MFADevice_Webauthn{
+			Webauthn: &types.WebauthnDevice{
+				CredentialId:  []byte("web credential ID"),
+				PublicKeyCbor: []byte("web public key"),
+			},
+		},
+	}
+	ctx := context.Background()
+	const user = "llama"
+	for _, dev := range []*types.MFADevice{totpDev, u2fDev, webauthnDev} {
+		err := identity.UpsertMFADevice(ctx, user, dev)
+		require.NoError(t, err, "upsert device %q", dev.GetName())
+	}
+
+	tests := []struct {
+		name      string
+		createDev func() *types.MFADevice
+		wantErr   string
+	}{
+		{
+			name: "NOK invalid WebauthnDevice",
+			createDev: func() *types.MFADevice {
+				cp := *webauthnDev
+				cp.Metadata.Name = "new webauthn"
+				cp.Id = uuid.NewString()
+				cp.Device = &types.MFADevice_Webauthn{
+					Webauthn: &types.WebauthnDevice{
+						CredentialId:  nil, // NOK, required.
+						PublicKeyCbor: []byte("unique public key ID"),
+					},
+				}
+				return &cp
+			},
+			wantErr: "missing CredentialId",
+		},
+		{
+			name: "NOK duplicate device name",
+			createDev: func() *types.MFADevice {
+				cp := *webauthnDev
+				// cp.Metadata.Name is equal, everything else is valid.
+				cp.Id = uuid.NewString()
+				cp.Device = &types.MFADevice_Webauthn{
+					Webauthn: &types.WebauthnDevice{
+						CredentialId:  []byte("unique credential ID"),
+						PublicKeyCbor: []byte("unique public key ID"),
+					},
+				}
+				return &cp
+			},
+			wantErr: "device with name",
+		},
+		{
+			name: "NOK duplicate credential ID (U2F device)",
+			createDev: func() *types.MFADevice {
+				cp := *webauthnDev
+				cp.Metadata.Name = "new webauthn"
+				cp.Id = uuid.NewString()
+				cp.Device = &types.MFADevice_Webauthn{
+					Webauthn: &types.WebauthnDevice{
+						CredentialId:  u2fDev.GetU2F().KeyHandle,
+						PublicKeyCbor: []byte("unique public key ID"),
+					},
+				}
+				return &cp
+			},
+			wantErr: "credential ID already in use",
+		},
+		{
+			name: "NOK duplicate credential ID (Webauthn device)",
+			createDev: func() *types.MFADevice {
+				cp := *webauthnDev
+				cp.Metadata.Name = "new webauthn"
+				cp.Id = uuid.NewString()
+				cp.Device = &types.MFADevice_Webauthn{
+					Webauthn: &types.WebauthnDevice{
+						CredentialId:  webauthnDev.GetWebauthn().CredentialId,
+						PublicKeyCbor: []byte("unique public key ID"),
+					},
+				}
+				return &cp
+			},
+			wantErr: "credential ID already in use",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := identity.UpsertMFADevice(ctx, user, test.createDev())
+			require.NotNil(t, err)
+			require.Contains(t, err.Error(), test.wantErr)
+		})
+	}
 }
 
 func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
