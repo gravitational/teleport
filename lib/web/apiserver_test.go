@@ -372,6 +372,7 @@ type authPack struct {
 	otpSecret string
 	user      string
 	login     string
+	password  string
 	session   *CreateSessionResponse
 	clt       *client.WebClient
 	cookies   []*http.Cookie
@@ -2193,6 +2194,84 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	require.Len(t, devices, 0)
 }
 
+func TestCreateAuthenticateChallenge(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user with a TOTP device, with second factor preference to OTP only.
+	authPack := proxy.authPack(t, "llama@example.com")
+
+	// Authenticated client for private endpoints.
+	authnClt := authPack.clt
+
+	// Unauthenticated client for public endpoints.
+	publicClt := proxy.newClient(t)
+
+	// Acquire a start token, for the request the requires it.
+	startToken, err := types.NewUserToken("some-token-id")
+	require.NoError(t, err)
+	startToken.SetUser(authPack.user)
+	startToken.SetSubKind(auth.UserTokenTypeRecoveryStart)
+	startToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, startToken)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		clt     *client.WebClient
+		ep      []string
+		reqBody client.MFAChallengeRequest
+	}{
+		{
+			name: "/webapi/u2f/password/changerequest",
+			clt:  authnClt,
+			ep:   []string{"webapi", "u2f", "password", "changerequest"},
+			reqBody: client.MFAChallengeRequest{
+				User: authPack.user,
+				Pass: authPack.password,
+			},
+		},
+		{
+			name: "/webapi/mfa/login/begin",
+			clt:  publicClt,
+			ep:   []string{"webapi", "mfa", "login", "begin"},
+			reqBody: client.MFAChallengeRequest{
+				User: authPack.user,
+				Pass: authPack.password,
+			},
+		},
+		{
+			name: "/webapi/mfa/authenticatechallenge",
+			clt:  authnClt,
+			ep:   []string{"webapi", "mfa", "authenticatechallenge"},
+		},
+		{
+			name: "/webapi/mfa/token/:token/authenticatechallenge",
+			clt:  publicClt,
+			ep:   []string{"webapi", "mfa", "token", startToken.GetName(), "authenticatechallenge"},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			endpoint := tc.clt.Endpoint(tc.ep...)
+			res, err := tc.clt.PostJSON(ctx, endpoint, tc.reqBody)
+			require.NoError(t, err)
+
+			var chal auth.MFAAuthenticateChallenge
+			err = json.Unmarshal(res.Bytes(), &chal)
+			require.NoError(t, err)
+			require.True(t, chal.TOTPChallenge)
+			require.Empty(t, chal.U2FChallenges)
+			require.Empty(t, chal.WebauthnChallenge)
+		})
+	}
+}
+
 // TestCreateAppSession verifies that an existing session to the Web UI can
 // be exchanged for a application specific session.
 func (s *WebSuite) TestCreateAppSession(c *C) {
@@ -3116,6 +3195,7 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 		session:   session,
 		clt:       clt,
 		cookies:   resp.Cookies(),
+		password:  pass,
 	}
 }
 

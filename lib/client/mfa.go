@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
@@ -138,4 +139,30 @@ func promptU2FChallenges(ctx context.Context, proxyAddr string, challenges []*pr
 			Signature:  resp.SignatureData,
 		},
 	}}, nil
+}
+
+// MakeAuthenticateChallenge converts proto to JSON format.
+func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *auth.MFAAuthenticateChallenge {
+	chal := &auth.MFAAuthenticateChallenge{
+		TOTPChallenge: protoChal.GetTOTP() != nil,
+	}
+
+	for _, u2fChal := range protoChal.GetU2F() {
+		ch := u2f.AuthenticateChallenge{
+			Version:   u2fChal.Version,
+			Challenge: u2fChal.Challenge,
+			KeyHandle: u2fChal.KeyHandle,
+			AppID:     u2fChal.AppID,
+		}
+		if chal.AuthenticateChallenge == nil {
+			chal.AuthenticateChallenge = &ch
+		}
+		chal.U2FChallenges = append(chal.U2FChallenges, ch)
+	}
+
+	if protoChal.GetWebauthnChallenge() != nil {
+		chal.WebauthnChallenge = wanlib.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+	}
+
+	return chal
 }

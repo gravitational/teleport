@@ -571,10 +571,6 @@ func (s *sessionCache) AuthWithoutOTP(user, pass string) (types.WebSession, erro
 	})
 }
 
-func (s *sessionCache) GetMFAAuthenticateChallenge(user, pass string) (*auth.MFAAuthenticateChallenge, error) {
-	return s.proxyClient.GetMFAAuthenticateChallenge(user, []byte(pass))
-}
-
 func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.AuthenticateChallengeResponse) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,

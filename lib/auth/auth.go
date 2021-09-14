@@ -1079,8 +1079,12 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 	return sess.WithoutSecrets(), nil
 }
 
-// MFAAuthenticateChallenge is a U2F authentication challenge sent on user
-// login.
+// MFAAuthenticateChallenge is an MFA authentication challenge sent on user
+// login / authentication ceremonies.
+//
+// TODO(kimlisa): Move this to lib/client/mfa.go, after deleting the auth HTTP endpoint
+// "/u2f/users/sign" and its friends from lib/auth/apiserver.go (replaced by grpc CreateAuthenticateChallenge).
+// After the endpoint removal, this struct is only used in the web directory.
 type MFAAuthenticateChallenge struct {
 	// Before 6.0 teleport would only send 1 U2F challenge. Embed the old
 	// challenge for compatibility with older clients. All new clients should
@@ -1094,39 +1098,48 @@ type MFAAuthenticateChallenge struct {
 	TOTPChallenge bool `json:"totp_challenge"`
 }
 
-func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
-	ctx := context.TODO()
+// CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
+func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	var username string
 
-	err := a.WithUserLock(user, func() error {
-		return a.checkPasswordWOToken(user, password)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	switch req.GetRequest().(type) {
+	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
+		username = req.GetUserCredentials().GetUsername()
 
-	protoChal, err := a.mfaAuthChallenge(ctx, user, a.Identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Convert from proto to JSON format.
-	chal := &MFAAuthenticateChallenge{
-		TOTPChallenge: protoChal.TOTP != nil,
-	}
-	for _, u2fChal := range protoChal.U2F {
-		ch := u2f.AuthenticateChallenge{
-			Version:   u2fChal.Version,
-			Challenge: u2fChal.Challenge,
-			KeyHandle: u2fChal.KeyHandle,
-			AppID:     u2fChal.AppID,
+		if err := a.WithUserLock(username, func() error {
+			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
+		}); err != nil {
+			log.Error(trace.DebugReport(err))
+			return nil, trace.AccessDenied("invalid password or username")
 		}
-		if chal.AuthenticateChallenge == nil {
-			chal.AuthenticateChallenge = &ch
+
+	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
+		token, err := a.GetUserToken(ctx, req.GetRecoveryStartTokenID())
+		if err != nil {
+			log.Error(trace.DebugReport(err))
+			return nil, trace.AccessDenied("invalid token")
 		}
-		chal.U2FChallenges = append(chal.U2FChallenges, ch)
+
+		if err := a.verifyUserToken(token, UserTokenTypeRecoveryStart); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		username = token.GetUser()
+
+	default:
+		var err error
+		username, err = GetClientUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	return chal, nil
+	challenges, err := a.mfaAuthChallenge(ctx, username, a.Identity /* u2f storage */)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied("unable to create MFA challenges")
+	}
+	return challenges, nil
 }
 
 // GetMFADevices returns all mfa devices for the user defined in the token or the user defined in context.
