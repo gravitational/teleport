@@ -775,6 +775,7 @@ message MFARegisterChallenge {
     oneof Request {
         U2FRegisterChallenge U2F = 1;
         TOTPRegisterChallenge TOTP = 2;
+        webauthn.CredentialCreation Webauthn = 3;
     }
 }
 
@@ -783,6 +784,7 @@ message MFARegisterResponse {
     oneof Response {
         U2FRegisterResponse U2F = 1;
         TOTPRegisterResponse TOTP = 2;
+        webauthn.CredentialCreationResponse Webauthn = 3;
     }
 }
 
@@ -853,6 +855,7 @@ message AddMFADeviceRequestInit {
     enum DeviceType {
         TOTP = 0;
         U2F = 1;
+        Webauthn = 2;
     }
     DeviceType Type = 2;
 }
