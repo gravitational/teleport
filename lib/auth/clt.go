@@ -960,34 +960,6 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 	return trace.Wrap(err)
 }
 
-// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
-func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
-	out, err := c.PostJSON(
-		c.Endpoint("mfa", "users", user, "login", "begin"),
-		signInReq{
-			Password: string(password),
-		},
-	)
-	// DELETE IN 9.x, fallback not necessary after U2F is removed (codingllama)
-	if trace.IsNotFound(err) {
-		out, err = c.PostJSON(
-			c.Endpoint("u2f", "users", user, "sign"),
-			signInReq{
-				Password: string(password),
-			},
-		)
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var challenge *MFAAuthenticateChallenge
-	if err := json.Unmarshal(out.Bytes(), &challenge); err != nil {
-		return nil, err
-	}
-	return challenge, nil
-}
-
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
 func (c *Client) ExtendWebSession(req WebSessionReq) (types.WebSession, error) {
@@ -1784,9 +1756,6 @@ type IdentityService interface {
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
-	// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
-	GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error)
-
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
 	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
 
@@ -1872,6 +1841,8 @@ type IdentityService interface {
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
 	DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error
+	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
+	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 
 	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
 	// This token is used as part of a URL that will be emailed to the user (not done in this request).
