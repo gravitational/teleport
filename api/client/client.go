@@ -1182,6 +1182,12 @@ func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteM
 	return stream, nil
 }
 
+// DeleteMFADeviceSync deletes a users MFA device (nonstream).
+func (c *Client) DeleteMFADeviceSync(ctx context.Context, in *proto.DeleteMFADeviceSyncRequest) error {
+	_, err := c.grpc.DeleteMFADeviceSync(ctx, in, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
 	resp, err := c.grpc.GetMFADevices(ctx, in, c.callOpts...)
 	if err != nil {
