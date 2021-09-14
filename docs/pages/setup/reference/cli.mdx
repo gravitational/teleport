@@ -474,6 +474,8 @@ $ tsh login [<flags>] [<cluster>]
 | `--browser` | none | `none` | Set to 'none' to suppress opening system default browser for `tsh login` commands |
 | `--request-roles` | none | | Request one or more extra roles |
 | `--request-reason` | none | | Reason for requesting additional roles |
+| `--request-nowait` | none | | Finish without waiting for request resolution |
+| `--request-id` | none | | Login with the roles requested in the given request |
 | `--no-use-local-ssh-agent` | | | Do not load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). Useful when using `gpg-agent` or Yubikeys. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable to `false` (default `true`) |
 
 #### [Global Flags](#tsh-global-flags)
