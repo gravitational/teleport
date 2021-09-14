@@ -162,49 +162,117 @@ func TestLoginFlow_Begin_errors(t *testing.T) {
 }
 
 func TestLoginFlow_Finish_errors(t *testing.T) {
-	key, err := mocku2f.Create()
-	require.NoError(t, err)
-	now := time.Now()
-	device, err := keyToMFADevice(key, now /* addedAt */, now /* lastUsed */)
-	require.NoError(t, err)
-
+	ctx := context.Background()
 	const user = "llama"
-	webLogin := wanlib.LoginFlow{
-		U2F:      &types.U2F{AppID: "https://localhost"},
-		Webauthn: &types.Webauthn{RPID: "localhost"},
-		Identity: newFakeIdentity(user, device),
+	const webOrigin = "https://localhost"
+
+	webConfig := &types.Webauthn{RPID: "localhost"}
+	identity := newFakeIdentity(user)
+	webRegistration := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: identity,
 	}
 
-	ctx := context.Background()
+	key, err := mocku2f.Create()
+	require.NoError(t, err)
+	key.PreferRPID = true
+	cc, err := webRegistration.Begin(ctx, user)
+	require.NoError(t, err)
+	ccr, err := key.SignCredentialCreation(webOrigin, cc)
+	require.NoError(t, err)
+	_, err = webRegistration.Finish(ctx, user, "webauthn1" /* deviceName */, ccr)
+	require.NoError(t, err)
+
+	webLogin := wanlib.LoginFlow{
+		U2F:      &types.U2F{AppID: "https://example.com"},
+		Webauthn: webConfig,
+		Identity: identity,
+	}
 	assertion, err := webLogin.Begin(ctx, user)
 	require.NoError(t, err)
-	okResp, err := key.SignAssertion("https://localhost", assertion)
+	okResp, err := key.SignAssertion(webOrigin, assertion)
 	require.NoError(t, err)
 
 	tests := []struct {
-		name string
-		user string
-		resp *wanlib.CredentialAssertionResponse
+		name       string
+		user       string
+		createResp func() *wanlib.CredentialAssertionResponse
 	}{
 		{
-			name: "NOK empty user",
-			user: "",
-			resp: okResp,
+			name:       "NOK empty user",
+			user:       "",
+			createResp: func() *wanlib.CredentialAssertionResponse { return okResp },
 		},
 		{
-			name: "NOK nil resp",
-			user: user,
-			resp: nil,
+			name:       "NOK nil resp",
+			user:       user,
+			createResp: func() *wanlib.CredentialAssertionResponse { return nil },
 		},
 		{
-			name: "NOK empty resp",
+			name:       "NOK empty resp",
+			user:       user,
+			createResp: func() *wanlib.CredentialAssertionResponse { return &wanlib.CredentialAssertionResponse{} },
+		},
+		{
+			name: "NOK assertion with bad origin",
 			user: user,
-			resp: &wanlib.CredentialAssertionResponse{},
+			createResp: func() *wanlib.CredentialAssertionResponse {
+				assertion, err := webLogin.Begin(ctx, user)
+				require.NoError(t, err)
+				resp, err := key.SignAssertion("https://badorigin.com", assertion)
+				require.NoError(t, err)
+				return resp
+			},
+		},
+		{
+			name: "NOK assertion with bad RPID",
+			user: user,
+			createResp: func() *wanlib.CredentialAssertionResponse {
+				assertion, err := webLogin.Begin(ctx, user)
+				require.NoError(t, err)
+				assertion.Response.RelyingPartyID = "badrpid.com"
+
+				resp, err := key.SignAssertion(webOrigin, assertion)
+				require.NoError(t, err)
+				return resp
+			},
+		},
+		{
+			name: "NOK assertion signed by unknown device",
+			user: user,
+			createResp: func() *wanlib.CredentialAssertionResponse {
+				assertion, err := webLogin.Begin(ctx, user)
+				require.NoError(t, err)
+
+				unknownKey, err := mocku2f.Create()
+				require.NoError(t, err)
+				unknownKey.PreferRPID = true
+				unknownKey.IgnoreAllowedCredentials = true
+
+				resp, err := unknownKey.SignAssertion(webOrigin, assertion)
+				require.NoError(t, err)
+				return resp
+			},
+		},
+		{
+			name: "NOK assertion with invalid signature",
+			user: user,
+			createResp: func() *wanlib.CredentialAssertionResponse {
+				assertion, err := webLogin.Begin(ctx, user)
+				require.NoError(t, err)
+				// Flip a challenge bit, this should be enough to consistently fail
+				// signature checking.
+				assertion.Response.Challenge[0] = 1 ^ assertion.Response.Challenge[0]
+
+				resp, err := key.SignAssertion(webOrigin, assertion)
+				require.NoError(t, err)
+				return resp
+			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := webLogin.Finish(ctx, test.user, test.resp)
+			_, err := webLogin.Finish(ctx, test.user, test.createResp())
 			require.Error(t, err)
 		})
 	}
