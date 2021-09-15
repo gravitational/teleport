@@ -2933,7 +2933,6 @@ func groupByDeviceType(devs []*types.MFADevice, groupU2F, groupWebauthn bool) de
 }
 
 func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
-	// TODO(codingllama): Consolidate with authenticateUser?
 	switch res := resp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
 		return a.checkOTP(user, res.TOTP.Code)
