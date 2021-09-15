@@ -167,6 +167,9 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string) (*CredentialC
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(codingllama): Send U2F App ID back in creation requests too. Useful to
+	//  detect duplicate devices.
+
 	sessionDataPB, err := sessionToPB(sessionData)
 	if err != nil {
 		return nil, trace.Wrap(err)
