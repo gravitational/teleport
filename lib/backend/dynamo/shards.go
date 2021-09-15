@@ -60,6 +60,7 @@ func (b *Backend) asyncPollStreams(ctx context.Context) error {
 			b.Errorf("Poll streams returned with error: %v.", err)
 		}
 		b.Debugf("Reloading %v.", retry)
+		b.buf.Reset()
 		select {
 		case <-retry.After():
 			retry.Inc()
@@ -83,25 +84,69 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	set := make(map[string]struct{})
 	eventsC := make(chan shardEvent)
 
-	refreshShards := func() error {
+	shouldStartPoll := func(shard *dynamodbstreams.Shard) bool {
+		sid := aws.StringValue(shard.ShardId)
+		if _, ok := set[sid]; ok {
+			// already being polled
+			return false
+		}
+		if _, ok := set[aws.StringValue(shard.ParentShardId)]; ok {
+			b.Debugf("Skipping child shard: %s, still polling parent %s", sid, aws.StringValue(shard.ParentShardId))
+			// still processing parent
+			return false
+		}
+		return true
+	}
+
+	refreshShards := func(init bool) error {
 		shards, err := b.collectActiveShards(ctx, streamArn)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		var initC chan error
+		if init {
+			// first call to  refreshShards requires us to block on shard iterator
+			// registration.
+			initC = make(chan error, len(shards))
+		}
+
+		started := 0
 		for i := range shards {
+			if !shouldStartPoll(shards[i]) {
+				continue
+			}
 			shardID := aws.StringValue(shards[i].ShardId)
-			if _, ok := set[shardID]; !ok {
-				b.Debugf("Adding active shard %v.", shardID)
-				set[shardID] = struct{}{}
-				go b.asyncPollShard(ctx, streamArn, shards[i], eventsC)
+			b.Debugf("Adding active shard %v.", shardID)
+			set[shardID] = struct{}{}
+			go b.asyncPollShard(ctx, streamArn, shards[i], eventsC, initC)
+			started++
+		}
+
+		if init {
+			// block on shard iterator registration.
+			for i := 0; i < started; i++ {
+				select {
+				case err = <-initC:
+					if err != nil {
+						return trace.Wrap(err)
+					}
+				case <-ctx.Done():
+					return trace.Wrap(ctx.Err())
+				}
 			}
 		}
+
 		return nil
 	}
 
-	if err := refreshShards(); err != nil {
+	if err := refreshShards(true); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// shard iterators are initialized, unblock any registered watchers
+	b.buf.SetInit()
+	defer b.buf.Reset()
 
 	ticker := time.NewTicker(b.PollStreamPeriod)
 	defer ticker.Stop()
@@ -110,6 +155,12 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 		select {
 		case event := <-eventsC:
 			if event.err != nil {
+				if event.shardID == "" {
+					// empty shard IDs in err-variant events are programming bugs and will lead to
+					// invalid state.
+					b.WithError(err).Warnf("Forcing watch system reset due to empty shard ID on error (this is a bug)")
+					return trace.BadParameter("empty shard ID")
+				}
 				delete(set, event.shardID)
 				if event.err != io.EOF {
 					b.Debugf("Shard ID %v closed with error: %v, reseting buffers.", event.shardID, event.err)
@@ -117,10 +168,10 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 				}
 				b.Debugf("Shard ID %v exited gracefully.", event.shardID)
 			} else {
-				b.buf.PushBatch(event.events)
+				b.buf.Emit(event.events...)
 			}
 		case <-ticker.C:
-			if err := refreshShards(); err != nil {
+			if err := refreshShards(false); err != nil {
 				return trace.Wrap(err)
 			}
 		case <-ctx.Done():
@@ -143,15 +194,24 @@ func (b *Backend) findStream(ctx context.Context) (*string, error) {
 	return status.Table.LatestStreamArn, nil
 }
 
-func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent) error {
+func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent, initC chan<- error) error {
 	shardIterator, err := b.streams.GetShardIteratorWithContext(ctx, &dynamodbstreams.GetShardIteratorInput{
 		ShardId:           shard.ShardId,
 		ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeLatest),
 		StreamArn:         streamArn,
 	})
+
+	if initC != nil {
+		select {
+		case initC <- convertError(err):
+		case <-ctx.Done():
+			return trace.ConnectionProblem(ctx.Err(), "context is closing")
+		}
+	}
 	if err != nil {
 		return convertError(err)
 	}
+
 	ticker := time.NewTicker(b.PollStreamPeriod)
 	defer ticker.Stop()
 	iterator := shardIterator.ShardIterator
@@ -176,6 +236,7 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynam
 					b.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
 					return io.EOF
 				}
+				iterator = out.NextShardIterator
 				continue
 			}
 			if out.NextShardIterator == nil {
@@ -281,20 +342,21 @@ func toEvent(rec *dynamodbstreams.Record) (*backend.Event, error) {
 	}
 }
 
-func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent) {
+func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent, initC chan<- error) {
 	var err error
+	shardID := aws.StringValue(shard.ShardId)
 	defer func() {
 		if err == nil {
-			err = trace.BadParameter("shard exited unexpectedly")
+			err = trace.BadParameter("shard %q exited unexpectedly", shardID)
 		}
 		select {
-		case eventsC <- shardEvent{err: err}:
+		case eventsC <- shardEvent{err: err, shardID: shardID}:
 		case <-ctx.Done():
 			b.Debugf("Context is closing, returning")
 			return
 		}
 	}()
-	err = b.pollShard(ctx, streamArn, shard, eventsC)
+	err = b.pollShard(ctx, streamArn, shard, eventsC, initC)
 }
 
 func (b *Backend) turnOnTimeToLive(ctx context.Context) error {
