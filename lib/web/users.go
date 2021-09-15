@@ -192,6 +192,7 @@ func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Requ
 				Signature:  req.U2FSignResponse.SignatureData,
 			},
 		}}
+	default:
 		// Can be empty, which means user did not have a second factor registered.
 	}
 

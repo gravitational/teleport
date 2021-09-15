@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -491,37 +490,7 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 
 	// Begin authenticating second factor.
 	switch req.GetExistingMFAResponse().GetResponse().(type) {
-	case *proto.MFAAuthenticateResponse_TOTP:
-		if secondFactor == constants.SecondFactorU2F {
-			return nil, trace.BadParameter("unexpected u2f credential")
-		}
-
-		err := s.WithUserLock(username, func() error {
-			_, err := s.checkOTP(username, req.GetExistingMFAResponse().GetTOTP().GetCode())
-			return err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-	case *proto.MFAAuthenticateResponse_U2F:
-		if secondFactor == constants.SecondFactorOTP {
-			return nil, trace.BadParameter("unexpected otp credential")
-		}
-
-		err := s.WithUserLock(username, func() error {
-			_, err := s.CheckU2FSignResponse(ctx, username, &u2f.AuthenticateChallengeResponse{
-				KeyHandle:     req.GetExistingMFAResponse().GetU2F().GetKeyHandle(),
-				SignatureData: req.GetExistingMFAResponse().GetU2F().GetSignature(),
-				ClientData:    req.GetExistingMFAResponse().GetU2F().GetClientData(),
-			})
-			return trace.Wrap(err)
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-	default:
+	case nil:
 		// Allows users with no devices to bypass second factor re-auth.
 		devices, err := s.Identity.GetMFADevices(ctx, username, false)
 		if err != nil {
@@ -533,6 +502,14 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 		}
 
 		tokenKind = UserTokenTypePrivilegeException
+	default:
+		err := s.WithUserLock(username, func() error {
+			_, err := s.validateMFAAuthResponse(ctx, username, req.GetExistingMFAResponse(), s.Identity)
+			return err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Delete any existing user tokens for user before creating.
