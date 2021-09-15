@@ -729,6 +729,11 @@ type IndexTuple struct {
 	SecondFieldOrder adminpb.Index_IndexField_Order
 }
 
+type indexTask struct {
+	operation *apiv1.CreateIndexOperation
+	tuple *IndexTuple
+}
+
 // EnsureIndexes is a function used by Firestore events and backend to generate indexes and will block until
 // indexes are reported as created
 func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tuples []*IndexTuple, indexParent string) error {
@@ -738,7 +743,7 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 		Order: adminpb.Index_IndexField_ASCENDING,
 	}
 
-	var tasks []*apiv1.CreateIndexOperation
+	var tasks []indexTask
 
 	// create the indexes
 	for _, tuple := range tuples {
@@ -768,12 +773,12 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 		}
 		// operation can be nil if error code is codes.AlreadyExists.
 		if operation != nil {
-			tasks = append(tasks, operation)
+			tasks = append(tasks, indexTask{ operation, tuple })
 		}
 	}
 
-	for i, operation := range tasks {
-		err := waitOnIndexCreation(ctx, l, operation, tuples[i])
+	for _, task := range tasks {
+		err := waitOnIndexCreation(ctx, l, task)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -782,14 +787,14 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 	return nil
 }
 
-func waitOnIndexCreation(ctx context.Context, l *log.Entry, operation *apiv1.CreateIndexOperation, tuple *IndexTuple) error {
-	meta, err := operation.Metadata()
+func waitOnIndexCreation(ctx context.Context, l *log.Entry, task indexTask) error {
+	meta, err := task.operation.Metadata()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	l.Infof("Creating index for tuple %s-%s with name %s.", tuple.FirstField, tuple.SecondField, meta.Index)
+	l.Infof("Creating index for tuple %s-%s with name %s.", task.tuple.FirstField, task.tuple.SecondField, meta.Index)
 
-	_, err = operation.Wait(ctx)
+	_, err = task.operation.Wait(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
