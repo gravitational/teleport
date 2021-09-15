@@ -113,7 +113,7 @@ This allows you to authenticate just once, maybe at the beginning of the day. Su
   It is recommended to always use [`tsh login`](./setup/reference/cli.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
 </Admonition>
 
-A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via Github](admin-guide.mdx#github-oauth-20). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
+A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via Github](./setup/admin/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
 
 ```code
 # Login using the local Teleport 'admin' user:
@@ -446,8 +446,8 @@ Teleport supports creating clusters of servers located behind firewalls
 **without any open listening TCP ports**.  This works by creating reverse SSH
 tunnels from behind-firewall environments into a Teleport proxy you have access to.
 
-These features are called [*Trusted Clusters*](https://gravitational.com/teleport/docs/trustedclusters/). Refer to
-[the admin manual](admin-guide.mdx#trusted-clusters) to learn how a trusted cluster can be configured.
+These features are called *Trusted Clusters*. Refer to [the trusted clusters guide](./setup/admin/trustedclusters.mdx)
+to learn how a trusted cluster can be configured.
 
 Assuming the `work` Teleport proxy server is configured with a few trusted
 clusters, a user may use the `tsh clusters` command to see a list of all clusters on the server:

@@ -1,5 +1,73 @@
 # Changelog
 
+## 7.1.2
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed an issue with `teleport configure` generating empty hostname for web proxy address. [#8245](https://github.com/gravitational/teleport/pull/8245)
+* Fixed an issue with interactive sessions always exiting with code 0. [#8252](https://github.com/gravitational/teleport/pull/8252)
+* Fixed an issue with AWS console access silently filtering out IAM roles with paths. [#8225](https://github.com/gravitational/teleport/pull/8225)
+* Fixed an issue with `fsGroup` not being set in teleport-kube-agent chart when using persistent storage. [#8085](https://github.com/gravitational/teleport/pull/8085)
+* Fixed an issue with Kubernetes service not respecting `public_addr` setting. [#8258](https://github.com/gravitational/teleport/pull/8258)
+
+## 7.1.1
+
+This release of Teleport contains multiple bug fixes and security fixes.
+
+* Fixed an issue with starting Teleport with `--bootstrap` flag. [#8128](https://github.com/gravitational/teleport/pull/8128)
+* Added support for non-blocking access requests via `--request-nowait` flag. [#7979](https://github.com/gravitational/teleport/pull/7979)
+* Added support for a profile specific kubeconfig file. [#8048](https://github.com/gravitational/teleport/pull/8048)
+
+### Security fixes
+
+As part of a routine security audit of Teleport, several security vulnerabilities
+and miscellaneous issues were discovered. Below are the issues found, their
+impact, and the components of Teleport they affect.
+
+#### Server Access
+
+An attacker with privileged network position could forge SSH host certificates
+that Teleport would incorrectly validate in specific code paths. The specific
+paths of concern are:
+
+* Using `tsh` with an identity file (commonly used for service accounts). This
+  could lead to potentially leaking of sensitive commands the service account
+  runs or in the case of proxy recording mode, the attacker could also gain
+  control of the SSH agent being used.
+
+* Teleport agents could incorrectly connect to an attacker controlled cluster.
+  Note, this would not give the attacker access or control of resources (like
+  SSH, Kubernetes, Applications, or Database servers) because Teleport agents
+  will still reject all connections without a valid x509 or SSH user
+  certificate.
+
+#### Database Access
+
+When connecting to a Postgres database, an attacker could craft a database name
+or a username in a way that would have allowed them control over the resulting
+connection string.
+
+An attacker could have probed connections to other reachable database servers
+and alter connection parameters such as disable TLS or connect to a database
+authenticated by a password.
+
+#### All
+
+During an internal security exercise our engineers have discovered a
+vulnerability in Teleport build infrastructure that could have been potentially
+used to alter build artifacts. We have found no evidence of any exploitation. In
+an effort to be open and transparent with our customers, we encourage all
+customers to upgrade to the latest patch release.
+
+#### Actions
+
+For all users, we recommend upgrading all components of their Teleport cluster.
+If upgrading all components is not possible, we recommend upgrading `tsh` and
+Teleport agents (including trusted cluster proxies) that use reverse tunnels.
+
+Upgrades should follow the normal Teleport upgrade procedure:
+https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport.
+
 ## 7.1.0
 
 This release of Teleport contains a feature and bug fix.

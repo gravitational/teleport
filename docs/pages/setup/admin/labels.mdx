@@ -1,0 +1,97 @@
+---
+title: Labels
+description: Labeling Nodes and Applications
+---
+
+This guide explains how to label nodes with Open Source, Enterprise Teleport,
+self-hosted or cloud editions.
+
+## Prerequisites
+
+- Installed [Teleport](../../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
+- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Labeling Nodes and Applications
+
+In addition to specifying a custom nodename, Teleport also allows for the
+application of arbitrary key-value pairs to each node or app, called labels. There are two kinds of labels:
+
+1. `static labels` do not change over time, while [`teleport`](../reference/cli.mdx#teleport) the process is running.  Examples of static labels are the physical location of nodes, the name of the environment (staging vs production), etc.
+2. `dynamic labels` also known as "label commands" allow to generate labels at runtime. Teleport will execute an external command on a node at a configurable frequency and the output of the command becomes the label value. Examples include reporting load averages, presence of a process, time after the last reboot, etc.
+
+There are two ways to configure node labels.
+
+1. Via command line, by using `--labels` flag to `teleport start` command.
+2. Using `/etc/teleport.yaml` configuration file on the nodes.
+
+To define labels as command line arguments, use `--labels` flag like shown
+below. This method works well for static labels or simple commands:
+
+```code
+$ sudo teleport start --labels uptime=[1m:"uptime -p"],kernel=[1h:"uname -r"]
+```
+
+Alternatively, you can update `labels` via a configuration file:
+
+```yaml
+ssh_service:
+  enabled: "yes"
+  # ...
+  # Static labels are simple key/value pairs:
+  labels:
+    environment: test
+app_service:
+  # ..
+  labels:
+    environment: test
+```
+
+To configure dynamic labels via a configuration file, define a `commands` array
+as shown below:
+
+```yaml
+ssh_service:
+  enabled: "yes"
+  # Dynamic labels AKA "commands":
+  commands:
+  - name: hostname
+    command: [hostname]
+    period: 1m0s
+  - name: arch
+    command: [uname, -p]
+    # This setting tells teleport to execute the command above
+    # once an hour. this value cannot be less than one minute.
+    period: 1h0m0s
+app_service:
+  enabled: "yes"
+  # ...
+  # Dynamic labels (historically called "commands"):
+  commands:
+  - name: hostname
+    command: [hostname]
+    period: 1m0s
+```
+
+`/path/to/executable` must be a valid executable command (i.e. executable bit
+must be set) which also includes shell scripts with a proper [shebang
+line](https://en.wikipedia.org/wiki/Shebang_\(Unix\)).
+
+<Admonition type="tip">
+Notice that `command` setting is an array where the first element
+is a valid executable and each subsequent element is an argument, i.e:
+
+```yaml
+# Valid syntax:
+command: ["/bin/uname", "-m"]
+
+# INVALID syntax:
+command: ["/bin/uname -m"]
+
+# If you want to pipe several bash commands together, here's how to do it:
+# notice how ' and " are interchangeable and you can use it for quoting:
+command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\\.[0-9]+\\.[0-9]+'"]
+```
+</Admonition>
+
