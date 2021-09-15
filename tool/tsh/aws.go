@@ -334,7 +334,11 @@ func (t *tempSelfSignedLocalCert) getCert() tls.Certificate {
 }
 
 func (t tempSelfSignedLocalCert) Clean() error {
-	cerr := t.caFile.Close()
-	rerr := os.Remove(t.caFile.Name())
-	return trace.NewAggregate(cerr, rerr)
+	if err := t.caFile.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := os.Remove(t.caFile.Name()); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
