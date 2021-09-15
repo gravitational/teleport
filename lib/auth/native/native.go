@@ -229,7 +229,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 	}
 
 	log.Debugf("Generated SSH host certificate for role %v with principals: %v.",
-		c, principals)
+		c.Role, principals)
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 

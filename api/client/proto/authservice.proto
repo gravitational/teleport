@@ -892,12 +892,25 @@ message DeleteMFADeviceRequestInit {
 // DeleteMFADeviceResponseAck is a confirmation of successful device deletion.
 message DeleteMFADeviceResponseAck {}
 
+// DeleteMFADeviceSyncRequest is a request to delete a MFA device (nonstream).
+message DeleteMFADeviceSyncRequest {
+    // TokenID is the ID of a user token that will be used to verify this request.
+    // Token types accepted are:
+    //   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
+    //   - TODO(kimlisa) add privilege token doc after implementation
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
+    // DeviceName is the name of the device to delete.
+    string DeviceName = 2 [ (gogoproto.jsontag) = "device_name" ];
+}
+
 // GetMFADeviceRequest is a request for MFA devices for the calling user.
 message GetMFADevicesRequest {
-    // RecoveryApprovedTokenID is the ID of a recovery approved token that allows a user to view
-    // their devices without being logged in. Recovery approved tokens are obtained after user goes
-    // through a two step verification process.
-    string RecoveryApprovedTokenID = 1;
+    // RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
+    // request. Token is obtained with RPC ApproveAccountRecovery and allows users to view their
+    // MFA devices without being logged in.
+    // This field can be empty which implies the logged in user wants to view their devices.
+    string RecoveryApprovedTokenID = 1
+        [ (gogoproto.jsontag) = "recovery_approved_token_id,omitempty" ];
 }
 
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
@@ -1210,6 +1223,30 @@ message GetAccountRecoveryTokenRequest {
     string RecoveryTokenID = 1 [ (gogoproto.jsontag) = "recovery_token_id" ];
 }
 
+// UserCredentials describes fields for a user's username and password.
+message UserCredentials {
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+    bytes Password = 2 [ (gogoproto.jsontag) = "password" ];
+}
+
+// CreateAuthenticateChallengeRequest is a request for creating MFA authentication challenges for a
+// users mfa devices.
+message CreateAuthenticateChallengeRequest {
+    // Request defines how the request will be verified before creating challenges.
+    // This field can be empty, which implies the request is to create challenges for the
+    // user in context (logged in user).
+    oneof Request {
+        // UserCredentials verifies request with username and password. Used with logins or
+        // when the logged in user wants to change their password.
+        UserCredentials UserCredentials = 1 [ (gogoproto.jsontag) = "user_credentials,omitempty" ];
+        // RecoveryStartTokenID is the ID of a recovery start token obtained with RPC
+        // StartAccountRecovery. This token allows a user to retrieve their MFA challenges for RPC
+        // ApproveAccountRecovery (step 2 of the recovery process after RPC StartAccountRecovery).
+        string RecoveryStartTokenID = 2
+            [ (gogoproto.jsontag) = "recovery_start_token_id,omitempty" ];
+    }
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1429,9 +1466,15 @@ service AuthService {
     // -> MFAResponse
     // <- Ack
     rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
+    // DeleteMFADeviceSync deletes a users MFA device (nonstream).
+    rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+    // CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA
+    // devices.
+    rpc CreateAuthenticateChallenge(CreateAuthenticateChallengeRequest)
+        returns (MFAAuthenticateChallenge);
 
     // GetOIDCConnector gets an OIDC connector resource by name.
     rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
