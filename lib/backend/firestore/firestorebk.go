@@ -78,7 +78,7 @@ func (cfg *backendConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("firestore: project_id is not specified")
 	}
 	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferSize
+		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.PurgeExpiredDocumentsPollInterval == 0 {
 		cfg.PurgeExpiredDocumentsPollInterval = defaultPurgeInterval
@@ -260,11 +260,9 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	// It won't be needed after New returns.
 	defer firestoreAdminClient.Close()
 
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
+	buf := backend.NewCircularBuffer(
+		backend.BufferCapacity(cfg.BufferSize),
+	)
 	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	b := &Backend{
 		svc:              firestoreClient,
