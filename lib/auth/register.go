@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -51,23 +52,23 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 	if remoteAddr == "" {
 		remoteAddr = defaults.Localhost
 	}
-	keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               id.HostUUID,
-		NodeName:             id.NodeName,
-		Roles:                types.SystemRoles{id.Role},
-		AdditionalPrincipals: additionalPrincipals,
-		RemoteAddr:           remoteAddr,
-		DNSNames:             dnsNames,
-		NoCache:              true,
-		PublicSSHKey:         pub,
-		PublicTLSKey:         tlsPub,
-	})
+	certs, err := authServer.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               id.HostUUID,
+			NodeName:             id.NodeName,
+			Role:                 id.Role,
+			AdditionalPrincipals: additionalPrincipals,
+			RemoteAddr:           remoteAddr,
+			DNSNames:             dnsNames,
+			NoCache:              true,
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = priv
 
-	identity, err := ReadIdentityFromKeyPair(keys)
+	identity, err := ReadIdentityFromKeyPair(priv, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -117,7 +118,7 @@ func (r *RegisterParams) setDefaults() {
 // CredGetter is an interface for a client that can be used to get host
 // credentials. This interface is needed because lib/client can not be imported
 // in lib/auth due to circular imports.
-type HostCredentials func(context.Context, string, bool, RegisterUsingTokenRequest) (*PackedKeys, error)
+type HostCredentials func(context.Context, string, bool, RegisterUsingTokenRequest) (*proto.Certs, error)
 
 // Register is used to generate host keys when a node or proxy are running on
 // different hosts than the auth server. This method requires provisioning
@@ -181,7 +182,7 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 		return nil, trace.BadParameter("no auth servers set")
 	}
 
-	keys, err := params.GetHostCredentials(context.Background(),
+	certs, err := params.GetHostCredentials(context.Background(),
 		params.Servers[0].String(),
 		lib.IsInsecureDevMode(),
 		RegisterUsingTokenRequest{
@@ -197,9 +198,8 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 	if err != nil {
 		return nil, trace.Unwrap(err)
 	}
-	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(keys)
+	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }
 
 // registerThroughAuth is used to register through the auth server.
@@ -222,7 +222,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	defer client.Close()
 
 	// Get the SSH and X509 certificates for a node.
-	keys, err := client.RegisterUsingToken(RegisterUsingTokenRequest{
+	certs, err := client.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:                token,
 		HostID:               params.ID.HostUUID,
 		NodeName:             params.ID.NodeName,
@@ -235,9 +235,8 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(keys)
+	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the
@@ -398,35 +397,20 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys, err := params.Client.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               hostID,
-		NodeName:             params.ID.NodeName,
-		Roles:                types.SystemRoles{params.ID.Role},
-		AdditionalPrincipals: params.AdditionalPrincipals,
-		DNSNames:             params.DNSNames,
-		PublicTLSKey:         params.PublicTLSKey,
-		PublicSSHKey:         params.PublicSSHKey,
-		Rotation:             &params.Rotation,
-	})
+	certs, err := params.Client.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               hostID,
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			Rotation:             &params.Rotation,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(keys)
-}
-
-// PackedKeys is a collection of private key, SSH host certificate
-// and TLS certificate and certificate authority issued the certificate
-type PackedKeys struct {
-	// Key is a private key
-	Key []byte `json:"key"`
-	// Cert is an SSH host cert
-	Cert []byte `json:"cert"`
-	// TLSCert is an X509 certificate
-	TLSCert []byte `json:"tls_cert"`
-	// TLSCACerts is a list of TLS certificate authorities.
-	TLSCACerts [][]byte `json:"tls_ca_certs"`
-	// SSHCACerts is a list of SSH certificate authorities.
-	SSHCACerts [][]byte `json:"ssh_ca_certs"`
+	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }

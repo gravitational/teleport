@@ -39,6 +39,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -133,18 +134,18 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
-	certs, err := testServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:       hostID,
-		NodeName:     testServer.ClusterName(),
-		Roles:        types.SystemRoles{types.RoleNode},
-		PublicSSHKey: pub,
-		PublicTLSKey: tlsPub,
-	})
+	certs, err := testServer.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     testServer.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
 	require.NoError(t, err)
-	certs.Key = priv
 
 	// set up user CA and set up a user that has access to the server
-	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
 	nodeID := uuid.New()
@@ -949,18 +950,18 @@ func TestProxyReverseTunnel(t *testing.T) {
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
-	// Create host key and certificate for proxy.
-	proxyKeys, err := f.testSrv.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:       hostID,
-		NodeName:     f.testSrv.ClusterName(),
-		Roles:        types.SystemRoles{types.RoleProxy},
-		PublicSSHKey: pub,
-		PublicTLSKey: tlsPub,
-	})
+	// Create certificate for proxy.
+	proxyCerts, err := f.testSrv.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     f.testSrv.ClusterName(),
+			Role:         types.RoleProxy,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
 	require.NoError(t, err)
-	proxyKeys.Key = priv
 
-	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
+	proxySigner, err := sshutils.NewSigner(priv, proxyCerts.SSH)
 	require.NoError(t, err)
 
 	logger := logrus.WithField("test", "TestProxyReverseTunnel")
@@ -1613,19 +1614,19 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	require.NoError(t, err)
 
 	// Create host key and certificate for node.
-	keys, err := authSrv.GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:               "raw-node",
-		NodeName:             "raw-node",
-		Roles:                types.SystemRoles{types.RoleNode},
-		AdditionalPrincipals: []string{hostname},
-		DNSNames:             []string{hostname},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         tlsPub,
-	})
+	certs, err := authSrv.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               "raw-node",
+			NodeName:             "raw-node",
+			Role:                 types.RoleNode,
+			AdditionalPrincipals: []string{hostname},
+			DNSNames:             []string{hostname},
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
 	require.NoError(t, err)
-	keys.Key = priv
 
-	signer, err := sshutils.NewSigner(keys.Key, keys.Cert)
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
 	// configure a server which allows any client to connect

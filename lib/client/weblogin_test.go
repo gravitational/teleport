@@ -24,6 +24,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +38,7 @@ func TestHostCredentialsFallback(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(auth.PackedKeys{})
+		json.NewEncoder(w).Encode(proto.Certs{})
 	})
 	httpSvr := httptest.NewServer(handler)
 	defer httpSvr.Close()

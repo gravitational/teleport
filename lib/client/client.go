@@ -19,6 +19,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"io"
@@ -689,12 +690,59 @@ func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context, quiet bool) 
 	return proxy.ConnectToCluster(ctx, clusterName, quiet)
 }
 
+func (proxy *ProxyClient) loadTLS() (*tls.Config, error) {
+	if proxy.teleportClient.SkipLocalAuth {
+		return proxy.teleportClient.TLS.Clone(), nil
+	}
+	tlsKey, err := proxy.localAgent().GetCoreKey()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
+	}
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate client TLS config")
+	}
+	return tlsConfig.Clone(), nil
+}
+
+// ConnectToAuthServiceThroughALPNSNIProxy uses ALPN proxy service to connect to remove/local auth
+// service and returns auth client. For routing purposes, TLS ServerName is set to destination auth service
+// cluster name with ALPN values set to teleport-auth protocol.
+func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Context, clusterName string) (auth.ClientI, error) {
+	tlsConfig, err := proxy.loadTLS()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
+	clt, err := auth.NewClient(client.Config{
+		Addrs: []string{proxy.teleportClient.WebProxyAddr},
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+		ALPNSNIAuthDialClusterName: clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clt, nil
+}
+
 // ConnectToCluster connects to the auth server of the given cluster via proxy.
 // It returns connected and authenticated auth server client
 //
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
+	// If proxy supports ALPN SNI listener dial root/leaf cluster auth service via ALPN Proxy
+	// directly without using SSH tunnels.
+	if proxy.teleportClient.ALPNSNIListenerEnabled {
+		clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	}
+
 	dialer := client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return proxy.dialAuthServer(ctx, clusterName)
 	})

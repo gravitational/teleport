@@ -45,6 +45,10 @@ type Key struct {
 	KeyHandle  []byte
 	PrivateKey *ecdsa.PrivateKey
 
+	// PreferRPID instructs the Key to use favor using the RPID for Webauthn
+	// ceremonies, even if the U2F App ID extension is present.
+	PreferRPID bool
+
 	cert    []byte
 	counter uint32
 }
@@ -132,14 +136,31 @@ func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterRespons
 	}
 	clientDataHash := sha256.Sum256(clientDataJSON)
 
-	marshalledPublickey := elliptic.Marshal(elliptic.P256(), muk.PrivateKey.PublicKey.X, muk.PrivateKey.PublicKey.Y)
+	res, err := muk.signRegister(appIDHash[:], clientDataHash[:])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &u2f.RegisterResponse{
+		RegistrationData: encodeBase64(res.RawResp),
+		ClientData:       encodeBase64(clientDataJSON),
+	}, nil
+}
+
+type signRegisterResult struct {
+	RawResp   []byte
+	Signature []byte
+}
+
+func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterResult, error) {
+	pubKey := elliptic.Marshal(elliptic.P256(), muk.PrivateKey.PublicKey.X, muk.PrivateKey.PublicKey.Y)
 
 	var dataToSign []byte
 	dataToSign = append(dataToSign[:], 0)
 	dataToSign = append(dataToSign[:], appIDHash[:]...)
 	dataToSign = append(dataToSign[:], clientDataHash[:]...)
 	dataToSign = append(dataToSign[:], muk.KeyHandle[:]...)
-	dataToSign = append(dataToSign[:], marshalledPublickey[:]...)
+	dataToSign = append(dataToSign[:], pubKey[:]...)
 
 	dataHash := sha256.Sum256(dataToSign)
 
@@ -151,15 +172,15 @@ func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterRespons
 
 	var regData []byte
 	regData = append(regData, 5) // fixed by specification
-	regData = append(regData, marshalledPublickey[:]...)
+	regData = append(regData, pubKey[:]...)
 	regData = append(regData, byte(len(muk.KeyHandle)))
 	regData = append(regData, muk.KeyHandle[:]...)
 	regData = append(regData, muk.cert[:]...)
 	regData = append(regData, sig[:]...)
 
-	return &u2f.RegisterResponse{
-		RegistrationData: encodeBase64(regData),
-		ClientData:       encodeBase64(clientDataJSON),
+	return &signRegisterResult{
+		RawResp:   regData,
+		Signature: sig,
 	}, nil
 }
 
@@ -172,10 +193,6 @@ func (muk *Key) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, error) {
 		return nil, trace.CompareFailed("wrong keyHandle")
 	}
 	appIDHash := sha256.Sum256([]byte(req.AppID))
-
-	counterBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(counterBytes, muk.counter)
-	muk.counter++
 
 	clientData := u2f.ClientData{
 		Typ:       "navigator.id.getAssertion",
@@ -243,6 +260,10 @@ func (muk *Key) signAuthn(appIDHash, clientDataHash []byte) (*signAuthnResult, e
 		SignData: signData,
 		AuthData: authData,
 	}, nil
+}
+
+func (muk *Key) Counter() uint32 {
+	return muk.counter
 }
 
 func (muk *Key) SetCounter(counter uint32) {

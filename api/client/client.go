@@ -20,6 +20,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -106,7 +107,7 @@ func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client 
 	return &Client{
 		c:          cfg,
 		dialer:     dialer,
-		tlsConfig:  tlsConfig,
+		tlsConfig:  ConfigureALPN(tlsConfig, cfg.ALPNSNIAuthDialClusterName),
 		closedFlag: new(int32),
 	}
 }
@@ -358,6 +359,21 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	return nil
 }
 
+// ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
+// allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
+func ConfigureALPN(tlsConfig *tls.Config, clusterName string) *tls.Config {
+	if tlsConfig == nil {
+		return nil
+	}
+	if clusterName == "" {
+		return tlsConfig
+	}
+	out := tlsConfig.Clone()
+	routeInfo := fmt.Sprintf("%s%s", constants.ALPNSNIAuthProtocol, utils.EncodeClusterName(clusterName))
+	out.NextProtos = append([]string{routeInfo}, out.NextProtos...)
+	return out
+}
+
 // grpcDialer wraps the client's dialer with a grpcDialer.
 func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, error) {
 	return func(ctx context.Context, addr string) (net.Conn, error) {
@@ -420,6 +436,9 @@ type Config struct {
 	// requires this field to be set. If the web proxy was provided with
 	// signed TLS certificates, this field should not be set.
 	InsecureAddressDiscovery bool
+	// ALPNSNIAuthDialClusterName if present the client will include ALPN SNI routing information in TLS Hello message
+	// allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
+	ALPNSNIAuthDialClusterName string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -582,6 +601,18 @@ func (c *Client) DeleteUser(ctx context.Context, user string) error {
 // returns the resulting certificates.
 func (c *Client) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
 	certs, err := c.grpc.GenerateUserCerts(ctx, &req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return certs, nil
+}
+
+// GenerateHostCerts generates host certificates.
+func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, err := c.grpc.GenerateHostCerts(ctx, req, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1149,6 +1180,12 @@ func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteM
 		return nil, trail.FromGRPC(err)
 	}
 	return stream, nil
+}
+
+// DeleteMFADeviceSync deletes a users MFA device (nonstream).
+func (c *Client) DeleteMFADeviceSync(ctx context.Context, in *proto.DeleteMFADeviceSyncRequest) error {
+	_, err := c.grpc.DeleteMFADeviceSync(ctx, in, c.callOpts...)
+	return trail.FromGRPC(err)
 }
 
 func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
@@ -2048,4 +2085,10 @@ func (c *Client) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 func (c *Client) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error) {
 	res, err := c.grpc.GetAccountRecoveryToken(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
+}
+
+// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
+func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	resp, err := c.grpc.CreateAuthenticateChallenge(ctx, in, c.callOpts...)
+	return resp, trail.FromGRPC(err)
 }
