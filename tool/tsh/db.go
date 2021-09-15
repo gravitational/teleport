@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -25,9 +26,11 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -75,26 +78,13 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var databases []types.Database
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		allDatabases, err := tc.ListDatabases(cf.Context)
-		for _, database := range allDatabases {
-			if database.GetName() == cf.DatabaseService {
-				databases = append(databases, database)
-			}
-		}
-		return trace.Wrap(err)
-	})
+	database, err := getDatabaseResourceByName(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(databases) == 0 {
-		return trace.NotFound(
-			"database %q not found, use 'tsh db ls' to see registered databases", cf.DatabaseService)
-	}
 	err = databaseLogin(cf, tc, tlsca.RouteToDatabase{
 		ServiceName: cf.DatabaseService,
-		Protocol:    databases[0].GetProtocol(),
+		Protocol:    database.GetProtocol(),
 		Username:    cf.DatabaseUser,
 		Database:    cf.DatabaseName,
 	}, false)
@@ -116,19 +106,27 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: tc.SiteName,
-		RouteToDatabase: proto.RouteToDatabase{
-			ServiceName: db.ServiceName,
-			Protocol:    db.Protocol,
-			Username:    db.Username,
-			Database:    db.Database,
-		},
-		AccessRequests: profile.ActiveRequests.AccessRequests,
-	})
-	if err != nil {
+
+	var key *client.Key
+	if err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+			RouteToCluster: tc.SiteName,
+			RouteToDatabase: proto.RouteToDatabase{
+				ServiceName: db.ServiceName,
+				Protocol:    db.Protocol,
+				Username:    db.Username,
+				Database:    db.Database,
+			},
+			AccessRequests: profile.ActiveRequests.AccessRequests,
+		})
+		return err
+	}); err != nil {
 		return trace.Wrap(err)
 	}
+	if _, err = tc.LocalAgent().AddKey(key); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Refresh the profile.
 	profile, err = client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
@@ -156,7 +154,35 @@ func fetchDatabaseCreds(cf *CLIConf, tc *client.TeleportClient) error {
 	if trace.IsNotFound(err) {
 		return nil // No currently logged in profiles.
 	}
+	proxy, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer cluster.Close()
+
 	for _, db := range profile.Databases {
+		mfaResp, err := cluster.IsMFARequired(cf.Context, &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Database{
+				Database: &proto.RouteToDatabase{
+					ServiceName: db.ServiceName,
+					Protocol:    db.Protocol,
+					Username:    cf.Username,
+					Database:    db.Database,
+				},
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if mfaResp.GetRequired() {
+			// Skip DB if databaseLogin command will require MFA.
+			// to prevent MFA prompt during tsh db ls command where DB certs are refreshed.
+			continue
+		}
 		if err := databaseLogin(cf, tc, db, true); err != nil {
 			log.WithError(err).Errorf("Failed to fetch database access certificate for %s.", db)
 			if err := databaseLogout(tc, db); err != nil {
@@ -321,8 +347,12 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	database, err := pickActiveDatabase(cf)
+	database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Check is cert is still valid or DB connection requires MFA. If yes trigger db login logic.
+	if err := databaseLoginOnMFAOrExpiredCert(cf, tc, database, profile); err != nil {
 		return trace.Wrap(err)
 	}
 	var opts []ConnectCommandFunc
@@ -346,6 +376,113 @@ func onDatabaseConnect(cf *CLIConf) error {
 	cmd.Stdin = os.Stdin
 	err = cmd.Run()
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// getDatabaseInfo fetches information about the database from tsh profile is DB is active in profile. Otherwise,
+// the ListDatabases endpoint is called.
+func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tlsca.RouteToDatabase, error) {
+	database, err := pickActiveDatabase(cf)
+	if err == nil {
+		return database, nil
+	}
+	if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	db, err := getDatabaseResourceByName(cf, tc, dbName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &tlsca.RouteToDatabase{
+		ServiceName: db.GetName(),
+		Protocol:    db.GetProtocol(),
+		Username:    cf.Username,
+		Database:    cf.DatabaseName,
+	}, nil
+}
+
+func getDatabaseResourceByName(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.Database, error) {
+	var databases []types.Database
+	err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		allDatabases, err := tc.ListDatabases(cf.Context)
+		for _, database := range allDatabases {
+			if database.GetName() == dbName {
+				databases = append(databases, database)
+			}
+		}
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(databases) == 0 {
+		return nil, trace.NotFound(
+			"database %q not found, use 'tsh db ls' to see registered databases", dbName)
+	}
+	return databases[0], nil
+}
+
+func dbCertExpiredOrMFAIsRequired(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
+	// Load DB cert and check if cert is still valid. Missing cert is treated as expired cert.
+	certExpired, err := isExpiredCert(profile.DatabaseCertPath(database.ServiceName))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return true, nil
+		}
+		return false, trace.Wrap(err)
+	}
+	if certExpired {
+		return true, nil
+	}
+	// Call API and check is a user needs to use MFA to connect to the database.
+	mfaRequired, err := isMFADatabaseAccessRequired(cf, tc, database)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return mfaRequired, nil
+}
+
+// isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
+// requires MFA.
+func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase) (bool, error) {
+	proxy, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName, true)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer cluster.Close()
+
+	dbParam := proto.RouteToDatabase{
+		ServiceName: database.ServiceName,
+		Protocol:    database.Protocol,
+		Username:    cf.Username,
+		Database:    database.Database,
+	}
+	mfaResp, err := cluster.IsMFARequired(cf.Context, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Database{
+			Database: &dbParam,
+		},
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return mfaResp.GetRequired(), nil
+}
+
+func databaseLoginOnMFAOrExpiredCert(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) error {
+	relogin, err := dbCertExpiredOrMFAIsRequired(cf, tc, database, profile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !relogin {
+		return nil
+	}
+	if err := databaseLogin(cf, tc, *database, true); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -456,6 +593,23 @@ func getMongoCommand(host string, port int, certPath, name string) *exec.Cmd {
 		args = append(args, name)
 	}
 	return exec.Command(mongoBin, args...)
+}
+
+func isExpiredCert(certPath string) (bool, error) {
+	pemByte, err := ioutil.ReadFile(certPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return true, trace.NotFound(err.Error())
+		}
+		return false, trace.Wrap(err)
+	}
+	cert, err := tlsutils.ParseCertificatePEM(pemByte)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// If cert expiration time is less than 1s thread cert as expired.
+	return time.Until(cert.NotAfter) < time.Second, nil
 }
 
 const (

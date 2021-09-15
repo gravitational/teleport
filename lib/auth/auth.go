@@ -39,6 +39,13 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	saml2 "github.com/russellhaering/gosaml2"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -63,12 +70,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	saml2 "github.com/russellhaering/gosaml2"
-	"golang.org/x/crypto/ssh"
 )
 
 // ServerOption allows setting options as functional arguments to Server
@@ -2731,7 +2732,11 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if db == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
-		noMFAAccessErr = checker.CheckAccessToDatabase(db, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
+		noMFAAccessErr = checker.CheckAccessToDatabase(db,
+			services.AccessMFAParams{AlwaysRequired: false, Verified: false},
+			&services.DatabaseLabelsMatcher{Labels: db.GetAllLabels()},
+			&services.DatabaseUserMatcher{User: t.Database.Username},
+		)
 
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)
