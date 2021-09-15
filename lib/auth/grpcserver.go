@@ -1758,6 +1758,9 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Keep Webauthn session data in memory, we can afford that for the streaming
+	// RPCs.
+	webIdentity := wanlib.WithInMemorySessionData(auth.Identity)
 
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
@@ -1810,10 +1813,9 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			return nil, trace.Wrap(err)
 		}
 
-		// TODO(codingllama): Use in-memory session data storage?
 		webRegistration := &wanlib.RegistrationFlow{
 			Webauthn: webConfig,
-			Identity: auth.Identity,
+			Identity: webIdentity,
 		}
 		credentialCreation, err := webRegistration.Begin(ctx, user)
 		if err != nil {
@@ -1843,10 +1845,11 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 
 	// Validate MFARegisterResponse and upsert the new device on success.
 	dev, err := auth.verifyMFARespAndAddDevice(ctx, regResp, &newMFADeviceFields{
-		username:      user,
-		newDeviceName: initReq.DeviceName,
-		totpSecret:    regChallenge.GetTOTP().GetSecret(),
-		u2fStorage:    u2fStorage,
+		username:            user,
+		newDeviceName:       initReq.DeviceName,
+		totpSecret:          regChallenge.GetTOTP().GetSecret(),
+		u2fStorage:          u2fStorage,
+		webIdentityOverride: webIdentity,
 	})
 
 	return dev, trace.Wrap(err)

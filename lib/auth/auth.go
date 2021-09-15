@@ -1319,6 +1319,11 @@ type newMFADeviceFields struct {
 	// u2fStorage is the storage used to hold the u2f challenge.
 	// Field can be empty to use default services.Identity storage.
 	u2fStorage u2f.RegistrationStorage
+
+	// webIdentityOverride is an optional RegistrationIdentity override to be used
+	// for device registration.
+	// Defaults to the Server's IdentityService.
+	webIdentityOverride wanlib.RegistrationIdentity
 }
 
 // verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
@@ -1466,9 +1471,13 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	identity := req.webIdentityOverride // Override Identity, if supplied.
+	if identity == nil {
+		identity = a.Identity
+	}
 	webRegistration := &wanlib.RegistrationFlow{
 		Webauthn: webConfig,
-		Identity: a.Identity,
+		Identity: identity,
 	}
 	// Finish upserts the device on success.
 	dev, err := webRegistration.Finish(
