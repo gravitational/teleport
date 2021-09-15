@@ -667,16 +667,34 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 		return trace.Wrap(err)
 	}
 
-	// Check device Name for uniqueness.
 	devs, err := s.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, dd := range devs {
-		// Same ID and Name is OK - it means update existing resource.
-		// Different Id and same Name is not OK - it means a duplicate device.
-		if d.Metadata.Name == dd.Metadata.Name && d.Id != dd.Id {
-			return trace.AlreadyExists("MFA device with name %q already exists", dd.Metadata.Name)
+		switch {
+		case d.Metadata.Name == dd.Metadata.Name && d.Id == dd.Id:
+			// OK. Same Name and ID means we are doing an update.
+			continue
+		case d.Metadata.Name == dd.Metadata.Name && d.Id != dd.Id:
+			// NOK. Same Name but different ID means it's a duplicate device.
+			return trace.AlreadyExists("MFA device with name %q already exists", d.Metadata.Name)
+		}
+
+		// Disallow duplicate credential IDs if the new device is Webauthn.
+		if d.GetWebauthn() == nil {
+			continue
+		}
+		id1, ok := getCredentialID(d)
+		if !ok {
+			continue
+		}
+		id2, ok := getCredentialID(dd)
+		if !ok {
+			continue
+		}
+		if bytes.Equal(id1, id2) {
+			return trace.AlreadyExists("credential ID already in use by device %q", dd.Metadata.Name)
 		}
 	}
 
@@ -693,6 +711,16 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func getCredentialID(d *types.MFADevice) ([]byte, bool) {
+	switch d := d.Device.(type) {
+	case *types.MFADevice_U2F:
+		return d.U2F.KeyHandle, true
+	case *types.MFADevice_Webauthn:
+		return d.Webauthn.CredentialId, true
+	}
+	return nil, false
 }
 
 func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) error {
@@ -728,7 +756,9 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 			case *types.MFADevice_Totp:
 				mfad.Totp.Key = ""
 			case *types.MFADevice_U2F:
-				// Do nothing, U2F does not contain any sensitive secrets.
+				// OK, no sensitive secrets.
+			case *types.MFADevice_Webauthn:
+				// OK, no sensitive secrets.
 			default:
 				return nil, trace.BadParameter("unsupported MFADevice type %T", d.Device)
 			}
