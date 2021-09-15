@@ -35,7 +35,7 @@ import (
 
 // TODO(codingllama): Consider moving existing login-related methods here.
 
-func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
+func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
@@ -48,7 +48,7 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 	tests := []struct {
 		name            string
 		spec            *types.AuthPreferenceSpecV2
-		assertChallenge func(*MFAAuthenticateChallenge)
+		assertChallenge func(*proto.MFAAuthenticateChallenge)
 	}{
 		{
 			name: "OK second_factor:off",
@@ -56,10 +56,10 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOff,
 			},
-			assertChallenge: func(challenge *MFAAuthenticateChallenge) {
-				require.False(t, challenge.TOTPChallenge)
-				require.Empty(t, challenge.U2FChallenges)
-				require.Empty(t, challenge.WebauthnChallenge)
+			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
+				require.Empty(t, challenge.GetTOTP())
+				require.Empty(t, challenge.GetU2F())
+				require.Empty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 		{
@@ -68,10 +68,10 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOTP,
 			},
-			assertChallenge: func(challenge *MFAAuthenticateChallenge) {
-				require.True(t, challenge.TOTPChallenge)
-				require.Empty(t, challenge.U2FChallenges)
-				require.Empty(t, challenge.WebauthnChallenge)
+			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
+				require.NotNil(t, challenge.GetTOTP())
+				require.Empty(t, challenge.GetU2F())
+				require.Empty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 		{
@@ -84,10 +84,10 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 					Facets: []string{"https://localhost"},
 				},
 			},
-			assertChallenge: func(challenge *MFAAuthenticateChallenge) {
-				require.False(t, challenge.TOTPChallenge)
-				require.NotEmpty(t, challenge.U2FChallenges)
-				require.Empty(t, challenge.WebauthnChallenge)
+			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
+				require.Empty(t, challenge.GetTOTP())
+				require.NotEmpty(t, challenge.GetU2F())
+				require.Empty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 		{
@@ -100,10 +100,10 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 					Facets: []string{"https://localhost"},
 				},
 			},
-			assertChallenge: func(challenge *MFAAuthenticateChallenge) {
-				require.False(t, challenge.TOTPChallenge)
-				require.Empty(t, challenge.U2FChallenges)
-				require.NotEmpty(t, challenge.WebauthnChallenge)
+			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
+				require.Empty(t, challenge.GetTOTP())
+				require.Empty(t, challenge.GetU2F())
+				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 		{
@@ -115,10 +115,10 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 					RPID: "localhost",
 				},
 			},
-			assertChallenge: func(challenge *MFAAuthenticateChallenge) {
-				require.False(t, challenge.TOTPChallenge)
-				require.Empty(t, challenge.U2FChallenges)
-				require.NotEmpty(t, challenge.WebauthnChallenge)
+			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
+				require.Empty(t, challenge.GetTOTP())
+				require.Empty(t, challenge.GetU2F())
+				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 		{
@@ -137,11 +137,11 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 					RPID: "myexplicitid",
 				},
 			},
-			assertChallenge: func(challenge *MFAAuthenticateChallenge) {
-				require.False(t, challenge.TOTPChallenge)
-				require.Empty(t, challenge.U2FChallenges)
-				require.NotEmpty(t, challenge.WebauthnChallenge)
-				require.Equal(t, "myexplicitid", challenge.WebauthnChallenge.Response.RelyingPartyID)
+			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
+				require.Empty(t, challenge.GetTOTP())
+				require.Empty(t, challenge.GetU2F())
+				require.NotEmpty(t, challenge.GetWebauthnChallenge())
+				require.Equal(t, "myexplicitid", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
 			},
 		},
 		{
@@ -154,10 +154,10 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 					Facets: []string{"https://localhost"},
 				},
 			},
-			assertChallenge: func(challenge *MFAAuthenticateChallenge) {
-				require.False(t, challenge.TOTPChallenge)
-				require.Empty(t, challenge.U2FChallenges)
-				require.NotEmpty(t, challenge.WebauthnChallenge)
+			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
+				require.Empty(t, challenge.GetTOTP())
+				require.Empty(t, challenge.GetU2F())
+				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 		{
@@ -170,10 +170,29 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 					Facets: []string{"https://localhost"},
 				},
 			},
-			assertChallenge: func(challenge *MFAAuthenticateChallenge) {
-				require.True(t, challenge.TOTPChallenge)
-				require.NotEmpty(t, challenge.U2FChallenges)
-				require.NotEmpty(t, challenge.WebauthnChallenge)
+			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
+				require.NotNil(t, challenge.GetTOTP())
+				require.NotEmpty(t, challenge.GetU2F())
+				require.NotEmpty(t, challenge.GetWebauthnChallenge())
+			},
+		},
+		{
+			name: "OK second_factor:optional with global Webauthn disable",
+			spec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				U2F: &types.U2F{
+					AppID:  "https://localhost",
+					Facets: []string{"https://localhost"},
+				},
+				Webauthn: &types.Webauthn{
+					Disabled: true,
+				},
+			},
+			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
+				require.NotNil(t, challenge.GetTOTP())
+				require.NotEmpty(t, challenge.GetU2F())
+				require.Empty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 		{
@@ -186,10 +205,10 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 					Facets: []string{"https://localhost"},
 				},
 			},
-			assertChallenge: func(challenge *MFAAuthenticateChallenge) {
-				require.True(t, challenge.TOTPChallenge)
-				require.NotEmpty(t, challenge.U2FChallenges)
-				require.NotEmpty(t, challenge.WebauthnChallenge)
+			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
+				require.NotNil(t, challenge.GetTOTP())
+				require.NotEmpty(t, challenge.GetU2F())
+				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 	}
@@ -199,7 +218,12 @@ func TestServer_GetMFAAuthenticateChallenge_authPreference(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, authServer.SetAuthPreference(ctx, authPreference))
 
-			challenge, err := authServer.GetMFAAuthenticateChallenge(username, []byte(password))
+			challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+					Username: username,
+					Password: []byte(password),
+				}},
+			})
 			require.NoError(t, err)
 			test.assertChallenge(challenge)
 		})
@@ -227,8 +251,8 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 	fakeClock, ok := svr.Clock().(clockwork.FakeClock)
 	require.True(t, ok, "Expected clock to be a FakeClock instance")
 
-	solveOTP := func(secret string, clock clockwork.FakeClock) func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
-		return func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
+	solveOTP := func(secret string, clock clockwork.FakeClock) func(challenge *proto.MFAAuthenticateChallenge) (interface{}, error) {
+		return func(challenge *proto.MFAAuthenticateChallenge) (interface{}, error) {
 			clock.Advance(1 * time.Minute)
 			code, err := totp.GenerateCode(secret, clock.Now())
 			if err != nil {
@@ -237,10 +261,10 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 			return &OTPCreds{Password: []byte(password), Token: code}, nil
 		}
 	}
-	solveU2F := func(dev *mocku2f.Key) func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
-		return func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
+	solveU2F := func(dev *mocku2f.Key) func(challenge *proto.MFAAuthenticateChallenge) (interface{}, error) {
+		return func(challenge *proto.MFAAuthenticateChallenge) (interface{}, error) {
 			kh := base64.RawURLEncoding.EncodeToString(dev.KeyHandle)
-			for _, c := range challenge.U2FChallenges {
+			for _, c := range challenge.GetU2F() {
 				if c.KeyHandle == kh {
 					return dev.SignResponse(&u2f.SignRequest{
 						Version:   c.Version,
@@ -253,15 +277,15 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 			return nil, trace.BadParameter("key handle not found on challenges")
 		}
 	}
-	solveWebauthn := func(dev *mocku2f.Key) func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
-		return func(challenge *MFAAuthenticateChallenge) (interface{}, error) {
-			return dev.SignAssertion("https://localhost" /* origin */, challenge.WebauthnChallenge)
+	solveWebauthn := func(dev *mocku2f.Key) func(challenge *proto.MFAAuthenticateChallenge) (interface{}, error) {
+		return func(challenge *proto.MFAAuthenticateChallenge) (interface{}, error) {
+			return dev.SignAssertion("https://localhost" /* origin */, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 		}
 	}
 
 	tests := []struct {
 		name           string
-		solveChallenge func(*MFAAuthenticateChallenge) (interface{}, error)
+		solveChallenge func(*proto.MFAAuthenticateChallenge) (interface{}, error)
 	}{
 		{name: "OK TOTP device", solveChallenge: solveOTP(mfa.OTPKey, fakeClock)},
 		{name: "OK U2F device1", solveChallenge: solveU2F(mfa.Device1)},
@@ -276,7 +300,12 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
 			return func(t *testing.T) {
 				// 1st step: acquire challenge
-				challenge, err := authServer.GetMFAAuthenticateChallenge(username, []byte(password))
+				challenge, err := authServer.CreateAuthenticateChallenge(context.Background(), &proto.CreateAuthenticateChallengeRequest{
+					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+						Username: username,
+						Password: []byte(password),
+					}},
+				})
 				require.NoError(t, err)
 
 				// Solve challenge (client-side)
@@ -312,6 +341,157 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 			_, err := s.AuthenticateWebUser(req)
 			return err
 		}))
+	}
+}
+
+func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	clt, err := srv.NewClient(TestUser(u.username))
+	require.NoError(t, err)
+
+	res, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
+	require.NoError(t, err)
+	require.NotNil(t, res.GetTOTP())
+	require.NotEmpty(t, res.GetU2F())
+
+	// Test u2f authn works.
+	u2fRes, err := u.u2fKey.SignResponse(&u2f.SignRequest{
+		Version:   res.GetU2F()[0].Version,
+		Challenge: res.GetU2F()[0].Challenge,
+		KeyHandle: res.GetU2F()[0].KeyHandle,
+		AppID:     res.GetU2F()[0].AppID,
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().checkU2F(ctx, u.username, *u2fRes, srv.Auth().Identity)
+	require.NoError(t, err)
+}
+
+func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		wantErr  bool
+		userCred *proto.UserCredentials
+	}{
+		{
+			name:    "invalid password",
+			wantErr: true,
+			userCred: &proto.UserCredentials{
+				Username: u.username,
+				Password: []byte("invalid-password"),
+			},
+		},
+		{
+			name:    "invalid username",
+			wantErr: true,
+			userCred: &proto.UserCredentials{
+				Username: "invalid-username",
+				Password: u.password,
+			},
+		},
+		{
+			name: "valid credentials",
+			userCred: &proto.UserCredentials{
+				Username: u.username,
+				Password: u.password,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			res, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: tc.userCred},
+			})
+
+			switch {
+			case tc.wantErr:
+				require.True(t, trace.IsAccessDenied(err))
+			default:
+				require.NoError(t, err)
+				require.NotNil(t, res.GetTOTP())
+				require.NotEmpty(t, res.GetU2F())
+			}
+		})
+	}
+}
+
+func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		wantErr    bool
+		getRequest func() *proto.CreateAuthenticateChallengeRequest
+	}{
+		{
+			name:    "invalid token type",
+			wantErr: true,
+			getRequest: func() *proto.CreateAuthenticateChallengeRequest {
+				wrongToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+				require.NoError(t, err)
+
+				return &proto.CreateAuthenticateChallengeRequest{
+					Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{RecoveryStartTokenID: wrongToken.GetName()},
+				}
+			},
+		},
+		{
+			name:    "token not found",
+			wantErr: true,
+			getRequest: func() *proto.CreateAuthenticateChallengeRequest {
+				return &proto.CreateAuthenticateChallengeRequest{
+					Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{RecoveryStartTokenID: "token-not-found"},
+				}
+			},
+		},
+		{
+			name: "valid token",
+			getRequest: func() *proto.CreateAuthenticateChallengeRequest {
+				startToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+				require.NoError(t, err)
+
+				return &proto.CreateAuthenticateChallengeRequest{
+					Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{RecoveryStartTokenID: startToken.GetName()},
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			res, err := srv.Auth().CreateAuthenticateChallenge(ctx, tc.getRequest())
+
+			switch {
+			case tc.wantErr:
+				require.True(t, trace.IsAccessDenied(err))
+			default:
+				require.NoError(t, err)
+				require.NotNil(t, res.GetTOTP())
+				require.NotEmpty(t, res.GetU2F())
+			}
+		})
 	}
 }
 

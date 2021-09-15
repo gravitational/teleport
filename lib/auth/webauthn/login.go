@@ -21,13 +21,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	wan "github.com/duo-labs/webauthn/webauthn"
@@ -99,6 +96,13 @@ type LoginFlow struct {
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
 func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertion, error) {
+	switch {
+	case f.Webauthn.Disabled:
+		return nil, trace.BadParameter("webauthn disabled")
+	case user == "":
+		return nil, trace.BadParameter("user required")
+	}
+
 	// Fetch existing user devices. We need the devices both to set the allowed
 	// credentials for the user (webUser.credentials) and to determine if the U2F
 	// appid extension is necessary.
@@ -148,6 +152,17 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertio
 // Finish has the side effect of updating the counter and last used timestamp of
 // the returned device.
 func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAssertionResponse) (*types.MFADevice, error) {
+	switch {
+	case f.Webauthn.Disabled:
+		return nil, trace.BadParameter("webauthn disabled")
+	case user == "":
+		return nil, trace.BadParameter("user required")
+	case resp == nil:
+		// resp != nil is good enough to proceed, we leave remaining validations to
+		// duo-labs/webauthn.
+		return nil, trace.BadParameter("credential assertion response required")
+	}
+
 	parsedResp, err := parseCredentialResponse(resp)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -160,7 +175,7 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	// TODO(codingllama): Consider ignoring appid and basing the decision solely
 	//  in the device type. May be safer than assuming compliance?
 	// Do not read from parsedResp here, extensions don't carry over.
-	switch usingAppID := resp.Extensions.AppID; {
+	switch usingAppID := resp.Extensions != nil && resp.Extensions.AppID; {
 	case usingAppID && (f.U2F == nil || f.U2F.AppID == ""):
 		return nil, trace.BadParameter("appid extension provided but U2F app_id not configured")
 	case usingAppID:
@@ -213,6 +228,10 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if credential.Authenticator.CloneWarning {
+		log.Warnf(
+			"WebAuthn: Clone warning detected for user %q / device %q. Device counter may be malfunctioning.", user, dev.GetName())
+	}
 
 	// Update last used timestamp and device counter.
 	if err := setCounterAndTimestamps(dev, credential); err != nil {
@@ -225,7 +244,7 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	// The user just solved this challenge, so let's make sure it won't be used
 	// again.
 	if err := f.Identity.DeleteWebauthnSessionData(ctx, user, loginSessionID); err != nil {
-		log.Warnf("WebAuthn: failed to delete SessionData for user %v", user)
+		log.Warnf("WebAuthn: failed to delete login SessionData for user %v", user)
 	}
 
 	return dev, nil
@@ -248,46 +267,15 @@ func parseCredentialResponse(resp *CredentialAssertionResponse) (*protocol.Parse
 	return protocol.ParseCredentialRequestResponseBody(bytes.NewReader(body))
 }
 
-func validateOrigin(origin, rpID string) error {
-	parsedOrigin, err := url.Parse(origin)
-	if err != nil {
-		return trace.BadParameter("origin is not a valid URL: %v", err)
-	}
-	host, err := utils.Host(parsedOrigin.Host)
-	if err != nil {
-		return trace.BadParameter("extracting host from origin: %v", err)
-	}
-
-	// TODO(codingllama): Check origin against the public addresses of Proxies and
-	//  Auth Servers
-
-	// Accept origins whose host matches the RPID.
-	if host == rpID {
-		return nil
-	}
-
-	// Accept origins whose host is a subdomain of RPID.
-	originParts := strings.Split(host, ".")
-	rpParts := strings.Split(rpID, ".")
-	if len(originParts) <= len(rpParts) {
-		return trace.BadParameter("origin doesn't match RPID")
-	}
-	i := len(originParts) - 1
-	j := len(rpParts) - 1
-	for j >= 0 {
-		if originParts[i] != rpParts[j] {
-			return trace.BadParameter("origin doesn't match RPID")
-		}
-		i--
-		j--
-	}
-	return nil
-}
-
 func findDeviceByID(devices []*types.MFADevice, id []byte) (*types.MFADevice, bool) {
 	for _, dev := range devices {
-		if innerDev, ok := dev.Device.(*types.MFADevice_U2F); ok {
-			if bytes.Equal(innerDev.U2F.KeyHandle, id) {
+		switch d := dev.Device.(type) {
+		case *types.MFADevice_U2F:
+			if bytes.Equal(d.U2F.KeyHandle, id) {
+				return dev, true
+			}
+		case *types.MFADevice_Webauthn:
+			if bytes.Equal(d.Webauthn.CredentialId, id) {
 				return dev, true
 			}
 		}
@@ -296,12 +284,14 @@ func findDeviceByID(devices []*types.MFADevice, id []byte) (*types.MFADevice, bo
 }
 
 func setCounterAndTimestamps(dev *types.MFADevice, credential *wan.Credential) error {
-	u2f := dev.GetU2F()
-	if u2f == nil {
-		return trace.BadParameter("webauthn only implemented for U2F devices, got %T", dev.Device)
+	switch d := dev.Device.(type) {
+	case *types.MFADevice_U2F:
+		d.U2F.Counter = credential.Authenticator.SignCount
+	case *types.MFADevice_Webauthn:
+		d.Webauthn.SignatureCounter = credential.Authenticator.SignCount
+	default:
+		return trace.BadParameter("unexpected device type for webauthn: %T", d)
 	}
-
 	dev.LastUsed = time.Now()
-	u2f.Counter = credential.Authenticator.SignCount
 	return nil
 }

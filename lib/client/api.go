@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -321,6 +322,10 @@ type Config struct {
 
 	// HomePath is where tsh stores profiles
 	HomePath string
+
+	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on single TLS listener (Proxy Web Listener).
+	ALPNSNIListenerEnabled bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -769,6 +774,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.SSHProxyAddr = cp.SSHProxyAddr
 	c.PostgresProxyAddr = cp.PostgresProxyAddr
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
+	c.ALPNSNIListenerEnabled = cp.ALPNSNIListenerEnabled
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -801,6 +807,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.MySQLProxyAddr = c.MySQLProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
+	cp.ALPNSNIListenerEnabled = c.ALPNSNIListenerEnabled
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
@@ -1797,7 +1804,7 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error)
 }
 
 // ListAppServers returns a list of application servers.
-func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, error) {
+func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.AppServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1805,6 +1812,19 @@ func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, e
 	defer proxyClient.Close()
 
 	return proxyClient.GetAppServers(ctx, tc.Namespace)
+}
+
+// ListApps returns all registered applications.
+func (tc *TeleportClient) ListApps(ctx context.Context) ([]types.Application, error) {
+	servers, err := tc.ListAppServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var apps []types.Application
+	for _, server := range servers {
+		apps = append(apps, server.GetApp())
+	}
+	return types.DeduplicateApps(apps), nil
 }
 
 // CreateAppSession creates a new application access session.
@@ -1933,6 +1953,13 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 		return trace.Wrap(err)
 	}
 	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
+		switch e := trace.Unwrap(err).(type) {
+		case *ssh.ExitError:
+			tc.ExitStatus = e.ExitStatus()
+		case *ssh.ExitMissingError:
+			tc.ExitStatus = 1
+		}
+
 		return trace.Wrap(err)
 	}
 	if nodeSession.ExitMsg == "" {
@@ -2060,10 +2087,9 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}
 	log.Infof("Connecting proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 
-	sshClient, err := ssh.Dial("tcp", sshProxyAddr, sshConfig)
+	sshClient, err := makeProxySSHClient(tc.Config, sshConfig)
 	if err != nil {
-		log.WithError(err).Warnf("Failed to authenticate with proxy %v.", sshProxyAddr)
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
+		return nil, trace.Wrap(err)
 	}
 
 	log.Infof("Successful auth with proxy %v.", sshProxyAddr)
@@ -2078,6 +2104,33 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		siteName:        clusterName(),
 		clientAddr:      tc.ClientAddr,
 	}, nil
+}
+
+func makeProxySSHClientWithTLSWrapper(cfg Config, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, &tls.Config{
+		NextProtos:         []string{string(alpnproxy.ProtocolProxySSH)},
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to dial tls %v", cfg.WebProxyAddr)
+	}
+	c, chans, reqs, err := ssh.NewClientConn(tlsConn, cfg.WebProxyAddr, sshConfig)
+	if err != nil {
+		// tlsConn is closed inside ssh.NewClientConn function
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.WebProxyAddr)
+	}
+	return ssh.NewClient(c, chans, reqs), nil
+}
+
+func makeProxySSHClient(cfg Config, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	if cfg.ALPNSNIListenerEnabled {
+		return makeProxySSHClientWithTLSWrapper(cfg, sshConfig)
+	}
+	client, err := ssh.Dial("tcp", cfg.SSHProxyAddr, sshConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.SSHProxyAddr)
+	}
+	return client, nil
 }
 
 func (tc *TeleportClient) rootClusterName() (string, error) {
@@ -2502,7 +2555,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 			} else {
 				tc.KubeProxyAddr = proxySettings.Kube.ListenAddr
 			}
-		// If neither PublicAddr nor ListenAddr are passed, use the web
+		// If neither PublicAddr nor TunnelAddr are passed, use the web
 		// interface hostname with default k8s port as a guess.
 		default:
 			webProxyHost, _ := tc.WebProxyHostPort()
@@ -2589,6 +2642,8 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 		tc.MySQLProxyAddr = net.JoinHostPort(tc.WebProxyHost(), strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
 	}
 
+	tc.ALPNSNIListenerEnabled = proxySettings.ALPNSNIListenerEnabled
+
 	return nil
 }
 
@@ -2605,7 +2660,7 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case constants.SecondFactorU2F, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
 		response, err = tc.mfaLocalLogin(ctx, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2828,7 +2883,7 @@ func (tc *TeleportClient) AskOTP() (token string, err error) {
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
-	pwd, err = passwordFromConsole()
+	pwd, err = passwordFromConsoleFn()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
 		return "", trace.Wrap(err)
@@ -2876,6 +2931,10 @@ func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, erro
 		return "", trace.NotFound("timed out waiting for server response")
 	}
 }
+
+// passwordFromConsoleFn allows tests to replace the passwordFromConsole
+// function.
+var passwordFromConsoleFn = passwordFromConsole
 
 // passwordFromConsole reads from stdin without echoing typed characters to stdout
 func passwordFromConsole() (string, error) {

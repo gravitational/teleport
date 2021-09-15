@@ -174,8 +174,8 @@ type HostCertParams struct {
 	NodeName string
 	// ClusterName is the name of the cluster within which a node lives
 	ClusterName string
-	// Roles identifies the roles of a Teleport instance
-	Roles types.SystemRoles
+	// Role identifies the role of a Teleport instance
+	Role types.SystemRole
 	// TTL defines how long a certificate is valid for
 	TTL time.Duration
 }
@@ -193,7 +193,7 @@ func (c HostCertParams) Check() error {
 		return trace.BadParameter("ClusterName [%q] is required", c.ClusterName)
 	}
 
-	if err := c.Roles.Check(); err != nil {
+	if err := c.Role.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 
