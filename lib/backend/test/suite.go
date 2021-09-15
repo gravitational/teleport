@@ -484,7 +484,8 @@ func collectEvents(ctx context.Context, t *testing.T, watcher backend.Watcher, c
 		case <-watcher.Done():
 			require.FailNow(t, "Watcher has unexpectedly closed.")
 		case <-ctx.Done():
-			require.FailNowf(t, "Context expired waiting for event.", "Captured so far: %v", events)
+			require.FailNowf(t, "Context expired waiting for events.",
+				"Captured %d of %d so far: %v", len(events), count, events)
 		}
 	}
 	return events
