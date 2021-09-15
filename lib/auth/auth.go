@@ -1740,7 +1740,7 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 	// is this a static token?
 	for _, st := range tkns.GetStaticTokens() {
 		if subtle.ConstantTimeCompare([]byte(st.GetName()), []byte(token)) == 1 {
-			return trace.BadParameter("token %s is statically configured and cannot be removed", token)
+			return trace.BadParameter("token %s is statically configured and cannot be removed", backend.MaskKeyName(token))
 		}
 	}
 	// delete reset password token:
