@@ -39,9 +39,6 @@ export function DesktopSession(props: State) {
       ctx.drawImage(bitmap, left, top);
     });
 
-    // Connect to the websocket
-    tdpClient.connect();
-
     // If client parameters change or component will unmount, close the websocket.
     return () => {
       tdpClient.disconnect();
