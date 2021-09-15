@@ -202,8 +202,6 @@ const (
 	timestampDocProperty = "timestamp"
 	// idDocProperty references the record's internal ID
 	idDocProperty = "id"
-	// timeInBetweenIndexCreationStatusChecks
-	timeInBetweenIndexCreationStatusChecks = time.Second * 10
 )
 
 // GetName is a part of backend API and it returns Firestore backend type
@@ -718,8 +716,9 @@ func (b *Backend) getIndexParent() string {
 
 func (b *Backend) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	tuples := []*IndexTuple{{
-		FirstField:  keyDocProperty,
-		SecondField: expiresDocProperty,
+		FirstField:       keyDocProperty,
+		SecondField:      expiresDocProperty,
+		SecondFieldOrder: adminpb.Index_IndexField_ASCENDING,
 	}}
 	return EnsureIndexes(b.clientContext, adminSvc, tuples, b.getIndexParent())
 }
@@ -739,7 +738,8 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 		Order: adminpb.Index_IndexField_ASCENDING,
 	}
 
-	tuplesToIndexNames := make(map[*IndexTuple]string)
+	var tasks []*apiv1.CreateIndexOperation
+
 	// create the indexes
 	for _, tuple := range tuples {
 		secondFieldOrder := &adminpb.Index_IndexField_Order_{
@@ -768,36 +768,30 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 		}
 		// operation can be nil if error code is codes.AlreadyExists.
 		if operation != nil {
-			meta, err := operation.Metadata()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			tuplesToIndexNames[tuple] = meta.Index
+			tasks = append(tasks, operation)
 		}
 	}
 
-	// Instead of polling the Index state, we should wait for the Operation to
-	// finish. Also, there should ideally be a timeout on index creation.
-
-	// check for statuses and block
-	for len(tuplesToIndexNames) != 0 {
-		select {
-		case <-time.After(timeInBetweenIndexCreationStatusChecks):
-		case <-ctx.Done():
-			return trace.ConnectionProblem(ctx.Err(), "context timed out or canceled")
+	for i, operation := range tasks {
+		err := waitOnIndexCreation(ctx, l, operation, tuples[i])
+		if err != nil {
+			return trace.Wrap(err)
 		}
+	}
 
-		for tuple, name := range tuplesToIndexNames {
-			index, err := adminSvc.GetIndex(ctx, &adminpb.GetIndexRequest{Name: name})
-			if err != nil {
-				l.WithError(err).Warningf("Failed to fetch index %q.", name)
-				continue
-			}
-			l.Infof("Index for tuple %s-%s, %s, state is %s.", tuple.FirstField, tuple.SecondField, index.Name, index.State)
-			if index.State == adminpb.Index_READY {
-				delete(tuplesToIndexNames, tuple)
-			}
-		}
+	return nil
+}
+
+func waitOnIndexCreation(ctx context.Context, l *log.Entry, operation *apiv1.CreateIndexOperation, tuple *IndexTuple) error {
+	meta, err := operation.Metadata()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	l.Infof("Creating index for tuple %s-%s with name %s.", tuple.FirstField, tuple.SecondField, meta.Index)
+
+	_, err = operation.Wait(ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
