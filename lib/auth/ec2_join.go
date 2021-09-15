@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -32,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"go.mozilla.org/pkcs7"
 )
 
@@ -158,7 +160,15 @@ func parseAndVerifyIID(iidBytes []byte) (*imds.InstanceIdentityDocument, error) 
 	if err = p7.Verify(); err != nil {
 		return nil, trace.AccessDenied("invalid signature")
 	}
+
 	return &iid, nil
+}
+
+func checkPendingTime(iid *imds.InstanceIdentityDocument, clock clockwork.Clock) error {
+	if clock.Since(iid.PendingTime) > 5*time.Minute {
+		return trace.AccessDenied("Instance Identity Document with PendingTime %v is older than 5 minute TTL", iid.PendingTime)
+	}
+	return nil
 }
 
 // checkInstanceUnique makes sure this instance has not already joined the
@@ -223,6 +233,10 @@ func (a *Server) CheckEC2Request(ctx context.Context, req RegisterUsingTokenRequ
 
 	iid, err := parseAndVerifyIID(req.EC2IdentityDocument)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkPendingTime(iid, a.clock); err != nil {
 		return trace.Wrap(err)
 	}
 

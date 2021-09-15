@@ -11,15 +11,17 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	check "gopkg.in/check.v1"
 )
 
 type ec2Instance struct {
-	iid        []byte
-	account    string
-	region     string
-	instanceID string
+	iid         []byte
+	account     string
+	region      string
+	instanceID  string
+	pendingTime time.Time
 }
 
 var (
@@ -44,9 +46,10 @@ myy49TfZ9gdlpWQXzwSg3OPMDNToRoKw00/LQjSxcTCaPP4vMDEIjYMUqZ3i4uWYJJJ0Lb7fDMDk
 Anu7yHolVfbnvIAuZe8lGpc7ofCSBG5wulm+/pqzO25YPMH1cLEvOadE+3N2GxK6gRTLJoE98rsm
 LDp6OuU/b2QfaxU0ec6OogdtSJto/URI0/ygHmNAzBis470A29yh5nVwm6AkY4krjPsK7uiBIRhs
 lr5x0X6+ggQfF2BKAJ/BRcAHNgAAAAAAAA==`),
-		account:    "278576220453",
-		region:     "us-west-2",
-		instanceID: "i-078517ca8a70a1dde",
+		account:     "278576220453",
+		region:      "us-west-2",
+		instanceID:  "i-078517ca8a70a1dde",
+		pendingTime: time.Date(2021, time.September, 3, 21, 25, 44, 0, time.UTC),
 	}
 	instance2 = ec2Instance{
 		iid: []byte(`MIAGCSqGSIb3DQEHAqCAMIACAQExDzANBglghkgBZQMEAgEFADCABgkqhkiG9w0BBwGggCSABIIB
@@ -69,9 +72,10 @@ PJVHlhGnLyybr5ZVqkxiC09GASNnPe12dzCKkKD2rvW6mGR91cxpM94Xqi5UA/ZRqiXwpHo3LECN
 Gu38Hpdv6sBgD/av2Ohd+vEH2zvYVkp7ZfnFuDLWRSBQZgmKwVKVdOjrMmP32vb3vzhMBuOj+jbQ
 RwEmYIkRaEGNbrZgatjMJYmTWuLG26zws3avOK6kL6u38DV3wJPVB/G0Ira5MvC/ojGya+DrVngW
 VUP+3jgenPrd7OyCWPSwOoOBMhSlAAAAAAAA`),
-		account:    "883474662888",
-		region:     "us-west-1",
-		instanceID: "i-01b940c45fd11fe74",
+		account:     "883474662888",
+		region:      "us-west-1",
+		instanceID:  "i-01b940c45fd11fe74",
+		pendingTime: time.Date(2021, time.September, 11, 0, 14, 18, 0, time.UTC),
 	}
 )
 
@@ -141,6 +145,7 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 		ec2Client  ec2Client
 		request    RegisterUsingTokenRequest
 		expected   check.Checker
+		clock      clockwork.Clock
 	}{
 		{
 			desc: "basic passing case",
@@ -159,6 +164,7 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				EC2IdentityDocument: instance1.iid,
 			},
 			expected: check.IsNil,
+			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "pass with multiple rules",
@@ -181,6 +187,7 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				EC2IdentityDocument: instance1.iid,
 			},
 			expected: check.IsNil,
+			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "wrong account",
@@ -199,6 +206,7 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				EC2IdentityDocument: instance1.iid,
 			},
 			expected: check.NotNil,
+			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "wrong region",
@@ -217,6 +225,7 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				EC2IdentityDocument: instance1.iid,
 			},
 			expected: check.NotNil,
+			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "bad HostID",
@@ -235,6 +244,7 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				EC2IdentityDocument: instance1.iid,
 			},
 			expected: check.NotNil,
+			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "bad identity document",
@@ -253,6 +263,7 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				EC2IdentityDocument: []byte("bad document"),
 			},
 			expected: check.NotNil,
+			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "instance already joined",
@@ -271,6 +282,7 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				EC2IdentityDocument: instance2.iid,
 			},
 			expected: check.NotNil,
+			clock:    clockwork.NewFakeClockAt(instance2.pendingTime),
 		},
 		{
 			desc: "instance already joined, fake ID",
@@ -289,6 +301,7 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				EC2IdentityDocument: instance2.iid,
 			},
 			expected: check.NotNil,
+			clock:    clockwork.NewFakeClockAt(instance2.pendingTime),
 		},
 		{
 			desc: "instance not running",
@@ -307,6 +320,7 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				EC2IdentityDocument: instance1.iid,
 			},
 			expected: check.NotNil,
+			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "instance not exists",
@@ -325,10 +339,37 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				EC2IdentityDocument: instance1.iid,
 			},
 			expected: check.NotNil,
+			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
+		},
+		{
+			desc: "TTL expired",
+			tokenRules: []*types.TokenRule{
+				&types.TokenRule{
+					AWSAccount: instance1.account,
+					AWSRegions: []string{instance1.region},
+				},
+			},
+			ec2Client: ec2ClientRunning{},
+			request: RegisterUsingTokenRequest{
+				Token:               "test_token",
+				NodeName:            "node_name",
+				Role:                types.RoleNode,
+				HostID:              instance1.account + "-" + instance1.instanceID,
+				EC2IdentityDocument: instance1.iid,
+			},
+			expected: check.NotNil,
+			clock:    clockwork.NewFakeClockAt(instance1.pendingTime.Add(5*time.Minute + time.Second)),
 		},
 	}
 	for _, tc := range testCases {
 		println("Running test case:", tc.desc)
+
+		clock := tc.clock
+		if clock == nil {
+			clock = clockwork.NewRealClock()
+		}
+		s.a.clock = clock
+
 		token, err := types.NewProvisionTokenFromSpec(
 			"test_token",
 			time.Now().Add(time.Minute),
