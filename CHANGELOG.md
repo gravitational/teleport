@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.2.13
+
+This release of Teleport contains two bug fixes.
+
+* Fixed an issue with `teleport configure` generating empty hostname for web proxy address. [#8246](https://github.com/gravitational/teleport/pull/8246)
+* Fixed an issue with Kubernetes service not respecting `public_addr` setting. [#8257](https://github.com/gravitational/teleport/pull/8257)
+
 ## 6.2.12
 
 This release of Teleport contains an improvements and multiple security fixes.
