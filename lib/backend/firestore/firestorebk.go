@@ -777,14 +777,36 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 		}
 	}
 
+	stop := periodIndexUpdate(l)
 	for _, task := range tasks {
 		err := waitOnIndexCreation(ctx, l, task)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
+	stop <- struct{}{}
 
 	return nil
+}
+
+func periodIndexUpdate(l *log.Entry) chan struct{} {
+	ticker := time.NewTicker(10 * time.Second)
+	quit := make(chan struct{})
+	start := time.Now()
+	go func() {
+		for {
+			select {
+			case <- ticker.C:
+				elapsed := time.Since(start)
+				l.Info("Still creating indexes, %s elapsed", elapsed)
+			case <- quit:
+				l.Info("Finished creating indexes")
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+	return quit
 }
 
 func waitOnIndexCreation(ctx context.Context, l *log.Entry, task indexTask) error {
