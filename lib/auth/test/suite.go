@@ -78,7 +78,7 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 			HostID:        "00000000-0000-0000-0000-000000000000",
 			NodeName:      "auth.example.com",
 			ClusterName:   "example.com",
-			Roles:         types.SystemRoles{types.RoleAdmin},
+			Role:          types.RoleAdmin,
 			TTL:           time.Hour,
 		})
 	c.Assert(err, check.IsNil)

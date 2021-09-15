@@ -334,13 +334,13 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	// DisableTLS is enabled if we don't want self signed certs
+	// DisableTLS is enabled if we don't want self-signed certs
 	DisableTLS bool
 
-	// DisableWebInterface allows to turn off serving the Web UI interface
+	// DisableWebInterface allows turning off serving the Web UI interface
 	DisableWebInterface bool
 
-	// DisableWebService turnes off serving web service completely, including web UI
+	// DisableWebService turns off serving web service completely, including web UI
 	DisableWebService bool
 
 	// DisableReverseTunnel disables reverse tunnel on the proxy
@@ -397,6 +397,9 @@ type ProxyConfig struct {
 
 	// ACME is ACME protocol support config
 	ACME ACME
+
+	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
+	DisableALPNSNIListener bool
 }
 
 // ACME configures ACME automatic certificate renewal

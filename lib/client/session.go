@@ -270,7 +270,7 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 
 	// Wait for any cleanup tasks (particularly terminal reset on Windows).
 	ns.closeWait.Wait()
-	return nil
+	return sess.Wait()
 }
 
 // allocateTerminal creates (allocates) a server-side terminal for this session.

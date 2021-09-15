@@ -148,7 +148,12 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[resourceKind] = &appServer{watch: watch, Cache: c}
+			switch resourceKind.version {
+			case types.V2:
+				collections[resourceKind] = &appServerV2{watch: watch, Cache: c}
+			default:
+				collections[resourceKind] = &appServerV3{watch: watch, Cache: c}
+			}
 		case types.KindWebSession:
 			switch watch.SubKind {
 			case types.KindAppSession:
@@ -217,10 +222,12 @@ func resourceKindFromWatchKind(wk types.WatchKind) resourceKind {
 		return resourceKind{
 			kind:    wk.Kind,
 			subkind: wk.SubKind,
+			version: wk.Version,
 		}
 	}
 	return resourceKind{
-		kind: wk.Kind,
+		kind:    wk.Kind,
+		version: wk.Version,
 	}
 }
 
@@ -233,6 +240,15 @@ func resourceKindFromResource(res types.Resource) resourceKind {
 			kind:    res.GetKind(),
 			subkind: res.GetSubKind(),
 		}
+	case types.KindAppServer:
+		// DELETE IN 9.0.
+		switch res.GetVersion() {
+		case types.V2:
+			return resourceKind{
+				kind:    res.GetKind(),
+				version: res.GetVersion(),
+			}
+		}
 	}
 	return resourceKind{
 		kind: res.GetKind(),
@@ -242,6 +258,7 @@ func resourceKindFromResource(res types.Resource) resourceKind {
 type resourceKind struct {
 	kind    string
 	subkind string
+	version string
 }
 
 type accessRequest struct {
@@ -1495,13 +1512,80 @@ func (s *database) watchKind() types.WatchKind {
 	return s.watch
 }
 
-type appServer struct {
+type appServerV3 struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *appServerV3) erase(ctx context.Context) error {
+	err := s.presenceCache.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *appServerV3) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := s.Presence.GetApplicationServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			s.setTTL(resource)
+			if _, err := s.presenceCache.UpsertApplicationServer(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *appServerV3) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.presenceCache.DeleteApplicationServer(ctx,
+			event.Resource.GetMetadata().Namespace,
+			event.Resource.GetMetadata().Description, // Cache passes host ID via description field.
+			event.Resource.GetName())
+		if err != nil {
+			// Resource could be missing in the cache expired or not created,
+			// if the first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				s.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.AppServer)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		s.setTTL(resource)
+		if _, err := s.presenceCache.UpsertApplicationServer(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		s.Warnf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (s *appServerV3) watchKind() types.WatchKind {
+	return s.watch
+}
+
+// DELETE IN 9.0. Deprecated, use appServerV3.
+type appServerV2 struct {
 	*Cache
 	watch types.WatchKind
 }
 
 // erase erases all data in the collection
-func (a *appServer) erase(ctx context.Context) error {
+func (a *appServerV2) erase(ctx context.Context) error {
 	if err := a.presenceCache.DeleteAllAppServers(ctx, apidefaults.Namespace); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -1510,7 +1594,7 @@ func (a *appServer) erase(ctx context.Context) error {
 	return nil
 }
 
-func (a *appServer) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+func (a *appServerV2) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
 	resources, err := a.Presence.GetAppServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1529,7 +1613,7 @@ func (a *appServer) fetch(ctx context.Context) (apply func(ctx context.Context) 
 	}, nil
 }
 
-func (a *appServer) processEvent(ctx context.Context, event types.Event) error {
+func (a *appServerV2) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
 		err := a.presenceCache.DeleteAppServer(ctx, event.Resource.GetMetadata().Namespace, event.Resource.GetName())
@@ -1556,7 +1640,7 @@ func (a *appServer) processEvent(ctx context.Context, event types.Event) error {
 	return nil
 }
 
-func (a *appServer) watchKind() types.WatchKind {
+func (a *appServerV2) watchKind() types.WatchKind {
 	return a.watch
 }
 
