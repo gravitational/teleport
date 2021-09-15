@@ -1450,18 +1450,23 @@ These labels can then be used with Teleport's RBAC policies to define access rul
 
 Enables the creation of a Kubernetes persistent volume to hold Teleport agent state.
 
+<Admonition type="note">
+    If you do not want to persist the Teleport agent state, or if your Kubernetes cluster does not have any storage
+    class available, set this to `false`.
+</Admonition>
+
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
   storage:
-    enabled: true
+    enabled: false
   ```
   </TabItem>
   <TabItem label="--set">
   ```bash
-  --set storage.enabled=true
+  --set storage.enabled=false
   ```
   </TabItem>
 </Tabs>
@@ -1472,8 +1477,8 @@ Enables the creation of a Kubernetes persistent volume to hold Teleport agent st
 | - | - |
 | `string` | `nil` |
 
-The storage class name the persistent volume should use when creating persistent volume claims. The provided storage class
-name needs to exist on the Kubernetes cluster for Teleport to use.
+The storage class name the persistent volume should use when creating persistent volume claims. If left blank, the cluster's
+default storage class will be used. The provided storage class name needs to exist on the Kubernetes cluster for Teleport to use.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/storage-classes/)
 
