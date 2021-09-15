@@ -22,107 +22,22 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"net"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
-
-// CertChecker is a drop-in replacement for ssh.CertChecker. In FIPS mode,
-// checks if the certificate (or key) were generated with a supported algorithm.
-type CertChecker struct {
-	ssh.CertChecker
-
-	// FIPS means in addition to checking the validity of the key or
-	// certificate, also check that FIPS 140-2 algorithms were used.
-	FIPS bool
-}
-
-// Authenticate checks the validity of a user certificate.
-func (c *CertChecker) Authenticate(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-	err := c.validate(key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	perms, err := c.CertChecker.Authenticate(conn, key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return perms, nil
-}
-
-// CheckCert checks certificate metadata and signature.
-func (c *CertChecker) CheckCert(principal string, cert *ssh.Certificate) error {
-	err := c.validate(cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return c.CertChecker.CheckCert(principal, cert)
-}
-
-// CheckHostKey checks the validity of a host certificate.
-func (c *CertChecker) CheckHostKey(addr string, remote net.Addr, key ssh.PublicKey) error {
-	err := c.validate(key)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return c.CertChecker.CheckHostKey(addr, remote, key)
-}
-
-func (c *CertChecker) validate(key ssh.PublicKey) error {
-	// When not in FIPS mode, accept all algorithms and key sizes.
-	if !c.FIPS {
-		return nil
-	}
-
-	switch cert := key.(type) {
-	case *ssh.Certificate:
-		err := validateAlgorithm(cert.Key)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = validateAlgorithm(cert.SignatureKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	default:
-		return validateAlgorithm(key)
-	}
-}
-
-func validateAlgorithm(key ssh.PublicKey) error {
-	cryptoKey, ok := key.(ssh.CryptoPublicKey)
-	if !ok {
-		return trace.BadParameter("unable to determine underlying public key")
-	}
-	k, ok := cryptoKey.CryptoPublicKey().(*rsa.PublicKey)
-	if !ok {
-		return trace.BadParameter("only RSA keys supported")
-	}
-	if k.N.BitLen() != teleport.RSAKeySize {
-		return trace.BadParameter("found %v-bit key, only %v-bit supported", k.N.BitLen(), teleport.RSAKeySize)
-	}
-
-	return nil
-}
 
 // CreateCertificate creates a valid 2048-bit RSA certificate.
 func CreateCertificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
 	// Create RSA key for CA and certificate to be signed by CA.
-	caKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	caKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	key, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	key, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

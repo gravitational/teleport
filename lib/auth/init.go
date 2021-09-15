@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
@@ -44,8 +43,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -127,7 +126,6 @@ type InitConfig struct {
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
-	//StaticTokens []services.ProvisionToken
 	StaticTokens types.StaticTokens
 
 	// AuthPreference defines the authentication type (local, oidc) and second
@@ -822,16 +820,26 @@ func checkResourceConsistency(clusterName string, resources ...types.Resource) e
 			// check that signing CAs have expected cluster name and that
 			// all CAs for this cluster do having signing keys.
 			seemsLocal := r.GetClusterName() == clusterName
+
 			var hasKeys bool
-			_, err := sshSigner(r)
+			var signerErr error
+			switch r.GetType() {
+			case types.HostCA, types.UserCA:
+				_, signerErr = sshSigner(r)
+			case types.JWTSigner:
+				_, signerErr = services.GetJWTSigner(r, clockwork.NewRealClock())
+			default:
+				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
+			}
 			switch {
-			case err == nil:
+			case signerErr == nil:
 				hasKeys = true
-			case trace.IsNotFound(err):
+			case trace.IsNotFound(signerErr):
 				hasKeys = false
 			default:
-				return trace.Wrap(err)
+				return trace.Wrap(signerErr)
 			}
+
 			if seemsLocal && !hasKeys {
 				return trace.BadParameter("ca for local cluster %q missing signing keys", clusterName)
 			}
@@ -990,39 +998,31 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// SSHClientConfig returns a ssh.ClientConfig used by nodes to connect to
-// the reverse tunnel server.
-func (i *Identity) SSHClientConfig() *ssh.ClientConfig {
-	return &ssh.ClientConfig{
-		User: i.ID.HostUUID,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(i.KeySigner),
-		},
-		HostKeyCallback: i.hostKeyCallback,
-		Timeout:         apidefaults.DefaultDialTimeout,
+func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
+	checkers, err := apisshutils.ParseAuthorizedKeys(i.SSHCACertBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return checkers, nil
 }
 
-// hostKeyCallback checks if the host certificate was signed by any of the
-// known CAs.
-func (i *Identity) hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return trace.BadParameter("only host certificates supported")
+// SSHClientConfig returns a ssh.ClientConfig used by nodes to connect to
+// the reverse tunnel server.
+func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: i.getSSHCheckers,
+			FIPS:            fips,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	// Loop over all CAs and see if any of them signed the certificate.
-	for _, k := range i.SSHCACertBytes {
-		pubkey, _, _, _, err := ssh.ParseAuthorizedKey(k)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if apisshutils.KeysEqual(cert.SignatureKey, pubkey) {
-			return nil
-		}
-	}
-
-	return trace.BadParameter("no matching keys found")
+	return &ssh.ClientConfig{
+		User:            i.ID.HostUUID,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
+		HostKeyCallback: callback,
+		Timeout:         apidefaults.DefaultDialTimeout,
+	}, nil
 }
 
 // IdentityID is a combination of role, host UUID, and node name.
