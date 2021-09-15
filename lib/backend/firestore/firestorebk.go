@@ -202,6 +202,8 @@ const (
 	timestampDocProperty = "timestamp"
 	// idDocProperty references the record's internal ID
 	idDocProperty = "id"
+	// timeInBetweenIndexCreationStatusChecks
+	timeInBetweenIndexCreationStatusChecks = time.Second * 10
 )
 
 // GetName is a part of backend API and it returns Firestore backend type
@@ -790,7 +792,7 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 }
 
 func periodIndexUpdate(l *log.Entry) chan struct{} {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(timeInBetweenIndexCreationStatusChecks * time.Second)
 	quit := make(chan struct{})
 	start := time.Now()
 	go func() {
