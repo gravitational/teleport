@@ -33,39 +33,35 @@ export default class Client extends EventEmitter {
   }
 
   // Create the websocket and register event handlers.
-  connect(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      try {
-        this.socket = new WebSocket(this.socketAddr);
+  connect() {
+    try {
+      this.socket = new WebSocket(this.socketAddr);
 
-        this.socket.onopen = () => {
-          this.logger.info('websocket is open');
-          this.emit('open');
-        };
-        this.socket.onmessage = (ev: MessageEvent) => {
-          this.processMessage(ev.data);
-        };
-        this.socket.onerror = () => {
-          this.handleError(new Error('websocket connection error'));
-        };
-        this.socket.onclose = () => {
-          this.logger.info('websocket is closed');
+      this.socket.onopen = () => {
+        this.logger.info('websocket is open');
+        this.emit('open');
+      };
+      this.socket.onmessage = (ev: MessageEvent) => {
+        this.processMessage(ev.data);
+      };
+      this.socket.onerror = () => {
+        this.handleError(new Error('websocket connection error'));
+      };
+      this.socket.onclose = () => {
+        this.logger.info('websocket is closed');
 
-          // Clean up all of our socket's listeners and the socket itself.
-          this.socket.onopen = null;
-          this.socket.onmessage = null;
-          this.socket.onerror = null;
-          this.socket.onclose = null;
-          this.socket = null;
-          // Emit close event so Client's owner knows to remove all the listeners belonging to Client itself.
-          this.emit('close', { userDisconnected: this.userDisconnected });
-        };
-        resolve();
-      } catch (err) {
-        this.logger.error(err);
-        reject(err);
-      }
-    });
+        // Clean up all of our socket's listeners and the socket itself.
+        this.socket.onopen = null;
+        this.socket.onmessage = null;
+        this.socket.onerror = null;
+        this.socket.onclose = null;
+        this.socket = null;
+        // Emit close event so Client's owner knows to remove all the listeners belonging to Client itself.
+        this.emit('close', { userDisconnected: this.userDisconnected });
+      };
+    } catch (err) {
+      this.handleError(err);
+    }
   }
 
   processMessage(blob: Blob) {

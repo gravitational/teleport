@@ -59,44 +59,67 @@ export default function useDesktopSession(ctx: Ctx) {
       .replace(':desktopId', desktopId)
       .replace(':token', getAccessToken());
 
-    const cli = new TdpClient(addr, username);
-
-    // If the websocket is closed remove all listeners that depend on it.
-    // If it was closed intentionally by the user, set attempt to disconnected,
-    // otherwise assume a server error.
-    cli.on('close', (message: { userDisconnected: boolean }) => {
-      if (message.userDisconnected) {
-        setAttempt({ status: 'disconnected' });
-      } else {
-        setAttempt({
-          status: 'failed',
-          statusText: 'server error',
-        });
-      }
-      cli.removeAllListeners();
-    });
-
-    cli.on('error', () => {
-      setAttempt({
-        status: 'failed',
-        statusText: 'connection error',
-      });
-    });
-
-    return cli;
+    return new TdpClient(addr, username);
   }, [clusterId, username, desktopId]);
 
   useEffect(() => {
     Promise.all([
       ctx.desktopService.fetchDesktops(clusterId),
-      tdpClient.connect(),
+      // This Promise effectively takes the events emmitted during the tdpClient's
+      // initial attempted connection to the websocket and converts them into a standard
+      // promise that resolves on success and rejects on failure.
+      new Promise<void>((resolve, reject) => {
+        tdpClient.on('open', () => {
+          resolve();
+        });
+
+        tdpClient.on('error', (err: Error) => {
+          reject(err);
+        });
+
+        tdpClient.connect();
+      }),
     ])
       .then(vals => {
         makeUserHost(vals[0]);
+
+        // Remove the listeners from the Promise.all call and then initialize
+        // many of the listeners that will last the client's lifetime.
+        tdpClient.removeAllListeners('open');
+        tdpClient.removeAllListeners('error');
+
+        // Triggered in the event of a websocket protocol error.
+        tdpClient.on('error', () => {
+          setAttempt({
+            status: 'failed',
+            statusText: 'websocket protocol error',
+          });
+
+          tdpClient.removeAllListeners();
+        });
+
+        // If the websocket is closed remove all listeners that depend on it.
+        tdpClient.on('close', (message: { userDisconnected: boolean }) => {
+          // If it was closed intentionally by the user, set attempt to disconnected,
+          // otherwise assume a server or network error caused an unexpected disconnect.
+          if (message.userDisconnected) {
+            setAttempt({ status: 'disconnected' });
+          } else {
+            setAttempt({
+              status: 'failed',
+              statusText: 'server or network error',
+            });
+          }
+
+          tdpClient.removeAllListeners();
+        });
+
         setAttempt({ status: 'success' });
       })
       .catch(err => {
+        // Catches errors from the initial attempted websocket connection or api call(s).
         setAttempt({ status: 'failed', statusText: err.message });
+        tdpClient.removeAllListeners();
       });
   }, [clusterId, username, desktopId]);
 
