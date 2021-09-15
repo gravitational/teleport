@@ -43,8 +43,8 @@ import (
 )
 
 const (
-	CTRL_CHAR_C byte = 0x03
-	CTRL_CHAR_Z byte = 0x26
+	ctrlCharC byte = 0x03
+	ctrlCharZ byte = 0x26
 )
 
 type NodeSession struct {
@@ -552,7 +552,7 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 		for {
 			select {
 			case <-ctrlCSignal:
-				_, err := shell.Write([]byte{CTRL_CHAR_C})
+				_, err := shell.Write([]byte{ctrlCharC})
 				if err != nil {
 					log.Errorf(err.Error())
 				}
@@ -568,7 +568,7 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 	go func() {
 		for event := range events {
 			if _, ok := event.(terminal.StopEvent); ok {
-				_, err := shell.Write([]byte{CTRL_CHAR_Z})
+				_, err := shell.Write([]byte{ctrlCharZ})
 				if err != nil {
 					log.Errorf(err.Error())
 				}
