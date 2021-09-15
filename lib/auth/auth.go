@@ -1265,11 +1265,13 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			return trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
-	default: // SecondFactorOTP, SecondFactorU2F, SecondFactorWebauthn
+	case constants.SecondFactorOTP, constants.SecondFactorU2F, constants.SecondFactorWebauthn:
 		if sfToCount[sf] < minDevices {
 			return trace.BadParameter(
-				"cannot delete the last %v device for this user; add a replacement device first to avoid getting locked out", sf)
+				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
 		}
+	default:
+		return trace.BadParameter("unexpected second factor type: %s", sf)
 	}
 
 	if err := a.DeleteMFADevice(ctx, user, deviceToDelete.Id); err != nil {
