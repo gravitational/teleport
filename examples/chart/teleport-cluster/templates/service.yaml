@@ -38,6 +38,6 @@ spec:
   - name: mysql
     port: 3036
     targetPort: 3036
-    protocol: TCP    
+    protocol: TCP
   selector:
     app: {{ .Release.Name }}
