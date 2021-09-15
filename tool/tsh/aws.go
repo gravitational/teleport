@@ -17,9 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
+	"crypto/x509/pkix"
 	"fmt"
-	"net"
+	"io"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"os/exec"
@@ -33,7 +36,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	awsarn "github.com/aws/aws-sdk-go/aws/arn"
@@ -44,6 +49,19 @@ const (
 )
 
 func onAWS(cf *CLIConf) error {
+	// create self-signed local cert AWS LocalProxy listener cert
+	// and pass CA to AWS CLI by --ca-bundle flag to enforce HTTPS
+	// protocol communication between AWS CLI <-> LocalProxy internal.
+	tmpCert, err := newTempSelfSignedLocalCert()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if err := tmpCert.Clean(); err != nil {
+			log.WithError(err).Errorf("Failed clean temporary self-signed local proxy cert.")
+		}
+	}()
+
 	// Fake ENV AWS credentials need to be set in order to enforce AWS CLI to
 	// sign the request and provide Authorization Header where service-name and region-name are encoded.
 	// When endpoint-url AWS CLI flag provides the destination AWS API address is override by endpoint-url value.
@@ -58,7 +76,7 @@ func onAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := createLocalAWSCLIProxy(cf, tc, awsFakeCred)
+	lp, err := createLocalAWSCLIProxy(cf, tc, awsFakeCred, tmpCert.getCert())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -69,15 +87,22 @@ func onAWS(cf *CLIConf) error {
 		}
 	}()
 
+	addr, err := utils.ParseAddr(lp.GetAddr())
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	url := url.URL{
 		Path:   "/",
-		Host:   lp.GetAddr(),
-		Scheme: "http",
+		Host:   fmt.Sprintf("%s:%d", "localhost", addr.Port(0)),
+		Scheme: "https",
 	}
+
 	endpointFlag := fmt.Sprintf("--endpoint-url=%s", url.String())
+	bundleFlag := fmt.Sprintf("--ca-bundle=%s", tmpCert.getCAPath())
 
 	args := append([]string{}, cf.AWSCommandArgs...)
 	args = append(args, endpointFlag)
+	args = append(args, bundleFlag)
 	cmd := exec.Command(awsCLIBinaryName, args...)
 
 	cmd.Stdout = os.Stdout
@@ -98,12 +123,12 @@ func genAndSetAWSCredentials() (*credentials.Credentials, error) {
 	return credentials.NewStaticCredentials(id, secret, ""), nil
 }
 
-func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *credentials.Credentials) (*alpnproxy.LocalProxy, error) {
+func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *credentials.Credentials, localCerts tls.Certificate) (*alpnproxy.LocalProxy, error) {
 	if !tc.ALPNSNIListenerEnabled {
 		return nil, trace.NotFound("remote Teleport Proxy doesn't support AWS CLI access protocol")
 	}
 
-	cert, err := loadAWSAPPCertificate(tc)
+	appCerts, err := loadAWSAPPCertificate(tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -111,10 +136,15 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	listener, err := net.Listen("tcp", "localhost:0")
+	listener, err := tls.Listen("tcp", "localhost:0", &tls.Config{
+		Certificates: []tls.Certificate{
+			localCerts,
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
@@ -123,7 +153,7 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
 		AWSCredentials:     cred,
-		Certs:              []tls.Certificate{cert},
+		Certs:              []tls.Certificate{appCerts},
 	})
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
@@ -261,4 +291,50 @@ func getARNFromFlags(cf *CLIConf, tc *client.TeleportClient, profile *client.Pro
 		return "", trace.Wrap(err)
 	}
 	return arn, nil
+}
+
+type tempSelfSignedLocalCert struct {
+	cert   tls.Certificate
+	caFile *os.File
+}
+
+func newTempSelfSignedLocalCert() (*tempSelfSignedLocalCert, error) {
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName:   "AWS Local Proxy",
+		Organization: []string{"Teleport"},
+	}, []string{"localhost"}, defaults.CATTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := tls.X509KeyPair(caCert, caKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	f, err := ioutil.TempFile("", "*_aws_local_proxy_cert.pem")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := io.Copy(f, bytes.NewReader(caCert)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &tempSelfSignedLocalCert{
+		cert:   cert,
+		caFile: f,
+	}, nil
+}
+
+func (t *tempSelfSignedLocalCert) getCAPath() string {
+	return t.caFile.Name()
+}
+
+func (t *tempSelfSignedLocalCert) getCert() tls.Certificate {
+	return t.cert
+}
+
+func (t tempSelfSignedLocalCert) Clean() error {
+	cerr := t.caFile.Close()
+	rerr := os.Remove(t.caFile.Name())
+	return trace.NewAggregate(cerr, rerr)
 }
