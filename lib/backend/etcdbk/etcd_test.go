@@ -86,6 +86,10 @@ func TestEtcd(t *testing.T) {
 }
 
 func TestPrefix(t *testing.T) {
+	if !etcdTestEnabled() {
+		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
+	}
+
 	ctx := context.Background()
 
 	// Given an etcd backend with a minimal configuration...

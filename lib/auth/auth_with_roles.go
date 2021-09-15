@@ -140,12 +140,12 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 // hasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
 func (a *ServerWithRoles) hasBuiltinRole(name string) bool {
-	return hasBuiltinRole(a.context.Checker, name)
+	return HasBuiltinRole(a.context.Checker, name)
 }
 
-// hasBuiltinRole checks the type of the role set returned and the name.
+// HasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
-func hasBuiltinRole(checker services.AccessChecker, name string) bool {
+func HasBuiltinRole(checker services.AccessChecker, name string) bool {
 	if _, ok := checker.(BuiltinRoleSet); !ok {
 		return false
 	}
@@ -365,7 +365,7 @@ func (a *ServerWithRoles) GenerateToken(ctx context.Context, req GenerateTokenRe
 	return a.authServer.GenerateToken(ctx, req)
 }
 
-func (a *ServerWithRoles) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
+func (a *ServerWithRoles) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs, error) {
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(req)
 }
@@ -375,9 +375,9 @@ func (a *ServerWithRoles) RegisterNewAuthServer(ctx context.Context, token strin
 	return a.authServer.RegisterNewAuthServer(ctx, token)
 }
 
-// GenerateServerKeys generates new host private keys and certificates (signed
+// GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *ServerWithRoles) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
+func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
 	clusterName, err := a.authServer.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -390,11 +390,12 @@ func (a *ServerWithRoles) GenerateServerKeys(req GenerateServerKeysRequest) (*Pa
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// prohibit privilege escalations through role changes
-	if !existingRoles.Equals(req.Roles) {
-		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Roles)
+	if !existingRoles.Equals(types.SystemRoles{req.Role}) {
+		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
 	}
-	return a.authServer.GenerateServerKeys(req)
+	return a.authServer.GenerateHostCerts(ctx, req)
 }
 
 // UpsertNodes bulk upserts nodes into the backend.
@@ -876,12 +877,6 @@ func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (types.WebSession,
 	return a.authServer.PreAuthenticatedSignIn(user, a.context.Identity.GetIdentity())
 }
 
-func (a *ServerWithRoles) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
-	// we are already checking password here, no need to extra permission check
-	// anyone who has user's password can generate sign request
-	return a.authServer.GetMFAAuthenticateChallenge(user, password)
-}
-
 // CreateWebSession creates a new web session for the specified user
 func (a *ServerWithRoles) CreateWebSession(user string) (types.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
@@ -1338,12 +1333,12 @@ func (a *ServerWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 }
 
 func (a *ServerWithRoles) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, roles types.SystemRoles, ttl time.Duration) ([]byte, error) {
+	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
 
 	if err := a.action(apidefaults.Namespace, types.KindHostCert, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GenerateHostCert(key, hostID, nodeName, principals, clusterName, roles, ttl)
+	return a.authServer.GenerateHostCert(key, hostID, nodeName, principals, clusterName, role, ttl)
 }
 
 // NewKeepAliver not implemented: can only be called locally.
@@ -1568,10 +1563,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.Certs{
-		SSH: certs.ssh,
-		TLS: certs.tls,
-	}, nil
+	return certs, nil
 }
 
 func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
@@ -3046,6 +3038,12 @@ func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthServic
 	return nil, trace.NotImplemented("bug: DeleteMFADevice must not be called on auth.ServerWithRoles")
 }
 
+// DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
+func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
+	// The token provides its own authorization and authentication.
+	return a.authServer.DeleteMFADeviceSync(ctx, req)
+}
+
 // GenerateUserSingleUseCerts exists to satisfy auth.ClientI but is not
 // implemented here.
 //
@@ -3376,6 +3374,15 @@ func (a *ServerWithRoles) CreateAccountRecoveryCodes(ctx context.Context, req *p
 // GetAccountRecoveryToken is implemented by AuthService.GetAccountRecoveryToken.
 func (a *ServerWithRoles) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error) {
 	return a.authServer.GetAccountRecoveryToken(ctx, req)
+}
+
+// CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
+func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	// No permission check is required b/c this request verifies request by one of the following:
+	//   - username + password, anyone who has user's password can generate a sign request
+	//   - token provide its own auth
+	//   - the user extracted from context can retrieve their own challenges
+	return a.authServer.CreateAuthenticateChallenge(ctx, req)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

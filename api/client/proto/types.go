@@ -14,12 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package proto provides protobuf api specification for Teleport Auth servers and clients.
+// Package proto provides the protobuf API specification for Teleport.
 package proto
 
 import (
+	"time"
+
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
+
+// Duration is a wrapper around duration
+type Duration time.Duration
+
+// Get returns time.Duration value
+func (d Duration) Get() time.Duration {
+	return time.Duration(d)
+}
+
+// Set sets time.Duration value
+func (d *Duration) Set(value time.Duration) {
+	*d = Duration(value)
+}
 
 // FromWatchKind converts the watch kind value between internal
 // and the protobuf format
@@ -43,4 +59,16 @@ func ToWatchKind(wk WatchKind) types.WatchKind {
 		LoadSecrets: wk.LoadSecrets,
 		Filter:      wk.Filter,
 	}
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (req *HostCertsRequest) CheckAndSetDefaults() error {
+	if req.HostID == "" {
+		return trace.BadParameter("missing parameter HostID")
+	}
+	if err := req.Role.Check(); err != nil {
+		return err
+	}
+
+	return nil
 }
