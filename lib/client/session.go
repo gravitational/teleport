@@ -42,6 +42,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	CTRL_CHAR_C byte = 0x03
+	CTRL_CHAR_Z byte = 0x26
+)
+
 type NodeSession struct {
 	// namespace is a session this namespace belongs to
 	namespace string
@@ -547,7 +552,7 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 		for {
 			select {
 			case <-ctrlCSignal:
-				_, err := shell.Write([]byte{3})
+				_, err := shell.Write([]byte{CTRL_CHAR_C})
 				if err != nil {
 					log.Errorf(err.Error())
 				}
@@ -563,7 +568,7 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 	go func() {
 		for event := range events {
 			if _, ok := event.(terminal.StopEvent); ok {
-				_, err := shell.Write([]byte{26})
+				_, err := shell.Write([]byte{CTRL_CHAR_Z})
 				if err != nil {
 					log.Errorf(err.Error())
 				}

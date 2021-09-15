@@ -134,6 +134,8 @@ func timestampFrame(term *terminal.Terminal, message string) {
 	defer esc(restoreCursor)
 
 	// move cursor to -10:0
+	// TODO(timothyb89): message length does not account for unicode characters
+	// or ANSI sequences.
 	esc(fmt.Sprintf("[%d;%df", 0, int(width)-len(message)))
 	os.Stdout.WriteString(message)
 }
