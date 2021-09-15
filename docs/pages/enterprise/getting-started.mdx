@@ -213,7 +213,6 @@ The output will look like this (re-formatted here to use compact YAML
 representation for brevity):
 
 ```yaml
-
 kind: role
 metadata:
   name: admin
@@ -252,7 +251,7 @@ spec:
     forward_agent: true
     max_session_ttl: 30h0m0s
     port_forwarding: true
-version: v3
+version: v4
 ```
 
 Pay attention to the *allow/logins* field in the role definition: by default, this
@@ -378,7 +377,7 @@ configuring SSO providers:
 - [Okta](sso/okta.mdx)
 - [Active Directory](sso/adfs.mdx)
 - [One Login](sso/one-login.mdx)
-- [Github](../admin-guide.mdx#github-oauth-20)
+- [Github](../setup/admin/github-sso.mdx)
 
 Any SAML-compliant provider can be configured with Teleport by following the
 same steps.  There are Teleport Enterprise customers who are using Oracle IDM,

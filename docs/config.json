@@ -30,6 +30,11 @@
           "title": "Admin Guides",
           "slug": "/setup/admin/",
           "entries": [
+            { "title": "Github SSO", "slug": "/setup/admin/github-sso/" },
+            { "title": "Adding nodes", "slug": "/setup/admin/adding-nodes/" },
+            { "title": "Trusted Clusters", "slug": "/setup/admin/trustedclusters/" },
+            { "title": "Labels", "slug": "/setup/admin/labels/" },
+            { "title": "Local users", "slug": "/setup/admin/users/" },
             { "title": "Troubleshooting", "slug": "/setup/admin/troubleshooting/" },
             { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
             { "title": "Daemon", "slug": "/setup/admin/daemon/" }
@@ -50,7 +55,8 @@
           "entries": [
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
             { "title": "Docker", "slug": "/setup/guides/docker/" },
-            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" }
+            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" },
+            { "title": "EC2 tags", "slug": "/setup/guides/ec2-tags/" }
           ]
         },
         {
@@ -242,6 +248,10 @@
         {
           "title": "FedRAMP",
           "slug": "/enterprise/fedramp/"
+        },
+        {
+          "title": "SOC2",
+          "slug": "/enterprise/soc2/"
         }
       ]
     },
@@ -321,11 +331,14 @@
     "mongodb": {
       "min_version": "3.6"
     },
+    "mysql": {
+      "dbeaver_min_ver": "8.0.3"
+    },
     "teleport": {
-      "version": "7.1.0",
+      "version": "7.1.2",
       "golang": "1.16",
       "plugin": {
-        "version": "7.1.0"
+        "version": "7.1.2"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "quay.io/gravitational/teleport:7",
@@ -333,6 +346,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/trustedclusters/",
+      "destination": "/setup/admin/trustedclusters/",
+      "permanent": true
+    },
     {
       "source": "/reference/api/architecture/",
       "destination": "/api/architecture/",
