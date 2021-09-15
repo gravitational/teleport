@@ -55,6 +55,7 @@ data:
     proxy_service:
       public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
       kube_listen_addr: 0.0.0.0:3026
+      mysql_listen_addr: 0.0.0.0:3036
       enabled: true
   {{- if .Values.highAvailability.certManager.enabled }}
       https_keypairs:
