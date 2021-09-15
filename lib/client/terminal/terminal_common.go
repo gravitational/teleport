@@ -38,8 +38,7 @@ type signalEmitter struct {
 	subscribersMutex sync.Mutex
 }
 
-// ResizeSubscribe creates a channel that will receive events whenever the
-// terminal's size has changed.
+// Subscribe creates a channel that will receive terminal events.
 func (e *signalEmitter) Subscribe() chan interface{} {
 	e.subscribersMutex.Lock()
 	defer e.subscribersMutex.Unlock()
@@ -57,4 +56,14 @@ func (e *signalEmitter) writeEvent(event interface{}) {
 	for _, sub := range e.subscribers {
 		sub <- event
 	}
+}
+
+func (e *signalEmitter) clearSubscribers() {
+	e.subscribersMutex.Lock()
+	defer e.subscribersMutex.Unlock()
+
+	for _, ch := range e.subscribers {
+		close(ch)
+	}
+	e.subscribers = e.subscribers[:0]
 }

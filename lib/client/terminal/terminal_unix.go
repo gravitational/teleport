@@ -44,8 +44,8 @@ type Terminal struct {
 	closeWait *sync.WaitGroup
 }
 
-// New creates a new Terminal instance. Callers should call `InitInteractive`
-// to configure the terminal for raw input or output modes.
+// New creates a new Terminal instance. Callers should call `InitRaw` to
+// configure the terminal for raw input or output modes.
 //
 // Note that the returned Terminal instance must be closed to ensure the
 // terminal is properly reset; unexpected exits may leave users' terminals
@@ -74,12 +74,11 @@ func New(stdin io.Reader, stdout, stderr io.Writer) (*Terminal, error) {
 	return &term, nil
 }
 
-// InitInteractive puts the terminal into raw mode begins capturing raw input
-// events from the Windows API, asynchronously writing them to a Pipe emulating
-// a traditional Unix stdin.
+// InitRaw puts the terminal into raw mode. On Unix, no special input handling
+// is required beyond simply reading from stdin, so `input` has no effect.
 // Note that some implementations may replace one or more streams (particularly
 // stdin).
-func (t *Terminal) InitInteractive(input bool) error {
+func (t *Terminal) InitRaw(input bool) error {
 	// Put the terminal into raw mode.
 	ts, err := term.SetRawTerminal(0)
 	if err != nil {
@@ -106,6 +105,8 @@ func (t *Terminal) InitInteractive(input bool) error {
 				t.writeEvent(StopEvent{})
 			case <-resizeSignal:
 				t.writeEvent(ResizeEvent{})
+			case <-t.closer.C:
+				return
 			}
 		}
 	}()
@@ -134,9 +135,9 @@ func (t *Terminal) IsAttached() bool {
 // Resize makes a best-effort attempt to resize the terminal window. Support
 // varies between platforms and terminal emulators.
 func (t *Terminal) Resize(width, height int16) error {
-	os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", height, width)))
+	_, err := os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", height, width)))
 
-	return nil
+	return trace.Wrap(err)
 }
 
 func (t *Terminal) Stdin() io.Reader {
@@ -153,8 +154,11 @@ func (t *Terminal) Stderr() io.Writer {
 
 // Close closes the Terminal, restoring the console to its original state.
 func (t *Terminal) Close() error {
-	_ = t.closer.Close()
-	t.closeWait.Wait()
+	t.clearSubscribers()
+	if err := t.closer.Close(); err != nil {
+		return trace.Wrap(err)
+	}
 
+	t.closeWait.Wait()
 	return nil
 }

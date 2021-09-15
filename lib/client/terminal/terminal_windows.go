@@ -1,6 +1,3 @@
-//go:build windows
-// +build windows
-
 /*
 Copyright 2021 Gravitational, Inc.
 
@@ -72,6 +69,12 @@ func initTerminal(input bool) (func(), error) {
 
 		err = winterm.SetConsoleMode(uintptr(stdinFd), newInMode)
 		if err != nil {
+			// Attempt to reset the stdout mode before returning.
+			err = winterm.SetConsoleMode(uintptr(stdoutFd), oldOutMode)
+			if err != nil {
+				log.Errorf("Failed to reset terminal output mode to %d: %v\n", oldOutMode, err)
+			}
+
 			return func() {}, fmt.Errorf("failed to set stdin mode: %w", err)
 		}
 	}
@@ -104,8 +107,8 @@ type Terminal struct {
 	closeWait *sync.WaitGroup
 }
 
-// New creates a new Terminal instance. Callers should call `InitInteractive`
-// to configure the terminal for raw input or output modes.
+// New creates a new Terminal instance. Callers should call `InitRaw` to
+// configure the terminal for raw input or output modes.
 //
 // Note that the returned Terminal instance must be closed to ensure the
 // terminal is properly reset; unexpected exits may leave users' terminals
@@ -134,12 +137,12 @@ func New(stdin io.Reader, stdout, stderr io.Writer) (*Terminal, error) {
 	return &term, nil
 }
 
-// InitInteractive puts the terminal into raw mode begins capturing raw input
-// events from the Windows API, asynchronously writing them to a Pipe emulating
-// a traditional Unix stdin.
+// InitRaw puts the terminal into raw output mode. If `input` set set, it also
+// begins capturing raw input events from the Windows API, asynchronously
+// writing them to a Pipe emulating a traditional Unix stdin.
 // Note that some implementations may replace one or more streams (particularly
 // stdin).
-func (t *Terminal) InitInteractive(input bool) error {
+func (t *Terminal) InitRaw(input bool) error {
 	// Put the terminal into raw mode.
 	cleanup, err := initTerminal(input)
 	if err != nil {
@@ -272,8 +275,11 @@ func (t *Terminal) Stderr() io.Writer {
 // Close closes the Terminal, restoring the console to its original state.
 // Potentially blocks on cleanup tasks.
 func (t *Terminal) Close() error {
-	_ = t.closer.Close()
-	t.closeWait.Wait()
+	t.clearSubscribers()
+	if err := t.closer.Close(); err != nil {
+		return trace.Wrap(err)
+	}
 
+	t.closeWait.Wait()
 	return nil
 }

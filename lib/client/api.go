@@ -3099,7 +3099,7 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 
 	// configure terminal for direct unbuffered echo-less input:
 	if term.IsAttached() {
-		err := term.InitInteractive(true)
+		err := term.InitRaw(true)
 		if err != nil {
 			return trace.Wrap(err)
 		}

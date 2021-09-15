@@ -255,7 +255,7 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 	if ns.terminal.IsAttached() {
 		// Put the terminal into raw mode. Note that this must be done before
 		// pipeInOut() as it may replace streams.
-		ns.terminal.InitInteractive(true)
+		ns.terminal.InitRaw(true)
 
 		// Catch term signals, but only if we're attached to a real terminal
 		ns.watchSignals(remoteTerm)
@@ -531,7 +531,13 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 	signal.Notify(exitSignals, syscall.SIGTERM)
 	go func() {
 		defer ns.closer.Close()
-		<-exitSignals
+
+		select {
+		case <-exitSignals:
+			return
+		case <-ns.closer.C:
+			return
+		}
 	}()
 
 	// Catch Ctrl-C/SIGINT.
@@ -539,10 +545,14 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 	signal.Notify(ctrlCSignal, syscall.SIGINT)
 	go func() {
 		for {
-			<-ctrlCSignal
-			_, err := shell.Write([]byte{3})
-			if err != nil {
-				log.Errorf(err.Error())
+			select {
+			case <-ctrlCSignal:
+				_, err := shell.Write([]byte{3})
+				if err != nil {
+					log.Errorf(err.Error())
+				}
+			case <-ns.closer.C:
+				return
 			}
 		}
 	}()
