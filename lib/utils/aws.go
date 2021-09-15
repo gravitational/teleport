@@ -32,13 +32,20 @@ func FilterAWSRoles(arns []string, accountID string) (result []AWSRole) {
 		if err != nil || (accountID != "" && parsed.AccountID != accountID) {
 			continue
 		}
-		// Example ARN: arn:aws:iam::1234567890:role/EC2FullAccess.
+
+		// In AWS convention, the display of the role is the last
+		// /-delineated substring.
+		//
+		// Example ARNs:
+		// arn:aws:iam::1234567890:role/EC2FullAccess      (display: EC2FullAccess)
+		// arn:aws:iam::1234567890:role/path/to/customrole (display: customrole)
 		parts := strings.Split(parsed.Resource, "/")
-		if len(parts) != 2 || parts[0] != "role" {
+		numParts := len(parts)
+		if numParts < 2 || parts[0] != "role" {
 			continue
 		}
 		result = append(result, AWSRole{
-			Display: parts[1],
+			Display: parts[numParts-1],
 			ARN:     roleARN,
 		})
 	}
