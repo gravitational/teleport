@@ -792,7 +792,7 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 }
 
 func periodIndexUpdate(l *log.Entry) chan struct{} {
-	ticker := time.NewTicker(timeInBetweenIndexCreationStatusChecks * time.Second)
+	ticker := time.NewTicker(timeInBetweenIndexCreationStatusChecks)
 	quit := make(chan struct{})
 	start := time.Now()
 	go func() {
