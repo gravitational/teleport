@@ -33,6 +33,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -746,6 +748,7 @@ type signInReq struct {
 	Password string `json:"password"`
 }
 
+// DELETE IN 9.0.0 in favor of grpc CreateAuthenticateChallenge.
 func (s *APIServer) mfaLoginBegin(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *signInReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -753,11 +756,37 @@ func (s *APIServer) mfaLoginBegin(auth ClientI, w http.ResponseWriter, r *http.R
 	}
 	user := p.ByName("user")
 	pass := []byte(req.Password)
-	challenge, err := auth.GetMFAAuthenticateChallenge(user, pass)
+	protoChal, err := auth.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+			Username: user,
+			Password: pass,
+		}},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return challenge, nil
+
+	// Convert from proto to JSON format.
+	chal := &MFAAuthenticateChallenge{
+		TOTPChallenge: protoChal.TOTP != nil,
+	}
+	for _, u2fChal := range protoChal.U2F {
+		ch := u2f.AuthenticateChallenge{
+			Version:   u2fChal.Version,
+			Challenge: u2fChal.Challenge,
+			KeyHandle: u2fChal.KeyHandle,
+			AppID:     u2fChal.AppID,
+		}
+		if chal.AuthenticateChallenge == nil {
+			chal.AuthenticateChallenge = &ch
+		}
+		chal.U2FChallenges = append(chal.U2FChallenges, ch)
+	}
+	if protoChal.WebauthnChallenge != nil {
+		chal.WebauthnChallenge = wanlib.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+	}
+
+	return chal, nil
 }
 
 type WebSessionReq struct {
@@ -997,6 +1026,15 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 	return token, nil
 }
 
+// registerUsingTokenResponseJSON is equivalent to proto.Certs, but
+// uses JSON keys expected by old (7.x and earlier) clients
+type registerUsingTokenResponseJSON struct {
+	SSHCert    []byte   `json:"cert"`
+	TLSCert    []byte   `json:"tls_cert"`
+	TLSCACerts [][]byte `json:"tls_ca_certs"`
+	SSHCACerts [][]byte `json:"ssh_ca_certs"`
+}
+
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -1006,11 +1044,16 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 	// Pass along the remote address the request came from to the registration function.
 	req.RemoteAddr = r.RemoteAddr
 
-	keys, err := auth.RegisterUsingToken(req)
+	certs, err := auth.RegisterUsingToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return keys, nil
+	return &registerUsingTokenResponseJSON{
+		SSHCert:    certs.SSH,
+		TLSCert:    certs.TLS,
+		SSHCACerts: certs.SSHCACerts,
+		TLSCACerts: certs.TLSCACerts,
+	}, nil
 }
 
 type registerNewAuthServerReq struct {

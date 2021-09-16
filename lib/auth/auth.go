@@ -1093,6 +1093,10 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 
 // MFAAuthenticateChallenge is an MFA authentication challenge sent on user
 // login / authentication ceremonies.
+//
+// TODO(kimlisa): Move this to lib/client/mfa.go, after deleting the auth HTTP endpoint
+// "/u2f/users/sign" and its friends from lib/auth/apiserver.go (replaced by grpc CreateAuthenticateChallenge).
+// After the endpoint removal, this struct is only used in the web directory.
 type MFAAuthenticateChallenge struct {
 	// Before 6.0 teleport would only send 1 U2F challenge. Embed the old
 	// challenge for compatibility with older clients. All new clients should
@@ -1112,51 +1116,75 @@ type MFAAuthenticateChallenge struct {
 	TOTPChallenge bool `json:"totp_challenge"`
 }
 
-func (a *Server) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
-	ctx := context.TODO()
+// CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
+func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	var username string
 
-	err := a.WithUserLock(user, func() error {
-		return a.checkPasswordWOToken(user, password)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	switch req.GetRequest().(type) {
+	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
+		username = req.GetUserCredentials().GetUsername()
 
-	protoChal, err := a.mfaAuthChallenge(ctx, user, a.Identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Convert from proto to JSON format.
-	chal := &MFAAuthenticateChallenge{
-		TOTPChallenge: protoChal.TOTP != nil,
-	}
-	for _, u2fChal := range protoChal.U2F {
-		ch := u2f.AuthenticateChallenge{
-			Version:   u2fChal.Version,
-			Challenge: u2fChal.Challenge,
-			KeyHandle: u2fChal.KeyHandle,
-			AppID:     u2fChal.AppID,
+		if err := a.WithUserLock(username, func() error {
+			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
+		}); err != nil {
+			log.Error(trace.DebugReport(err))
+			return nil, trace.AccessDenied("invalid password or username")
 		}
-		if chal.AuthenticateChallenge == nil {
-			chal.AuthenticateChallenge = &ch
+
+	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
+		token, err := a.GetUserToken(ctx, req.GetRecoveryStartTokenID())
+		if err != nil {
+			log.Error(trace.DebugReport(err))
+			return nil, trace.AccessDenied("invalid token")
 		}
-		chal.U2FChallenges = append(chal.U2FChallenges, ch)
+
+		if err := a.verifyUserToken(token, UserTokenTypeRecoveryStart); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		username = token.GetUser()
+
+	default:
+		var err error
+		username, err = GetClientUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	if protoChal.WebauthnChallenge != nil {
-		chal.WebauthnChallenge = wanlib.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+
+	challenges, err := a.mfaAuthChallenge(ctx, username, a.Identity /* u2f storage */)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied("unable to create MFA challenges")
 	}
-	return chal, nil
+	return challenges, nil
 }
 
 // GetMFADevices returns all mfa devices for the user defined in the token or the user defined in context.
 func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
-	username, err := GetClientUsername(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var username string
+
+	if req.GetRecoveryApprovedTokenID() != "" {
+		token, err := a.GetUserToken(ctx, req.GetRecoveryApprovedTokenID())
+		if err != nil {
+			log.Error(trace.DebugReport(err))
+			return nil, trace.AccessDenied("invalid token")
+		}
+
+		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		username = token.GetUser()
 	}
 
-	// TODO (kimlisa): place token check for recovery
+	if username == "" {
+		var err error
+		username, err = GetClientUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	devs, err := a.Identity.GetMFADevices(ctx, username, false)
 	if err != nil {
@@ -1166,6 +1194,114 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 	return &proto.GetMFADevicesResponse{
 		Devices: devs,
 	}, nil
+}
+
+// DeleteMFADeviceSync implements AuthService.DeleteMFADeviceSync.
+func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
+	token, err := a.GetUserToken(ctx, req.GetTokenID())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return trace.AccessDenied("invalid token")
+	}
+
+	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.deleteMFADeviceSafely(ctx, token.GetUser(), req.GetDeviceName()))
+}
+
+// deleteMFADeviceSafely deletes the user's mfa device while preventing users from deleting their last device
+// for clusters that require second factors, which prevents users from being locked out of their account.
+func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) error {
+	devs, err := a.Identity.GetMFADevices(ctx, user, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authPref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	kindToSF := map[string]constants.SecondFactorType{
+		fmt.Sprintf("%T", &types.MFADevice_Totp{}): constants.SecondFactorOTP,
+		fmt.Sprintf("%T", &types.MFADevice_U2F{}):  constants.SecondFactorU2F,
+		// TODO(codingllama): Map Webauthn devices to second factor.
+	}
+
+	sfToCount := make(map[constants.SecondFactorType]int)
+	var knownDevices int
+	var deviceToDelete *types.MFADevice
+
+	// Find the device to delete and count devices.
+	for _, d := range devs {
+		// Match device by name or ID.
+		if d.GetName() == deviceName || d.Id == deviceName {
+			deviceToDelete = d
+		}
+
+		sf, ok := kindToSF[fmt.Sprintf("%T", d.Device)]
+		switch {
+		case !ok && d == deviceToDelete:
+			return trace.NotImplemented("cannot delete device of type %T", d.Device)
+		case !ok:
+			log.Warnf("Ignoring unknown device with type %T in deletion.", d.Device)
+			continue
+		}
+
+		count := sfToCount[sf]
+		sfToCount[sf] = count + 1
+		knownDevices++
+	}
+
+	if deviceToDelete == nil {
+		return trace.NotFound("MFA device %q does not exist", deviceName)
+	}
+
+	// Prevent users from deleting their last device for clusters that require second factors.
+	const minDevices = 2
+	switch sf := authPref.GetSecondFactor(); sf {
+	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
+	case constants.SecondFactorOn:
+		if knownDevices < minDevices {
+			return trace.BadParameter(
+				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
+		}
+	case constants.SecondFactorWebauthn:
+		// TODO(codingllama): Handle webauthn device deletion.
+		return trace.NotImplemented("webauthn device deletion not yet implemented")
+	default:
+		if sfToCount[sf] < minDevices {
+			return trace.BadParameter(
+				"cannot delete the last %v device for this user; add a replacement device first to avoid getting locked out", sf)
+		}
+	}
+
+	if err := a.DeleteMFADevice(ctx, user, deviceToDelete.Id); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Emit deleted event.
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceDelete{
+		Metadata: apievents.Metadata{
+			Type:        events.MFADeviceDeleteEvent,
+			Code:        events.MFADeviceDeleteEventCode,
+			ClusterName: clusterName.GetClusterName(),
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: user,
+		},
+		MFADeviceMetadata: mfaDeviceEventMetadata(deviceToDelete),
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 type newMFADeviceFields struct {
@@ -2751,6 +2887,7 @@ func groupByDeviceType(devs []*types.MFADevice, groupU2F, groupWebauthn bool) de
 			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
 		}
 	}
+
 	return res
 }
 
