@@ -763,6 +763,7 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 				ValueMode: secondFieldOrder,
 			},
 		}
+		l.Infof("%v", fields)
 		operation, err := adminSvc.CreateIndex(ctx, &adminpb.CreateIndexRequest{
 			Parent: indexParent,
 			Index: &adminpb.Index{
@@ -800,7 +801,7 @@ func periodIndexUpdate(l *log.Entry) chan struct{} {
 			select {
 			case <- ticker.C:
 				elapsed := time.Since(start)
-				l.Info("Still creating indexes, %s elapsed", elapsed)
+				l.Infof("Still creating indexes, %s elapsed", elapsed)
 			case <- quit:
 				l.Info("Finished creating indexes")
 				ticker.Stop()
