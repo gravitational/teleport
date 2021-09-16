@@ -41,6 +41,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/proxy"
+	"github.com/pborman/uuid"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -773,4 +776,89 @@ func newU2FAuthPreferenceFromConfigFile(t *testing.T) types.AuthPreference {
 	})
 	require.NoError(t, err)
 	return ap
+}
+
+// TestIdentityChecker verifies auth identity properly validates host
+// certificates when connecting to an SSH server.
+func TestIdentityChecker(t *testing.T) {
+	conf := setupConfig(t)
+	authServer, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() { authServer.Close() })
+
+	clusterName, err := authServer.GetDomainName()
+	require.NoError(t, err)
+
+	ca, err := authServer.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName,
+	}, true)
+	require.NoError(t, err)
+
+	signers, err := sshutils.GetSigners(ca)
+	require.NoError(t, err)
+	require.Len(t, signers, 1)
+
+	realCert, err := apisshutils.MakeRealHostCert(signers[0])
+	require.NoError(t, err)
+
+	spoofedCert, err := apisshutils.MakeSpoofedHostCert(signers[0])
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc string
+		cert ssh.Signer
+		err  bool
+	}{
+		{
+			desc: "should be able to connect with real cert",
+			cert: realCert,
+			err:  false,
+		},
+		{
+			desc: "should not be able to connect with spoofed cert",
+			cert: spoofedCert,
+			err:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			handler := sshutils.NewChanHandlerFunc(func(_ context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
+				ch, _, err := nch.Accept()
+				require.NoError(t, err)
+				require.NoError(t, ch.Close())
+			})
+			sshServer, err := sshutils.NewServer(
+				"test",
+				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+				handler,
+				[]ssh.Signer{test.cert},
+				sshutils.AuthMethods{NoClient: true},
+				sshutils.SetInsecureSkipHostValidation(),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { sshServer.Close() })
+			require.NoError(t, sshServer.Start())
+
+			identity, err := GenerateIdentity(authServer, IdentityID{
+				Role:     types.RoleNode,
+				HostUUID: uuid.New(),
+				NodeName: "node-1",
+			}, nil, nil)
+			require.NoError(t, err)
+
+			sshClientConfig, err := identity.SSHClientConfig(false)
+			require.NoError(t, err)
+
+			dialer := proxy.DialerFromEnvironment(sshServer.Addr())
+			sconn, err := dialer.Dial("tcp", sshServer.Addr(), sshClientConfig)
+			if test.err {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NoError(t, sconn.Close())
+			}
+		})
+	}
 }

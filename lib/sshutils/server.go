@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
@@ -604,7 +605,7 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 		return trace.BadParameter("at least one valid principal is required in host certificate")
 	}
 
-	certChecker := utils.CertChecker{
+	certChecker := sshutils.CertChecker{
 		FIPS: fips,
 	}
 	err := certChecker.CheckCert(cert.ValidPrincipals[0], cert)

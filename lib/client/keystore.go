@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -347,12 +348,14 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 			return trace.ConvertSystemError(err)
 		}
 		for _, certFile := range certFiles {
-			data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
-			if err != nil {
-				return trace.ConvertSystemError(err)
+			name := keypaths.TrimCertPathSuffix(certFile.Name())
+			if isCert := name != certFile.Name(); isCert {
+				data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
+				certDataMap[name] = data
 			}
-			name := strings.TrimSuffix(certFile.Name(), constants.FileExtTLSCert)
-			certDataMap[name] = data
 		}
 		return o.updateKeyWithMap(key, certDataMap)
 	}

@@ -113,6 +113,8 @@ type ForwarderConfig struct {
 	// DynamicLabels is map of dynamic labels associated with this cluster.
 	// Used for RBAC.
 	DynamicLabels *labels.Dynamic
+	// PublicAddr is the address that can be used to reach the kube cluster
+	PublicAddr string
 }
 
 // CheckAndSetDefaults checks and sets default values
