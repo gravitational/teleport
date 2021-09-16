@@ -1,4 +1,11 @@
-# Workflow will run every 30 minutes and dismiss stale runs on all open pull requests. 
+# This workflow will run every 30 minutes and dismiss stale workflow runs on open pull requests. Stale workflow 
+# runs on pull requests are runs that are no longer up-to-date due to a new pull_request_target or pull_request_review 
+# event occurring. 
+#
+# This workflow is specifically in place to dismiss stale runs for external contributors because the `Check` workflow 
+# token does not have write access to actions when a pull_request_review event triggers it from a fork. Stale workflow 
+# runs need to be removed by this workflow otherwise they will persist on pull request requirements record and not reflect the 
+# the correct state of the checks.
 name: Dismiss Stale Workflows Runs
 on:
   schedule:

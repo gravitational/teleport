@@ -1,9 +1,11 @@
 # Workflow will trigger on all pull request (except draft), pull request review, and commit push to a 
 # pull request (synchronize) event types
 # 
-# NOTE: Due to the sensitive nature of this workflow, it must always be run
-# against master AND with minimal permissions. These properties must always
-# be maintained!
+# NOTE: pull_request_target behaves the same as pull_request except it gives a
+# read/write token to workflows running on a pull request from a fork. While this may seem unsafe, there is 
+# a repository rule setting that requires approval from a maintainer to run workflows for external contributors'
+# pull requests. Those who approve workflow runs must be looking through the workflow files attentively and ensuring 
+# there aren't any malicious changes. 
 name: Check
 on: 
   pull_request_review:
