@@ -160,9 +160,5 @@ func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *auth.
 		chal.U2FChallenges = append(chal.U2FChallenges, ch)
 	}
 
-	if protoChal.GetWebauthnChallenge() != nil {
-		chal.WebauthnChallenge = wanlib.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
-	}
-
 	return chal
 }

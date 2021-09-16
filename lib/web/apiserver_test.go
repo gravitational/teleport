@@ -2234,9 +2234,9 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			},
 		},
 		{
-			name: "/webapi/mfa/login/begin",
+			name: "/webapi/u2f/signrequest",
 			clt:  publicClt,
-			ep:   []string{"webapi", "mfa", "login", "begin"},
+			ep:   []string{"webapi", "u2f", "signrequest"},
 			reqBody: client.MFAChallengeRequest{
 				User: authPack.user,
 				Pass: authPack.password,
@@ -2267,7 +2267,6 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, chal.TOTPChallenge)
 			require.Empty(t, chal.U2FChallenges)
-			require.Empty(t, chal.WebauthnChallenge)
 		})
 	}
 }

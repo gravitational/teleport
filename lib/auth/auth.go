@@ -1250,9 +1250,6 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			return trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
-	case constants.SecondFactorWebauthn:
-		// TODO(codingllama): Handle webauthn device deletion.
-		return trace.NotImplemented("webauthn device deletion not yet implemented")
 	default:
 		if sfToCount[sf] < minDevices {
 			return trace.BadParameter(

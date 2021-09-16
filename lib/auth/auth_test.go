@@ -61,6 +61,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
+	fidou2f "github.com/tstranex/u2f"
 	. "gopkg.in/check.v1"
 )
 
@@ -1624,7 +1625,7 @@ func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
 	require.NotEmpty(t, res.GetU2F())
 
 	// Test u2f authn works.
-	u2fRes, err := u.u2fKey.SignResponse(&u2f.SignRequest{
+	u2fRes, err := u.u2fKey.SignResponse(&fidou2f.SignRequest{
 		Version:   res.GetU2F()[0].Version,
 		Challenge: res.GetU2F()[0].Challenge,
 		KeyHandle: res.GetU2F()[0].KeyHandle,
