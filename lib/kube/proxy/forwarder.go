@@ -136,6 +136,9 @@ type ForwarderConfig struct {
 	LockWatcher *services.LockWatcher
 	// PublicAddr is the address that can be used to reach the kube cluster
 	PublicAddr string
+	// CheckImpersonationPermissions is an optional override of the default
+	// impersonation permissions check, for use in testing
+	CheckImpersonationPermissions ImpersonationPermissionsChecker
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -205,7 +208,14 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		trace.Component: cfg.Component,
 	})
 
-	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType)
+	// Pick the permissions check function to use, applying an override
+	// if specified.
+	checkImpersonation := checkImpersonationPermissions
+	if cfg.CheckImpersonationPermissions != nil {
+		checkImpersonation = cfg.CheckImpersonationPermissions
+	}
+
+	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, checkImpersonation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
