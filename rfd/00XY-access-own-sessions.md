@@ -57,7 +57,7 @@ The `withParticipant` filtering should be applied alongside the already-implemen
 
 #### DynamoDB
 
-Currently, the fields of an event are stored as a JSON string in the `Fields` attribute. To allow for efficient filtering, the fields should be stored as a proper DynamoDB map instead since DynamoDB allows to refer to map elements inside the filter/condition expressions (e.g. `contains(FieldsMap.participants, :participant`). This will also enable efficient event-specific queries for any other use case in the future.
+Currently, the fields of an event are stored as a JSON string in the `Fields` attribute. To allow for efficient filtering, the fields should be stored as a proper DynamoDB map instead since DynamoDB allows to refer to map elements inside the filter/condition expressions (e.g. `contains(FieldsMap.participants, :participant)`). This will also enable efficient event-specific queries for any other use case in the future.
 
 The whole event table shall therefore be migrated so that the current `Fields` (DynamoDB string) is converted into a new `FieldsMap` attribute (DynamoDB map).
 
