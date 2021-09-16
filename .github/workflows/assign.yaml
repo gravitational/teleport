@@ -2,10 +2,11 @@
 # out of draft (ready for review). 
 #
 # NOTE: pull_request_target behaves the same as pull_request except it gives a
-# read/write token to workflows running on a pull request from a fork. While this may seem unsafe, there is 
-# a repository rule setting that requires approval from a maintainer to run workflows for external contributors'
-# pull requests. Those who approve workflow runs must be looking through the workflow files attentively and ensuring 
-# there aren't any malicious changes. 
+# read/write token to workflows running on a pull request from a fork. While this 
+# may seem unsafe, there is a repository rule setting set that requires approval from a maintainer 
+# to run workflows for external contributors' pull requests. Those who approve workflow runs 
+# must be looking through the workflow files attentively and ensuring there aren't any malicious 
+# changes. 
 name: Assign
 on: 
   pull_request_target:
