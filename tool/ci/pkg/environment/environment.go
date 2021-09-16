@@ -102,18 +102,18 @@ func unmarshalReviewers(str string, client *github.Client) (map[string][]string,
 	if err != nil {
 		return nil, err
 	}
-	for k, v := range m {
-		for _, reviewer := range v {
+	for author, requiredReviewers := range m {
+		for _, reviewer := range requiredReviewers {
 			_, err := userExists(reviewer, client)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
-		if k == "" {
+		if author == "" {
 			hasDefaultReviewers = true
 			continue
 		}
-		_, err := userExists(k, client)
+		_, err := userExists(author, client)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -171,6 +171,7 @@ func GetPullRequest(path string) (*PullRequestMetadata, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer file.Close()
 	body, err := ioutil.ReadAll(file)
 	if err != nil {
 		return nil, trace.Wrap(err)

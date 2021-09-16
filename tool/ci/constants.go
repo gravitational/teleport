@@ -1,11 +1,11 @@
 package ci
 
 const (
-	// Assign is the subcommand to assign reviewers
-	Assign = "assign-reviewers"
+	// AssignSubcommand is the subcommand to assign reviewers
+	AssignSubcommand = "assign-reviewers"
 
-	// Check is the subcommand to check reviewers
-	Check = "check-reviewers"
+	// CheckSubcommand is the subcommand to check reviewers
+	CheckSubcommand = "check-reviewers"
 
 	// Dismiss is the subcommand to dismiss runs
 	Dismiss = "dismiss-runs"

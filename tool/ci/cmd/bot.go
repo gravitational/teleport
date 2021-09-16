@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/tool/ci"
 	"github.com/gravitational/teleport/tool/ci/pkg/bot"
@@ -23,10 +24,11 @@ func main() {
 	flag.Parse()
 
 	subcommand := os.Args[len(os.Args)-1]
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	defer cancel()
 
 	switch subcommand {
-	case ci.Assign:
+	case ci.AssignSubcommand:
 		log.Println("Assigning reviewers")
 		bot, err := constructBot(ctx, *token, *reviewers)
 		if err != nil {
@@ -38,7 +40,7 @@ func main() {
 		}
 		log.Print("Assign completed")
 
-	case ci.Check:
+	case ci.CheckSubcommand:
 		log.Println("Checking reviewers")
 		bot, err := constructBot(ctx, *token, *reviewers)
 		if err != nil {
