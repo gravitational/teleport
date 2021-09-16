@@ -390,7 +390,6 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 	for _, c := range tests {
 		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
 			username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
 			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
 			require.NoError(t, err)

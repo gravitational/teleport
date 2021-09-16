@@ -87,3 +87,7 @@ func (w *WebClient) Get(ctx context.Context, endpoint string, val url.Values) (*
 func (w *WebClient) Delete(ctx context.Context, endpoint string) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(w.Client.Delete(ctx, endpoint))
 }
+
+func (w *WebClient) DeleteWithParams(ctx context.Context, endpoint string, val url.Values) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(w.Client.DeleteWithParams(ctx, endpoint, val))
+}

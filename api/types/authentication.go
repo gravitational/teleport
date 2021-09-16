@@ -542,7 +542,27 @@ func (d *MFADevice) CheckAndSetDefaults() error {
 	if d.Device == nil {
 		return trace.BadParameter("MFADevice missing Device field")
 	}
+	if err := checkWebauthnDevice(d); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
+}
+
+func checkWebauthnDevice(d *MFADevice) error {
+	wrapper, ok := d.Device.(*MFADevice_Webauthn)
+	if !ok {
+		return nil
+	}
+	switch webDev := wrapper.Webauthn; {
+	case webDev == nil:
+		return trace.BadParameter("MFADevice has malformed WebauthnDevice")
+	case len(webDev.CredentialId) == 0:
+		return trace.BadParameter("WebauthnDevice missing CredentialId field")
+	case len(webDev.PublicKeyCbor) == 0:
+		return trace.BadParameter("WebauthnDevice missing PublicKeyCbor field")
+	default:
+		return nil
+	}
 }
 
 func (d *MFADevice) GetKind() string         { return d.Kind }
@@ -564,6 +584,8 @@ func (d *MFADevice) MFAType() string {
 		return "TOTP"
 	case *MFADevice_U2F:
 		return "U2F"
+	case *MFADevice_Webauthn:
+		return "WebAuthn"
 	default:
 		return "unknown"
 	}

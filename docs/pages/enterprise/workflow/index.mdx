@@ -94,6 +94,12 @@ $ tsh login teleport-cluster --request-roles=dba
 # Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
 ```
 
+<Admonition type="note">
+  Users can finish the request without waiting for approval with the `--request-nowait` flag.
+  Once the request is approved, the user can see it with `tsh request ls` and login with it
+  using `tsh login --request-id`.
+</Admonition>
+
 As a Teleport Administrator:
 
 ```code

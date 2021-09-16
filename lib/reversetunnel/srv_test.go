@@ -79,7 +79,7 @@ func TestServerKeyAuth(t *testing.T) {
 					HostID:        "host-id",
 					NodeName:      con.User(),
 					ClusterName:   "host-cluster-name",
-					Roles:         types.SystemRoles{types.RoleNode},
+					Role:          types.RoleNode,
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
