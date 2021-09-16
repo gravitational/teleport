@@ -183,6 +183,14 @@ type Item struct {
 	LeaseID int64
 }
 
+func (e Event) String() string {
+	val := string(e.Item.Value)
+	if len(val) > 20 {
+		val = val[:20] + "..."
+	}
+	return fmt.Sprintf("%v %s=%s", e.Type, e.Item.Key, val)
+}
+
 // Config is used for 'storage' config section. It's a combination of
 // values for various backends: 'boltdb', 'etcd', 'filesystem' and 'dynamodb'
 type Config struct {
