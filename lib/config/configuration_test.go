@@ -133,6 +133,8 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, "INFO", fc.Logger.Severity)
 		require.Equal(t, fc.Auth.ClusterName, ClusterName("cookie.localhost"))
 		require.Equal(t, fc.Auth.LicenseFile, "/tmp/license.pem")
+		require.Equal(t, fc.Proxy.PublicAddr, apiutils.Strings{"cookie.localhost:443"})
+		require.Equal(t, fc.Proxy.WebAddr, "0.0.0.0:443")
 
 		require.False(t, lib.IsInsecureDevMode())
 	})
