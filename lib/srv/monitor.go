@@ -164,7 +164,13 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 
 	var certTime <-chan time.Time
 	if !w.DisconnectExpiredCert.IsZero() {
-		t := w.Clock.NewTicker(w.DisconnectExpiredCert.Sub(w.Clock.Now().UTC()))
+		discTime := w.DisconnectExpiredCert.Sub(w.Clock.Now().UTC())
+		if discTime <= 0 {
+			// Client cert is already expired.
+			// Disconnect the client immediately.
+			discTime = time.Microsecond
+		}
+		t := w.Clock.NewTicker(discTime)
 		defer t.Stop()
 		certTime = t.Chan()
 	}
