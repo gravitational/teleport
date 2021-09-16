@@ -2410,6 +2410,15 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 func (h *Handler) WithJavascriptRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		httplib.SetNoCacheHeaders(w.Header())
+		nonce, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+		if err != nil {
+			h.log.WithError(err).Debugf("Failed to generate and encode random numbers.")
+			err = trace.AccessDenied("access denied")
+			http.Error(w, err.Error(), trace.ErrorToCode(err))
+			return
+		}
+
+		app.SetRedirectPageHeaders(w.Header(), nonce)
 		redirectUrl := fn(w, r, p)
 
 		const js = `
@@ -2417,14 +2426,14 @@ func (h *Handler) WithJavascriptRedirect(fn redirectHandlerFunc) httprouter.Hand
 <html lang="en">
 	<head>
 		<title>Teleport Redirection Service</title>
-		<script>
+		<script nonce="%v">
 			window.location = '%s';
 		</script>
 	</head>
 	<body></body>
 </html>
 `
-		fmt.Fprintf(w, js, redirectUrl)
+		fmt.Fprintf(w, js, nonce, redirectUrl)
 	}
 }
 
