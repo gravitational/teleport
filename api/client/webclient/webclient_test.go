@@ -43,73 +43,64 @@ func newPingHandler(path string) http.Handler {
 	})
 }
 
-func TestPingHttpFallback(t *testing.T) {
-	t.Parallel()
+func TestPlainHttpFallback(t *testing.T) {
+	testCases := []struct {
+		desc            string
+		handler         http.Handler
+		actionUnderTest func(addr string, insecure bool) error
+	}{
+		{
+			desc:    "Ping",
+			handler: newPingHandler("/webapi/ping"),
+			actionUnderTest: func(addr string, insecure bool) error {
+				_, err := Ping(context.Background(), addr, insecure, nil /*pool*/, "")
+				return err
+			},
+		}, {
+			desc:    "Find",
+			handler: newPingHandler("/webapi/find"),
+			actionUnderTest: func(addr string, insecure bool) error {
+				_, err := Find(context.Background(), addr, insecure, nil /*pool*/)
+				return err
+			},
+		},
+	}
 
-	ctx := context.Background()
-	handler := newPingHandler("/webapi/ping")
-	httpSvr := httptest.NewServer(handler)
-	defer httpSvr.Close()
+	for _, testCase := range testCases {
+		t.Run(testCase.desc, func(t *testing.T) {
+			t.Run("Allowed on insecure & loopback", func(t *testing.T) {
+				httpSvr := httptest.NewServer(testCase.handler)
+				defer httpSvr.Close()
 
-	t.Run("Allowed on insecure & loopback", func(t *testing.T) {
-		_, err := Ping(ctx, httpSvr.Listener.Addr().String(), true, nil, "")
-		require.NoError(t, err)
-	})
+				err := testCase.actionUnderTest(httpSvr.Listener.Addr().String(), true /* insecure */)
+				require.NoError(t, err)
+			})
 
-	t.Run("Denied on secure", func(t *testing.T) {
-		_, err := Ping(ctx, httpSvr.Listener.Addr().String(), false, nil, "")
-		require.Error(t, err)
-	})
+			t.Run("Denied on secure", func(t *testing.T) {
+				httpSvr := httptest.NewServer(testCase.handler)
+				defer httpSvr.Close()
 
-	t.Run("Denied on non-loopback", func(t *testing.T) {
-		nonLoopbackSvr := httptest.NewUnstartedServer(handler)
+				err := testCase.actionUnderTest(httpSvr.Listener.Addr().String(), false /* secure */)
+				require.Error(t, err)
+			})
 
-		// replace the test-supplied loopback listener with the first available
-		// non-loopback address
-		nonLoopbackSvr.Listener.Close()
-		l, err := net.Listen("tcp", "0.0.0.0:0")
-		require.NoError(t, err)
-		nonLoopbackSvr.Listener = l
-		nonLoopbackSvr.Start()
-		defer nonLoopbackSvr.Close()
+			t.Run("Denied on non-loopback", func(t *testing.T) {
+				nonLoopbackSvr := httptest.NewUnstartedServer(testCase.handler)
 
-		_, err = Ping(ctx, nonLoopbackSvr.Listener.Addr().String(), true, nil, "")
-		require.Error(t, err)
-	})
-}
+				// replace the test-supplied loopback listener with the first available
+				// non-loopback address
+				nonLoopbackSvr.Listener.Close()
+				l, err := net.Listen("tcp", "0.0.0.0:0")
+				require.NoError(t, err)
+				nonLoopbackSvr.Listener = l
+				nonLoopbackSvr.Start()
+				defer nonLoopbackSvr.Close()
 
-func TestFindHttpFallback(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	handler := newPingHandler("/webapi/find")
-	httpSvr := httptest.NewServer(handler)
-	defer httpSvr.Close()
-
-	t.Run("Allowed on insecure & loopback", func(t *testing.T) {
-		_, err := Find(ctx, httpSvr.Listener.Addr().String(), true, nil)
-		require.NoError(t, err)
-	})
-
-	t.Run("Denied on secure", func(t *testing.T) {
-		_, err := Find(ctx, httpSvr.Listener.Addr().String(), false, nil)
-		require.Error(t, err)
-	})
-
-	t.Run("Denied on non-loopback", func(t *testing.T) {
-		svr := httptest.NewUnstartedServer(handler)
-
-		// replace the loopback listener with the first available non-loopback address
-		svr.Listener.Close()
-		l, err := net.Listen("tcp", "0.0.0.0:0")
-		require.NoError(t, err)
-		svr.Listener = l
-		svr.Start()
-		defer svr.Close()
-
-		_, err = Find(ctx, svr.Listener.Addr().String(), true, nil)
-		require.Error(t, err)
-	})
+				err = testCase.actionUnderTest(nonLoopbackSvr.Listener.Addr().String(), true /* insecure */)
+				require.Error(t, err)
+			})addr
+		})
+	}
 }
 
 func TestGetTunnelAddr(t *testing.T) {

@@ -56,16 +56,10 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 //  * The target host must resolve to the loopback address.
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
-func doWithFallback(ctx context.Context, clt *http.Client, allowPlainHTTP bool, method string, proxyAddr string, path string) (*http.Response, error) {
+func doWithFallback(clt *http.Client, allowPlainHTTP bool, req *http.Request) (*http.Response, error) {
 	// first try https and see how that goes
-	endpoint := fmt.Sprintf("https://%s%s", proxyAddr, path)
-
-	log.Printf("Attempting %s %s", method, endpoint)
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	req.URL.Scheme = "https"
+	log.Printf("Attempting %s %s/%s", req.Method, req.URL.Host, req.URL.Path)
 	resp, err := clt.Do(req)
 
 	// If the HTTPS succeeds, return that.
@@ -76,26 +70,20 @@ func doWithFallback(ctx context.Context, clt *http.Client, allowPlainHTTP bool, 
 	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
 	// Note that we're only allowed to try plain HTTP on the loopback address, even
 	// if the caller says its OK
-	if !(allowPlainHTTP && utils.IsLoopback(proxyAddr)) {
+	if !(allowPlainHTTP && utils.IsLoopback(req.URL.Host)) {
 		return nil, trace.Wrap(err)
 	}
 
 	// If we get to here a) the HTTPS attempt failed, and b) we're allowed to try
 	// clear-text HTTP to see if that works.
-	endpoint = fmt.Sprintf("http://%s%s", proxyAddr, path)
-	log.Printf("Falling back to plain %s %s", method, endpoint)
-
-	req, err = http.NewRequestWithContext(ctx, method, endpoint, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	req.URL.Scheme = "http"
+	log.Printf("WARN: Request for %s/%s falling back to PLAIN HTTP", req.URL.Host, req.URL.Path)
 	resp, err = clt.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return resp, err
+	return resp, nil
 }
 
 // Find fetches discovery data by connecting to the given web proxy address.
@@ -104,7 +92,14 @@ func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 	clt := newWebClient(insecure, pool)
 	defer clt.CloseIdleConnections()
 
-	resp, err := doWithFallback(ctx, clt, insecure, http.MethodGet, proxyAddr, "/webapi/find")
+	endpoint := fmt.Sprintf("https://%s/webapi/find", proxyAddr)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := doWithFallback(clt, insecure, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -127,12 +122,17 @@ func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 	clt := newWebClient(insecure, pool)
 	defer clt.CloseIdleConnections()
 
-	endpoint := "/webapi/ping"
+	endpoint := fmt.Sprintf("https://%s/webapi/ping", proxyAddr)
 	if connectorName != "" {
 		endpoint = fmt.Sprintf("%s/%s", endpoint, connectorName)
 	}
 
-	resp, err := doWithFallback(ctx, clt, insecure, http.MethodGet, proxyAddr, endpoint)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := doWithFallback(clt, insecure, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

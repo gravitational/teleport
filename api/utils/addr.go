@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"net"
 	"strings"
 )
@@ -24,6 +25,16 @@ import (
 // IsLoopback returns 'true' if a given hostname resolves *only* to the
 // local host's loopback interface
 func IsLoopback(host string) bool {
+	return isLoopbackWithResolver(host, net.DefaultResolver)
+}
+
+type nameResolver interface {
+	LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error)
+}
+
+// isLoopbackWithResolver provides the inner implementation of IsLoopback(),
+// but allows the caller to inject a custom resolver for testing purposes.
+func isLoopbackWithResolver(host string, resolver nameResolver) bool {
 	if strings.Contains(host, ":") {
 		var err error
 		host, _, err = net.SplitHostPort(host)
@@ -31,17 +42,17 @@ func IsLoopback(host string) bool {
 			return false
 		}
 	}
-	ips, err := net.LookupIP(host)
+	addrs, err := resolver.LookupIPAddr(context.Background(), host)
 	if err != nil {
 		return false
 	}
 
-	if len(ips) == 0 {
+	if len(addrs) == 0 {
 		return false
 	}
 
-	for _, ip := range ips {
-		if !ip.IsLoopback() {
+	for _, addr := range addrs {
+		if !addr.IP.IsLoopback() {
 			return false
 		}
 	}
