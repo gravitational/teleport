@@ -2419,7 +2419,7 @@ func (h *Handler) WithJavascriptRedirect(fn redirectHandlerFunc) httprouter.Hand
 		}
 
 		app.SetRedirectPageHeaders(w.Header(), nonce)
-		redirectUrl := fn(w, r, p)
+		redirectURL := fn(w, r, p)
 
 		const js = `
 <!DOCTYPE html>
@@ -2433,7 +2433,7 @@ func (h *Handler) WithJavascriptRedirect(fn redirectHandlerFunc) httprouter.Hand
 	<body></body>
 </html>
 `
-		fmt.Fprintf(w, js, nonce, redirectUrl)
+		fmt.Fprintf(w, js, nonce, redirectURL)
 	}
 }
 
