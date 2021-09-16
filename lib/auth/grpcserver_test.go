@@ -28,12 +28,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -44,10 +38,18 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestMFADeviceManagement(t *testing.T) {
@@ -55,7 +57,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	srv := newTestTLSServer(t)
 	clock := srv.Clock().(clockwork.FakeClock)
 
-	// Enable U2F support.
+	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
@@ -63,7 +65,11 @@ func TestMFADeviceManagement(t *testing.T) {
 			AppID:  "teleport",
 			Facets: []string{"teleport"},
 		},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
 	})
+	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
 	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
@@ -79,104 +85,18 @@ func TestMFADeviceManagement(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, resp.Devices)
 
-	totpSecrets := make(map[string]string)
-	u2fDevices := make(map[string]*mocku2f.Key)
+	// Add one device of each kind
+	devs := addOneOfEachMFADevice(t, cl, clock, webOrigin)
 
-	// Add several MFA devices.
+	// Run AddMFADevice tests, including adding additional devices and failures.
+	webKey2, err := mocku2f.Create()
+	require.NoError(t, err)
+	webKey2.PreferRPID = true
+	const webDev2Name = "webauthn2"
 	addTests := []struct {
 		desc string
 		opts mfaAddTestOpts
 	}{
-		{
-			desc: "add initial TOTP device",
-			opts: mfaAddTestOpts{
-				initReq: &proto.AddMFADeviceRequestInit{
-					DeviceName: "totp-dev",
-					Type:       proto.AddMFADeviceRequestInit_TOTP,
-				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					// The challenge should be empty for the first device.
-					require.Empty(t, cmp.Diff(req, &proto.MFAAuthenticateChallenge{}))
-					return &proto.MFAAuthenticateResponse{}
-				},
-				checkAuthErr: require.NoError,
-				registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					totpRegisterChallenge := req.GetTOTP()
-					require.NotEmpty(t, totpRegisterChallenge)
-					require.Equal(t, totpRegisterChallenge.Algorithm, otp.AlgorithmSHA1.String())
-					code, err := totp.GenerateCodeCustom(totpRegisterChallenge.Secret, clock.Now(), totp.ValidateOpts{
-						Period:    uint(totpRegisterChallenge.PeriodSeconds),
-						Digits:    otp.Digits(totpRegisterChallenge.Digits),
-						Algorithm: otp.AlgorithmSHA1,
-					})
-					require.NoError(t, err)
-
-					totpSecrets["totp-dev"] = totpRegisterChallenge.Secret
-					return &proto.MFARegisterResponse{
-						Response: &proto.MFARegisterResponse_TOTP{TOTP: &proto.TOTPRegisterResponse{
-							Code: code,
-						}},
-					}
-				},
-				checkRegisterErr: require.NoError,
-				wantDev: func(t *testing.T) *types.MFADevice {
-					wantDev, err := services.NewTOTPDevice("totp-dev", totpSecrets["totp-dev"], clock.Now())
-					require.NoError(t, err)
-					return wantDev
-				},
-			},
-		},
-		{
-			desc: "add a U2F device",
-			opts: mfaAddTestOpts{
-				initReq: &proto.AddMFADeviceRequestInit{
-					DeviceName: "u2f-dev",
-					Type:       proto.AddMFADeviceRequestInit_U2F,
-				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					// Respond to challenge using the existing TOTP device.
-					require.NotNil(t, req.TOTP)
-					code, err := totp.GenerateCode(totpSecrets["totp-dev"], clock.Now())
-					require.NoError(t, err)
-
-					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{
-						Code: code,
-					}}}
-				},
-				checkAuthErr: require.NoError,
-				registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					u2fRegisterChallenge := req.GetU2F()
-					require.NotEmpty(t, u2fRegisterChallenge)
-
-					mdev, err := mocku2f.Create()
-					require.NoError(t, err)
-					u2fDevices["u2f-dev"] = mdev
-					mresp, err := mdev.RegisterResponse(&u2f.RegisterChallenge{
-						Challenge: u2fRegisterChallenge.Challenge,
-						AppID:     u2fRegisterChallenge.AppID,
-					})
-					require.NoError(t, err)
-
-					return &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{U2F: &proto.U2FRegisterResponse{
-						RegistrationData: mresp.RegistrationData,
-						ClientData:       mresp.ClientData,
-					}}}
-				},
-				checkRegisterErr: require.NoError,
-				wantDev: func(t *testing.T) *types.MFADevice {
-					wantDev, err := u2f.NewDevice(
-						"u2f-dev",
-						&u2f.Registration{
-							KeyHandle: u2fDevices["u2f-dev"].KeyHandle,
-							PubKey:    u2fDevices["u2f-dev"].PrivateKey.PublicKey,
-						},
-						clock.Now(),
-					)
-					require.NoError(t, err)
-					return wantDev
-				},
-			},
-		},
 		{
 			desc: "fail U2F auth challenge",
 			opts: mfaAddTestOpts{
@@ -241,16 +161,7 @@ func TestMFADeviceManagement(t *testing.T) {
 					DeviceName: "fail-dev",
 					Type:       proto.AddMFADeviceRequestInit_U2F,
 				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					// Respond to challenge using the existing TOTP device.
-					require.NotNil(t, req.TOTP)
-					code, err := totp.GenerateCode(totpSecrets["totp-dev"], clock.Now())
-					require.NoError(t, err)
-
-					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{
-						Code: code,
-					}}}
-				},
+				authHandler:  devs.u2fAuthHandler,
 				checkAuthErr: require.NoError,
 				registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
 					u2fRegisterChallenge := req.GetU2F()
@@ -279,16 +190,7 @@ func TestMFADeviceManagement(t *testing.T) {
 					DeviceName: "fail-dev",
 					Type:       proto.AddMFADeviceRequestInit_TOTP,
 				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					// Respond to challenge using the existing TOTP device.
-					require.NotNil(t, req.TOTP)
-					code, err := totp.GenerateCode(totpSecrets["totp-dev"], clock.Now())
-					require.NoError(t, err)
-
-					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{
-						Code: code,
-					}}}
-				},
+				authHandler:  devs.totpAuthHandler,
 				checkAuthErr: require.NoError,
 				registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
 					totpRegisterChallenge := req.GetTOTP()
@@ -312,12 +214,92 @@ func TestMFADeviceManagement(t *testing.T) {
 				checkRegisterErr: require.Error,
 			},
 		},
+		{
+			desc: "add a second webauthn device",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName: webDev2Name,
+					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+				},
+				authHandler:  devs.webAuthHandler,
+				checkAuthErr: require.NoError,
+				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
+					ccr, err := webKey2.SignCredentialCreation(webOrigin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					require.NoError(t, err)
+
+					return &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_Webauthn{
+							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+						},
+					}
+				},
+				checkRegisterErr: require.NoError,
+			},
+		},
+		{
+			desc: "fail a webauthn auth challenge",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName: "webauthn-1512000",
+					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+				},
+				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					require.NotNil(t, challenge.WebauthnChallenge) // webauthn enabled
+
+					// Sign challenge with an unknown device.
+					key, err := mocku2f.Create()
+					require.NoError(t, err)
+					key.PreferRPID = true
+					key.IgnoreAllowedCredentials = true
+					resp, err := key.SignAssertion(webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+					require.NoError(t, err)
+					return &proto.MFAAuthenticateResponse{
+						Response: &proto.MFAAuthenticateResponse_Webauthn{
+							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+						},
+					}
+				},
+				checkAuthErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.Error(t, err)
+					require.Equal(t, codes.InvalidArgument, status.Code(err))
+				},
+			},
+		},
+		{
+			desc: "fail a webauthn registration challenge",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName: "webauthn-1512000",
+					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+				},
+				authHandler:  devs.webAuthHandler,
+				checkAuthErr: require.NoError,
+				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
+					require.NotNil(t, challenge.GetWebauthn())
+
+					key, err := mocku2f.Create()
+					require.NoError(t, err)
+					key.PreferRPID = true
+
+					ccr, err := key.SignCredentialCreation(
+						"http://badorigin.com" /* origin */, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					require.NoError(t, err)
+					return &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_Webauthn{
+							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+						},
+					}
+				},
+				checkRegisterErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.Error(t, err)
+					require.Equal(t, codes.InvalidArgument, status.Code(err))
+				},
+			},
+		},
 	}
 	for _, tt := range addTests {
 		t.Run(tt.desc, func(t *testing.T) {
 			testAddMFADevice(ctx, t, cl, tt.opts)
-			// Advance the time to roll TOTP tokens.
-			clock.Advance(30 * time.Second)
 		})
 	}
 
@@ -331,7 +313,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		deviceIDs[dev.GetName()] = dev.Id
 	}
 	sort.Strings(deviceNames)
-	require.Equal(t, deviceNames, []string{"totp-dev", "u2f-dev"})
+	require.Equal(t, deviceNames, []string{devs.TOTPName, devs.U2FName, devs.WebName, webDev2Name})
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
@@ -344,23 +326,15 @@ func TestMFADeviceManagement(t *testing.T) {
 				initReq: &proto.DeleteMFADeviceRequestInit{
 					DeviceName: "unknown-dev",
 				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					require.NotNil(t, req.TOTP)
-					code, err := totp.GenerateCode(totpSecrets["totp-dev"], clock.Now())
-					require.NoError(t, err)
-
-					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{
-						Code: code,
-					}}}
-				},
-				checkErr: require.Error,
+				authHandler: devs.totpAuthHandler,
+				checkErr:    require.Error,
 			},
 		},
 		{
 			desc: "fail a TOTP auth challenge",
 			opts: mfaDeleteTestOpts{
 				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: "totp-dev",
+					DeviceName: devs.TOTPName,
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, req.TOTP)
@@ -383,7 +357,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			desc: "fail a U2F auth challenge",
 			opts: mfaDeleteTestOpts{
 				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: "totp-dev",
+					DeviceName: devs.U2FName,
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.Len(t, req.U2F, 1)
@@ -412,50 +386,75 @@ func TestMFADeviceManagement(t *testing.T) {
 			},
 		},
 		{
-			desc: "delete TOTP device by name",
+			desc: "fail a webauthn auth challenge",
 			opts: mfaDeleteTestOpts{
 				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: "totp-dev",
+					DeviceName: devs.WebName,
 				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					// Respond to the challenge using the TOTP device being deleted.
-					require.NotNil(t, req.TOTP)
-					code, err := totp.GenerateCode(totpSecrets["totp-dev"], clock.Now())
+				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					require.NotNil(t, challenge.WebauthnChallenge)
+
+					// Sign challenge with an unknown device.
+					key, err := mocku2f.Create()
 					require.NoError(t, err)
-
-					delete(totpSecrets, "totp-dev")
-
-					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{
-						Code: code,
-					}}}
+					key.PreferRPID = true
+					key.IgnoreAllowedCredentials = true
+					resp, err := key.SignAssertion(webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+					require.NoError(t, err)
+					return &proto.MFAAuthenticateResponse{
+						Response: &proto.MFAAuthenticateResponse_Webauthn{
+							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+						},
+					}
 				},
-				checkErr: require.NoError,
+				checkErr: require.Error,
 			},
 		},
 		{
-			desc: "delete last U2F device by ID",
+			desc: "delete TOTP device by name",
 			opts: mfaDeleteTestOpts{
 				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: deviceIDs["u2f-dev"],
+					DeviceName: devs.TOTPName,
 				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					require.Len(t, req.U2F, 1)
-					chal := req.U2F[0]
-
-					mdev := u2fDevices["u2f-dev"]
-					mresp, err := mdev.SignResponse(&u2f.AuthenticateChallenge{
-						Challenge: chal.Challenge,
-						KeyHandle: chal.KeyHandle,
-						AppID:     chal.AppID,
-					})
+				authHandler: devs.totpAuthHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			desc: "delete U2F device by ID",
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: deviceIDs[devs.U2FName],
+				},
+				authHandler: devs.u2fAuthHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			desc: "delete webauthn device by name",
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: devs.WebName,
+				},
+				authHandler: devs.webAuthHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			desc: "delete webauthn device by ID",
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: deviceIDs[webDev2Name],
+				},
+				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					resp, err := webKey2.SignAssertion(
+						webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
 					require.NoError(t, err)
-
-					delete(u2fDevices, "u2f-dev")
-					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
-						KeyHandle:  mresp.KeyHandle,
-						ClientData: mresp.ClientData,
-						Signature:  mresp.SignatureData,
-					}}}
+					return &proto.MFAAuthenticateResponse{
+						Response: &proto.MFAAuthenticateResponse_Webauthn{
+							Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+						},
+					}
 				},
 				checkErr: require.NoError,
 			},
@@ -464,8 +463,6 @@ func TestMFADeviceManagement(t *testing.T) {
 	for _, tt := range deleteTests {
 		t.Run(tt.desc, func(t *testing.T) {
 			testDeleteMFADevice(ctx, t, cl, tt.opts)
-			// Advance the time to roll TOTP tokens.
-			clock.Advance(30 * time.Second)
 		})
 	}
 
@@ -475,13 +472,221 @@ func TestMFADeviceManagement(t *testing.T) {
 	require.Empty(t, resp.Devices)
 }
 
+type mfaDevices struct {
+	clock     clockwork.Clock
+	webOrigin string
+
+	TOTPName, TOTPSecret string
+	U2FName              string
+	U2FKey               *mocku2f.Key
+	WebName              string
+	WebKey               *mocku2f.Key
+}
+
+func (d *mfaDevices) totpAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+	require.NotNil(t, challenge.TOTP)
+
+	if c, ok := d.clock.(clockwork.FakeClock); ok {
+		c.Advance(30 * time.Second)
+	}
+	code, err := totp.GenerateCode(d.TOTPSecret, d.clock.Now())
+	require.NoError(t, err)
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{
+				Code: code,
+			},
+		},
+	}
+}
+
+func (d *mfaDevices) u2fAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+	require.Len(t, challenge.U2F, 1)
+	c := challenge.U2F[0]
+
+	resp, err := d.U2FKey.SignResponse(&u2f.AuthenticateChallenge{
+		Challenge: c.Challenge,
+		KeyHandle: c.KeyHandle,
+		AppID:     c.AppID,
+	})
+	require.NoError(t, err)
+
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_U2F{
+			U2F: &proto.U2FResponse{
+				KeyHandle:  resp.KeyHandle,
+				ClientData: resp.ClientData,
+				Signature:  resp.SignatureData,
+			},
+		},
+	}
+}
+
+func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+	require.NotNil(t, challenge.WebauthnChallenge)
+
+	resp, err := d.WebKey.SignAssertion(
+		d.webOrigin, wanlib.CredentialAssertionFromProto(challenge.WebauthnChallenge))
+	require.NoError(t, err)
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+		},
+	}
+}
+
+func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, origin string) mfaDevices {
+	const totpName = "totp-dev"
+	const u2fName = "u2f-dev"
+	const webName = "webauthn-dev"
+	devs := mfaDevices{
+		clock:     clock,
+		webOrigin: origin,
+		TOTPName:  totpName,
+		U2FName:   u2fName,
+		WebName:   webName,
+	}
+
+	var err error
+	devs.U2FKey, err = mocku2f.Create()
+	require.NoError(t, err)
+	devs.WebKey, err = mocku2f.Create()
+	require.NoError(t, err)
+	devs.WebKey.PreferRPID = true
+
+	// Add MFA devices of all kinds.
+	ctx := context.Background()
+	for _, test := range []struct {
+		name string
+		opts mfaAddTestOpts
+	}{
+		{
+			name: "TOTP device",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName: totpName,
+					Type:       proto.AddMFADeviceRequestInit_TOTP,
+				},
+				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					// Empty for first device.
+					return &proto.MFAAuthenticateResponse{}
+				},
+				checkAuthErr: require.NoError,
+				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
+					require.NotEmpty(t, challenge.GetTOTP())
+					require.Equal(t, challenge.GetTOTP().Algorithm, otp.AlgorithmSHA1.String())
+
+					devs.TOTPSecret = challenge.GetTOTP().Secret
+					code, err := totp.GenerateCodeCustom(devs.TOTPSecret, clock.Now(), totp.ValidateOpts{
+						Period:    uint(challenge.GetTOTP().PeriodSeconds),
+						Digits:    otp.Digits(challenge.GetTOTP().Digits),
+						Algorithm: otp.AlgorithmSHA1,
+					})
+					require.NoError(t, err)
+
+					return &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_TOTP{
+							TOTP: &proto.TOTPRegisterResponse{
+								Code: code,
+							},
+						},
+					}
+				},
+				checkRegisterErr: require.NoError,
+				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
+					want, err := services.NewTOTPDevice(totpName, devs.TOTPSecret, clock.Now())
+					want.Id = got.Id
+					require.NoError(t, err)
+					require.Empty(t, cmp.Diff(want, got))
+				},
+			},
+		},
+		{
+			name: "U2F device",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName: u2fName,
+					Type:       proto.AddMFADeviceRequestInit_U2F,
+				},
+				authHandler:  devs.totpAuthHandler,
+				checkAuthErr: require.NoError,
+				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
+					require.NotEmpty(t, challenge.GetU2F())
+
+					resp, err := devs.U2FKey.RegisterResponse(&u2f.RegisterChallenge{
+						Challenge: challenge.GetU2F().Challenge,
+						AppID:     challenge.GetU2F().AppID,
+					})
+					require.NoError(t, err)
+
+					return &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_U2F{
+							U2F: &proto.U2FRegisterResponse{
+								RegistrationData: resp.RegistrationData,
+								ClientData:       resp.ClientData,
+							},
+						},
+					}
+				},
+				checkRegisterErr: require.NoError,
+				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
+					want, err := u2f.NewDevice(
+						u2fName,
+						&u2f.Registration{
+							KeyHandle: devs.U2FKey.KeyHandle,
+							PubKey:    devs.U2FKey.PrivateKey.PublicKey,
+						},
+						clock.Now(),
+					)
+					want.Id = got.Id
+					require.NoError(t, err)
+					require.Empty(t, cmp.Diff(want, got))
+				},
+			},
+		},
+		{
+			name: "Webauthn device",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName: webName,
+					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+				},
+				authHandler:  devs.totpAuthHandler,
+				checkAuthErr: require.NoError,
+				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
+					require.NotNil(t, challenge.GetWebauthn())
+
+					ccr, err := devs.WebKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					require.NoError(t, err)
+					return &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_Webauthn{
+							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+						},
+					}
+				},
+				checkRegisterErr: require.NoError,
+				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
+					// MFADevice device asserted in its entirety by lib/auth/webauthn
+					// tests, a simple check suffices here.
+					require.Equal(t, devs.WebKey.KeyHandle, got.GetWebauthn().CredentialId)
+				},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			testAddMFADevice(ctx, t, cl, test.opts)
+		})
+	}
+	return devs
+}
+
 type mfaAddTestOpts struct {
-	initReq          *proto.AddMFADeviceRequestInit
-	authHandler      func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
-	checkAuthErr     require.ErrorAssertionFunc
-	registerHandler  func(*testing.T, *proto.MFARegisterChallenge) *proto.MFARegisterResponse
-	checkRegisterErr require.ErrorAssertionFunc
-	wantDev          func(*testing.T) *types.MFADevice
+	initReq             *proto.AddMFADeviceRequestInit
+	authHandler         func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
+	checkAuthErr        require.ErrorAssertionFunc
+	registerHandler     func(*testing.T, *proto.MFARegisterChallenge) *proto.MFARegisterResponse
+	checkRegisterErr    require.ErrorAssertionFunc
+	assertRegisteredDev func(*testing.T, *types.MFADevice)
 }
 
 func testAddMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfaAddTestOpts) {
@@ -510,9 +715,9 @@ func testAddMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfaAdd
 	if err != nil {
 		return
 	}
-	require.Empty(t, cmp.Diff(registerAck.GetAck(), &proto.AddMFADeviceResponseAck{
-		Device: opts.wantDev(t),
-	}, cmpopts.IgnoreFields(types.MFADevice{}, "Id")))
+	if opts.assertRegisteredDev != nil {
+		opts.assertRegisteredDev(t, registerAck.GetAck().GetDevice())
+	}
 
 	require.NoError(t, addStream.CloseSend())
 }
@@ -545,6 +750,135 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfa
 	require.NoError(t, deleteStream.CloseSend())
 }
 
+func TestDeleteLastMFADevice(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Enable MFA support.
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	const webOrigin = "https://localhost" // matches RPID above
+	require.NoError(t, err)
+	auth := srv.Auth()
+	err = auth.SetAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	// Create a fake user.
+	user, _, err := CreateUserAndRole(auth, "mfa-user", []string{"role"})
+	require.NoError(t, err)
+	cl, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Add devices
+	devs := addOneOfEachMFADevice(t, cl, srv.Clock(), webOrigin)
+
+	tests := []struct {
+		name         string
+		secondFactor constants.SecondFactorType
+		opts         mfaDeleteTestOpts
+	}{
+		{
+			name:         "NOK sf=OTP trying to delete last OTP device",
+			secondFactor: constants.SecondFactorOTP,
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: devs.TOTPName,
+				},
+				authHandler: devs.totpAuthHandler,
+				checkErr:    require.Error,
+			},
+		},
+		{
+			name:         "NOK sf=U2F trying to delete last U2F device",
+			secondFactor: constants.SecondFactorU2F,
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: devs.U2FName,
+				},
+				authHandler: devs.u2fAuthHandler,
+				checkErr:    require.Error,
+			},
+		},
+		{
+			name:         "NOK sf=Webauthn trying to delete last Webauthn device",
+			secondFactor: constants.SecondFactorWebauthn,
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: devs.WebName,
+				},
+				authHandler: devs.webAuthHandler,
+				checkErr:    require.Error,
+			},
+		},
+		{
+			name:         "OK delete OTP device",
+			secondFactor: constants.SecondFactorOn,
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: devs.TOTPName,
+				},
+				authHandler: devs.totpAuthHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			name:         "OK delete U2F device",
+			secondFactor: constants.SecondFactorOn,
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: devs.U2FName,
+				},
+				authHandler: devs.u2fAuthHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			name:         "NOK sf=on trying to delete last MFA device",
+			secondFactor: constants.SecondFactorOn,
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: devs.WebName,
+				},
+				authHandler: devs.webAuthHandler,
+				checkErr:    require.Error,
+			},
+		},
+		{
+			name:         "OK sf=optional delete last device (webauthn)",
+			secondFactor: constants.SecondFactorOptional,
+			opts: mfaDeleteTestOpts{
+				initReq: &proto.DeleteMFADeviceRequestInit{
+					DeviceName: devs.WebName,
+				},
+				authHandler: devs.webAuthHandler,
+				checkErr:    require.NoError,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Update second factor settings, if necessary.
+			cap, err := auth.GetAuthPreference(ctx)
+			require.NoError(t, err)
+			if cap.GetSecondFactor() != test.secondFactor {
+				cap.SetSecondFactor(test.secondFactor)
+				require.NoError(t, auth.SetAuthPreference(ctx, cap))
+			}
+
+			testDeleteMFADevice(ctx, t, cl, test.opts)
+		})
+	}
+}
+
 func TestGenerateUserSingleUseCert(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -557,7 +891,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		U2F: &types.U2F{
 			AppID:  "teleport",
 			Facets: []string{"teleport"},
-		}})
+		},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
 	err = srv.Auth().SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
@@ -614,72 +953,22 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	cl, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	// Register a U2F device for the fake user.
-	u2fDev, err := mocku2f.Create()
-	require.NoError(t, err)
-	testAddMFADevice(ctx, t, cl, mfaAddTestOpts{
-		initReq: &proto.AddMFADeviceRequestInit{
-			DeviceName: "u2f-dev",
-			Type:       proto.AddMFADeviceRequestInit_U2F,
-		},
-		authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-			// The challenge should be empty for the first device.
-			require.Empty(t, cmp.Diff(req, &proto.MFAAuthenticateChallenge{}))
-			return &proto.MFAAuthenticateResponse{}
-		},
-		checkAuthErr: require.NoError,
-		registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-			u2fRegisterChallenge := req.GetU2F()
-			require.NotEmpty(t, u2fRegisterChallenge)
+	// Register MFA devices for the fake user.
+	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
 
-			mresp, err := u2fDev.RegisterResponse(&u2f.RegisterChallenge{
-				Challenge: u2fRegisterChallenge.Challenge,
-				AppID:     u2fRegisterChallenge.AppID,
-			})
-			require.NoError(t, err)
-
-			return &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{U2F: &proto.U2FRegisterResponse{
-				RegistrationData: mresp.RegistrationData,
-				ClientData:       mresp.ClientData,
-			}}}
-		},
-		checkRegisterErr: require.NoError,
-		wantDev: func(t *testing.T) *types.MFADevice {
-			wantDev, err := u2f.NewDevice(
-				"u2f-dev",
-				&u2f.Registration{
-					KeyHandle: u2fDev.KeyHandle,
-					PubKey:    u2fDev.PrivateKey.PublicKey,
-				},
-				clock.Now(),
-			)
-			require.NoError(t, err)
-			return wantDev
-		},
-	})
-	// Fetch MFA device ID.
+	// Fetch MFA device IDs.
 	devs, err := srv.Auth().Identity.GetMFADevices(ctx, user.GetName(), false)
 	require.NoError(t, err)
-	require.Len(t, devs, 1)
-	u2fDevID := devs[0].Id
-
-	u2fChallengeHandler := func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-		require.Len(t, req.U2F, 1)
-		chal := req.U2F[0]
-
-		mresp, err := u2fDev.SignResponse(&u2f.AuthenticateChallenge{
-			Challenge: chal.Challenge,
-			KeyHandle: chal.KeyHandle,
-			AppID:     chal.AppID,
-		})
-		require.NoError(t, err)
-
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
-			KeyHandle:  mresp.KeyHandle,
-			ClientData: mresp.ClientData,
-			Signature:  mresp.SignatureData,
-		}}}
+	var u2fDevID, webDevID string
+	for _, dev := range devs {
+		switch {
+		case dev.GetU2F() != nil:
+			u2fDevID = dev.Id
+		case dev.GetWebauthn() != nil:
+			webDevID = dev.Id
+		}
 	}
+
 	_, pub, err := srv.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
 
@@ -688,7 +977,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		opts generateUserSingleUseCertTestOpts
 	}{
 		{
-			desc: "ssh",
+			desc: "ssh using U2F",
 			opts: generateUserSingleUseCertTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
@@ -698,7 +987,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					NodeName:  "node-a",
 				},
 				checkInitErr: require.NoError,
-				authHandler:  u2fChallengeHandler,
+				authHandler:  registered.u2fAuthHandler,
 				checkAuthErr: require.NoError,
 				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetSSH()
@@ -708,6 +997,60 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], u2fDevID)
+					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
+					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
+				},
+			},
+		},
+		{
+			desc: "ssh using webauthn",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:     proto.UserCertsRequest_SSH,
+					NodeName:  "node-a",
+				},
+				checkInitErr: require.NoError,
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetSSH()
+					require.NotEmpty(t, crt)
+
+					cert, err := sshutils.ParseCertificate(crt)
+					require.NoError(t, err)
+
+					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], webDevID)
+					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
+					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
+				},
+			},
+		},
+		{
+			desc: "ssh - adjusted expiry",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:    proto.UserCertsRequest_SSH,
+					NodeName: "node-a",
+				},
+				checkInitErr: require.NoError,
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetSSH()
+					require.NotEmpty(t, crt)
+
+					cert, err := sshutils.ParseCertificate(crt)
+					require.NoError(t, err)
+
+					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], webDevID)
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
 					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
 				},
@@ -724,7 +1067,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					KubernetesCluster: "kube-a",
 				},
 				checkInitErr: require.NoError,
-				authHandler:  u2fChallengeHandler,
+				authHandler:  registered.webAuthHandler,
 				checkAuthErr: require.NoError,
 				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetTLS()
@@ -736,7 +1079,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.Equal(t, identity.MFAVerified, u2fDevID)
+					require.Equal(t, identity.MFAVerified, webDevID)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
 					require.Equal(t, identity.Usage, []string{teleport.UsageKubeOnly})
 					require.Equal(t, identity.KubernetesCluster, "kube-a")
@@ -756,7 +1099,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					},
 				},
 				checkInitErr: require.NoError,
-				authHandler:  u2fChallengeHandler,
+				authHandler:  registered.webAuthHandler,
 				checkAuthErr: require.NoError,
 				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetTLS()
@@ -768,7 +1111,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.Equal(t, identity.MFAVerified, u2fDevID)
+					require.Equal(t, identity.MFAVerified, webDevID)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
 					require.Equal(t, identity.Usage, []string{teleport.UsageDatabaseOnly})
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
@@ -788,34 +1131,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				checkInitErr: require.Error,
 			},
 		},
-		{
-			desc: "ssh - adjusted expiry",
-			opts: generateUserSingleUseCertTestOpts{
-				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:    proto.UserCertsRequest_SSH,
-					NodeName: "node-a",
-				},
-				checkInitErr: require.NoError,
-				authHandler:  u2fChallengeHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetSSH()
-					require.NotEmpty(t, crt)
 
-					cert, err := sshutils.ParseCertificate(crt)
-					require.NoError(t, err)
-
-					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], u2fDevID)
-					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
-					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
-				},
-			},
-		},
 		{
 			desc: "fail - mfa challenge fail",
 			opts: generateUserSingleUseCertTestOpts{
@@ -1020,102 +1336,6 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	// When unauthorized, expect a silent `false`.
 	require.NoError(t, err)
 	require.False(t, resp.Required)
-}
-
-func TestDeleteLastMFADevice(t *testing.T) {
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-	clock := srv.Clock().(clockwork.FakeClock)
-
-	// Enable MFA support.
-	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
-		},
-	})
-	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPref)
-	require.NoError(t, err)
-
-	// Create a fake user.
-	user, _, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"})
-	require.NoError(t, err)
-	cl, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	// Register a U2F device.
-	var u2fDev *mocku2f.Key
-	testAddMFADevice(ctx, t, cl, mfaAddTestOpts{
-		initReq: &proto.AddMFADeviceRequestInit{
-			DeviceName: "u2f-dev",
-			Type:       proto.AddMFADeviceRequestInit_U2F,
-		},
-		authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-			// The challenge should be empty for the first device.
-			require.Empty(t, cmp.Diff(req, &proto.MFAAuthenticateChallenge{}))
-			return &proto.MFAAuthenticateResponse{}
-		},
-		checkAuthErr: require.NoError,
-		registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-			u2fRegisterChallenge := req.GetU2F()
-			require.NotEmpty(t, u2fRegisterChallenge)
-
-			mdev, err := mocku2f.Create()
-			require.NoError(t, err)
-			u2fDev = mdev
-			mresp, err := mdev.RegisterResponse(&u2f.RegisterChallenge{
-				Challenge: u2fRegisterChallenge.Challenge,
-				AppID:     u2fRegisterChallenge.AppID,
-			})
-			require.NoError(t, err)
-
-			return &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{U2F: &proto.U2FRegisterResponse{
-				RegistrationData: mresp.RegistrationData,
-				ClientData:       mresp.ClientData,
-			}}}
-		},
-		checkRegisterErr: require.NoError,
-		wantDev: func(t *testing.T) *types.MFADevice {
-			wantDev, err := u2f.NewDevice(
-				"u2f-dev",
-				&u2f.Registration{
-					KeyHandle: u2fDev.KeyHandle,
-					PubKey:    u2fDev.PrivateKey.PublicKey,
-				},
-				clock.Now(),
-			)
-			require.NoError(t, err)
-			return wantDev
-		},
-	})
-
-	// Try to delete the only MFA device of the user.
-	testDeleteMFADevice(ctx, t, cl, mfaDeleteTestOpts{
-		initReq: &proto.DeleteMFADeviceRequestInit{
-			DeviceName: "u2f-dev",
-		},
-		authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-			require.Len(t, req.U2F, 1)
-			chal := req.U2F[0]
-
-			mresp, err := u2fDev.SignResponse(&u2f.AuthenticateChallenge{
-				Challenge: chal.Challenge,
-				KeyHandle: chal.KeyHandle,
-				AppID:     chal.AppID,
-			})
-			require.NoError(t, err)
-
-			return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
-				KeyHandle:  mresp.KeyHandle,
-				ClientData: mresp.ClientData,
-				Signature:  mresp.SignatureData,
-			}}}
-		},
-		checkErr: require.Error,
-	})
 }
 
 // TestRoleVersions tests that downgraded V3 roles are returned to older

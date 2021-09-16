@@ -49,6 +49,11 @@ type Key struct {
 	// ceremonies, even if the U2F App ID extension is present.
 	PreferRPID bool
 
+	// IgnoreAllowedCredentials allows the Key to sign a Webauthn
+	// CredentialAssertion even it its KeyHandle is not among the allowed
+	// credentials.
+	IgnoreAllowedCredentials bool
+
 	cert    []byte
 	counter uint32
 }
