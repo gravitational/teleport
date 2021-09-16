@@ -801,7 +801,7 @@ func periodIndexUpdate(l *log.Entry) chan struct{} {
 			select {
 			case <-ticker.C:
 				elapsed := time.Since(start)
-				l.Infof("Still creating indexes, %s elapsed", elapsed)
+				l.Infof("Still creating indexes, %v elapsed", elapsed)
 			case <-quit:
 				l.Info("Finished creating indexes")
 				ticker.Stop()
