@@ -1033,13 +1033,12 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 	return l.localLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, order, startKey)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
-
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
+		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
 	}
-	return l.localLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
+	return l.localLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
@@ -1305,7 +1304,7 @@ func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, 
 	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 
-func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotImplemented(loggerClosedMessage)
 }
 

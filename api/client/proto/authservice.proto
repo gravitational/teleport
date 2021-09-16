@@ -1649,9 +1649,9 @@ service AuthService {
     // ResetAuthPreference resets cluster auth preference to defaults.
     rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty);
 
-    // Out-of-session request for audit events.
+    // GetEvents gets events from the audit log.
     rpc GetEvents(GetEventsRequest) returns (Events);
-    // In-session request for audit events.
+    // GetSessionEvents gets completed session events from the audit log.
     rpc GetSessionEvents(GetSessionEventsRequest) returns (Events);
 
     // GetLock gets a lock by name.
