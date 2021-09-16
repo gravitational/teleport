@@ -238,7 +238,7 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err))
 
 		if i == defaults.MaxAccountRecoveryAttempts {
-			require.EqualValues(t, ErrMaxFailedAttemptsFromStartRecovery, err)
+			require.Equal(t, MaxFailedAttemptsFromStartRecoveryErrMsg, err.Error())
 		}
 	}
 
@@ -498,7 +498,7 @@ func TestApproveAccountRecovery_WithLock(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err))
 
 		if i == defaults.MaxAccountRecoveryAttempts {
-			require.EqualValues(t, ErrMaxFailedAttemptsFromApproveRecovery, err)
+			require.Equal(t, MaxFailedAttemptsFromApproveRecoveryErrMsg, err.Error())
 		}
 	}
 
