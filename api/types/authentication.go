@@ -55,6 +55,9 @@ type AuthPreference interface {
 	IsSecondFactorTOTPAllowed() bool
 	// IsSecondFactorU2FAllowed checks if users are allowed to register U2F devices.
 	IsSecondFactorU2FAllowed() bool
+	// IsSecondFactorWebauthnAllowed checks if users are allowed to register
+	// Webauthn devices.
+	IsSecondFactorWebauthnAllowed() bool
 
 	// GetConnectorName gets the name of the OIDC or SAML connector to use. If
 	// this value is empty, we fall back to the first connector in the backend.
@@ -229,12 +232,24 @@ func (c *AuthPreferenceV2) IsSecondFactorEnforced() bool {
 
 // IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
 func (c *AuthPreferenceV2) IsSecondFactorTOTPAllowed() bool {
-	return c.Spec.SecondFactor == constants.SecondFactorOTP || c.Spec.SecondFactor == constants.SecondFactorOptional || c.Spec.SecondFactor == constants.SecondFactorOn
+	return c.Spec.SecondFactor == constants.SecondFactorOTP ||
+		c.Spec.SecondFactor == constants.SecondFactorOptional ||
+		c.Spec.SecondFactor == constants.SecondFactorOn
 }
 
 // IsSecondFactorU2FAllowed checks if users are allowed to register U2F devices.
 func (c *AuthPreferenceV2) IsSecondFactorU2FAllowed() bool {
-	return c.Spec.SecondFactor == constants.SecondFactorU2F || c.Spec.SecondFactor == constants.SecondFactorOptional || c.Spec.SecondFactor == constants.SecondFactorOn
+	return c.Spec.SecondFactor == constants.SecondFactorU2F ||
+		c.Spec.SecondFactor == constants.SecondFactorOptional ||
+		c.Spec.SecondFactor == constants.SecondFactorOn
+}
+
+// IsSecondFactorWebauthnAllowed checks if users are allowed to register
+// Webauthn devices.
+func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
+	return c.Spec.SecondFactor == constants.SecondFactorWebauthn ||
+		c.Spec.SecondFactor == constants.SecondFactorOptional ||
+		c.Spec.SecondFactor == constants.SecondFactorOn
 }
 
 // GetConnectorName gets the name of the OIDC or SAML connector to use. If
