@@ -69,7 +69,7 @@ $ tsh ls --format=json | jq -r '.[].spec.hostname' > hosts
 Finally, let's create a simple ansible playbook `playbook.yaml`.
 
 The playbook below runs `hostname` on all hosts. Make sure to set the `remote_user` parameter
-to a valid SSH username that works with the target host and allowed by Teleport:
+to a valid SSH username that works with the target host and is allowed by Teleport:
 
 ```yaml
 - hosts: all
