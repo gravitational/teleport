@@ -22,7 +22,7 @@ use rdp::nla::ntlm::Ntlm;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
-use std::io::{Read, Write};
+use std::io::{Cursor, Read, Write};
 use std::mem;
 use std::net::TcpStream;
 use std::os::raw::c_char;
@@ -32,7 +32,7 @@ use std::sync::{Arc, Mutex};
 
 #[no_mangle]
 pub extern "C" fn init() {
-    env_logger::init();
+    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {}", e));
 }
 
 // Client has an unusual lifecycle:
@@ -129,11 +129,11 @@ fn connect_rdp_inner(
     // Connect and authenticate.
     let tcp = TcpStream::connect(addr)?;
     let tcp_fd = tcp.as_raw_fd() as usize;
-    let domain = ".".to_string();
+    let domain = ".";
 
     // From rdp-rs/src/core/client.rs
     let tcp = Link::new(Stream::Raw(tcp));
-    let mut authentication = Ntlm::new(domain.clone(), username.clone(), password.clone());
+    let mut authentication = Ntlm::new(domain.to_string(), username.clone(), password.clone());
     let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolHybrid as u32;
     let x224 = x224::Client::connect(
         tpkt::Client::new(tcp),
@@ -151,7 +151,7 @@ fn connect_rdp_inner(
         KeyboardLayout::US,
         &vec!["rdpdr".to_string(), "rdpsnd".to_string()],
     )?;
-    sec::connect(&mut mcs, &domain, &username, &password, false)?;
+    sec::connect(&mut mcs, &domain.to_string(), &username, &password, false)?;
     let global = global::Client::new(
         mcs.get_user_id(),
         mcs.get_global_channel_id(),
@@ -485,3 +485,5 @@ extern "C" {
     fn free_go_string(s: *mut c_char);
     fn handle_bitmap(client_ref: i64, b: CGOBitmap) -> CGOError;
 }
+
+pub(crate) type Payload = Cursor<Vec<u8>>;

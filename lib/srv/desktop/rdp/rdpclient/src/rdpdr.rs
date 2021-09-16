@@ -1,5 +1,7 @@
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
 use crate::scard;
+use crate::Payload;
+use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
@@ -7,9 +9,9 @@ use rdp::core::tpkt;
 use rdp::model::data::Message;
 use rdp::model::error::*;
 use rdp::try_let;
-use std::io::{Cursor, Read, Write};
+use std::io::{Read, Write};
 
-type Payload = Cursor<Vec<u8>>;
+const CHANNEL_NAME: &str = "rdpdr";
 
 pub struct Client {
     scard: scard::Client,
@@ -22,13 +24,13 @@ impl Client {
         }
     }
     pub fn read<S: Read + Write>(
-        &mut self,
+        &self,
         payload: tpkt::Payload,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
         let mut payload = try_let!(tpkt::Payload::Raw, payload)?;
 
-        // Ignore this for now.
+        // Ignore this, we don't need anything from this header.
         let _pdu_header = ChannelPDUHeader::decode(&mut payload)?;
 
         let header = Header::decode(&mut payload)?;
@@ -36,130 +38,159 @@ impl Client {
             warn!("got {:?} RDPDR header from RDP server, ignoring because we're not redirecting any printers", header);
             return Ok(());
         }
-        match header.packet_id {
-            PacketId::PAKID_CORE_SERVER_ANNOUNCE => {
-                let req = ServerAnnounceRequest::decode(&mut payload)?;
-                debug!("got ServerAnnounceRequest {:?}", req);
-
-                let resp = encode_message(
-                    PacketId::PAKID_CORE_CLIENTID_CONFIRM,
-                    &mut ClientAnnounceReply::new(req).encode()?,
-                )?;
-                debug!("sending client announce reply");
-                Ok(mcs.write(&"rdpdr".to_string(), resp)?)
-            }
+        let resp = match header.packet_id {
+            PacketId::PAKID_CORE_SERVER_ANNOUNCE => self.handle_server_announce(&mut payload)?,
             PacketId::PAKID_CORE_SERVER_CAPABILITY => {
-                let req = ServerCoreCapabilityRequest::decode(&mut payload)?;
-                debug!("got {:?}", req);
-
-                let resp = encode_message(
-                    PacketId::PAKID_CORE_CLIENT_CAPABILITY,
-                    &mut ClientCoreCapabilityResponse::new_response().encode()?,
-                )?;
-                debug!("sending client core capability response");
-                Ok(mcs.write(&"rdpdr".to_string(), resp)?)
+                self.handle_server_capability(&mut payload)?
             }
-            PacketId::PAKID_CORE_CLIENTID_CONFIRM => {
-                let req = ServerClientIdConfirm::decode(&mut payload)?;
-                debug!("got ServerClientIdConfirm {:?}", req);
-
-                let resp = encode_message(
-                    PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-                    &mut ClientDeviceListAnnounceRequest::new_smartcard().encode()?,
-                )?;
-                debug!("sending client device list announce request");
-                Ok(mcs.write(&"rdpdr".to_string(), resp)?)
-            }
-            PacketId::PAKID_CORE_DEVICE_REPLY => {
-                let req = ServerDeviceAnnounceResponse::decode(&mut payload)?;
-                debug!("got {:?}", req);
-
-                if req.device_id != SCARD_DEVICE_ID {
-                    Err(invalid_data_error(&format!(
-                        "got ServerDeviceAnnounceResponse for unknown device_id {}",
-                        &req.device_id
-                    )))
-                } else if req.result_code != NTSTATUS_OK {
-                    Err(invalid_data_error(&format!(
-                        "got unsuccessful ServerDeviceAnnounceResponse result code NTSTATUS({})",
-                        &req.result_code
-                    )))
-                } else {
-                    Ok(())
-                }
-            }
-            PacketId::PAKID_CORE_DEVICE_IOREQUEST => {
-                let req = DeviceIoRequest::decode(&mut payload)?;
-                debug!("got {:?}", req);
-
-                if let MajorFunction::IRP_MJ_DEVICE_CONTROL = req.major_function {
-                    let ioctl = DeviceControlRequest::decode(req, &mut payload)?;
-                    debug!("got {:?}", ioctl);
-
-                    let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
-                    if code == SPECIAL_NO_RESPONSE {
-                        return Ok(());
-                    }
-                    let resp = encode_message(
-                        PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                        &mut DeviceControlResponse::new(&ioctl, code, res).encode()?,
-                    )?;
-                    debug!("sending device IO response");
-                    Ok(mcs.write(&"rdpdr".to_string(), resp)?)
-                } else {
-                    Err(invalid_data_error(&format!(
-                        "got unsupported major_function in DeviceIoRequest: {:?}",
-                        &req.major_function
-                    )))
-                }
-            }
+            PacketId::PAKID_CORE_CLIENTID_CONFIRM => self.handle_client_id_confirm(&mut payload)?,
+            PacketId::PAKID_CORE_DEVICE_REPLY => self.handle_device_reply(&mut payload)?,
+            PacketId::PAKID_CORE_DEVICE_IOREQUEST => self.handle_device_io_request(&mut payload)?,
             _ => {
                 // TODO(awly): return an error here once the entire protocol is implemented?
                 error!(
                     "RDPDR packets {:?} are not implemented yet, ignoring",
                     header.packet_id
                 );
-                Ok(())
+                None
             }
+        };
+
+        if let Some(resp) = resp {
+            Ok(mcs.write(&CHANNEL_NAME.to_string(), resp)?)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn handle_server_announce(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+        let req = ServerAnnounceRequest::decode(payload)?;
+        debug!("got ServerAnnounceRequest {:?}", req);
+
+        let resp = encode_message(
+            PacketId::PAKID_CORE_CLIENTID_CONFIRM,
+            ClientAnnounceReply::new(req).encode()?,
+        )?;
+        debug!("sending client announce reply");
+        Ok(Some(resp))
+    }
+
+    fn handle_server_capability(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+        let req = ServerCoreCapabilityRequest::decode(payload)?;
+        debug!("got {:?}", req);
+
+        let resp = encode_message(
+            PacketId::PAKID_CORE_CLIENT_CAPABILITY,
+            ClientCoreCapabilityResponse::new_response().encode()?,
+        )?;
+        debug!("sending client core capability response");
+        Ok(Some(resp))
+    }
+
+    fn handle_client_id_confirm(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+        let req = ServerClientIdConfirm::decode(payload)?;
+        debug!("got ServerClientIdConfirm {:?}", req);
+
+        let resp = encode_message(
+            PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
+            ClientDeviceListAnnounceRequest::new_smartcard().encode()?,
+        )?;
+        debug!("sending client device list announce request");
+        Ok(Some(resp))
+    }
+
+    fn handle_device_reply(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+        let req = ServerDeviceAnnounceResponse::decode(payload)?;
+        debug!("got {:?}", req);
+
+        if req.device_id != SCARD_DEVICE_ID {
+            Err(invalid_data_error(&format!(
+                "got ServerDeviceAnnounceResponse for unknown device_id {}",
+                &req.device_id
+            )))
+        } else if req.result_code != NTSTATUS_OK {
+            Err(invalid_data_error(&format!(
+                "got unsuccessful ServerDeviceAnnounceResponse result code NTSTATUS({})",
+                &req.result_code
+            )))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn handle_device_io_request(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+        let req = DeviceIoRequest::decode(payload)?;
+        debug!("got {:?}", req);
+
+        if let MajorFunction::IRP_MJ_DEVICE_CONTROL = req.major_function {
+            let ioctl = DeviceControlRequest::decode(req, payload)?;
+            debug!("got {:?}", ioctl);
+
+            let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
+            if code == SPECIAL_NO_RESPONSE {
+                return Ok(None);
+            }
+            let resp = encode_message(
+                PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                DeviceControlResponse::new(&ioctl, code, res).encode()?,
+            )?;
+            debug!("sending device IO response");
+            Ok(Some(resp))
+        } else {
+            Err(invalid_data_error(&format!(
+                "got unsupported major_function in DeviceIoRequest: {:?}",
+                &req.major_function
+            )))
         }
     }
 }
 
-fn encode_message(packet_id: PacketId, payload: &mut Vec<u8>) -> RdpResult<Vec<u8>> {
+impl Default for Client {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+fn encode_message(packet_id: PacketId, payload: Vec<u8>) -> RdpResult<Vec<u8>> {
     let mut inner = Header::new(Component::RDPDR_CTYP_CORE, packet_id).encode()?;
-    inner.append(payload);
+    inner.extend_from_slice(&payload);
     let mut outer = ChannelPDUHeader::new(inner.length() as u32).encode()?;
-    outer.append(&mut inner);
+    outer.extend_from_slice(&inner);
     Ok(outer)
 }
 
-// ChannelPDUHeader flags.
-const CHANNEL_FLAG_FIRST: u32 = 0x00000001;
-const CHANNEL_FLAG_LAST: u32 = 0x00000002;
+bitflags! {
+    struct ChannelPDUFlags: u32 {
+        const CHANNEL_FLAG_FIRST = 0x00000001;
+        const CHANNEL_FLAG_LAST = 0x00000002;
+        const CHANNEL_FLAG_ONLY = Self::CHANNEL_FLAG_FIRST.bits | Self::CHANNEL_FLAG_LAST.bits;
+    }
+}
 
 #[derive(Debug)]
 struct ChannelPDUHeader {
     length: u32,
-    flags: u32,
+    flags: ChannelPDUFlags,
 }
 
 impl ChannelPDUHeader {
     fn new(length: u32) -> Self {
         Self {
             length,
-            flags: CHANNEL_FLAG_FIRST | CHANNEL_FLAG_LAST,
+            flags: ChannelPDUFlags::CHANNEL_FLAG_ONLY,
         }
     }
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         Ok(Self {
             length: payload.read_u32::<LittleEndian>()?,
-            flags: payload.read_u32::<LittleEndian>()?,
+            flags: ChannelPDUFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+                .ok_or_else(|| invalid_data_error("invalid flags in ChannelPDUHeader"))?,
         })
     }
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.length)?;
-        w.write_u32::<LittleEndian>(self.flags)?;
+        w.write_u32::<LittleEndian>(self.flags.bits())?;
         Ok(w)
     }
 }
@@ -181,14 +212,12 @@ impl Header {
         let component = payload.read_u16::<LittleEndian>()?;
         let packet_id = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
-            component: Component::from_u16(component).ok_or(invalid_data_error(&format!(
-                "invalid component value {:#06x}",
-                component
-            )))?,
-            packet_id: PacketId::from_u16(packet_id).ok_or(invalid_data_error(&format!(
-                "invalid packet_id value {:#06x}",
-                packet_id
-            )))?,
+            component: Component::from_u16(component).ok_or_else(|| {
+                invalid_data_error(&format!("invalid component value {:#06x}", component))
+            })?,
+            packet_id: PacketId::from_u16(packet_id).ok_or_else(|| {
+                invalid_data_error(&format!("invalid packet_id value {:#06x}", packet_id))
+            })?,
         })
     }
     fn encode(&self) -> RdpResult<Vec<u8>> {
@@ -313,7 +342,7 @@ impl ServerCoreCapabilityRequest {
         w.write_u16::<LittleEndian>(self.num_capabilities)?;
         w.write_u16::<LittleEndian>(self.padding)?;
         for cap in self.capabilities.iter() {
-            w.append(&mut cap.encode()?);
+            w.extend_from_slice(&cap.encode()?);
         }
         Ok(w)
     }
@@ -322,7 +351,7 @@ impl ServerCoreCapabilityRequest {
         let num_capabilities = payload.read_u16::<LittleEndian>()?;
         let padding = payload.read_u16::<LittleEndian>()?;
         let mut capabilities = vec![];
-        for _i in 0..num_capabilities {
+        for _ in 0..num_capabilities {
             capabilities.push(CapabilitySet::decode(payload)?);
         }
 
@@ -343,7 +372,7 @@ struct CapabilitySet {
 impl CapabilitySet {
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = self.header.encode()?;
-        w.append(&mut self.data.encode()?);
+        w.extend_from_slice(&self.data.encode()?);
         Ok(w)
     }
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
@@ -377,10 +406,9 @@ impl CapabilityHeader {
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let cap_type = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
-            cap_type: CapabilityType::from_u16(cap_type).ok_or(invalid_data_error(&format!(
-                "invalid capability type {:#06x}",
-                cap_type
-            )))?,
+            cap_type: CapabilityType::from_u16(cap_type).ok_or_else(|| {
+                invalid_data_error(&format!("invalid capability type {:#06x}", cap_type))
+            })?,
             length: payload.read_u16::<LittleEndian>()?,
             version: payload.read_u32::<LittleEndian>()?,
         })
@@ -505,7 +533,7 @@ impl ClientDeviceListAnnounceRequest {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.count)?;
         for dev in self.devices.iter() {
-            w.append(&mut dev.encode()?);
+            w.extend_from_slice(&dev.encode()?);
         }
         Ok(w)
     }
@@ -529,9 +557,9 @@ impl DeviceAnnounceHeader {
         if name.len() > 8 {
             name = &name[..8];
         }
-        w.append(&mut format!("{:\x00<8}", name).into_bytes());
+        w.extend_from_slice(&format!("{:\x00<8}", name).into_bytes());
         w.write_u32::<LittleEndian>(self.device_data_length)?;
-        w.append(&mut self.device_data.clone());
+        w.extend_from_slice(&self.device_data);
         Ok(w)
     }
 }
@@ -581,12 +609,18 @@ impl DeviceIoRequest {
             device_id,
             file_id,
             completion_id,
-            major_function: MajorFunction::from_u32(major_function).ok_or(invalid_data_error(
-                &format!("invalid major function value {:#010x}", major_function),
-            ))?,
-            minor_function: MinorFunction::from_u32(minor_function).ok_or(invalid_data_error(
-                &format!("invalid minor function value {:#010x}", minor_function),
-            ))?,
+            major_function: MajorFunction::from_u32(major_function).ok_or_else(|| {
+                invalid_data_error(&format!(
+                    "invalid major function value {:#010x}",
+                    major_function
+                ))
+            })?,
+            minor_function: MinorFunction::from_u32(minor_function).ok_or_else(|| {
+                invalid_data_error(&format!(
+                    "invalid minor function value {:#010x}",
+                    minor_function
+                ))
+            })?,
         })
     }
 }
@@ -684,9 +718,9 @@ impl DeviceControlResponse {
 
     fn encode(&mut self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
-        w.append(&mut self.header.encode()?);
+        w.extend_from_slice(&self.header.encode()?);
         w.write_u32::<LittleEndian>(self.output_buffer_length)?;
-        w.append(&mut self.output_buffer);
+        w.extend_from_slice(&self.output_buffer);
         Ok(w)
     }
 }
