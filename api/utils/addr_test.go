@@ -18,11 +18,11 @@ package utils
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
+	"errors"
 	"net"
 	"testing"
 
-	"errors"
+	"github.com/stretchr/testify/require"
 )
 
 type mockResolver struct {

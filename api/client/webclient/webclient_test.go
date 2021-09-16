@@ -98,7 +98,7 @@ func TestPlainHttpFallback(t *testing.T) {
 
 				err = testCase.actionUnderTest(nonLoopbackSvr.Listener.Addr().String(), true /* insecure */)
 				require.Error(t, err)
-			})addr
+			})
 		})
 	}
 }
