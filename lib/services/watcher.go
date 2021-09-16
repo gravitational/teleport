@@ -607,11 +607,11 @@ func (p *lockCollector) notifyStale() {
 }
 
 func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, error) {
-	if len(targets) == 0 {
-		return []types.WatchKind{{Kind: types.KindLock}}, nil
-	}
 	watchKinds := make([]types.WatchKind, 0, len(targets))
 	for _, target := range targets {
+		if target.IsEmpty() {
+			continue
+		}
 		filter, err := target.IntoMap()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -620,6 +620,9 @@ func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, err
 			Kind:   types.KindLock,
 			Filter: filter,
 		})
+	}
+	if len(watchKinds) == 0 {
+		watchKinds = []types.WatchKind{{Kind: types.KindLock}}
 	}
 	return watchKinds, nil
 }
