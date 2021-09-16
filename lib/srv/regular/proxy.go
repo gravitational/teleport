@@ -334,21 +334,18 @@ func (t *proxySubsys) proxyToHost(
 	hostIsUUID := uuid.Parse(t.host) != nil
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
-	var server services.Server
-	matches := 0
+	var matches []services.Server
 	for i := range servers {
 		// If the host parameter is a UUID and it matches the Node ID,
 		// treat this as an unambiguous match.
 		if hostIsUUID && servers[i].GetName() == t.host {
-			server = servers[i]
-			matches = 1
+			matches = []services.Server{servers[i]}
 			break
 		}
 		// If the server has connected over a reverse tunnel, match only on hostname.
 		if servers[i].GetUseTunnel() {
 			if t.host == servers[i].GetHostname() {
-				server = servers[i]
-				matches++
+				matches = append(matches, servers[i])
 			}
 			continue
 		}
@@ -360,16 +357,18 @@ func (t *proxySubsys) proxyToHost(
 		}
 		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
 			if !specifiedPort || t.port == port {
-				server = servers[i]
-				matches++
+				matches = append(matches, servers[i])
 				continue
 			}
 		}
 	}
 
-	// if we matched more than one server, then the target was ambiguous.
-	if matches > 1 {
-		return trace.NotFound(teleport.NodeIsAmbiguous)
+	var server services.Server
+	// select the most recent server as our target if multiple servers match
+	for _, m := range matches {
+		if server == nil || m.Expiry().After(server.Expiry()) {
+			server = m
+		}
 	}
 
 	// If we matched zero nodes but hostname is a UUID then it isn't sane
@@ -380,7 +379,7 @@ func (t *proxySubsys) proxyToHost(
 	// node by UUID from being re-routed to an unintended target if the node
 	// is offline.  This restriction can be lifted if we decide to move to
 	// explicit UUID based resoltion in the future.
-	if hostIsUUID && matches < 1 {
+	if hostIsUUID && server == nil {
 		return trace.NotFound("unable to locate node matching uuid-like target %s", t.host)
 	}
 
