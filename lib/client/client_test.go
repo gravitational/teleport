@@ -69,9 +69,9 @@ func (s *ClientTestSuite) TestNewSession(c *check.C) {
 	c.Assert(ses.NodeClient(), check.Equals, nc)
 	c.Assert(ses.namespace, check.Equals, nc.Namespace)
 	c.Assert(ses.env, check.NotNil)
-	c.Assert(ses.stderr, check.Equals, os.Stderr)
-	c.Assert(ses.stdout, check.Equals, os.Stdout)
-	c.Assert(ses.stdin, check.Equals, os.Stdin)
+	c.Assert(ses.terminal.Stderr(), check.Equals, os.Stderr)
+	c.Assert(ses.terminal.Stdout(), check.Equals, os.Stdout)
+	c.Assert(ses.terminal.Stdin(), check.Equals, os.Stdin)
 
 	// pass environ map
 	env := map[string]string{
