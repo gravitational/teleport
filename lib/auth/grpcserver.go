@@ -25,11 +25,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -1799,6 +1799,29 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			Challenge: challenge.Challenge,
 			AppID:     challenge.AppID,
 		}}
+	case proto.AddMFADeviceRequestInit_Webauthn:
+		cap, err := auth.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		webConfig, err := cap.GetWebauthn()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// TODO(codingllama): Use in-memory session data storage?
+		webRegistration := &wanlib.RegistrationFlow{
+			Webauthn: webConfig,
+			Identity: auth.Identity,
+		}
+		credentialCreation, err := webRegistration.Begin(ctx, user)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		regChallenge.Request = &proto.MFARegisterChallenge_Webauthn{
+			Webauthn: wanlib.CredentialCreationToProto(credentialCreation),
+		}
 	default:
 		return nil, trace.BadParameter("AddMFADeviceRequestInit sent an unknown DeviceType %v", initReq.Type)
 	}
@@ -1908,20 +1931,11 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_De
 }
 
 func mfaDeviceEventMetadata(d *types.MFADevice) apievents.MFADeviceMetadata {
-	m := apievents.MFADeviceMetadata{
+	return apievents.MFADeviceMetadata{
 		DeviceName: d.Metadata.Name,
 		DeviceID:   d.Id,
+		DeviceType: d.MFAType(),
 	}
-	switch d.Device.(type) {
-	case *types.MFADevice_Totp:
-		m.DeviceType = string(constants.SecondFactorOTP)
-	case *types.MFADevice_U2F:
-		m.DeviceType = string(constants.SecondFactorU2F)
-	default:
-		m.DeviceType = "unknown"
-		log.Warningf("Unknown MFA device type %T when generating audit event metadata", d.Device)
-	}
-	return m
 }
 
 // DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.

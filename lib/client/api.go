@@ -56,6 +56,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1540,14 +1541,6 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		stream = append(stream, tmp...)
 	}
 
-	// configure terminal for direct unbuffered echo-less input:
-	if term.IsTerminal(0) {
-		state, err := term.MakeRaw(0)
-		if err != nil {
-			return nil
-		}
-		defer term.Restore(0, state)
-	}
 	return playSession(sessionEvents, stream)
 }
 
@@ -1573,6 +1566,7 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	return playSession(sessionEvents, stream)
 }
 
@@ -2867,7 +2861,18 @@ func Username() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return u.Username, nil
+
+	username := u.Username
+
+	// If on Windows, strip the domain name.
+	if runtime.GOOS == constants.WindowsOS {
+		idx := strings.LastIndex(username, "\\")
+		if idx > -1 {
+			username = username[idx+1:]
+		}
+	}
+
+	return username, nil
 }
 
 // AskOTP prompts the user to enter the OTP token.
@@ -3141,8 +3146,23 @@ func isFIPS() bool {
 
 // playSession plays session in the terminal
 func playSession(sessionEvents []events.EventFields, stream []byte) error {
+	term, err := terminal.New(nil, nil, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer term.Close()
+
+	// configure terminal for direct unbuffered echo-less input:
+	if term.IsAttached() {
+		err := term.InitRaw(true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	var errorCh = make(chan error)
-	player := newSessionPlayer(sessionEvents, stream)
+	player := newSessionPlayer(sessionEvents, stream, term)
 	// keys:
 	const (
 		keyCtrlC = 3
@@ -3158,7 +3178,7 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 		defer player.Stop()
 		var key [1]byte
 		for {
-			_, err := os.Stdin.Read(key[:])
+			_, err := term.Stdin().Read(key[:])
 			if err != nil {
 				errorCh <- err
 				return
