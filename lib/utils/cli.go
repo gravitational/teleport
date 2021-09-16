@@ -162,6 +162,10 @@ func UserMessageFromError(err error) string {
 	}
 	var buf bytes.Buffer
 	if runtime.GOOS == constants.WindowsOS {
+		// TODO(timothyb89): Due to complications with globally enabling +
+		// properly resetting Windows terminal ANSI processing, for now we just
+		// disable color output. Otherwise, raw ANSI escapes will be visible to
+		// users.
 		fmt.Fprint(&buf, "ERROR: ")
 	} else {
 		fmt.Fprint(&buf, Color(Red, "ERROR: "))
