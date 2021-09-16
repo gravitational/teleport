@@ -24,6 +24,7 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -100,7 +101,7 @@ func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, v
 	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
 	// Note that we're only allowed to try plain HTTP on the loopback address, even
 	// if the caller says its OK
-	if !(allowHTTPFallback && utils.IsLoopback(u.Host)) {
+	if !(allowHTTPFallback && apiutils.IsLoopback(u.Host)) {
 		return nil, trace.Wrap(httpsErr)
 	}
 

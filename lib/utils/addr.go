@@ -77,7 +77,7 @@ func (a *NetAddr) IsLocal() bool {
 
 // IsLoopback returns true if this is a loopback address
 func (a *NetAddr) IsLoopback() bool {
-	return IsLoopback(a.Addr)
+	return apiutils.IsLoopback(a.Addr)
 }
 
 // IsEmpty returns true if address is empty
@@ -265,12 +265,6 @@ func IsLocalhost(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip.IsLoopback() || ip.IsUnspecified()
-}
-
-// IsLoopback returns 'true' if a given hostname *only* resolves to local
-// host's loopback interface
-func IsLoopback(host string) bool {
-	return apiutils.IsLoopback(host)
 }
 
 // GuessIP tries to guess an IP address this machine is reachable at on the
