@@ -57,23 +57,9 @@ The `withParticipant` filtering should be applied alongside the already-implemen
 
 #### DynamoDB
 
-To allow for efficient filtering, the event type information is not stored only in the marshaled `Fields` (that can be filtered by only after unmarshaling on the Auth server side) but also pulled out into an item attribute `EventType` (that DynamoDB is aware of and can be filtered by on its side). Analogously, the participant information specific to `session.end` should be extracted into a separate string-set attribute `Participants`.
+Currently, the fields of an event are stored as a JSON string in the `Fields` attribute. To allow for efficient filtering, the fields should be stored as a proper DynamoDB map instead since DynamoDB allows to refer to map elements inside the filter/condition expressions (e.g. `contains(FieldsMap.participants, :participant`). This will also enable efficient event-specific queries for any other use case in the future.
 
-With a separate attribute it becomes possible to construct a `FilterExpression` requesting only those `session.end` events whose `Participants` [contain](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html#Expressions.ConditionExpressions.CheckingForContains) a particular user. The [logic provided by `searchEventsRaw`](https://github.com/gravitational/teleport/blob/992c10f547a6b7c24247835d7711fadb46ad9022/lib/events/dynamoevents/dynamoevents.go#L805-L810) makes sure an expected number of matching items is returned for a given `FilterExpression`, working around DynamoDB's underlying [limitations in this regard](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.Limit).
-
-Properly supporting the new filter will require a migration procedure for the event table:
-
-1. Check if there is a `session.end` event stored without the `Participants` attribute, e.g. using a probe like:
-   ```
-   aws dynamodb scan \
-      --table-name Events \
-      --filter-expression "EventType = :name AND attribute_not_exists(Participants)" \
-      --expression-attribute-values '{":name":{"S":"session.end"}}'
-   ```
-1. If there is no such event, i.e. all stored `session.end` events already come with `Participants`, there is nothing to do.
-1. If such events exist, for each `session.end` event lacking the `Participants` attribute:
-   1. Get the list of participants from the event's `Fields` and store it as a string set under the `Participants` attribute.
-   1. Reupload the event similarly to [`migrateDateAttribute`](https://github.com/gravitational/teleport/blob/992c10f547a6b7c24247835d7711fadb46ad9022/lib/events/dynamoevents/dynamoevents.go#L1170).
+The whole event table shall therefore be migrated so that the current `Fields` (DynamoDB string) is converted into a new `FieldsMap` attribute (DynamoDB map).
 
 #### Firestore
 
