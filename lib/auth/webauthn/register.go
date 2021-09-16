@@ -83,6 +83,8 @@ func (identity *inMemoryIdentity) GetWebauthnSessionData(ctx context.Context, us
 	if !ok {
 		return nil, trace.NotFound("session data for user %v not found ", user)
 	}
+	// The only known caller of GetWebauthnSessionData is the webauthn package
+	// itself, so we trust it to not modify the SessionData we are handing back.
 	return sd, nil
 }
 

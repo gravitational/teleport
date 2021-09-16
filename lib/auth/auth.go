@@ -1321,7 +1321,8 @@ type newMFADeviceFields struct {
 	u2fStorage u2f.RegistrationStorage
 
 	// webIdentityOverride is an optional RegistrationIdentity override to be used
-	// for device registration.
+	// for device registration. A common override is decorating the regular
+	// Identity with an in-memory SessionData storage.
 	// Defaults to the Server's IdentityService.
 	webIdentityOverride wanlib.RegistrationIdentity
 }
