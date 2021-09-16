@@ -733,7 +733,7 @@ type IndexTuple struct {
 
 type indexTask struct {
 	operation *apiv1.CreateIndexOperation
-	tuple *IndexTuple
+	tuple     *IndexTuple
 }
 
 // EnsureIndexes is a function used by Firestore events and backend to generate indexes and will block until
@@ -776,7 +776,7 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 		}
 		// operation can be nil if error code is codes.AlreadyExists.
 		if operation != nil {
-			tasks = append(tasks, indexTask{ operation, tuple })
+			tasks = append(tasks, indexTask{operation, tuple})
 		}
 	}
 
@@ -799,10 +799,10 @@ func periodIndexUpdate(l *log.Entry) chan struct{} {
 	go func() {
 		for {
 			select {
-			case <- ticker.C:
+			case <-ticker.C:
 				elapsed := time.Since(start)
 				l.Infof("Still creating indexes, %s elapsed", elapsed)
-			case <- quit:
+			case <-quit:
 				l.Info("Finished creating indexes")
 				ticker.Stop()
 				return
