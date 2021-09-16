@@ -376,9 +376,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 			name:      "privilege exception token",
 			tokenType: UserTokenTypePrivilegeException,
 			getReq: func() *proto.CreatePrivilegeTokenRequest {
-				return &proto.CreatePrivilegeTokenRequest{
-					ExistingMFAResponse: &proto.MFAAuthenticateResponse{},
-				}
+				return &proto.CreatePrivilegeTokenRequest{}
 			},
 		},
 		{

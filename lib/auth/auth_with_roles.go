@@ -3487,7 +3487,7 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 }
 
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
-func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error) {
+func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	return a.authServer.CreatePrivilegeToken(ctx, req)
 }
 

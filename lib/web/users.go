@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
 
@@ -168,6 +169,8 @@ type privilegeTokenRequest struct {
 	SecondFactorToken string `json:"secondFactorToken"`
 	// U2FSignResponse is u2f sign response for a u2f challenge.
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2fSignResponse"`
+	// WebauthnResponse is the response from authenticators.
+	WebauthnResponse *wanlib.CredentialAssertionResponse
 }
 
 // createPrivilegeTokenHandle creates and returns a privilege token.
@@ -191,6 +194,10 @@ func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Requ
 				ClientData: req.U2FSignResponse.ClientData,
 				Signature:  req.U2FSignResponse.SignatureData,
 			},
+		}}
+	case req.WebauthnResponse != nil:
+		protoReq.ExistingMFAResponse = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wanlib.CredentialAssertionResponseToProto(req.WebauthnResponse),
 		}}
 	default:
 		// Can be empty, which means user did not have a second factor registered.

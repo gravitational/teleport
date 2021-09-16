@@ -2151,7 +2151,7 @@ func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.Crea
 }
 
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
-func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error) {
+func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	resp, err := c.grpc.CreatePrivilegeToken(ctx, req, c.callOpts...)
 	return resp, trail.FromGRPC(err)
 }

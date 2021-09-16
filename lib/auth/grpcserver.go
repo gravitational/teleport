@@ -3422,16 +3422,7 @@ func (g *GRPCServer) CreatePrivilegeToken(ctx context.Context, req *proto.Create
 	}
 
 	token, err := auth.CreatePrivilegeToken(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	r, ok := token.(*types.UserTokenV3)
-	if !ok {
-		return nil, trace.BadParameter("unexpected UserToken type %T", token)
-	}
-
-	return r, nil
+	return token, trace.Wrap(err)
 }
 
 // GRPCServerConfig specifies GRPC server configuration

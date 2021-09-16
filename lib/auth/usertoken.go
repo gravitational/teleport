@@ -466,7 +466,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 }
 
 // CreatePrivilegeToken implements AuthService.CreatePrivilegeToken.
-func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (types.UserToken, error) {
+func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	username, err := GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -481,6 +481,9 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 		return nil, trace.AccessDenied("local auth needs to be enabled")
 	}
 
+	// For a user to add a device, second factor must be enabled.
+	// A nil request will be interpreted as a user who has second factor enabled
+	// but does not have any MFA registered, as can be the case with second factor optional.
 	secondFactor := authPref.GetSecondFactor()
 	if secondFactor == constants.SecondFactorOff {
 		return nil, trace.AccessDenied("second factor must be enabled")
@@ -488,26 +491,24 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 
 	tokenKind := UserTokenTypePrivilege
 
-	// Begin authenticating second factor.
-	switch req.GetExistingMFAResponse().GetResponse().(type) {
-	case nil:
+	switch {
+	case req.GetExistingMFAResponse() == nil:
 		// Allows users with no devices to bypass second factor re-auth.
 		devices, err := s.Identity.GetMFADevices(ctx, username, false)
-		if err != nil {
+		switch {
+		case err != nil:
 			return nil, trace.Wrap(err)
-		}
-
-		if len(devices) > 0 {
+		case len(devices) > 0:
 			return nil, trace.BadParameter("second factor authentication required")
 		}
 
 		tokenKind = UserTokenTypePrivilegeException
+
 	default:
-		err := s.WithUserLock(username, func() error {
+		if err := s.WithUserLock(username, func() error {
 			_, err := s.validateMFAAuthResponse(ctx, username, req.GetExistingMFAResponse(), s.Identity)
 			return err
-		})
-		if err != nil {
+		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -518,14 +519,10 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	}
 
 	token, err := s.createPrivilegeToken(ctx, username, tokenKind)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return token, nil
+	return token, trace.Wrap(err)
 }
 
-func (s *Server) createPrivilegeToken(ctx context.Context, username string, tokenKind string) (types.UserToken, error) {
+func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind string) (*types.UserTokenV3, error) {
 	if tokenKind != UserTokenTypePrivilege && tokenKind != UserTokenTypePrivilegeException {
 		return nil, trace.BadParameter("invalid privilege token type")
 	}
@@ -566,7 +563,12 @@ func (s *Server) createPrivilegeToken(ctx context.Context, username string, toke
 		log.WithError(err).Warn("Failed to emit create privilege token event.")
 	}
 
-	return token, nil
+	convertedToken, ok := token.(*types.UserTokenV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected UserToken type %T", token)
+	}
+
+	return convertedToken, nil
 }
 
 // verifyUserToken verifies that the token is not expired and is of the allowed kinds.
