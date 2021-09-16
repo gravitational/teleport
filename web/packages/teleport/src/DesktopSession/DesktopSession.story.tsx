@@ -45,7 +45,7 @@ export const Error = () => (
   />
 );
 
-const client = new TdpClient('wss://socketAddr.gov', 'username');
+const client = new TdpClient('wss://socketAddr.gov');
 client.connect = () =>
   new Promise<void>(resolve => {
     resolve();
@@ -56,8 +56,10 @@ client.disconnect = () => {};
 
 const props: State = {
   tdpClient: client,
-  userHost: 'user@host.com',
+  username: 'user',
+  hostname: 'host.com',
   attempt: { status: 'processing' },
   clipboard: false,
   recording: false,
+  setAttempt: () => null,
 };

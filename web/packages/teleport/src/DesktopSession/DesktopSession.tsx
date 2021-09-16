@@ -28,32 +28,54 @@ export default function Container() {
 }
 
 export function DesktopSession(props: State) {
-  const { userHost, tdpClient, attempt, clipboard, recording } = props;
+  const {
+    hostname,
+    tdpClient,
+    attempt,
+    setAttempt,
+    clipboard,
+    recording,
+    username,
+  } = props;
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
-  // Waits for the state hook to initialize the TdpClient.
-  // Once the client is initialized, sets wsAttempt to 'success'.
   React.useEffect(() => {
-    tdpClient.on('render', ({ bitmap, left, top }) => {
-      const ctx = canvasRef.current.getContext('2d');
-      ctx.drawImage(bitmap, left, top);
-    });
-
-    // If client parameters change or component will unmount, close the websocket.
-    return () => {
-      tdpClient.disconnect();
-    };
-  }, [tdpClient]);
-
-  React.useEffect(() => {
-    // When attempt is set to 'success' after both the websocket connection and api call have succeeded,
-    // the canvas component gets rendered at which point we can send its width and height to the tdpClient
-    // as part of the TDP initial handshake.
+    // When attempt is set to 'success' that means both the websocket connection and initial api call(s) have succeeded.
+    // Now the canvas gets rendered, at which point we can set up all the tdpClient's listeners and initialize the tdp
+    // connection using the canvas' initial size
     if (attempt.status === 'success') {
+      const canvas = canvasRef.current;
+
+      tdpClient.on('render', ({ bitmap, left, top }) => {
+        const ctx = canvasRef.current.getContext('2d');
+        ctx.drawImage(bitmap, left, top);
+      });
+
+      tdpClient.on('disconnect', () => {
+        setAttempt({ status: 'disconnected' });
+      });
+
+      tdpClient.on('error', (err: Error) => {
+        setAttempt({
+          status: 'failed',
+          statusText: err.message ? err.message : 'unknown error',
+        });
+      });
+
       syncCanvasSizeToClientSize(canvasRef.current);
-      tdpClient.sendUsername();
-      tdpClient.resize(canvasRef.current.width, canvasRef.current.height);
+      tdpClient.init(username, canvas.width, canvas.height);
     }
+
+    // If client parameters change or component will unmount, cleanup tdpClient.
+    return () => {
+      // If the previous attempt was a 'success' that means tdpClient was connected.
+      // Since the connection is no longer a 'success', clean up the connection.
+      if (attempt.status === 'success') {
+        // Remove all listeners first, so that tdpClient.disconnect() does not trigger the 'disconnect' handler above.
+        tdpClient.removeAllListeners();
+        tdpClient.disconnect();
+      }
+    };
   }, [attempt]);
 
   // Canvas has two size attributes: the dimension of the pixels in the canvas (canvas.width)
@@ -77,7 +99,7 @@ export function DesktopSession(props: State) {
         onDisconnect={() => {
           tdpClient.disconnect();
         }}
-        userHost={userHost}
+        userHost={`${username}@${hostname}`}
         clipboard={clipboard}
         recording={recording}
         attempt={attempt}

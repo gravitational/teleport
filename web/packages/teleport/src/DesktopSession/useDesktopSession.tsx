@@ -24,14 +24,6 @@ import Ctx from 'teleport/teleportContext';
 import { Desktop } from 'teleport/services/desktops';
 import { stripRdpPort } from '../Desktops/DesktopList';
 
-// Extends Attempt to allow for an additional 'disconnected' state,
-// which allows us to display a non-error for instances where the connection
-// was intentionally disconnected.
-export type DesktopSessionAttempt = {
-  status: Attempt['status'] | 'disconnected';
-  statusText?: string;
-};
-
 export default function useDesktopSession(ctx: Ctx) {
   // Tracks combination of tdpclient/websocket and api call state,
   // as well as whether the tdp client for this session was intentionally disconnected.
@@ -39,16 +31,16 @@ export default function useDesktopSession(ctx: Ctx) {
     status: 'processing',
   });
   const { clusterId, username, desktopId } = useParams<UrlDesktopParams>();
-  const [userHost, setUserHost] = useState<string>('user@hostname');
+  const [hostname, setHostname] = useState<string>('');
 
-  // creates user@hostname string from list of desktops based on url's desktopId
-  const makeUserHost = (desktops: Desktop[]) => {
+  // creates hostname string from list of desktops based on url's desktopId
+  const makeHostname = (desktops: Desktop[]) => {
     const desktop = desktops.find(d => d.name === desktopId);
     if (!desktop) {
       // throw error here so that runFetchDesktopAttempt knows to set the attempt to failed
       throw new Error('Desktop not found');
     }
-    setUserHost(`${username}@${stripRdpPort(desktop.addr)}`);
+    setHostname(stripRdpPort(desktop.addr));
   };
 
   // Build a client based on url parameters.
@@ -59,31 +51,7 @@ export default function useDesktopSession(ctx: Ctx) {
       .replace(':desktopId', desktopId)
       .replace(':token', getAccessToken());
 
-    const cli = new TdpClient(addr, username);
-
-    // If the websocket is closed remove all listeners that depend on it.
-    // If it was closed intentionally by the user, set attempt to disconnected,
-    // otherwise assume a server error.
-    cli.on('close', (message: { userDisconnected: boolean }) => {
-      if (message.userDisconnected) {
-        setAttempt({ status: 'disconnected' });
-      } else {
-        setAttempt({
-          status: 'failed',
-          statusText: 'server error',
-        });
-      }
-      cli.removeAllListeners();
-    });
-
-    cli.on('error', () => {
-      setAttempt({
-        status: 'failed',
-        statusText: 'connection error',
-      });
-    });
-
-    return cli;
+    return new TdpClient(addr);
   }, [clusterId, username, desktopId]);
 
   useEffect(() => {
@@ -92,18 +60,20 @@ export default function useDesktopSession(ctx: Ctx) {
       tdpClient.connect(),
     ])
       .then(vals => {
-        makeUserHost(vals[0]);
+        makeHostname(vals[0]);
         setAttempt({ status: 'success' });
       })
       .catch(err => {
         setAttempt({ status: 'failed', statusText: err.message });
       });
-  }, [clusterId, username, desktopId]);
+  }, [tdpClient]);
 
   return {
+    username,
+    hostname,
     tdpClient,
-    userHost,
     attempt,
+    setAttempt,
     // clipboard and recording settings will eventuall come from backend, hardcoded for now
     clipboard: false,
     recording: false,
@@ -111,3 +81,11 @@ export default function useDesktopSession(ctx: Ctx) {
 }
 
 export type State = ReturnType<typeof useDesktopSession>;
+
+// Extends Attempt to allow for an additional 'disconnected' state,
+// which allows us to display a non-error for instances where the connection
+// was intentionally disconnected.
+export type DesktopSessionAttempt = {
+  status: Attempt['status'] | 'disconnected';
+  statusText?: string;
+};
