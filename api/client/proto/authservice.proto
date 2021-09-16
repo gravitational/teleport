@@ -926,6 +926,18 @@ message DeleteMFADeviceSyncRequest {
     string DeviceName = 2 [ (gogoproto.jsontag) = "device_name" ];
 }
 
+// AddMFADeviceSyncRequest is a request to add a MFA device (nonstream).
+message AddMFADeviceSyncRequest {
+    // PrivilegeTokenID is the ID of a privilege token that will be used to verify this request.
+    // Privilege tokens are obtained after a logged in user re-authenticates with their second
+    // factor.
+    string PrivilegeTokenID = 1 [ (gogoproto.jsontag) = "privilege_token_id" ];
+    // NewDeviceName is the name of a new mfa device.
+    string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
+    // NewMFAResponse is a user's new mfa response to a mfa register challenge.
+    MFARegisterResponse NewMFAResponse = 3 [ (gogoproto.jsontag) = "new_mfa_response,omitempty" ];
+}
+
 // GetMFADeviceRequest is a request for MFA devices for the calling user.
 message GetMFADevicesRequest {
     // RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
@@ -1246,6 +1258,10 @@ message GetAccountRecoveryTokenRequest {
     string RecoveryTokenID = 1 [ (gogoproto.jsontag) = "recovery_token_id" ];
 }
 
+// GetAccountRecoveryCodesRequest is a request to return the user in context their
+// recovery codes. This request will not return any secrets (the values of recovery codes).
+message GetAccountRecoveryCodesRequest {}
+
 // UserCredentials describes fields for a user's username and password.
 message UserCredentials {
     string Username = 1 [ (gogoproto.jsontag) = "username" ];
@@ -1509,6 +1525,8 @@ service AuthService {
     // -> MFAResponse
     // <- Ack
     rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
+    // AddMFADeviceSync deletes a users MFA device (nonstream).
+    rpc AddMFADeviceSync(AddMFADeviceSyncRequest) returns (google.protobuf.Empty);
     // DeleteMFADeviceSync deletes a users MFA device (nonstream).
     rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
     // GetMFADevices returns all MFA devices registered for the user calling
@@ -1725,6 +1743,10 @@ service AuthService {
     // the token e.g: username, state of recovery (started or approved) and the type of recovery
     // requested (password or second factor).
     rpc GetAccountRecoveryToken(GetAccountRecoveryTokenRequest) returns (types.UserTokenV3);
+    // GetAccountRecoveryCodes (exclusive to cloud users) is a request to return the user in context
+    // their recovery codes. This request will not return any secrets (the values of recovery
+    // codes), but instead returns non-sensitive data eg. when the recovery codes were created.
+    rpc GetAccountRecoveryCodes(GetAccountRecoveryCodesRequest) returns (types.RecoveryCodesV1);
 
     // CreatePrivilegeToken returns a new privilege token after a logged in user successfully
     // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
