@@ -103,6 +103,7 @@ func TestRegistrationFlow_Begin_errors(t *testing.T) {
 
 func TestRegistrationFlow_Finish_errors(t *testing.T) {
 	const user = "llama"
+	const webOrigin = "https://localhost"
 	webRegistration := &wanlib.RegistrationFlow{
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
@@ -116,50 +117,84 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 	require.NoError(t, err)
 	key, err := mocku2f.Create()
 	require.NoError(t, err)
-	okCCR, err := key.SignCredentialCreation("https://localhost" /* origin */, cc)
-	require.NoError(t, err)
-	badOriginCCR, err := key.SignCredentialCreation("https://alpacasarerad.com" /* origin */, cc)
+	okCCR, err := key.SignCredentialCreation(webOrigin, cc)
 	require.NoError(t, err)
 
 	tests := []struct {
 		name             string
 		user, deviceName string
-		credentialResp   *wanlib.CredentialCreationResponse
+		createResp       func() *wanlib.CredentialCreationResponse
 		wantErr          string
 	}{
 		{
-			name:           "NOK user empty",
-			user:           "",
-			deviceName:     "webauthn2",
-			credentialResp: okCCR,
-			wantErr:        "user required",
+			name:       "NOK user empty",
+			user:       "",
+			deviceName: "webauthn2",
+			createResp: func() *wanlib.CredentialCreationResponse { return okCCR },
+			wantErr:    "user required",
 		},
 		{
-			name:           "NOK device name empty",
-			user:           user,
-			deviceName:     "",
-			credentialResp: okCCR,
-			wantErr:        "device name required",
+			name:       "NOK device name empty",
+			user:       user,
+			deviceName: "",
+			createResp: func() *wanlib.CredentialCreationResponse { return okCCR },
+			wantErr:    "device name required",
 		},
 		{
-			name:           "NOK credential response nil",
-			user:           user,
-			deviceName:     "webauthn2",
-			credentialResp: nil,
-			wantErr:        "response required",
+			name:       "NOK credential response nil",
+			user:       user,
+			deviceName: "webauthn2",
+			createResp: func() *wanlib.CredentialCreationResponse { return nil },
+			wantErr:    "response required",
 		},
 		{
-			name:           "NOK bad origin",
-			user:           user,
-			deviceName:     "webauthn2",
-			credentialResp: badOriginCCR,
-			wantErr:        "origin",
+			name:       "NOK credential with bad origin",
+			user:       user,
+			deviceName: "webauthn2",
+			createResp: func() *wanlib.CredentialCreationResponse {
+				resp, err := key.SignCredentialCreation("https://alpacasarerad.com" /* origin */, cc)
+				require.NoError(t, err)
+				return resp
+			},
+			wantErr: "origin",
+		},
+		{
+			name:       "NOK credential with bad RPID",
+			user:       user,
+			deviceName: "webauthn2",
+			createResp: func() *wanlib.CredentialCreationResponse {
+				cc, err := webRegistration.Begin(ctx, user)
+				require.NoError(t, err)
+				cc.Response.RelyingParty.ID = "badrpid.com"
+
+				resp, err := key.SignCredentialCreation(webOrigin, cc)
+				require.NoError(t, err)
+				return resp
+			},
+			wantErr: "authenticator response",
+		},
+		{
+			name:       "NOK credential with invalid signature",
+			user:       user,
+			deviceName: "webauthn2",
+			createResp: func() *wanlib.CredentialCreationResponse {
+				cc, err := webRegistration.Begin(ctx, user)
+				require.NoError(t, err)
+				// Flip a challenge bit, this should be enough to consistently fail
+				// signature checking.
+				cc.Response.Challenge[0] = 1 ^ cc.Response.Challenge[0]
+
+				resp, err := key.SignCredentialCreation(webOrigin, cc)
+				require.NoError(t, err)
+				return resp
+			},
+			wantErr: "validating challenge",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := webRegistration.Finish(ctx, test.user, test.deviceName, test.credentialResp)
-			require.True(t, trace.IsBadParameter(err))
+			_, err := webRegistration.Finish(ctx, test.user, test.deviceName, test.createResp())
+			require.Error(t, err)
 			require.Contains(t, err.Error(), test.wantErr)
 		})
 	}

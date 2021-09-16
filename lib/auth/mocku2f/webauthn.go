@@ -46,7 +46,7 @@ func (muk *Key) SignAssertion(origin string, assertion *wanlib.CredentialAsserti
 			break
 		}
 	}
-	if !ok {
+	if !ok && !muk.IgnoreAllowedCredentials {
 		return nil, trace.BadParameter("device not allowed")
 	}
 
