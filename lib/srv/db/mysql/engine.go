@@ -204,7 +204,7 @@ Make sure that IAM auth is enabled for MySQL user %q and Teleport database
 agent's IAM policy has "rds-connect" permissions:
 
 %v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Database.GetAWS().Region))
+`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetRDSPolicy())
 		}
 		return nil, trace.Wrap(err)
 	}

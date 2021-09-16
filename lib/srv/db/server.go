@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -84,6 +85,10 @@ type Config struct {
 	CADownloader CADownloader
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+	// CloudMeta fetches cloud metadata for cloud hosted databases.
+	CloudMeta *cloud.Metadata
+	// CloudIAM configures IAM for cloud hosted databases.
+	CloudIAM *cloud.IAM
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -139,6 +144,18 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.LockWatcher == nil {
 		return trace.BadParameter("missing LockWatcher")
+	}
+	if c.CloudMeta == nil {
+		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if c.CloudIAM == nil {
+		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
@@ -211,8 +228,19 @@ func New(ctx context.Context, config Config) (*Server, error) {
 func (s *Server) startDatabase(ctx context.Context, database types.Database) error {
 	// For cloud-hosted databases (RDS, Redshift, GCP), try to automatically
 	// download a CA certificate.
+	// TODO(r0mant): This should ideally become a part of cloud metadata service.
 	if err := s.initCACert(ctx, database); err != nil {
 		return trace.Wrap(err)
+	}
+	// Update cloud metadata if it's a cloud hosted database on a best-effort
+	// basis.
+	if err := s.cfg.CloudMeta.Update(ctx, database); err != nil {
+		s.log.Warnf("Failed to fetch cloud metadata for %v: %v.", database, err)
+	}
+	// Attempts to fetch cloud metadata and configure IAM for cloud-hosted
+	// databases on a best-effort basis.
+	if err := s.cfg.CloudIAM.Setup(ctx, database); err != nil {
+		s.log.Warnf("Failed to auto-configure IAM for %v: %v.", database, err)
 	}
 	// Start a goroutine that will be updating database's command labels (if any)
 	// on the defined schedule.
@@ -314,7 +342,7 @@ func (s *Server) updateDatabase(ctx context.Context, database types.Database) er
 	}
 	if err := s.registerDatabase(ctx, database); err != nil {
 		// If we failed to re-register, don't keep proxying the old database.
-		if errUnregister := s.unregisterDatabase(ctx, database.GetName()); errUnregister != nil {
+		if errUnregister := s.unregisterDatabase(ctx, database); errUnregister != nil {
 			return trace.NewAggregate(err, errUnregister)
 		}
 		return trace.Wrap(err)
@@ -324,18 +352,23 @@ func (s *Server) updateDatabase(ctx context.Context, database types.Database) er
 
 // unregisterDatabase uninitializes the specified database and removes it from
 // the list of databases this server proxies.
-func (s *Server) unregisterDatabase(ctx context.Context, name string) error {
-	if err := s.stopDatabase(ctx, name); err != nil {
+func (s *Server) unregisterDatabase(ctx context.Context, database types.Database) error {
+	// Deconfigure IAM for the cloud database.
+	if err := s.cfg.CloudIAM.Teardown(ctx, database); err != nil {
+		s.log.Warnf("Failed to teardown IAM for %v: %v.", database, err)
+	}
+	// Stop heartbeat and dynamic labels updates.
+	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
 	// Heartbeat is stopped but if we don't remove this database server,
 	// it can linger for up to ~10m until its TTL expires.
-	if err := s.deleteDatabaseServer(ctx, name); err != nil {
+	if err := s.deleteDatabaseServer(ctx, database.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.databases, name)
+	delete(s.databases, database.GetName())
 	return nil
 }
 
@@ -468,7 +501,7 @@ func (s *Server) Close() error {
 	var errors []error
 	// Stop all proxied databases.
 	for _, database := range s.getDatabases() {
-		if err := s.unregisterDatabase(s.closeContext, database.GetName()); err != nil {
+		if err := s.unregisterDatabase(s.closeContext, database); err != nil {
 			errors = append(errors, err)
 		}
 	}

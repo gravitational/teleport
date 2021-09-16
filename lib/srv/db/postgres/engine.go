@@ -213,7 +213,7 @@ Make sure that Postgres user %q has "rds_iam" role and Teleport database
 agent's IAM policy has "rds-connect" permissions:
 
 %v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Database.GetAWS().Region))
+`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetRDSPolicy())
 		}
 		return nil, nil, trace.Wrap(err)
 	}
