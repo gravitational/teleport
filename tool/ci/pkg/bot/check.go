@@ -68,14 +68,29 @@ func (c *Bot) Check(ctx context.Context) error {
 // check checks to see if all the required reviewers have approved and invalidates
 // approvals for external contributors if a new commit is pushed
 func (c *Bot) check(ctx context.Context, pr *environment.PullRequestMetadata, required []string, currentReviews []review) error {
+	var waitingOnApprovalsFrom []string
 	if len(currentReviews) == 0 {
 		return trace.BadParameter("pull request has no reviews")
 	}
 	log.Printf("checking if %v has approvals from the required reviewers %+v", pr.Author, required)
 	for _, requiredReviewer := range required {
-		if !containsApprovalReview(requiredReviewer, currentReviews) {
-			return trace.BadParameter("required reviewers have not yet approved")
+		reviewer, ok := hasApproved(requiredReviewer, currentReviews)
+		if !ok {
+			waitingOnApprovalsFrom = append(waitingOnApprovalsFrom, reviewer)
 		}
+	}
+	switch {
+	case len(waitingOnApprovalsFrom) == 1:
+		return trace.BadParameter(fmt.Sprintf("required reviewers have not yet approved, waiting on an approval from %s",
+			strings.Join(waitingOnApprovalsFrom, "")))
+	case len(waitingOnApprovalsFrom) == 2:
+		return trace.BadParameter(fmt.Sprintf("required reviewers have not yet approved, waiting for approvals from %s",
+			strings.Join(waitingOnApprovalsFrom, " and ")))
+	case len(waitingOnApprovalsFrom) > 2:
+		lastReviewer := waitingOnApprovalsFrom[len(waitingOnApprovalsFrom)-1]
+		waitingOnApprovalsFrom = waitingOnApprovalsFrom[:len(waitingOnApprovalsFrom)-1]
+		return trace.BadParameter(fmt.Sprintf("required reviewers have not yet approved, waiting for approvals from %s, and %s",
+			strings.Join(waitingOnApprovalsFrom, ", "), lastReviewer))
 	}
 	return nil
 }
@@ -127,13 +142,13 @@ func mostRecent(currentReviews []review) []review {
 	return reviews
 }
 
-func containsApprovalReview(reviewer string, reviews []review) bool {
+func hasApproved(reviewer string, reviews []review) (string, bool) {
 	for _, rev := range reviews {
 		if rev.name == reviewer && rev.status == ci.Approved {
-			return true
+			return "", true
 		}
 	}
-	return false
+	return reviewer, false
 }
 
 // dimissMessage returns the dimiss message when a review is dismissed
@@ -141,7 +156,7 @@ func dismissMessage(pr *environment.PullRequestMetadata, required []string) stri
 	var buffer bytes.Buffer
 	buffer.WriteString("new commit pushed, please re-review ")
 	for _, reviewer := range required {
-		buffer.WriteString(fmt.Sprintf("@%v ", reviewer))
+		fmt.Fprintf(&buffer, "@%v", reviewer)
 	}
 	return buffer.String()
 }

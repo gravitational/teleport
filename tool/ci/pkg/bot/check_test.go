@@ -72,15 +72,15 @@ func TestContainsApprovalReview(t *testing.T) {
 		{name: "baz", status: "APPROVED", commitID: "ba0d35", id: 1},
 	}
 	// Has a review but no approval
-	ok := containsApprovalReview("bar", reviews)
+	_, ok := hasApproved("bar", reviews)
 	require.Equal(t, false, ok)
 
 	// Does not have revire from reviewer
-	ok = containsApprovalReview("car", reviews)
+	_, ok = hasApproved("car", reviews)
 	require.Equal(t, false, ok)
 
 	// Has review and is approved
-	ok = containsApprovalReview("foo", reviews)
+	_, ok = hasApproved("foo", reviews)
 	require.Equal(t, true, ok)
 }
 
