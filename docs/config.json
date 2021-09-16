@@ -328,6 +328,9 @@
       "major_version": "1",
       "minor_version": "17"
     },
+    "ansible": {
+      "min_version": "2.9.6"
+    },
     "mongodb": {
       "min_version": "3.6"
     },
