@@ -80,6 +80,11 @@ func (a *NetAddr) IsLoopback() bool {
 	return apiutils.IsLoopback(a.Addr)
 }
 
+// IsHostUnspecified returns true if this address' host is unspecified.
+func (a *NetAddr) IsHostUnspecified() bool {
+	return a.Host() == "" || net.ParseIP(a.Host()).IsUnspecified()
+}
+
 // IsEmpty returns true if address is empty
 func (a *NetAddr) IsEmpty() bool {
 	return a == nil || (a.Addr == "" && a.AddrNetwork == "" && a.Path == "")

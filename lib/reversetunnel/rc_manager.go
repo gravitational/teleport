@@ -74,6 +74,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	Clock clockwork.Clock
 	// KubeDialAddr is an optional address of a local kubernetes proxy.
 	KubeDialAddr utils.NetAddr
+	// FIPS indicates if Teleport was started in FIPS mode.
+	FIPS bool
 }
 
 func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
@@ -212,6 +214,7 @@ func (w *RemoteClusterTunnelManager) realNewAgentPool(ctx context.Context, clust
 		Clock:               w.cfg.Clock,
 		KubeDialAddr:        w.cfg.KubeDialAddr,
 		ReverseTunnelServer: w.cfg.ReverseTunnelServer,
+		FIPS:                w.cfg.FIPS,
 		// RemoteClusterManager only runs on proxies.
 		Component: teleport.ComponentProxy,
 
