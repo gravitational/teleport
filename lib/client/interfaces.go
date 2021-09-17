@@ -405,7 +405,7 @@ func (k *Key) CheckCert() error {
 
 	// A valid principal is always passed in because the principals are not being
 	// checked here, but rather the validity period, signature, and algorithms.
-	certChecker := utils.CertChecker{
+	certChecker := sshutils.CertChecker{
 		FIPS: isFIPS(),
 	}
 	err = certChecker.CheckCert(cert.ValidPrincipals[0], cert)
@@ -422,8 +422,8 @@ func (k *Key) CheckCert() error {
 // If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
 // This causes golang.org/x/crypto/ssh to prompt the user to verify host key
 // fingerprint (same as OpenSSH does for an unknown host).
-func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
-	return sshutils.HostKeyCallback(k.SSHCAs())
+func (k *Key) HostKeyCallback(withHostKeyFallback bool) (ssh.HostKeyCallback, error) {
+	return sshutils.HostKeyCallback(k.SSHCAs(), withHostKeyFallback)
 }
 
 // RootClusterName extracts the root cluster name from the issuer
