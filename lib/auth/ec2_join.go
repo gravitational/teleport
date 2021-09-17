@@ -24,6 +24,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
+
+	"github.com/gravitational/trace"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
@@ -31,8 +36,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.mozilla.org/pkcs7"
 )
@@ -171,27 +174,124 @@ func checkPendingTime(iid *imds.InstanceIdentityDocument, clock clockwork.Clock)
 	return nil
 }
 
-// checkInstanceUnique makes sure this instance has not already joined the
-// cluster.
-func (a *Server) checkInstanceUnique(ctx context.Context, req RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
-	if req.HostID != NodeIDFromIID(iid) {
-		return trace.AccessDenied("invalid host ID %q, expected %q", req.NodeName, NodeIDFromIID(iid))
-	}
-	namespaces, err := a.GetNamespaces()
+func nodeExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	namespaces, err := presence.GetNamespaces()
 	if err != nil {
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 	for _, namespace := range namespaces {
-		_, err := a.GetNode(ctx, namespace.GetName(), req.HostID)
+		_, err := presence.GetNode(ctx, namespace.GetName(), hostID)
 		if trace.IsNotFound(err) {
 			continue
 		} else if err != nil {
-			return trace.Wrap(err)
+			return false, trace.Wrap(err)
 		} else {
-			log.Warnf("Node with ID %q is attempting to join the cluster with a Simplified Node Joining request, but"+
-				" a node with this ID is already present in the cluster.", req.HostID)
-			return trace.AccessDenied("node with this name ID exists")
+			return true, nil
 		}
+	}
+	return false, nil
+}
+
+func proxyExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	proxies, err := presence.GetProxies()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, proxy := range proxies {
+		if proxy.GetName() == hostID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func kubeExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	kubes, err := presence.GetKubeServices(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, kube := range kubes {
+		if kube.GetName() == hostID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func appExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	namespaces, err := presence.GetNamespaces()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, namespace := range namespaces {
+		apps, err := presence.GetApplicationServers(ctx, namespace.GetName())
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		for _, app := range apps {
+			if app.GetName() == hostID {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func dbExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	namespaces, err := presence.GetNamespaces()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, namespace := range namespaces {
+		dbs, err := presence.GetDatabaseServers(ctx, namespace.GetName())
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		for _, db := range dbs {
+			if db.GetName() == hostID {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// checkInstanceUnique makes sure this instance has not already joined the
+// cluster with the same role. Tokens should be limited to only allow the roles
+// which will actually be used by all instances so that a stolen IID could not
+// be used to join the cluster with a different role.
+func (a *Server) checkInstanceUnique(ctx context.Context, req RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
+	requestedHostID := req.HostID
+	expectedHostID := NodeIDFromIID(iid)
+	if requestedHostID != expectedHostID {
+		return trace.AccessDenied("invalid host ID %q, expected %q", requestedHostID, expectedHostID)
+	}
+
+	var instanceExists bool
+	var err error
+
+	switch req.Role {
+	case types.RoleNode:
+		instanceExists, err = nodeExists(ctx, a, req.HostID)
+	case types.RoleProxy:
+		instanceExists, err = proxyExists(ctx, a, req.HostID)
+	case types.RoleKube:
+		instanceExists, err = kubeExists(ctx, a, req.HostID)
+	case types.RoleApp:
+		instanceExists, err = appExists(ctx, a, req.HostID)
+	case types.RoleDatabase:
+		instanceExists, err = dbExists(ctx, a, req.HostID)
+	default:
+		return trace.BadParameter("unsupported role: %q", req.Role)
+	}
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if instanceExists {
+		log.Warnf("Server with ID %q and role %q is attempting to join the cluster with a Simplified Node Joining request, but"+
+			" a server with this ID is already present in the cluster.", req.HostID, req.Role)
+		return trace.AccessDenied("server with host ID %q and role %q already exists", req.HostID, req.Role)
 	}
 	return nil
 }

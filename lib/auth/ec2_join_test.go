@@ -4,16 +4,20 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/services"
+
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	check "gopkg.in/check.v1"
 )
 
 type ec2Instance struct {
@@ -121,31 +125,62 @@ func (c ec2ClientRunning) DescribeInstances(ctx context.Context, params *ec2.Des
 	}, nil
 }
 
-func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
-	err := s.a.UpsertNamespace(types.DefaultNamespace())
-	c.Assert(err, check.IsNil)
+func newAuthServer(t *testing.T) *Server {
+	b, err := lite.NewWithConfig(context.Background(), lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "test-cluster",
+	})
+	require.NoError(t, err)
+
+	authConfig := &InitConfig{
+		ClusterName:            clusterName,
+		Backend:                b,
+		Authority:              testauthority.New(),
+		SkipPeriodicOperations: true,
+	}
+
+	a, err := NewServer(authConfig)
+	require.NoError(t, err)
+
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{},
+	})
+	require.NoError(t, err)
+	err = a.SetStaticTokens(staticTokens)
+	require.NoError(t, err)
+
+	err = a.UpsertNamespace(types.DefaultNamespace())
+	require.NoError(t, err)
+
+	return a
+}
+
+func TestSimplifiedNodeJoin(t *testing.T) {
+	a := newAuthServer(t)
 
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name:      instance2.account + "-" + instance2.instanceID,
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.ServerSpecV2{
-			Addr: "localhost:3022",
+			Namespace: defaults.Namespace,
 		},
 	}
-	_, err = s.a.UpsertNode(context.Background(), node)
-	c.Assert(err, check.IsNil)
+	_, err := a.UpsertNode(context.Background(), node)
+	require.NoError(t, err)
 
 	testCases := []struct {
-		desc       string
-		tokenRules []*types.TokenRule
-		ec2Client  ec2Client
-		request    RegisterUsingTokenRequest
-		expected   check.Checker
-		clock      clockwork.Clock
+		desc        string
+		tokenRules  []*types.TokenRule
+		ec2Client   ec2Client
+		request     RegisterUsingTokenRequest
+		expectError bool
+		clock       clockwork.Clock
 	}{
 		{
 			desc: "basic passing case",
@@ -163,8 +198,8 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expected: check.IsNil,
-			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
+			expectError: false,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "pass with multiple rules",
@@ -186,8 +221,8 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expected: check.IsNil,
-			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
+			expectError: false,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "wrong account",
@@ -205,8 +240,8 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expected: check.NotNil,
-			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
+			expectError: true,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "wrong region",
@@ -224,8 +259,8 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expected: check.NotNil,
-			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
+			expectError: true,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "bad HostID",
@@ -243,8 +278,8 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				HostID:              "bad host id",
 				EC2IdentityDocument: instance1.iid,
 			},
-			expected: check.NotNil,
-			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
+			expectError: true,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "bad identity document",
@@ -262,8 +297,8 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: []byte("bad document"),
 			},
-			expected: check.NotNil,
-			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
+			expectError: true,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "instance already joined",
@@ -281,8 +316,8 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				HostID:              instance2.account + "-" + instance2.instanceID,
 				EC2IdentityDocument: instance2.iid,
 			},
-			expected: check.NotNil,
-			clock:    clockwork.NewFakeClockAt(instance2.pendingTime),
+			expectError: true,
+			clock:       clockwork.NewFakeClockAt(instance2.pendingTime),
 		},
 		{
 			desc: "instance already joined, fake ID",
@@ -300,8 +335,8 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				HostID:              "fake id",
 				EC2IdentityDocument: instance2.iid,
 			},
-			expected: check.NotNil,
-			clock:    clockwork.NewFakeClockAt(instance2.pendingTime),
+			expectError: true,
+			clock:       clockwork.NewFakeClockAt(instance2.pendingTime),
 		},
 		{
 			desc: "instance not running",
@@ -319,8 +354,8 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expected: check.NotNil,
-			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
+			expectError: true,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "instance not exists",
@@ -338,8 +373,8 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expected: check.NotNil,
-			clock:    clockwork.NewFakeClockAt(instance1.pendingTime),
+			expectError: true,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
 			desc: "TTL expired",
@@ -357,38 +392,38 @@ func (s *AuthSuite) TestSimplifiedNodeJoin(c *check.C) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expected: check.NotNil,
-			clock:    clockwork.NewFakeClockAt(instance1.pendingTime.Add(5*time.Minute + time.Second)),
+			expectError: true,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime.Add(5*time.Minute + time.Second)),
 		},
 	}
 	for _, tc := range testCases {
-		println("Running test case:", tc.desc)
+		t.Run(tc.desc, func(t *testing.T) {
+			clock := tc.clock
+			if clock == nil {
+				clock = clockwork.NewRealClock()
+			}
+			a.clock = clock
 
-		clock := tc.clock
-		if clock == nil {
-			clock = clockwork.NewRealClock()
-		}
-		s.a.clock = clock
+			token, err := types.NewProvisionTokenFromSpec(
+				"test_token",
+				time.Now().Add(time.Minute),
+				types.ProvisionTokenSpecV2{
+					Roles: []types.SystemRole{types.RoleNode},
+					Allow: tc.tokenRules,
+				})
+			require.NoError(t, err)
 
-		token, err := types.NewProvisionTokenFromSpec(
-			"test_token",
-			time.Now().Add(time.Minute),
-			types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: tc.tokenRules,
-			})
-		c.Assert(err, check.IsNil)
+			err = a.UpsertToken(context.Background(), token)
+			require.NoError(t, err)
 
-		err = s.a.UpsertToken(context.Background(), token)
-		c.Assert(err, check.IsNil)
+			ctx := context.WithValue(context.Background(), ec2ClientKey{}, tc.ec2Client)
 
-		ctx := context.WithValue(context.Background(), ec2ClientKey{}, tc.ec2Client)
+			err = a.CheckEC2Request(ctx, tc.request)
+			require.Equal(t, tc.expectError, err != nil)
 
-		err = s.a.CheckEC2Request(ctx, tc.request)
-		c.Assert(err, tc.expected)
-
-		err = s.a.DeleteToken(context.Background(), token.GetName())
-		c.Assert(err, check.IsNil)
+			err = a.DeleteToken(context.Background(), token.GetName())
+			require.NoError(t, err)
+		})
 	}
 }
 
@@ -399,4 +434,149 @@ func TestAWSCerts(t *testing.T) {
 		_, err := x509.ParseCertificate(certPEM.Bytes)
 		require.NoError(t, err)
 	}
+}
+
+// TestHostUniqueCheck tests the uniqueness check used by CheckEC2Request
+func TestHostUniqueCheck(t *testing.T) {
+	a := newAuthServer(t)
+	a.clock = clockwork.NewFakeClockAt(instance1.pendingTime)
+
+	token, err := types.NewProvisionTokenFromSpec(
+		"test_token",
+		time.Now().Add(time.Minute),
+		types.ProvisionTokenSpecV2{
+			Roles: []types.SystemRole{types.RoleNode, types.RoleKube},
+			Allow: []*types.TokenRule{
+				&types.TokenRule{
+					AWSAccount: instance1.account,
+					AWSRegions: []string{instance1.region},
+				},
+			},
+		})
+	require.NoError(t, err)
+
+	err = a.UpsertToken(context.Background(), token)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		role     types.SystemRole
+		upserter func(name string)
+	}{
+		{
+			role: types.RoleNode,
+			upserter: func(name string) {
+				node := &types.ServerV2{
+					Kind:    types.KindNode,
+					Version: types.V2,
+					Metadata: types.Metadata{
+						Name:      name,
+						Namespace: defaults.Namespace,
+					},
+				}
+				_, err := a.UpsertNode(context.Background(), node)
+				require.NoError(t, err)
+			},
+		},
+		{
+			role: types.RoleProxy,
+			upserter: func(name string) {
+				proxy := &types.ServerV2{
+					Kind:    types.KindProxy,
+					Version: types.V2,
+					Metadata: types.Metadata{
+						Name:      name,
+						Namespace: defaults.Namespace,
+					},
+				}
+				err := a.UpsertProxy(proxy)
+				require.NoError(t, err)
+			},
+		},
+		{
+			role: types.RoleKube,
+			upserter: func(name string) {
+				kube := &types.ServerV2{
+					Kind:    types.KindKubeService,
+					Version: types.V2,
+					Metadata: types.Metadata{
+						Name:      name,
+						Namespace: defaults.Namespace,
+					},
+				}
+				err := a.UpsertKubeService(context.Background(), kube)
+				require.NoError(t, err)
+			},
+		},
+		{
+			role: types.RoleDatabase,
+			upserter: func(name string) {
+				db, err := types.NewDatabaseServerV3(
+					types.Metadata{
+						Name:      name,
+						Namespace: defaults.Namespace,
+					},
+					types.DatabaseServerSpecV3{
+						HostID:   name,
+						Hostname: "test-db",
+					})
+				require.NoError(t, err)
+				_, err = a.UpsertDatabaseServer(context.Background(), db)
+				require.NoError(t, err)
+			},
+		},
+		{
+			role: types.RoleApp,
+			upserter: func(name string) {
+				app, err := types.NewAppV3(
+					types.Metadata{
+						Name:      "test-app",
+						Namespace: defaults.Namespace,
+					},
+					types.AppSpecV3{
+						URI: "https://app.localhost",
+					})
+				require.NoError(t, err)
+				appServer, err := types.NewAppServerV3(
+					types.Metadata{
+						Name:      name,
+						Namespace: defaults.Namespace,
+					},
+					types.AppServerSpecV3{
+						HostID: name,
+						App:    app,
+					})
+				require.NoError(t, err)
+				_, err = a.UpsertApplicationServer(context.Background(), appServer)
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), ec2ClientKey{}, ec2ClientRunning{})
+
+	for _, tc := range testCases {
+		t.Run(string(tc.role), func(t *testing.T) {
+			request := RegisterUsingTokenRequest{
+				Token:               "test_token",
+				NodeName:            "node_name",
+				Role:                tc.role,
+				HostID:              instance1.account + "-" + instance1.instanceID,
+				EC2IdentityDocument: instance1.iid,
+			}
+
+			// request works with no existing host
+			err = a.CheckEC2Request(ctx, request)
+			require.NoError(t, err)
+
+			// add the server
+			name := instance1.account + "-" + instance1.instanceID
+			tc.upserter(name)
+
+			// request should fail
+			err = a.CheckEC2Request(ctx, request)
+			fmt.Printf("%v\n", err)
+			require.Error(t, err)
+		})
+	}
+
 }
