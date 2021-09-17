@@ -28,17 +28,23 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/trace"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
+
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
+
+// deviceTypes lists the supported device types for `tsh mfa add`.
+var deviceTypes = []string{"TOTP", "U2F", "WEBAUTHN"}
 
 type mfaCommands struct {
 	ls  *mfaLSCommand
@@ -139,26 +145,31 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 		CmdClause: parent.Command("add", "Add a new MFA device"),
 	}
 	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
-	c.Flag("type", "Type of the new MFA device (TOTP or U2F)").StringVar(&c.devType)
+	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(deviceTypes, ", "))).
+		StringVar(&c.devType)
 	return c
 }
 
 func (c *mfaAddCommand) run(cf *CLIConf) error {
 	if c.devType == "" {
+		// TODO(codingllama): Revisit CLI nomenclature, we only talk about U2F on
+		//  login.
 		var err error
-		c.devType, err = prompt.PickOne(cf.Context, os.Stdout, prompt.Stdin(), "Choose device type", []string{"TOTP", "U2F"})
+		c.devType, err = prompt.PickOne(cf.Context, os.Stdout, prompt.Stdin(), "Choose device type", deviceTypes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	var typ proto.AddMFADeviceRequestInit_DeviceType
+	var devType proto.AddMFADeviceRequestInit_DeviceType
 	switch strings.ToUpper(c.devType) {
 	case "TOTP":
-		typ = proto.AddMFADeviceRequestInit_TOTP
+		devType = proto.AddMFADeviceRequestInit_TOTP
 	case "U2F":
-		typ = proto.AddMFADeviceRequestInit_U2F
+		devType = proto.AddMFADeviceRequestInit_U2F
+	case "WEBAUTHN":
+		devType = proto.AddMFADeviceRequestInit_Webauthn
 	default:
-		return trace.BadParameter("unknown device type %q, must be either TOTP or U2F", c.devType)
+		return trace.BadParameter("unknown device type %q, must be one of %v", c.devType, strings.Join(deviceTypes, ", "))
 	}
 
 	if c.devName == "" {
@@ -173,7 +184,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("device name can not be empty")
 	}
 
-	dev, err := c.addDeviceRPC(cf, c.devName, typ)
+	dev, err := c.addDeviceRPC(cf, c.devName, devType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -278,8 +289,10 @@ func promptRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.MFA
 		return promptTOTPRegisterChallenge(ctx, c.GetTOTP())
 	case *proto.MFARegisterChallenge_U2F:
 		return promptU2FRegisterChallenge(ctx, proxyAddr, c.GetU2F())
+	case *proto.MFARegisterChallenge_Webauthn:
+		return promptWebauthnRegisterChallenge(ctx, proxyAddr, c.GetWebauthn())
 	default:
-		return nil, trace.BadParameter("server bug: server sent %T when client expected either MFARegisterChallenge_TOTP or MFARegisterChallenge_U2F", c.Request)
+		return nil, trace.BadParameter("server bug: unexpected registration challenge type: %T", c.Request)
 	}
 }
 
@@ -376,6 +389,22 @@ func promptU2FRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.
 		RegistrationData: resp.RegistrationData,
 		ClientData:       resp.ClientData,
 	}}}, nil
+}
+
+func promptWebauthnRegisterChallenge(ctx context.Context, proxyAddr string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
+	// TODO(codingllama): Make sure users get a reasonable error back when the
+	//  origin doesn't match the RPID. Webauthn isn't as flexible as U2F in this
+	//  regard.
+	origin := proxyAddr
+	if !strings.HasPrefix(proxyAddr, "https://") {
+		origin = "https://" + origin
+	}
+	log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
+
+	fmt.Println("Tap your *new* security key")
+
+	resp, err := wancli.Register(ctx, origin, wanlib.CredentialCreationFromProto(cc))
+	return resp, trace.Wrap(err)
 }
 
 type mfaRemoveCommand struct {
