@@ -233,7 +233,7 @@ const ActionCell = props => {
   const request = data[rowIndex] as Row;
 
   return (
-    <Cell align="right">
+    <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
       {request.canAssume && (
         <ButtonPrimary
           size="small"

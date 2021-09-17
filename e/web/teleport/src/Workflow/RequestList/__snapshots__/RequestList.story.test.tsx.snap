@@ -261,6 +261,8 @@ exports[`loaded state 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .c8 > thead > tr > th,
@@ -423,7 +425,9 @@ exports[`loaded state 1`] = `
       value=""
     />
   </div>
-  <div>
+  <div
+    style="min-width: min-content;"
+  >
     <nav
       class="c2"
     >
@@ -572,6 +576,7 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
+            style="white-space: nowrap;"
           >
             <a
               class="c14"
@@ -634,6 +639,7 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
+            style="white-space: nowrap;"
           >
             <a
               class="c14"
@@ -700,6 +706,7 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
+            style="white-space: nowrap;"
           >
             <button
               class="c17"
@@ -774,6 +781,7 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
+            style="white-space: nowrap;"
           >
             <button
               class="c17"
