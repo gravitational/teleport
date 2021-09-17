@@ -26,5 +26,6 @@ func (p *Plugin) getLicenseCheckStatusHandle(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return ui.NewLicenseCheckStatus(licenseCheckResult), nil
 }

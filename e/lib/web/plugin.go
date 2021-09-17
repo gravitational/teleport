@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport/e/api/cloud"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
 
@@ -94,19 +95,30 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(p.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(p.getAppJoinScriptHandle))
 
-	h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))
-	h.POST("/enterprise/cloud/card", p.withCloudAuth(p.addCardHandle))
-	h.PUT("/enterprise/cloud/card", p.withCloudAuth(p.updateCardHandle))
-	h.GET("/enterprise/cloud/billing", p.withCloudAuth(p.getBillingInformationHandle))
-	h.GET("/enterprise/cloud/cycles", p.withCloudAuth(p.listBillingCyclesHandle))
-	h.GET("/enterprise/cloud/invoices", p.withCloudAuth(p.listInvoicesHandle))
-	h.PUT("/enterprise/cloud/account", p.withCloudAuth(p.updateAccountHandle))
+	if p.h.ClusterFeatures.GetCloud() {
+		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))
+		h.POST("/enterprise/cloud/card", p.withCloudAuth(p.addCardHandle))
+		h.PUT("/enterprise/cloud/card", p.withCloudAuth(p.updateCardHandle))
+		h.GET("/enterprise/cloud/billing", p.withCloudAuth(p.getBillingInformationHandle))
+		h.GET("/enterprise/cloud/cycles", p.withCloudAuth(p.listBillingCyclesHandle))
+		h.GET("/enterprise/cloud/invoices", p.withCloudAuth(p.listInvoicesHandle))
+		h.PUT("/enterprise/cloud/account", p.withCloudAuth(p.updateAccountHandle))
+
+		// Recovery related endpoints.
+		h.POST("/enterprise/cloud/recovery/start", p.withCloud(p.startAccountRecoveryHandle))
+		h.POST("/enterprise/cloud/recovery/verify", p.withCloud(p.approveAccountRecoveryHandle))
+		h.POST("/enterprise/cloud/recovery/newcredentials", p.withCloud(p.completeAccountRecoveryHandle))
+		h.GET("/enterprise/cloud/recovery/token/:token", p.withCloud(p.getAccountRecoveryTokenHandle))
+		h.POST("/enterprise/cloud/recovery/codes", p.withCloud(p.createAccountRecoveryCodesHandle))
+	}
 
 	return nil
 }
 
 // CloudHandler is a authenticated handler that is used to provide an initialized instance of the cloud client API
 type CloudHandler func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error)
+
+type cloudPublicHandler func(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error)
 
 // withCloudAuth authenticates and request and initializes an instance of the cloud client API
 func (p *Plugin) withCloudAuth(fn CloudHandler) httprouter.Handle {
@@ -122,5 +134,33 @@ func (p *Plugin) withCloudAuth(fn CloudHandler) httprouter.Handle {
 		}
 
 		return fn(w, r, ctx, cloudClient)
+	})
+}
+
+// withCloud provides an initiliazed instance of the cloud client API for public requests.
+func (p *Plugin) withCloud(fn cloudPublicHandler) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+		proxyClient := p.h.GetProxyClient()
+		client, ok := proxyClient.(*auth.Client)
+		if !ok {
+			return nil, trace.BadParameter("expected *auth.Client, got: %T", client)
+		}
+
+		cloudClient, err := cloud.NewClientFromConnection(client.GetConnection())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		res, err := fn(w, r, params, cloudClient)
+		if err != nil {
+			// Hide 429 error.
+			if trace.IsLimitExceeded(err) {
+				p.Log.Warn(err)
+				return nil, trace.AccessDenied("unable to process your request")
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		return res, nil
 	})
 }

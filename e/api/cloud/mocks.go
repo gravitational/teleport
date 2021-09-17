@@ -28,6 +28,12 @@ type MockedClient struct {
 	MockUpdateAccount func(in *v1.UpdateAccountRequest) (*v1.EmptyResponse, error)
 	// ListBillingCycles lists tenant billing cycles
 	MockListBillingCycles func() (*v1.ListBillingCyclesResponse, error)
+	// MockSendAccountRecoveryLink sends an email with a recovery link to user.
+	MockSendAccountRecoveryLink func() (*v1.EmptyResponse, error)
+	// MockSendAccountLocked sends an email notifying user their account was locked.
+	MockSendAccountLocked func() (*v1.EmptyResponse, error)
+	// MockSendAccountRecovered sends an email notifying user their account was successfully recovered.
+	MockSendAccountRecovered func() (*v1.EmptyResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -93,4 +99,28 @@ func (m *MockedClient) ListBillingCycles(ctx context.Context, in *v1.EmptyReques
 	}
 
 	return nil, trace.NotImplemented("ListBillingCycles is not implemented")
+}
+
+func (m *MockedClient) SendAccountRecoveryLink(ctx context.Context, in *v1.SendAccountRecoveryLinkRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
+	if m.MockSendAccountRecoveryLink != nil {
+		return m.MockSendAccountRecoveryLink()
+	}
+
+	return nil, trace.NotImplemented("SendAccountRecoveryLink is not implemented")
+}
+
+func (m *MockedClient) SendAccountLocked(ctx context.Context, in *v1.SendAccountLockedRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
+	if m.MockSendAccountLocked != nil {
+		return m.MockSendAccountLocked()
+	}
+
+	return nil, trace.NotImplemented("SendAccountLocked is not implemented")
+}
+
+func (m *MockedClient) SendAccountRecovered(ctx context.Context, in *v1.SendAccountRecoveredRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
+	if m.MockSendAccountRecovered != nil {
+		return m.MockSendAccountRecovered()
+	}
+
+	return nil, trace.NotImplemented("SendAccountRecovered is not implemented")
 }

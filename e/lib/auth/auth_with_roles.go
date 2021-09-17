@@ -183,6 +183,33 @@ func (ac *cloudWithRoles) ListInvoices(ctx context.Context, req *v1.EmptyRequest
 	return ac.plugin.cloudClient.ListInvoices(ctx, req)
 }
 
+// SendAccountRecoveryLink sends an email with a recovery link to user.
+func (ac *cloudWithRoles) SendAccountRecoveryLink(ctx context.Context, req *v1.SendAccountRecoveryLinkRequest) (*v1.EmptyResponse, error) {
+	if err := ac.hasBuiltinProxyRole(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ac.plugin.cloudClient.SendAccountRecoveryLink(ctx, req)
+}
+
+// SendAccountLocked sends an email notifying user their account was locked.
+func (ac *cloudWithRoles) SendAccountLocked(ctx context.Context, req *v1.SendAccountLockedRequest) (*v1.EmptyResponse, error) {
+	if err := ac.hasBuiltinProxyRole(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ac.plugin.cloudClient.SendAccountLocked(ctx, req)
+}
+
+// SendAccountRecovered sends an email notifying user their account was successfully recovered.
+func (ac *cloudWithRoles) SendAccountRecovered(ctx context.Context, req *v1.SendAccountRecoveredRequest) (*v1.EmptyResponse, error) {
+	if err := ac.hasBuiltinProxyRole(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ac.plugin.cloudClient.SendAccountRecovered(ctx, req)
+}
+
 func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, action string) error {
 	if ac.plugin.cloudClient == nil {
 		return trace.AccessDenied("cloud features are disabled")
@@ -199,4 +226,18 @@ func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, actio
 		resource,
 		action,
 		false)
+}
+
+// hasBuiltinProxyRole checks if context contains built in role proxy
+func (ac *cloudWithRoles) hasBuiltinProxyRole(ctx context.Context) error {
+	authCtx, err := ac.plugin.authorizer.Authorize(ctx)
+	if err != nil {
+		return trace.AccessDenied("access denied")
+	}
+
+	if !auth.HasBuiltinRole(authCtx.Checker, string(types.RoleProxy)) {
+		return trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	return nil
 }
