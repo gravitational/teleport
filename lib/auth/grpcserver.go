@@ -481,6 +481,13 @@ func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *proto.HostCerts
 		return nil, trace.Wrap(err)
 	}
 
+	// Pass along the remote address the request came from to the registration function.
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trace.BadParameter("unable to find peer")
+	}
+	req.RemoteAddr = p.Addr.String()
+
 	certs, err := auth.ServerWithRoles.GenerateHostCerts(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
