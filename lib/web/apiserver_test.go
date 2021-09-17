@@ -478,7 +478,6 @@ func TestValidRedirectURL(t *testing.T) {
 	}{
 		{"valid absolute url", "https://example.com?a=1", true},
 		{"valid relative url", "/path/to/something", true},
-		{"absolute url with incorrect scheme", "http://example.com", false},
 		{"garbage", "fjoiewjwpods302j09", false},
 		{"empty string", "", false},
 	} {
