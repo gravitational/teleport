@@ -140,12 +140,12 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 // hasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
 func (a *ServerWithRoles) hasBuiltinRole(name string) bool {
-	return hasBuiltinRole(a.context.Checker, name)
+	return HasBuiltinRole(a.context.Checker, name)
 }
 
-// hasBuiltinRole checks the type of the role set returned and the name.
+// HasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
-func hasBuiltinRole(checker services.AccessChecker, name string) bool {
+func HasBuiltinRole(checker services.AccessChecker, name string) bool {
 	if _, ok := checker.(BuiltinRoleSet); !ok {
 		return false
 	}
@@ -875,12 +875,6 @@ func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (types.WebSession,
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.PreAuthenticatedSignIn(user, a.context.Identity.GetIdentity())
-}
-
-func (a *ServerWithRoles) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
-	// we are already checking password here, no need to extra permission check
-	// anyone who has user's password can generate sign request
-	return a.authServer.GetMFAAuthenticateChallenge(user, password)
 }
 
 // CreateWebSession creates a new web session for the specified user
@@ -3043,6 +3037,12 @@ func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthServic
 	return nil, trace.NotImplemented("bug: DeleteMFADevice must not be called on auth.ServerWithRoles")
 }
 
+// DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
+func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
+	// The token provides its own authorization and authentication.
+	return a.authServer.DeleteMFADeviceSync(ctx, req)
+}
+
 // GenerateUserSingleUseCerts exists to satisfy auth.ClientI but is not
 // implemented here.
 //
@@ -3373,6 +3373,15 @@ func (a *ServerWithRoles) CreateAccountRecoveryCodes(ctx context.Context, req *p
 // GetAccountRecoveryToken is implemented by AuthService.GetAccountRecoveryToken.
 func (a *ServerWithRoles) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error) {
 	return a.authServer.GetAccountRecoveryToken(ctx, req)
+}
+
+// CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
+func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	// No permission check is required b/c this request verifies request by one of the following:
+	//   - username + password, anyone who has user's password can generate a sign request
+	//   - token provide its own auth
+	//   - the user extracted from context can retrieve their own challenges
+	return a.authServer.CreateAuthenticateChallenge(ctx, req)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

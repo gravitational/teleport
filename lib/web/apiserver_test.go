@@ -381,6 +381,7 @@ type authPack struct {
 	otpSecret string
 	user      string
 	login     string
+	password  string
 	session   *CreateSessionResponse
 	clt       *client.WebClient
 	cookies   []*http.Cookie
@@ -1983,14 +1984,13 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
-// TestGetMFADevices gets devices for the authenticated user.
-func TestGetMFADevices(t *testing.T) {
+func TestGetMFADevicesWithAuth(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "foo@example.com")
 
-	endpoint := pack.clt.Endpoint("webapi", "mfa")
+	endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
@@ -1998,8 +1998,140 @@ func TestGetMFADevices(t *testing.T) {
 	err = json.Unmarshal(re.Bytes(), &devices)
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
-	require.Equal(t, "TOTP", devices[0].Type)
-	require.Equal(t, "otp", devices[0].Name) // default device name
+}
+
+func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user with a TOTP device.
+	username := "llama"
+	proxy.createUser(ctx, t, username, "root", "password", "some-otp-secret")
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "https://" + env.server.ClusterName(),
+			Facets: []string{"https://" + env.server.ClusterName()},
+		},
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Acquire an approved token.
+	approvedToken, err := types.NewUserToken("some-token-id")
+	require.NoError(t, err)
+	approvedToken.SetUser(username)
+	approvedToken.SetSubKind(auth.UserTokenTypeRecoveryApproved)
+	approvedToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, approvedToken)
+	require.NoError(t, err)
+
+	// Call the getter endpoint.
+	clt := proxy.newClient(t)
+	getDevicesEndpoint := clt.Endpoint("webapi", "mfa", "token", approvedToken.GetName(), "devices")
+	res, err := clt.Get(ctx, getDevicesEndpoint, url.Values{})
+	require.NoError(t, err)
+
+	var devices []ui.MFADevice
+	err = json.Unmarshal(res.Bytes(), &devices)
+	require.NoError(t, err)
+	require.Len(t, devices, 1)
+
+	// Call the delete endpoint.
+	_, err = clt.Delete(ctx, clt.Endpoint("webapi", "mfa", "token", approvedToken.GetName(), "devices", devices[0].Name))
+	require.NoError(t, err)
+
+	// Check device has been deleted.
+	res, err = clt.Get(ctx, getDevicesEndpoint, url.Values{})
+	require.NoError(t, err)
+
+	err = json.Unmarshal(res.Bytes(), &devices)
+	require.NoError(t, err)
+	require.Len(t, devices, 0)
+}
+
+func TestCreateAuthenticateChallenge(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user with a TOTP device, with second factor preference to OTP only.
+	authPack := proxy.authPack(t, "llama@example.com")
+
+	// Authenticated client for private endpoints.
+	authnClt := authPack.clt
+
+	// Unauthenticated client for public endpoints.
+	publicClt := proxy.newClient(t)
+
+	// Acquire a start token, for the request the requires it.
+	startToken, err := types.NewUserToken("some-token-id")
+	require.NoError(t, err)
+	startToken.SetUser(authPack.user)
+	startToken.SetSubKind(auth.UserTokenTypeRecoveryStart)
+	startToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, startToken)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		clt     *client.WebClient
+		ep      []string
+		reqBody client.MFAChallengeRequest
+	}{
+		{
+			name: "/webapi/u2f/password/changerequest",
+			clt:  authnClt,
+			ep:   []string{"webapi", "u2f", "password", "changerequest"},
+			reqBody: client.MFAChallengeRequest{
+				User: authPack.user,
+				Pass: authPack.password,
+			},
+		},
+		{
+			name: "/webapi/mfa/login/begin",
+			clt:  publicClt,
+			ep:   []string{"webapi", "mfa", "login", "begin"},
+			reqBody: client.MFAChallengeRequest{
+				User: authPack.user,
+				Pass: authPack.password,
+			},
+		},
+		{
+			name: "/webapi/mfa/authenticatechallenge",
+			clt:  authnClt,
+			ep:   []string{"webapi", "mfa", "authenticatechallenge"},
+		},
+		{
+			name: "/webapi/mfa/token/:token/authenticatechallenge",
+			clt:  publicClt,
+			ep:   []string{"webapi", "mfa", "token", startToken.GetName(), "authenticatechallenge"},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			endpoint := tc.clt.Endpoint(tc.ep...)
+			res, err := tc.clt.PostJSON(ctx, endpoint, tc.reqBody)
+			require.NoError(t, err)
+
+			var chal auth.MFAAuthenticateChallenge
+			err = json.Unmarshal(res.Bytes(), &chal)
+			require.NoError(t, err)
+			require.True(t, chal.TOTPChallenge)
+			require.Empty(t, chal.U2FChallenges)
+			require.Empty(t, chal.WebauthnChallenge)
+		})
+	}
 }
 
 // TestCreateAppSession verifies that an existing session to the Web UI can
@@ -2925,6 +3057,7 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 		session:   session,
 		clt:       clt,
 		cookies:   resp.Cookies(),
+		password:  pass,
 	}
 }
 
