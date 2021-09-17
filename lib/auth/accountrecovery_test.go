@@ -1216,38 +1216,53 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 			},
 		},
 		{
-			name: "valid token",
+			name: "recovery approved token",
 			req: CreateUserTokenRequest{
 				Name: "llama@email.com",
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeRecoveryApproved,
 			},
 		},
+		{
+			name: "privilege token",
+			req: CreateUserTokenRequest{
+				Name: "llama@email.com",
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypePrivilege,
+			},
+		},
 	}
 
 	for _, c := range cases {
-		token, err := srv.Auth().newUserToken(c.req)
-		require.NoError(t, err)
-
-		_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
-		require.NoError(t, err)
-
-		res, err := srv.Auth().CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
-			TokenID: token.GetName(),
-		})
-
-		switch {
-		case c.wantErr:
-			require.True(t, trace.IsAccessDenied(err))
-
-		default:
+		t.Run(c.name, func(t *testing.T) {
+			token, err := srv.Auth().newUserToken(c.req)
 			require.NoError(t, err)
-			require.Len(t, res.GetRecoveryCodes(), numOfRecoveryCodes)
 
-			// Check token is deleted after success.
-			_, err = srv.Auth().Identity.GetUserToken(ctx, token.GetName())
-			require.True(t, trace.IsNotFound(err))
-		}
+			_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+			require.NoError(t, err)
+
+			res, err := srv.Auth().CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
+				TokenID: token.GetName(),
+			})
+
+			switch {
+			case c.wantErr:
+				require.True(t, trace.IsAccessDenied(err))
+
+			default:
+				require.NoError(t, err)
+				require.Len(t, res.GetRecoveryCodes(), numOfRecoveryCodes)
+
+				// Check token is deleted after success.
+				_, err = srv.Auth().Identity.GetUserToken(ctx, token.GetName())
+				switch {
+				case c.req.Type == UserTokenTypeRecoveryApproved:
+					require.True(t, trace.IsNotFound(err))
+				default:
+					require.NoError(t, err)
+				}
+			}
+		})
 	}
 }
 

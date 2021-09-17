@@ -1362,7 +1362,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 		return trace.AccessDenied("invalid token")
 	}
 
-	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
 		return trace.Wrap(err)
 	}
 
