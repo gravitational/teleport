@@ -484,20 +484,6 @@ $ tctl status
   *new* CA pin when adding nodes after rotation.
 </Admonition>
 
-## Ansible integration
-
-Ansible uses the OpenSSH client by default. This makes it compatible with
-Teleport without any extra work, except configuring OpenSSH client to work with
-Teleport Proxy:
-
-- configure your OpenSSH to connect to Teleport proxy and use `ssh-agent` socket
-- enable scp mode in the Ansible config file (ansible searches in `$ANSIBLE_CONFIG`, `./ansible.cfg`, `~/.ansible.cfg`, and finally `/etc/ansible/ansible.cfg`  in that order):
-
-```toml
-[ssh_connection]
-scp_if_ssh = True
-```
-
 ## Storage backends
 
 A Teleport cluster stores different types of data in different locations. By
