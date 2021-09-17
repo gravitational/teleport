@@ -28,6 +28,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,8 +46,8 @@ const (
 type ProxyConfig struct {
 	// Listener is a listener to serve requests on.
 	Listener net.Listener
-	// TLSConfig specifies the TLS configuration used by the Proxy server.
-	TLSConfig *tls.Config
+	// WebTLSConfig specifies the TLS configuration used by the Proxy server.
+	WebTLSConfig *tls.Config
 	// Router contains definition of protocol routing and handlers description.
 	Router *Router
 	// Log is used for logging.
@@ -58,6 +59,12 @@ type ProxyConfig struct {
 	// of the connection). It is set to defaults.HandshakeReadDeadline if
 	// unspecified.
 	ReadDeadline time.Duration
+	// IdentityTLSConfig is TLS cluster configuration.
+	IdentityTLSConfig *tls.Config
+	// AccessPoint is the auth server client.
+	AccessPoint auth.AccessPoint
+	// ClusterName is the name of the teleport cluster.
+	ClusterName string
 }
 
 // NewRouter creates a ALPN new router.
@@ -182,7 +189,7 @@ type Proxy struct {
 
 // CheckAndSetDefaults checks and sets default values of ProxyConfig
 func (c *ProxyConfig) CheckAndSetDefaults() error {
-	if c.TLSConfig == nil {
+	if c.WebTLSConfig == nil {
 		return trace.BadParameter("tls config missing")
 	}
 
@@ -204,6 +211,16 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	if err := c.Router.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	if c.IdentityTLSConfig == nil {
+		return trace.BadParameter("missing identity tls config")
+	}
+	c.IdentityTLSConfig = c.IdentityTLSConfig.Clone()
+	if c.AccessPoint == nil {
+		return trace.BadParameter("missing access point")
+	}
+	if c.ClusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
 	return nil
 }
 
@@ -212,6 +229,10 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cfg.IdentityTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	fn := auth.AddClusterCAPoolsToTLSConfig(cfg.IdentityTLSConfig, cfg.AccessPoint, cfg.ClusterName, cfg.Log)
+	cfg.IdentityTLSConfig.GetConfigForClient = fn
+
 	return &Proxy{
 		cfg:                cfg,
 		log:                cfg.Log,
@@ -224,7 +245,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	p.cancel = cancel
-	p.cfg.TLSConfig.NextProtos = convProtocolsToString(p.supportedProtocols)
+	p.cfg.WebTLSConfig.NextProtos = convProtocolsToString(p.supportedProtocols)
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
@@ -290,7 +311,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
 	}
 
-	tlsConn := tls.Server(conn, p.cfg.TLSConfig)
+	tlsConn := tls.Server(conn, p.cfg.WebTLSConfig)
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -350,8 +371,12 @@ func (p *Proxy) handleDatabaseConnection(ctx context.Context, conn net.Conn, con
 func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
 	// DB Protocols like Mongo have native support for TLS thus TLS connection needs to be terminated twice.
 	// First time for custom local proxy connection and the second time from Mongo protocol where TLS connection is used.
-
-	tlsConn := tls.Server(conn, p.cfg.TLSConfig)
+	//
+	// Terminate the CLI TLS connection established by a database client that supports native TLS protocol like mongo.
+	// Mongo client establishes a connection to SNI ALPN Local Proxy with server name 127.0.0.1 where LocalProxy wraps
+	// the connection in TLS and forward to Teleport SNI ALPN Proxy where first TLS layer is terminated
+	// by Proxy.handleConn using ProxyConfig.WebTLSConfig.
+	tlsConn := tls.Server(conn, p.cfg.IdentityTLSConfig)
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		if err := tlsConn.Close(); err != nil {
 			p.log.WithError(err).Error("Failed to close TLS connection.")

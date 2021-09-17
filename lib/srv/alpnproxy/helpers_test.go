@@ -35,6 +35,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -43,6 +45,9 @@ type Suite struct {
 	serverListener net.Listener
 	router         *Router
 	ca             *tlsca.CertAuthority
+	authServer     *auth.TestAuthServer
+	tlsServer      *auth.TestTLSServer
+	accessPoint    *auth.Client
 }
 
 func NewSuite(t *testing.T) *Suite {
@@ -55,6 +60,29 @@ func NewSuite(t *testing.T) *Suite {
 		l.Close()
 	})
 
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		ClusterName: "root.example.com",
+		Dir:         t.TempDir(),
+		Clock:       clockwork.NewFakeClockAt(time.Now()),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := authServer.Close()
+		require.NoError(t, err)
+	})
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := tlsServer.Close()
+		require.NoError(t, err)
+	})
+
+	ap, err := tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, ap.Close())
+	})
+
 	router := NewRouter()
 	router.Add(HandlerDecs{
 		MatchFunc: MatchByProtocol(ProtocolDefault),
@@ -64,6 +92,9 @@ func NewSuite(t *testing.T) *Suite {
 		},
 	})
 	return &Suite{
+		tlsServer:      tlsServer,
+		authServer:     authServer,
+		accessPoint:    ap,
 		ca:             ca,
 		serverListener: l,
 		router:         router,
@@ -82,21 +113,28 @@ func (s *Suite) GetCertPool() *x509.CertPool {
 
 func (s *Suite) Start(t *testing.T) {
 	serverCert := mustGenCertSignedWithCA(t, s.ca)
-	proxyConfig := ProxyConfig{
-		Listener: s.serverListener,
-		TLSConfig: &tls.Config{
-			ClientAuth: tls.VerifyClientCertIfGiven,
-			ClientCAs:  s.GetCertPool(),
-			Certificates: []tls.Certificate{
-				serverCert,
-			},
+	tlsConfig := &tls.Config{
+		ClientAuth: tls.VerifyClientCertIfGiven,
+		ClientCAs:  s.GetCertPool(),
+		Certificates: []tls.Certificate{
+			serverCert,
 		},
-		Router: s.router,
-		Log:    logrus.New(),
+	}
+
+	proxyConfig := ProxyConfig{
+		Listener:          s.serverListener,
+		WebTLSConfig:      tlsConfig,
+		Router:            s.router,
+		Log:               logrus.New(),
+		AccessPoint:       s.accessPoint,
+		IdentityTLSConfig: tlsConfig,
+		ClusterName:       "root",
 	}
 
 	svr, err := New(proxyConfig)
 	require.NoError(t, err)
+	// Reset GetConfigForClient to simplify test setup.
+	svr.cfg.IdentityTLSConfig.GetConfigForClient = nil
 
 	go func() {
 		err := svr.Serve(context.Background())

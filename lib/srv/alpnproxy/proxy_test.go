@@ -24,9 +24,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // TestProxySSHHandler tests the ALPN routing. Connection with ALPN 'teleport-proxy-ssh' value should

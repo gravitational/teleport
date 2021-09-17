@@ -335,7 +335,13 @@ func onDatabaseConnect(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		opts = append(opts, WithLocalProxy(addr.Host(), addr.Port(0)))
+		host := addr.Host()
+		if database.Protocol == defaults.ProtocolPostgres {
+			// In case of psql connection the cli takes only domain names into consideration thus
+			// connecting to 127.0.0.1 will fail with "does not match host name "127.0.0.1" psql error.
+			host = "localhost"
+		}
+		opts = append(opts, WithLocalProxy(host, addr.Port(0), profile.CACertPath()))
 	}
 	cmd, err := getConnectCommand(cf, tc, profile, database, opts...)
 	if err != nil {
@@ -383,14 +389,16 @@ func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 type connectionCommandOpts struct {
 	localProxyPort int
 	localProxyHost string
+	caPath         string
 }
 
 type ConnectCommandFunc func(*connectionCommandOpts)
 
-func WithLocalProxy(host string, port int) ConnectCommandFunc {
+func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.localProxyPort = port
 		opts.localProxyHost = host
+		opts.caPath = caPath
 	}
 }
 
@@ -410,9 +418,8 @@ func getConnectCommand(cf *CLIConf, tc *client.TeleportClient, profile *client.P
 		if options.localProxyPort != 0 && options.localProxyHost != "" {
 			host = options.localProxyHost
 			port = options.localProxyPort
-
 		}
-		return getMongoCommand(host, port, profile.DatabaseCertPath(db.ServiceName), cf.DatabaseName), nil
+		return getMongoCommand(host, port, profile.DatabaseCertPath(db.ServiceName), options.caPath, cf.DatabaseName), nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol: %v", db)
 }
@@ -450,8 +457,19 @@ func getMySQLCommand(db *tlsca.RouteToDatabase, cluster, user, name string, opti
 	return exec.Command(mysqlBin, args...)
 }
 
-func getMongoCommand(host string, port int, certPath, name string) *exec.Cmd {
-	args := []string{"--host", host, "--port", strconv.Itoa(port), "--ssl", "--sslPEMKeyFile", certPath}
+func getMongoCommand(host string, port int, certPath, caPath, name string) *exec.Cmd {
+	args := []string{
+		"--host", host,
+		"--port", strconv.Itoa(port),
+		"--ssl",
+		"--sslPEMKeyFile", certPath,
+	}
+
+	if caPath != "" {
+		// caPath is set only if mongo connects to the Teleport Proxy via ALPN SNI Local Proxy
+		// and connection is terminated by proxy identity certificate.
+		args = append(args, []string{"--sslCAFile", caPath}...)
+	}
 	if name != "" {
 		args = append(args, name)
 	}
