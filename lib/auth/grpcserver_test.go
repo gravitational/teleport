@@ -1523,6 +1523,33 @@ func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
 	testOriginDynamicStored(t, setWithOrigin, getStored)
 }
 
+func TestGenerateHostCerts(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	priv, pub, err := clt.GenerateKeyPair("")
+	require.NoError(t, err)
+
+	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	certs, err := clt.GenerateHostCerts(ctx, &proto.HostCertsRequest{
+		HostID:   "Admin",
+		Role:     types.RoleAdmin,
+		NodeName: "foo",
+		// Ensure that 0.0.0.0 gets replaced with the RemoteAddr of the client
+		AdditionalPrincipals: []string{"0.0.0.0"},
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, certs)
+}
+
 func TestNodesCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
