@@ -147,7 +147,7 @@ func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string
 }
 
 func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode []byte) error {
-	recovery, err := s.GetRecoveryCodes(ctx, user)
+	recovery, err := s.GetRecoveryCodes(ctx, user, true)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -503,6 +503,21 @@ func (s *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 	}
 
 	return token, nil
+}
+
+// GetAccountRecoveryCodes implements AuthService.GetAccountRecoveryCodes.
+func (s *Server) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	username, err := GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rc, err := s.GetRecoveryCodes(ctx, username, false /* without secrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rc, nil
 }
 
 func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username string) ([]string, error) {

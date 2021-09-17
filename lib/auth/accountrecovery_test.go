@@ -67,7 +67,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	require.Len(t, rc, numOfRecoveryCodes)
 
 	// Test codes are not marked used.
-	recovery, err := srv.Auth().GetRecoveryCodes(ctx, user)
+	recovery, err := srv.Auth().GetRecoveryCodes(ctx, user, true)
 	require.NoError(t, err)
 	for _, token := range recovery.GetCodes() {
 		require.False(t, token.IsUsed)
@@ -87,7 +87,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	}
 
 	// Test used codes are marked used.
-	recovery, err = srv.Auth().GetRecoveryCodes(ctx, user)
+	recovery, err = srv.Auth().GetRecoveryCodes(ctx, user, true)
 	require.NoError(t, err)
 	for _, token := range recovery.GetCodes() {
 		require.True(t, token.IsUsed)
@@ -1249,6 +1249,38 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 			require.True(t, trace.IsNotFound(err))
 		}
 	}
+}
+
+func TestGetAccountRecoveryCodes(t *testing.T) {
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(&testWithCloudModules{})
+
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	require.NoError(t, err)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	clt, err := srv.NewClient(TestUser(u.username))
+	require.NoError(t, err)
+
+	rc, err := clt.GetAccountRecoveryCodes(ctx, &proto.GetAccountRecoveryCodesRequest{})
+	require.NoError(t, err)
+	require.Empty(t, rc.Spec.Codes)
+	require.NotEmpty(t, rc.Spec.Created)
 }
 
 func triggerLoginLock(t *testing.T, srv *Server, username string) {

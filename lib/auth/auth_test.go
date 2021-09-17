@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/pquerna/otp/totp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1535,6 +1536,134 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				require.Len(t, res.GetDevices(), 1)
 			default:
 				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAddMFADeviceSync(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	require.NoError(t, err)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	clt, err := srv.NewClient(TestUser(u.username))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		deviceName string
+		wantErr    bool
+		getReq     func(string) *proto.AddMFADeviceSyncRequest
+	}{
+		{
+			name:    "invalid token type",
+			wantErr: true,
+			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
+				// Obtain a non privilege token.
+				token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
+					Name: u.username,
+					TTL:  5 * time.Minute,
+					Type: UserTokenTypeResetPassword,
+				})
+				require.NoError(t, err)
+				_, err = srv.Auth().Identity.CreateUserToken(ctx, token)
+				require.NoError(t, err)
+
+				return &proto.AddMFADeviceSyncRequest{
+					PrivilegeTokenID: token.GetName(),
+					NewDeviceName:    deviceName,
+				}
+			},
+		},
+		{
+			name:       "TOTP device with privilege token",
+			deviceName: "new-totp",
+			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
+				// Obtain a privilege token.
+				privelegeToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilege)
+				require.NoError(t, err)
+
+				// Create token secrets.
+				secrets, err := srv.Auth().RotateUserTokenSecrets(ctx, privelegeToken.GetName())
+				require.NoError(t, err)
+				newTOTPCode, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
+				require.NoError(t, err)
+
+				return &proto.AddMFADeviceSyncRequest{
+					PrivilegeTokenID: privelegeToken.GetName(),
+					NewDeviceName:    deviceName,
+					NewMFAResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+						TOTP: &proto.TOTPRegisterResponse{Code: newTOTPCode},
+					}},
+				}
+			},
+		},
+		{
+			name:       "U2F device with privilege exception token",
+			deviceName: "new-u2f",
+			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
+				// Obtain a privilege exception token.
+				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
+				require.NoError(t, err)
+
+				// Create register challenge and sign.
+				u2fRegRes, _, err := getMockedU2FAndRegisterRes(srv.Auth(), privExToken.GetName())
+
+				return &proto.AddMFADeviceSyncRequest{
+					PrivilegeTokenID: privExToken.GetName(),
+					NewDeviceName:    deviceName,
+					NewMFAResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+						U2F: u2fRegRes,
+					}},
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := clt.AddMFADeviceSync(ctx, tc.getReq(tc.deviceName))
+			switch {
+			case tc.wantErr:
+				require.True(t, trace.IsAccessDenied(err))
+			default:
+				require.NoError(t, err)
+
+				// Test events emitted.
+				event := mockEmitter.LastEvent()
+				require.Equal(t, events.MFADeviceAddEvent, event.GetType())
+				require.Equal(t, events.MFADeviceAddEventCode, event.GetCode())
+				require.Equal(t, event.(*apievents.MFADeviceAdd).UserMetadata.User, u.username)
+
+				// Check it's been added.
+				res, err := clt.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+				require.NoError(t, err)
+
+				found := false
+				for _, mfa := range res.GetDevices() {
+					if mfa.GetName() == tc.deviceName {
+						found = true
+						break
+					}
+				}
+				require.True(t, found, "MFA device %q not found", tc.deviceName)
 			}
 		})
 	}

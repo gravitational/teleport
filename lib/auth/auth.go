@@ -1458,6 +1458,30 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	return nil
 }
 
+// AddMFADeviceSync implements AuthService.AddMFADeviceSync.
+func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) error {
+	privilegeToken, err := a.GetUserToken(ctx, req.GetPrivilegeTokenID())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return trace.AccessDenied("invalid token")
+	}
+
+	if err := a.verifyUserToken(privilegeToken, UserTokenTypePrivilege, UserTokenTypePrivilegeException); err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = a.verifyMFARespAndAddDevice(ctx, req.GetNewMFAResponse(), &newMFADeviceFields{
+		username:      privilegeToken.GetUser(),
+		newDeviceName: req.GetNewDeviceName(),
+		tokenID:       privilegeToken.GetName(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 type newMFADeviceFields struct {
 	username      string
 	newDeviceName string
