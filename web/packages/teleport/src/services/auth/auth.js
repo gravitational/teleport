@@ -109,8 +109,8 @@ const auth = {
 
   changePassword(oldPass, newPass, token) {
     const data = {
-      old_password: window.btoa(oldPass),
-      new_password: window.btoa(newPass),
+      old_password: base64EncodeUnicode(oldPass),
+      new_password: base64EncodeUnicode(newPass),
       second_factor_token: token,
     };
 
@@ -143,7 +143,7 @@ const auth = {
           }
 
           const data = {
-            new_password: window.btoa(newPass),
+            new_password: base64EncodeUnicode(newPass),
             u2f_sign_response: res,
           };
 
@@ -162,7 +162,7 @@ const auth = {
 
   _resetPassword(tokenId, psw, hotpToken, u2fResponse) {
     const request = {
-      password: window.btoa(psw),
+      password: base64EncodeUnicode(psw),
       second_factor_token: hotpToken,
       token: tokenId,
       u2f_register_response: u2fResponse,
@@ -200,5 +200,13 @@ const auth = {
     return new Error(message);
   },
 };
+
+function base64EncodeUnicode(str) {
+  return window.btoa(
+    encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+      return String.fromCharCode('0x' + p1);
+    })
+  );
+}
 
 export default auth;
