@@ -621,6 +621,20 @@ func (c *Client) Healthy() error {
 
 	return nil
 }
+func (c *Client) OAuthClientWithClientSecretPost() (*oauth2.Client, error) {
+	cfg := c.providerConfig.Get()
+
+	ocfg := oauth2.Config{
+		Credentials: oauth2.ClientCredentials(c.credentials),
+		RedirectURL: c.redirectURL,
+		AuthURL:     cfg.AuthEndpoint.String(),
+		TokenURL:    cfg.TokenEndpoint.String(),
+		Scope:       c.scope,
+		AuthMethod:  oauth2.AuthMethodClientSecretPost,
+	}
+
+	return oauth2.NewClient(c.httpClient, ocfg)
+}
 
 func (c *Client) OAuthClient() (*oauth2.Client, error) {
 	cfg := c.providerConfig.Get()
