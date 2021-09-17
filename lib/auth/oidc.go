@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2020 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -769,8 +769,19 @@ func mergeClaims(a jose.Claims, b jose.Claims) (jose.Claims, error) {
 // getClaims gets claims from ID token and UserInfo and returns UserInfo claims merged into ID token claims.
 func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
 	var err error
+	var oac *oauth2.Client
 
-	oac, err := oidcClient.OAuthClient()
+	//If the default client secret basic is used the Ping OIDC
+	// will throw an error of multiple client credentials.  Even if you set in Ping
+	// to use Client Secret Post it will return to use client secret basic, client secret post support.
+	if connector.GetProvider() == teleport.Ping {
+		oac, err = oidcClient.OAuthClientWithClientSecretPost()
+	} else {
+		oac, err = oidcClient.OAuthClient()
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
