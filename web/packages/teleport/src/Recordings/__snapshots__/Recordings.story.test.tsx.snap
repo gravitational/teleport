@@ -133,6 +133,8 @@ exports[`rendering of Session Recordings 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .c13 > thead > tr > th,
@@ -610,7 +612,9 @@ exports[`rendering of Session Recordings 1`] = `
         value=""
       />
     </div>
-    <div>
+    <div
+      style="min-width: min-content;"
+    >
       <nav
         class="c7"
       >

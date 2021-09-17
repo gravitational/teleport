@@ -711,6 +711,8 @@ exports[`open source loaded 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .c12 > thead > tr > th,
@@ -861,7 +863,9 @@ exports[`open source loaded 1`] = `
       value=""
     />
   </div>
-  <div>
+  <div
+    style="min-width: min-content;"
+  >
     <nav
       class="c6"
     >

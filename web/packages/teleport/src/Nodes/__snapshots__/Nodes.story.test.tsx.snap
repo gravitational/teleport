@@ -760,6 +760,8 @@ exports[`loaded 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .c15 > thead > tr > th,
@@ -926,7 +928,9 @@ exports[`loaded 1`] = `
     </div>
   </div>
   <div>
-    <div>
+    <div
+      style="min-width: min-content;"
+    >
       <nav
         class="c9"
       >

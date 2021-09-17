@@ -44,10 +44,13 @@ export default function TablePaged(props) {
   if (showBottomPager) {
     tableProps.borderBottomRightRadius = '0';
     tableProps.borderBottomLeftRadius = '0';
+  } else {
+    tableProps.borderTopRightRadius = '0';
+    tableProps.borderTopLeftRadius = '0';
   }
 
   return (
-    <div>
+    <div style={{ minWidth: 'min-content' }}>
       {showTopPager && (
         <StyledPanel borderTopRightRadius="3" borderTopLeftRadius="3">
           <Pager {...pagerProps} />
