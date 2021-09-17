@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.2.14
+
+This release of Teleport contains multiple improvements.
+
+* Fixed performance and stability issues for large DynamoDB clusters. [#8279](https://github.com/gravitational/teleport/pull/8279)
+
 ## 6.2.13
 
 This release of Teleport contains two bug fixes.
