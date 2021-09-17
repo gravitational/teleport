@@ -29,7 +29,7 @@ var (
 	logFormat = flag.String("log_format", "", "Log format to use (json or text)")
 	logLevel  = flag.String("log_level", "", "Log level to use")
 
-	addr      = flag.String("addr", "tpc://localhost:", "Bind address for the Terminal server")
+	addr      = flag.String("addr", "tcp://localhost:", "Bind address for the Terminal server")
 	certFile  = flag.String("cert_file", "", "Cert file (or inline PEM) for the Terminal server. Enables TLS.")
 	certKey   = flag.String("cert_key", "", "Key file (or inline PEM) for the Terminal server. Enables TLS.")
 	clientCAs = flag.String("client_cas", "", "Client CA certificate (or inline PEM) for the Terminal server. Enables mTLS.")
