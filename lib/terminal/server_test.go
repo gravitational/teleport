@@ -63,11 +63,15 @@ func TestStart(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			server, err := terminal.Start(test.opts)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			server, err := terminal.Start(ctx, test.opts)
 			require.NoError(t, err)
 			defer func() {
-				server.GracefulStop()
+				cancel() // Stop the server.
 				require.NoError(t, <-server.C)
+				require.NoError(t, <-server.C) // subsequent calls are allowed
 			}()
 			require.NotEmpty(t, server.Addr)                  // Addr present
 			require.Contains(t, server.Addr, server.DialAddr) // Addr >= DialAddr
@@ -76,7 +80,6 @@ func TestStart(t *testing.T) {
 			require.NoError(t, err)
 			defer cc.Close()
 
-			ctx := context.Background()
 			term := terminalpb.NewTerminalServiceClient(cc)
 			_, err = term.ListClusters(ctx, &terminalpb.ListClustersRequest{})
 			if got := status.Code(err); got != codes.Unimplemented {
@@ -87,15 +90,17 @@ func TestStart(t *testing.T) {
 }
 
 func TestStart_configJSON(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Stops the server.
+
 	cfgOut := &bytes.Buffer{}
-	server, err := terminal.Start(terminal.ServerOpts{
+	server, err := terminal.Start(ctx, terminal.ServerOpts{
 		Addr:          "badaddr",
 		ReadFromInput: true,
 		ConfigInput:   strings.NewReader(`{"addr": "localhost:"}`),
 		ConfigOutput:  cfgOut,
 	})
 	require.NoError(t, err)
-	defer server.GracefulStop()
 
 	decodedOpts := &terminal.RuntimeOpts{}
 	require.NoError(t, json.NewDecoder(cfgOut).Decode(decodedOpts))
@@ -103,6 +108,9 @@ func TestStart_configJSON(t *testing.T) {
 }
 
 func TestStart_tls(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Stops the server.
+
 	serverCert, serverKey := makeSelfSigned(t, &x509.Certificate{
 		Subject:     pkix.Name{CommonName: "localhost"},
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
@@ -115,14 +123,13 @@ func TestStart_tls(t *testing.T) {
 		EmailAddresses: []string{"llama@goteleport.com"},
 	})
 
-	server, err := terminal.Start(terminal.ServerOpts{
+	server, err := terminal.Start(ctx, terminal.ServerOpts{
 		Addr:      "localhost:",
 		CertFile:  string(serverCert),
 		KeyFile:   string(serverKey),
 		ClientCAs: []string{string(clientCert)},
 	})
 	require.NoError(t, err)
-	defer server.GracefulStop()
 	require.True(t, server.TLS, "TLS enabled")
 	require.True(t, server.MTLS, "mTLS enabled")
 
@@ -139,7 +146,6 @@ func TestStart_tls(t *testing.T) {
 	})))
 	require.NoError(t, err)
 
-	ctx := context.Background()
 	term := terminalpb.NewTerminalServiceClient(cc)
 	_, err = term.ListClusters(ctx, &terminalpb.ListClustersRequest{})
 	if got := status.Code(err); got != codes.Unimplemented {

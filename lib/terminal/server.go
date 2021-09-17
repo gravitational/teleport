@@ -15,6 +15,7 @@
 package terminal
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -70,8 +71,6 @@ type ServerOpts struct {
 // RuntimeOpts contains the set of ServerOpts that may be dynamically assigned
 // during server start (eg, a chosen random port for the server bind address).
 type RuntimeOpts struct {
-	// C is the exit channel for a running server.
-	C <-chan error `json:"-"`
 	// Addr is the server bind address (eg: "tcp://localhost:1234").
 	Addr string `json:"addr"`
 	// DialAddr is a Dial-friendly address.
@@ -82,7 +81,9 @@ type RuntimeOpts struct {
 
 // Server is a combination of the underlying grpc.Server and its RuntimeOpts.
 type Server struct {
-	*grpc.Server
+	// C is the exit channel for a running server.
+	// To stop the server close the context passed to Start.
+	C <-chan error `json:"-"`
 	*RuntimeOpts
 }
 
@@ -91,7 +92,8 @@ type Server struct {
 // read from ConfigInput, overriding any settings present.
 // If ConfigOutput is present, then a JSON-marshaled RuntimeOpts is sent to it
 // before server start.
-func Start(opts ServerOpts) (*Server, error) {
+// Closing ctx stops the server.
+func Start(ctx context.Context, opts ServerOpts) (*Server, error) {
 	if opts.ReadFromInput {
 		if err := json.NewDecoder(opts.ConfigInput).Decode(&opts); err != nil {
 			return nil, trace.Wrap(err)
@@ -136,9 +138,7 @@ func Start(opts ServerOpts) (*Server, error) {
 	}
 
 	// Construct RuntimeOpts and marshal to stdout.
-	serveC := make(chan error)
 	runtimeOpts := &RuntimeOpts{
-		C:        serveC,
 		Addr:     fullAddr,
 		DialAddr: dialAddr,
 		TLS:      tlsOpts.TLS,
@@ -159,25 +159,29 @@ func Start(opts ServerOpts) (*Server, error) {
 	// If we could, this would be the spot to plug it.
 
 	// Start service.
+	serveC := make(chan error)
 	go func() {
 		err := server.Serve(lis)
 		serveC <- err
+		close(serveC)
 	}()
 
-	// Capture signals for shutdown?
-	if len(opts.ShutdownSignals) > 0 {
-		go func() {
-			c := make(chan os.Signal, len(opts.ShutdownSignals))
-			signal.Notify(c, opts.ShutdownSignals...)
-			sig := <-c
+	// Wait for shutdown signals
+	go func() {
+		c := make(chan os.Signal, len(opts.ShutdownSignals))
+		signal.Notify(c, opts.ShutdownSignals...)
+		select {
+		case <-ctx.Done():
+			log.Info("Context closed, stopping service")
+		case sig := <-c:
 			log.Infof("Captured %s, stopping service", sig)
-			server.GracefulStop()
-		}()
-	}
+		}
+		server.GracefulStop()
+	}()
 
 	ok = true
 	return &Server{
-		Server:      server,
+		C:           serveC,
 		RuntimeOpts: runtimeOpts,
 	}, nil
 }

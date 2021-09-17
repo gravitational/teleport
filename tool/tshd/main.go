@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"syscall"
@@ -66,11 +67,14 @@ func configureLogging() {
 }
 
 func run() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	var trustedCAs []string
 	if *clientCAs != "" {
 		trustedCAs = []string{*clientCAs}
 	}
-	server, err := terminal.Start(terminal.ServerOpts{
+	server, err := terminal.Start(ctx, terminal.ServerOpts{
 		Addr:            *addr,
 		CertFile:        *certFile,
 		KeyFile:         *certKey,
@@ -83,7 +87,6 @@ func run() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer server.Stop()
 
 	log.Infof("tshd running at %v", server.Addr)
 	return <-server.C
