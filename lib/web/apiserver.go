@@ -2392,6 +2392,11 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
 
+func isValidRedirectURL(redirectURL string) bool {
+	url, err := url.ParseRequestURI(redirectURL)
+	return err == nil && (!url.IsAbs() || url.Scheme == "https")
+}
+
 // WithRedirect is a handler that redirects to the path specified in the returned value.
 func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -2399,6 +2404,9 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 		httplib.SetNoCacheHeaders(w.Header())
 
 		redirectURL := fn(w, r, p)
+		if !isValidRedirectURL(redirectURL) {
+			redirectURL = client.LoginFailedRedirectURL
+		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
 	}
 }
@@ -2420,6 +2428,9 @@ func (h *Handler) WithJavascriptRedirect(fn redirectHandlerFunc) httprouter.Hand
 
 		app.SetRedirectPageHeaders(w.Header(), nonce)
 		redirectURL := fn(w, r, p)
+		if !isValidRedirectURL(redirectURL) {
+			redirectURL = client.LoginFailedRedirectURL
+		}
 
 		const js = `
 <!DOCTYPE html>
@@ -2433,7 +2444,7 @@ func (h *Handler) WithJavascriptRedirect(fn redirectHandlerFunc) httprouter.Hand
 	<body></body>
 </html>
 `
-		fmt.Fprintf(w, js, nonce, redirectURL)
+		fmt.Fprintf(w, js, nonce, strings.ReplaceAll(redirectURL, "'", "\\'"))
 	}
 }
 

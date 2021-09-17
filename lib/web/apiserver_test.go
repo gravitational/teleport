@@ -471,6 +471,25 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	}
 }
 
+func TestValidRedirectURL(t *testing.T) {
+	for _, tt := range []struct {
+		desc, url string
+		valid     bool
+	}{
+		{"valid absolute url", "https://example.com?a=1", true},
+		{"valid relative url", "/path/to/something", true},
+		{"absolute url with incorrect scheme", "http://example.com", false},
+		{"garbage", "fjoiewjwpods302j09", false},
+		{"empty string", "", false},
+	} {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.valid, isValidRedirectURL(tt.url))
+		})
+	}
+}
+
 func (s *WebSuite) TestSAMLSuccess(c *C) {
 	input := fixtures.SAMLOktaConnectorV2
 
