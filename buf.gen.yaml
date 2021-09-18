@@ -1,7 +1,12 @@
 version: v1
 plugins:
-  - name: gogofast
+  # Generated using an old version of protoc-gen-go - we can't use the latest
+  # plugins because Teleport itself depends on an old google.golang.org/grpc
+  # version.
+  # protoc itself may be the latest one.
+  # $ go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
+  - name: go
     out: protogen/
     opt:
-      - paths=source_relative
       - plugins=grpc
+      - paths=source_relative
