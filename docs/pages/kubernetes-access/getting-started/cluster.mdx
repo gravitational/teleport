@@ -1,6 +1,6 @@
 ---
-title: Getting Started with Kubernetes Access
-description: Getting started with Teleport Kubernetes Access.
+title: Getting Started - Kubernetes with SSO
+description: Getting started with Teleport. Let's deploy Teleport in a Kubernetes with SSO and Audit logs
 ---
 
 # Getting Started
@@ -56,7 +56,7 @@ Let's start with a single-pod Teleport using persistent volume as a backend.
     $ kubectl config set-context --current --namespace=teleport-cluster-ent
 
     # Get a license from Teleport and create a secret "license" in the namespace teleport-cluster-ent
-    $ kubectl -n teleport-cluster-ent create secret generic license --from-file=license-enterprise.pem
+    $ kubectl -n teleport-cluster-ent create secret generic license --from-file=license.pem
 
     # Install Teleport
     $ helm install teleport-cluster teleport/teleport-cluster --namespace=teleport-cluster-ent \
@@ -166,14 +166,11 @@ Save this role as `member.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: member
 spec:
   allow:
-    # This field is used for SSH logins. You have to keep 'logins' as a non-empty random value
-    # for Kubernetes to work until we fix it.
-    logins: ['keep-this-value-here']
     kubernetes_groups: ["system:masters"]
 ```
 

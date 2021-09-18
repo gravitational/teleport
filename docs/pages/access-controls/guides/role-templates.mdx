@@ -36,7 +36,7 @@ We can create two roles, one for each user in file `roles.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: alice
 spec:
@@ -49,7 +49,7 @@ spec:
       '*': '*'
 ---
 kind: role
-version: v3
+version: v4
 metadata:
   name: bob
 spec:
@@ -78,7 +78,7 @@ Let's create a role template `devs.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: devs
 spec:
@@ -173,7 +173,7 @@ to be set by identity provider. Save this role as `sso-users.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: sso-users
 spec:
@@ -186,7 +186,7 @@ spec:
 ```
 
 A GitHub connector `github.yaml` maps every `cyber` team's member of organization `octocats` to
-the role `sso-logins`:
+the role `sso-users`:
 
 ```yaml
 kind: github
@@ -255,7 +255,7 @@ Let's see how these variables are used with role template `interpolation`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: interpolation
 spec:
@@ -288,7 +288,7 @@ behave as the following role:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: interpolation
 spec:
@@ -325,3 +325,47 @@ Function | Description
 --- | ---
 `email.local(variable)` | Extracts the local part of an email field, like `Alice <alice@example.com>` or `bob@example.com`.
 `regexp.replace(variable, expression, replacement)` | Finds all matches of `expression` and replaces them with `replacement`. This supports expansion, e.g. `regexp.replace(external.email, "^(.*)@example.com$", "$1")`. Values which do not match the expression will be filtered out.
+
+## Templating in Access Requests
+
+Access and Reviewer Request specifications do not use the same interpolation 
+system as logins, labels etc. Instead, you can use the `claims_to_roles` clause 
+in the `request` and `review` rules to specify one or more patterns to match. 
+
+For example, given the following rule template:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: product-admin
+spec:
+  allow:
+    request:
+      # `roles` is a static list of roles a user with the `product-admin` role may 
+      # request temporary access to
+      roles: [access]  
+
+      claims_to_roles:
+        - claim: 'projects'         
+          value: '^product-(.*)$' # matches all group names with a leading 'product-'
+          roles: ['$1-admin']     # generates a role name from the value capture
+```
+
+If we grant Alice the `product-admin` role and add some entried to the `projects` trait:
+
+```yaml
+kind: user
+version: v2
+metadata:
+  name: alice
+spec:
+  roles: ['dev', 'product-admin']
+  traits:
+    projects: ['internal-tooling', 'product-alpha', 'product-beta']
+```
+
+then Alice would be allowed to request access to the RBAC roles `access` (from the static 
+role list) and `alpha-admin` and `beta-admin` (from the `claims_to_roles` mapping).
+
+The same syntax applies for Review Requests.

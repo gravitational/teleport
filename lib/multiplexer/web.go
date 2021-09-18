@@ -24,12 +24,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
 )
 
 // WebListenerConfig is the web listener configuration.
@@ -151,7 +151,11 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 	// connection either to database access listener if identity encoded
 	// in the cert indicates this is a database connection, or to a regular
 	// tls listener.
-	if l.isDatabaseConnection(conn.ConnectionState()) {
+	isDatabaseConnection, err := dbcommon.IsDatabaseConnection(conn.ConnectionState())
+	if err != nil {
+		l.log.WithError(err).Debug("Failed to check if connection is database connection.")
+	}
+	if isDatabaseConnection {
 		select {
 		case l.dbListener.connC <- conn:
 		case <-l.context.Done():
@@ -180,21 +184,4 @@ func (l *WebListener) Close() error {
 // Addr returns the listener's network address.
 func (l *WebListener) Addr() net.Addr {
 	return l.cfg.Listener.Addr()
-}
-
-// isDatabaseConnection inspects the TLS connection state and returns true
-// if it's a database access connection as determined by the decoded
-// identity from the client certificate.
-func (l *WebListener) isDatabaseConnection(state tls.ConnectionState) bool {
-	// VerifiedChains must be populated after the handshake.
-	if len(state.VerifiedChains) < 1 || len(state.VerifiedChains[0]) < 1 {
-		return false
-	}
-	identity, err := tlsca.FromSubject(state.VerifiedChains[0][0].Subject,
-		state.VerifiedChains[0][0].NotAfter)
-	if err != nil {
-		l.log.WithError(err).Debug("Failed to decode identity from client certificate.")
-		return false
-	}
-	return identity.RouteToDatabase.ServiceName != ""
 }

@@ -18,6 +18,8 @@ package webauthn
 
 import (
 	"github.com/duo-labs/webauthn/protocol"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 
 	wan "github.com/duo-labs/webauthn/webauthn"
 )
@@ -27,14 +29,7 @@ const (
 	defaultIcon        = ""
 )
 
-// Config represents the Webauthn configuration.
-// TODO(codingllama): Replace with types.Webauthn once it's merged.
-type Config struct {
-	RPID                                        string
-	AttestationAllowedCAs, AttestationDeniedCAs []string
-}
-
-func newWebAuthn(cfg *Config, rpID, origin string) (*wan.WebAuthn, error) {
+func newWebAuthn(cfg *types.Webauthn, rpID, origin string) (*wan.WebAuthn, error) {
 	attestation := protocol.PreferNoAttestation
 	if len(cfg.AttestationAllowedCAs) > 0 || len(cfg.AttestationDeniedCAs) > 0 {
 		attestation = protocol.PreferDirectAttestation
@@ -45,5 +40,6 @@ func newWebAuthn(cfg *Config, rpID, origin string) (*wan.WebAuthn, error) {
 		RPDisplayName:         defaultDisplayName,
 		RPIcon:                defaultIcon,
 		AttestationPreference: attestation,
+		Timeout:               int(defaults.WebauthnChallengeTimeout.Milliseconds()),
 	})
 }

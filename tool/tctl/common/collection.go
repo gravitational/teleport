@@ -441,7 +441,7 @@ func (c *semaphoreCollection) writeText(w io.Writer) error {
 }
 
 type appCollection struct {
-	servers []types.Server
+	servers []types.AppServer
 }
 
 func (a *appCollection) resources() (r []types.Resource) {
@@ -454,11 +454,10 @@ func (a *appCollection) resources() (r []types.Resource) {
 func (a *appCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})
 	for _, server := range a.servers {
-		for _, app := range server.GetApps() {
-			t.AddRow([]string{
-				app.Name, server.GetName(), app.PublicAddr, app.URI, types.LabelsAsString(app.StaticLabels, app.DynamicLabels),
-			})
-		}
+		app := server.GetApp()
+		t.AddRow([]string{
+			app.GetName(), server.GetHostname(), app.GetPublicAddr(), app.GetURI(), app.LabelsString(),
+		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -582,11 +581,14 @@ func (c *databaseServerCollection) resources() (r []types.Resource) {
 func (c *databaseServerCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Name", "Protocol", "URI", "Labels", "Hostname", "Version"})
 	for _, server := range c.servers {
-		for _, database := range server.GetDatabases() {
-			t.AddRow([]string{
-				database.GetName(), database.GetProtocol(), database.GetURI(), database.LabelsString(), server.GetHostname(), server.GetTeleportVersion(),
-			})
-		}
+		t.AddRow([]string{
+			server.GetDatabase().GetName(),
+			server.GetDatabase().GetProtocol(),
+			server.GetDatabase().GetURI(),
+			server.GetDatabase().LabelsString(),
+			server.GetHostname(),
+			server.GetTeleportVersion(),
+		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

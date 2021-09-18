@@ -177,15 +177,24 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	// start node
-	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: s.server.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
-	})
+	priv, pub, err := s.server.AuthServer.AuthServer.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	c.Assert(err, IsNil)
+
+	// start node
+	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
+		&apiProto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     s.server.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	c.Assert(err, IsNil)
+
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	c.Assert(err, IsNil)
 
 	nodeID := "node"
@@ -372,6 +381,7 @@ type authPack struct {
 	otpSecret string
 	user      string
 	login     string
+	password  string
 	session   *CreateSessionResponse
 	clt       *client.WebClient
 	cookies   []*http.Cookie
@@ -498,7 +508,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 
-	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after;connector_id=` + connector.GetName())
+	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?redirect_url=http://localhost/after&connector_id=` + connector.GetName())
 	c.Assert(err, IsNil)
 	req, err := http.NewRequest("GET", baseURL.String(), nil)
 	c.Assert(err, IsNil)
@@ -815,7 +825,6 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 		c.Assert(err, NotNil, Commentf(testCase.expectedErr))
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
-
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
@@ -1450,147 +1459,6 @@ func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
 	c.Assert(recoveryCodes, HasLen, 0)
 }
 
-func TestU2FLogin(t *testing.T) {
-	for _, sf := range []constants.SecondFactorType{
-		constants.SecondFactorU2F,
-		constants.SecondFactorOptional,
-		constants.SecondFactorOn,
-		constants.SecondFactorOff,
-	} {
-		sf := sf
-		t.Run(fmt.Sprintf("second_factor_%s", sf), func(t *testing.T) {
-			t.Parallel()
-			testU2FLogin(t, sf)
-		})
-	}
-}
-
-func testU2FLogin(t *testing.T, secondFactor constants.SecondFactorType) {
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-
-	// configure cluster authentication preferences
-	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorU2F,
-		U2F: &types.U2F{
-			AppID:  "https://" + env.server.TLS.ClusterName(),
-			Facets: []string{"https://" + env.server.TLS.ClusterName()},
-		},
-	})
-	require.NoError(t, err)
-	err = env.server.Auth().SetAuthPreference(ctx, cap)
-	require.NoError(t, err)
-
-	// create user
-	env.proxies[0].createUser(ctx, t, "bob", "root", "password", "")
-
-	// create password change token
-	token, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
-		Name: "bob",
-	})
-	require.NoError(t, err)
-
-	u2fRegReq, err := env.proxies[0].client.GetSignupU2FRegisterRequest(token.GetName())
-	require.NoError(t, err)
-
-	mockU2F, err := mocku2f.Create()
-	require.NoError(t, err)
-	u2fRegResp, err := mockU2F.RegisterResponse(u2fRegReq)
-	require.NoError(t, err)
-
-	tempPass := []byte("abc123")
-	_, err = env.proxies[0].client.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
-		TokenID: token.GetName(),
-		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_U2F{
-			U2F: &apiProto.U2FRegisterResponse{
-				RegistrationData: u2fRegResp.RegistrationData,
-				ClientData:       u2fRegResp.ClientData,
-			},
-		}},
-		NewPassword: tempPass,
-	})
-	require.NoError(t, err)
-
-	// normal login
-	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
-	require.NoError(t, err)
-	re, err := clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: "bob",
-		Pass: string(tempPass),
-	})
-	require.NoError(t, err)
-	var u2fSignReq u2f.AuthenticateChallenge
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err := mockU2F.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignResp,
-	})
-	require.NoError(t, err)
-
-	// bad login: corrupted sign responses, should fail
-	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: "bob",
-		Pass: string(tempPass),
-	})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err = mockU2F.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	// corrupted KeyHandle
-	u2fSignRespCopy := u2fSignResp
-	u2fSignRespCopy.KeyHandle = u2fSignRespCopy.KeyHandle + u2fSignRespCopy.KeyHandle
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// corrupted SignatureData
-	u2fSignRespCopy = u2fSignResp
-	u2fSignRespCopy.SignatureData = u2fSignRespCopy.SignatureData[:10] + u2fSignRespCopy.SignatureData[20:]
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// corrupted ClientData
-	u2fSignRespCopy = u2fSignResp
-	u2fSignRespCopy.ClientData = u2fSignRespCopy.ClientData[:10] + u2fSignRespCopy.ClientData[20:]
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignRespCopy,
-	})
-	require.Error(t, err)
-
-	// bad login: counter not increasing, should fail
-	mockU2F.SetCounter(0)
-	re, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "signrequest"), client.MFAChallengeRequest{
-		User: "bob",
-		Pass: string(tempPass),
-	})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(re.Bytes(), &u2fSignReq))
-
-	u2fSignResp, err = mockU2F.SignResponse(&u2fSignReq)
-	require.NoError(t, err)
-
-	_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
-		User:            "bob",
-		U2FSignResponse: *u2fSignResp,
-	})
-	require.Error(t, err)
-}
-
 // TestPing ensures that a response is returned by /webapi/ping
 // and that that response body contains authentication information.
 func (s *WebSuite) TestPing(c *C) {
@@ -2063,7 +1931,8 @@ func TestClusterKubesGet(t *testing.T) {
 				{
 					Name:         "test-kube-name",
 					StaticLabels: map[string]string{"test-field": "test-value"},
-				}},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -2093,25 +1962,16 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	pack := proxy.authPack(t, "foo@example.com")
 
 	// Register an application.
-	server := &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
-		},
-		Spec: types.ServerSpecV2{
-			Version: teleport.Version,
-			Apps: []*types.App{
-				{
-					Name:       "panel",
-					PublicAddr: "panel.example.com",
-					URI:        "http://127.0.0.1:8080",
-				},
-			},
-		},
-	}
-	_, err := env.server.Auth().UpsertAppServer(context.Background(), server)
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), server)
 	require.NoError(t, err)
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
@@ -2124,14 +1984,13 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
-// TestGetMFADevices gets devices for the authenticated user.
-func TestGetMFADevices(t *testing.T) {
+func TestGetMFADevicesWithAuth(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "foo@example.com")
 
-	endpoint := pack.clt.Endpoint("webapi", "mfa")
+	endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
@@ -2139,8 +1998,140 @@ func TestGetMFADevices(t *testing.T) {
 	err = json.Unmarshal(re.Bytes(), &devices)
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
-	require.Equal(t, "TOTP", devices[0].Type)
-	require.Equal(t, "otp", devices[0].Name) // default device name
+}
+
+func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user with a TOTP device.
+	username := "llama"
+	proxy.createUser(ctx, t, username, "root", "password", "some-otp-secret")
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "https://" + env.server.ClusterName(),
+			Facets: []string{"https://" + env.server.ClusterName()},
+		},
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Acquire an approved token.
+	approvedToken, err := types.NewUserToken("some-token-id")
+	require.NoError(t, err)
+	approvedToken.SetUser(username)
+	approvedToken.SetSubKind(auth.UserTokenTypeRecoveryApproved)
+	approvedToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, approvedToken)
+	require.NoError(t, err)
+
+	// Call the getter endpoint.
+	clt := proxy.newClient(t)
+	getDevicesEndpoint := clt.Endpoint("webapi", "mfa", "token", approvedToken.GetName(), "devices")
+	res, err := clt.Get(ctx, getDevicesEndpoint, url.Values{})
+	require.NoError(t, err)
+
+	var devices []ui.MFADevice
+	err = json.Unmarshal(res.Bytes(), &devices)
+	require.NoError(t, err)
+	require.Len(t, devices, 1)
+
+	// Call the delete endpoint.
+	_, err = clt.Delete(ctx, clt.Endpoint("webapi", "mfa", "token", approvedToken.GetName(), "devices", devices[0].Name))
+	require.NoError(t, err)
+
+	// Check device has been deleted.
+	res, err = clt.Get(ctx, getDevicesEndpoint, url.Values{})
+	require.NoError(t, err)
+
+	err = json.Unmarshal(res.Bytes(), &devices)
+	require.NoError(t, err)
+	require.Len(t, devices, 0)
+}
+
+func TestCreateAuthenticateChallenge(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user with a TOTP device, with second factor preference to OTP only.
+	authPack := proxy.authPack(t, "llama@example.com")
+
+	// Authenticated client for private endpoints.
+	authnClt := authPack.clt
+
+	// Unauthenticated client for public endpoints.
+	publicClt := proxy.newClient(t)
+
+	// Acquire a start token, for the request the requires it.
+	startToken, err := types.NewUserToken("some-token-id")
+	require.NoError(t, err)
+	startToken.SetUser(authPack.user)
+	startToken.SetSubKind(auth.UserTokenTypeRecoveryStart)
+	startToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, startToken)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		clt     *client.WebClient
+		ep      []string
+		reqBody client.MFAChallengeRequest
+	}{
+		{
+			name: "/webapi/u2f/password/changerequest",
+			clt:  authnClt,
+			ep:   []string{"webapi", "u2f", "password", "changerequest"},
+			reqBody: client.MFAChallengeRequest{
+				User: authPack.user,
+				Pass: authPack.password,
+			},
+		},
+		{
+			name: "/webapi/mfa/login/begin",
+			clt:  publicClt,
+			ep:   []string{"webapi", "mfa", "login", "begin"},
+			reqBody: client.MFAChallengeRequest{
+				User: authPack.user,
+				Pass: authPack.password,
+			},
+		},
+		{
+			name: "/webapi/mfa/authenticatechallenge",
+			clt:  authnClt,
+			ep:   []string{"webapi", "mfa", "authenticatechallenge"},
+		},
+		{
+			name: "/webapi/mfa/token/:token/authenticatechallenge",
+			clt:  publicClt,
+			ep:   []string{"webapi", "mfa", "token", startToken.GetName(), "authenticatechallenge"},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			endpoint := tc.clt.Endpoint(tc.ep...)
+			res, err := tc.clt.PostJSON(ctx, endpoint, tc.reqBody)
+			require.NoError(t, err)
+
+			var chal auth.MFAAuthenticateChallenge
+			err = json.Unmarshal(res.Bytes(), &chal)
+			require.NoError(t, err)
+			require.True(t, chal.TOTPChallenge)
+			require.Empty(t, chal.U2FChallenges)
+			require.Empty(t, chal.WebauthnChallenge)
+		})
+	}
 }
 
 // TestCreateAppSession verifies that an existing session to the Web UI can
@@ -2149,25 +2140,16 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	pack := s.authPack(c, "foo@example.com")
 
 	// Register an application called "panel".
-	server := &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
-		},
-		Spec: types.ServerSpecV2{
-			Version: teleport.Version,
-			Apps: []*types.App{
-				{
-					Name:       "panel",
-					PublicAddr: "panel.example.com",
-					URI:        "http://127.0.0.1:8080",
-				},
-			},
-		},
-	}
-	_, err := s.server.Auth().UpsertAppServer(context.Background(), server)
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "panel.example.com",
+	})
+	c.Assert(err, IsNil)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	c.Assert(err, IsNil)
+	_, err = s.server.Auth().UpsertApplicationServer(context.Background(), server)
 	c.Assert(err, IsNil)
 
 	// Extract the session ID and bearer token for the current session.
@@ -2178,7 +2160,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	c.Assert(err, IsNil)
 
-	var tests = []struct {
+	tests := []struct {
 		inComment       CommentInterface
 		inCreateRequest *CreateAppSessionRequest
 		outError        bool
@@ -2795,15 +2777,24 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	})
 	require.NoError(t, err)
 
-	// start auth server
-	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: server.TLS.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
-	})
+	priv, pub, err := server.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
 
-	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	// start auth server
+	certs, err := server.Auth().GenerateHostCerts(ctx,
+		&apiProto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     server.TLS.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 	hostSigners := []ssh.Signer{signer}
 
@@ -3066,6 +3057,7 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 		session:   session,
 		clt:       clt,
 		cookies:   resp.Cookies(),
+		password:  pass,
 	}
 }
 

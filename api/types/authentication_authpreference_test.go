@@ -129,6 +129,29 @@ func TestAuthPreferenceV2_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
+			name: "webauthn_derivedFromU2F_nonURL",
+			prefs: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         "local",
+					SecondFactor: "webauthn",
+					U2F: &types.U2F{
+						AppID:  "teleport", // "teleport" gets parsed as a Path, not a Host.
+						Facets: []string{"teleport"},
+					},
+					Webauthn: nil,
+				},
+			},
+			wantCmp: func(got *types.AuthPreferenceV2) error {
+				want := &types.Webauthn{
+					RPID: "teleport",
+				}
+				if diff := cmp.Diff(want, got.Spec.Webauthn); diff != "" {
+					return fmt.Errorf("webauthn mismatch (-want +got):\n%s", diff)
+				}
+				return nil
+			},
+		},
+		{
 			name: "webauthn_valid_minimal",
 			prefs: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
@@ -202,6 +225,48 @@ func TestAuthPreferenceV2_CheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			wantErr: "webauthn denied CAs",
+		},
+		{
+			name: "webauthn_invalid_disabled",
+			prefs: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         "local",
+					SecondFactor: "webauthn",
+					Webauthn: &types.Webauthn{
+						RPID:     "example.com",
+						Disabled: true, // Cannot disable when second_factor=webauthn
+					},
+				},
+			},
+			wantErr: "webauthn cannot be disabled",
+		},
+		{
+			name: "webauthn_valid_disabledSecondFactorOn",
+			prefs: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         "local",
+					SecondFactor: "on",
+					U2F:          validU2FPref.Spec.U2F,
+					Webauthn: &types.Webauthn{
+						RPID:     "example.com",
+						Disabled: true, // OK, fallback to U2F
+					},
+				},
+			},
+		},
+		{
+			name: "webauthn_valid_disabledSecondFactorOptional",
+			prefs: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         "local",
+					SecondFactor: "optional",
+					U2F:          validU2FPref.Spec.U2F,
+					Webauthn: &types.Webauthn{
+						RPID:     "example.com",
+						Disabled: true, // OK, fallback to U2F
+					},
+				},
+			},
 		},
 		{
 			name: "on_valid",

@@ -30,6 +30,11 @@
           "title": "Admin Guides",
           "slug": "/setup/admin/",
           "entries": [
+            { "title": "Github SSO", "slug": "/setup/admin/github-sso/" },
+            { "title": "Adding nodes", "slug": "/setup/admin/adding-nodes/" },
+            { "title": "Trusted Clusters", "slug": "/setup/admin/trustedclusters/" },
+            { "title": "Labels", "slug": "/setup/admin/labels/" },
+            { "title": "Local users", "slug": "/setup/admin/users/" },
             { "title": "Troubleshooting", "slug": "/setup/admin/troubleshooting/" },
             { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
             { "title": "Daemon", "slug": "/setup/admin/daemon/" }
@@ -50,7 +55,8 @@
           "entries": [
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
             { "title": "Docker", "slug": "/setup/guides/docker/" },
-            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" }
+            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" },
+            { "title": "EC2 tags", "slug": "/setup/guides/ec2-tags/" }
           ]
         },
         {
@@ -99,7 +105,8 @@
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
             { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
             {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"},
-            {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"}
+            {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"},
+            {"title": "Visual Studio Code", "slug": "/server-access/guides/vscode/"}
           ]
         }
       ]
@@ -242,6 +249,10 @@
         {
           "title": "FedRAMP",
           "slug": "/enterprise/fedramp/"
+        },
+        {
+          "title": "SOC2",
+          "slug": "/enterprise/soc2/"
         }
       ]
     },
@@ -318,8 +329,14 @@
       "major_version": "1",
       "minor_version": "17"
     },
+    "ansible": {
+      "min_version": "2.9.6"
+    },
     "mongodb": {
       "min_version": "3.6"
+    },
+    "mysql": {
+      "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
       "version": "7.0.0",
@@ -333,6 +350,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/trustedclusters/",
+      "destination": "/setup/admin/trustedclusters/",
+      "permanent": true
+    },
     {
       "source": "/reference/api/architecture/",
       "destination": "/api/architecture/",

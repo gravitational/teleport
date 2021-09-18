@@ -102,14 +102,11 @@ be substituted to the users' group list in the role definition.
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: group-member
 spec:
   allow:
-    # This field is used for SSH logins. You have to keep 'logins' as a non-empty random value
-    # for Kubernetes to work until we fix it.
-    logins: ['keep-this-value-here']
     # For Alice, will be substituted with the list ["admins", "devs"]
     kubernetes_groups: ["{{external.groups}}"]
     # For Alice, will be substituted with ["alice@example.com"]
@@ -229,7 +226,7 @@ Limit access to cluster based on the label:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: group-member
 spec:
