@@ -200,6 +200,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			AccessPoint: conn.Client,
 			HostSigner:  conn.ServerIdentity.KeySigner,
 			Cluster:     clusterName,
+			FIPS:        process.Config.FIPS,
 		})
 	if err != nil {
 		return trace.Wrap(err)

@@ -51,20 +51,20 @@ const (
 	approveRecoveryBadAuthnErrMsg = "invalid username, password, or second factor"
 
 	completeRecoveryGenericErrMsg = "unable to recover your account, please contact your system administrator"
+
+	// MaxFailedAttemptsFromStartRecoveryErrMsg is a user friendly error message to try again later.
+	// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
+	MaxFailedAttemptsFromStartRecoveryErrMsg = "you have reached max attempts, please try again later"
+
+	// MaxFailedAttemptsFromApproveRecoveryErrMsg is a user friendly error message to start over.
+	// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
+	MaxFailedAttemptsFromApproveRecoveryErrMsg = "too many incorrect attempts, please start over with a new recovery code"
 )
 
 // fakeRecoveryCodeHash is bcrypt hash for "fake-barbaz x 8".
 // This is a fake hash used to mitigate timing attacks against invalid usernames or if user does
 // exist but does not have recovery codes.
 var fakeRecoveryCodeHash = []byte(`$2a$10$c2.h4pF9AA25lbrWo6U0D.ZmnYpFDaNzN3weNNYNC3jAkYEX9kpzu`)
-
-// ErrMaxFailedAttemptsFromStartRecovery is a user friendly error message to try again later.
-// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
-var ErrMaxFailedAttemptsFromStartRecovery = trace.AccessDenied(startRecoveryMaxFailedAttemptsErrMsg)
-
-// ErrMaxFailedAttemptsFromApproveRecovery is a user friendly error message to start over.
-// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
-var ErrMaxFailedAttemptsFromApproveRecovery = trace.AccessDenied("too many incorrect attempts, please start over with a new recovery code")
 
 // StartAccountRecovery implements AuthService.StartAccountRecovery.
 func (s *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
@@ -143,7 +143,7 @@ func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string
 		return trace.Wrap(verifyCodeErr)
 	}
 
-	return trace.Wrap(ErrMaxFailedAttemptsFromStartRecovery)
+	return trace.AccessDenied(MaxFailedAttemptsFromStartRecoveryErrMsg)
 }
 
 func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode []byte) error {
@@ -342,7 +342,7 @@ func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken typ
 		return trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
 	}
 
-	return trace.Wrap(ErrMaxFailedAttemptsFromApproveRecovery)
+	return trace.AccessDenied(MaxFailedAttemptsFromApproveRecoveryErrMsg)
 }
 
 // recordFailedRecoveryAttempt creates and inserts a recovery attempt and if user has reached max failed attempts,

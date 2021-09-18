@@ -30,10 +30,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
+
+	"log"
 )
 
 // newWebClient creates a new client to the HTTPS web proxy.
@@ -46,6 +48,42 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 			},
 		},
 	}
+}
+
+// doWithFallback attempts to execute an HTTP request using https, and then
+// fall back to plain HTTP under certain, very specific circumstances.
+//  * The caller must specifically allow it via the allowPlainHTTP parameter, and
+//  * The target host must resolve to the loopback address.
+// If these conditions are not met, then the plain-HTTP fallback is not allowed,
+// and a the HTTPS failure will be considered final.
+func doWithFallback(clt *http.Client, allowPlainHTTP bool, req *http.Request) (*http.Response, error) {
+	// first try https and see how that goes
+	req.URL.Scheme = "https"
+	log.Printf("Attempting %s %s%s", req.Method, req.URL.Host, req.URL.Path)
+	resp, err := clt.Do(req)
+
+	// If the HTTPS succeeds, return that.
+	if err == nil {
+		return resp, nil
+	}
+
+	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
+	// Note that we're only allowed to try plain HTTP on the loopback address, even
+	// if the caller says its OK
+	if !(allowPlainHTTP && utils.IsLoopback(req.URL.Host)) {
+		return nil, trace.Wrap(err)
+	}
+
+	// If we get to here a) the HTTPS attempt failed, and b) we're allowed to try
+	// clear-text HTTP to see if that works.
+	req.URL.Scheme = "http"
+	log.Printf("WARN: Request for %s%s falling back to PLAIN HTTP", req.URL.Host, req.URL.Path)
+	resp, err = clt.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
 }
 
 // Find fetches discovery data by connecting to the given web proxy address.
@@ -61,7 +99,7 @@ func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.Do(req)
+	resp, err := doWithFallback(clt, insecure, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -94,7 +132,7 @@ func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.Do(req)
+	resp, err := doWithFallback(clt, insecure, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

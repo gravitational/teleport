@@ -832,7 +832,11 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 	logger = process.log.WithField("proxy-addr", proxyAddr)
 	logger.Debug("Attempting to connect to Auth Server through tunnel.")
-	tunnelClient, err := process.newClientThroughTunnel(proxyAddr, tlsConfig, identity.SSHClientConfig())
+	sshClientConfig, err := identity.SSHClientConfig(process.Config.FIPS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tunnelClient, err := process.newClientThroughTunnel(proxyAddr, tlsConfig, sshClientConfig)
 	if err != nil {
 		directErrLogger.Debug("Failed to connect to Auth Server directly.")
 		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
