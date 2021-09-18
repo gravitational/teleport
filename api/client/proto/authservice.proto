@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 syntax = "proto3";
 package proto;
 
@@ -5,6 +19,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "github.com/gravitational/teleport/api/types/types.proto";
+import "github.com/gravitational/teleport/api/types/webauthn/webauthn.proto";
 import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
 import "github.com/gravitational/teleport/api/types/events/events.proto";
 
@@ -98,6 +113,10 @@ message Event {
         // WindowsDesktop is a resource for Windows desktop host.
         types.WindowsDesktopV3 WindowsDesktop = 27
             [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+        // Database is a database resource.
+        types.DatabaseV3 Database = 28 [ (gogoproto.jsontag) = "database,omitempty" ];
+        // AppServer is an application server resource.
+        types.AppServerV3 AppServer = 29 [ (gogoproto.jsontag) = "app_server,omitempty" ];
     }
 }
 
@@ -131,6 +150,45 @@ message Certs {
     bytes SSH = 1 [ (gogoproto.jsontag) = "ssh,omitempty" ];
     // TLS X509 cert (PEM-encoded).
     bytes TLS = 2 [ (gogoproto.jsontag) = "tls,omitempty" ];
+    // TLSCACerts is a list of TLS certificate authorities.
+    repeated bytes TLSCACerts = 3 [ (gogoproto.jsontag) = "tls_ca_certs,omitempty" ];
+    // SSHCACerts is a list of SSH certificate authorities.
+    repeated bytes SSHCACerts = 4 [ (gogoproto.jsontag) = "ssh_ca_certs,omitempty" ];
+}
+
+// HostCertsRequest specifies certificate-generation parameters
+// for a server.
+message HostCertsRequest {
+    // HostID is a unique ID of the host.
+    string HostID = 1 [ (gogoproto.jsontag) = "host_id" ];
+    // NodeName is a user-friendly host name.
+    string NodeName = 2 [ (gogoproto.jsontag) = "node_name" ];
+    // Role is a system role assigned to the host.
+    string Role = 3 [
+        (gogoproto.jsontag) = "role",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+    // AdditionalPrincipals is a list of additional principals
+    // to include in OpenSSH and X509 certificates
+    repeated string AdditionalPrincipals = 4
+        [ (gogoproto.jsontag) = "additional_principals,omitempty" ];
+    // DNSNames is a list of DNS names to include in x509 certificates.
+    repeated string DNSNames = 5 [ (gogoproto.jsontag) = "dns_names,omitempty" ];
+    // PublicTLSKey is a PEM encoded public key, which the auth server will use
+    // to create a signed TLS certificate. This field is required.
+    bytes PublicTLSKey = 6 [ (gogoproto.jsontag) = "public_tls_key" ];
+    // PublicSSHKey is a SSH encoded public key, which the auth server will use
+    // to create a signed SSH certificate. This field is required.
+    bytes PublicSSHKey = 7 [ (gogoproto.jsontag) = "public_ssh_key" ];
+    // RemoteAddr is the IP address of the remote host requesting a certificate.
+    // RemoteAddr is used to replace 0.0.0.0 in the list of additional principals.
+    string RemoteAddr = 8 [ (gogoproto.jsontag) = "remote_addr" ];
+    // Rotation allows clients to send the certificate authority rotation state
+    // expected by the client so that auth servers can avoid the situation when
+    // clients request certs assuming one state and auth servers issue another.
+    types.Rotation Rotation = 9 [ (gogoproto.jsontag) = "rotation,omitempty" ];
+    // NoCache is argument that only local callers can supply to bypass cache
+    bool NoCache = 10 [ (gogoproto.jsontag) = "-" ];
 }
 
 // UserCertRequest specifies certificate-generation parameters
@@ -385,7 +443,43 @@ message CompleteStream {}
 // FlushAndCloseStream flushes the stream data and closes the stream
 message FlushAndCloseStream {}
 
+// GetApplicationServersRequest is a request to fetch all registered apps.
+message GetApplicationServersRequest {
+    // Namespace is the app servers namespace.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+}
+
+// GetApplicationServersResponse contains all registered app servers.
+message GetApplicationServersResponse {
+    // Servers is a list of proxied applications.
+    repeated types.AppServerV3 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
+}
+
+// UpsertApplicationServerRequest upserts an app server.
+message UpsertApplicationServerRequest {
+    // Server is an app server resource to register.
+    types.AppServerV3 Server = 1 [ (gogoproto.jsontag) = "server" ];
+}
+
+// DeleteApplicationServerRequest is a request to delete an app server.
+message DeleteApplicationServerRequest {
+    // Namespace is the app server namespace.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+    // HostID is the app server host uuid.
+    string HostID = 2 [ (gogoproto.jsontag) = "host_id" ];
+    // Name is the name of the application to delete.
+    string Name = 3 [ (gogoproto.jsontag) = "name" ];
+}
+
+// DeleteAllApplicationServersRequest are the parameters used to remove all applications.
+message DeleteAllApplicationServersRequest {
+    // Namespace is the app servers namespace.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+}
+
 // GetAppServersRequest are the parameters used to request application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServersRequest.
 message GetAppServersRequest {
     // Namespace is the namespace for application.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
@@ -394,15 +488,21 @@ message GetAppServersRequest {
 }
 
 // GetAppServersResponse contains all requested application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServersResponse.
 message GetAppServersResponse {
     // Servers is a slice of types.Server that represent applications.
     repeated types.ServerV2 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
 }
 
 // UpsertAppServerRequest are the parameters used to add an application.
+//
+// DELETE IN 9.0. Deprecated, use UpsertApplicationServerRequest.
 message UpsertAppServerRequest { types.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ]; }
 
 // DeleteAppServerRequest are the parameters used to remove an application.
+//
+// DELETE IN 9.0. Deprecated, use DeleteApplicationServerRequest.
 message DeleteAppServerRequest {
     // Namespace is the namespace for application.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
@@ -411,6 +511,8 @@ message DeleteAppServerRequest {
 }
 
 // DeleteAllAppServersRequest are the parameters used to remove all applications.
+//
+// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServersRequest.
 message DeleteAllAppServersRequest {
     // Namespace is the namespace for application.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
@@ -623,6 +725,12 @@ message MFAAuthenticateChallenge {
     // this field is set, any TOTP device a user has registered can be used to
     // respond.
     TOTPChallenge TOTP = 2;
+    // WebauthnChallenge contains a Webauthn credential assertion used for
+    // login/authentication ceremonies.
+    // Credential assertions hold, among other information, a list of allowed
+    // credentials for the ceremony (one for each U2F or Webauthn device
+    // registered by the user).
+    webauthn.CredentialAssertion WebauthnChallenge = 3;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -631,6 +739,7 @@ message MFAAuthenticateResponse {
     oneof Response {
         U2FResponse U2F = 1;
         TOTPResponse TOTP = 2;
+        webauthn.CredentialAssertionResponse Webauthn = 3;
     }
 }
 
@@ -666,6 +775,7 @@ message MFARegisterChallenge {
     oneof Request {
         U2FRegisterChallenge U2F = 1;
         TOTPRegisterChallenge TOTP = 2;
+        webauthn.CredentialCreation Webauthn = 3;
     }
 }
 
@@ -674,6 +784,7 @@ message MFARegisterResponse {
     oneof Response {
         U2FRegisterResponse U2F = 1;
         TOTPRegisterResponse TOTP = 2;
+        webauthn.CredentialCreationResponse Webauthn = 3;
     }
 }
 
@@ -744,6 +855,7 @@ message AddMFADeviceRequestInit {
     enum DeviceType {
         TOTP = 0;
         U2F = 1;
+        Webauthn = 2;
     }
     DeviceType Type = 2;
 }
@@ -780,12 +892,25 @@ message DeleteMFADeviceRequestInit {
 // DeleteMFADeviceResponseAck is a confirmation of successful device deletion.
 message DeleteMFADeviceResponseAck {}
 
+// DeleteMFADeviceSyncRequest is a request to delete a MFA device (nonstream).
+message DeleteMFADeviceSyncRequest {
+    // TokenID is the ID of a user token that will be used to verify this request.
+    // Token types accepted are:
+    //   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
+    //   - TODO(kimlisa) add privilege token doc after implementation
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
+    // DeviceName is the name of the device to delete.
+    string DeviceName = 2 [ (gogoproto.jsontag) = "device_name" ];
+}
+
 // GetMFADeviceRequest is a request for MFA devices for the calling user.
 message GetMFADevicesRequest {
-    // RecoveryApprovedTokenID is the ID of a recovery approved token that allows a user to view
-    // their devices without being logged in. Recovery approved tokens are obtained after user goes
-    // through a two step verification process.
-    string RecoveryApprovedTokenID = 1;
+    // RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
+    // request. Token is obtained with RPC ApproveAccountRecovery and allows users to view their
+    // MFA devices without being logged in.
+    // This field can be empty which implies the logged in user wants to view their devices.
+    string RecoveryApprovedTokenID = 1
+        [ (gogoproto.jsontag) = "recovery_approved_token_id,omitempty" ];
 }
 
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
@@ -1008,10 +1133,118 @@ message ChangeUserAuthenticationResponse {
     // RecoveryCodes are user's new recovery codes. Previous recovery codes become invalid.
     // This field can be empty if a user does not meet the following
     // requirements to receive recovery codes:
-    //  - cloud feature is not enabled
-    //  - second factor is not enabled
-    //  - username is not in valid email format
+    //  - cloud feature is enabled
+    //  - username is in valid email format
     repeated string RecoveryCodes = 2 [ (gogoproto.jsontag) = "recovery_codes,omitempty" ];
+}
+
+// StartAccountRecoveryRequest defines a request to create a recovery start token for a user who is
+// allowed to recover their account. The tokens ID is used as part of a URL that will be emailed to
+// the user (not done in this request). Represents step 1 of the account recovery process, next step
+// is RPC ApproveAccountRecovery.
+message StartAccountRecoveryRequest {
+    // Username is the requesting user. The username must meet the following requirements to be
+    // allowed to recover their account:
+    //  - cloud feature is enabled
+    //  - username is in valid email format
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+    // RecoveryCode is one of the user's recovery code in plain text.
+    bytes RecoveryCode = 2 [ (gogoproto.jsontag) = "recovery_code" ];
+    // RecoverType defines what type of authentication user needs to recover.
+    types.UserTokenUsage RecoverType = 3 [ (gogoproto.jsontag) = "recover_type" ];
+}
+
+// ApproveAccountRecoveryRequest is a request to create a recovery approved token that allows users
+// to perform protected actions while not logged in. Represents step 2 of the account recovery
+// process after RPC StartAccountRecovery, next step is RPC CompleteAccountRecovery.
+message ApproveAccountRecoveryRequest {
+    // RecoveryStartTokenID is the ID of a recovery start token that's required to verify this
+    // request.
+    string RecoveryStartTokenID = 1 [ (gogoproto.jsontag) = "recovery_start_token_id" ];
+    // Username is the name of the user that the token belongs to, used to verify that this name
+    // is the same as defined in token for use with emails.
+    string Username = 2 [ (gogoproto.jsontag) = "username" ];
+    // AuthnCred is the authentication cred that needs to be verified.
+    oneof AuthnCred {
+        // Password is users password in plain text.
+        bytes Password = 3 [ (gogoproto.jsontag) = "password,omitempty" ];
+        // MFAAuthenticateResponse is a response to a MFA challenge.
+        MFAAuthenticateResponse MFAAuthenticateResponse = 4
+            [ (gogoproto.jsontag) = "mfa_authenticate_response,omitempty" ];
+    }
+}
+
+// CompleteAccountRecoveryRequest is a request to set either a new password or
+// add a new mfa device, allowing the user to regain access to their account with the new
+// credentials. Represents the last step in the account recovery process after RPC's
+// StartAccountRecovery and ApproveAccountRecovery.
+message CompleteAccountRecoveryRequest {
+    // RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
+    // request.
+    string RecoveryApprovedTokenID = 1 [ (gogoproto.jsontag) = "recovery_approved_token_id" ];
+    // NewDeviceName is the name of a new mfa device.
+    // Optional if NewPassword is used.
+    string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
+    // NewAuthnCred contains the new authentication credential.
+    oneof NewAuthnCred {
+        // NewPassword is user's new password in plain text.
+        bytes NewPassword = 3 [ (gogoproto.jsontag) = "new_password,omitempty" ];
+        // NewMFAResponse is a user's new mfa response to a mfa register challenge.
+        MFARegisterResponse NewMFAResponse = 4
+            [ (gogoproto.jsontag) = "new_mfa_response,omitempty" ];
+    }
+}
+
+// CreateAccountRecoveryCodesRequest is a request to create new set of recovery codes for a user,
+// replacing and invalidating any previously existing codes. Recovery codes can only be given to
+// users who meet the following requirements:
+//  - cloud feature is enabled
+//  - username is in valid email format
+message CreateAccountRecoveryCodesRequest {
+    // TokenID is the ID of a user token that will be used to verify this request.
+    // Token types accepted are:
+    //   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
+    //   - TODO(kimlisa) add privilege token doc after implementation
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
+}
+
+// CreateAccountRecoveryCodesResponse is the response to CreateAccountRecoveryCodesRequest.
+message CreateAccountRecoveryCodesResponse {
+    // RecoveryCodes are user's new account recovery codes. Any previous codes are invalidated by
+    // the replacement of new codes.
+    repeated string RecoveryCodes = 1 [ (gogoproto.jsontag) = "recovery_codes" ];
+}
+
+// GetAccountRecoveryTokenRequest is a request to return a user token resource after verifying that
+// the token in the request is not expired and is of the recovery kind.
+message GetAccountRecoveryTokenRequest {
+    // RecoveryTokenID is the ID of a recovery token to verify.
+    // Recovery tokens are obtained with RPC StartAccountRecovery or ApproveAccountRecovery.
+    string RecoveryTokenID = 1 [ (gogoproto.jsontag) = "recovery_token_id" ];
+}
+
+// UserCredentials describes fields for a user's username and password.
+message UserCredentials {
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+    bytes Password = 2 [ (gogoproto.jsontag) = "password" ];
+}
+
+// CreateAuthenticateChallengeRequest is a request for creating MFA authentication challenges for a
+// users mfa devices.
+message CreateAuthenticateChallengeRequest {
+    // Request defines how the request will be verified before creating challenges.
+    // This field can be empty, which implies the request is to create challenges for the
+    // user in context (logged in user).
+    oneof Request {
+        // UserCredentials verifies request with username and password. Used with logins or
+        // when the logged in user wants to change their password.
+        UserCredentials UserCredentials = 1 [ (gogoproto.jsontag) = "user_credentials,omitempty" ];
+        // RecoveryStartTokenID is the ID of a recovery start token obtained with RPC
+        // StartAccountRecovery. This token allows a user to retrieve their MFA challenges for RPC
+        // ApproveAccountRecovery (step 2 of the recovery process after RPC StartAccountRecovery).
+        string RecoveryStartTokenID = 2
+            [ (gogoproto.jsontag) = "recovery_start_token_id,omitempty" ];
+    }
 }
 
 // AuthService is authentication/authorization service implementation
@@ -1037,6 +1270,8 @@ service AuthService {
 
     // GenerateUserCerts generates a set of user certificates.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
+    // GenerateHostCerts generates a set of host certificates.
+    rpc GenerateHostCerts(HostCertsRequest) returns (Certs);
     // GenerateUserSingleUseCerts generates a set of single-use user
     // certificates.
     rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest)
@@ -1106,14 +1341,40 @@ service AuthService {
     // CreateAuditStream creates or resumes audit events streams
     rpc CreateAuditStream(stream AuditStreamRequest) returns (stream events.StreamStatus);
 
+    // GetApplicationServers gets all application servers.
+    rpc GetApplicationServers(GetApplicationServersRequest) returns (GetApplicationServersResponse);
+    // UpsertApplicationServer adds an application server.
+    rpc UpsertApplicationServer(UpsertApplicationServerRequest) returns (types.KeepAlive);
+    // DeleteApplicationServer removes an application server.
+    rpc DeleteApplicationServer(DeleteApplicationServerRequest) returns (google.protobuf.Empty);
+    // DeleteAllApplicationServers removes all application servers.
+    rpc DeleteAllApplicationServers(DeleteAllApplicationServersRequest)
+        returns (google.protobuf.Empty);
+
     // GetAppServers gets all application servers.
-    rpc GetAppServers(GetAppServersRequest) returns (GetAppServersResponse);
+    //
+    // DELETE IN 9.0. Deprecated, use GetApplicationServers.
+    rpc GetAppServers(GetAppServersRequest) returns (GetAppServersResponse) {
+        option deprecated = true;
+    };
     // UpsertAppServer adds an application server.
-    rpc UpsertAppServer(UpsertAppServerRequest) returns (types.KeepAlive);
+    //
+    // DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
+    rpc UpsertAppServer(UpsertAppServerRequest) returns (types.KeepAlive) {
+        option deprecated = true;
+    };
     // DeleteAppServer removes an application server.
-    rpc DeleteAppServer(DeleteAppServerRequest) returns (google.protobuf.Empty);
+    //
+    // DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
+    rpc DeleteAppServer(DeleteAppServerRequest) returns (google.protobuf.Empty) {
+        option deprecated = true;
+    };
     // DeleteAllAppServers removes all application servers.
-    rpc DeleteAllAppServers(DeleteAllAppServersRequest) returns (google.protobuf.Empty);
+    //
+    // DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
+    rpc DeleteAllAppServers(DeleteAllAppServersRequest) returns (google.protobuf.Empty) {
+        option deprecated = true;
+    };
 
     // GenerateAppToken will generate a JWT token for application access.
     rpc GenerateAppToken(GenerateAppTokenRequest) returns (GenerateAppTokenResponse);
@@ -1205,9 +1466,15 @@ service AuthService {
     // -> MFAResponse
     // <- Ack
     rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
+    // DeleteMFADeviceSync deletes a users MFA device (nonstream).
+    rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
     // GetMFADevices returns all MFA devices registered for the user calling
     // this RPC.
     rpc GetMFADevices(GetMFADevicesRequest) returns (GetMFADevicesResponse);
+    // CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA
+    // devices.
+    rpc CreateAuthenticateChallenge(CreateAuthenticateChallengeRequest)
+        returns (MFAAuthenticateChallenge);
 
     // GetOIDCConnector gets an OIDC connector resource by name.
     rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
@@ -1348,4 +1615,56 @@ service AuthService {
     // any existing codes the user previously had.
     rpc ChangeUserAuthentication(ChangeUserAuthenticationRequest)
         returns (ChangeUserAuthenticationResponse);
+
+    // StartAccountRecovery (exclusive to cloud users) is the first out of two step user
+    // verification needed to allow a user to recover their account. The first form of verification
+    // is a user's username and a recovery code. After successful verification, a recovery start
+    // token is created for the user which its ID will be used as part of a URL that will be emailed
+    // to the user (not done in this request). The user will be able to finish their second form of
+    // verification by clicking on this URL and following the prompts.
+    //
+    // If a valid user fails to provide correct recovery code for MaxAccountRecoveryAttempts,
+    // user account gets temporarily locked from further recovery attempts and from logging in.
+    //
+    // Start tokens last RecoveryStartTokenTTL.
+    rpc StartAccountRecovery(StartAccountRecoveryRequest) returns (types.UserTokenV3);
+    // ApproveAccountRecovery (exclusive to cloud users) is the second step of the two step
+    // verification needed to allow a user to recover their account, after RPC StartAccountRecovery.
+    // The second form of verification is a user's password or their second factor (depending on
+    // what authentication they needed to recover). After successful verification, a recovery
+    // approved token is created which allows a user to request protected actions while not logged
+    // in e.g: setting a new password or a mfa device, viewing their MFA devices, deleting their MFA
+    // devices, and generating new recovery codes.
+    //
+    // The recovery start token to verify this request becomes deleted before
+    // creating a recovery approved token, which invalidates the recovery link users received
+    // to finish their verification.
+    //
+    // If user fails to verify themselves for MaxAccountRecoveryAttempts
+    // (combined attempts with RPC StartAccountRecovery), users account will be temporarily locked
+    // from logging in. If users still have unused recovery codes left, they still have
+    // opportunities to recover their account. To allow this, users recovery attempts are also
+    // deleted along with all user tokens which will force the user to restart the recovery process
+    // from step 1 (RPC StartAccountRecovery).
+    //
+    // Recovery approved tokens last RecoveryApprovedTokenTTL.
+    rpc ApproveAccountRecovery(ApproveAccountRecoveryRequest) returns (types.UserTokenV3);
+    // CompleteAccountRecovery (exclusive to cloud users) is the last step in account
+    // recovery, after RPC's StartAccountRecovery and ApproveAccountRecovery. This step sets a new
+    // password or adds a new mfa device, allowing the user to regain access to their account with
+    // the new credentials. When the new authentication is successfully set, any user lock is
+    // removed so the user can login immediately afterwards.
+    rpc CompleteAccountRecovery(CompleteAccountRecoveryRequest) returns (google.protobuf.Empty);
+
+    // CreateAccountRecoveryCodes (exclusive to cloud users) creates new set of recovery codes for a
+    // user, replacing and invalidating any previously owned codes. Users can only get recovery
+    // codes if their username is in a valid email format.
+    rpc CreateAccountRecoveryCodes(CreateAccountRecoveryCodesRequest)
+        returns (CreateAccountRecoveryCodesResponse);
+    // GetAccountRecoveryToken (exclusive to cloud users) returns a user token resource after
+    // verifying that the token requested has not expired and is of the correct recovery kind.
+    // Besides checking for validity of a token ID, it is also used to get basic information from
+    // the token e.g: username, state of recovery (started or approved) and the type of recovery
+    // requested (password or second factor).
+    rpc GetAccountRecoveryToken(GetAccountRecoveryTokenRequest) returns (types.UserTokenV3);
 }

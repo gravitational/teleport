@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -46,7 +48,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 type testConfigFiles struct {
@@ -133,6 +134,8 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, "INFO", fc.Logger.Severity)
 		require.Equal(t, fc.Auth.ClusterName, ClusterName("cookie.localhost"))
 		require.Equal(t, fc.Auth.LicenseFile, "/tmp/license.pem")
+		require.Equal(t, fc.Proxy.PublicAddr, apiutils.Strings{"cookie.localhost:443"})
+		require.Equal(t, fc.Proxy.WebAddr, "0.0.0.0:443")
 
 		require.False(t, lib.IsInsecureDevMode())
 	})
@@ -306,6 +309,13 @@ func TestConfigReading(t *testing.T) {
 					URI:           "localhost:5432",
 					StaticLabels:  Labels,
 					DynamicLabels: CommandLabels,
+				},
+			},
+			Selectors: []Selector{
+				{
+					MatchLabels: map[string]apiutils.Strings{
+						"*": {"*"},
+					},
 				},
 			},
 		},
@@ -605,6 +615,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
 	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
 	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
+	require.Empty(t, cfg.CAPins)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -1000,6 +1011,11 @@ func makeConfigFixture() string {
 			URI:           "localhost:5432",
 			StaticLabels:  Labels,
 			DynamicLabels: CommandLabels,
+		},
+	}
+	conf.Databases.Selectors = []Selector{
+		{
+			MatchLabels: map[string]apiutils.Strings{"*": {"*"}},
 		},
 	}
 
@@ -1407,6 +1423,9 @@ func TestDatabaseConfig(t *testing.T) {
 			inConfigString: `
 db_service:
   enabled: true
+  selectors:
+  - match_labels:
+      '*': '*'
   databases:
   - name: foo
     protocol: postgres
@@ -1504,10 +1523,11 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Labels:           "env=test,hostname=[1h:hostname]",
 			},
 			outDatabase: service.Database{
-				Name:         "foo",
-				Protocol:     defaults.ProtocolPostgres,
-				URI:          "localhost:5432",
-				StaticLabels: map[string]string{"env": "test"},
+				Name:     "foo",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				StaticLabels: map[string]string{"env": "test",
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{
 					"hostname": &types.CommandLabelV2{
 						Period:  types.Duration(time.Hour),
@@ -1557,7 +1577,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				AWS: service.DatabaseAWS{
 					Region: "us-east-1",
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -1580,7 +1601,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 						ClusterID: "redshift-cluster-1",
 					},
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -1603,7 +1625,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					ProjectID:  "gcp-project-1",
 					InstanceID: "gcp-instance-1",
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},

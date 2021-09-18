@@ -696,9 +696,6 @@ const (
 	ChanSession = "session"
 )
 
-// RSAKeySize is the size of the RSA key.
-const RSAKeySize = 2048
-
 // A principal name for use in SSH certificates.
 type Principal string
 

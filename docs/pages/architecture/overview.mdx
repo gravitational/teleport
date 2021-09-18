@@ -60,7 +60,7 @@ daemon you may be familiar with. Users can log in to a Teleport Node with all
 of the following clients:
 
 - [OpenSSH: `ssh`](../server-access/guides/openssh.mdx) (works on Linux, macOS and Windows)
-- [Teleport CLI client: `tsh ssh`](../setup/reference/cli.mdx#tsh-ssh) (works on Linux and macOS)
+- [Teleport CLI client: `tsh ssh`](../setup/reference/cli.mdx#tsh-ssh) (works on Linux, macOS and Windows)
 - [Teleport Proxy UI](proxy.mdx#web-to-ssh-proxy) accessed via any modern web browser (including Safari on iOS and Chrome on Android)
 
 [**Teleport Auth**](authentication.mdx) authenticates Users and Nodes, authorizes User
@@ -203,7 +203,7 @@ API which provides access to information about nodes and users in the cluster.
 ![User Granted Node Access](../../img/user_node_access.svg)
 
 The node requests the Auth Server to provide a list of [OS users (user
-mappings)](../admin-guide.mdx#adding-and-deleting-users) for the connecting client, to make sure the client is
+mappings)](../setup/admin/users.mdx) for the connecting client, to make sure the client is
 authorized to use the requested OS login.
 
 Finally, the client is authorized to create an SSH connection to a node.

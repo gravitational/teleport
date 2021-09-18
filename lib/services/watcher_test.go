@@ -71,7 +71,7 @@ func TestProxyWatcher(t *testing.T) {
 	select {
 	case <-w.ResetC:
 	case <-time.After(time.Second):
-		t.Fatalf("Timeout waiting for ProxyWatcher reset.")
+		t.Fatal("Timeout waiting for ProxyWatcher reset.")
 	}
 
 	// Add a proxy server.
@@ -179,7 +179,7 @@ func TestLockWatcher(t *testing.T) {
 		t.Fatalf("Unexpected event: %v.", event)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
+	case <-time.After(time.Second):
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 
@@ -226,10 +226,87 @@ func TestLockWatcher(t *testing.T) {
 		t.Fatalf("Unexpected event: %v.", event)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
+	case <-time.After(time.Second):
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 	expectLockInForce(t, lock2, w.CheckLockInForce(constants.LockingModeBestEffort, target2))
+}
+
+func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Access
+		types.Events
+	}
+
+	access := local.NewAccessService(bk)
+	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:   "test",
+			RetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Access: access,
+				Events: local.NewEventsService(bk, nil),
+			},
+			Clock: clock,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+	select {
+	case <-w.LoopC:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Timeout waiting for LockWatcher loop.")
+	}
+
+	// Subscribe to lock watcher updates with an empty target.
+	target := types.LockTarget{Node: "node"}
+	sub, err := w.Subscribe(ctx, target, types.LockTarget{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sub.Close()) })
+
+	// Add a lock matching one of the subscription targets.
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: target,
+	})
+	require.NoError(t, err)
+	require.NoError(t, access.UpsertLock(ctx, lock))
+	select {
+	case event := <-sub.Events():
+		require.Equal(t, types.OpPut, event.Type)
+		receivedLock, ok := event.Resource.(types.Lock)
+		require.True(t, ok)
+		require.Empty(t, resourceDiff(receivedLock, lock))
+	case <-sub.Done():
+		t.Fatal("Lock watcher subscription has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+
+	// Add a lock matching *none* of the subscription targets.
+	target2 := types.LockTarget{User: "user"}
+	lock2, err := types.NewLock("test-lock2", types.LockSpecV2{
+		Target: target2,
+	})
+	require.NoError(t, err)
+	require.NoError(t, access.UpsertLock(ctx, lock2))
+	select {
+	case event := <-sub.Events():
+		t.Fatalf("Unexpected event: %v.", event)
+	case <-sub.Done():
+		t.Fatal("Lock watcher subscription has unexpectedly exited.")
+	case <-time.After(time.Second):
+	}
 }
 
 func TestLockWatcherStale(t *testing.T) {
@@ -264,10 +341,16 @@ func TestLockWatcherStale(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
+	select {
+	case <-w.LoopC:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Timeout waiting for LockWatcher loop.")
+	}
 
 	// Subscribe to lock watcher updates.
 	target := types.LockTarget{Node: "node"}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 	sub, err := w.Subscribe(ctx, target)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sub.Close()) })
@@ -284,6 +367,7 @@ func TestLockWatcherStale(t *testing.T) {
 	case <-time.After(2 * time.Second):
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 
 	// Advance the clock to exceed LockMaxStaleness.
 	clock.Advance(defaults.LockMaxStaleness + time.Second)
@@ -292,7 +376,7 @@ func TestLockWatcherStale(t *testing.T) {
 		require.Equal(t, types.OpUnreliable, event.Type)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for OpUnreliable.")
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
@@ -324,7 +408,7 @@ ExpectPut:
 			break ExpectPut
 		case <-sub.Done():
 			t.Fatal("Lock watcher subscription has unexpectedly exited.")
-		case <-time.After(2 * time.Second):
+		case <-time.After(15 * time.Second):
 			t.Fatal("Timeout waiting for OpPut.")
 		}
 	}
@@ -353,10 +437,13 @@ func (e *withUnreliability) NewWatcher(ctx context.Context, watch types.Watch) (
 	return e.Events.NewWatcher(ctx, watch)
 }
 
-func expectLockInForce(t *testing.T, expectedLock types.Lock, lockErr error) {
-	require.Error(t, lockErr)
+func expectLockInForce(t *testing.T, expectedLock types.Lock, err error) {
+	require.Error(t, err)
+	errLock := err.(trace.Error).GetFields()["lock-in-force"]
 	if expectedLock != nil {
-		require.Empty(t, resourceDiff(expectedLock, lockErr.(trace.Error).GetFields()["lock-in-force"].(types.Lock)))
+		require.Empty(t, resourceDiff(expectedLock, errLock.(types.Lock)))
+	} else {
+		require.Nil(t, errLock)
 	}
 }
 
@@ -364,4 +451,101 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.EquateEmpty())
+}
+
+// TestDatabaseWatcher tests that database resource watcher properly receives
+// and dispatches updates to database resources.
+func TestDatabaseWatcher(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Databases
+		types.Events
+	}
+
+	databasesService := local.NewDatabasesService(bk)
+	w, err := services.NewDatabaseWatcher(ctx, services.DatabaseWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:   "test",
+			RetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Databases: databasesService,
+				Events:    local.NewEventsService(bk, nil),
+			},
+		},
+		DatabasesC: make(chan []types.Database, 10),
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Initially there are no databases so watcher should send an empty list.
+	select {
+	case changeset := <-w.DatabasesC:
+		require.Len(t, changeset, 0)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add a database.
+	database1 := newDatabase(t, "db1")
+	require.NoError(t, databasesService.CreateDatabase(ctx, database1))
+
+	// The first event is always the current list of databases.
+	select {
+	case changeset := <-w.DatabasesC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], database1))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add a second database.
+	database2 := newDatabase(t, "db2")
+	require.NoError(t, databasesService.CreateDatabase(ctx, database2))
+
+	// Watcher should detect the database list change.
+	select {
+	case changeset := <-w.DatabasesC:
+		require.Len(t, changeset, 2)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+
+	// Delete the first database.
+	require.NoError(t, databasesService.DeleteDatabase(ctx, database1.GetName()))
+
+	// Watcher should detect the database list change.
+	select {
+	case changeset := <-w.DatabasesC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], database2))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+}
+
+func newDatabase(t *testing.T, name string) types.Database {
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: name,
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+	return database
 }

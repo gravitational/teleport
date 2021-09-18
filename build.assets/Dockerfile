@@ -44,8 +44,10 @@ RUN apt-get update -y --fix-missing && \
         locales \
         make \
         mingw-w64 \
+        mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
+        osslsigncode \
         python-pip \
         pkg-config \
         shellcheck \
@@ -88,6 +90,9 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+# Install addlicense
+RUN go install github.com/google/addlicense@v1.0.0
 
 # Install meta-linter.
 RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.38.0/golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \

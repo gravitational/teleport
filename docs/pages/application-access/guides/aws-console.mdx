@@ -12,6 +12,7 @@ appropriate IAM roles.
 This guide will explain how to:
 
 - Connect your AWS account(-s) to Teleport.
+- Setup example AWS IAM Read Only and Power User roles.
 - Use Teleport's role-based access control with AWS IAM roles.
 - View Teleport users' AWS console activity in CloudTrail.
 
@@ -20,8 +21,49 @@ This guide will explain how to:
 - Teleport with Application Access. Follow [Getting Started](../getting-started.mdx)
   or [Connecting Apps](./connecting-apps.mdx) guides to get it running.
 - IAM permissions in the AWS account you want to connect.
+- AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
 
-## Step 1. Update IAM roles trust relationships
+
+## Step 1. [Optional] Configure Read Only and Power User roles
+
+AWS provides the `ReadOnlyAccess` and `PowerUserAccess` IAM policies that can be incorporated into roles.  <b>Skip this step</b> if you already have the roles you want to provide access to.
+
+<Admonition type="note">
+These policies may provide too much or not enough access for your intentions. Validate these meet your expectations if you plan on using them.
+</Admonition>
+
+### Create the example Read Only role
+
+Go to the IAM -> Access Management -> [Roles](https://console.aws.amazon.com/iamv2/home#/roles).
+Press Create Role.
+
+![Create Role Step 1](../../../img/application-access/create-role-example-readonly-1.png)
+
+### Select the ReadOnlyAccess policy
+
+Press Next and Select the `ReadOnlyAccess`.  Sorting the Policy Name table from Z-A will make it faster to select.
+
+![Select Role Step 2](../../../img/application-access/create-role-example-readonly-2.png)
+
+Press next through the tags
+
+### Confirm role
+
+Enter a role name and press create role.
+
+![Create Role Step 3](../../../img/application-access/create-role-example-readonly-3.png)
+
+
+### Repeat for Power User
+
+Follow the same steps and select `PowerUserAccess` IAM Policy to create a `ExamplePowerUser` role.
+
+
+## Step 2. Update IAM roles trust relationships
+
+<Admonition type="note">
+This step is only required if you are allowing access from another account.  The trust relationship will already exist for the same account.
+</Admonition>
 
 Teleport uses AWS [Federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html)
 service to generate sign-in URLs for users, which relies on the `AssumeRole` API
@@ -50,14 +92,14 @@ relationship" button on the "Trust relationships" tab:
 See [How to use trust policies with IAM roles](https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/)
 for more details. After saving the trust policy, the account will show as a
 trusted entity:
-
+From the EC2 dashboard select Actions -> Security -> Modify IAM Role
 ![AWS trusted entities](../../../img/application-access/aws-trusted-entities@2x.png)
 
 Do this for each IAM role your Teleport users will need to assume.
 
-## Step 2. Give Teleport permissions to assume roles
+## Step 3. Give Teleport permissions to assume roles
 
-Next, create the following IAM policy to allow Teleport to assume IAM roles:
+Next, create a Role using this IAM policy to allow Teleport to assume IAM roles:
 
 ```yaml
 {
@@ -80,7 +122,9 @@ ARNs in the Resource field instead of using a wildcard.
 Attach this policy to the IAM role/user your Teleport application service agent
 is using.
 
-## Step 3. Configure Teleport IAM role mapping
+![AWS Attach Security Role](../../../img/application-access/attach-security-role.png)
+
+## Step 4. Configure Teleport IAM role mapping
 
 The next step is to give your Teleport users permissions to assume IAM roles.
 
@@ -97,25 +141,51 @@ spec:
     app_labels:
       '*': '*'
     aws_role_arns:
-    - arn:aws:iam::1234567890:role/ec2-read-only
-    - arn:aws:iam::1234567890:role/ec2-full-access
-    - arn:aws:iam::0987654321:role/example-role
+    - arn:aws:iam::1234567890:role/ExamplePowerUser
+    - arn:aws:iam::1234567890:role/ExampleReadOnlyAccess
 ```
 
 The `aws_role_arns` field supports template variables so they can be populated
 dynamically based on your users' identity provider attributes. See [Role Templates](../../access-controls/guides/role-templates.mdx)
 for details.
 
-## Step 4. Register AWS console application in Teleport
+## Step 5. Register AWS console application in Teleport
 
 Add AWS management console to your application service configuration:
 
 ```yaml
+teleport:
+  # Data directory for the Application Proxy service. If running on the same
+  # node as Auth/Proxy service, make sure to use different data directories.
+  data_dir: /var/lib/teleport-app
+  # Instructs the service to load the join token from the specified file
+  # during initial registration with the cluster.
+  auth_token: /var/lib/teleport-app/token
+  # Proxy address to connect to. Note that it has to be the proxy address
+  # because the app service always connects to the cluster over a reverse
+  # tunnel.
+  auth_servers:
+  - teleport.example.com:3080
 app_service:
   enabled: "yes"
   apps:
   - name: "awsconsole"
+  # The public AWS Console is used after authenticating the user from Teleport
     uri: "https://console.aws.amazon.com/ec2/v2/home"
+auth_service:
+  enabled: "no"
+ssh_service:
+  enabled: "no"
+proxy_service:
+  enabled: "no"
+
+```
+
+Start the application service
+
+
+```code
+sudo teleport start --config=/path/to/teleport.yaml
 ```
 
 Note that URI must start with `https://console.aws.amazon.com` in order to be
@@ -146,7 +216,7 @@ app_service:
 When showing available IAM roles, Teleport will display only role ARNs that
 belong to the specific account.
 
-## Step 5. Connect to AWS console with assumed IAM role
+## Step 6. Connect to AWS console with assumed IAM role
 
 Navigate to the Applications tab in your Teleport cluster's control panel and
 click on the Launch button for the AWS console application which will bring up
@@ -164,7 +234,7 @@ federated login and the name of your assumed IAM role:
 
 Note that your federated login session is marked with your Teleport username.
 
-## Step 6. Use CloudTrail to see Teleport user activity
+## Step 7. Use CloudTrail to see Teleport user activity
 
 To view CloudTrail events for your federated sessions, navigate to the CloudTrail
 [dashboard](https://console.aws.amazon.com/cloudtrail/home) and go to "Event history".

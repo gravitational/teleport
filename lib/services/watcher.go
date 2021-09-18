@@ -176,6 +176,15 @@ func (p *resourceWatcher) runWatchLoop() {
 	for {
 		p.Log.WithField("retry", p.retry).Debug("Starting watch.")
 		err := p.watch()
+		if err != nil && p.failureStartedAt.IsZero() {
+			// Note that failureStartedAt is zeroed in the watch routine immediately
+			// after the local resource set has been successfully updated.
+			p.failureStartedAt = p.Clock.Now()
+		}
+		if p.hasStaleView() {
+			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
+			p.collector.notifyStale()
+		}
 		select {
 		case <-p.retry.After():
 			p.retry.Inc()
@@ -185,15 +194,8 @@ func (p *resourceWatcher) runWatchLoop() {
 		}
 		if err != nil {
 			p.Log.Warningf("Restart watch on error: %v.", err)
-			if p.failureStartedAt.IsZero() {
-				p.failureStartedAt = p.Clock.Now()
-			}
-			// failureStartedAt is zeroed in the watch routine immediately after
-			// the local resource set has been successfully updated.
-		}
-		if p.hasStaleView() {
-			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
-			p.collector.notifyStale()
+		} else {
+			p.Log.Debug("Triggering scheduled refetch.")
 		}
 		// Used for testing that the watch routine has exited and is about
 		// to be restarted.
@@ -236,7 +238,6 @@ func (p *resourceWatcher) watch() error {
 	case <-watcher.Done():
 		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 	case <-refetchC:
-		p.Log.Debug("Triggering scheduled refetch.")
 		return nil
 	case <-p.ctx.Done():
 		return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
@@ -257,7 +258,6 @@ func (p *resourceWatcher) watch() error {
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 		case <-refetchC:
-			p.Log.Debug("Triggering scheduled refetch.")
 			return nil
 		case <-p.ctx.Done():
 			return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
@@ -607,11 +607,11 @@ func (p *lockCollector) notifyStale() {
 }
 
 func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, error) {
-	if len(targets) == 0 {
-		return []types.WatchKind{{Kind: types.KindLock}}, nil
-	}
 	watchKinds := make([]types.WatchKind, 0, len(targets))
 	for _, target := range targets {
+		if target.IsEmpty() {
+			continue
+		}
 		filter, err := target.IntoMap()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -620,6 +620,9 @@ func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, err
 			Kind:   types.KindLock,
 			Filter: filter,
 		})
+	}
+	if len(watchKinds) == 0 {
+		watchKinds = []types.WatchKind{{Kind: types.KindLock}}
 	}
 	return watchKinds, nil
 }
@@ -630,4 +633,120 @@ func lockMapValues(lockMap map[string]types.Lock) []types.Lock {
 		locks = append(locks, lock)
 	}
 	return locks
+}
+
+// DatabaseWatcherConfig is a DatabaseWatcher configuration.
+type DatabaseWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// DatabaseGetter is responsible for fetching database resources.
+	DatabaseGetter
+	// DatabasesC receives up-to-date list of all database resources.
+	DatabasesC chan []types.Database
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *DatabaseWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.DatabaseGetter == nil {
+		getter, ok := cfg.Client.(DatabaseGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter DatabaseGetter and Client not usable as DatabaseGetter")
+		}
+		cfg.DatabaseGetter = getter
+	}
+	if cfg.DatabasesC == nil {
+		cfg.DatabasesC = make(chan []types.Database)
+	}
+	return nil
+}
+
+// NewDatabaseWatcher returns a new instance of DatabaseWatcher.
+func NewDatabaseWatcher(ctx context.Context, cfg DatabaseWatcherConfig) (*DatabaseWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &databaseCollector{
+		DatabaseWatcherConfig: cfg,
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &DatabaseWatcher{watcher, collector}, nil
+}
+
+// DatabaseWatcher is built on top of resourceWatcher to monitor database resources.
+type DatabaseWatcher struct {
+	*resourceWatcher
+	*databaseCollector
+}
+
+// databaseCollector accompanies resourceWatcher when monitoring database resources..
+type databaseCollector struct {
+	// DatabaseWatcherConfig is the watcher configuration.
+	DatabaseWatcherConfig
+	// current holds a map of the currently known database resources.
+	current map[string]types.Database
+	// lock protects the "current" map.
+	lock sync.RWMutex
+}
+
+// resourceKind specifies the resource kind to watch.
+func (p *databaseCollector) resourceKind() string {
+	return types.KindDatabase
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *databaseCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	databases, err := p.DatabaseGetter.GetDatabases(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newCurrent := make(map[string]types.Database, len(databases))
+	for _, database := range databases {
+		newCurrent[database.GetName()] = database
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.current = newCurrent
+	p.DatabasesC <- databases
+	return nil
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindDatabase {
+		p.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	switch event.Type {
+	case types.OpDelete:
+		delete(p.current, event.Resource.GetName())
+		p.DatabasesC <- databasesToSlice(p.current)
+	case types.OpPut:
+		database, ok := event.Resource.(types.Database)
+		if !ok {
+			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		p.current[database.GetName()] = database
+		p.DatabasesC <- databasesToSlice(p.current)
+	default:
+		p.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*databaseCollector) notifyStale() {}
+
+func databasesToSlice(databases map[string]types.Database) (slice []types.Database) {
+	for _, database := range databases {
+		slice = append(slice, database)
+	}
+	return slice
 }

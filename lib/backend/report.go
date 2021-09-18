@@ -17,9 +17,8 @@ limitations under the License.
 package backend
 
 import (
-	"bytes"
 	"context"
-	"math"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -268,7 +267,7 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 	if len(key) == 0 {
 		return
 	}
-	keyLabel := buildKeyLabel(key, sensitiveBackendPrefixes)
+	keyLabel := buildKeyLabel(string(key), sensitiveBackendPrefixes)
 	rangeSuffix := teleport.TagFalse
 	if len(endKey) != 0 {
 		// Range denotes range queries in stat entry
@@ -288,26 +287,22 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 	counter.Inc()
 }
 
-// buildKeyLabel builds the key label for storing to the backend. The last
-// portion of the key is scrambled if it is determined to be sensitive based
-// on sensitivePrefixes.
-func buildKeyLabel(key []byte, sensitivePrefixes []string) string {
-	// Take just the first two parts, otherwise too many distinct requests
-	// can end up in the map.
-	parts := bytes.Split(key, []byte{Separator})
+// buildKeyLabel builds the key label for storing to the backend. The key's name
+// is masked if it is determined to be sensitive based on sensitivePrefixes.
+func buildKeyLabel(key string, sensitivePrefixes []string) string {
+	parts := strings.Split(key, string(Separator))
 	if len(parts) > 3 {
+		// Cut the key down to 3 parts, otherwise too many
+		// distinct requests can end up in the key label map.
 		parts = parts[:3]
 	}
-	if len(parts) < 3 || len(parts[0]) != 0 {
-		return string(bytes.Join(parts, []byte{Separator}))
+
+	// If the key matches "/sensitiveprefix/keyname", mask the key.
+	if len(parts) == 3 && len(parts[0]) == 0 && apiutils.SliceContainsStr(sensitivePrefixes, parts[1]) {
+		parts[2] = string(MaskKeyName(parts[2]))
 	}
 
-	if apiutils.SliceContainsStr(sensitivePrefixes, string(parts[1])) {
-		hiddenBefore := int(math.Floor(0.75 * float64(len(parts[2]))))
-		asterisks := bytes.Repeat([]byte("*"), hiddenBefore)
-		parts[2] = append(asterisks, parts[2][hiddenBefore:]...)
-	}
-	return string(bytes.Join(parts, []byte{Separator}))
+	return strings.Join(parts, string(Separator))
 }
 
 // sensitiveBackendPrefixes is a list of backend request prefixes preceding
