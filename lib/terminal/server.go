@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/reflection"
 
 	terminalpb "github.com/gravitational/teleport/protogen/teleport/terminal/v1"
 	log "github.com/sirupsen/logrus"
@@ -63,6 +64,9 @@ type ServerOpts struct {
 	// ConfigOutput, if present, is the destination for the JSON-marshaled
 	// RuntimeOpts that is sent before the server is started.
 	ConfigOutput io.Writer `json:"-"`
+
+	// DisableReflect disables gRPC reflection.
+	DisableReflect bool `json:"disable_reflect"`
 
 	// ShutdownSignals is the set of captured signals that cause server shutdown.
 	ShutdownSignals []os.Signal `json:"-"`
@@ -155,8 +159,9 @@ func Start(ctx context.Context, opts ServerOpts) (*Server, error) {
 		// TODO(codingllama): Error translation, error logging interceptor.
 	)
 	terminalpb.RegisterTerminalServiceServer(server, &terminalv1.Service{})
-	// Unfortunately, we can't use proto reflection with gogoproto.
-	// If we could, this would be the spot to plug it.
+	if !opts.DisableReflect {
+		reflection.Register(server)
+	}
 
 	// Start service.
 	serveC := make(chan error)
