@@ -21,28 +21,26 @@ import (
 	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -62,6 +60,10 @@ type InitConfig struct {
 
 	// Authority is key generator that we use
 	Authority sshca.Authority
+
+	// KeyStoreConfig is the config for the KeyStore which handles private CA
+	// keys that may be held in an HSM.
+	KeyStoreConfig keystore.Config
 
 	// HostUUID is a UUID of this host
 	HostUUID string
@@ -123,12 +125,14 @@ type InitConfig struct {
 	// Restrictions is a service to access network restrictions, etc
 	Restrictions services.Restrictions
 
+	// Databases is a service that manages database resources.
+	Databases services.Databases
+
 	// Roles is a set of roles to create
 	Roles []types.Role
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
-	//StaticTokens []services.ProvisionToken
 	StaticTokens types.StaticTokens
 
 	// AuthPreference defines the authentication type (local, oidc) and second
@@ -168,6 +172,9 @@ type InitConfig struct {
 	// Streamer is events sessionstreamer, used to create continuous
 	// session related streams
 	Streamer events.Streamer
+
+	// WindowsServices is a service that manages Windows desktop resources.
+	WindowsDesktops services.WindowsDesktops
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -319,58 +326,60 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		log.Infof("Created default admin role: %q.", defaultRole.GetName())
 	}
 
-	// generate a user certificate authority if it doesn't exist
-	_, err = asrv.GetCertAuthority(types.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: types.UserCA}, true)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-
-		log.Infof("First start: generating user certificate authority.")
-		userCA, err := generateSelfSignedCA(&cfg, asrv.keyStore, types.UserCA)
+	// generate certificate authorities if they don't exist
+	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
+		caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
+		ca, err := asrv.GetCertAuthority(caID, true)
 		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := asrv.Trust.UpsertCertAuthority(userCA); err != nil {
-			return nil, trace.Wrap(err)
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			log.Infof("First start: generating %s certificate authority.", caID.Type)
+			if err := asrv.createSelfSignedCA(caID); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			// Already have a CA. Make sure the keyStore has local keys.
+			if !asrv.keyStore.HasLocalActiveKeys(ca) {
+				// This could be one of a few cases:
+				// 1. A new auth server with an HSM being added to an HA cluster.
+				// 2. A new auth server with no HSM being added to an HA cluster
+				//    where all current auth servers have HSMs.
+				// 3. An existing auth server has restarted with a new HSM configured.
+				// 4. An existing HSM auth server has restarted no HSM configured.
+				// 5. An existing HSM auth server has restarted with a new UUID.
+				if ca.GetType() == types.HostCA {
+					// We need local keys to sign the Admin identity to support
+					// tctl. For this special case we add AdditionalTrustedKeys
+					// without any active keys. These keys will not be used for
+					// any signing operations until a CA rotation. Only the Host
+					// CA is necessary to issue the Admin identity.
+					if err := asrv.ensureLocalAdditionalKeys(ca); err != nil {
+						return nil, trace.Wrap(err)
+					}
+					// reload updated CA for below checks
+					if ca, err = asrv.GetCertAuthority(caID, true); err != nil {
+						return nil, trace.Wrap(err)
+					}
+				}
+			}
+			if !asrv.keyStore.HasLocalActiveKeys(ca) && asrv.keyStore.HasLocalAdditionalKeys(ca) {
+				log.Warnf("This auth server has a newly added or removed HSM and will not " +
+					"be able to perform any signing operations. You must rotate all CAs " +
+					"before routing traffic to this auth server. See https://goteleport.com/docs/admin-guide/#certificate-rotation")
+			}
+			if !ca.AllKeyTypesMatch() {
+				log.Warnf("%s CA contains a combination of raw and PKCS#11 keys. If you are attempting to"+
+					" configure HSM support, make sure it is configured on all auth servers in this"+
+					" cluster and then perform a CA rotation: https://goteleport.com/docs/admin-guide/#certificate-rotation", caID.Type)
+			}
 		}
 	}
 
-	// generate a host certificate authority if it doesn't exist
-	_, err = asrv.GetCertAuthority(types.CertAuthID{DomainName: cfg.ClusterName.GetClusterName(), Type: types.HostCA}, true)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-
-		log.Infof("First start: generating host certificate authority.")
-		hostCA, err := generateSelfSignedCA(&cfg, asrv.keyStore, types.HostCA)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := asrv.Trust.UpsertCertAuthority(hostCA); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// If a JWT signer does not exist for this cluster, create one.
-	_, err = asrv.GetCertAuthority(types.CertAuthID{
-		DomainName: cfg.ClusterName.GetClusterName(),
-		Type:       types.JWTSigner,
-	}, true)
-	if err != nil && !trace.IsNotFound(err) {
+	// Delete any unused keys from the keyStore. This is to avoid exhausting
+	// (or wasting) HSM resources.
+	if err := asrv.deleteUnusedKeys(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if trace.IsNotFound(err) {
-		log.Infof("Migrate: Adding JWT key to existing cluster %q.", cfg.ClusterName.GetClusterName())
-
-		jwtSigner, err := services.NewJWTAuthority(cfg.ClusterName.GetClusterName(), asrv.keyStore)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := asrv.Trust.UpsertCertAuthority(jwtSigner); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	if lib.IsInsecureDevMode() {
@@ -400,64 +409,6 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	return asrv, nil
-}
-
-func generateSelfSignedCA(cfg *InitConfig, keyStore keystore.KeyStore, caType types.CertAuthType) (*types.CertAuthorityV2, error) {
-	sshPrivateKey, sshCryptoSigner, err := keyStore.GenerateRSA()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	keyType := keystore.KeyType(sshPrivateKey)
-	sshSigner, err := ssh.NewSignerFromSigner(sshCryptoSigner)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPublicKey := ssh.MarshalAuthorizedKey(sshSigner.PublicKey())
-
-	tlsPrivateKey, tlsSigner, err := keyStore.GenerateRSA()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
-		tlsSigner,
-		pkix.Name{
-			CommonName:   cfg.ClusterName.GetClusterName(),
-			Organization: []string{cfg.ClusterName.GetClusterName()},
-		}, nil, defaults.CATTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sigAlg := defaults.CASignatureAlgorithm
-	if cfg.CASigningAlg != nil && *cfg.CASigningAlg != "" {
-		sigAlg = *cfg.CASigningAlg
-	}
-
-	return &types.CertAuthorityV2{
-		Kind:    types.KindCertAuthority,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      cfg.ClusterName.GetClusterName(),
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.CertAuthoritySpecV2{
-			ClusterName: cfg.ClusterName.GetClusterName(),
-			Type:        caType,
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{{
-					PublicKey:      sshPublicKey,
-					PrivateKey:     sshPrivateKey,
-					PrivateKeyType: keyType,
-				}},
-				TLS: []*types.TLSKeyPair{{
-					Cert:    tlsCert,
-					Key:     tlsPrivateKey,
-					KeyType: keyType,
-				}},
-			},
-			SigningAlg: sshutils.ParseSigningAlg(sigAlg),
-		},
-	}, nil
 }
 
 func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
@@ -581,7 +532,8 @@ func createPresets(ctx context.Context, asrv *Server) error {
 	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
-		services.NewPresetAuditorRole()}
+		services.NewPresetAuditorRole(),
+	}
 	for _, role := range roles {
 		err := asrv.CreateRole(role)
 		if err != nil {
@@ -800,16 +752,26 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 			// check that signing CAs have expected cluster name and that
 			// all CAs for this cluster do having signing keys.
 			seemsLocal := r.GetClusterName() == clusterName
+
 			var hasKeys bool
-			_, err := keyStore.GetSSHSigner(r)
+			var signerErr error
+			switch r.GetType() {
+			case types.HostCA, types.UserCA:
+				_, signerErr = keyStore.GetSSHSigner(r)
+			case types.JWTSigner:
+				_, signerErr = keyStore.GetJWTSigner(r)
+			default:
+				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
+			}
 			switch {
-			case err == nil:
+			case signerErr == nil:
 				hasKeys = true
-			case trace.IsNotFound(err):
+			case trace.IsNotFound(signerErr):
 				hasKeys = false
 			default:
-				return trace.Wrap(err)
+				return trace.Wrap(signerErr)
 			}
+
 			if seemsLocal && !hasKeys {
 				return trace.BadParameter("ca for local cluster %q missing signing keys", clusterName)
 			}
@@ -829,17 +791,30 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 
 // GenerateIdentity generates identity for the auth server
 func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames []string) (*Identity, error) {
-	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               id.HostUUID,
-		NodeName:             id.NodeName,
-		Roles:                types.SystemRoles{id.Role},
-		AdditionalPrincipals: additionalPrincipals,
-		DNSNames:             dnsNames,
-	})
+	priv, pub, err := a.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(keys)
+
+	tlsPub, err := PrivateKeyToPublicKeyTLS(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := a.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               id.HostUUID,
+			NodeName:             id.NodeName,
+			Role:                 id.Role,
+			AdditionalPrincipals: additionalPrincipals,
+			DNSNames:             dnsNames,
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ReadIdentityFromKeyPair(priv, certs)
 }
 
 // Identity is collection of certificates and signers that represent server identity
@@ -964,43 +939,35 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ClientCAs = certPool
-	tlsConfig.ServerName = EncodeClusterName(i.ClusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(i.ClusterName)
 	return tlsConfig, nil
+}
+
+func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
+	checkers, err := apisshutils.ParseAuthorizedKeys(i.SSHCACertBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return checkers, nil
 }
 
 // SSHClientConfig returns a ssh.ClientConfig used by nodes to connect to
 // the reverse tunnel server.
-func (i *Identity) SSHClientConfig() *ssh.ClientConfig {
+func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: i.getSSHCheckers,
+			FIPS:            fips,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &ssh.ClientConfig{
-		User: i.ID.HostUUID,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(i.KeySigner),
-		},
-		HostKeyCallback: i.hostKeyCallback,
+		User:            i.ID.HostUUID,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
+		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultDialTimeout,
-	}
-}
-
-// hostKeyCallback checks if the host certificate was signed by any of the
-// known CAs.
-func (i *Identity) hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return trace.BadParameter("only host certificates supported")
-	}
-
-	// Loop over all CAs and see if any of them signed the certificate.
-	for _, k := range i.SSHCACertBytes {
-		pubkey, _, _, _, err := ssh.ParseAuthorizedKey(k)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if apisshutils.KeysEqual(cert.SignatureKey, pubkey) {
-			return nil
-		}
-	}
-
-	return trace.BadParameter("no matching keys found")
+	}, nil
 }
 
 // IdentityID is a combination of role, host UUID, and node name.
@@ -1030,25 +997,25 @@ func (id *IdentityID) String() string {
 }
 
 // ReadIdentityFromKeyPair reads SSH and TLS identity from key pair.
-func ReadIdentityFromKeyPair(keys *PackedKeys) (*Identity, error) {
-	identity, err := ReadSSHIdentityFromKeyPair(keys.Key, keys.Cert)
+func ReadIdentityFromKeyPair(privateKey []byte, certs *proto.Certs) (*Identity, error) {
+	identity, err := ReadSSHIdentityFromKeyPair(privateKey, certs.SSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(keys.SSHCACerts) != 0 {
-		identity.SSHCACertBytes = keys.SSHCACerts
+	if len(certs.SSHCACerts) != 0 {
+		identity.SSHCACertBytes = certs.SSHCACerts
 	}
 
-	if len(keys.TLSCACerts) != 0 {
+	if len(certs.TLSCACerts) != 0 {
 		// Parse the key pair to verify that identity parses properly for future use.
-		i, err := ReadTLSIdentityFromKeyPair(keys.Key, keys.TLSCert, keys.TLSCACerts)
+		i, err := ReadTLSIdentityFromKeyPair(privateKey, certs.TLS, certs.TLSCACerts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		identity.XCert = i.XCert
-		identity.TLSCertBytes = keys.TLSCert
-		identity.TLSCACertsBytes = keys.TLSCACerts
+		identity.TLSCertBytes = certs.TLS
+		identity.TLSCACertsBytes = certs.TLSCACerts
 	}
 
 	return identity, nil

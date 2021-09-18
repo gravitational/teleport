@@ -56,6 +56,7 @@ func getExtendedAdminUserRules(features modules.Features) []types.Rule {
 		types.NewRule(types.KindEvent, RO()),
 		types.NewRule(types.KindUser, RW()),
 		types.NewRule(types.KindToken, RW()),
+		types.NewRule(types.KindLock, RW()),
 	}
 
 	if features.Cloud {
@@ -80,6 +81,9 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindRemoteCluster, RO()),
 	types.NewRule(types.KindKubeService, RO()),
 	types.NewRule(types.KindDatabaseServer, RO()),
+	types.NewRule(types.KindDatabase, RO()),
+	types.NewRule(types.KindWindowsDesktopService, RO()),
+	types.NewRule(types.KindWindowsDesktop, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -163,6 +167,8 @@ func NewImplicitRole() types.Role {
 }
 
 // RoleForUser creates an admin role for a services.User.
+//
+// Used in tests only.
 func RoleForUser(u types.User) types.Role {
 	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV4{
 		Options: types.RoleOptions{
@@ -187,6 +193,8 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindClusterAuthPreference, RW()),
 				types.NewRule(types.KindClusterNetworkingConfig, RW()),
 				types.NewRule(types.KindSessionRecordingConfig, RW()),
+				types.NewRule(types.KindDatabase, RW()),
+				types.NewRule(types.KindLock, RW()),
 			},
 		},
 	})
@@ -764,7 +772,7 @@ type AccessChecker interface {
 	EnhancedRecordingSet() map[string]bool
 
 	// CheckAccessToApp checks access to an application.
-	CheckAccessToApp(namespace string, app *types.App, mfa AccessMFAParams, matchers ...RoleMatcher) error
+	CheckAccessToApp(namespace string, app types.Application, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckAccessToKubernetes checks access to a kubernetes cluster.
 	CheckAccessToKubernetes(namespace string, app *types.KubernetesCluster, mfa AccessMFAParams) error
@@ -783,6 +791,9 @@ type AccessChecker interface {
 
 	// CanImpersonateSomeone returns true if this checker has any impersonation rules
 	CanImpersonateSomeone() bool
+
+	// LockingMode returns the locking mode to apply with this checker.
+	LockingMode(defaultMode constants.LockingMode) constants.LockingMode
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1478,11 +1489,11 @@ func (m *AWSRoleARNMatcher) String() string {
 // CheckAccessToApp checks if a role has access to an application. Deny rules
 // are checked first, then allow rules. Access to an application is determined by
 // namespaces and labels.
-func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+func (set RoleSet) CheckAccessToApp(namespace string, app types.Application, mfa AccessMFAParams, matchers ...RoleMatcher) error {
 	if mfa.AlwaysRequired && !mfa.Verified {
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to app %q denied, cluster requires per-session MFA", app.Name)
+		}).Debugf("Access to app %q denied, cluster requires per-session MFA", app.GetName())
 		return ErrSessionMFARequired
 	}
 	var errs []error
@@ -1491,7 +1502,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 	// prohibits access.
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), types.CombineLabels(app.StaticLabels, app.DynamicLabels))
+		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), app.GetAllLabels())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1504,7 +1515,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to app %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
-					app.Name, role.GetName(), namespaceMessage, labelsMessage)
+					app.GetName(), role.GetName(), namespaceMessage, labelsMessage)
 			}
 			return trace.AccessDenied("access to app denied")
 		}
@@ -1514,7 +1525,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 	// Check allow rules: namespace and label both have to match to be granted access.
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), types.CombineLabels(app.StaticLabels, app.DynamicLabels))
+		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), app.GetAllLabels())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1530,7 +1541,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to app %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
-					app.Name, role.GetName(), namespaceMessage, labelsMessage)
+					app.GetName(), role.GetName(), namespaceMessage, labelsMessage)
 				return ErrSessionMFARequired
 			}
 			// Check all remaining roles, even if we found a match.
@@ -1552,7 +1563,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa Access
 	if log.GetLevel() == log.DebugLevel {
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to app %v denied, no allow rule matched; %v", app.Name, errs)
+		}).Debugf("Access to app %v denied, no allow rule matched; %v", app.GetName(), errs)
 	}
 	return trace.AccessDenied("access to app denied")
 }
@@ -1680,6 +1691,21 @@ func (set RoleSet) CheckImpersonate(currentUser, impersonateUser types.User, imp
 	}
 
 	return trace.AccessDenied("access denied to '%s' to impersonate user '%s' and roles '%s'", currentUser.GetName(), impersonateUser.GetName(), roleNames(impersonateRoles))
+}
+
+// LockingMode returns the locking mode to apply with this RoleSet.
+func (set RoleSet) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
+	mode := defaultMode
+	for _, role := range set {
+		options := role.GetOptions()
+		if options.Lock == constants.LockingModeStrict {
+			return constants.LockingModeStrict
+		}
+		if options.Lock != "" {
+			mode = options.Lock
+		}
+	}
+	return mode
 }
 
 func roleNames(roles []types.Role) string {

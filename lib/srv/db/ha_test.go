@@ -22,7 +22,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -55,15 +54,10 @@ func TestHA(t *testing.T) {
 		URI:      net.JoinHostPort("localhost", postgresServer.Port()),
 	})
 	require.NoError(t, err)
-	offlineResource, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: offlineHostID,
-	}, types.DatabaseServerSpecV3{
+	testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: types.Databases{offlineDB},
 		HostID:    offlineHostID,
-		Hostname:  constants.APIDomain,
-		Databases: []*types.DatabaseV3{offlineDB},
 	})
-	require.NoError(t, err)
-	testCtx.setupDatabaseServer(ctx, t, offlineResource)
 	testCtx.fakeRemoteSite.OfflineTunnels = map[string]struct{}{
 		fmt.Sprintf("%v.%v", offlineHostID, testCtx.clusterName): {},
 	}
@@ -77,15 +71,10 @@ func TestHA(t *testing.T) {
 		URI:      net.JoinHostPort("localhost", postgresServer.Port()),
 	})
 	require.NoError(t, err)
-	onlineResource, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: onlineHostID,
-	}, types.DatabaseServerSpecV3{
+	onlineServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: types.Databases{onlineDB},
 		HostID:    onlineHostID,
-		Hostname:  constants.APIDomain,
-		Databases: []*types.DatabaseV3{onlineDB},
 	})
-	require.NoError(t, err)
-	onlineServer := testCtx.setupDatabaseServer(ctx, t, onlineResource)
 	go func() {
 		for conn := range testCtx.proxyConn {
 			go onlineServer.HandleConnection(conn)

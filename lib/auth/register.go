@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,25 +37,38 @@ import (
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
 func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string) (*Identity, error) {
+	priv, pub, err := authServer.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPub, err := PrivateKeyToPublicKeyTLS(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// If local registration is happening and no remote address was passed in
 	// (which means no advertise IP was set), use localhost.
 	if remoteAddr == "" {
 		remoteAddr = defaults.Localhost
 	}
-	keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               id.HostUUID,
-		NodeName:             id.NodeName,
-		Roles:                types.SystemRoles{id.Role},
-		AdditionalPrincipals: additionalPrincipals,
-		RemoteAddr:           remoteAddr,
-		DNSNames:             dnsNames,
-		NoCache:              true,
-	})
+	certs, err := authServer.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               id.HostUUID,
+			NodeName:             id.NodeName,
+			Role:                 id.Role,
+			AdditionalPrincipals: additionalPrincipals,
+			RemoteAddr:           remoteAddr,
+			DNSNames:             dnsNames,
+			NoCache:              true,
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := ReadIdentityFromKeyPair(keys)
+	identity, err := ReadIdentityFromKeyPair(priv, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,9 +79,6 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 // RegisterParams specifies parameters
 // for first time register operation with auth server
 type RegisterParams struct {
-	// DataDir is the data directory
-	// storing CA certificate
-	DataDir string
 	// Token is a secure token to join the cluster
 	Token string
 	// ID is identity ID
@@ -86,8 +97,8 @@ type RegisterParams struct {
 	PublicSSHKey []byte
 	// CipherSuites is a list of cipher suites to use for TLS client connection
 	CipherSuites []uint16
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 	// CAPath is the path to the CA file.
 	CAPath string
 	// GetHostCredentials is a client that can fetch host credentials.
@@ -107,7 +118,7 @@ func (r *RegisterParams) setDefaults() {
 // CredGetter is an interface for a client that can be used to get host
 // credentials. This interface is needed because lib/client can not be imported
 // in lib/auth due to circular imports.
-type HostCredentials func(context.Context, string, bool, RegisterUsingTokenRequest) (*PackedKeys, error)
+type HostCredentials func(context.Context, string, bool, RegisterUsingTokenRequest) (*proto.Certs, error)
 
 // Register is used to generate host keys when a node or proxy are running on
 // different hosts than the auth server. This method requires provisioning
@@ -171,7 +182,7 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 		return nil, trace.BadParameter("no auth servers set")
 	}
 
-	keys, err := params.GetHostCredentials(context.Background(),
+	certs, err := params.GetHostCredentials(context.Background(),
 		params.Servers[0].String(),
 		lib.IsInsecureDevMode(),
 		RegisterUsingTokenRequest{
@@ -187,9 +198,8 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 	if err != nil {
 		return nil, trace.Unwrap(err)
 	}
-	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(keys)
+	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }
 
 // registerThroughAuth is used to register through the auth server.
@@ -201,7 +211,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	// Auth Server is validated. Otherwise attempt to use the CA file on disk
 	// but if it's not available connect without validating the Auth Server CA.
 	switch {
-	case params.CAPin != "":
+	case len(params.CAPins) != 0:
 		client, err = pinRegisterClient(params)
 	default:
 		client, err = insecureRegisterClient(params)
@@ -212,7 +222,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	defer client.Close()
 
 	// Get the SSH and X509 certificates for a node.
-	keys, err := client.RegisterUsingToken(RegisterUsingTokenRequest{
+	certs, err := client.RegisterUsingToken(RegisterUsingTokenRequest{
 		Token:                token,
 		HostID:               params.ID.HostUUID,
 		NodeName:             params.ID.NodeName,
@@ -225,9 +235,8 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(keys)
+	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the
@@ -237,7 +246,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 
-	cert, err := readCA(params)
+	cert, err := readCA(params.CAPath)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -275,14 +284,14 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 
 // readCA will read in CA that will be used to validate the certificate that
 // the Auth Server presents.
-func readCA(params RegisterParams) (*x509.Certificate, error) {
-	certBytes, err := utils.ReadPath(params.CAPath)
+func readCA(path string) (*x509.Certificate, error) {
+	certBytes, err := utils.ReadPath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cert, err := tlsca.ParseCertificatePEM(certBytes)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse certificate at %v", params.CAPath)
+		return nil, trace.Wrap(err, "failed to parse certificate at %v", path)
 	}
 	return cert, nil
 }
@@ -315,7 +324,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, err := tlsca.ParseCertificatePEM(localCA.TLSCA)
+	certs, err := tlsca.ParseCertificatePEMs(localCA.TLSCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -323,25 +332,29 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	// Check that the SPKI pin matches the CA we fetched over a insecure
 	// connection. This makes sure the CA fetched over a insecure connection is
 	// in-fact the expected CA.
-	err = utils.CheckSPKI(params.CAPin, tlsCA)
+	err = utils.CheckSPKI(params.CAPins, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Check that the fetched CA is valid at the current time.
-	err = utils.VerifyCertificateExpiry(tlsCA, params.Clock)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	for _, cert := range certs {
+		// Check that the fetched CA is valid at the current time.
+		err = utils.VerifyCertificateExpiry(cert, params.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	log.Infof("Joining remote cluster %v with CA pin.", tlsCA.Subject.CommonName)
+	}
+	log.Infof("Joining remote cluster %v with CA pin.", certs[0].Subject.CommonName)
 
 	// Create another client, but this time with the CA provided to validate
 	// that the Auth Server was issued a certificate by the same CA.
 	tlsConfig = utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	certPool := x509.NewCertPool()
-	certPool.AddCert(tlsCA)
+	for _, cert := range certs {
+		certPool.AddCert(cert)
+	}
 	tlsConfig.RootCAs = certPool
 
 	authClient, err = NewClient(client.Config{
@@ -384,35 +397,20 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys, err := params.Client.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               hostID,
-		NodeName:             params.ID.NodeName,
-		Roles:                types.SystemRoles{params.ID.Role},
-		AdditionalPrincipals: params.AdditionalPrincipals,
-		DNSNames:             params.DNSNames,
-		PublicTLSKey:         params.PublicTLSKey,
-		PublicSSHKey:         params.PublicSSHKey,
-		Rotation:             &params.Rotation,
-	})
+	certs, err := params.Client.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               hostID,
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			Rotation:             &params.Rotation,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(keys)
-}
-
-// PackedKeys is a collection of private key, SSH host certificate
-// and TLS certificate and certificate authority issued the certificate
-type PackedKeys struct {
-	// Key is a private key
-	Key []byte `json:"key"`
-	// Cert is an SSH host cert
-	Cert []byte `json:"cert"`
-	// TLSCert is an X509 certificate
-	TLSCert []byte `json:"tls_cert"`
-	// TLSCACerts is a list of TLS certificate authorities.
-	TLSCACerts [][]byte `json:"tls_ca_certs"`
-	// SSHCACerts is a list of SSH certificate authorities.
-	SSHCACerts [][]byte `json:"ssh_ca_certs"`
+	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }

@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/sirupsen/logrus"
@@ -66,6 +65,9 @@ type LocalKeyAgent struct {
 
 	// proxyHost is the proxy for the cluster that his key agent holds keys for.
 	proxyHost string
+
+	// insecure allows to accept public host keys.
+	insecure bool
 }
 
 // NewKeyStoreCertChecker returns a new certificate checker
@@ -74,7 +76,7 @@ func NewKeyStoreCertChecker(keyStore LocalKeyStore) ssh.HostKeyCallback {
 	// CheckHostSignature checks if the given host key was signed by a Teleport
 	// certificate authority (CA) or a host certificate the user has seen before.
 	return func(addr string, remote net.Addr, key ssh.PublicKey) error {
-		certChecker := utils.CertChecker{
+		certChecker := sshutils.CertChecker{
 			CertChecker: ssh.CertChecker{
 				IsHostAuthority: func(key ssh.PublicKey, addr string) bool {
 					keys, err := keyStore.GetKnownHostKeys("")
@@ -118,21 +120,31 @@ func shouldAddKeysToAgent(addKeysToAgent string) bool {
 	return (addKeysToAgent == AddKeysToAgentAuto && agentSupportsSSHCertificates()) || addKeysToAgent == AddKeysToAgentOnly || addKeysToAgent == AddKeysToAgentYes
 }
 
+// LocalAgentConfig contains parameters for creating the local keys agent.
+type LocalAgentConfig struct {
+	Keystore   LocalKeyStore
+	ProxyHost  string
+	Username   string
+	KeysOption string
+	Insecure   bool
+}
+
 // NewLocalAgent reads all available credentials from the provided LocalKeyStore
 // and loads them into the local and system agent
-func NewLocalAgent(keystore LocalKeyStore, proxyHost, username string, keysOption string) (a *LocalKeyAgent, err error) {
+func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	a = &LocalKeyAgent{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentKeyAgent,
 		}),
 		Agent:     agent.NewKeyring(),
-		keyStore:  keystore,
+		keyStore:  conf.Keystore,
 		noHosts:   make(map[string]bool),
-		username:  username,
-		proxyHost: proxyHost,
+		username:  conf.Username,
+		proxyHost: conf.ProxyHost,
+		insecure:  conf.Insecure,
 	}
 
-	if shouldAddKeysToAgent(keysOption) {
+	if shouldAddKeysToAgent(conf.KeysOption) {
 		a.sshAgent = connectToSSHAgent()
 	} else {
 		log.Debug("Skipping connection to the local ssh-agent.")
@@ -315,13 +327,14 @@ func (a *LocalKeyAgent) UserRefusedHosts() bool {
 // CheckHostSignature checks if the given host key was signed by a Teleport
 // certificate authority (CA) or a host certificate the user has seen before.
 func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, key ssh.PublicKey) error {
-	certChecker := utils.CertChecker{
+	certChecker := sshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsHostAuthority: a.checkHostCertificate,
 			HostKeyFallback: a.checkHostKey,
 		},
 		FIPS: isFIPS(),
 	}
+	a.log.Debugf("Checking key: %s.", ssh.MarshalAuthorizedKey(key))
 	err := certChecker.CheckHostKey(addr, remote, key)
 	if err != nil {
 		a.log.Debugf("Host validation failed: %v.", err)
@@ -359,6 +372,15 @@ func (a *LocalKeyAgent) checkHostCertificate(key ssh.PublicKey, addr string) boo
 // or reject.
 func (a *LocalKeyAgent) checkHostKey(addr string, remote net.Addr, key ssh.PublicKey) error {
 	var err error
+
+	// Unless --insecure flag was given, prohibit public keys or host certs
+	// not signed by Teleport.
+	if !a.insecure {
+		a.log.Debugf("Host %s presented a public key not signed by Teleport. Rejecting due to insecure mode being OFF.", addr)
+		return trace.BadParameter("host %s presented a public key not signed by Teleport", addr)
+	}
+
+	a.log.Warnf("Host %s presented a public key not signed by Teleport. Proceeding due to insecure mode being ON.", addr)
 
 	// Check if this exact host is in the local cache.
 	keys, _ := a.keyStore.GetKnownHostKeys(addr)
@@ -528,7 +550,7 @@ func (a *LocalKeyAgent) certsForCluster(clusterName string) ([]ssh.Signer, error
 		certs = append(certs, s)
 	}
 	if len(certs) == 0 {
-		return nil, trace.BadParameter("no auth method available")
+		return nil, trace.NotFound("no auth method available")
 	}
 	return certs, nil
 }

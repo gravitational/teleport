@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -42,8 +43,7 @@ type transportConfig struct {
 	accessPoint  auth.AccessPoint
 	cipherSuites []uint16
 	identity     *tlsca.Identity
-	server       types.Server
-	app          *types.App
+	server       types.AppServer
 	ws           types.WebSession
 	clusterName  string
 }
@@ -64,9 +64,6 @@ func (c transportConfig) Check() error {
 	}
 	if c.server == nil {
 		return trace.BadParameter("server missing")
-	}
-	if c.app == nil {
-		return trace.BadParameter("app missing")
 	}
 	if c.ws == nil {
 		return trace.BadParameter("web session missing")
@@ -187,7 +184,7 @@ func dialFunc(c *transportConfig) func(ctx context.Context, network string, addr
 		conn, err := clusterClient.Dial(reversetunnel.DialParams{
 			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
 			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-			ServerID: fmt.Sprintf("%v.%v", c.server.GetName(), c.identity.RouteToApp.ClusterName),
+			ServerID: fmt.Sprintf("%v.%v", c.server.GetHostID(), c.identity.RouteToApp.ClusterName),
 			ConnType: types.AppTunnel,
 		})
 		if err != nil {
@@ -228,7 +225,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 
 	// Use SNI to tell the other side which cluster signed the CA so it doesn't
 	// have to fetch all CAs when verifying the cert.
-	tlsConfig.ServerName = auth.EncodeClusterName(c.clusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(c.clusterName)
 
 	return tlsConfig, nil
 }

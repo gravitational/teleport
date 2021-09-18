@@ -23,10 +23,19 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"log"
 )
 
 // newWebClient creates a new client to the HTTPS web proxy.
@@ -41,6 +50,42 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 	}
 }
 
+// doWithFallback attempts to execute an HTTP request using https, and then
+// fall back to plain HTTP under certain, very specific circumstances.
+//  * The caller must specifically allow it via the allowPlainHTTP parameter, and
+//  * The target host must resolve to the loopback address.
+// If these conditions are not met, then the plain-HTTP fallback is not allowed,
+// and a the HTTPS failure will be considered final.
+func doWithFallback(clt *http.Client, allowPlainHTTP bool, req *http.Request) (*http.Response, error) {
+	// first try https and see how that goes
+	req.URL.Scheme = "https"
+	log.Printf("Attempting %s %s%s", req.Method, req.URL.Host, req.URL.Path)
+	resp, err := clt.Do(req)
+
+	// If the HTTPS succeeds, return that.
+	if err == nil {
+		return resp, nil
+	}
+
+	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
+	// Note that we're only allowed to try plain HTTP on the loopback address, even
+	// if the caller says its OK
+	if !(allowPlainHTTP && utils.IsLoopback(req.URL.Host)) {
+		return nil, trace.Wrap(err)
+	}
+
+	// If we get to here a) the HTTPS attempt failed, and b) we're allowed to try
+	// clear-text HTTP to see if that works.
+	req.URL.Scheme = "http"
+	log.Printf("WARN: Request for %s%s falling back to PLAIN HTTP", req.URL.Host, req.URL.Path)
+	resp, err = clt.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
+}
+
 // Find fetches discovery data by connecting to the given web proxy address.
 // It is designed to fetch proxy public addresses without any inefficiencies.
 func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (*PingResponse, error) {
@@ -48,7 +93,13 @@ func Find(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 	defer clt.CloseIdleConnections()
 
 	endpoint := fmt.Sprintf("https://%s/webapi/find", proxyAddr)
-	resp, err := clt.Get(endpoint)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := doWithFallback(clt, insecure, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,7 +127,12 @@ func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 		endpoint = fmt.Sprintf("%s/%s", endpoint, connectorName)
 	}
 
-	resp, err := clt.Get(endpoint)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := doWithFallback(clt, insecure, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,13 +146,33 @@ func Ping(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertP
 	return pr, nil
 }
 
+// GetTunnelAddr returns the tunnel address either set in an environment variable or retrieved from the web proxy.
+func GetTunnelAddr(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (string, error) {
+	// If TELEPORT_TUNNEL_PUBLIC_ADDR is set, nothing else has to be done, return it.
+	if tunnelAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); tunnelAddr != "" {
+		return extractHostPort(tunnelAddr)
+	}
+
+	// Ping web proxy to retrieve tunnel proxy address.
+	pr, err := Find(ctx, proxyAddr, insecure, nil)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return tunnelAddr(proxyAddr, pr.Proxy)
+}
+
 func GetMOTD(ctx context.Context, proxyAddr string, insecure bool, pool *x509.CertPool) (*MotD, error) {
 	clt := newWebClient(insecure, pool)
 	defer clt.CloseIdleConnections()
 
 	endpoint := fmt.Sprintf("https://%s/webapi/motd", proxyAddr)
 
-	resp, err := clt.Get(endpoint)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -140,6 +216,9 @@ type ProxySettings struct {
 	SSH SSHProxySettings `json:"ssh"`
 	// DB contains database access specific proxy settings
 	DB DBProxySettings `json:"db"`
+	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	ALPNSNIListenerEnabled bool `json:"alpn_sni_listener_enabled"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -233,4 +312,102 @@ type GithubSettings struct {
 	Name string `json:"name"`
 	// Display is the connector display name
 	Display string `json:"display"`
+}
+
+// The tunnel addr is retrieved in the following preference order:
+//  1. Reverse Tunnel Public Address.
+//  2. If proxy support ALPN listener where all services are exposed on single port return proxy address.
+//  3. SSH Proxy Public Address Host + Tunnel Port.
+//  4. HTTP Proxy Public Address Host + Tunnel Port.
+//  5. Proxy Address Host + Tunnel Port.
+func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
+	// If a tunnel public address is set, nothing else has to be done, return it.
+	sshSettings := settings.SSH
+	if sshSettings.TunnelPublicAddr != "" {
+		return extractHostPort(sshSettings.TunnelPublicAddr)
+	}
+
+	// Extract the port the tunnel server is listening on.
+	tunnelPort := strconv.Itoa(defaults.SSHProxyTunnelListenPort)
+	if sshSettings.TunnelListenAddr != "" {
+		if port, err := extractPort(sshSettings.TunnelListenAddr); err == nil {
+			tunnelPort = port
+		}
+	}
+
+	if settings.ALPNSNIListenerEnabled && proxyAddr != "" {
+		if port, err := extractPort(proxyAddr); err == nil {
+			tunnelPort = port
+		}
+	}
+
+	// If a tunnel public address has not been set, but a related HTTP or SSH
+	// public address has been set, extract the hostname but use the port from
+	// the tunnel listen address.
+	if sshSettings.SSHPublicAddr != "" {
+		if host, err := extractHost(sshSettings.SSHPublicAddr); err == nil {
+			return net.JoinHostPort(host, tunnelPort), nil
+		}
+	}
+	if sshSettings.PublicAddr != "" {
+		if host, err := extractHost(sshSettings.PublicAddr); err == nil {
+			return net.JoinHostPort(host, tunnelPort), nil
+		}
+	}
+
+	// If nothing is set, fallback to the address dialed with tunnel port.
+	host, err := extractHost(proxyAddr)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to parse the given proxy address")
+	}
+	return net.JoinHostPort(host, tunnelPort), nil
+}
+
+// extractHostPort takes addresses like "tcp://host:port/path" and returns "host:port".
+func extractHostPort(addr string) (string, error) {
+	if addr == "" {
+		return "", trace.BadParameter("missing parameter address")
+	}
+	if !strings.Contains(addr, "://") {
+		addr = "tcp://" + addr
+	}
+	u, err := url.Parse(addr)
+	if err != nil {
+		return "", trace.BadParameter("failed to parse %q: %v", addr, err)
+	}
+	switch u.Scheme {
+	case "tcp", "http", "https":
+		return u.Host, nil
+	default:
+		return "", trace.BadParameter("'%v': unsupported scheme: '%v'", addr, u.Scheme)
+	}
+}
+
+// extractHost takes addresses like "tcp://host:port/path" and returns "host".
+func extractHost(addr string) (ra string, err error) {
+	parsed, err := extractHostPort(addr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	host, _, err := net.SplitHostPort(parsed)
+	if err != nil {
+		if strings.Contains(err.Error(), "missing port in address") {
+			return addr, nil
+		}
+		return "", trace.Wrap(err)
+	}
+	return host, nil
+}
+
+// extractPort takes addresses like "tcp://host:port/path" and returns "port".
+func extractPort(addr string) (string, error) {
+	parsed, err := extractHostPort(addr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	_, port, err := net.SplitHostPort(parsed)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return port, nil
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
@@ -112,7 +113,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		// encode the name of this cluster to identify this cluster,
 		// connecting to the remote one (it is used to find the right certificate
 		// authority to verify)
-		tlsConfig.ServerName = auth.EncodeClusterName(s.srv.ClusterName)
+		tlsConfig.ServerName = apiutils.EncodeClusterName(s.srv.ClusterName)
 		clt, err := auth.NewClient(client.Config{
 			Dialer: client.ContextDialerFunc(s.authServerContextDialer),
 			Credentials: []client.Credentials{
@@ -483,8 +484,7 @@ func (s *remoteSite) updateCertAuthorities() error {
 }
 
 func (s *remoteSite) periodicUpdateCertAuthorities() {
-	s.Debugf("Ticking with period %v", s.srv.PollingPeriod)
-
+	s.Debugf("Updating remote CAs with period %v.", s.srv.PollingPeriod)
 	periodic := interval.New(interval.Config{
 		Duration:      s.srv.PollingPeriod,
 		FirstDuration: utils.HalfJitter(s.srv.PollingPeriod),
@@ -511,6 +511,35 @@ func (s *remoteSite) periodicUpdateCertAuthorities() {
 					s.Debugf("Remote cluster %v is offline.", s.domainName)
 				default:
 					s.Warningf("Could not perform cert authorities updated: %v.", trace.DebugReport(err))
+				}
+			}
+		}
+	}
+}
+
+func (s *remoteSite) periodicUpdateLocks() {
+	s.Debugf("Updating remote locks with period %v.", s.srv.PollingPeriod)
+	periodic := interval.New(interval.Config{
+		Duration:      s.srv.PollingPeriod,
+		FirstDuration: utils.HalfJitter(s.srv.PollingPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
+	for {
+		select {
+		case <-s.ctx.Done():
+			s.Debugf("Context is closing.")
+			return
+		case <-periodic.Next():
+			locks := s.srv.LockWatcher.GetCurrent()
+			if err := s.remoteClient.ReplaceRemoteLocks(s.ctx, s.srv.ClusterName, locks); err != nil {
+				switch {
+				case trace.IsNotImplemented(err):
+					s.Debugf("Remote cluster %v does not support locks yet.", s.domainName)
+				case trace.IsConnectionProblem(err):
+					s.Debugf("Remote cluster %v is offline.", s.domainName)
+				default:
+					s.WithError(err).Warning("Could not update remote locks.")
 				}
 			}
 		}

@@ -20,10 +20,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
-	"strconv"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -237,6 +236,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 			Dialer: &reversetunnel.TunnelAuthDialer{
 				ProxyAddr:    tunAddr,
 				ClientConfig: clientConfig.SSH,
+				Log:          cfg.Log,
 			},
 			Credentials: []apiclient.Credentials{
 				apiclient.LoadTLS(clientConfig.TLS),
@@ -262,53 +262,13 @@ func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		resp, err := webclient.Find(ctx, addr.String(), insecureTLS, nil)
+		tunnelAddr, err := webclient.GetTunnelAddr(ctx, addr.String(), insecureTLS, nil)
 		if err == nil {
-			return tunnelAddr(addr, resp.Proxy)
+			return tunnelAddr, nil
 		}
 		errs = append(errs, err)
 	}
 	return "", trace.NewAggregate(errs...)
-}
-
-// tunnelAddr returns the tunnel address in the following preference order:
-//  1. Reverse Tunnel Public Address.
-//  2. SSH Proxy Public Address.
-//  3. HTTP Proxy Public Address.
-//  4. Tunnel Listen Address.
-func tunnelAddr(webAddr utils.NetAddr, settings webclient.ProxySettings) (string, error) {
-	// Extract the port the tunnel server is listening on.
-	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	tunnelPort := netAddr.Port(defaults.SSHProxyTunnelListenPort)
-
-	// If a tunnel public address is set, nothing else has to be done, return it.
-	if settings.SSH.TunnelPublicAddr != "" {
-		return settings.SSH.TunnelPublicAddr, nil
-	}
-
-	// If a tunnel public address has not been set, but a related HTTP or SSH
-	// public address has been set, extract the hostname but use the port from
-	// the tunnel listen address.
-	if settings.SSH.SSHPublicAddr != "" {
-		addr, err := utils.ParseHostPortAddr(settings.SSH.SSHPublicAddr, tunnelPort)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return net.JoinHostPort(addr.Host(), strconv.Itoa(tunnelPort)), nil
-	}
-	if settings.SSH.PublicAddr != "" {
-		addr, err := utils.ParseHostPortAddr(settings.SSH.PublicAddr, tunnelPort)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return net.JoinHostPort(addr.Host(), strconv.Itoa(tunnelPort)), nil
-	}
-
-	// If nothing is set, fallback to the address we dialed.
-	return net.JoinHostPort(webAddr.Host(), strconv.Itoa(tunnelPort)), nil
 }
 
 // applyConfig takes configuration values from the config file and applies

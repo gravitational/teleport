@@ -33,6 +33,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -149,7 +151,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections", srv.withAuth(srv.deleteAllTunnelConnections))
 
 	// Server Credentials
-	srv.POST("/:version/server/credentials", srv.withAuth(srv.generateServerKeys))
+	srv.POST("/:version/server/credentials", srv.withAuth(srv.generateHostCerts))
 
 	srv.POST("/:version/remoteclusters", srv.withAuth(srv.createRemoteCluster))
 	srv.GET("/:version/remoteclusters/:cluster", srv.withAuth(srv.getRemoteCluster))
@@ -236,9 +238,15 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
 
 	// U2F
+	// DELETE IN 9.x, superseded by /mfa/ endpoints (codingllama)
 	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
-	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
+	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.mfaLoginBegin))
 	srv.GET("/:version/u2f/appid", srv.withAuth(srv.getU2FAppID))
+
+	// Generic MFA and WebAuthn
+	srv.POST("/:version/mfa/users/:user/login/begin", srv.withAuth(srv.mfaLoginBegin))
+	// The last step of MFA login is performed by either /ssh/authenticate or
+	// /web/authenticate endpoints.
 
 	// Provisioning tokens- Moved to grpc
 	// DELETE IN 8.0
@@ -740,18 +748,45 @@ type signInReq struct {
 	Password string `json:"password"`
 }
 
-func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+// DELETE IN 9.0.0 in favor of grpc CreateAuthenticateChallenge.
+func (s *APIServer) mfaLoginBegin(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *signInReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	user := p.ByName("user")
 	pass := []byte(req.Password)
-	u2fSignReq, err := auth.GetMFAAuthenticateChallenge(user, pass)
+	protoChal, err := auth.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+			Username: user,
+			Password: pass,
+		}},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return u2fSignReq, nil
+
+	// Convert from proto to JSON format.
+	chal := &MFAAuthenticateChallenge{
+		TOTPChallenge: protoChal.TOTP != nil,
+	}
+	for _, u2fChal := range protoChal.U2F {
+		ch := u2f.AuthenticateChallenge{
+			Version:   u2fChal.Version,
+			Challenge: u2fChal.Challenge,
+			KeyHandle: u2fChal.KeyHandle,
+			AppID:     u2fChal.AppID,
+		}
+		if chal.AuthenticateChallenge == nil {
+			chal.AuthenticateChallenge = &ch
+		}
+		chal.U2FChallenges = append(chal.U2FChallenges, ch)
+	}
+	if protoChal.WebauthnChallenge != nil {
+		chal.WebauthnChallenge = wanlib.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+	}
+
+	return chal, nil
 }
 
 type WebSessionReq struct {
@@ -967,7 +1002,11 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := auth.GenerateHostCert(req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles, req.TTL)
+	if len(req.Roles) != 1 {
+		return nil, trace.BadParameter("exactly one system role is required")
+	}
+
+	cert, err := auth.GenerateHostCert(req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles[0], req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -987,6 +1026,15 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 	return token, nil
 }
 
+// registerUsingTokenResponseJSON is equivalent to proto.Certs, but
+// uses JSON keys expected by old (7.x and earlier) clients
+type registerUsingTokenResponseJSON struct {
+	SSHCert    []byte   `json:"cert"`
+	TLSCert    []byte   `json:"tls_cert"`
+	TLSCACerts [][]byte `json:"tls_ca_certs"`
+	SSHCACerts [][]byte `json:"ssh_ca_certs"`
+}
+
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -996,11 +1044,16 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 	// Pass along the remote address the request came from to the registration function.
 	req.RemoteAddr = r.RemoteAddr
 
-	keys, err := auth.RegisterUsingToken(req)
+	certs, err := auth.RegisterUsingToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return keys, nil
+	return &registerUsingTokenResponseJSON{
+		SSHCert:    certs.SSH,
+		TLSCert:    certs.TLS,
+		SSHCACerts: certs.SSHCACerts,
+		TLSCACerts: certs.TLSCACerts,
+	}, nil
 }
 
 type registerNewAuthServerReq struct {
@@ -1019,16 +1072,46 @@ func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r
 	return message("ok"), nil
 }
 
-func (s *APIServer) generateServerKeys(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req GenerateServerKeysRequest
+// DELETE IN 9.0 (zmb3)
+type legacyHostCertsRequest struct {
+	HostID               string            `json:"host_id"`
+	NodeName             string            `json:"node_name"`
+	Roles                types.SystemRoles `json:"roles"`
+	AdditionalPrincipals []string          `json:"additional_principals,omitempty"`
+	DNSNames             []string          `json:"dns_names,omitempty"`
+	PublicTLSKey         []byte            `json:"public_tls_key"`
+	PublicSSHKey         []byte            `json:"public_ssh_key"`
+	RemoteAddr           string            `json:"remote_addr"`
+	Rotation             *types.Rotation   `json:"rotation,omitempty"`
+}
+
+// DELETE IN 9.0 (zmb3) now available in GRPC server)
+func (s *APIServer) generateHostCerts(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+	// We can't use proto.HostCertsRequest here, because this old API expects
+	// a list of roles with exactly one element, rather than a single role.
+	var req legacyHostCertsRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if len(req.Roles) != 1 {
+		return nil, trace.BadParameter("expected exactly one system role")
 	}
 
 	// Pass along the remote address the request came from to the registration function.
 	req.RemoteAddr = r.RemoteAddr
 
-	keys, err := auth.GenerateServerKeys(req)
+	keys, err := auth.GenerateHostCerts(r.Context(), &proto.HostCertsRequest{
+		HostID:               req.HostID,
+		NodeName:             req.NodeName,
+		Role:                 req.Roles[0],
+		AdditionalPrincipals: req.AdditionalPrincipals,
+		DNSNames:             req.DNSNames,
+		PublicTLSKey:         req.PublicTLSKey,
+		PublicSSHKey:         req.PublicSSHKey,
+		RemoteAddr:           req.RemoteAddr,
+		Rotation:             req.Rotation,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1137,7 +1220,9 @@ func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.R
 	return domain, nil
 }
 
-// getClusterCACert returns the CAs for the local cluster without signing keys.
+// getClusterCACert returns the PEM-encoded TLS certs for the local cluster
+// without signing keys. If the cluster has multiple TLS certs, they will all
+// be appended.
 func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	localCA, err := auth.GetClusterCACert()
 	if err != nil {
@@ -1147,19 +1232,40 @@ func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *htt
 	return localCA, nil
 }
 
+// DELETE IN 9.0.0: defined in grpcserver "ChangeUserAuthentication", kept for fallback.
 func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req ChangePasswordWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	webSession, err := auth.ChangePasswordWithToken(r.Context(), req)
+	protoReq := &proto.ChangeUserAuthenticationRequest{
+		TokenID:     req.TokenID,
+		NewPassword: req.Password,
+	}
+
+	if req.U2FRegisterResponse != nil {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+			U2F: &proto.U2FRegisterResponse{
+				RegistrationData: req.U2FRegisterResponse.RegistrationData,
+				ClientData:       req.U2FRegisterResponse.ClientData,
+			},
+		}}
+	}
+
+	if req.SecondFactorToken != "" {
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
+		}}
+	}
+
+	res, err := auth.ChangeUserAuthentication(r.Context(), protoReq)
 	if err != nil {
 		log.Debugf("Failed to change user password with token: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.MarshalWebSession(webSession, services.WithVersion(version)))
+	return rawMessage(services.MarshalWebSession(res.WebSession, services.WithVersion(version)))
 }
 
 // getU2FAppID returns the U2F AppID in the auth configuration

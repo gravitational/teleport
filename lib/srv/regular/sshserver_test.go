@@ -39,6 +39,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -127,15 +128,24 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
-	certs, err := testServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: testServer.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
-	})
+	priv, pub, err := testServer.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	certs, err := testServer.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     testServer.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
-	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
 	nodeID := uuid.New()
@@ -160,7 +170,8 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 			},
 		),
 		SetBPF(&bpf.NOP{}),
@@ -375,10 +386,11 @@ func TestLockInForce(t *testing.T) {
 	require.Eventually(t, sessionHasFinished, 1*time.Second, 100*time.Millisecond,
 		"Timed out waiting for session to finish")
 
-	// Expect that the idle timeout has been delivered via stderr
+	// Expect the lock-in-force message to have been delivered via stderr.
+	lockInForceMsg := services.LockInForceAccessDenied(lock).Error()
 	text, err := waitForBytes(stdErrCh)
 	require.NoError(t, err)
-	require.Equal(t, services.LockInForceMessage(lock), string(text))
+	require.Equal(t, lockInForceMsg, string(text))
 
 	// As long as the lock is in force, new sessions cannot be opened.
 	newClient, err := ssh.Dial("tcp", f.ssh.srvAddress, f.ssh.cltConfig)
@@ -390,7 +402,7 @@ func TestLockInForce(t *testing.T) {
 	})
 	_, err = newClient.NewSession()
 	require.Error(t, err)
-	require.Contains(t, err.Error(), services.LockInForceMessage(lock))
+	require.Contains(t, err.Error(), lockInForceMsg)
 
 	// Once the lock is lifted, new sessions should go through without error.
 	require.NoError(t, f.testSrv.Auth().DeleteLock(ctx, "test-lock"))
@@ -612,7 +624,7 @@ func TestAgentForward(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 
 	// type 'printenv SSH_AUTH_SOCK > /path/to/tmp/file' into the session (dumping the value of SSH_AUTH_STOCK into the temp file)
-	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", teleport.SSHAuthSock, tmpFile.Name())))
+	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v >> %s\n\r", teleport.SSHAuthSock, tmpFile.Name())))
 	require.NoError(t, err)
 
 	// wait for the output
@@ -708,7 +720,7 @@ func TestAllowedLabels(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	var tests = []struct {
+	tests := []struct {
 		desc       string
 		inLabelMap types.Labels
 		outError   bool
@@ -932,14 +944,24 @@ func TestProxyReverseTunnel(t *testing.T) {
 
 	proxyClient, proxyID := newProxyClient(t, f.testSrv)
 
-	// Create host key and certificate for proxy.
-	proxyKeys, err := f.testSrv.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: f.testSrv.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleProxy},
-	})
+	priv, pub, err := f.testSrv.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
-	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	// Create certificate for proxy.
+	proxyCerts, err := f.testSrv.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     f.testSrv.ClusterName(),
+			Role:         types.RoleProxy,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
+	proxySigner, err := sshutils.NewSigner(priv, proxyCerts.SSH)
 	require.NoError(t, err)
 
 	logger := logrus.WithField("test", "TestProxyReverseTunnel")
@@ -1054,10 +1076,12 @@ func TestProxyReverseTunnel(t *testing.T) {
 			services.CommandLabels{
 				"cmdLabel1": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 				"cmdLabel2": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Second * 2),
-					Command: []string{"expr", "2", "+", "3"}},
+					Command: []string{"expr", "2", "+", "3"},
+				},
 			},
 		),
 		SetSessionServer(nodeClient),
@@ -1348,7 +1372,7 @@ func TestEnv(t *testing.T) {
 	require.NoError(t, se.Setenv("HOME", "/"))
 }
 
-// // TestNoAuth tries to log in with no auth methods and should be rejected
+// TestNoAuth tries to log in with no auth methods and should be rejected
 func TestNoAuth(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -1583,17 +1607,26 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
-	// Create host key and certificate for node.
-	keys, err := authSrv.GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:               "raw-node",
-		NodeName:             "raw-node",
-		Roles:                types.SystemRoles{types.RoleNode},
-		AdditionalPrincipals: []string{hostname},
-		DNSNames:             []string{hostname},
-	})
+	priv, pub, err := authSrv.GenerateKeyPair("")
 	require.NoError(t, err)
 
-	signer, err := sshutils.NewSigner(keys.Key, keys.Cert)
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	// Create host key and certificate for node.
+	certs, err := authSrv.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               "raw-node",
+			NodeName:             "raw-node",
+			Role:                 types.RoleNode,
+			AdditionalPrincipals: []string{hostname},
+			DNSNames:             []string{hostname},
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
+	require.NoError(t, err)
+
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
 	// configure a server which allows any client to connect
@@ -1853,7 +1886,7 @@ type upack struct {
 	// pub is a public user key
 	pub []byte
 
-	//cert is a certificate signed by user CA
+	// cert is a certificate signed by user CA
 	cert []byte
 	// pcert is a parsed ssh Certificae
 	pcert *ssh.Certificate

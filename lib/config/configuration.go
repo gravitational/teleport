@@ -64,9 +64,8 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
-	// CAPin is the hash of the SKPI of the root CA. Used to verify the cluster
-	// being joined is the one expected.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 	// --listen-ip flag
 	ListenIP net.IP
 	// --advertise-ip flag
@@ -213,6 +212,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Metrics.Disabled() {
 		cfg.Metrics.Enabled = false
 	}
+	if fc.WindowsDesktop.Disabled() {
+		cfg.WindowsDesktop.Enabled = false
+	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// apply "advertise_ip" setting:
@@ -313,9 +315,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
 	}
 
-	// Read in how nodes will validate the CA.
-	if fc.CAPin != "" {
-		cfg.CAPin = fc.CAPin
+	// Read in how nodes will validate the CA. A single empty string in the file
+	// conf should indicate no pins.
+	if len(fc.CAPin) > 1 || (len(fc.CAPin) == 1 && fc.CAPin[0] != "") {
+		cfg.CAPins = fc.CAPin
 	}
 
 	// Set diagnostic address
@@ -333,6 +336,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		&cfg.SSH.Limiter,
 		&cfg.Auth.Limiter,
 		&cfg.Proxy.Limiter,
+		&cfg.Kube.Limiter,
+		&cfg.WindowsDesktop.ConnLimiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
@@ -387,6 +392,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.Metrics.Enabled() {
 		if err := applyMetricsConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.WindowsDesktop.Enabled() {
+		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -562,6 +572,10 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
+	if err := applyKeyStoreConfig(fc, cfg); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// read in and set the license file path (not used in open-source version)
 	licenseFile := fc.Auth.LicenseFile
 	if licenseFile != "" {
@@ -572,6 +586,28 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	return nil
+}
+
+func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
+	if fc.Auth.CAKeyParams == nil {
+		return nil
+	}
+	cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
+	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
+	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
+		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
+			return trace.BadParameter("can not set both pin and pin_path")
+		}
+		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pin := strings.TrimRight(string(pinBytes), "\r\n")
+		cfg.Auth.KeyStore.Pin = pin
+	}
 	return nil
 }
 
@@ -839,13 +875,6 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		cfg.SSH.RestrictedSession = rs
 	}
 
-	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
-		cfg.SSH.ProxyReverseTunnelFallbackAddr, err = utils.ParseHostPortAddr(proxyAddr, defaults.SSHProxyTunnelListenPort)
-		if err != nil {
-			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
-		}
-	}
-
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
 
 	return nil
@@ -902,6 +931,12 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 // applyDatabasesConfig applies file configuration for the "db_service" section.
 func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Databases.Enabled = true
+	for _, selector := range fc.Databases.Selectors {
+		cfg.Databases.Selectors = append(cfg.Databases.Selectors,
+			services.Selector{
+				MatchLabels: selector.MatchLabels,
+			})
+	}
 	for _, database := range fc.Databases.Databases {
 		staticLabels := make(map[string]string)
 		if database.StaticLabels != nil {
@@ -944,7 +979,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				InstanceID: database.GCP.InstanceID,
 			},
 		}
-		if err := db.Check(); err != nil {
+		if err := db.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
@@ -1075,6 +1110,30 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 
 		cfg.Metrics.CACerts = append(cfg.Metrics.CACerts, caCert)
+	}
+
+	return nil
+}
+
+// applyWindowsDesktopConfig applies file configuration for the "windows_desktop_service" section.
+func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
+	cfg.WindowsDesktop.Enabled = true
+
+	if fc.WindowsDesktop.ListenAddress != "" {
+		listenAddr, err := utils.ParseHostPortAddr(fc.WindowsDesktop.ListenAddress, int(defaults.WindowsDesktopListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.WindowsDesktop.ListenAddr = *listenAddr
+	}
+	var err error
+	cfg.WindowsDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -1388,7 +1447,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				InstanceID: clf.DatabaseGCPInstanceID,
 			},
 		}
-		if err := db.Check(); err != nil {
+		if err := db.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
@@ -1502,8 +1561,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
-	if clf.CAPin != "" {
-		cfg.CAPin = clf.CAPin
+	if len(clf.CAPins) != 0 {
+		cfg.CAPins = clf.CAPins
 	}
 
 	// apply --listen-ip flag:

@@ -27,9 +27,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -39,7 +41,9 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -326,11 +330,14 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
 			Client:    srv.AuthServer,
+			Clock:     cfg.Clock,
 		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
+
 	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer, srv.LockWatcher)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -370,12 +377,37 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return certs.ssh, nil
+	return certs.SSH, nil
+}
+
+// PrivateKeyToPublicKeyTLS gets the TLS public key from a raw private key.
+func PrivateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error) {
+	sshPrivate, err := ssh.ParseRawPrivateKey(privateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPublicKey, err = tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tlsPublicKey, nil
 }
 
 // generateCertificate generates certificate for identity,
 // returns private public key pair
 func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []byte, error) {
+	priv, pub, err := authServer.GenerateKeyPair("")
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(priv)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	switch id := identity.I.(type) {
 	case LocalUser:
 		user, err := authServer.GetUser(id.Username, false)
@@ -389,10 +421,6 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if identity.TTL == 0 {
 			identity.TTL = time.Hour
 		}
-		priv, pub, err := authServer.GenerateKeyPair("")
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
 		certs, err := authServer.generateUserCert(certRequest{
 			publicKey:      pub,
 			user:           user,
@@ -405,17 +433,33 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return certs.tls, priv, nil
+		return certs.TLS, priv, nil
 	case BuiltinRole:
-		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
-			HostID:   id.Username,
-			NodeName: id.Username,
-			Roles:    types.SystemRoles{id.Role},
-		})
+		certs, err := authServer.GenerateHostCerts(context.Background(),
+			&proto.HostCertsRequest{
+				HostID:       id.Username,
+				NodeName:     id.Username,
+				Role:         id.Role,
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: pub,
+			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return keys.TLSCert, keys.Key, nil
+		return certs.TLS, priv, nil
+	case RemoteBuiltinRole:
+		certs, err := authServer.GenerateHostCerts(context.Background(),
+			&proto.HostCertsRequest{
+				HostID:       id.Username,
+				NodeName:     id.Username,
+				Role:         id.Role,
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: pub,
+			})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return certs.TLS, priv, nil
 	default:
 		return nil, nil, trace.BadParameter("identity of unknown type %T is unsupported", identity)
 	}
@@ -497,7 +541,7 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 	}
 	tlsConfig.Certificates = []tls.Certificate{*cert}
 	tlsConfig.RootCAs = pool
-	tlsConfig.ServerName = EncodeClusterName(a.ClusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(a.ClusterName)
 	tlsConfig.Time = a.AuthServer.clock.Now
 
 	return NewClient(client.Config{
@@ -626,6 +670,7 @@ func TestUser(username string) TestIdentity {
 	return TestIdentity{
 		I: LocalUser{
 			Username: username,
+			Identity: tlsca.Identity{Username: username},
 		},
 	}
 }
@@ -658,6 +703,17 @@ func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 		I: BuiltinRole{
 			Role:     role,
 			Username: serverID,
+		},
+	}
+}
+
+// TestRemoteBuiltin returns TestIdentity for a remote builtin role.
+func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity {
+	return TestIdentity{
+		I: RemoteBuiltinRole{
+			Role:        role,
+			Username:    string(role),
+			ClusterName: remoteCluster,
 		},
 	}
 }
@@ -814,15 +870,29 @@ func (t *TestTLSServer) Stop() error {
 
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Identity, error) {
-	keys, err := clt.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: hostID,
-		Roles:    types.SystemRoles{types.RoleAuth},
-	})
+	priv, pub, err := clt.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(keys)
+
+	publicTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := clt.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     hostID,
+			Role:         types.RoleAuth,
+			PublicTLSKey: publicTLS,
+			PublicSSHKey: pub,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ReadIdentityFromKeyPair(priv, certs)
 }
 
 // clt limits required interface to the necessary methods

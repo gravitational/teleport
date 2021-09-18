@@ -75,6 +75,7 @@ func SetIndexHTMLHeaders(h http.Header) {
 		"font-src 'self' data:",
 		"base-uri 'self'",
 		"form-action 'self'",
+		"connect-src 'self' wss:",
 	}, ";")
 
 	h.Set("Content-Security-Policy", cspValue)

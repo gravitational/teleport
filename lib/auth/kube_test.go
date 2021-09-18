@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package auth
 
 import (
@@ -9,8 +23,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
@@ -18,13 +30,10 @@ import (
 
 func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 	const (
-		username    = "bob"
-		roleA       = "user:bob"
-		roleB       = "requestable"
-		clusterName = "me.localhost"
+		username = "bob"
+		roleA    = "user:bob"
+		roleB    = "requestable"
 	)
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, clusterName)), check.IsNil)
-	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, clusterName)), check.IsNil)
 
 	// Requested user identity, presented in CSR Subject.
 	userID := tlsca.Identity{
@@ -34,7 +43,7 @@ func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 		Principals:       []string{"principal a", "principal b"},
 		KubernetesGroups: []string{"k8s group a", "k8s group b"},
 		Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-		TeleportCluster:  clusterName,
+		TeleportCluster:  s.clusterName.GetClusterName(),
 	}
 	subj, err := userID.Subject()
 	c.Assert(err, check.IsNil)
@@ -43,7 +52,7 @@ func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 	c.Assert(err, check.IsNil)
 	csr := KubeCSR{
 		Username:    username,
-		ClusterName: clusterName,
+		ClusterName: s.clusterName.GetClusterName(),
 		CSR:         pemCSR,
 	}
 
