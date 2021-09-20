@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -86,13 +87,13 @@ type Router struct {
 type MatchFunc func(sni, alpn string) bool
 
 // MatchByProtocol creates match function based on client TLS ALPN protocol.
-func MatchByProtocol(protocols ...Protocol) MatchFunc {
-	m := make(map[Protocol]struct{})
+func MatchByProtocol(protocols ...common.Protocol) MatchFunc {
+	m := make(map[common.Protocol]struct{})
 	for _, v := range protocols {
 		m[v] = struct{}{}
 	}
 	return func(sni, alpn string) bool {
-		_, ok := m[Protocol(alpn)]
+		_, ok := m[common.Protocol(alpn)]
 		return ok
 	}
 }
@@ -182,7 +183,7 @@ type HandlerFunc func(ctx context.Context, conn net.Conn) error
 // TLS SNI ALPN values to particular service.
 type Proxy struct {
 	cfg                ProxyConfig
-	supportedProtocols []Protocol
+	supportedProtocols []common.Protocol
 	log                logrus.FieldLogger
 	cancel             context.CancelFunc
 }
@@ -236,7 +237,7 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 	return &Proxy{
 		cfg:                cfg,
 		log:                cfg.Log,
-		supportedProtocols: supportedProtocols,
+		supportedProtocols: common.SupportedProtocols,
 	}, nil
 }
 
@@ -245,7 +246,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	p.cancel = cancel
-	p.cfg.WebTLSConfig.NextProtos = convProtocolsToString(p.supportedProtocols)
+	p.cfg.WebTLSConfig.NextProtos = common.ConvProtocolsToString(p.supportedProtocols)
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
@@ -403,9 +404,9 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, info))
 }
 
-func isDBTLSProtocol(protocol Protocol) bool {
+func isDBTLSProtocol(protocol common.Protocol) bool {
 	switch protocol {
-	case ProtocolMongoDB:
+	case common.ProtocolMongoDB:
 		return true
 	default:
 		return false
@@ -424,9 +425,9 @@ func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHe
 
 // getHandleDescBasedOnALPNVal returns the HandlerDesc base on ALPN field read from ClientHelloInfo message.
 func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
-	protocol := ProtocolDefault
+	protocol := common.ProtocolDefault
 	if len(clientHelloInfo.SupportedProtos) != 0 {
-		protocol = Protocol(clientHelloInfo.SupportedProtos[0])
+		protocol = common.Protocol(clientHelloInfo.SupportedProtos[0])
 	}
 
 	if isDBTLSProtocol(protocol) {
