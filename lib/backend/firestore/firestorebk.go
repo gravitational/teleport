@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -238,9 +239,17 @@ func CreateFirestoreClients(ctx context.Context, projectID string, endPoint stri
 	return firestoreAdminClient, firestoreClient, nil
 }
 
+type FirestoreOption func(*Backend)
+
+func WithClock(clock clockwork.Clock) FirestoreOption {
+	return func(b *Backend) {
+		b.clock = clock
+	}
+}
+
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, params backend.Params) (*Backend, error) {
+func New(ctx context.Context, params backend.Params, options ...FirestoreOption) (*Backend, error) {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
 	var cfg *backendConfig
 	err := apiutils.ObjectToStruct(params, &cfg)
@@ -248,7 +257,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.BadParameter("firestore: configuration is invalid: %v", err)
 	}
 	l.Info("Initializing backend.")
-	defer l.Info("Backend created.")
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -277,6 +286,11 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		watchStarted:     watchStarted,
 		signalWatchStart: signalWatchStart,
 	}
+
+	for _, applyOption := range options {
+		applyOption(b)
+	}
+
 	if len(cfg.EndPoint) == 0 {
 		err = b.ensureIndexes(firestoreAdminClient)
 		if err != nil {
@@ -293,6 +307,18 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	if !cfg.DisableExpiredDocumentPurge {
 		go RetryingAsyncFunctionRunner(b.clientContext, linearConfig, b.Logger, b.purgeExpiredDocuments, "purgeExpiredDocuments")
 	}
+
+	l.Debug("Waiting for event watcher to start")
+	select {
+	case <-ctx.Done():
+		l.Error("Timed out waiting for event monitor")
+		return nil, ctx.Err()
+
+	case <-b.watchStarted.Done():
+		l.Debug("Event watcher has started")
+	}
+
+	l.Info("Backend created.")
 	return b, nil
 }
 
@@ -572,34 +598,43 @@ func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig utils.LinearCo
 		logger.WithError(err).Error("Bad retry parameters, returning and not running.")
 		return
 	}
+
+	defer logger.Debugf("Returning from %v loop.", taskName)
+
 	for {
 		err := task()
-		if err != nil && !isCanceled(err) {
+
+		if isCanceled(err) {
+			return
+		} else if err != nil {
 			logger.WithError(err).Errorf("Task %v has returned with error.", taskName)
 		}
+
 		logger.Debugf("Reloading %v for %s.", retry, taskName)
 		select {
 		case <-retry.After():
 			retry.Inc()
+
 		case <-ctx.Done():
-			logger.Debugf("Returning from %v loop.", taskName)
 			return
 		}
 	}
 }
 
 func isCanceled(err error) bool {
-	err = trace.Unwrap(err)
-	switch {
-	case err == nil:
-		return false
-	case err == context.Canceled:
-		return true
-	case status.Convert(err).Code() == codes.Canceled:
-		return true
-	default:
+	if err == nil {
 		return false
 	}
+
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	if status.Convert(err).Code() == codes.Canceled {
+		return true
+	}
+
+	return false
 }
 
 // driftTolerance is the amount of clock drift between auth servers that we
@@ -671,7 +706,7 @@ func (b *Backend) purgeExpiredDocuments() error {
 	for {
 		select {
 		case <-b.clientContext.Done():
-			return nil
+			return b.clientContext.Err()
 		case <-t.C:
 			expiryTime := b.clock.Now().UTC().Unix()
 			numDeleted := 0
@@ -697,6 +732,8 @@ func ConvertGRPCError(err error, args ...interface{}) error {
 		return nil
 	}
 	switch status.Convert(err).Code() {
+	case codes.Canceled:
+		return context.Canceled
 	case codes.FailedPrecondition:
 		return trace.BadParameter(err.Error(), args...)
 	case codes.NotFound:

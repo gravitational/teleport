@@ -77,12 +77,13 @@ func TestFirestoreDB(t *testing.T) {
 			return nil, nil, test.ErrConcurrentAccessNotSupported
 		}
 
-		uut, err := New(context.Background(), commonFirestoreParams)
+		clock := clockwork.NewFakeClock()
+
+		uut, err := New(context.Background(), commonFirestoreParams, WithClock(clock))
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		clock := clockwork.NewFakeClock()
-		uut.clock = clock
+
 		return uut, clock, nil
 	}
 
