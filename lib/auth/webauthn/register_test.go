@@ -21,16 +21,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
-
-// TODO(codingllama): Remove once registration is plugged into "real" code.
-//  For now this guarantees that our interface won't deviate from Identity.
-var _ wanlib.RegistrationIdentity = (services.Identity)(nil)
 
 func TestRegistrationFlow_BeginFinish(t *testing.T) {
 	const user = "llama"

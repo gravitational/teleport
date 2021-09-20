@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,90 +14,86 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package sshutils
 
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"testing"
 
+	"github.com/gravitational/teleport/api/constants"
+
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport"
-
-	"gopkg.in/check.v1"
 )
 
-type CheckerSuite struct{}
-
-var _ = check.Suite(&CheckerSuite{})
-
-// TestValidate checks what algorithm are supported in regular (non-FIPS) mode.
-func (s *CheckerSuite) TestValidate(c *check.C) {
+// TestCheckerValidate checks what algorithm are supported in regular (non-FIPS) mode.
+func TestCheckerValidate(t *testing.T) {
 	checker := CertChecker{}
 
-	rsaKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
-	c.Assert(err, check.IsNil)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	require.NoError(t, err)
 	smallRSAKey, err := rsa.GenerateKey(rand.Reader, 1024)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	ellipticKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// 2048-bit RSA keys are valid.
 	cryptoKey := rsaKey.Public()
 	sshKey, err := ssh.NewPublicKey(cryptoKey)
-	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
+	err = checker.validateFIPS(sshKey)
+	require.NoError(t, err)
 
 	// 1024-bit RSA keys are valid.
 	cryptoKey = smallRSAKey.Public()
 	sshKey, err = ssh.NewPublicKey(cryptoKey)
-	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
+	err = checker.validateFIPS(sshKey)
+	require.NoError(t, err)
 
 	// ECDSA keys are valid.
 	cryptoKey = ellipticKey.Public()
 	sshKey, err = ssh.NewPublicKey(cryptoKey)
-	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
+	err = checker.validateFIPS(sshKey)
+	require.NoError(t, err)
 }
 
-// TestValidate makes sure the public key is a valid algorithm
+// TestCheckerValidateFIPS makes sure the public key is a valid algorithm
 // that Teleport supports while in FIPS mode.
-func (s *CheckerSuite) TestValidateFIPS(c *check.C) {
+func TestCheckerValidateFIPS(t *testing.T) {
 	checker := CertChecker{
 		FIPS: true,
 	}
 
-	rsaKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
-	c.Assert(err, check.IsNil)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	require.NoError(t, err)
 	smallRSAKey, err := rsa.GenerateKey(rand.Reader, 1024)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	ellipticKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// 2048-bit RSA keys are valid.
 	cryptoKey := rsaKey.Public()
 	sshKey, err := ssh.NewPublicKey(cryptoKey)
-	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
+	err = checker.validateFIPS(sshKey)
+	require.NoError(t, err)
 
 	// 1024-bit RSA keys are not valid.
 	cryptoKey = smallRSAKey.Public()
 	sshKey, err = ssh.NewPublicKey(cryptoKey)
-	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
-	c.Assert(err, check.NotNil)
+	require.NoError(t, err)
+	err = checker.validateFIPS(sshKey)
+	require.Error(t, err)
 
 	// ECDSA keys are not valid.
 	cryptoKey = ellipticKey.Public()
 	sshKey, err = ssh.NewPublicKey(cryptoKey)
-	c.Assert(err, check.IsNil)
-	err = checker.validate(sshKey)
-	c.Assert(err, check.NotNil)
+	require.NoError(t, err)
+	err = checker.validateFIPS(sshKey)
+	require.Error(t, err)
 }

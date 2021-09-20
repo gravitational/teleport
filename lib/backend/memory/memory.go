@@ -72,7 +72,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.Context = context.Background()
 	}
 	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferSize
+		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.BTreeDegree <= 0 {
 		cfg.BTreeDegree = defaultBTreeDegree
@@ -92,11 +92,9 @@ func New(cfg Config) (*Memory, error) {
 		return nil, trace.Wrap(err)
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
+	buf := backend.NewCircularBuffer(
+		backend.BufferCapacity(cfg.BufferSize),
+	)
 	buf.SetInit()
 	m := &Memory{
 		Mutex: &sync.Mutex{},
