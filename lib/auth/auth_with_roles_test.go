@@ -760,6 +760,141 @@ func TestGetAppServers(t *testing.T) {
 	require.Empty(t, cmp.Diff(testServers, servers))
 }
 
+// TestApps verifies RBAC is applied to app resources.
+func TestApps(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Setup a couple of users:
+	// - "dev" only has access to apps with labels env=dev
+	// - "admin" has access to all apps
+	dev, devRole, err := CreateUserAndRole(srv.Auth(), "dev", nil)
+	require.NoError(t, err)
+	devRole.SetAppLabels(types.Allow, types.Labels{"env": {"dev"}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, devRole))
+	devClt, err := srv.NewClient(TestUser(dev.GetName()))
+	require.NoError(t, err)
+
+	admin, adminRole, err := CreateUserAndRole(srv.Auth(), "admin", nil)
+	require.NoError(t, err)
+	adminRole.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, adminRole))
+	adminClt, err := srv.NewClient(TestUser(admin.GetName()))
+	require.NoError(t, err)
+
+	// Prepare a couple of app resources.
+	devApp, err := types.NewAppV3(types.Metadata{
+		Name:   "dev",
+		Labels: map[string]string{"env": "dev", types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+	adminApp, err := types.NewAppV3(types.Metadata{
+		Name:   "admin",
+		Labels: map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost2",
+	})
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to create prod app...
+	err = devClt.CreateApp(ctx, adminApp)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can create dev app.
+	err = devClt.CreateApp(ctx, devApp)
+	require.NoError(t, err)
+
+	// Admin can create prod app.
+	err = adminClt.CreateApp(ctx, adminApp)
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to update prod app...
+	err = devClt.UpdateApp(ctx, adminApp)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can update dev app.
+	err = devClt.UpdateApp(ctx, devApp)
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to update labels on the prod app.
+	adminApp.SetStaticLabels(map[string]string{"env": "dev", types.OriginLabel: types.OriginDynamic})
+	err = devClt.UpdateApp(ctx, adminApp)
+	require.True(t, trace.IsAccessDenied(err))
+	adminApp.SetStaticLabels(map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic}) // Reset.
+
+	// Dev shouldn't be able to get prod app...
+	_, err = devClt.GetApp(ctx, adminApp.GetName())
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can get dev app.
+	app, err := devClt.GetApp(ctx, devApp.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(devApp, app,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin can get both apps.
+	app, err = adminClt.GetApp(ctx, adminApp.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(adminApp, app,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+	app, err = adminClt.GetApp(ctx, devApp.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(devApp, app,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// When listing apps, dev should only see one.
+	apps, err := devClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{devApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin should see both.
+	apps, err = adminClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp, devApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Dev shouldn't be able to delete dev app...
+	err = devClt.DeleteApp(ctx, adminApp.GetName())
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can delete dev app.
+	err = devClt.DeleteApp(ctx, devApp.GetName())
+	require.NoError(t, err)
+
+	// Admin should be able to delete admin app.
+	err = adminClt.DeleteApp(ctx, adminApp.GetName())
+	require.NoError(t, err)
+
+	// Create both apps again to test "delete all" functionality.
+	require.NoError(t, devClt.CreateApp(ctx, devApp))
+	require.NoError(t, adminClt.CreateApp(ctx, adminApp))
+
+	// Dev should only be able to delete dev app.
+	err = devClt.DeleteAllApps(ctx)
+	require.NoError(t, err)
+	apps, err = adminClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin should be able to delete all.
+	err = adminClt.DeleteAllApps(ctx)
+	require.NoError(t, err)
+	apps, err = adminClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Len(t, apps, 0)
+}
+
 // TestReplaceRemoteLocksRBAC verifies that only a remote proxy may replace the
 // remote locks associated with its cluster.
 func TestReplaceRemoteLocksRBAC(t *testing.T) {
