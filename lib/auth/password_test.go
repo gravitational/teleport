@@ -31,6 +31,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -228,6 +230,84 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 	req.SecondFactorToken = validToken
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
+}
+
+func TestServer_ChangePassword(t *testing.T) {
+	srv := newTestTLSServer(t)
+
+	mfa := configureForMFA(t, srv)
+	username := mfa.User
+	password := mfa.Password
+
+	tests := []struct {
+		name    string
+		newPass string
+		device  *TestDevice
+	}{
+		{
+			name:    "OK TOTP-based change",
+			newPass: "llamasarecool11",
+			device:  mfa.TOTPDev,
+		},
+		{
+			name:    "OK U2F-based change",
+			newPass: "llamasarecool12",
+			device:  mfa.U2FDev,
+		},
+		{
+			name:    "OK Webauthn-based change",
+			newPass: "llamasarecool13",
+			device:  mfa.WebDev,
+		},
+	}
+
+	authServer := srv.Auth()
+	ctx := context.Background()
+
+	oldPass := []byte(password)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			newPass := []byte(test.newPass)
+
+			// Acquire and solve an MFA challenge.
+			mfaChallenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+					UserCredentials: &proto.UserCredentials{
+						Username: username,
+						Password: oldPass,
+					},
+				},
+			})
+			require.NoError(t, err, "creating challenge")
+			mfaResp, err := test.device.SolveAuthn(mfaChallenge)
+			require.NoError(t, err, "solving challenge with device")
+
+			// Change password.
+			req := services.ChangePasswordReq{
+				User:        username,
+				OldPassword: oldPass,
+				NewPassword: newPass,
+			}
+			switch {
+			case mfaResp.GetTOTP() != nil:
+				req.SecondFactorToken = mfaResp.GetTOTP().Code
+			case mfaResp.GetU2F() != nil:
+				req.U2FSignResponse = &u2f.AuthenticateChallengeResponse{
+					KeyHandle:     mfaResp.GetU2F().KeyHandle,
+					SignatureData: mfaResp.GetU2F().GetSignature(),
+					ClientData:    mfaResp.GetU2F().ClientData,
+				}
+			case mfaResp.GetWebauthn() != nil:
+				req.WebauthnResponse = wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
+			}
+			require.NoError(t, authServer.ChangePassword(req), "changing password")
+
+			// Did the password change take effect?
+			require.NoError(t, authServer.checkPasswordWOToken(username, newPass), "password change didn't take effect")
+
+			oldPass = newPass // Set for next iteration.
+		})
+	}
 }
 
 func TestChangeUserAuthentication(t *testing.T) {

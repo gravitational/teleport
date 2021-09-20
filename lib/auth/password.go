@@ -19,10 +19,6 @@ import (
 	"crypto/subtle"
 	"net/mail"
 
-	"golang.org/x/crypto/bcrypt"
-
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -33,9 +29,10 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
+	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // This is bcrypt hash for password "barbaz".
@@ -124,67 +121,33 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 
 	}
 
-	authPreference, err := s.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	// Authenticate.
+	user := req.User
+	authReq := AuthenticateUserRequest{
+		Username: user,
+		Webauthn: req.WebauthnResponse,
 	}
-
-	userID := req.User
-	fn := func() error {
-		secondFactor := authPreference.GetSecondFactor()
-		switch secondFactor {
-		case constants.SecondFactorOff:
-			return s.checkPasswordWOToken(userID, req.OldPassword)
-		case constants.SecondFactorOTP:
-			_, err := s.checkPassword(userID, req.OldPassword, req.SecondFactorToken)
-			return trace.Wrap(err)
-		case constants.SecondFactorU2F:
-			if req.U2FSignResponse == nil {
-				return trace.AccessDenied("missing U2F sign response")
-			}
-
-			_, err := s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
-			return trace.Wrap(err)
-		case constants.SecondFactorOn:
-			if req.SecondFactorToken != "" {
-				_, err := s.checkPassword(userID, req.OldPassword, req.SecondFactorToken)
-				return trace.Wrap(err)
-			}
-			if req.U2FSignResponse != nil {
-				_, err := s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
-				return trace.Wrap(err)
-			}
-			return trace.AccessDenied("missing second factor authentication")
-		case constants.SecondFactorOptional:
-			if req.SecondFactorToken != "" {
-				_, err := s.checkPassword(userID, req.OldPassword, req.SecondFactorToken)
-				return trace.Wrap(err)
-			}
-			if req.U2FSignResponse != nil {
-				_, err := s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
-				return trace.Wrap(err)
-			}
-			// Check that a user has no MFA devices registered.
-			devs, err := s.Identity.GetMFADevices(ctx, userID, false)
-			if err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-			if len(devs) != 0 {
-				// MFA devices registered but no MFA fields set in request.
-				log.Warningf("MFA bypass attempt by user %q, access denied.", userID)
-				return trace.AccessDenied("missing second factor authentication")
-			}
-			return nil
+	if len(req.OldPassword) > 0 {
+		authReq.Pass = &PassCreds{
+			Password: req.OldPassword,
 		}
-
-		return trace.BadParameter("unsupported second factor method: %q", secondFactor)
 	}
-
-	if err := s.WithUserLock(userID, fn); err != nil {
+	if req.U2FSignResponse != nil {
+		authReq.U2F = &U2FSignResponseCreds{
+			SignResponse: *req.U2FSignResponse,
+		}
+	}
+	if req.SecondFactorToken != "" {
+		authReq.OTP = &OTPCreds{
+			Password: req.OldPassword,
+			Token:    req.SecondFactorToken,
+		}
+	}
+	if _, err := s.authenticateUser(ctx, authReq); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := s.UpsertPassword(userID, req.NewPassword); err != nil {
+	if err := s.UpsertPassword(user, req.NewPassword); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -194,7 +157,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 			Code: events.UserPasswordChangeCode,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User: userID,
+			User: user,
 		},
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit password change event.")
