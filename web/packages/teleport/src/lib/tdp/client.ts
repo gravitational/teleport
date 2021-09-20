@@ -132,3 +132,9 @@ export default class Client extends EventEmitter {
     this.logger.error(err);
   }
 }
+
+export type RenderData = {
+  bitmap: ImageBitmap;
+  left: number;
+  top: number;
+};

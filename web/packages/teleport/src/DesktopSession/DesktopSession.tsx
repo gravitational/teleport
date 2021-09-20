@@ -14,21 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, {
-  useEffect,
-  useRef,
-  Dispatch,
-  SetStateAction,
-  CSSProperties,
-} from 'react';
-import useDesktopSession, {
-  State,
-  TdpClientConnectionState,
-} from './useDesktopSession';
-import TopBar, { TopBarHeight } from './TopBar';
+import React from 'react';
+import useDesktopSession, { State } from './useDesktopSession';
+import TopBar from './TopBar';
 import { Indicator, Box, Alert, Text, Flex } from 'design';
 import useTeleport from 'teleport/useTeleport';
-import TdpClient from 'teleport/lib/tdp/client';
+import TdpClientCanvas from './TdpClientCanvas';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -39,15 +30,21 @@ export default function Container() {
 export function DesktopSession(props: State) {
   const {
     hostname,
-    tdpClient,
     attempt,
     clipboard,
     recording,
-    username,
+    tdpClient,
     connection,
-    setConnection,
+    username,
+    onInit,
+    onConnect,
+    onRender,
+    onDisconnect,
+    onError,
   } = props;
 
+  // Calculates an optional status message for the UI based on the combined state
+  // of attempt and connection.
   const displayStatusMessage = () => {
     if (attempt.status === 'failed' || connection.status === 'error') {
       return (
@@ -107,7 +104,7 @@ export function DesktopSession(props: State) {
         recording={recording}
       />
       {displayStatusMessage()}
-      <TDPClientCanvas
+      <TdpClientCanvas
         style={{
           display:
             attempt.status === 'success' && connection.status === 'connected'
@@ -116,69 +113,14 @@ export function DesktopSession(props: State) {
           flex: 1,
         }}
         tdpClient={tdpClient}
-        setConnection={setConnection}
-        syncCanvasSizeToClientSize={(canvas: HTMLCanvasElement) => {
-          // Calculate the size of the canvas to be displayed.
-          // Setting flex to "1" ensures the canvas will fill out the area available to it,
-          // which we calculate based on the window dimensions and TopBarHeight below.
-          const width = window.innerWidth;
-          const height = window.innerHeight - TopBarHeight;
-
-          // If it's resolution does not match change it
-          if (canvas.width !== width || canvas.height !== height) {
-            canvas.width = width;
-            canvas.height = height;
-          }
-        }}
+        connection={connection}
+        username={username}
+        onInit={onInit}
+        onConnect={onConnect}
+        onRender={onRender}
+        onDisconnect={onDisconnect}
+        onError={onError}
       />
     </Flex>
   );
-}
-
-function TDPClientCanvas(props: {
-  tdpClient: TdpClient;
-  // syncCanvasSizeToClientSize is a function for sync-ing the canvas's internal size (canvas.width/height)
-  // with the size of the canvas displayed on screen. Called when TDPClientCanvas is first rendered to give
-  // tdp server the initial screen size target, and called on subsequent changes in client window size (TODO).
-  syncCanvasSizeToClientSize: (canvas: HTMLCanvasElement) => void;
-  setConnection: Dispatch<SetStateAction<TdpClientConnectionState>>;
-  style?: CSSProperties;
-}) {
-  const { tdpClient, setConnection, style, syncCanvasSizeToClientSize } = props;
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    tdpClient.on('render', ({ bitmap, left, top }) => {
-      const ctx = canvasRef.current.getContext('2d');
-      ctx.drawImage(bitmap, left, top);
-    });
-
-    tdpClient.on('disconnect', () => {
-      setConnection({
-        status: 'disconnected',
-      });
-    });
-
-    tdpClient.on('error', (err: Error) => {
-      setConnection({ status: 'error', statusText: err.message });
-    });
-
-    tdpClient.on('init', () => {
-      setConnection({ status: 'connecting' });
-      syncCanvasSizeToClientSize(canvasRef.current);
-      tdpClient.connect(canvasRef.current.width, canvasRef.current.height);
-    });
-
-    tdpClient.on('connect', () => {
-      setConnection({ status: 'connected' });
-    });
-
-    tdpClient.init();
-
-    return () => {
-      tdpClient.nuke();
-    };
-  }, [tdpClient]);
-
-  return <canvas style={{ ...style }} ref={canvasRef} />;
 }

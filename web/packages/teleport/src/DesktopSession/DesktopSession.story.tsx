@@ -14,29 +14,77 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { DesktopSession } from './DesktopSession';
 import { State } from './useDesktopSession';
-import TdpClient from 'teleport/lib/tdp/client';
+import TdpClient, { RenderData } from 'teleport/lib/tdp/client';
+import { TdpClientConnectionState } from './useTdpClientCanvas';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 export default {
   title: 'Teleport/DesktopSession',
+};
+
+const client = new TdpClient('wss://socketAddr.gov', 'username');
+client.init = () => {
+  client.emit('init');
+};
+client.connect = () => {
+  client.emit('connect');
+};
+client.resize = (w: number, h: number) => {};
+client.disconnect = () => {
+  client.emit('disconnect');
+};
+
+const fillGray = (canvas: HTMLCanvasElement) => {
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'gray';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+};
+
+const props: State = {
+  hostname: 'host.com',
+  attempt: { status: 'processing' },
+  clipboard: false,
+  recording: false,
+  tdpClient: client,
+  connection: { status: 'connecting', statusText: 'Connecting...' },
+  username: 'user',
+  onInit: (canvas: HTMLCanvasElement, cli: TdpClient) => {
+    fillGray(canvas);
+  },
+  onConnect: () => {},
+  onRender: (canvas: HTMLCanvasElement, data: RenderData) => {},
+  onDisconnect: () => {},
+  onError: (err: Error) => {},
 };
 
 export const Processing = () => (
   <DesktopSession
     {...props}
     attempt={{ status: 'processing' }}
-    connection={{ status: 'connecting', statusText: 'Connecting...' }}
+    connection={{ status: 'connecting' }}
   />
 );
-export const Connecting = () => (
-  <DesktopSession
-    {...props}
-    attempt={{ status: 'success' }}
-    connection={{ status: 'connecting', statusText: 'Connecting...' }}
-  />
-);
+
+export const ProcessingToConnectingToDisplay = () => {
+  const { attempt, setAttempt } = useAttempt('processing');
+  const [connection, setConnection] = useState<TdpClientConnectionState>({
+    status: 'connecting',
+  });
+
+  setTimeout(() => {
+    setAttempt({ status: 'success' });
+    setTimeout(() => {
+      setConnection({ status: 'connected' });
+    }, 1000);
+  }, 1000);
+
+  return (
+    <DesktopSession {...props} attempt={attempt} connection={connection} />
+  );
+};
 export const ConnectedSettingsFalse = () => (
   <DesktopSession
     {...props}
@@ -70,20 +118,3 @@ export const Error = () => (
     attempt={{ status: 'failed', statusText: 'some error message' }}
   />
 );
-
-const client = new TdpClient('wss://socketAddr.gov', 'username');
-client.init = () => {};
-client.connect = () => {};
-client.resize = (w: number, h: number) => {};
-client.disconnect = () => {};
-
-const props: State = {
-  tdpClient: client,
-  username: 'user',
-  hostname: 'host.com',
-  attempt: { status: 'processing' },
-  clipboard: false,
-  recording: false,
-  connection: { status: 'connecting', statusText: 'Connecting...' },
-  setConnection: () => {},
-};
