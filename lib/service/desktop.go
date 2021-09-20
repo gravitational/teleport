@@ -129,6 +129,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				HostSigner:  conn.ServerIdentity.KeySigner,
 				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 				Server:      shtl,
+				FIPS:        process.Config.FIPS,
 			})
 		if err != nil {
 			return trace.Wrap(err)

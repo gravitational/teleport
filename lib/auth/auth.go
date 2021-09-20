@@ -1323,6 +1323,12 @@ type newMFADeviceFields struct {
 	// u2fStorage is the storage used to hold the u2f challenge.
 	// Field can be empty to use default services.Identity storage.
 	u2fStorage u2f.RegistrationStorage
+
+	// webIdentityOverride is an optional RegistrationIdentity override to be used
+	// for device registration. A common override is decorating the regular
+	// Identity with an in-memory SessionData storage.
+	// Defaults to the Server's IdentityService.
+	webIdentityOverride wanlib.RegistrationIdentity
 }
 
 // verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
@@ -1470,9 +1476,13 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	identity := req.webIdentityOverride // Override Identity, if supplied.
+	if identity == nil {
+		identity = a.Identity
+	}
 	webRegistration := &wanlib.RegistrationFlow{
 		Webauthn: webConfig,
-		Identity: a.Identity,
+		Identity: identity,
 	}
 	// Finish upserts the device on success.
 	dev, err := webRegistration.Finish(
@@ -2928,7 +2938,6 @@ func groupByDeviceType(devs []*types.MFADevice, groupU2F, groupWebauthn bool) de
 }
 
 func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
-	// TODO(codingllama): Consolidate with authenticateUser?
 	switch res := resp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
 		return a.checkOTP(user, res.TOTP.Code)
