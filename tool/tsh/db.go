@@ -335,12 +335,10 @@ func onDatabaseConnect(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		host := addr.Host()
-		if database.Protocol == defaults.ProtocolPostgres {
-			// In case of psql connection the cli takes only domain names into consideration thus
-			// connecting to 127.0.0.1 will fail with "does not match host name "127.0.0.1" psql error.
-			host = "localhost"
-		}
+
+		// In case of psql connection the cli takes only domain names into consideration thus
+		// connecting to 127.0.0.1 will fail with "does not match host name "127.0.0.1" psql error.
+		host := "localhost"
 		opts = append(opts, WithLocalProxy(host, addr.Port(0), profile.CACertPath()))
 	}
 	cmd, err := getConnectCommand(cf, tc, profile, database, opts...)
@@ -449,9 +447,15 @@ func getMySQLCommand(db *tlsca.RouteToDatabase, cluster, user, name string, opti
 	if name != "" {
 		args = append(args, "--database", name)
 	}
+
 	if options.localProxyPort != 0 {
 		args = append(args, "--port", strconv.Itoa(options.localProxyPort))
 		args = append(args, "--host", options.localProxyHost)
+		// MySQL CLI treats localhost as a special value and tries to use Unix Domain Socket for connection
+		// To enforce TCP connection protocol needs to be explicitly specified.
+		if options.localProxyHost == "localhost" {
+			args = append(args, "--protocol", "TCP")
+		}
 	}
 
 	return exec.Command(mysqlBin, args...)
