@@ -106,6 +106,12 @@ func Register(ctx context.Context, origin string, cc *wanlib.CredentialCreation)
 				if len(app) == 0 {
 					continue
 				}
+
+				// Check if the device is already registered by calling
+				// CheckAuthenticate.
+				// If the method succeeds then the device knows about the
+				// {key handle, app} pair, which means it is already registered.
+				// CheckAuthenticate doesn't require user interaction.
 				if err := t.CheckAuthenticate(u2ftoken.AuthenticateRequest{
 					Challenge:   ccdHash[:],
 					Application: app,
