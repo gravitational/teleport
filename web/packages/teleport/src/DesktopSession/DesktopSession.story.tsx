@@ -23,20 +23,46 @@ export default {
   title: 'Teleport/DesktopSession',
 };
 
-export const Connecting = () => <DesktopSession {...props} />;
-export const SettingsFalse = () => (
-  <DesktopSession {...props} attempt={{ status: 'success' }} />
+export const Processing = () => (
+  <DesktopSession
+    {...props}
+    attempt={{ status: 'processing' }}
+    connection={{ status: 'connecting', statusText: 'Connecting...' }}
+  />
 );
-export const SettingsTrue = () => (
+export const Connecting = () => (
   <DesktopSession
     {...props}
     attempt={{ status: 'success' }}
+    connection={{ status: 'connecting', statusText: 'Connecting...' }}
+  />
+);
+export const ConnectedSettingsFalse = () => (
+  <DesktopSession
+    {...props}
+    attempt={{ status: 'success' }}
+    connection={{ status: 'connected' }}
+    clipboard={false}
+    recording={false}
+  />
+);
+export const ConnectedSettingsTrue = () => (
+  <DesktopSession
+    {...props}
+    attempt={{ status: 'success' }}
+    connection={{ status: 'connected' }}
     clipboard={true}
     recording={true}
   />
 );
 export const Disconnected = () => (
-  <DesktopSession {...props} attempt={{ status: 'disconnected' }} />
+  <DesktopSession
+    {...props}
+    attempt={{ status: 'success' }}
+    connection={{
+      status: 'disconnected',
+    }}
+  />
 );
 export const Error = () => (
   <DesktopSession
@@ -45,12 +71,9 @@ export const Error = () => (
   />
 );
 
-const client = new TdpClient('wss://socketAddr.gov');
-client.connect = () =>
-  new Promise<void>(resolve => {
-    resolve();
-  });
-client.sendUsername = () => {};
+const client = new TdpClient('wss://socketAddr.gov', 'username');
+client.init = () => {};
+client.connect = () => {};
 client.resize = (w: number, h: number) => {};
 client.disconnect = () => {};
 
@@ -61,5 +84,6 @@ const props: State = {
   attempt: { status: 'processing' },
   clipboard: false,
   recording: false,
-  setAttempt: () => null,
+  connection: { status: 'connecting', statusText: 'Connecting...' },
+  setConnection: () => {},
 };

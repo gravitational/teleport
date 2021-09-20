@@ -19,44 +19,10 @@ import { Text, TopNav, Flex } from 'design';
 import { Clipboard } from 'design/Icon';
 import { colors } from 'teleport/Console/colors';
 import ActionMenu from './ActionMenu';
-import { DesktopSessionAttempt } from './useDesktopSession';
-
-const RecordingIndicator = styled.div``;
 
 export default function TopBar(props: Props) {
-  const { userHost, clipboard, recording, attempt, onDisconnect } = props;
+  const { userHost, clipboard, recording, onDisconnect } = props;
   const theme = useTheme();
-
-  const noneUntilSuccess = () => {
-    return {
-      display: attempt.status === 'success' ? 'flex' : 'none',
-    };
-  };
-
-  const showOnProcessing = () => {
-    return {
-      display: attempt.status === 'processing' ? 'flex' : 'none',
-    };
-  };
-
-  const showOnFailure = () => {
-    return {
-      display: attempt.status === 'failed' ? 'flex' : 'none',
-    };
-  };
-
-  const showOnDisconnected = () => {
-    return {
-      display: attempt.status === 'disconnected' ? 'flex' : 'none',
-    };
-  };
-
-  // Used for centering the middle component in the TopBar in certain states
-  const centeringDivStyle = () => {
-    return {
-      display: attempt.status !== 'success' ? 'flex' : 'none',
-    };
-  };
 
   const primaryOnTrue = (b: boolean): any => {
     return {
@@ -65,12 +31,10 @@ export default function TopBar(props: Props) {
   };
 
   const userHostStyle = {
-    ...noneUntilSuccess(),
     color: theme.colors.text.secondary,
   };
 
   const clipboardTextStyle = {
-    ...noneUntilSuccess(),
     ...primaryOnTrue(clipboard),
     verticalAlign: 'text-bottom',
   };
@@ -80,22 +44,6 @@ export default function TopBar(props: Props) {
     fontWeight: theme.fontWeights.bold,
     fontSize: theme.fontSizes[4] + 'px',
     alignSelf: 'center',
-  };
-
-  const connectingStyle = {
-    ...showOnProcessing(),
-    color: theme.colors.text.secondary,
-    textAlign: 'center',
-  };
-
-  const errorStyle = {
-    ...showOnFailure(),
-    color: theme.colors.text.secondary,
-  };
-
-  const disconnectedStyle = {
-    ...showOnDisconnected(),
-    color: theme.colors.text.secondary,
   };
 
   const recordingTextStyle = primaryOnTrue(recording);
@@ -113,50 +61,41 @@ export default function TopBar(props: Props) {
 
   return (
     <TopNav
-      height="56px"
+      height={`${TopBarHeight}px`}
       bg={colors.dark}
       style={{
         justifyContent: 'space-between',
       }}
     >
-      <>
-        <div style={centeringDivStyle()}></div>
-        <Text px={3} style={userHostStyle}>
-          {userHost}
-        </Text>
-      </>
+      <Text px={3} style={userHostStyle}>
+        {userHost}
+      </Text>
 
-      <>
-        {/* Center element. Only one of these is shown at a time depending on attempt.status */}
-        <Text style={clipboardTextStyle}>
-          <Clipboard style={clipboardStyle} pr={2} />
-          Clipboard Sharing {clipboard ? 'Enabled' : 'Disabled'}
-        </Text>
-        <Text style={connectingStyle}>Connecting...</Text>
-        <Text style={errorStyle}>Error</Text>
-        <Text style={disconnectedStyle}>Disconnected</Text>
-      </>
+      <Text style={clipboardTextStyle}>
+        <Clipboard style={clipboardStyle} pr={2} />
+        Clipboard Sharing {clipboard ? 'Enabled' : 'Disabled'}
+      </Text>
 
-      <>
-        <div style={centeringDivStyle()}></div>
-        <Flex px={3} style={noneUntilSuccess()}>
-          <Flex alignItems="center">
-            <RecordingIndicator style={recordingIndicatorStyle} />
-            <Text style={recordingTextStyle}>
-              {recording ? '' : 'Not '}Recording
-            </Text>
-          </Flex>
-          <ActionMenu onDisconnect={onDisconnect} />
+      <Flex px={3}>
+        <Flex alignItems="center">
+          <RecordingIndicator style={recordingIndicatorStyle} />
+          <Text style={recordingTextStyle}>
+            {recording ? '' : 'Not '}Recording
+          </Text>
         </Flex>
-      </>
+        <ActionMenu onDisconnect={onDisconnect} />
+      </Flex>
     </TopNav>
   );
 }
+
+export const TopBarHeight = 56;
+
+const RecordingIndicator = styled.div``;
 
 type Props = {
   userHost: string;
   clipboard: boolean;
   recording: boolean;
-  attempt: DesktopSessionAttempt;
   onDisconnect: VoidFunction;
 };

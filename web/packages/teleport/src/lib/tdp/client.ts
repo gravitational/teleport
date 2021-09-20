@@ -21,67 +21,56 @@ export default class Client extends EventEmitter {
   codec: Codec;
   socket: WebSocket;
   socketAddr: string;
+  username: string;
   logger = Logger.create('TDPClient');
   userDisconnected = false;
-  connectResolved = false;
 
-  constructor(socketAddr: string) {
+  constructor(socketAddr: string, username: string) {
     super();
     this.socketAddr = socketAddr;
     this.codec = new Codec();
+    this.username = username;
   }
 
-  // Create the websocket and register websocket event handlers.
-  connect(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      this.socket = new WebSocket(this.socketAddr);
+  // Connect to the websocket and register websocket event handlers.
+  init() {
+    this.socket = new WebSocket(this.socketAddr);
 
-      this.socket.onopen = () => {
-        this.logger.info('websocket is open');
-        if (!this.connectResolved) {
-          this.connectResolved = true;
-          resolve();
-        }
-      };
+    this.socket.onopen = () => {
+      this.logger.info('websocket is open');
+      this.emit('init');
+    };
 
-      this.socket.onmessage = (ev: MessageEvent) => {
-        this.processMessage(ev.data);
-      };
+    this.socket.onmessage = (ev: MessageEvent) => {
+      this.processMessage(ev.data);
+    };
 
-      // The 'error' event will only ever be emitted by the socket
-      // prior to a 'close' event (https://stackoverflow.com/a/40084550/6277051).
-      // Therefore, we can rely on our onclose handler to account for any websocket errors.
-      this.socket.onerror = null;
-      this.socket.onclose = () => {
-        this.logger.info('websocket is closed');
+    // The 'error' event will only ever be emitted by the socket
+    // prior to a 'close' event (https://stackoverflow.com/a/40084550/6277051).
+    // Therefore, we can rely on our onclose handler to account for any websocket errors.
+    this.socket.onerror = null;
+    this.socket.onclose = () => {
+      this.logger.info('websocket is closed');
 
-        // Clean up all of our socket's listeners and the socket itself.
-        this.socket.onopen = null;
-        this.socket.onmessage = null;
-        this.socket.onclose = null;
-        this.socket = null;
+      // Clean up all of our socket's listeners and the socket itself.
+      this.socket.onopen = null;
+      this.socket.onmessage = null;
+      this.socket.onclose = null;
+      this.socket = null;
 
-        // If the close was triggered by the initial websocket
-        // connection failing, reject the Promise.
-        if (!this.connectResolved) {
-          reject(new Error('initial connection failed'));
-          return;
-        }
-
-        if (this.userDisconnected) {
-          this.emit('disconnect');
-        } else {
-          this.handleError(new Error('websocket closed'));
-        }
-      };
-    });
+      if (this.userDisconnected) {
+        this.emit('disconnect');
+      } else {
+        this.handleError(new Error('websocket connection failed'));
+      }
+    };
   }
 
-  // After websocket is connected with Client.connect(), user can initialize
-  // the tdp connection by calling init().
-  init(username: string, initialWidth: number, initialHeight: number) {
-    this.sendUsername(username);
+  // After websocket is connected, caller can initialize the tdp connection by calling connect.
+  connect(initialWidth: number, initialHeight: number) {
+    this.sendUsername(this.username);
     this.resize(initialWidth, initialHeight);
+    this.emit('connect');
   }
 
   processMessage(blob: Blob) {
@@ -127,6 +116,14 @@ export default class Client extends EventEmitter {
   // closed by the end user (customer). Causes 'disconnect' event to be emitted.
   disconnect() {
     this.userDisconnected = true;
+    this.socket?.close();
+  }
+
+  // Ensures full cleanup of this object.
+  // Note that it removes all listeners first and then cleans up the socket,
+  // so don't call this if your calling object is relying on listeners.
+  nuke() {
+    this.removeAllListeners();
     this.socket?.close();
   }
 

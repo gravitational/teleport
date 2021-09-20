@@ -17,7 +17,7 @@ limitations under the License.
 import { useMemo, useEffect, useState } from 'react';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import { useParams } from 'react-router';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import cfg, { UrlDesktopParams } from 'teleport/config';
 import TdpClient from 'teleport/lib/tdp/client';
 import Ctx from 'teleport/teleportContext';
@@ -27,11 +27,12 @@ import { stripRdpPort } from '../Desktops/DesktopList';
 export default function useDesktopSession(ctx: Ctx) {
   // Tracks combination of tdpclient/websocket and api call state,
   // as well as whether the tdp client for this session was intentionally disconnected.
-  const [attempt, setAttempt] = useState<DesktopSessionAttempt>({
-    status: 'processing',
-  });
+  const { attempt, run } = useAttempt('processing');
   const { clusterId, username, desktopId } = useParams<UrlDesktopParams>();
   const [hostname, setHostname] = useState<string>('');
+  const [connection, setConnection] = useState<TdpClientConnectionState>({
+    status: 'connecting',
+  });
 
   // creates hostname string from list of desktops based on url's desktopId
   const makeHostname = (desktops: Desktop[]) => {
@@ -51,21 +52,11 @@ export default function useDesktopSession(ctx: Ctx) {
       .replace(':desktopId', desktopId)
       .replace(':token', getAccessToken());
 
-    return new TdpClient(addr);
+    return new TdpClient(addr, username);
   }, [clusterId, username, desktopId]);
 
   useEffect(() => {
-    Promise.all([
-      ctx.desktopService.fetchDesktops(clusterId),
-      tdpClient.connect(),
-    ])
-      .then(vals => {
-        makeHostname(vals[0]);
-        setAttempt({ status: 'success' });
-      })
-      .catch(err => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
+    run(() => ctx.desktopService.fetchDesktops(clusterId).then(makeHostname));
   }, [tdpClient]);
 
   return {
@@ -73,7 +64,8 @@ export default function useDesktopSession(ctx: Ctx) {
     hostname,
     tdpClient,
     attempt,
-    setAttempt,
+    connection,
+    setConnection,
     // clipboard and recording settings will eventuall come from backend, hardcoded for now
     clipboard: false,
     recording: false,
@@ -82,10 +74,7 @@ export default function useDesktopSession(ctx: Ctx) {
 
 export type State = ReturnType<typeof useDesktopSession>;
 
-// Extends Attempt to allow for an additional 'disconnected' state,
-// which allows us to display a non-error for instances where the connection
-// was intentionally disconnected.
-export type DesktopSessionAttempt = {
-  status: Attempt['status'] | 'disconnected';
+export type TdpClientConnectionState = {
+  status: 'connecting' | 'connected' | 'disconnected' | 'error';
   statusText?: string;
 };
