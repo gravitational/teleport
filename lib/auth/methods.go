@@ -43,7 +43,7 @@ type AuthenticateUserRequest struct {
 	U2F *U2FSignResponseCreds `json:"u2f,omitempty"`
 	// Webauthn is a signed credential assertion used to authenticate via WebAuthn
 	// or U2F devices.
-	Webauthn *wanlib.CredentialAssertionResponse
+	Webauthn *wanlib.CredentialAssertionResponse `json:"webauthn,omitempty"`
 	// OTP is a password and second factor, used in two factor authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
