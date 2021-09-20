@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	check "gopkg.in/check.v1"
 )
@@ -44,8 +46,9 @@ func (s *BufferSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *BufferSuite) list(c *check.C, bufferSize int, listSize int) {
-	b, err := NewCircularBuffer(bufferSize)
-	c.Assert(err, check.IsNil)
+	b := NewCircularBuffer(
+		BufferCapacity(bufferSize),
+	)
 	defer b.Close()
 	b.SetInit()
 	s.listWithBuffer(c, b, bufferSize, listSize)
@@ -82,8 +85,9 @@ func (s *BufferSuite) TestBufferSizes(c *check.C) {
 // TestBufferSizesReset tests various combinations of various
 // buffer sizes and lists with clear.
 func (s *BufferSuite) TestBufferSizesReset(c *check.C) {
-	b, err := NewCircularBuffer(1)
-	c.Assert(err, check.IsNil)
+	b := NewCircularBuffer(
+		BufferCapacity(1),
+	)
 	defer b.Close()
 	b.SetInit()
 
@@ -94,9 +98,10 @@ func (s *BufferSuite) TestBufferSizesReset(c *check.C) {
 
 // TestWatcherSimple tests scenarios with watchers
 func (s *BufferSuite) TestWatcherSimple(c *check.C) {
-	ctx := context.TODO()
-	b, err := NewCircularBuffer(3)
-	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	b := NewCircularBuffer(
+		BufferCapacity(3),
+	)
 	defer b.Close()
 	b.SetInit()
 
@@ -133,11 +138,84 @@ func (s *BufferSuite) TestWatcherSimple(c *check.C) {
 	}
 }
 
+// TestWatcherCapacity checks various watcher capacity scenarios
+func (s *BufferSuite) TestWatcherCapacity(c *check.C) {
+	const gracePeriod = time.Second
+	clock := clockwork.NewFakeClock()
+
+	ctx := context.Background()
+	b := NewCircularBuffer(
+		BufferCapacity(1),
+		BufferClock(clock),
+		BacklogGracePeriod(gracePeriod),
+	)
+	defer b.Close()
+	b.SetInit()
+
+	w, err := b.NewWatcher(ctx, Watch{
+		QueueSize: 1,
+	})
+	c.Assert(err, check.IsNil)
+	defer w.Close()
+
+	select {
+	case e := <-w.Events():
+		c.Assert(e.Type, check.Equals, OpInit)
+	default:
+		c.Fatalf("Expected immediate OpInit.")
+	}
+
+	// emit and then consume 10 events.  this is much larger than our queue size,
+	// but should succeed since we consume within our grace period.
+	for i := 0; i < 10; i++ {
+		b.Emit(Event{Item: Item{Key: []byte{Separator}, ID: int64(i + 1)}})
+	}
+	for i := 0; i < 10; i++ {
+		select {
+		case e := <-w.Events():
+			c.Assert(e.Item.ID, check.Equals, int64(i+1))
+		default:
+			c.Fatalf("Expected events to be immediately available")
+		}
+	}
+
+	// advance further than grace period.
+	clock.Advance(gracePeriod + time.Second)
+
+	// emit another event, which will cause buffer to reevaluate the grace period.
+	b.Emit(Event{Item: Item{Key: []byte{Separator}, ID: int64(11)}})
+
+	// ensure that buffer did not close watcher, since previously created backlog
+	// was drained within grace period.
+	select {
+	case <-w.Done():
+		c.Fatalf("Watcher should not have backlog, but was closed anyway")
+	default:
+	}
+
+	// create backlog again, and this time advance past grace period without draining it.
+	for i := 0; i < 10; i++ {
+		b.Emit(Event{Item: Item{Key: []byte{Separator}, ID: int64(i + 12)}})
+	}
+	clock.Advance(gracePeriod + time.Second)
+
+	// emit another event, which will cause buffer to realize that watcher is past
+	// its grace period.
+	b.Emit(Event{Item: Item{Key: []byte{Separator}, ID: int64(22)}})
+
+	select {
+	case <-w.Done():
+	default:
+		c.Fatalf("buffer did not close watcher that was past grace period")
+	}
+}
+
 // TestWatcherClose makes sure that closed watcher
 // will be removed
 func (s *BufferSuite) TestWatcherClose(c *check.C) {
-	b, err := NewCircularBuffer(3)
-	c.Assert(err, check.IsNil)
+	b := NewCircularBuffer(
+		BufferCapacity(3),
+	)
 	defer b.Close()
 	b.SetInit()
 
@@ -192,8 +270,9 @@ func (s *BufferSuite) TestRemoveRedundantPrefixes(c *check.C) {
 // TestWatcherMulti makes sure that watcher
 // with multiple matching prefixes will get an event only once
 func (s *BufferSuite) TestWatcherMulti(c *check.C) {
-	b, err := NewCircularBuffer(3)
-	c.Assert(err, check.IsNil)
+	b := NewCircularBuffer(
+		BufferCapacity(3),
+	)
 	defer b.Close()
 	b.SetInit()
 
@@ -223,8 +302,9 @@ func (s *BufferSuite) TestWatcherMulti(c *check.C) {
 
 // TestWatcherReset tests scenarios with watchers and buffer resets
 func (s *BufferSuite) TestWatcherReset(c *check.C) {
-	b, err := NewCircularBuffer(3)
-	c.Assert(err, check.IsNil)
+	b := NewCircularBuffer(
+		BufferCapacity(3),
+	)
 	defer b.Close()
 	b.SetInit()
 
