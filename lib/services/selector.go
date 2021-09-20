@@ -38,16 +38,16 @@ func (s Selector) String() string {
 	return ""
 }
 
-// MatchDatabase returns true if any of the provided selectors matches the provided database.
-func MatchDatabase(selectors []Selector, database types.Database) bool {
+// MatchResourceLabels returns true if any of the provided selectors matches the provided database.
+func MatchResourceLabels(selectors []Selector, resource types.ResourceWithLabels) bool {
 	for _, selector := range selectors {
 		if len(selector.MatchLabels) == 0 {
 			return false
 		}
-		match, _, err := MatchLabels(selector.MatchLabels, database.GetAllLabels())
+		match, _, err := MatchLabels(selector.MatchLabels, resource.GetAllLabels())
 		if err != nil {
 			logrus.WithError(err).Errorf("Failed to match labels %v: %v.",
-				selector.MatchLabels, database)
+				selector.MatchLabels, resource)
 			return false
 		}
 		if match {

@@ -166,6 +166,8 @@ type Server struct {
 	mu sync.RWMutex
 	// log is used for logging.
 	log *logrus.Entry
+	// reconciler is used to reconcile proxied databases with database resources.
+	reconciler *services.Reconciler
 }
 
 // New returns a new database server.
@@ -188,6 +190,12 @@ func New(ctx context.Context, config Config) (*Server, error) {
 			AccessPoint:   config.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
+	}
+
+	// Reconciler will be reconciling database resources with proxied databases.
+	server.reconciler, err = server.getReconciler()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Update TLS config to require client certificate.
@@ -298,8 +306,8 @@ func (s *Server) registerDatabase(ctx context.Context, database types.Database) 
 	return nil
 }
 
-// reRegisterDatabase updates database that is already registered.
-func (s *Server) reRegisterDatabase(ctx context.Context, database types.Database) error {
+// updateDatabase updates database that is already registered.
+func (s *Server) updateDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels before starting new ones.
 	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
 		return trace.Wrap(err)
@@ -442,7 +450,7 @@ func (s *Server) Start(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.reconcileResources(ctx, databases); err != nil {
+	if err := s.reconciler.Reconcile(ctx, types.Databases(databases).AsResources()); err != nil {
 		return trace.Wrap(err)
 	}
 
