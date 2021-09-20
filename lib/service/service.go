@@ -1385,7 +1385,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Mode:      srv.HeartbeatModeAuth,
-		Context:   process.ExitContext(),
+		Context:   process.GracefulExitContext(),
 		Component: teleport.ComponentAuth,
 		Announcer: authServer,
 		GetServerInfo: func() (types.Resource, error) {
@@ -1446,9 +1446,14 @@ func (process *TeleportProcess) initAuthService() error {
 			log.Info("Shutting down immediately.")
 			warnOnErr(tlsServer.Close(), log)
 		} else {
-			log.Info("Shutting down gracefully.")
-			ctx := payloadContext(payload, log)
-			warnOnErr(tlsServer.Shutdown(ctx), log)
+			log.Info("Shutting down immediately (auth service does not currently support graceful shutdown).")
+			// NOTE: Graceful shutdown of auth.TLSServer is disabled right now, because we don't
+			// have a good model for performing it.  In particular, watchers and other GRPC streams
+			// are a problem.  Even if we distinguish between user-created and server-created streams
+			// (as is done with ssh connections), we don't have a way to distinguish "service accounts"
+			// such as access workflow plugins from normal users.  Without this, a graceful shutdown
+			// of the auth server basically never exits.
+			warnOnErr(tlsServer.Close(), log)
 		}
 		if uploadCompleter != nil {
 			warnOnErr(uploadCompleter.Close(), log)
@@ -1951,6 +1956,10 @@ func (process *TeleportProcess) initSSH() error {
 			warnOnErr(asyncEmitter.Close(), log)
 		}
 
+		if conn != nil {
+			warnOnErr(conn.Close(), log)
+		}
+
 		log.Infof("Exited.")
 	})
 
@@ -1967,13 +1976,6 @@ func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, ev
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.OnExit(fmt.Sprintf("auth.client.%v", serviceName), func(interface{}) {
-			process.log.Debugf("Closed client for %v.", role)
-			err := connector.Client.Close()
-			if err != nil {
-				process.log.Debugf("Failed to close client: %v", err)
-			}
-		})
 		process.BroadcastEvent(Event{Name: eventName, Payload: connector})
 		return nil
 	})
@@ -2206,7 +2208,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 			select {
 			case e := <-eventCh:
 				ps.update(e)
-			case <-process.ExitContext().Done():
+			case <-process.GracefulExitContext().Done():
 				log.Debugf("Teleport is exiting, returning.")
 				return nil
 			}
@@ -2398,11 +2400,8 @@ func (process *TeleportProcess) initProxy() error {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
 
-		err := process.initProxyEndpoint(conn)
-		if err != nil {
-			if conn.Client != nil {
-				warnOnErr(conn.Client.Close(), process.log)
-			}
+		if err := process.initProxyEndpoint(conn); err != nil {
+			warnOnErr(conn.Close(), process.log)
 			return trace.Wrap(err)
 		}
 
@@ -3098,10 +3097,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		} else {
 			log.Infof("Shutting down gracefully.")
 			ctx := payloadContext(payload, log)
+			warnOnErr(sshProxy.Shutdown(ctx), log)
 			if tsrv != nil {
 				warnOnErr(tsrv.Shutdown(ctx), log)
 			}
-			warnOnErr(sshProxy.Shutdown(ctx), log)
 			if webServer != nil {
 				warnOnErr(webServer.Shutdown(ctx), log)
 			}
@@ -3115,11 +3114,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(alpnServer.Close(), log)
 			}
 		}
-		// Close client after graceful shutdown has been completed,
-		// to make sure in flight streams are not terminated,
-		if conn.Client != nil {
-			warnOnErr(conn.Client.Close(), log)
-		}
+		warnOnErr(conn.Close(), log)
 		log.Infof("Exited.")
 	})
 	if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
@@ -3354,6 +3349,7 @@ func (process *TeleportProcess) initApps() {
 
 	var appServer *app.Server
 	var agentPool *reversetunnel.AgentPool
+	var conn *Connector
 
 	process.RegisterCriticalFunc("apps.start", func() error {
 		var ok bool
@@ -3560,6 +3556,10 @@ func (process *TeleportProcess) initApps() {
 		}
 		if agentPool != nil {
 			agentPool.Stop()
+		}
+
+		if conn != nil {
+			warnOnErr(conn.Close(), log)
 		}
 
 		log.Infof("Exited.")

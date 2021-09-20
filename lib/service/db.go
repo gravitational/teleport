@@ -229,6 +229,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		if agentPool != nil {
 			agentPool.Stop()
 		}
+		warnOnErr(conn.Close(), log)
 		log.Info("Exited.")
 	})
 
