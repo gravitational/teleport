@@ -239,9 +239,12 @@ func CreateFirestoreClients(ctx context.Context, projectID string, endPoint stri
 	return firestoreAdminClient, firestoreClient, nil
 }
 
-type FirestoreOption func(*Backend)
+// Option supplies a non-config related option to a Backend during
+// construction
+type Option func(*Backend)
 
-func WithClock(clock clockwork.Clock) FirestoreOption {
+// WithClock provides a custom clock the firestore Backend
+func WithClock(clock clockwork.Clock) Option {
 	return func(b *Backend) {
 		b.clock = clock
 	}
@@ -249,7 +252,7 @@ func WithClock(clock clockwork.Clock) FirestoreOption {
 
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, params backend.Params, options ...FirestoreOption) (*Backend, error) {
+func New(ctx context.Context, params backend.Params, options ...Option) (*Backend, error) {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
 	var cfg *backendConfig
 	err := apiutils.ObjectToStruct(params, &cfg)
