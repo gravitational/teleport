@@ -43,8 +43,14 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
+const (
+	totpDeviceType     = "TOTP"
+	u2fDeviceType      = "U2F"
+	webauthnDeviceType = "WEBAUTHN"
+)
+
 // deviceTypes lists the supported device types for `tsh mfa add`.
-var deviceTypes = []string{"TOTP", "U2F", "WEBAUTHN"}
+var deviceTypes = []string{totpDeviceType, u2fDeviceType, webauthnDeviceType}
 
 type mfaCommands struct {
 	ls  *mfaLSCommand
@@ -162,11 +168,11 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	}
 	var devType proto.AddMFADeviceRequestInit_DeviceType
 	switch strings.ToUpper(c.devType) {
-	case "TOTP":
+	case totpDeviceType:
 		devType = proto.AddMFADeviceRequestInit_TOTP
-	case "U2F":
+	case u2fDeviceType:
 		devType = proto.AddMFADeviceRequestInit_U2F
-	case "WEBAUTHN":
+	case webauthnDeviceType:
 		devType = proto.AddMFADeviceRequestInit_Webauthn
 	default:
 		return trace.BadParameter("unknown device type %q, must be one of %v", c.devType, strings.Join(deviceTypes, ", "))
