@@ -197,6 +197,93 @@ func TestDatabaseResource(t *testing.T) {
 	))
 }
 
+// TestAppResource tests tctl commands that manage application resources.
+func TestAppResource(t *testing.T) {
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Apps: config.Apps{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: mustGetFreeLocalListenerAddr(t),
+			TunAddr: mustGetFreeLocalListenerAddr(t),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: mustGetFreeLocalListenerAddr(t),
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+
+	appA, err := types.NewAppV3(types.Metadata{
+		Name:   "appA",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+
+	appB, err := types.NewAppV3(types.Metadata{
+		Name:   "appB",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost2",
+	})
+	require.NoError(t, err)
+
+	var out []*types.AppV3
+
+	// Initially there are no apps.
+	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindApp, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 0)
+
+	// Create the apps.
+	appYAMLPath := filepath.Join(t.TempDir(), "app.yaml")
+	require.NoError(t, ioutil.WriteFile(appYAMLPath, []byte(appYAML), 0644))
+	_, err = runResourceCommand(t, fileConfig, []string{"create", appYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the apps, should have 2.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindApp, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.AppV3{appA, appB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+
+	// Fetch specific app.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/appB", types.KindApp), "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.AppV3{appB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+
+	// Remove an app.
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/appA", types.KindApp)})
+	require.NoError(t, err)
+
+	// Fetch all apps again, should have 1.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindApp, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.AppV3{appB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+}
+
 const (
 	dbYAML = `kind: db
 version: v3
@@ -213,4 +300,18 @@ metadata:
 spec:
   protocol: "mysql"
   uri: "localhost:3306"`
+
+	appYAML = `kind: app
+version: v3
+metadata:
+  name: appA
+spec:
+  uri: "localhost1"
+---
+kind: app
+version: v3
+metadata:
+  name: appB
+spec:
+  uri: "localhost2"`
 )
