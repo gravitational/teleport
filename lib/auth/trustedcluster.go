@@ -401,7 +401,14 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 		if remoteCluster.GetConnectionStatus() != teleport.RemoteClusterStatusOffline {
 			remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 			if err := a.UpdateRemoteCluster(ctx, remoteCluster); err != nil {
-				return trace.Wrap(err)
+				// if the cluster was concurrently updated, ignore the update.  either
+				// the update was consistent with our view of the world, in which case
+				// retrying would be pointless, or the update was not consistent, in which
+				// case we should prioritize presenting our view in an internally-consistent
+				// manner rather than competing with another task.
+				if !trace.IsCompareFailed(err) {
+					return trace.Wrap(err)
+				}
 			}
 		}
 		return nil
@@ -421,7 +428,14 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 	}
 	if prevConnectionStatus != remoteCluster.GetConnectionStatus() || !prevLastHeartbeat.Equal(remoteCluster.GetLastHeartbeat()) {
 		if err := a.UpdateRemoteCluster(ctx, remoteCluster); err != nil {
-			return trace.Wrap(err)
+			// if the cluster was concurrently updated, ignore the update.  either
+			// the update was consistent with our view of the world, in which case
+			// retrying would be pointless, or the update was not consistent, in which
+			// case we should prioritize presenting our view in an internally-consistent
+			// manner rather than competing with another task.
+			if !trace.IsCompareFailed(err) {
+				return trace.Wrap(err)
+			}
 		}
 	}
 

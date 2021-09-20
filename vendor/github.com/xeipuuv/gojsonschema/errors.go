@@ -1,147 +1,222 @@
 package gojsonschema
 
 import (
-	"fmt"
-	"strings"
+	"bytes"
+	"sync"
+	"text/template"
 )
 
+var errorTemplates = errorTemplate{template.New("errors-new"), sync.RWMutex{}}
+
+// template.Template is not thread-safe for writing, so some locking is done
+// sync.RWMutex is used for efficiently locking when new templates are created
+type errorTemplate struct {
+	*template.Template
+	sync.RWMutex
+}
+
 type (
-	// RequiredError. ErrorDetails: property string
+
+	// FalseError. ErrorDetails: -
+	FalseError struct {
+		ResultErrorFields
+	}
+
+	// RequiredError indicates that a required field is missing
+	// ErrorDetails: property string
 	RequiredError struct {
 		ResultErrorFields
 	}
 
-	// InvalidTypeError. ErrorDetails: expected, given
+	// InvalidTypeError indicates that a field has the incorrect type
+	// ErrorDetails: expected, given
 	InvalidTypeError struct {
 		ResultErrorFields
 	}
 
-	// NumberAnyOfError. ErrorDetails: -
+	// NumberAnyOfError is produced in case of a failing "anyOf" validation
+	// ErrorDetails: -
 	NumberAnyOfError struct {
 		ResultErrorFields
 	}
 
-	// NumberOneOfError. ErrorDetails: -
+	// NumberOneOfError is produced in case of a failing "oneOf" validation
+	// ErrorDetails: -
 	NumberOneOfError struct {
 		ResultErrorFields
 	}
 
-	// NumberAllOfError. ErrorDetails: -
+	// NumberAllOfError is produced in case of a failing "allOf" validation
+	// ErrorDetails: -
 	NumberAllOfError struct {
 		ResultErrorFields
 	}
 
-	// NumberNotError. ErrorDetails: -
+	// NumberNotError is produced if a "not" validation failed
+	// ErrorDetails: -
 	NumberNotError struct {
 		ResultErrorFields
 	}
 
-	// MissingDependencyError. ErrorDetails: dependency
+	// MissingDependencyError is produced in case of a "missing dependency" problem
+	// ErrorDetails: dependency
 	MissingDependencyError struct {
 		ResultErrorFields
 	}
 
-	// InternalError. ErrorDetails: error
+	// InternalError indicates an internal error
+	// ErrorDetails: error
 	InternalError struct {
 		ResultErrorFields
 	}
 
-	// EnumError. ErrorDetails: allowed
+	// ConstError indicates a const error
+	// ErrorDetails: allowed
+	ConstError struct {
+		ResultErrorFields
+	}
+
+	// EnumError indicates an enum error
+	// ErrorDetails: allowed
 	EnumError struct {
 		ResultErrorFields
 	}
 
-	// ArrayNoAdditionalItemsError. ErrorDetails: -
+	// ArrayNoAdditionalItemsError is produced if additional items were found, but not allowed
+	// ErrorDetails: -
 	ArrayNoAdditionalItemsError struct {
 		ResultErrorFields
 	}
 
-	// ArrayMinItemsError. ErrorDetails: min
+	// ArrayMinItemsError is produced if an array contains less items than the allowed minimum
+	// ErrorDetails: min
 	ArrayMinItemsError struct {
 		ResultErrorFields
 	}
 
-	// ArrayMaxItemsError. ErrorDetails: max
+	// ArrayMaxItemsError is produced if an array contains more items than the allowed maximum
+	// ErrorDetails: max
 	ArrayMaxItemsError struct {
 		ResultErrorFields
 	}
 
-	// ItemsMustBeUniqueError. ErrorDetails: type
+	// ItemsMustBeUniqueError is produced if an array requires unique items, but contains non-unique items
+	// ErrorDetails: type, i, j
 	ItemsMustBeUniqueError struct {
 		ResultErrorFields
 	}
 
-	// ArrayMinPropertiesError. ErrorDetails: min
+	// ArrayContainsError is produced if an array contains invalid items
+	// ErrorDetails:
+	ArrayContainsError struct {
+		ResultErrorFields
+	}
+
+	// ArrayMinPropertiesError is produced if an object contains less properties than the allowed minimum
+	// ErrorDetails: min
 	ArrayMinPropertiesError struct {
 		ResultErrorFields
 	}
 
-	// ArrayMaxPropertiesError. ErrorDetails: max
+	// ArrayMaxPropertiesError is produced if an object contains more properties than the allowed maximum
+	// ErrorDetails: max
 	ArrayMaxPropertiesError struct {
 		ResultErrorFields
 	}
 
-	// AdditionalPropertyNotAllowedError. ErrorDetails: property
+	// AdditionalPropertyNotAllowedError is produced if an object has additional properties, but not allowed
+	// ErrorDetails: property
 	AdditionalPropertyNotAllowedError struct {
 		ResultErrorFields
 	}
 
-	// InvalidPropertyPatternError. ErrorDetails: property, pattern
+	// InvalidPropertyPatternError is produced if an pattern was found
+	// ErrorDetails: property, pattern
 	InvalidPropertyPatternError struct {
 		ResultErrorFields
 	}
 
-	// StringLengthGTEError. ErrorDetails: min
+	// InvalidPropertyNameError is produced if an invalid-named property was found
+	// ErrorDetails: property
+	InvalidPropertyNameError struct {
+		ResultErrorFields
+	}
+
+	// StringLengthGTEError is produced if a string is shorter than the minimum required length
+	// ErrorDetails: min
 	StringLengthGTEError struct {
 		ResultErrorFields
 	}
 
-	// StringLengthLTEError. ErrorDetails: max
+	// StringLengthLTEError is produced if a string is longer than the maximum allowed length
+	// ErrorDetails: max
 	StringLengthLTEError struct {
 		ResultErrorFields
 	}
 
-	// DoesNotMatchPatternError. ErrorDetails: pattern
+	// DoesNotMatchPatternError is produced if a string does not match the defined pattern
+	// ErrorDetails: pattern
 	DoesNotMatchPatternError struct {
 		ResultErrorFields
 	}
 
-	// DoesNotMatchFormatError. ErrorDetails: format
+	// DoesNotMatchFormatError is produced if a string does not match the defined format
+	// ErrorDetails: format
 	DoesNotMatchFormatError struct {
 		ResultErrorFields
 	}
 
-	// MultipleOfError. ErrorDetails: multiple
+	// MultipleOfError is produced if a number is not a multiple of the defined multipleOf
+	// ErrorDetails: multiple
 	MultipleOfError struct {
 		ResultErrorFields
 	}
 
-	// NumberGTEError. ErrorDetails: min
+	// NumberGTEError is produced if a number is lower than the allowed minimum
+	// ErrorDetails: min
 	NumberGTEError struct {
 		ResultErrorFields
 	}
 
-	// NumberGTError. ErrorDetails: min
+	// NumberGTError is produced if a number is lower than, or equal to the specified minimum, and exclusiveMinimum is set
+	// ErrorDetails: min
 	NumberGTError struct {
 		ResultErrorFields
 	}
 
-	// NumberLTEError. ErrorDetails: max
+	// NumberLTEError is produced if a number is higher than the allowed maximum
+	// ErrorDetails: max
 	NumberLTEError struct {
 		ResultErrorFields
 	}
 
-	// NumberLTError. ErrorDetails: max
+	// NumberLTError is produced if a number is higher than, or equal to the specified maximum, and exclusiveMaximum is set
+	// ErrorDetails: max
 	NumberLTError struct {
+		ResultErrorFields
+	}
+
+	// ConditionThenError is produced if a condition's "then" validation is invalid
+	// ErrorDetails: -
+	ConditionThenError struct {
+		ResultErrorFields
+	}
+
+	// ConditionElseError is produced if a condition's "else" condition is invalid
+	// ErrorDetails: -
+	ConditionElseError struct {
 		ResultErrorFields
 	}
 )
 
 // newError takes a ResultError type and sets the type, context, description, details, value, and field
-func newError(err ResultError, context *jsonContext, value interface{}, locale locale, details ErrorDetails) {
+func newError(err ResultError, context *JsonContext, value interface{}, locale locale, details ErrorDetails) {
 	var t string
 	var d string
 	switch err.(type) {
+	case *FalseError:
+		t = "false"
+		d = locale.False()
 	case *RequiredError:
 		t = "required"
 		d = locale.Required()
@@ -166,6 +241,9 @@ func newError(err ResultError, context *jsonContext, value interface{}, locale l
 	case *InternalError:
 		t = "internal"
 		d = locale.Internal()
+	case *ConstError:
+		t = "const"
+		d = locale.Const()
 	case *EnumError:
 		t = "enum"
 		d = locale.Enum()
@@ -181,6 +259,9 @@ func newError(err ResultError, context *jsonContext, value interface{}, locale l
 	case *ItemsMustBeUniqueError:
 		t = "unique"
 		d = locale.Unique()
+	case *ArrayContainsError:
+		t = "contains"
+		d = locale.ArrayContains()
 	case *ArrayMinPropertiesError:
 		t = "array_min_properties"
 		d = locale.ArrayMinProperties()
@@ -193,6 +274,9 @@ func newError(err ResultError, context *jsonContext, value interface{}, locale l
 	case *InvalidPropertyPatternError:
 		t = "invalid_property_pattern"
 		d = locale.InvalidPropertyPattern()
+	case *InvalidPropertyNameError:
+		t = "invalid_property_name"
+		d = locale.InvalidPropertyName()
 	case *StringLengthGTEError:
 		t = "string_gte"
 		d = locale.StringGTE()
@@ -220,23 +304,61 @@ func newError(err ResultError, context *jsonContext, value interface{}, locale l
 	case *NumberLTError:
 		t = "number_lt"
 		d = locale.NumberLT()
+	case *ConditionThenError:
+		t = "condition_then"
+		d = locale.ConditionThen()
+	case *ConditionElseError:
+		t = "condition_else"
+		d = locale.ConditionElse()
 	}
 
 	err.SetType(t)
 	err.SetContext(context)
 	err.SetValue(value)
 	err.SetDetails(details)
+	err.SetDescriptionFormat(d)
 	details["field"] = err.Field()
-	err.SetDescription(formatErrorDescription(d, details))
-}
 
-// formatErrorDescription takes a string in this format: %field% is required
-// and converts it to a string with replacements. The fields come from
-// the ErrorDetails struct and vary for each type of error.
-func formatErrorDescription(s string, details ErrorDetails) string {
-	for name, val := range details {
-		s = strings.Replace(s, "%"+strings.ToLower(name)+"%", fmt.Sprintf("%v", val), -1)
+	if _, exists := details["context"]; !exists && context != nil {
+		details["context"] = context.String()
 	}
 
-	return s
+	err.SetDescription(formatErrorDescription(err.DescriptionFormat(), details))
+}
+
+// formatErrorDescription takes a string in the default text/template
+// format and converts it to a string with replacements. The fields come
+// from the ErrorDetails struct and vary for each type of error.
+func formatErrorDescription(s string, details ErrorDetails) string {
+
+	var tpl *template.Template
+	var descrAsBuffer bytes.Buffer
+	var err error
+
+	errorTemplates.RLock()
+	tpl = errorTemplates.Lookup(s)
+	errorTemplates.RUnlock()
+
+	if tpl == nil {
+		errorTemplates.Lock()
+		tpl = errorTemplates.New(s)
+
+		if ErrorTemplateFuncs != nil {
+			tpl.Funcs(ErrorTemplateFuncs)
+		}
+
+		tpl, err = tpl.Parse(s)
+		errorTemplates.Unlock()
+
+		if err != nil {
+			return err.Error()
+		}
+	}
+
+	err = tpl.Execute(&descrAsBuffer, details)
+	if err != nil {
+		return err.Error()
+	}
+
+	return descrAsBuffer.String()
 }

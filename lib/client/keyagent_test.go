@@ -105,7 +105,13 @@ func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	// make a new local agent
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
 	c.Assert(err, check.IsNil)
-	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
+	lka, err := NewLocalAgent(
+		LocalAgentConfig{
+			Keystore:   keystore,
+			ProxyHost:  s.hostname,
+			Username:   s.username,
+			KeysOption: AddKeysToAgentAuto,
+		})
 	c.Assert(err, check.IsNil)
 
 	// add the key to the local agent, this should write the key
@@ -172,7 +178,12 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 	// make a new local agent
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
 	c.Assert(err, check.IsNil)
-	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
+	lka, err := NewLocalAgent(LocalAgentConfig{
+		Keystore:   keystore,
+		ProxyHost:  s.hostname,
+		Username:   s.username,
+		KeysOption: AddKeysToAgentAuto,
+	})
 	c.Assert(err, check.IsNil)
 
 	// unload any keys that might be in the agent for this user
@@ -232,7 +243,12 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	// Make a new local agent.
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
 	c.Assert(err, check.IsNil)
-	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
+	lka, err := NewLocalAgent(LocalAgentConfig{
+		Keystore:   keystore,
+		ProxyHost:  s.hostname,
+		Username:   s.username,
+		KeysOption: AddKeysToAgentAuto,
+	})
 	c.Assert(err, check.IsNil)
 
 	// By default user has not refused any hosts.
@@ -315,7 +331,13 @@ func (s *KeyAgentTestSuite) TestHostKeyVerification(c *check.C) {
 	// make a new local agent
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
 	c.Assert(err, check.IsNil)
-	lka, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
+	lka, err := NewLocalAgent(LocalAgentConfig{
+		Keystore:   keystore,
+		ProxyHost:  s.hostname,
+		Username:   s.username,
+		KeysOption: AddKeysToAgentAuto,
+		Insecure:   true,
+	})
 	c.Assert(err, check.IsNil)
 
 	// by default user has not refused any hosts:
@@ -371,7 +393,12 @@ func (s *KeyAgentTestSuite) TestDefaultHostPromptFunc(c *check.C) {
 
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
 	c.Assert(err, check.IsNil)
-	a, err := NewLocalAgent(keystore, s.hostname, s.username, AddKeysToAgentAuto)
+	a, err := NewLocalAgent(LocalAgentConfig{
+		Keystore:   keystore,
+		ProxyHost:  s.hostname,
+		Username:   s.username,
+		KeysOption: AddKeysToAgentAuto,
+	})
 	c.Assert(err, check.IsNil)
 
 	_, keyBytes, err := keygen.GenerateKeyPair("")

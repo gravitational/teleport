@@ -150,7 +150,7 @@ func (k *Keygen) precomputeKeys() {
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
 // execute.
 func GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -229,7 +229,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 	}
 
 	log.Debugf("Generated SSH host certificate for role %v with principals: %v.",
-		c, principals)
+		c.Role, principals)
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
