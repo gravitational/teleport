@@ -440,7 +440,7 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, watcher.Close()) }()
 
 	// ...expect that the event channel contains the original `init` message
-	// sent when the Firestore client was wet up.
+	// sent when the Firestore client was set up.
 	init := collectEvents(ctx, t, watcher, 1)
 	requireEvents(t, init, []backend.Event{
 		{Type: types.OpInit, Item: backend.Item{}},
