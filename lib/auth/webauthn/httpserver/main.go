@@ -70,6 +70,7 @@ func run() error {
 		return trace.Wrap(err)
 	}
 
+	http.Handle("/", http.RedirectHandler("/index.html", http.StatusSeeOther))
 	http.HandleFunc("/index.html", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
 		w.WriteHeader(http.StatusOK)

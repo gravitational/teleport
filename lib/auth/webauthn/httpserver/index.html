@@ -34,7 +34,7 @@
 </body>
 
 <script>
-  // Base64 to ArrayBuffer
+  // URLBase64 to ArrayBuffer
   function bufferDecode(value) {
     return Uint8Array.from(atob(value), c => c.charCodeAt(0));
   }
@@ -81,7 +81,6 @@
       })
       .then(res => res.json())
       .then(res => {
-        console.log("cc:", JSON.stringify(res));
         res.publicKey.challenge = bufferDecode(res.publicKey.challenge);
         res.publicKey.user.id = bufferDecode(res.publicKey.user.id);
         if (res.publicKey.excludeCredentials) {
@@ -89,7 +88,7 @@
             x.id = bufferDecode(x.id);
           })
         }
-        console.log("createOpts", res);
+        console.log("CredentialCreation", res);
         return res;
       })
       .then(res => navigator.credentials.create({publicKey: res.publicKey}))
