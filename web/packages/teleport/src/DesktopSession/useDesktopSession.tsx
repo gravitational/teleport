@@ -29,6 +29,7 @@ export default function useDesktopSession(ctx: Ctx) {
   const { attempt, run } = useAttempt('processing');
   const { clusterId, desktopId } = useParams<UrlDesktopParams>();
   const [hostname, setHostname] = useState<string>('');
+  const clientCanvasProps = useTdpClientCanvas();
 
   // creates hostname string from list of desktops based on url's desktopId
   const makeHostname = (desktops: Desktop[]) => {
@@ -50,7 +51,7 @@ export default function useDesktopSession(ctx: Ctx) {
     // clipboard and recording settings will eventuall come from backend, hardcoded for now
     clipboard: false,
     recording: false,
-    ...useTdpClientCanvas(),
+    ...clientCanvasProps,
   };
 }
 

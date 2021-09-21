@@ -43,24 +43,28 @@ export function DesktopSession(props: State) {
     onError,
   } = props;
 
+  const errorAlert = (
+    <Alert
+      style={{
+        alignSelf: 'center',
+      }}
+      width={'450px'}
+      my={2}
+      children={
+        attempt.status === 'failed'
+          ? attempt.statusText
+          : connection.status === 'error'
+          ? connection.statusText
+          : 'unexpected state'
+      }
+    />
+  );
+
   // Calculates an optional status message for the UI based on the combined state
   // of attempt and connection.
   const displayStatusMessage = () => {
     if (attempt.status === 'failed' || connection.status === 'error') {
-      return (
-        <Alert
-          style={{
-            alignSelf: 'center',
-          }}
-          width={'450px'}
-          my={2}
-          children={
-            attempt.status === 'failed'
-              ? attempt.statusText
-              : connection.statusText
-          }
-        />
-      );
+      return errorAlert;
     } else if (
       attempt.status === 'processing' ||
       connection.status === 'connecting'
@@ -82,14 +86,7 @@ export function DesktopSession(props: State) {
     ) {
       return null;
     } else {
-      <Alert
-        style={{
-          alignSelf: 'center',
-        }}
-        width={'450px'}
-        my={2}
-        children={'unexpected state'}
-      />;
+      return errorAlert;
     }
   };
 
@@ -103,7 +100,9 @@ export function DesktopSession(props: State) {
         clipboard={clipboard}
         recording={recording}
       />
+
       {displayStatusMessage()}
+
       <TdpClientCanvas
         style={{
           display:
