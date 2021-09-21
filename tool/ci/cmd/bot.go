@@ -18,11 +18,19 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const usage = "The following subcommands are supported:\n" +
+	"\tassign-reviewers \n\t assigns reviewers to a pull request.\n" +
+	"\tcheck-reviewers \n\t checks pull request for required reviewers.\n" +
+	"\tdismiss-runs \n\t dismisses stale workflow runs for external contributors.\n"
+
 func main() {
 	var token = flag.String("token", "", "token is the Github authentication token.")
 	var reviewers = flag.String("reviewers", "", "reviewers is a string representing a json object that maps authors to required reviewers for that author.")
 	flag.Parse()
 
+	if len(os.Args) < 2 {
+		log.Fatalf("Subcommand required. %s\n", usage)
+	}
 	subcommand := os.Args[len(os.Args)-1]
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
@@ -38,10 +46,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Print("Assign completed")
-
+		log.Print("Assign completed.")
 	case ci.CheckSubcommand:
-		log.Println("Checking reviewers")
+		log.Println("Checking reviewers.")
 		bot, err := constructBot(ctx, *token, *reviewers)
 		if err != nil {
 			log.Fatal(err)
@@ -50,19 +57,16 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Print("Check completed")
+		log.Print("Check completed.")
 	case ci.Dismiss:
-		log.Println("Dismissing stale runs")
+		log.Println("Dismissing stale runs.")
 		err := dismissRuns(ctx, *token)
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Println("Stale workflow run removal completed")
+		log.Println("Stale workflow run removal completed.")
 	default:
-		log.Fatalf("Unknown subcommand: %v.\nThe following subcommands are supported:\n"+
-			"\tassign-reviewers \n\t assigns reviewers to a pull request.\n"+
-			"\tcheck-reviewers \n\t checks pull request for required reviewers.\n"+
-			"\tdismiss-runs \n\t dismisses stale workflow runs for external contributors.\n", subcommand)
+		log.Fatalf("Unknown subcommand: %v.\n%s", subcommand, usage)
 	}
 
 }
@@ -73,6 +77,7 @@ func constructBot(ctx context.Context, token, reviewers string) (*bots.Bot, erro
 		Reviewers: reviewers,
 		EventPath: path,
 		Token:     token,
+		Context:   ctx,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

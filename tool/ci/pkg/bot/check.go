@@ -203,3 +203,23 @@ func (c *Bot) verifyCommit(ctx context.Context) error {
 	}
 	return trace.BadParameter("commit is not verified and/or is not signed by GitHub")
 }
+
+// invalidateApprovals dismisses all approved reviews on a pull request.
+func (c *Bot) invalidateApprovals(ctx context.Context, msg string, reviews []review) error {
+	pr := c.Environment.PullRequest
+	for _, v := range reviews {
+		if v.status == ci.Approved {
+			_, _, err := c.Environment.Client.PullRequests.DismissReview(ctx,
+				pr.RepoOwner,
+				pr.RepoName,
+				pr.Number,
+				v.id,
+				&github.PullRequestReviewDismissalRequest{Message: &msg},
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}

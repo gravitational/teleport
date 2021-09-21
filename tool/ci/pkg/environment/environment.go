@@ -15,40 +15,74 @@ import (
 
 // Config is used to configure Environment
 type Config struct {
-	Client        *github.Client
-	Reviewers     string
-	EventPath     string
-	Token         string
-	unmarshalRevs unmarshalReviewersFn
+	// Context is the context for Environment
+	Context context.Context
+	// Client is the authenticated Github client.
+	Client *github.Client
+	// Reviewers is a json object encoded as a string with
+	// authors mapped to their respective required reviewers.
+	Reviewers string
+	// EventPath is the path of the file with the complete
+	// webhook event payload on the runner.
+	EventPath string
+	// Token is the token to authenticate on behalf of the GitHub.
+	Token string
+	// unmarshalReviewers is the function to unmarshal
+	// the `Reviewers` string into map[string][]string.
+	unmarshalReviewers unmarshalReviewersFn
 }
 
 // Environment contains information about the environment
 type Environment struct {
-	Client           *github.Client
-	PullRequest      *PullRequestMetadata
-	token            string
-	reviewers        map[string][]string
+	// Client is the authenticated Github client
+	Client *github.Client
+	// PullRequest is the pull request in the
+	// current context.
+	PullRequest *PullRequestMetadata
+	// token is the Github token.
+	token string
+	// reviewers is a map of reviewers where the key
+	// is the user name of the author and the value is a list
+	// of required reviewers.
+	reviewers map[string][]string
+	// defaultReviewers is a list of reviewers used for authors whose
+	// usernames are not a key in `reviewers`
 	defaultReviewers []string
-	action           string
+	// action is the action that triggered the workflow.
+	action string
 }
 
 // PullRequestMetadata is the current pull request metadata
 type PullRequestMetadata struct {
-	Author    string
-	RepoName  string
+	// Author is the pull request author.
+	Author string
+	// RepoName is the repository name that the
+	// current pull request is trying to merge into.
+	RepoName string
+	// RepoOwner is the owner of the repository the
+	// author is trying to merge into.
 	RepoOwner string
-	Number    int
-	HeadSHA   string
-	BaseSHA   string
-	// Only used for pull request review events
-	Reviewer   string
+	// Number is the pull request number.
+	Number int
+	// HeadSHA is the commit sha of the author's branch.
+	HeadSHA string
+	// BaseSHA is the commit sha of the base branch.
+	BaseSHA string
+	// Reviewer is the reviewer's Github username.
+	// Only used for pull request review events.
+	Reviewer string
+	// BranchName is the name of the branch the author
+	// is trying to merge in.
 	BranchName string
 }
 
-type unmarshalReviewersFn func(str string, client *github.Client) (map[string][]string, error)
+type unmarshalReviewersFn func(ctx context.Context, str string, client *github.Client) (map[string][]string, error)
 
 // CheckAndSetDefaults verifies configuration and sets defaults
 func (c *Config) CheckAndSetDefaults() error {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	if c.Client == nil {
 		return trace.BadParameter("missing parameter Client")
 	}
@@ -59,22 +93,21 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter EventPath")
 	}
 	if c.Token == "" {
-		return trace.BadParameter("missing parameter token")
+		return trace.BadParameter("missing parameter Token")
 	}
-	if c.unmarshalRevs == nil {
-		c.unmarshalRevs = unmarshalReviewers
+	if c.unmarshalReviewers == nil {
+		c.unmarshalReviewers = unmarshalReviewers
 	}
 	return nil
 }
 
 // New creates a new instance of Environment.
 func New(c Config) (*Environment, error) {
-
 	err := c.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	revs, err := c.unmarshalRevs(c.Reviewers, c.Client)
+	revs, err := c.unmarshalReviewers(c.Context, c.Reviewers, c.Client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -91,7 +124,7 @@ func New(c Config) (*Environment, error) {
 }
 
 // unmarshalReviewers converts the passed in string representing json object into a map
-func unmarshalReviewers(str string, client *github.Client) (map[string][]string, error) {
+func unmarshalReviewers(ctx context.Context, str string, client *github.Client) (map[string][]string, error) {
 	var hasDefaultReviewers bool
 	if str == "" {
 		return nil, trace.NotFound("reviewers not found")
@@ -104,7 +137,7 @@ func unmarshalReviewers(str string, client *github.Client) (map[string][]string,
 	}
 	for author, requiredReviewers := range m {
 		for _, reviewer := range requiredReviewers {
-			_, err := userExists(reviewer, client)
+			_, err := userExists(ctx, reviewer, client)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -113,7 +146,7 @@ func unmarshalReviewers(str string, client *github.Client) (map[string][]string,
 			hasDefaultReviewers = true
 			continue
 		}
-		_, err := userExists(author, client)
+		_, err := userExists(ctx, author, client)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -126,21 +159,12 @@ func unmarshalReviewers(str string, client *github.Client) (map[string][]string,
 }
 
 // userExists checks if a user exists
-func userExists(userLogin string, client *github.Client) (*github.User, error) {
-	var targetUser *github.User
-	users, resp, err := client.Search.Users(context.TODO(), userLogin, &github.SearchOptions{})
+func userExists(ctx context.Context, userLogin string, client *github.Client) (*github.User, error) {
+	user, resp, err := client.Users.Get(ctx, userLogin)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return nil, trace.Wrap(err)
 	}
-	for _, user := range users.Users {
-		if *user.Login == userLogin {
-			targetUser = user
-		}
-	}
-	if targetUser == nil {
-		return nil, trace.NotFound("user %s does not exist", userLogin)
-	}
-	return targetUser, nil
+	return user, nil
 }
 
 // GetReviewersForAuthor gets the required reviewers for the current user.
