@@ -64,11 +64,17 @@ const (
 	// MetricHeartbeatConnectionsReceived counts heartbeat connections received by auth
 	MetricHeartbeatConnectionsReceived = "heartbeat_connections_received_total"
 
-	// MetricCertificateMistmatch counts login failures due to certificate mismatch
-	MetricCertificateMistmatch = "certificate_mismatch_total"
+	// MetricCertificateMismatch counts login failures due to certificate mismatch
+	MetricCertificateMismatch = "certificate_mismatch_total"
 
 	// MetricHeartbeatsMissed counts the nodes that failed to heartbeat
 	MetricHeartbeatsMissed = "heartbeats_missed_total"
+
+	// MetricWatcherEventsEmitted counts watcher events that are emitted
+	MetricWatcherEventsEmitted = "watcher_events"
+
+	// MetricWatcherEventSizes measures the size of watcher events that are emitted
+	MetricWatcherEventSizes = "watcher_event_sizes"
 
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
@@ -179,4 +185,10 @@ const (
 
 	// TagFalse is a tag value to mark false values
 	TagFalse = "false"
+
+	// TagResource is a tag specifying the resource for an event
+	TagResource = "resource"
+
+	// TagSize is a tag specifying the size of an event
+	TagSize = "size"
 )
