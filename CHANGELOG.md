@@ -1,5 +1,17 @@
 # Changelog
 
+## 7.1.3
+
+This release of Teleport contains bug fixes, improvements, and multiple features.
+
+* Fixed performance and stability issues for DynamoDB clusters. [#8279](https://github.com/gravitational/teleport/pull/8279)
+* Fixed issue that could cause Teleport to panic when disconnecting expired certificates. [#8288](https://github.com/gravitational/teleport/pull/8288)
+* Fixed issue that could cause Teleport to fail to start if unable to connect to Kubernetes cluster. [#7523](https://github.com/gravitational/teleport/pull/7523)
+* Fixed issue that prevented the Web UI from loading in Safari. [#7929](https://github.com/gravitational/teleport/pull/7929)
+* Improved performance for Google Firestore users. [#8181](https://github.com/gravitational/teleport/pull/8181) [#8241](https://github.com/gravitational/teleport/pull/8241)
+* Added support for profile specific `kubeconfig` file. [#7840](https://github.com/gravitational/teleport/pull/7840)
+* Added support to Terraform Plugin to load loading identity from environment variables instead of disk. [#8061](https://github.com/gravitational/teleport/pull/8061) [teleport-plugins#299](https://github.com/gravitational/teleport-plugins/pull/299)
+
 ## 7.1.2
 
 This release of Teleport contains multiple bug fixes.
