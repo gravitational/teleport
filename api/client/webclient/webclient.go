@@ -269,6 +269,8 @@ type AuthenticationSettings struct {
 	// SecondFactor is the type of second factor to use in authentication.
 	// Supported options are: off, otp, and u2f.
 	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
+	// Webauthn contains MFA settings for Web Authentication.
+	Webauthn *Webauthn `json:"webauthn,omitempty"`
 	// U2F contains the Universal Second Factor settings needed for authentication.
 	U2F *U2FSettings `json:"u2f,omitempty"`
 	// OIDC contains OIDC connector settings needed for authentication.
@@ -282,6 +284,12 @@ type AuthenticationSettings struct {
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
 	HasMessageOfTheDay bool `json:"has_motd"`
+}
+
+// Webauthn holds MFA settings for Web Authentication.
+type Webauthn struct {
+	// RPID is the Webauthn Relying Party ID used by the server.
+	RPID string `json:"rp_id"`
 }
 
 // U2FSettings contains the AppID for Universal Second Factor.

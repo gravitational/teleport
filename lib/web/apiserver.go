@@ -570,22 +570,23 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	return userContext, nil
 }
 
-func localSettings(authClient auth.ClientI, cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
+func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
 		Type:         constants.Local,
 		SecondFactor: cap.GetSecondFactor(),
 	}
 
-	// Add U2F settings, if available.
-	u2fs, err := cap.GetU2F()
-	if trace.IsNotFound(err) {
-		// No U2F settings.
-		return as, nil
+	// U2F settings.
+	if u2f, _ := cap.GetU2F(); u2f != nil {
+		as.U2F = &webclient.U2FSettings{AppID: u2f.AppID}
 	}
-	if err != nil {
-		return webclient.AuthenticationSettings{}, trace.Wrap(err)
+
+	// Webauthn settings.
+	if webConfig, _ := cap.GetWebauthn(); webConfig != nil {
+		as.Webauthn = &webclient.Webauthn{
+			RPID: webConfig.RPID,
+		}
 	}
-	as.U2F = &webclient.U2FSettings{AppID: u2fs.AppID}
 
 	return as, nil
 }
@@ -635,7 +636,7 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 
 	switch cap.GetType() {
 	case constants.Local:
-		as, err = localSettings(authClient, cap)
+		as, err = localSettings(cap)
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
@@ -742,7 +743,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	if connectorName == constants.Local {
-		as, err := localSettings(h.cfg.ProxyClient, cap)
+		as, err := localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
