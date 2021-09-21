@@ -808,16 +808,18 @@ func UnmarshalServerResource(data []byte, kind string, cfg *MarshalConfig) (Serv
 		return v2, nil
 	case V2:
 		var s ServerV2
-
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &s); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, data); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
+		if err := utils.FastUnmarshal(data, &s); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
+		//if cfg.SkipValidation {
+		//	if err := utils.FastUnmarshal(data, &s); err != nil {
+		//		return nil, trace.BadParameter(err.Error())
+		//	}
+		//} else {
+		//	if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, data); err != nil {
+		//		return nil, trace.BadParameter(err.Error())
+		//	}
+		//}
 		s.Kind = kind
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
