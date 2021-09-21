@@ -256,10 +256,11 @@ func dbExists(ctx context.Context, presence services.Presence, hostID string) (b
 	return false, nil
 }
 
-// checkInstanceUnique makes sure this instance has not already joined the
-// cluster with the same role. Tokens should be limited to only allow the roles
-// which will actually be used by all instances so that a stolen IID could not
-// be used to join the cluster with a different role.
+// checkInstanceUnique makes sure the instance which sent the request has not
+// already joined the cluster with the same role. Tokens should be limited to
+// only allow the roles which will actually be used by all expected instances so
+// that a stolen IID could not be used to join the cluster with a different
+// role.
 func (a *Server) checkInstanceUnique(ctx context.Context, req RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
 	requestedHostID := req.HostID
 	expectedHostID := NodeIDFromIID(iid)
