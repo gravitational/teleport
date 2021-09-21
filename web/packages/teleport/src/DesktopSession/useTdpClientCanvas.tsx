@@ -20,6 +20,7 @@ import { useParams } from 'react-router';
 import { TopBarHeight } from './TopBar';
 import cfg, { UrlDesktopParams } from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
+import { ButtonState } from 'teleport/lib/tdp/codec';
 
 export default function useTdpClientCanvas() {
   const { clusterId, username, desktopId } = useParams<UrlDesktopParams>();
@@ -38,21 +39,21 @@ export default function useTdpClientCanvas() {
     return new TdpClient(addr, username);
   }, [clusterId, username, desktopId]);
 
-  const onInit = (canvas: HTMLCanvasElement, cli: TdpClient) => {
-    const syncCanvasSizeToClientSize = (canvas: HTMLCanvasElement) => {
-      // Calculate the size of the canvas to be displayed.
-      // Setting flex to "1" ensures the canvas will fill out the area available to it,
-      // which we calculate based on the window dimensions and TopBarHeight below.
-      const width = window.innerWidth;
-      const height = window.innerHeight - TopBarHeight;
+  const syncCanvasSizeToClientSize = (canvas: HTMLCanvasElement) => {
+    // Calculate the size of the canvas to be displayed.
+    // Setting flex to "1" ensures the canvas will fill out the area available to it,
+    // which we calculate based on the window dimensions and TopBarHeight below.
+    const width = window.innerWidth;
+    const height = window.innerHeight - TopBarHeight;
 
-      // If it's resolution does not match change it
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-      }
-    };
+    // If it's resolution does not match change it
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+  };
 
+  const onInit = (cli: TdpClient, canvas: HTMLCanvasElement) => {
     setConnection({ status: 'connecting' });
     syncCanvasSizeToClientSize(canvas);
     cli.connect(canvas.width, canvas.height);
@@ -77,6 +78,42 @@ export default function useTdpClientCanvas() {
     setConnection({ status: 'error', statusText: err.message });
   };
 
+  const onKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
+    cli.sendKeyboardInput(e.code, ButtonState.DOWN);
+  };
+
+  const onKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
+    cli.sendKeyboardInput(e.code, ButtonState.UP);
+  };
+
+  const onMouseMove = (
+    cli: TdpClient,
+    canvas: HTMLCanvasElement,
+    e: MouseEvent
+  ) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    cli.sendMouseMove(x, y);
+  };
+
+  const onMouseDown = (cli: TdpClient, e: MouseEvent) => {
+    if (e.button === 0 || e.button === 1 || e.button === 2) {
+      cli.sendMouseButton(e.button, ButtonState.DOWN);
+    }
+  };
+
+  const onMouseUp = (cli: TdpClient, e: MouseEvent) => {
+    if (e.button === 0 || e.button === 1 || e.button === 2) {
+      cli.sendMouseButton(e.button, ButtonState.UP);
+    }
+  };
+
+  const onResize = (cli: TdpClient, canvas: HTMLCanvasElement) => {
+    syncCanvasSizeToClientSize(canvas);
+    cli.resize(canvas.width, canvas.height);
+  };
+
   return {
     tdpClient,
     connection,
@@ -86,6 +123,12 @@ export default function useTdpClientCanvas() {
     onRender,
     onDisconnect,
     onError,
+    onKeyDown,
+    onKeyUp,
+    onMouseMove,
+    onMouseDown,
+    onMouseUp,
+    onResize,
   };
 }
 

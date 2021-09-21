@@ -51,13 +51,19 @@ const props: State = {
   tdpClient: client,
   connection: { status: 'connecting', statusText: 'Connecting...' },
   username: 'user',
-  onInit: (canvas: HTMLCanvasElement, cli: TdpClient) => {
+  onInit: (cli: TdpClient, canvas: HTMLCanvasElement) => {
     fillGray(canvas);
   },
   onConnect: () => {},
   onRender: (canvas: HTMLCanvasElement, data: RenderData) => {},
   onDisconnect: () => {},
   onError: (err: Error) => {},
+  onKeyDown: (cli: TdpClient, e: KeyboardEvent) => {},
+  onKeyUp: (cli: TdpClient, e: KeyboardEvent) => {},
+  onMouseMove: (cli: TdpClient, canvas: HTMLCanvasElement, e: MouseEvent) => {},
+  onMouseDown: (cli: TdpClient, e: MouseEvent) => {},
+  onMouseUp: (cli: TdpClient, e: MouseEvent) => {},
+  onResize: (cli: TdpClient, canvas: HTMLCanvasElement) => {},
 };
 
 export const Processing = () => (

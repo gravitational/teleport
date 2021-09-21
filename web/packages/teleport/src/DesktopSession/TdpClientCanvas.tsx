@@ -25,13 +25,71 @@ export default function TdpClientCanvas(props: Props) {
     onRender,
     onDisconnect,
     onError,
+    onKeyDown,
+    onKeyUp,
+    onMouseMove,
+    onMouseDown,
+    onMouseUp,
+    onResize,
     style,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    const canvas = canvasRef.current;
+
+    // React's vdom apparently doesn't support
+    // standard html document.activeElement semantics
+    // so tracking here manually instead.
+    var canvasInFocus = false;
+    const onmouseenter = () => {
+      canvasInFocus = true;
+    };
+    canvas.onmouseenter = onmouseenter;
+    const onmouseleave = () => {
+      canvasInFocus = false;
+    };
+    canvas.onmouseleave = onmouseleave;
+
+    // Initialize canvas, document, and window event listeners.
+
+    // Prevent native context menu to not obscure remote context menu.
+    const oncontextmenu = () => false;
+    canvas.oncontextmenu = oncontextmenu;
+
+    // Mouse controls.
+    const onmousemove = (e: MouseEvent) => {
+      onMouseMove(tdpClient, canvas, e);
+    };
+    canvas.onmousemove = onmousemove;
+    const onmousedown = (e: MouseEvent) => {
+      onMouseDown(tdpClient, e);
+    };
+    canvas.onmousedown = onmousedown;
+    const onmouseup = (e: MouseEvent) => {
+      onMouseUp(tdpClient, e);
+    };
+    canvas.onmouseup = onmouseup;
+
+    // Key controls.
+    const onkeydown = (e: KeyboardEvent) => {
+      if (canvasInFocus) onKeyDown(tdpClient, e);
+    };
+    document.onkeydown = onkeydown;
+    const onkeyup = (e: KeyboardEvent) => {
+      if (canvasInFocus) onKeyUp(tdpClient, e);
+    };
+    document.onkeyup = onkeyup;
+
+    // Window resize.
+    const onresize = () => {
+      onResize(tdpClient, canvas);
+    };
+    window.onresize = onresize;
+
+    // Initialize tdpClient event listeners.
     tdpClient.on('init', () => {
-      onInit(canvasRef.current, tdpClient);
+      onInit(tdpClient, canvas);
     });
 
     tdpClient.on('connect', () => {
@@ -39,7 +97,7 @@ export default function TdpClientCanvas(props: Props) {
     });
 
     tdpClient.on('render', (data: RenderData) => {
-      onRender(canvasRef.current, data);
+      onRender(canvas, data);
     });
 
     tdpClient.on('disconnect', () => {
@@ -54,6 +112,15 @@ export default function TdpClientCanvas(props: Props) {
 
     return () => {
       tdpClient.nuke();
+      canvas.removeEventListener('contextmenu', oncontextmenu);
+      canvas.removeEventListener('mousemove', onmousemove);
+      canvas.removeEventListener('mousedown', onmousedown);
+      canvas.removeEventListener('mouseup', onmouseup);
+      canvas.removeEventListener('mouseenter', onmouseenter);
+      canvas.removeEventListener('mouseleave', onmouseleave);
+      document.removeEventListener('keydown', onkeydown);
+      document.removeEventListener('keyup', onkeyup);
+      window.removeEventListener('resize', onresize);
     };
   }, [tdpClient]);
 

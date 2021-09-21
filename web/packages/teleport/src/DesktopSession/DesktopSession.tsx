@@ -41,6 +41,12 @@ export function DesktopSession(props: State) {
     onRender,
     onDisconnect,
     onError,
+    onKeyDown,
+    onKeyUp,
+    onMouseMove,
+    onMouseDown,
+    onMouseUp,
+    onResize,
   } = props;
 
   const errorAlert = (
@@ -119,6 +125,12 @@ export function DesktopSession(props: State) {
         onRender={onRender}
         onDisconnect={onDisconnect}
         onError={onError}
+        onKeyDown={onKeyDown}
+        onKeyUp={onKeyUp}
+        onMouseMove={onMouseMove}
+        onMouseDown={onMouseDown}
+        onMouseUp={onMouseUp}
+        onResize={onResize}
       />
     </Flex>
   );
