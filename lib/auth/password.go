@@ -377,7 +377,7 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.BadParameter("expired token")
 	}
 
-	err = s.changeUserSecondFactor(req, token)
+	err = s.changeUserSecondFactor(ctx, req, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -404,8 +404,7 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 	return user, nil
 }
 
-func (s *Server) changeUserSecondFactor(req *proto.ChangeUserAuthenticationRequest, token types.UserToken) error {
-	ctx := context.TODO()
+func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUserAuthenticationRequest, token types.UserToken) error {
 	username := token.GetUser()
 	cap, err := s.GetAuthPreference(ctx)
 	if err != nil {
@@ -437,9 +436,19 @@ func (s *Server) changeUserSecondFactor(req *proto.ChangeUserAuthenticationReque
 	// forms does not allow user to enter own device names yet.
 	// Using default values here is safe since we don't expect users to have
 	// any devices at this point.
-	deviceName := "u2f"
-	if req.GetNewMFARegisterResponse().GetTOTP() != nil {
+	var deviceName string
+	switch {
+	case req.GetNewMFARegisterResponse().GetTOTP() != nil:
 		deviceName = "otp"
+	case req.GetNewMFARegisterResponse().GetU2F() != nil:
+		deviceName = "u2f"
+	case req.GetNewMFARegisterResponse().GetWebauthn() != nil:
+		deviceName = "webauthn"
+	default:
+		// Fallback to something reasonable while letting verifyMFARespAndAddDevice
+		// worry about the "unknown" response type.
+		deviceName = "mfa"
+		log.Warnf("Unexpected MFA register response type, setting device name to %q: %T", deviceName, req.GetNewMFARegisterResponse().Response)
 	}
 
 	_, err = s.verifyMFARespAndAddDevice(ctx, req.GetNewMFARegisterResponse(), &newMFADeviceFields{
@@ -447,6 +456,5 @@ func (s *Server) changeUserSecondFactor(req *proto.ChangeUserAuthenticationReque
 		newDeviceName: deviceName,
 		tokenID:       token.GetName(),
 	})
-
 	return trace.Wrap(err)
 }
