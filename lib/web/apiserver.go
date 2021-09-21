@@ -45,6 +45,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1450,7 +1451,8 @@ type changeUserAuthenticationRequest struct {
 	Password []byte `json:"password"`
 	// U2FRegisterResponse is U2F registration challenge response.
 	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
-	// TODO webauthn
+	// WebauthnRegisterResponse is the signed credential creation response.
+	WebauthnRegisterResponse *wanlib.CredentialCreationResponse `json:"webauthn_register_response"`
 }
 
 func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1463,19 +1465,23 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		TokenID:     req.TokenID,
 		NewPassword: req.Password,
 	}
-
-	if req.SecondFactorToken != "" {
-		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
-		}}
-	}
-
-	if req.U2FRegisterResponse != nil {
+	switch {
+	case req.WebauthnRegisterResponse != nil:
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wanlib.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
+			},
+		}
+	case req.U2FRegisterResponse != nil:
 		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
 			U2F: &proto.U2FRegisterResponse{
 				RegistrationData: req.U2FRegisterResponse.RegistrationData,
 				ClientData:       req.U2FRegisterResponse.ClientData,
 			},
+		}}
+	case req.SecondFactorToken != "":
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
 		}}
 	}
 
