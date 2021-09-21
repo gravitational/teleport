@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -270,7 +271,7 @@ func configureClusterForMFA(t *testing.T, env *webPack, spec *types.AuthPreferen
 	// Register device.
 	clt, err := env.server.NewClient(auth.TestUser(user))
 	require.NoError(t, err)
-	u2fDev, err := auth.RegisterTestDevice(ctx, clt, "u2f", auth.TestU2FDevice, nil /* authenticator */)
+	u2fDev, err := auth.RegisterTestDevice(ctx, clt, "u2f", proto.DeviceType_DEVICE_TYPE_U2F, nil /* authenticator */)
 	require.NoError(t, err)
 
 	return &configureMFAResp{

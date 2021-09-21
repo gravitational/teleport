@@ -1281,11 +1281,11 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert dummy devices.
-	webDev1, err := RegisterTestDevice(ctx, clt, "web-1", TestWebauthnDevice, nil /* authenticator */)
+	webDev1, err := RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 	require.NoError(t, err)
-	webDev2, err := RegisterTestDevice(ctx, clt, "web-2", TestWebauthnDevice, webDev1)
+	webDev2, err := RegisterTestDevice(ctx, clt, "web-2", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, webDev1)
 	require.NoError(t, err)
-	totpDev, err := RegisterTestDevice(ctx, clt, "otp", TestOTPDevice, webDev1, WithTestDeviceClock(srv.Clock()))
+	totpDev, err := RegisterTestDevice(ctx, clt, "otp", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
 
 	deviceToDelete := webDev2
@@ -1347,7 +1347,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 
 	// Insert a device.
 	const devName = "otp"
-	_, err = RegisterTestDevice(ctx, clt, devName, TestOTPDevice, nil /* authenticator */, WithTestDeviceClock(srv.Clock()))
+	_, err = RegisterTestDevice(ctx, clt, devName, proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1420,7 +1420,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 	newTOTPForUser := func(user string) *types.MFADevice {
 		clt, err := srv.NewClient(TestUser(user))
 		require.NoError(t, err)
-		dev, err := RegisterTestDevice(ctx, clt, "otp", TestOTPDevice, nil /* authenticator */, WithTestDeviceClock(srv.Clock()))
+		dev, err := RegisterTestDevice(ctx, clt, "otp", proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(srv.Clock()))
 		require.NoError(t, err)
 		return dev.MFA
 	}
@@ -1477,7 +1477,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 			createDevice: func(user string) *types.MFADevice {
 				clt, err := srv.NewClient(TestUser(user))
 				require.NoError(t, err)
-				dev, err := RegisterTestDevice(ctx, clt, "web", TestWebauthnDevice, nil /* authenticator */)
+				dev, err := RegisterTestDevice(ctx, clt, "web", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 				require.NoError(t, err)
 				return dev.MFA
 			},
@@ -1566,9 +1566,9 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 
 	clt, err := srv.NewClient(TestUser(username))
 	require.NoError(t, err)
-	webDev, err := RegisterTestDevice(ctx, clt, "web", TestWebauthnDevice, nil /* authenticator */)
+	webDev, err := RegisterTestDevice(ctx, clt, "web", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 	require.NoError(t, err)
-	totpDev, err := RegisterTestDevice(ctx, clt, "otp", TestOTPDevice, webDev, WithTestDeviceClock(srv.Clock()))
+	totpDev, err := RegisterTestDevice(ctx, clt, "otp", proto.DeviceType_DEVICE_TYPE_TOTP, webDev, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1652,9 +1652,9 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 
 	clt, err := srv.NewClient(TestUser(username))
 	require.NoError(t, err)
-	webDev, err := RegisterTestDevice(ctx, clt, "web", TestWebauthnDevice, nil /* authenticator */)
+	webDev, err := RegisterTestDevice(ctx, clt, "web", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 	require.NoError(t, err)
-	totpDev, err := RegisterTestDevice(ctx, clt, "otp", TestOTPDevice, webDev, WithTestDeviceClock(srv.Clock()))
+	totpDev, err := RegisterTestDevice(ctx, clt, "otp", proto.DeviceType_DEVICE_TYPE_TOTP, webDev, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
 
 	res, err := clt.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
