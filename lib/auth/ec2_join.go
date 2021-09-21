@@ -168,7 +168,12 @@ func parseAndVerifyIID(iidBytes []byte) (*imds.InstanceIdentityDocument, error) 
 }
 
 func checkPendingTime(iid *imds.InstanceIdentityDocument, clock clockwork.Clock) error {
-	if clock.Since(iid.PendingTime) > 5*time.Minute {
+	timeSinceInstanceStart := clock.Since(iid.PendingTime)
+	// Sanity check IID is not from the future. Allow 1 minute of clock drift.
+	if timeSinceInstanceStart < -1*time.Minute {
+		return trace.AccessDenied("Instance Identity Document PendingTime appears to be in the future")
+	}
+	if timeSinceInstanceStart > 5*time.Minute {
 		return trace.AccessDenied("Instance Identity Document with PendingTime %v is older than 5 minute TTL", iid.PendingTime)
 	}
 	return nil
