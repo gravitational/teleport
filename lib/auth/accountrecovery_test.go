@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"encoding/base32"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
@@ -30,14 +29,12 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
-	"github.com/tstranex/u2f"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
@@ -334,7 +331,7 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 		name           string
 		recoverType    types.UserTokenUsage
 		invalidReq     *proto.ApproveAccountRecoveryRequest
-		createValidReq func() *proto.ApproveAccountRecoveryRequest
+		createValidReq func(*proto.MFAAuthenticateChallenge) *proto.ApproveAccountRecoveryRequest
 	}{
 		{
 			name:        "authenticate with invalid/valid totp code",
@@ -344,50 +341,35 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 					Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: "invalid-totp-code"}},
 				}},
 			},
-			createValidReq: func() *proto.ApproveAccountRecoveryRequest {
-				newTOTP, err := totp.GenerateCode(u.otpKey, srv.Clock().Now().Add(30*time.Second))
+			createValidReq: func(c *proto.MFAAuthenticateChallenge) *proto.ApproveAccountRecoveryRequest {
+				mfaResp, err := u.totpDev.SolveAuthn(c)
 				require.NoError(t, err)
-
 				return &proto.ApproveAccountRecoveryRequest{
-					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
-						Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: newTOTP}},
-					}},
+					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{
+						MFAAuthenticateResponse: mfaResp,
+					},
 				}
 			},
 		},
 		{
-			name:        "authenticate with invalid/valid u2f response",
+			name:        "authenticate with invalid/valid webauthn response",
 			recoverType: types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
 			invalidReq: &proto.ApproveAccountRecoveryRequest{
-				AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
-					Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{ /* invalid u2f response */ }},
-				}},
+				AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{
+					MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+						Response: &proto.MFAAuthenticateResponse_Webauthn{
+							Webauthn: &wantypes.CredentialAssertionResponse{}, // invalid response
+						},
+					},
+				},
 			},
-			createValidReq: func() *proto.ApproveAccountRecoveryRequest {
-				chal, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-						Username: u.username,
-						Password: u.password,
-					}},
-				})
+			createValidReq: func(c *proto.MFAAuthenticateChallenge) *proto.ApproveAccountRecoveryRequest {
+				mfaResp, err := u.webDev.SolveAuthn(c)
 				require.NoError(t, err)
-
-				u2fRes, err := u.u2fKey.SignResponse(&u2f.SignRequest{
-					Version:   chal.GetU2F()[0].Version,
-					Challenge: chal.GetU2F()[0].Challenge,
-					KeyHandle: chal.GetU2F()[0].KeyHandle,
-					AppID:     chal.GetU2F()[0].AppID,
-				})
-				require.NoError(t, err)
-
 				return &proto.ApproveAccountRecoveryRequest{
-					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
-						Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
-							KeyHandle:  u2fRes.KeyHandle,
-							ClientData: u2fRes.ClientData,
-							Signature:  u2fRes.SignatureData,
-						}},
-					}},
+					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{
+						MFAAuthenticateResponse: mfaResp,
+					},
 				}
 			},
 		},
@@ -397,7 +379,7 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 			invalidReq: &proto.ApproveAccountRecoveryRequest{
 				AuthnCred: &proto.ApproveAccountRecoveryRequest_Password{Password: []byte("invalid-password")},
 			},
-			createValidReq: func() *proto.ApproveAccountRecoveryRequest {
+			createValidReq: func(c *proto.MFAAuthenticateChallenge) *proto.ApproveAccountRecoveryRequest {
 				return &proto.ApproveAccountRecoveryRequest{
 					AuthnCred: &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
 				}
@@ -423,11 +405,18 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 			require.Len(t, attempts, 1)
 
 			// Get request with authn.
-			req := c.createValidReq()
+			mfaChallenge, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+					Username: u.username,
+					Password: u.password,
+				}},
+			})
+			require.NoError(t, err)
+			req := c.createValidReq(mfaChallenge)
 			req.Username = u.username
 			req.RecoveryStartTokenID = startToken.GetName()
 
-			// Acquire a approve token with the start token.
+			// Acquire an approval token with the start token.
 			approvedToken, err := srv.Auth().ApproveAccountRecovery(ctx, req)
 			require.NoError(t, err)
 			require.Equal(t, UserTokenTypeRecoveryApproved, approvedToken.GetSubKind())
@@ -669,7 +658,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 		{
 			name: "add new TOTP device",
 			getRequest: func() *proto.CompleteAccountRecoveryRequest {
-				secrets, err := srv.Auth().RotateUserTokenSecrets(context.TODO(), approvedToken.GetName())
+				secrets, err := srv.Auth().RotateUserTokenSecrets(ctx, approvedToken.GetName())
 				require.NoError(t, err)
 
 				otpCode, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
@@ -837,10 +826,9 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 
 				ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorU2F,
-					U2F: &types.U2F{
-						AppID:  "teleport",
-						Facets: []string{"teleport"},
+					SecondFactor: constants.SecondFactorWebauthn,
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
 					},
 				})
 				require.NoError(t, err)
@@ -856,7 +844,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 			},
 		},
 		{
-			name:           "providing U2F fields when U2F is not enabled by auth settings",
+			name:           "providing Webauthn fields when Webauthn is not enabled by auth settings",
 			isBadParameter: true,
 			getRequest: func() *proto.CompleteAccountRecoveryRequest {
 				// Acquire an approved token for recovering second factor.
@@ -873,9 +861,13 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 
 				return &proto.CompleteAccountRecoveryRequest{
 					RecoveryApprovedTokenID: approvedToken.GetName(),
-					NewAuthnCred: &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
-						Response: &proto.MFARegisterResponse_U2F{},
-					}},
+					NewAuthnCred: &proto.CompleteAccountRecoveryRequest_NewMFAResponse{
+						NewMFAResponse: &proto.MFARegisterResponse{
+							Response: &proto.MFARegisterResponse_Webauthn{
+								Webauthn: &wantypes.CredentialCreationResponse{},
+							},
+						},
+					},
 				}
 			},
 		},
@@ -911,7 +903,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 	cases := []struct {
 		name               string
 		getStartRequest    func(*userAuthCreds) *proto.StartAccountRecoveryRequest
-		getApproveRequest  func(*userAuthCreds, string) *proto.ApproveAccountRecoveryRequest
+		getApproveRequest  func(*userAuthCreds, *proto.MFAAuthenticateChallenge, string) *proto.ApproveAccountRecoveryRequest
 		getCompleteRequest func(*userAuthCreds, string) *proto.CompleteAccountRecoveryRequest
 	}{
 		{
@@ -923,16 +915,16 @@ func TestAccountRecoveryFlow(t *testing.T) {
 					RecoveryCode: []byte(u.recoveryCodes[0]),
 				}
 			},
-			getApproveRequest: func(u *userAuthCreds, startTokenID string) *proto.ApproveAccountRecoveryRequest {
-				newTOTP, err := totp.GenerateCode(u.otpKey, srv.Clock().Now().Add(30*time.Second))
+			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.ApproveAccountRecoveryRequest {
+				mfaResp, err := u.totpDev.SolveAuthn(c)
 				require.NoError(t, err)
 
 				return &proto.ApproveAccountRecoveryRequest{
 					RecoveryStartTokenID: startTokenID,
 					Username:             u.username,
-					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
-						Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: newTOTP}},
-					}},
+					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{
+						MFAAuthenticateResponse: mfaResp,
+					},
 				}
 			},
 			getCompleteRequest: func(u *userAuthCreds, approvedTokenID string) *proto.CompleteAccountRecoveryRequest {
@@ -943,7 +935,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 			},
 		},
 		{
-			name: "recover password with u2f",
+			name: "recover password with webauthn",
 			getStartRequest: func(u *userAuthCreds) *proto.StartAccountRecoveryRequest {
 				return &proto.StartAccountRecoveryRequest{
 					Username:     u.username,
@@ -951,33 +943,16 @@ func TestAccountRecoveryFlow(t *testing.T) {
 					RecoveryCode: []byte(u.recoveryCodes[0]),
 				}
 			},
-			getApproveRequest: func(u *userAuthCreds, startTokenID string) *proto.ApproveAccountRecoveryRequest {
-				chal, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-						Username: u.username,
-						Password: u.password,
-					}},
-				})
-				require.NoError(t, err)
-
-				u2fRes, err := u.u2fKey.SignResponse(&u2f.SignRequest{
-					Version:   chal.GetU2F()[0].Version,
-					Challenge: chal.GetU2F()[0].Challenge,
-					KeyHandle: chal.GetU2F()[0].KeyHandle,
-					AppID:     chal.GetU2F()[0].AppID,
-				})
+			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.ApproveAccountRecoveryRequest {
+				mfaResp, err := u.webDev.SolveAuthn(c)
 				require.NoError(t, err)
 
 				return &proto.ApproveAccountRecoveryRequest{
 					RecoveryStartTokenID: startTokenID,
 					Username:             u.username,
-					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
-						Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
-							KeyHandle:  u2fRes.KeyHandle,
-							ClientData: u2fRes.ClientData,
-							Signature:  u2fRes.SignatureData,
-						}},
-					}},
+					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{
+						MFAAuthenticateResponse: mfaResp,
+					},
 				}
 			},
 			getCompleteRequest: func(u *userAuthCreds, approvedTokenID string) *proto.CompleteAccountRecoveryRequest {
@@ -987,6 +962,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 				}
 			},
 		},
+		// TODO(codingllama): Provide a way to recover Webauthn with password.
 		{
 			name: "recover u2f with password",
 			getStartRequest: func(u *userAuthCreds) *proto.StartAccountRecoveryRequest {
@@ -996,7 +972,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 					RecoveryCode: []byte(u.recoveryCodes[0]),
 				}
 			},
-			getApproveRequest: func(u *userAuthCreds, startTokenID string) *proto.ApproveAccountRecoveryRequest {
+			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.ApproveAccountRecoveryRequest {
 				return &proto.ApproveAccountRecoveryRequest{
 					RecoveryStartTokenID: startTokenID,
 					Username:             u.username,
@@ -1025,7 +1001,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 					RecoveryCode: []byte(u.recoveryCodes[0]),
 				}
 			},
-			getApproveRequest: func(u *userAuthCreds, startTokenID string) *proto.ApproveAccountRecoveryRequest {
+			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.ApproveAccountRecoveryRequest {
 				return &proto.ApproveAccountRecoveryRequest{
 					RecoveryStartTokenID: startTokenID,
 					Username:             u.username,
@@ -1033,7 +1009,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 				}
 			},
 			getCompleteRequest: func(u *userAuthCreds, approvedTokenID string) *proto.CompleteAccountRecoveryRequest {
-				secrets, err := srv.Auth().RotateUserTokenSecrets(context.TODO(), approvedTokenID)
+				secrets, err := srv.Auth().RotateUserTokenSecrets(ctx, approvedTokenID)
 				require.NoError(t, err)
 
 				otpCode, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
@@ -1059,8 +1035,15 @@ func TestAccountRecoveryFlow(t *testing.T) {
 			startToken, err := srv.Auth().StartAccountRecovery(ctx, c.getStartRequest(user))
 			require.NoError(t, err)
 
-			// Step 2: Obtain a approved token with the obtained start token.
-			approvedToken, err := srv.Auth().ApproveAccountRecovery(ctx, c.getApproveRequest(user, startToken.GetName()))
+			// Step 2: Obtain an approval token using the start token.
+			mfaChallenge, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+					Username: user.username,
+					Password: user.password,
+				}},
+			})
+			require.NoError(t, err)
+			approvedToken, err := srv.Auth().ApproveAccountRecovery(ctx, c.getApproveRequest(user, mfaChallenge, startToken.GetName()))
 			require.NoError(t, err)
 
 			// Step 3: Complete recovery with the obtained approved token.
@@ -1236,11 +1219,10 @@ type userAuthCreds struct {
 	recoveryCodes []string
 	username      string
 	password      []byte
-	u2fKey        *mocku2f.Key
-	otpKey        string
+
+	totpDev, webDev *TestDevice
 }
 
-// TODO (codingllama): Unify with test func `configureForMFA`
 func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	ctx := context.Background()
 	username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
@@ -1251,9 +1233,10 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
 		},
+		// Use default Webauthn config.
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1268,7 +1251,7 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	resetToken, err := srv.Auth().CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
+	resetToken, err := srv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
 		Name: username,
 	})
 	if err != nil {
@@ -1291,13 +1274,18 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Insert a totp device manually.
-	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
-	dev, err := services.NewTOTPDevice("otp", otpSecret, srv.Auth().clock.Now())
+	clt, err := srv.NewClient(TestUser(username))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = srv.Auth().UpsertMFADevice(ctx, username, dev); err != nil {
+
+	u2fDev := &TestDevice{Key: u2fKey}
+	totpDev, err := RegisterTestDevice(ctx, clt, "otp-1", TestOTPDevice, u2fDev, WithTestDeviceClock(srv.Clock()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	webDev, err := RegisterTestDevice(ctx, clt, "web-1", TestWebauthnDevice, u2fDev)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1305,11 +1293,12 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 		username:      username,
 		password:      password,
 		recoveryCodes: res.GetRecoveryCodes(),
-		u2fKey:        u2fKey,
-		otpKey:        otpSecret,
+		totpDev:       totpDev,
+		webDev:        webDev,
 	}, nil
 }
 
+// TODO(codingllama): Replace with a properly-created Webauthn device (using non-streaming methods).
 func getMockedU2FAndRegisterRes(authSrv *Server, tokenID string) (*proto.U2FRegisterResponse, *mocku2f.Key, error) {
 	res, err := authSrv.CreateSignupU2FRegisterRequest(tokenID)
 	if err != nil {
