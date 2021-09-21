@@ -32,6 +32,7 @@ import (
 )
 
 // TestDeviceType represents the various supported MFA types.
+// TODO(codingllama): Replace with proto.DeviceType
 type TestDeviceType int
 
 const (
