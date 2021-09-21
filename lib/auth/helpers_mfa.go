@@ -49,7 +49,6 @@ type TestDevice struct {
 
 	clock  clockwork.Clock
 	origin string
-	user   string
 }
 
 // TestDeviceOpt is a creation option for TestDevice.
