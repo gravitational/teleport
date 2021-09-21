@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -52,15 +53,25 @@ func TestMarshal(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-var commonFirestoreParams = map[string]interface{}{
-	"collection_name":                   "tp-cluster-data-test",
-	"project_id":                        "tp-testproj",
-	"endpoint":                          "localhost:8618",
-	"purgeExpiredDocumentsPollInterval": time.Second,
+// var commonFirestoreParams = map[string]interface{}{
+// 	"collection_name":                   "tp-cluster-data-test",
+// 	"project_id":                        "tp-testproj",
+// 	"endpoint":                          "localhost:8618",
+// 	"purgeExpiredDocumentsPollInterval": time.Second,
+// }
+
+func firestoreParams(t *testing.T) map[string]interface{} {
+	return map[string]interface{}{
+		"collection_name":                   t.Name() + "-" + uuid.New().String(),
+		"project_id":                        "tp-testproj",
+		"endpoint":                          "localhost:8618",
+		"purgeExpiredDocumentsPollInterval": time.Second,
+	}
 }
 
 func TestFirestoreDB(t *testing.T) {
-	ensureEmulatorRunning(t)
+	cfg := firestoreParams(t)
+	ensureEmulatorRunning(t, cfg)
 
 	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 		testCfg, err := test.ApplyOptions(options)
@@ -79,7 +90,7 @@ func TestFirestoreDB(t *testing.T) {
 
 		clock := clockwork.NewFakeClock()
 
-		uut, err := New(context.Background(), commonFirestoreParams, WithClock(clock))
+		uut, err := New(context.Background(), cfg, WithClock(clock))
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -90,8 +101,8 @@ func TestFirestoreDB(t *testing.T) {
 	test.RunBackendComplianceSuite(t, newBackend)
 }
 
-func ensureEmulatorRunning(t *testing.T) {
-	con, err := net.Dial("tcp", "localhost:8618")
+func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
+	con, err := net.Dial("tcp", cfg["endpoint"].(string))
 	if err != nil {
 		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
@@ -99,8 +110,8 @@ func ensureEmulatorRunning(t *testing.T) {
 }
 
 // newBackend creates a self-closing firestore backend
-func newBackend(t *testing.T) *Backend {
-	uut, err := New(context.Background(), commonFirestoreParams)
+func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
+	uut, err := New(context.Background(), cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() { uut.Close() })
 
@@ -111,9 +122,10 @@ func newBackend(t *testing.T) *Backend {
 }
 
 func TestReadLegacyRecord(t *testing.T) {
-	ensureEmulatorRunning(t)
+	cfg := firestoreParams(t)
+	ensureEmulatorRunning(t, cfg)
 
-	uut := newBackend(t)
+	uut := newBackend(t, cfg)
 
 	item := backend.Item{
 		Key:     []byte("legacy-record"),

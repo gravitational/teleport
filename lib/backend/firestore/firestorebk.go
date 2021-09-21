@@ -105,10 +105,6 @@ type Backend struct {
 	clientContext context.Context
 	// clientCancel firestore context cancel funcs
 	clientCancel context.CancelFunc
-	// watchStarted context tracking once firestore watchers mechanisms are up
-	watchStarted context.Context
-	// signalWatchStart signal function which indicates watcher mechanisms are up
-	signalWatchStart context.CancelFunc
 }
 
 type record struct {
@@ -277,17 +273,15 @@ func New(ctx context.Context, params backend.Params, options ...Option) (*Backen
 	buf := backend.NewCircularBuffer(
 		backend.BufferCapacity(cfg.BufferSize),
 	)
-	watchStarted, signalWatchStart := context.WithCancel(ctx)
+
 	b := &Backend{
-		svc:              firestoreClient,
-		Entry:            l,
-		backendConfig:    *cfg,
-		clock:            clockwork.NewRealClock(),
-		buf:              buf,
-		clientContext:    closeCtx,
-		clientCancel:     cancel,
-		watchStarted:     watchStarted,
-		signalWatchStart: signalWatchStart,
+		svc:           firestoreClient,
+		Entry:         l,
+		backendConfig: *cfg,
+		clock:         clockwork.NewRealClock(),
+		buf:           buf,
+		clientContext: closeCtx,
+		clientCancel:  cancel,
 	}
 
 	for _, applyOption := range options {
@@ -309,16 +303,6 @@ func New(ctx context.Context, params backend.Params, options ...Option) (*Backen
 	go RetryingAsyncFunctionRunner(b.clientContext, linearConfig, b.Logger, b.watchCollection, "watchCollection")
 	if !cfg.DisableExpiredDocumentPurge {
 		go RetryingAsyncFunctionRunner(b.clientContext, linearConfig, b.Logger, b.purgeExpiredDocuments, "purgeExpiredDocuments")
-	}
-
-	l.Debug("Waiting for event watcher to start")
-	select {
-	case <-ctx.Done():
-		l.Error("Timed out waiting for event monitor")
-		return nil, ctx.Err()
-
-	case <-b.watchStarted.Done():
-		l.Debug("Event watcher has started")
 	}
 
 	l.Info("Backend created.")
@@ -625,19 +609,19 @@ func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig utils.LinearCo
 }
 
 func isCanceled(err error) bool {
-	if err == nil {
+	switch {
+	case err == nil:
+		return false
+
+	case errors.Is(err, context.Canceled):
+		return true
+
+	case status.Code(err) == codes.Canceled:
+		return true
+
+	default:
 		return false
 	}
-
-	if errors.Is(err, context.Canceled) {
-		return true
-	}
-
-	if status.Convert(err).Code() == codes.Canceled {
-		return true
-	}
-
-	return false
 }
 
 // driftTolerance is the amount of clock drift between auth servers that we
@@ -667,9 +651,8 @@ func (b *Backend) watchCollection() error {
 
 	b.buf.SetInit()
 	defer b.buf.Reset()
-
-	b.signalWatchStart()
 	defer snaps.Stop()
+
 	for {
 		querySnap, err := snaps.Next()
 		if err == context.Canceled {
@@ -734,9 +717,11 @@ func ConvertGRPCError(err error, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
-	switch status.Convert(err).Code() {
+	switch status.Code(err) {
 	case codes.Canceled:
 		return context.Canceled
+	case codes.DeadlineExceeded:
+		return context.DeadlineExceeded
 	case codes.FailedPrecondition:
 		return trace.BadParameter(err.Error(), args...)
 	case codes.NotFound:

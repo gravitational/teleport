@@ -431,7 +431,7 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uut.Close()) }()
 
 	prefix := MakePrefix()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// When I create a new watcher...
@@ -955,6 +955,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 }
 
 func AddItem(ctx context.Context, t *testing.T, uut backend.Backend, key []byte, value string, expires time.Time) (backend.Item, backend.Lease) {
+	t.Helper()
 	item := backend.Item{
 		Key:     key,
 		Value:   []byte(value),
