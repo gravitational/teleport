@@ -448,22 +448,22 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 }
 
 // HostCredentials is used to fetch host credentials for a node.
-func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req auth.RegisterUsingTokenRequest) (*auth.PackedKeys, error) {
+func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req auth.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	clt, _, err := initClient(proxyAddr, insecure, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "host", "credentials"), req)
+	resp, err := clt.PostJSONWithFallback(ctx, clt.Endpoint("webapi", "host", "credentials"), req, insecure)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var packedKeys *auth.PackedKeys
-	err = json.Unmarshal(resp.Bytes(), &packedKeys)
+	var certs *proto.Certs
+	err = json.Unmarshal(resp.Bytes(), &certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return packedKeys, nil
+	return certs, nil
 }

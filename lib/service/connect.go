@@ -24,6 +24,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/roundtrip"
+
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -837,6 +838,7 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	}
 
 	logger.Debug("Attempting to discover reverse tunnel address.")
+
 	proxyAddr, err := process.findReverseTunnel(authServers)
 	if err != nil {
 		directErrLogger.Debug("Failed to connect to Auth Server directly.")
@@ -846,7 +848,11 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 	logger = process.log.WithField("proxy-addr", proxyAddr)
 	logger.Debug("Attempting to connect to Auth Server through tunnel.")
-	tunnelClient, err := process.newClientThroughTunnel(proxyAddr, tlsConfig, identity.SSHClientConfig())
+	sshClientConfig, err := identity.SSHClientConfig(process.Config.FIPS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tunnelClient, err := process.newClientThroughTunnel(proxyAddr, tlsConfig, sshClientConfig)
 	if err != nil {
 		directErrLogger.Debug("Failed to connect to Auth Server directly.")
 		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
@@ -878,6 +884,7 @@ func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, tlsConf
 		Dialer: &reversetunnel.TunnelAuthDialer{
 			ProxyAddr:    proxyAddr,
 			ClientConfig: sshConfig,
+			Log:          process.log,
 		},
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),

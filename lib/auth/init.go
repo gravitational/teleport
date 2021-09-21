@@ -22,14 +22,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -123,6 +124,9 @@ type InitConfig struct {
 
 	// Restrictions is a service to access network restrictions, etc
 	Restrictions services.Restrictions
+
+	// Apps is a service that manages application resources.
+	Apps services.Apps
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
@@ -800,20 +804,20 @@ func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames [
 		return nil, trace.Wrap(err)
 	}
 
-	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               id.HostUUID,
-		NodeName:             id.NodeName,
-		Roles:                types.SystemRoles{id.Role},
-		AdditionalPrincipals: additionalPrincipals,
-		DNSNames:             dnsNames,
-		PublicSSHKey:         pub,
-		PublicTLSKey:         tlsPub,
-	})
+	certs, err := a.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               id.HostUUID,
+			NodeName:             id.NodeName,
+			Role:                 id.Role,
+			AdditionalPrincipals: additionalPrincipals,
+			DNSNames:             dnsNames,
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = priv
-	return ReadIdentityFromKeyPair(keys)
+	return ReadIdentityFromKeyPair(priv, certs)
 }
 
 // Identity is collection of certificates and signers that represent server identity
@@ -938,43 +942,35 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ClientCAs = certPool
-	tlsConfig.ServerName = EncodeClusterName(i.ClusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(i.ClusterName)
 	return tlsConfig, nil
+}
+
+func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
+	checkers, err := apisshutils.ParseAuthorizedKeys(i.SSHCACertBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return checkers, nil
 }
 
 // SSHClientConfig returns a ssh.ClientConfig used by nodes to connect to
 // the reverse tunnel server.
-func (i *Identity) SSHClientConfig() *ssh.ClientConfig {
+func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: i.getSSHCheckers,
+			FIPS:            fips,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &ssh.ClientConfig{
-		User: i.ID.HostUUID,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(i.KeySigner),
-		},
-		HostKeyCallback: i.hostKeyCallback,
+		User:            i.ID.HostUUID,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
+		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultDialTimeout,
-	}
-}
-
-// hostKeyCallback checks if the host certificate was signed by any of the
-// known CAs.
-func (i *Identity) hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return trace.BadParameter("only host certificates supported")
-	}
-
-	// Loop over all CAs and see if any of them signed the certificate.
-	for _, k := range i.SSHCACertBytes {
-		pubkey, _, _, _, err := ssh.ParseAuthorizedKey(k)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if apisshutils.KeysEqual(cert.SignatureKey, pubkey) {
-			return nil
-		}
-	}
-
-	return trace.BadParameter("no matching keys found")
+	}, nil
 }
 
 // IdentityID is a combination of role, host UUID, and node name.
@@ -1004,25 +1000,25 @@ func (id *IdentityID) String() string {
 }
 
 // ReadIdentityFromKeyPair reads SSH and TLS identity from key pair.
-func ReadIdentityFromKeyPair(keys *PackedKeys) (*Identity, error) {
-	identity, err := ReadSSHIdentityFromKeyPair(keys.Key, keys.Cert)
+func ReadIdentityFromKeyPair(privateKey []byte, certs *proto.Certs) (*Identity, error) {
+	identity, err := ReadSSHIdentityFromKeyPair(privateKey, certs.SSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(keys.SSHCACerts) != 0 {
-		identity.SSHCACertBytes = keys.SSHCACerts
+	if len(certs.SSHCACerts) != 0 {
+		identity.SSHCACertBytes = certs.SSHCACerts
 	}
 
-	if len(keys.TLSCACerts) != 0 {
+	if len(certs.TLSCACerts) != 0 {
 		// Parse the key pair to verify that identity parses properly for future use.
-		i, err := ReadTLSIdentityFromKeyPair(keys.Key, keys.TLSCert, keys.TLSCACerts)
+		i, err := ReadTLSIdentityFromKeyPair(privateKey, certs.TLS, certs.TLSCACerts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		identity.XCert = i.XCert
-		identity.TLSCertBytes = keys.TLSCert
-		identity.TLSCACertsBytes = keys.TLSCACerts
+		identity.TLSCertBytes = certs.TLS
+		identity.TLSCACertsBytes = certs.TLSCACerts
 	}
 
 	return identity, nil

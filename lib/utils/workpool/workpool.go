@@ -91,6 +91,7 @@ func (p *Pool) Set(key interface{}, target uint64) {
 }
 
 // Start starts a new work group with the specified initial target.
+// If Start returns false, the group already exists.
 func (p *Pool) start(key interface{}, target uint64) {
 	ctx, cancel := context.WithCancel(p.ctx)
 	notifyC := make(chan struct{}, 1)

@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
@@ -88,8 +89,8 @@ type Handler struct {
 	// from configuration
 	sshPort string
 
-	// clusterFeatures contain flags for supported and unsupported features.
-	clusterFeatures proto.Features
+	// ClusterFeatures contain flags for supported and unsupported features.
+	ClusterFeatures proto.Features
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -208,7 +209,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		cfg:             cfg,
 		log:             newPackageLogger(),
 		clock:           clockwork.NewRealClock(),
-		clusterFeatures: cfg.ClusterFeatures,
+		ClusterFeatures: cfg.ClusterFeatures,
 	}
 
 	for _, o := range opts {
@@ -345,11 +346,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.mfaLoginFinishSession))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.mfaLoginFinish))
 
-	// MFA related endpoints
+	// MFA public endpoints.
 	h.POST("/webapi/mfa/login/begin", httplib.MakeHandler(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
-	h.GET("/webapi/mfa", h.WithAuth(h.getMFADevicesHandle))
+	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
+	h.GET("/webapi/mfa/token/:token/devices", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
+	h.POST("/webapi/mfa/token/:token/authenticatechallenge", httplib.MakeHandler(h.createAuthenticateChallengeWithTokenHandle))
+
+	// MFA private endpoints.
+	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
+	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
@@ -535,7 +542,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext, err := ui.NewUserContext(user, roleset, h.clusterFeatures)
+	userContext, err := ui.NewUserContext(user, roleset, h.ClusterFeatures)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -845,7 +852,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	webCfg := ui.WebConfig{
 		Auth:            authSettings,
 		CanJoinSessions: canJoinSessions,
-		IsCloud:         h.clusterFeatures.GetCloud(),
+		IsCloud:         h.ClusterFeatures.GetCloud(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -1591,11 +1598,17 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	mfaChallenge, err := h.auth.GetMFAAuthenticateChallenge(req.User, req.Pass)
+
+	mfaChallenge, err := h.auth.proxyClient.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+			Username: req.User,
+			Password: []byte(req.Pass),
+		}},
+	})
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
-	return mfaChallenge, nil
+	return client.MakeAuthenticateChallenge(mfaChallenge), nil
 }
 
 // mfaLoginFinish completes the MFA login ceremony, returning a new SSH
@@ -2465,6 +2478,20 @@ func (h *Handler) ProxyWithRoles(ctx *SessionContext) (reversetunnel.Tunnel, err
 // ProxyHostPort returns the address of the proxy server using --proxy
 // notation, i.e. "localhost:8030,8023"
 func (h *Handler) ProxyHostPort() string {
+	// Proxy web address can be set in the config with unspecified host, like
+	// 0.0.0.0:3080 or :443.
+	//
+	// In this case, the dial will succeed (dialing 0.0.0.0 is same a dialing
+	// localhost in Go) but the SSH host certificate will not validate since
+	// 0.0.0.0 is never a valid principal (auth server explicitly removes it
+	// when issuing host certs).
+	//
+	// As such, replace 0.0.0.0 with localhost in this case: proxy listens on
+	// all interfaces and localhost is always included in the valid principal
+	// set.
+	if h.cfg.ProxyWebAddr.IsHostUnspecified() {
+		return fmt.Sprintf("localhost:%v,%s", h.cfg.ProxyWebAddr.Port(defaults.HTTPListenPort), h.sshPort)
+	}
 	return fmt.Sprintf("%s,%s", h.cfg.ProxyWebAddr.String(), h.sshPort)
 }
 
@@ -2503,6 +2530,14 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
 	}
 
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: ctx.getCheckers,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config := &client.Config{
 		Username:         ctx.user,
 		Agent:            agent,
@@ -2510,7 +2545,7 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		TLS:              tlsConfig,
 		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		DefaultPrincipal: cert.ValidPrincipals[0],
-		HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
+		HostKeyCallback:  callback,
 	}
 
 	return config, nil

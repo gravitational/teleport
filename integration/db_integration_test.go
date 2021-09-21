@@ -378,7 +378,8 @@ type databaseClusterPack struct {
 }
 
 type testOptions struct {
-	clock clockwork.Clock
+	clock             clockwork.Clock
+	instancePortsFunc func() *InstancePorts
 }
 
 type testOptionFunc func(*testOptions)
@@ -387,11 +388,20 @@ func (o *testOptions) setDefaultIfNotSet() {
 	if o.clock == nil {
 		o.clock = clockwork.NewRealClock()
 	}
+	if o.instancePortsFunc == nil {
+		o.instancePortsFunc = standardPortSetup
+	}
 }
 
 func withClock(clock clockwork.Clock) testOptionFunc {
 	return func(o *testOptions) {
 		o.clock = clock
+	}
+}
+
+func withPortSetupDatabaseTest(portFn func() *InstancePorts) testOptionFunc {
+	return func(o *testOptions) {
+		o.instancePortsFunc = portFn
 	}
 }
 
@@ -432,10 +442,10 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New(),
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
+		Ports:       opts.instancePortsFunc(),
 	})
 
 	// Create leaf cluster.
@@ -443,7 +453,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New(),
 		NodeName:    Host,
-		Ports:       ports.PopIntSlice(6),
+		Ports:       opts.instancePortsFunc(),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
@@ -535,6 +545,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rdConf.Clock = p.clock
 	p.root.dbProcess, p.root.dbAuthClient, err = p.root.cluster.StartDatabase(rdConf)
 	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		p.root.dbProcess.Close()
 	})

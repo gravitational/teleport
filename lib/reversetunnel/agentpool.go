@@ -51,7 +51,7 @@ type AgentPool struct {
 	cfg          AgentPoolConfig
 	proxyTracker *track.Tracker
 
-	// ctx controls the lifespan o the agent pool, and is used to control
+	// ctx controls the lifespan of the agent pool, and is used to control
 	// all of the sub-processes it spawns.
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -96,6 +96,8 @@ type AgentPoolConfig struct {
 	ProxyAddr string
 	// Cluster is a cluster name of the proxy.
 	Cluster string
+	// FIPS indicates if Teleport was started in FIPS mode.
+	FIPS bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -264,12 +266,21 @@ func (m *AgentPool) pollAndSyncAgents() {
 			m.log.Debugf("Closing.")
 			return
 		case <-ticker.C:
-			m.withLock(func() {
-				m.removeDisconnected()
-			})
+			m.withLock(m.removeDisconnected)
 		}
 	}
 }
+
+// getReverseTunnelDetails gets the cached ReverseTunnelDetails obtained during the oldest cached agent.connect call.
+// This function should be called under a lock.
+func (m *AgentPool) getReverseTunnelDetails(addr utils.NetAddr) *reverseTunnelDetails {
+	agents, ok := m.agents[addr]
+	if !ok || len(agents) == 0 {
+		return nil
+	}
+	return agents[0].reverseTunnelDetails
+}
+
 
 // addAgent adds a new agent to the pool. Note that ownership of the lease
 // transfers into the AgentPool, and will be released whet the AgentPool
@@ -277,20 +288,22 @@ func (m *AgentPool) pollAndSyncAgents() {
 func (m *AgentPool) addAgent(lease track.Lease) error {
 	addr := lease.Key().(utils.NetAddr)
 	agent, err := NewAgent(AgentConfig{
-		Addr:                addr,
-		ClusterName:         m.cfg.Cluster,
-		Username:            m.cfg.HostUUID,
-		Signer:              m.cfg.HostSigner,
-		Client:              m.cfg.Client,
-		AccessPoint:         m.cfg.AccessPoint,
-		Context:             m.ctx,
-		KubeDialAddr:        m.cfg.KubeDialAddr,
-		Server:              m.cfg.Server,
-		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
-		LocalClusterName:    m.cfg.LocalCluster,
-		Component:           m.cfg.Component,
-		Tracker:             m.proxyTracker,
-		Lease:               lease,
+		Addr:                 addr,
+		ClusterName:          m.cfg.Cluster,
+		Username:             m.cfg.HostUUID,
+		Signer:               m.cfg.HostSigner,
+		Client:               m.cfg.Client,
+		AccessPoint:          m.cfg.AccessPoint,
+		Context:              m.ctx,
+		KubeDialAddr:         m.cfg.KubeDialAddr,
+		Server:               m.cfg.Server,
+		ReverseTunnelServer:  m.cfg.ReverseTunnelServer,
+		LocalClusterName:     m.cfg.LocalCluster,
+		Component:            m.cfg.Component,
+		Tracker:              m.proxyTracker,
+		Lease:                lease,
+		FIPS:                 m.cfg.FIPS,
+		reverseTunnelDetails: m.getReverseTunnelDetails(addr),
 	})
 	if err != nil {
 		// ensure that lease has been released; OK to call multiple times.

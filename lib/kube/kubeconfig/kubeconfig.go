@@ -54,6 +54,9 @@ type Values struct {
 	// If not set, static key/cert from Credentials are written to kubeconfig
 	// instead.
 	Exec *ExecValues
+
+	// TLSServerName is SNI host value passed to the server.
+	TLSServerName string
 }
 
 // ExecValues contain values for configuring tsh as an exec auth plugin in
@@ -89,6 +92,7 @@ func Update(path string, v Values) error {
 	config.Clusters[v.TeleportClusterName] = &clientcmdapi.Cluster{
 		Server:                   v.ClusterAddr,
 		CertificateAuthorityData: cas,
+		TLSServerName:            v.TLSServerName,
 	}
 
 	if v.Exec != nil {

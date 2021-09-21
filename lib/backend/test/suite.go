@@ -484,7 +484,8 @@ func collectEvents(ctx context.Context, t *testing.T, watcher backend.Watcher, c
 		case <-watcher.Done():
 			require.FailNow(t, "Watcher has unexpectedly closed.")
 		case <-ctx.Done():
-			require.FailNowf(t, "Context expired waiting for event.", "Captured so far: %v", events)
+			require.FailNowf(t, "Context expired waiting for events.",
+				"Captured %d of %d so far: %v", len(events), count, events)
 		}
 	}
 	return events
@@ -566,6 +567,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 // by a watcher within the supplied timeout, returning that event for further
 // inspection if successful.
 func requireEvent(t *testing.T, watcher backend.Watcher, eventType types.OpType, key []byte, timeout time.Duration) backend.Event {
+	t.Helper()
 	select {
 	case e := <-watcher.Events():
 		require.Equal(t, eventType, e.Type)
@@ -576,7 +578,7 @@ func requireEvent(t *testing.T, watcher backend.Watcher, eventType types.OpType,
 		require.FailNow(t, "Watcher has unexpectedly closed.")
 
 	case <-time.After(timeout):
-		require.FailNow(t, "Timeout waiting for event.")
+		require.FailNow(t, "Timed out after %v waiting for event %v", timeout, eventType.String())
 	}
 
 	return backend.Event{}

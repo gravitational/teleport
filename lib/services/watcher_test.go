@@ -179,7 +179,7 @@ func TestLockWatcher(t *testing.T) {
 		t.Fatalf("Unexpected event: %v.", event)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
+	case <-time.After(time.Second):
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 
@@ -226,10 +226,87 @@ func TestLockWatcher(t *testing.T) {
 		t.Fatalf("Unexpected event: %v.", event)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
+	case <-time.After(time.Second):
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 	expectLockInForce(t, lock2, w.CheckLockInForce(constants.LockingModeBestEffort, target2))
+}
+
+func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Access
+		types.Events
+	}
+
+	access := local.NewAccessService(bk)
+	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:   "test",
+			RetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Access: access,
+				Events: local.NewEventsService(bk, nil),
+			},
+			Clock: clock,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+	select {
+	case <-w.LoopC:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Timeout waiting for LockWatcher loop.")
+	}
+
+	// Subscribe to lock watcher updates with an empty target.
+	target := types.LockTarget{Node: "node"}
+	sub, err := w.Subscribe(ctx, target, types.LockTarget{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sub.Close()) })
+
+	// Add a lock matching one of the subscription targets.
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: target,
+	})
+	require.NoError(t, err)
+	require.NoError(t, access.UpsertLock(ctx, lock))
+	select {
+	case event := <-sub.Events():
+		require.Equal(t, types.OpPut, event.Type)
+		receivedLock, ok := event.Resource.(types.Lock)
+		require.True(t, ok)
+		require.Empty(t, resourceDiff(receivedLock, lock))
+	case <-sub.Done():
+		t.Fatal("Lock watcher subscription has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+
+	// Add a lock matching *none* of the subscription targets.
+	target2 := types.LockTarget{User: "user"}
+	lock2, err := types.NewLock("test-lock2", types.LockSpecV2{
+		Target: target2,
+	})
+	require.NoError(t, err)
+	require.NoError(t, access.UpsertLock(ctx, lock2))
+	select {
+	case event := <-sub.Events():
+		t.Fatalf("Unexpected event: %v.", event)
+	case <-sub.Done():
+		t.Fatal("Lock watcher subscription has unexpectedly exited.")
+	case <-time.After(time.Second):
+	}
 }
 
 func TestLockWatcherStale(t *testing.T) {
@@ -403,7 +480,7 @@ func TestDatabaseWatcher(t *testing.T) {
 				Events:    local.NewEventsService(bk, nil),
 			},
 		},
-		DatabasesC: make(chan []types.Database, 10),
+		DatabasesC: make(chan types.Databases, 10),
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
@@ -471,4 +548,100 @@ func newDatabase(t *testing.T, name string) types.Database {
 	})
 	require.NoError(t, err)
 	return database
+}
+
+// TestAppWatcher tests that application resource watcher properly receives
+// and dispatches updates.
+func TestAppWatcher(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Apps
+		types.Events
+	}
+
+	appService := local.NewAppService(bk)
+	w, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:   "test",
+			RetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Apps:   appService,
+				Events: local.NewEventsService(bk, nil),
+			},
+		},
+		AppsC: make(chan types.Apps, 10),
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Initially there are no apps so watcher should send an empty list.
+	select {
+	case changeset := <-w.AppsC:
+		require.Len(t, changeset, 0)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add an app.
+	app1 := newApp(t, "app1")
+	require.NoError(t, appService.CreateApp(ctx, app1))
+
+	// The first event is always the current list of apps.
+	select {
+	case changeset := <-w.AppsC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], app1))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add a second app.
+	app2 := newApp(t, "app2")
+	require.NoError(t, appService.CreateApp(ctx, app2))
+
+	// Watcher should detect the app list change.
+	select {
+	case changeset := <-w.AppsC:
+		require.Len(t, changeset, 2)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+
+	// Delete the first app.
+	require.NoError(t, appService.DeleteApp(ctx, app1.GetName()))
+
+	// Watcher should detect the database list change.
+	select {
+	case changeset := <-w.AppsC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], app2))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+}
+
+func newApp(t *testing.T, name string) types.Application {
+	app, err := types.NewAppV3(types.Metadata{
+		Name: name,
+	}, types.AppSpecV3{
+		URI: "localhost",
+	})
+	require.NoError(t, err)
+	return app
 }

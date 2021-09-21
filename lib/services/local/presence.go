@@ -464,6 +464,9 @@ func (s *PresenceService) GetReverseTunnels(opts ...services.MarshalOption) ([]t
 		return nil, trace.Wrap(err)
 	}
 	tunnels := make([]types.ReverseTunnel, len(result.Items))
+	if len(result.Items) == 0 {
+		return tunnels, nil
+	}
 	for i, item := range result.Items {
 		tunnel, err := services.UnmarshalReverseTunnel(
 			item.Value, services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
