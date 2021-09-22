@@ -488,13 +488,13 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 	clt, err := srv.NewClient(TestUser(username))
 	require.NoError(t, err)
 
-	totpDev, err := RegisterTestDevice(ctx, clt, "totp-1", TestOTPDevice, nil, WithTestDeviceClock(srv.Clock()))
+	totpDev, err := RegisterTestDevice(ctx, clt, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
 
-	u2fDev, err := RegisterTestDevice(ctx, clt, "u2f-1", TestU2FDevice, totpDev)
+	u2fDev, err := RegisterTestDevice(ctx, clt, "u2f-1", proto.DeviceType_DEVICE_TYPE_U2F, totpDev)
 	require.NoError(t, err)
 
-	webDev, err := RegisterTestDevice(ctx, clt, "web-1", TestWebauthnDevice, totpDev)
+	webDev, err := RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
 	require.NoError(t, err)
 
 	return &configureMFAResp{

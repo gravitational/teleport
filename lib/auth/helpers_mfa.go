@@ -31,16 +31,6 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
-// TestDeviceType represents the various supported MFA types.
-// TODO(codingllama): Replace with proto.DeviceType
-type TestDeviceType int
-
-const (
-	TestOTPDevice TestDeviceType = iota
-	TestU2FDevice
-	TestWebauthnDevice
-)
-
 // TestDevice is a test MFA device.
 type TestDevice struct {
 	MFA        *types.MFADevice
@@ -69,25 +59,15 @@ func WithTestDeviceOrigin(origin string) TestDeviceOpt {
 // RegisterTestDevice creates and registers a TestDevice.
 // TOTP devices require a clock option.
 func RegisterTestDevice(
-	ctx context.Context, clt authClient, devName string, devType TestDeviceType, authenticator *TestDevice, opts ...TestDeviceOpt) (*TestDevice, error) {
+	ctx context.Context, clt authClient, devName string, devType proto.DeviceType, authenticator *TestDevice, opts ...TestDeviceOpt) (*TestDevice, error) {
 	dev := &TestDevice{} // Remaining parameters set during registration
 	for _, opt := range opts {
 		opt(dev)
 	}
-
-	switch devType {
-	case TestOTPDevice:
-		if dev.clock == nil {
-			return nil, trace.BadParameter("TOTP devices require the WithTestDeviceClock option")
-		}
-		return dev, dev.registerStream(ctx, clt, devName, proto.AddMFADeviceRequestInit_TOTP, authenticator)
-	case TestU2FDevice:
-		return dev, dev.registerStream(ctx, clt, devName, proto.AddMFADeviceRequestInit_U2F, authenticator)
-	case TestWebauthnDevice:
-		return dev, dev.registerStream(ctx, clt, devName, proto.AddMFADeviceRequestInit_Webauthn, authenticator)
-	default:
-		return nil, trace.BadParameter("unexpected device type: %v", devType)
+	if devType == proto.DeviceType_DEVICE_TYPE_TOTP && dev.clock == nil {
+		return nil, trace.BadParameter("TOTP devices require the WithTestDeviceClock option")
 	}
+	return dev, dev.registerStream(ctx, clt, devName, devType, authenticator)
 }
 
 func (d *TestDevice) Origin() string {
@@ -102,10 +82,7 @@ type authClient interface {
 }
 
 func (d *TestDevice) registerStream(
-	ctx context.Context,
-	clt authClient,
-	devName string, devType proto.AddMFADeviceRequestInit_DeviceType,
-	authenticator *TestDevice) error {
+	ctx context.Context, clt authClient, devName string, devType proto.DeviceType, authenticator *TestDevice) error {
 	stream, err := clt.AddMFADevice(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -116,7 +93,7 @@ func (d *TestDevice) registerStream(
 		Request: &proto.AddMFADeviceRequest_Init{
 			Init: &proto.AddMFADeviceRequestInit{
 				DeviceName: devName,
-				Type:       devType,
+				DeviceType: devType,
 			},
 		},
 	}); err != nil {
