@@ -17,6 +17,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"testing"
 
@@ -81,5 +82,21 @@ func TestPing(t *testing.T) {
 
 			test.assertResp(cap, &pingResp)
 		})
+	}
+}
+
+// TestPing_multiProxyAddr makes sure ping endpoint can be called over any of
+// the proxy's configured public addresses.
+func TestPing_multiProxyAddr(t *testing.T) {
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	req, err := http.NewRequest(http.MethodGet, proxy.newClient(t).Endpoint("webapi", "ping"), nil)
+	require.NoError(t, err)
+	// Make sure ping endpoint can be reached over all proxy public addrs.
+	for _, proxyAddr := range proxy.handler.handler.cfg.ProxyPublicAddrs {
+		req.Host = proxyAddr.Host()
+		resp, err := client.NewInsecureWebClient().Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
 	}
 }
