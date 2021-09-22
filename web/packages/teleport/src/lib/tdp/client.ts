@@ -117,7 +117,9 @@ export default class Client extends EventEmitter {
   }
 
   sendKeyboardInput(code: string, state: ButtonState) {
-    this.socket.send(this.codec.encodeKeyboardInput(code, state));
+    // Only send message if key is recognized, otherwise do nothing.
+    const msg = this.codec.encodeKeyboardInput(code, state);
+    if (msg) this.socket.send(msg);
   }
 
   resize(w: number, h: number) {
