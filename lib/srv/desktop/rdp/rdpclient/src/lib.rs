@@ -1,13 +1,28 @@
+pub mod errors;
+pub mod rdpdr;
+pub mod scard;
+
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate num_derive;
+extern crate byteorder;
 
 use libc::{fd_set, select, FD_SET};
-use rdp::core::client::{Connector, RdpClient};
 use rdp::core::event::*;
-use rdp::model::error::Error as RdpError;
+use rdp::core::gcc::KeyboardLayout;
+use rdp::core::global;
+use rdp::core::mcs;
+use rdp::core::sec;
+use rdp::core::tpkt;
+use rdp::core::x224;
+use rdp::model::error::{Error as RdpError, RdpError as RdpProtocolError, RdpErrorKind, RdpResult};
+use rdp::model::link::{Link, Stream};
+use rdp::nla::ntlm::Ntlm;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
+use std::io::{Cursor, Read, Write};
 use std::mem;
 use std::net::TcpStream;
 use std::os::raw::c_char;
@@ -17,9 +32,7 @@ use std::sync::{Arc, Mutex};
 
 #[no_mangle]
 pub extern "C" fn init() {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
-        .init();
+    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {}", e));
 }
 
 // Client has an unusual lifecycle:
@@ -85,7 +98,7 @@ pub extern "C" fn connect_rdp(
     let username = from_go_string(go_username);
     let password = from_go_string(go_password);
 
-    connect_rdp_inner(&addr, &username, &password, screen_width, screen_height).into()
+    connect_rdp_inner(&addr, username, password, screen_width, screen_height).into()
 }
 
 #[derive(Debug)]
@@ -108,23 +121,91 @@ impl From<RdpError> for ConnectError {
 
 fn connect_rdp_inner(
     addr: &str,
-    username: &str,
-    password: &str,
+    username: String,
+    password: String,
     screen_width: u16,
     screen_height: u16,
 ) -> Result<Client, ConnectError> {
     // Connect and authenticate.
     let tcp = TcpStream::connect(addr)?;
     let tcp_fd = tcp.as_raw_fd() as usize;
-    let mut connector = Connector::new()
-        .screen(screen_width, screen_height)
-        .credentials(".".to_string(), username.to_string(), password.to_string());
-    let client = connector.connect(tcp)?;
+    let domain = ".";
 
+    // From rdp-rs/src/core/client.rs
+    let tcp = Link::new(Stream::Raw(tcp));
+    let mut authentication = Ntlm::new(domain.to_string(), username.clone(), password.clone());
+    let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolHybrid as u32;
+    let x224 = x224::Client::connect(
+        tpkt::Client::new(tcp),
+        protocols,
+        false,
+        Some(&mut authentication),
+        false,
+        false,
+    )?;
+    let mut mcs = mcs::Client::new(x224);
+    mcs.connect(
+        "rdp-rs".to_string(),
+        screen_width,
+        screen_height,
+        KeyboardLayout::US,
+        &vec!["rdpdr".to_string(), "rdpsnd".to_string()],
+    )?;
+    sec::connect(&mut mcs, &domain.to_string(), &username, &password, false)?;
+    let global = global::Client::new(
+        mcs.get_user_id(),
+        mcs.get_global_channel_id(),
+        screen_width,
+        screen_height,
+        KeyboardLayout::US,
+        "rdp-rs",
+    );
+    let rdpdr = rdpdr::Client::new();
+
+    let rdp_client = RdpClient { mcs, global, rdpdr };
     Ok(Client {
-        rdp_client: Arc::new(Mutex::new(client)),
+        rdp_client: Arc::new(Mutex::new(rdp_client)),
         tcp_fd: tcp_fd,
     })
+}
+
+// From rdp-rs/src/core/client.rs
+struct RdpClient<S> {
+    mcs: mcs::Client<S>,
+    global: global::Client,
+    rdpdr: rdpdr::Client,
+}
+
+impl<S: Read + Write> RdpClient<S> {
+    pub fn read<T>(&mut self, callback: T) -> RdpResult<()>
+    where
+        T: FnMut(RdpEvent),
+    {
+        let (channel_name, message) = self.mcs.read()?;
+        match channel_name.as_str() {
+            "global" => self.global.read(message, &mut self.mcs, callback),
+            "rdpdr" => self.rdpdr.read(message, &mut self.mcs),
+            _ => Err(RdpError::RdpError(RdpProtocolError::new(
+                RdpErrorKind::UnexpectedType,
+                &format!("Invalid channel name {:?}", channel_name),
+            ))),
+        }
+    }
+    pub fn write(&mut self, event: RdpEvent) -> RdpResult<()> {
+        match event {
+            RdpEvent::Pointer(pointer) => {
+                self.global.write_input_event(pointer.into(), &mut self.mcs)
+            }
+            RdpEvent::Key(key) => self.global.write_input_event(key.into(), &mut self.mcs),
+            _ => Err(RdpError::RdpError(RdpProtocolError::new(
+                RdpErrorKind::UnexpectedType,
+                "RDPCLIENT: This event can't be sent",
+            ))),
+        }
+    }
+    pub fn shutdown(&mut self) -> RdpResult<()> {
+        self.mcs.shutdown()
+    }
 }
 
 #[repr(C)]
@@ -404,3 +485,5 @@ extern "C" {
     fn free_go_string(s: *mut c_char);
     fn handle_bitmap(client_ref: i64, b: CGOBitmap) -> CGOError;
 }
+
+pub(crate) type Payload = Cursor<Vec<u8>>;
