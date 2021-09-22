@@ -25,6 +25,8 @@ import (
 
 	"golang.org/x/net/websocket"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 )
@@ -38,6 +40,7 @@ func main() {
 	if os.Getenv("TELEPORT_DEV_RDP_PASSWORD") == "" {
 		log.Fatal("missing TELEPORT_DEV_RDP_PASSWORD env var")
 	}
+	log.Printf("target addr: %q, username: %q", addr, username)
 
 	assetPath := filepath.Join(exeDir(), "testclient")
 	log.Printf("serving assets from %q", assetPath)
@@ -52,7 +55,11 @@ func main() {
 
 func handleConnect(addr, username string) http.Handler {
 	return websocket.Handler(func(conn *websocket.Conn) {
+		log.Println("new websocket connection from", conn.RemoteAddr())
+		defer log.Println("websocket connection from", conn.RemoteAddr(), "closed")
 		usernameSent := false
+		logger := logrus.New()
+		logger.Level = logrus.DebugLevel
 		c, err := rdpclient.New(rdpclient.Config{
 			Addr: addr,
 			OutputMessage: func(m deskproto.Message) error {
@@ -74,6 +81,7 @@ func handleConnect(addr, username string) http.Handler {
 				}
 				return deskproto.Decode(buf)
 			},
+			Log: logger,
 		})
 		if err != nil {
 			log.Printf("failed to create rdpclient: %v", err)
