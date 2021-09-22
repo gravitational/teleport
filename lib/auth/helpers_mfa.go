@@ -262,6 +262,8 @@ func (d *TestDevice) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*prot
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	d.Key.PreferRPID = true
+
 	resp, err := d.Key.SignCredentialCreation(d.Origin(), wanlib.CredentialCreationFromProto(c.GetWebauthn()))
 	if err != nil {
 		return nil, trace.Wrap(err)
