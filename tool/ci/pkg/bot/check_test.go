@@ -9,7 +9,7 @@ import (
 )
 
 func TestApproved(t *testing.T) {
-	bot := &Bot{Environment: &environment.Environment{}} // create new env with reviewers
+	bot := &Bot{Environment: &environment.Environment{}} 
 	pull := &environment.PullRequestMetadata{Author: "test"}
 	tests := []struct {
 		botInstance    *Bot
