@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -53,16 +52,13 @@ func TestMarshal(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// var commonFirestoreParams = map[string]interface{}{
-// 	"collection_name":                   "tp-cluster-data-test",
-// 	"project_id":                        "tp-testproj",
-// 	"endpoint":                          "localhost:8618",
-// 	"purgeExpiredDocumentsPollInterval": time.Second,
-// }
+func firestoreParams(t *testing.T) backend.Params {
+	// Creating the indices on - even an empty - live Firestore collection
+	// can take 5 minutes, so we re-use the same project and collection
+	// names for each test.
 
-func firestoreParams(t *testing.T) map[string]interface{} {
 	return map[string]interface{}{
-		"collection_name":                   t.Name() + "-" + uuid.New().String(),
+		"collection_name":                   "tp-cluster-data-test",
 		"project_id":                        "tp-testproj",
 		"endpoint":                          "localhost:8618",
 		"purgeExpiredDocumentsPollInterval": time.Second,
