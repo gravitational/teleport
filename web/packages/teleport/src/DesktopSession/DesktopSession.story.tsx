@@ -18,7 +18,6 @@ import React, { useState } from 'react';
 import { DesktopSession } from './DesktopSession';
 import { State } from './useDesktopSession';
 import TdpClient, { RenderData } from 'teleport/lib/tdp/client';
-import { TdpClientConnectionState } from './useTdpClientCanvas';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 export default {
@@ -45,11 +44,11 @@ const fillGray = (canvas: HTMLCanvasElement) => {
 
 const props: State = {
   hostname: 'host.com',
-  attempt: { status: 'processing' },
+  fetchAttempt: { status: 'processing' },
+  connection: { status: 'processing' },
   clipboard: false,
   recording: false,
   tdpClient: client,
-  connection: { status: 'connecting', statusText: 'Connecting...' },
   username: 'user',
   onInit: (cli: TdpClient, canvas: HTMLCanvasElement) => {
     fillGray(canvas);
@@ -69,33 +68,39 @@ const props: State = {
 export const Processing = () => (
   <DesktopSession
     {...props}
-    attempt={{ status: 'processing' }}
-    connection={{ status: 'connecting' }}
+    fetchAttempt={{ status: 'processing' }}
+    connection={{ status: 'processing' }}
   />
 );
 
 export const ProcessingToConnectingToDisplay = () => {
-  const { attempt, setAttempt } = useAttempt('processing');
-  const [connection, setConnection] = useState<TdpClientConnectionState>({
-    status: 'connecting',
-  });
+  const { attempt: fetchAttempt, setAttempt: setFetchAttempt } = useAttempt(
+    'processing'
+  );
+  const { attempt: connection, setAttempt: setConnection } = useAttempt(
+    'processing'
+  );
 
   setTimeout(() => {
-    setAttempt({ status: 'success' });
+    setFetchAttempt({ status: 'success' });
     setTimeout(() => {
-      setConnection({ status: 'connected' });
+      setConnection({ status: 'success' });
     }, 1000);
   }, 1000);
 
   return (
-    <DesktopSession {...props} attempt={attempt} connection={connection} />
+    <DesktopSession
+      {...props}
+      fetchAttempt={fetchAttempt}
+      connection={connection}
+    />
   );
 };
 export const ConnectedSettingsFalse = () => (
   <DesktopSession
     {...props}
-    attempt={{ status: 'success' }}
-    connection={{ status: 'connected' }}
+    fetchAttempt={{ status: 'success' }}
+    connection={{ status: 'success' }}
     clipboard={false}
     recording={false}
   />
@@ -103,8 +108,8 @@ export const ConnectedSettingsFalse = () => (
 export const ConnectedSettingsTrue = () => (
   <DesktopSession
     {...props}
-    attempt={{ status: 'success' }}
-    connection={{ status: 'connected' }}
+    fetchAttempt={{ status: 'success' }}
+    connection={{ status: 'success' }}
     clipboard={true}
     recording={true}
   />
@@ -112,15 +117,21 @@ export const ConnectedSettingsTrue = () => (
 export const Disconnected = () => (
   <DesktopSession
     {...props}
-    attempt={{ status: 'success' }}
-    connection={{
-      status: 'disconnected',
-    }}
+    fetchAttempt={{ status: 'success' }}
+    connection={{ status: '' }}
   />
 );
-export const Error = () => (
+export const FetchError = () => (
   <DesktopSession
     {...props}
-    attempt={{ status: 'failed', statusText: 'some error message' }}
+    fetchAttempt={{ status: 'failed', statusText: 'some fetch  error' }}
+    connection={{ status: 'success' }}
+  />
+);
+export const ConnectionError = () => (
+  <DesktopSession
+    {...props}
+    fetchAttempt={{ status: 'success' }}
+    connection={{ status: 'failed', statusText: 'some connection error' }}
   />
 );

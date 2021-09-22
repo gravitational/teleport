@@ -21,12 +21,14 @@ import { TopBarHeight } from './TopBar';
 import cfg, { UrlDesktopParams } from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import { ButtonState } from 'teleport/lib/tdp/codec';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 export default function useTdpClientCanvas() {
   const { clusterId, username, desktopId } = useParams<UrlDesktopParams>();
-  const [connection, setConnection] = useState<TdpClientConnectionState>({
-    status: 'connecting',
-  });
+  // status === '' means disconnected
+  const { attempt: connection, setAttempt: setConnection } = useAttempt(
+    'processing'
+  );
 
   // Build a client based on url parameters.
   const tdpClient = useMemo(() => {
@@ -54,13 +56,13 @@ export default function useTdpClientCanvas() {
   };
 
   const onInit = (cli: TdpClient, canvas: HTMLCanvasElement) => {
-    setConnection({ status: 'connecting' });
+    setConnection({ status: 'processing' });
     syncCanvasSizeToClientSize(canvas);
     cli.connect(canvas.width, canvas.height);
   };
 
   const onConnect = () => {
-    setConnection({ status: 'connected' });
+    setConnection({ status: 'success' });
   };
 
   const onRender = (canvas: HTMLCanvasElement, data: RenderData) => {
@@ -70,12 +72,12 @@ export default function useTdpClientCanvas() {
 
   const onDisconnect = () => {
     setConnection({
-      status: 'disconnected',
+      status: '',
     });
   };
 
   const onError = (err: Error) => {
-    setConnection({ status: 'error', statusText: err.message });
+    setConnection({ status: 'failed', statusText: err.message });
   };
 
   const onKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
@@ -131,8 +133,3 @@ export default function useTdpClientCanvas() {
     onResize,
   };
 }
-
-export type TdpClientConnectionState = {
-  status: 'connecting' | 'connected' | 'disconnected' | 'error';
-  statusText?: string;
-};

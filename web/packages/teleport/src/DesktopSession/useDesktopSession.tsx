@@ -26,7 +26,7 @@ import useTdpClientCanvas from './useTdpClientCanvas';
 export default function useDesktopSession(ctx: Ctx) {
   // Tracks combination of tdpclient/websocket and api call state,
   // as well as whether the tdp client for this session was intentionally disconnected.
-  const { attempt, run } = useAttempt('processing');
+  const { attempt: fetchAttempt, run } = useAttempt('processing');
   const { clusterId, desktopId } = useParams<UrlDesktopParams>();
   const [hostname, setHostname] = useState<string>('');
   const clientCanvasProps = useTdpClientCanvas();
@@ -47,10 +47,10 @@ export default function useDesktopSession(ctx: Ctx) {
 
   return {
     hostname,
-    attempt,
     // clipboard and recording settings will eventuall come from backend, hardcoded for now
     clipboard: false,
     recording: false,
+    fetchAttempt,
     ...clientCanvasProps,
   };
 }

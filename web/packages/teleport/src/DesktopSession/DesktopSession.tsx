@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import useDesktopSession, { State } from './useDesktopSession';
 import TopBar from './TopBar';
 import { Indicator, Box, Alert, Text, Flex } from 'design';
 import useTeleport from 'teleport/useTeleport';
 import TdpClientCanvas from './TdpClientCanvas';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -30,10 +31,10 @@ export default function Container() {
 export function DesktopSession(props: State) {
   const {
     hostname,
-    attempt,
     clipboard,
     recording,
     tdpClient,
+    fetchAttempt,
     connection,
     username,
     onInit,
@@ -49,52 +50,30 @@ export function DesktopSession(props: State) {
     onResize,
   } = props;
 
-  const errorAlert = (
-    <Alert
-      style={{
-        alignSelf: 'center',
-      }}
-      width={'450px'}
-      my={2}
-      children={
-        attempt.status === 'failed'
-          ? attempt.statusText
-          : connection.status === 'error'
-          ? connection.statusText
-          : 'unexpected state'
-      }
-    />
-  );
+  const { attempt, setAttempt } = useAttempt('processing'); // attempt.status === '' means disconnected
 
-  // Calculates an optional status message for the UI based on the combined state
-  // of attempt and connection.
-  const displayStatusMessage = () => {
-    if (attempt.status === 'failed' || connection.status === 'error') {
-      return errorAlert;
+  // Sets attempt based on combination of fetchAttempt and tdpclient connection
+  useEffect(() => {
+    if (fetchAttempt.status === 'failed') {
+      setAttempt(fetchAttempt);
+    } else if (connection.status === 'failed') {
+      setAttempt(connection);
+    } else if (connection.status === '') {
+      setAttempt(connection);
     } else if (
-      attempt.status === 'processing' ||
-      connection.status === 'connecting'
+      fetchAttempt.status === 'processing' ||
+      connection.status === 'processing'
     ) {
-      return (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      );
-    } else if (connection.status === 'disconnected') {
-      return (
-        <Box textAlign="center" m={10}>
-          <Text>Session successfully disconnected</Text>
-        </Box>
-      );
+      setAttempt({ status: 'processing' });
     } else if (
-      attempt.status === 'success' &&
-      connection.status === 'connected'
+      fetchAttempt.status === 'success' &&
+      connection.status === 'success'
     ) {
-      return null;
+      setAttempt(connection);
     } else {
-      return errorAlert;
+      setAttempt({ status: 'failed', statusText: 'unknown error' });
     }
-  };
+  }, [fetchAttempt, connection]);
 
   return (
     <Flex flexDirection="column">
@@ -107,14 +86,32 @@ export function DesktopSession(props: State) {
         recording={recording}
       />
 
-      {displayStatusMessage()}
+      <>
+        {attempt.status === 'failed' && (
+          <Alert
+            style={{
+              alignSelf: 'center',
+            }}
+            width={'450px'}
+            my={2}
+            children={attempt.statusText}
+          />
+        )}
+        {attempt.status === '' && (
+          <Box textAlign="center" m={10}>
+            <Text>Session successfully disconnected</Text>
+          </Box>
+        )}
+        {attempt.status === 'processing' && (
+          <Box textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        )}
+      </>
 
       <TdpClientCanvas
         style={{
-          display:
-            attempt.status === 'success' && connection.status === 'connected'
-              ? 'flex'
-              : 'none',
+          display: attempt.status === 'success' ? 'flex' : 'none',
           flex: 1,
         }}
         tdpClient={tdpClient}
