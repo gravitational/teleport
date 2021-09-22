@@ -15,8 +15,6 @@
           ]
         },
         { "title": "Installation", "slug": "/installation/" },
-        { "title": "User Manual", "slug": "/user-manual/" },
-        { "title": "Production Guide", "slug": "/production/" },
         { "title": "FAQ", "slug": "/faq/" },
         { "title": "Changelog", "slug": "/changelog/" }
       ]
@@ -118,6 +116,7 @@
           "entries": [
             { "title": "Ansible", "slug": "/server-access/guides/ansible/" },
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
+            { "title": "Using TSH", "slug": "/server-access/guides/tsh/" },
             { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
             {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"},
             {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"}
@@ -364,6 +363,16 @@
     }
   },
   "redirects": [
+    {
+      "source": "/user-manual/",
+      "destination": "/server-access/guides/tsh/",
+      "permanent": true
+    },
+    {
+      "source": "/production/",
+      "destination": "/setup/deployments/",
+      "permanent": true
+    },
     {
       "source": "/admin-guide/",
       "destination": "/setup/admin/",
