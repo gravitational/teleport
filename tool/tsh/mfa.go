@@ -166,15 +166,14 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 	}
-	var devType proto.AddMFADeviceRequestInit_DeviceType
-	switch strings.ToUpper(c.devType) {
-	case totpDeviceType:
-		devType = proto.AddMFADeviceRequestInit_TOTP
-	case u2fDeviceType:
-		devType = proto.AddMFADeviceRequestInit_U2F
-	case webauthnDeviceType:
-		devType = proto.AddMFADeviceRequestInit_Webauthn
-	default:
+
+	m := map[string]proto.DeviceType{
+		totpDeviceType:     proto.DeviceType_DEVICE_TYPE_TOTP,
+		u2fDeviceType:      proto.DeviceType_DEVICE_TYPE_U2F,
+		webauthnDeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+	}
+	devType := m[c.devType]
+	if devType == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
 		return trace.BadParameter("unknown device type %q, must be one of %v", c.devType, strings.Join(deviceTypes, ", "))
 	}
 
@@ -199,7 +198,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.AddMFADeviceRequestInit_DeviceType) (*types.MFADevice, error) {
+func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.DeviceType) (*types.MFADevice, error) {
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -228,7 +227,7 @@ func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.
 		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_Init{
 			Init: &proto.AddMFADeviceRequestInit{
 				DeviceName: devName,
-				Type:       devType,
+				DeviceType: devType,
 			},
 		}}); err != nil {
 			return trace.Wrap(err)

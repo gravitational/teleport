@@ -1280,11 +1280,11 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	}
 
 	u2fDev := &TestDevice{Key: u2fKey}
-	totpDev, err := RegisterTestDevice(ctx, clt, "otp-1", TestOTPDevice, u2fDev, WithTestDeviceClock(srv.Clock()))
+	totpDev, err := RegisterTestDevice(ctx, clt, "otp-1", proto.DeviceType_DEVICE_TYPE_TOTP, u2fDev, WithTestDeviceClock(srv.Clock()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	webDev, err := RegisterTestDevice(ctx, clt, "web-1", TestWebauthnDevice, u2fDev)
+	webDev, err := RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, u2fDev)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
