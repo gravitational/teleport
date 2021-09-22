@@ -3414,6 +3414,17 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *proto
 	return res, nil
 }
 
+// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+func (g *GRPCServer) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := auth.CreatePrivilegeToken(ctx, req)
+	return token, trace.Wrap(err)
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

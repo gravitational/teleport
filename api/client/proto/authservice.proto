@@ -1268,6 +1268,18 @@ message CreateAuthenticateChallengeRequest {
     }
 }
 
+// CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
+// Only logged in users are allowed to obtain privilege tokens after they have successfully
+// re-authenticated with their second factor.
+message CreatePrivilegeTokenRequest {
+    // ExistingMFAResponse is a response to a challenge from the user's existing MFA devices.
+    // This field can be empty to create a UserTokenTypePrivilegeException token that
+    // allows a user to bypass second factor re-authentication eg: allowing a user
+    // with no mfa devices to add a device without re-authenticating.
+    MFAAuthenticateResponse ExistingMFAResponse = 1
+        [ (gogoproto.jsontag) = "existing_mfa_response,omitempty" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1701,4 +1713,9 @@ service AuthService {
     // the token e.g: username, state of recovery (started or approved) and the type of recovery
     // requested (password or second factor).
     rpc GetAccountRecoveryToken(GetAccountRecoveryTokenRequest) returns (types.UserTokenV3);
+
+    // CreatePrivilegeToken returns a new privilege token after a logged in user successfully
+    // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
+    // is used to gain access to privileged actions eg: deleting/adding a MFA device.
+    rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
 }
