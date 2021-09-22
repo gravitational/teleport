@@ -1773,10 +1773,6 @@ type IdentityService interface {
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
 
-	// DELETE IN 9.0.0 replaced by grpc CreateRegisterChallenge.
-	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
-	RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
-
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
 	// AddMFADevice adds a new MFA device for the calling user.
