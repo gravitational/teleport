@@ -313,32 +313,6 @@ func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *type
 	return nil
 }
 
-// CreateSignupU2FRegisterRequest initiates registration for a new U2F token.
-// The returned challenge should be sent to the client to sign.
-func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (*u2f.RegisterChallenge, error) {
-	ctx := context.TODO()
-	cap, err := s.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	u2fConfig, err := cap.GetU2F()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = s.GetUserToken(context.TODO(), tokenID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return u2f.RegisterInit(u2f.RegisterInitParams{
-		StorageKey: tokenID,
-		AppConfig:  *u2fConfig,
-		Storage:    s.Identity,
-	})
-}
-
 // getOTPType returns the type of OTP token used, HOTP or TOTP.
 // Deprecated: Remove this method once HOTP support has been removed from Gravity.
 func (s *Server) getOTPType(user string) (teleport.OTPType, error) {

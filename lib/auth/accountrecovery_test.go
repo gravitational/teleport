@@ -31,6 +31,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -658,10 +659,13 @@ func TestCompleteAccountRecovery(t *testing.T) {
 		{
 			name: "add new TOTP device",
 			getRequest: func() *proto.CompleteAccountRecoveryRequest {
-				secrets, err := srv.Auth().RotateUserTokenSecrets(ctx, approvedToken.GetName())
+				res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:    approvedToken.GetName(),
+					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+				})
 				require.NoError(t, err)
 
-				otpCode, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
+				otpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), srv.Clock().Now())
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -1009,10 +1013,13 @@ func TestAccountRecoveryFlow(t *testing.T) {
 				}
 			},
 			getCompleteRequest: func(u *userAuthCreds, approvedTokenID string) *proto.CompleteAccountRecoveryRequest {
-				secrets, err := srv.Auth().RotateUserTokenSecrets(ctx, approvedTokenID)
+				res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:    approvedTokenID,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+				})
 				require.NoError(t, err)
 
-				otpCode, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
+				otpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), srv.Clock().Now())
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -1300,7 +1307,10 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 
 // TODO(codingllama): Replace with a properly-created Webauthn device (using non-streaming methods).
 func getMockedU2FAndRegisterRes(authSrv *Server, tokenID string) (*proto.U2FRegisterResponse, *mocku2f.Key, error) {
-	res, err := authSrv.CreateSignupU2FRegisterRequest(tokenID)
+	res, err := authSrv.CreateRegisterChallenge(context.TODO(), &proto.CreateRegisterChallengeRequest{
+		TokenID:    tokenID,
+		DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
+	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1310,7 +1320,11 @@ func getMockedU2FAndRegisterRes(authSrv *Server, tokenID string) (*proto.U2FRegi
 		return nil, nil, trace.Wrap(err)
 	}
 
-	u2fRegResp, err := u2fKey.RegisterResponse(res)
+	u2fRegResp, err := u2fKey.RegisterResponse(&u2f.RegisterChallenge{
+		Version:   res.GetU2F().GetVersion(),
+		Challenge: res.GetU2F().GetChallenge(),
+		AppID:     res.GetU2F().GetAppID(),
+	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

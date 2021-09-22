@@ -29,7 +29,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1563,11 +1562,6 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	return certs, nil
-}
-
-func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
-	// signup token are their own authz resource
-	return a.authServer.CreateSignupU2FRegisterRequest(token)
 }
 
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
@@ -3479,6 +3473,12 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
 func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	return a.authServer.CreatePrivilegeToken(ctx, req)
+}
+
+// CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.
+func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	// The token provides its own authorization and authentication.
+	return a.authServer.CreateRegisterChallenge(ctx, req)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

@@ -350,10 +350,13 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				secrets, err := srv.Auth().RotateUserTokenSecrets(ctx, resetTokenID)
+				res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:    resetTokenID,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+				})
 				require.NoError(t, err)
 
-				otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
+				otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), srv.Clock().Now())
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
