@@ -29,6 +29,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
 // TestHandleAWSAccessSigVerification tests if LocalProxy verifies the AWS SigV4 signature of incoming request.
@@ -105,7 +107,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 	lp, err := NewLocalProxy(LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    hs.Listener.Addr().String(),
-		Protocol:           ProtocolAWSCLI,
+		Protocol:           common.ProtocolAWSCLI,
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
 		AWSCredentials:     cred,

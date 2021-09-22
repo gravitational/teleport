@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -148,7 +149,7 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocol:           alpnproxy.ProtocolAWSCLI,
+		Protocol:           alpncommon.ProtocolAWSCLI,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
