@@ -26,14 +26,16 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/redshift"
+
 	"github.com/stretchr/testify/require"
 )
 
-// TestRDSIAM tests RDS and Aurora IAM auto-configuration.
-func TestRDSIAM(t *testing.T) {
+// TestAWSIAM tests RDS, Aurora and Redshift IAM auto-configuration.
+func TestAWSIAM(t *testing.T) {
 	ctx := context.Background()
 
-	// Setup RDS and Aurora AWS objects.
+	// Setup AWS database objects.
 	rdsInstance := &rds.DBInstance{
 		DBInstanceArn:        aws.String("arn:aws:rds:us-west-1:1234567890:db:postgres-rds"),
 		DBInstanceIdentifier: aws.String("postgres-rds"),
@@ -46,6 +48,11 @@ func TestRDSIAM(t *testing.T) {
 		DbClusterResourceId: aws.String("cluster-xyz"),
 	}
 
+	redshiftCluster := &redshift.Cluster{
+		ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-2:1234567890:namespace:namespace-xyz"),
+		ClusterIdentifier:   aws.String("redshift-cluster-1"),
+	}
+
 	// Configure mocks.
 	stsClient := &stsMock{
 		arn: "arn:aws:iam::1234567890:role/test-role",
@@ -56,9 +63,13 @@ func TestRDSIAM(t *testing.T) {
 		dbClusters:  []*rds.DBCluster{auroraCluster},
 	}
 
+	redshiftClient := &redshiftMock{
+		clusters: []*redshift.Cluster{redshiftCluster},
+	}
+
 	iamClient := &iamMock{}
 
-	// Setup an RDS and Aurora databases.
+	// Setup database resources.
 	rdsDatabase, err := types.NewDatabaseV3(types.Metadata{
 		Name: "postgres-rds",
 	}, types.DatabaseSpecV3{
@@ -77,12 +88,22 @@ func TestRDSIAM(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	redshiftDatabase, err := types.NewDatabaseV3(types.Metadata{
+		Name: "redshift",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost",
+		AWS:      types.AWS{Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+	})
+	require.NoError(t, err)
+
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
 		Clients: &common.TestCloudClients{
-			RDS: rdsClient,
-			STS: stsClient,
-			IAM: iamClient,
+			RDS:      rdsClient,
+			Redshift: redshiftClient,
+			STS:      stsClient,
+			IAM:      iamClient,
 		},
 	})
 	require.NoError(t, err)
@@ -108,4 +129,77 @@ func TestRDSIAM(t *testing.T) {
 	err = configurator.Teardown(ctx, auroraDatabase)
 	require.NoError(t, err)
 	require.Equal(t, []string{}, iamClient.attachedRolePolicies["test-role"])
+
+	// Configure Redshift database and make sure policy was attached.
+	err = configurator.Setup(ctx, redshiftDatabase)
+	require.NoError(t, err)
+	require.Equal(t, []string{"redshift"}, iamClient.attachedRolePolicies["test-role"])
+
+	// Deconfigure Redshift database, policy should get detached.
+	err = configurator.Teardown(ctx, redshiftDatabase)
+	require.NoError(t, err)
+	require.Equal(t, []string{}, iamClient.attachedRolePolicies["test-role"])
+}
+
+// TestAWSIAMNoPermissions tests that lack of AWS permissions does not produce
+// errors during IAM auto-configuration.
+func TestAWSIAMNoPermissions(t *testing.T) {
+	ctx := context.Background()
+
+	// Create unauthorized mocks for AWS services.
+	stsClient := &stsMock{
+		arn: "arn:aws:iam::1234567890:role/test-role",
+	}
+	rdsClient := &rdsMockUnauth{}
+	redshiftClient := &redshiftMockUnauth{}
+	iamClient := &iamMockUnauth{}
+
+	// Make configurator.
+	configurator, err := NewIAM(ctx, IAMConfig{
+		Clients: &common.TestCloudClients{
+			STS:      stsClient,
+			RDS:      rdsClient,
+			Redshift: redshiftClient,
+			IAM:      iamClient,
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		meta types.AWS
+	}{
+		{
+			name: "RDS database",
+			meta: types.AWS{RDS: types.RDS{InstanceID: "postgres-rds"}},
+		},
+		{
+			name: "Aurora cluster",
+			meta: types.AWS{RDS: types.RDS{ClusterID: "postgres-aurora"}},
+		},
+		{
+			name: "Redshift cluster",
+			meta: types.AWS{Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			database, err := types.NewDatabaseV3(types.Metadata{
+				Name: "test",
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost",
+				AWS:      test.meta,
+			})
+			require.NoError(t, err)
+
+			// Make sure there're no errors trying to setup/destroy IAM.
+			err = configurator.Setup(ctx, database)
+			require.NoError(t, err)
+
+			err = configurator.Teardown(ctx, database)
+			require.NoError(t, err)
+		})
+	}
 }

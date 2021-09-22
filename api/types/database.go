@@ -66,10 +66,8 @@ type Database interface {
 	GetGCP() GCPCloudSQL
 	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
 	GetType() string
-	// GetRDSPolicy returns RDS IAM policy for the database.
-	GetRDSPolicy() string
-	// GetRedshiftPolicy returns Redshift IAM policy for the database.
-	GetRedshiftPolicy() string
+	// GetIAMPolicy returns AWS IAM policy for the database.
+	GetIAMPolicy() string
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
 	// IsRedshift returns true if this is a Redshift database.
@@ -362,8 +360,18 @@ func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 	return parts[0], parts[2], nil
 }
 
-// GetRDSPolicy returns IAM policy document for this RDS database.
-func (d *DatabaseV3) GetRDSPolicy() string {
+// GetIAMPolicy returns AWS IAM policy for this database.
+func (d *DatabaseV3) GetIAMPolicy() string {
+	if d.IsRDS() {
+		return d.getRDSPolicy()
+	} else if d.IsRedshift() {
+		return d.getRedshiftPolicy()
+	}
+	return ""
+}
+
+// getRDSPolicy returns IAM policy document for this RDS database.
+func (d *DatabaseV3) getRDSPolicy() string {
 	region := d.GetAWS().Region
 	if region == "" {
 		region = "<region>"
@@ -380,8 +388,8 @@ func (d *DatabaseV3) GetRDSPolicy() string {
 		region, accountID, resourceID)
 }
 
-// GetRedshiftPolicy returns IAM policy document for this Redshift database.
-func (d *DatabaseV3) GetRedshiftPolicy() string {
+// getRedshiftPolicy returns IAM policy document for this Redshift database.
+func (d *DatabaseV3) getRedshiftPolicy() string {
 	region := d.GetAWS().Region
 	if region == "" {
 		region = "<region>"
@@ -488,11 +496,11 @@ var (
       "Effect": "Allow",
       "Action": "redshift:GetClusterCredentials",
       "Resource": [
-        "arn:aws:redshift:%[0]v:%[1]v:dbuser:%[2]v/*",
-        "arn:aws:redshift:%[0]v:%[1]v:dbname:%[2]v/*",
-        "arn:aws:redshift:%[0]v:%[1]v:dbgroup:%[2]v/*"
+        "arn:aws:redshift:%[1]v:%[2]v:dbuser:%[3]v/*",
+        "arn:aws:redshift:%[1]v:%[2]v:dbname:%[3]v/*",
+        "arn:aws:redshift:%[1]v:%[2]v:dbgroup:%[3]v/*"
       ]
-    },
+    }
   ]
 }`
 )

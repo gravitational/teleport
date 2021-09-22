@@ -33,8 +33,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// rdsConfig is the config for the client that auto-configures RDS databases.
-type rdsConfig struct {
+// awsConfig is the config for the client that configures IAM for AWS databases.
+type awsConfig struct {
 	// clients is an interface for creating AWS clients.
 	clients common.CloudClients
 	// identity is AWS identity this database agent is running as.
@@ -44,7 +44,7 @@ type rdsConfig struct {
 }
 
 // Check validates the config.
-func (c *rdsConfig) Check() error {
+func (c *awsConfig) Check() error {
 	if c.clients == nil {
 		return trace.BadParameter("missing parameter clients")
 	}
@@ -57,8 +57,8 @@ func (c *rdsConfig) Check() error {
 	return nil
 }
 
-// newRDS creates a new RDS configurator.
-func newRDS(ctx context.Context, config rdsConfig) (*rdsClient, error) {
+// newAWS creates a new AWS IAM configurator.
+func newAWS(ctx context.Context, config awsConfig) (*awsClient, error) {
 	if err := config.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -70,26 +70,26 @@ func newRDS(ctx context.Context, config rdsConfig) (*rdsClient, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &rdsClient{
+	return &awsClient{
 		cfg: config,
 		rds: rds,
 		iam: iam,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "rds",
+			trace.Component: "aws",
 			"db":            config.database.GetName(),
 		}),
 	}, nil
 }
 
-type rdsClient struct {
-	cfg rdsConfig
+type awsClient struct {
+	cfg awsConfig
 	rds rdsiface.RDSAPI
 	iam iamiface.IAMAPI
 	log logrus.FieldLogger
 }
 
-// setupIAM configures IAM for RDS or Aurora database.
-func (r *rdsClient) setupIAM(ctx context.Context) error {
+// setupIAM configures IAM for RDS, Aurora or Redshift database.
+func (r *awsClient) setupIAM(ctx context.Context) error {
 	var errors []error
 	if err := r.ensureIAMAuth(ctx); err != nil {
 		if trace.IsAccessDenied(err) { // Permission errors are expected.
@@ -108,8 +108,8 @@ func (r *rdsClient) setupIAM(ctx context.Context) error {
 	return trace.NewAggregate(errors...)
 }
 
-// teardownIAM deconfigures IAM for RDS or Aurora database.
-func (r *rdsClient) teardownIAM(ctx context.Context) error {
+// teardownIAM deconfigures IAM for RDS, Aurora or Redshift database.
+func (r *awsClient) teardownIAM(ctx context.Context) error {
 	var errors []error
 	if err := r.detachIAMPolicy(ctx); err != nil {
 		if trace.IsAccessDenied(err) { // Permission errors are expected.
@@ -121,8 +121,12 @@ func (r *rdsClient) teardownIAM(ctx context.Context) error {
 	return trace.NewAggregate(errors...)
 }
 
-// ensureIAMAuth makes enables RDS instance IAM auth if it isn't enabled.
-func (r *rdsClient) ensureIAMAuth(ctx context.Context) error {
+// ensureIAMAuth enables RDS instance IAM auth if it isn't enabled.
+func (r *awsClient) ensureIAMAuth(ctx context.Context) error {
+	if r.cfg.database.IsRedshift() {
+		// Redshift IAM auth is always enabled.
+		return nil
+	}
 	if r.cfg.database.GetAWS().RDS.IAMAuth {
 		r.log.Debug("IAM auth already enabled.")
 		return nil
@@ -134,7 +138,7 @@ func (r *rdsClient) ensureIAMAuth(ctx context.Context) error {
 }
 
 // enableIAMAuth turns on IAM auth setting on the RDS instance.
-func (r *rdsClient) enableIAMAuth(ctx context.Context) error {
+func (r *awsClient) enableIAMAuth(ctx context.Context) error {
 	r.log.Debug("Enabling IAM auth.")
 	var err error
 	if r.cfg.database.GetAWS().RDS.ClusterID != "" {
@@ -154,20 +158,20 @@ func (r *rdsClient) enableIAMAuth(ctx context.Context) error {
 }
 
 // attachIAMPolicy attaches IAM access policy to the identity this agent is running as.
-func (r *rdsClient) attachIAMPolicy(ctx context.Context) error {
+func (r *awsClient) attachIAMPolicy(ctx context.Context) error {
 	r.log.Debugf("Attaching IAM policy to %v.", r.cfg.identity)
 	var err error
 	switch r.cfg.identity.(type) {
 	case cloud.AWSRole:
 		_, err = r.iam.PutRolePolicyWithContext(ctx, &iam.PutRolePolicyInput{
 			PolicyName:     aws.String(r.cfg.database.GetName()),
-			PolicyDocument: aws.String(r.cfg.database.GetRDSPolicy()),
+			PolicyDocument: aws.String(r.cfg.database.GetIAMPolicy()),
 			RoleName:       aws.String(r.cfg.identity.GetName()),
 		})
 	case cloud.AWSUser:
 		_, err = r.iam.PutUserPolicyWithContext(ctx, &iam.PutUserPolicyInput{
 			PolicyName:     aws.String(r.cfg.database.GetName()),
-			PolicyDocument: aws.String(r.cfg.database.GetRDSPolicy()),
+			PolicyDocument: aws.String(r.cfg.database.GetIAMPolicy()),
 			UserName:       aws.String(r.cfg.identity.GetName()),
 		})
 	default:
@@ -177,7 +181,7 @@ func (r *rdsClient) attachIAMPolicy(ctx context.Context) error {
 }
 
 // detachIAMPolicy detaches IAM access policy from the identity this agent is running as.
-func (r *rdsClient) detachIAMPolicy(ctx context.Context) error {
+func (r *awsClient) detachIAMPolicy(ctx context.Context) error {
 	r.log.Debugf("Detaching IAM policy from %v.", r.cfg.identity)
 	var err error
 	switch r.cfg.identity.(type) {

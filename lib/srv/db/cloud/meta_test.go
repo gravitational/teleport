@@ -26,11 +26,12 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/stretchr/testify/require"
 )
 
-// TestRDSMetadata tests fetching AWS metadata for RDS databases.
-func TestRDSMetadata(t *testing.T) {
+// TestAWSMetadata tests fetching AWS metadata for RDS and Redshift databases.
+func TestAWSMetadata(t *testing.T) {
 	// Configure RDS API mock.
 	rds := &rdsMock{
 		dbInstances: []*rds.DBInstance{
@@ -57,6 +58,29 @@ func TestRDSMetadata(t *testing.T) {
 			},
 		},
 	}
+
+	// Configure Redshift API mock.
+	redshift := &redshiftMock{
+		clusters: []*redshift.Cluster{
+			{
+				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-west-1:1234567890:namespace:namespace-id"),
+				ClusterIdentifier:   aws.String("redshift-cluster-1"),
+			},
+			{
+				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-2:0987654321:namespace:namespace-id"),
+				ClusterIdentifier:   aws.String("redshift-cluster-2"),
+			},
+		},
+	}
+
+	// Create metadata fetcher.
+	metadata, err := NewMetadata(MetadataConfig{
+		Clients: &common.TestCloudClients{
+			RDS:      rds,
+			Redshift: redshift,
+		},
+	})
+	require.NoError(t, err)
 
 	tests := []struct {
 		name   string
@@ -112,18 +136,41 @@ func TestRDSMetadata(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Redshift cluster 1",
+			inAWS: types.AWS{
+				Redshift: types.Redshift{
+					ClusterID: "redshift-cluster-1",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "1234567890",
+				Region:    "us-west-1",
+				Redshift: types.Redshift{
+					ClusterID: "redshift-cluster-1",
+				},
+			},
+		},
+		{
+			name: "Redshift cluster 2",
+			inAWS: types.AWS{
+				Redshift: types.Redshift{
+					ClusterID: "redshift-cluster-2",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "0987654321",
+				Region:    "us-east-2",
+				Redshift: types.Redshift{
+					ClusterID: "redshift-cluster-2",
+				},
+			},
+		},
 	}
 
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			metadata, err := NewMetadata(MetadataConfig{
-				Clients: &common.TestCloudClients{
-					RDS: rds,
-				},
-			})
-			require.NoError(t, err)
-
 			database, err := types.NewDatabaseV3(types.Metadata{
 				Name: "test",
 			}, types.DatabaseSpecV3{
@@ -136,6 +183,64 @@ func TestRDSMetadata(t *testing.T) {
 			err = metadata.Update(ctx, database)
 			require.NoError(t, err)
 			require.Equal(t, test.outAWS, database.GetAWS())
+		})
+	}
+}
+
+// TestAWSMetadataNoPermissions verifies that lack of AWS permissions does not
+// cause an error.
+func TestAWSMetadataNoPermissions(t *testing.T) {
+	// Create unauthorized mocks.
+	rds := &rdsMockUnauth{}
+	redshift := &redshiftMockUnauth{}
+
+	// Create metadata fetcher.
+	metadata, err := NewMetadata(MetadataConfig{
+		Clients: &common.TestCloudClients{
+			RDS:      rds,
+			Redshift: redshift,
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		meta types.AWS
+	}{
+		{
+			name: "RDS instance",
+			meta: types.AWS{
+				RDS: types.RDS{
+					InstanceID: "postgres-rds",
+				},
+			},
+		},
+		{
+			name: "Redshift cluster",
+			meta: types.AWS{
+				Redshift: types.Redshift{
+					ClusterID: "redshift-cluster-1",
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			database, err := types.NewDatabaseV3(types.Metadata{
+				Name: "test",
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost",
+				AWS:      test.meta,
+			})
+			require.NoError(t, err)
+
+			// Verify there's no error and metadata stayed the same.
+			err = metadata.Update(ctx, database)
+			require.NoError(t, err)
+			require.Equal(t, test.meta, database.GetAWS())
 		})
 	}
 }
