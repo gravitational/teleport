@@ -182,6 +182,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &databaseServer{watch: watch, Cache: c}
+		case types.KindApp:
+			if c.Apps == nil {
+				return nil, trace.BadParameter("missing parameter Apps")
+			}
+			collections[resourceKind] = &app{watch: watch, Cache: c}
 		case types.KindDatabase:
 			if c.Databases == nil {
 				return nil, trace.BadParameter("missing parameter Databases")
@@ -1509,6 +1514,79 @@ func (s *database) processEvent(ctx context.Context, event types.Event) error {
 }
 
 func (s *database) watchKind() types.WatchKind {
+	return s.watch
+}
+
+type app struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *app) erase(ctx context.Context) error {
+	err := s.appsCache.DeleteAllApps(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *app) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := s.Apps.GetApps(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			s.setTTL(resource)
+			if err := s.appsCache.CreateApp(ctx, resource); err != nil {
+				if !trace.IsAlreadyExists(err) {
+					return trace.Wrap(err)
+				}
+				if err := s.appsCache.UpdateApp(ctx, resource); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *app) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.appsCache.DeleteApp(ctx, event.Resource.GetName())
+		if err != nil {
+			// Resource could be missing in the cache expired or not created,
+			// if the first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				s.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.Application)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		s.setTTL(resource)
+		if err := s.appsCache.CreateApp(ctx, resource); err != nil {
+			if !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err)
+			}
+			if err := s.appsCache.UpdateApp(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	default:
+		s.Warnf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (s *app) watchKind() types.WatchKind {
 	return s.watch
 }
 

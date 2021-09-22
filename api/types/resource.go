@@ -75,6 +75,36 @@ type ResourceWithOrigin interface {
 	SetOrigin(string)
 }
 
+// ResourceWithLabels is a common interface for resources that have labels.
+type ResourceWithLabels interface {
+	// ResourceWithOrigin is the base resource interface.
+	ResourceWithOrigin
+	// GetAllLabels returns all resource's labels.
+	GetAllLabels() map[string]string
+}
+
+// ResourcesWithLabels is a list of labeled resources.
+type ResourcesWithLabels []ResourceWithLabels
+
+// Find returns resource with the specified name or nil.
+func (r ResourcesWithLabels) Find(name string) ResourceWithLabels {
+	for _, resource := range r {
+		if resource.GetName() == name {
+			return resource
+		}
+	}
+	return nil
+}
+
+// Len returns the slice length.
+func (r ResourcesWithLabels) Len() int { return len(r) }
+
+// Less compares resources by name.
+func (r ResourcesWithLabels) Less(i, j int) bool { return r[i].GetName() < r[j].GetName() }
+
+// Swap swaps two resources.
+func (r ResourcesWithLabels) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version

@@ -159,7 +159,7 @@ func TestCheckApp(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			err := tt.inApp.Check()
+			err := tt.inApp.CheckAndSetDefaults()
 			if tt.err != "" {
 				require.Contains(t, err.Error(), tt.err)
 			} else {

@@ -82,7 +82,6 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 				msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
 			}
 			code, err := promptOTP(ctx, os.Stderr, prompt.Stdin(), msg)
-			fmt.Fprintln(os.Stderr) // Print a new line after the prompt
 			if err != nil {
 				respC <- response{kind: kind, err: err}
 				return
@@ -132,6 +131,10 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 			if err := resp.err; err != nil {
 				log.WithError(err).Debugf("%s authentication failed", resp.kind)
 				continue
+			}
+
+			if hasTOTP {
+				fmt.Fprintln(os.Stderr) // Print a new line after the prompt
 			}
 
 			// Exiting cancels the context via defer, which makes the remaining

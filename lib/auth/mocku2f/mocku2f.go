@@ -152,6 +152,16 @@ func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterRespons
 	}, nil
 }
 
+// RegisterRaw signs low-level U2F registration data.
+// Most callers should use either RegisterResponse or SignCredentialCreation.
+func (muk *Key) RegisterRaw(appHash, challengeHash []byte) ([]byte, error) {
+	res, err := muk.signRegister(appHash, challengeHash)
+	if err != nil {
+		return nil, err
+	}
+	return res.RawResp, nil
+}
+
 type signRegisterResult struct {
 	RawResp   []byte
 	Signature []byte
@@ -220,6 +230,16 @@ func (muk *Key) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, error) {
 		SignatureData: encodeBase64(res.SignData),
 		ClientData:    encodeBase64(clientDataJSON),
 	}, nil
+}
+
+// AuthenticateRaw signs low-level U2F authentication data.
+// Most callers should use either SignResponse or SignAssertion.
+func (muk *Key) AuthenticateRaw(appHash, challengeHash []byte) ([]byte, error) {
+	res, err := muk.signAuthn(appHash, challengeHash)
+	if err != nil {
+		return nil, err
+	}
+	return res.SignData, nil
 }
 
 type signAuthnResult struct {
