@@ -830,6 +830,9 @@ message TOTPRegisterChallenge {
     uint32 Digits = 5;
     // Account is the account name for this user.
     string Account = 6;
+    // QRCodeBytes is an optional field for the QR code in PNG format. Used to display a QR code
+    // image in the UI.
+    bytes QRCodeBytes = 7;
 }
 
 // TOTPRegisterResponse is a response to TOTPRegisterChallenge.
@@ -1279,6 +1282,16 @@ message CreatePrivilegeTokenRequest {
         [ (gogoproto.jsontag) = "existing_mfa_response,omitempty" ];
 }
 
+// CreateRegisterChallengeRequest is a request for creating MFA register challenge for a
+// new MFA device.
+message CreateRegisterChallengeRequest {
+    // TokenID is the ID of a user token that will be used to verify this request.
+    // All user token types are accepted except UserTokenTypeRecoveryStart.
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
+    // DeviceType is the type of MFA device to make a register challenge for.
+    DeviceType DeviceType = 2 [ (gogoproto.jsontag) = "device_type" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -1335,11 +1348,9 @@ service AuthService {
     rpc Ping(PingRequest) returns (PingResponse);
 
     // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
-    // DELETE IN: 9.0.0 in favor of RotateUserTokenSecrets.
+    // DELETE IN: 9.0.0 in favor of CreateRegisterChallenge.
     rpc RotateResetPasswordTokenSecrets(RotateUserTokenSecretsRequest)
         returns (types.UserTokenSecretsV3);
-    // RotateUserTokenSecrets rotates token secrets for a given tokenID.
-    rpc RotateUserTokenSecrets(RotateUserTokenSecretsRequest) returns (types.UserTokenSecretsV3);
     // GetResetPasswordToken returns a reset password token.
     rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
     // CreateResetPasswordToken resets users current password and second factors and creates a reset
@@ -1507,6 +1518,8 @@ service AuthService {
     // devices.
     rpc CreateAuthenticateChallenge(CreateAuthenticateChallengeRequest)
         returns (MFAAuthenticateChallenge);
+    // CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+    rpc CreateRegisterChallenge(CreateRegisterChallengeRequest) returns (MFARegisterChallenge);
 
     // GetOIDCConnector gets an OIDC connector resource by name.
     rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);

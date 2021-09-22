@@ -759,3 +759,49 @@ func (c *Client) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 	return protoChal, nil
 }
+
+// DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
+//
+// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+func (c *Client) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	switch resp, err := c.APIClient.CreateRegisterChallenge(ctx, req); {
+	case err == nil:
+		return resp, nil
+	case !trace.IsNotImplemented(err):
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback for auth version <7.x
+	// Does not handle webauthn since this feature will not exist <7.x.
+	switch req.DeviceType {
+	case proto.DeviceType_DEVICE_TYPE_TOTP:
+		resp, err := c.APIClient.RotateUserTokenSecrets(ctx, req.GetTokenID())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_TOTP{
+			TOTP: &proto.TOTPRegisterChallenge{QRCodeBytes: resp.GetQRCode()},
+		}}, nil
+
+	case proto.DeviceType_DEVICE_TYPE_U2F:
+		out, err := c.Get(c.Endpoint("u2f", "signuptokens", req.GetTokenID()), url.Values{})
+		if err != nil {
+			return nil, err
+		}
+		var u2fRegReq u2f.RegisterChallenge
+		if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
+			return nil, err
+		}
+
+		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_U2F{
+			U2F: &proto.U2FRegisterChallenge{
+				Challenge: u2fRegReq.Challenge,
+				AppID:     u2fRegReq.AppID,
+				Version:   u2fRegReq.Version,
+			},
+		}}, nil
+
+	default:
+		return nil, trace.BadParameter("MFA device type %v unsupported", req.GetDeviceType().String())
+	}
+}
