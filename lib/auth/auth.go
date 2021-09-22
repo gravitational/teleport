@@ -1160,6 +1160,153 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 	return challenges, nil
 }
 
+// CreateRegisterChallenge implements AuthService.CreateRegisterChallenge.
+func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	token, err := a.GetUserToken(ctx, req.GetTokenID())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied("invalid token")
+	}
+
+	// Accepts all token types except recovery start token.
+	if err := a.verifyUserToken(token, UserTokenTypeRecoveryStart); err == nil {
+		return nil, trace.AccessDenied("invalid token")
+	}
+
+	regChal, err := a.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
+		username:   token.GetUser(),
+		token:      token,
+		deviceType: req.GetDeviceType(),
+	})
+
+	return regChal, trace.Wrap(err)
+}
+
+type newRegisterChallengeRequest struct {
+	username   string
+	deviceType proto.DeviceType
+	// token is a user token resource.
+	// It is used as following:
+	//  - TOTP:
+	//    - create a UserTokenSecrets resource
+	//    - store by token's ID using Server's IdentityService.
+	//  - U2F:
+	//    - store U2F challenge by the token's ID
+	//    - store by token's ID using Server's IdentityService.
+	// This field can be empty to use storage overrides.
+	token types.UserToken
+	// u2fStorageOverride is an optional RegistrationStorage override to be used
+	// to store the U2F challenge.
+	u2fStorageOverride u2f.RegistrationStorage
+
+	// webIdentityOverride is an optional RegistrationIdentity override to be used
+	// to store webauthn challenge. A common override is decorating the regular
+	// Identity with an in-memory SessionData storage.
+	// Defaults to the Server's IdentityService.
+	webIdentityOverride wanlib.RegistrationIdentity
+}
+
+func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	switch req.deviceType {
+	case proto.DeviceType_DEVICE_TYPE_TOTP:
+		otpKey, otpOpts, err := a.newTOTPKey(req.username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		challenge := &proto.TOTPRegisterChallenge{
+			Secret:        otpKey.Secret(),
+			Issuer:        otpKey.Issuer(),
+			PeriodSeconds: uint32(otpOpts.Period),
+			Algorithm:     otpOpts.Algorithm.String(),
+			Digits:        uint32(otpOpts.Digits.Length()),
+			Account:       otpKey.AccountName(),
+		}
+
+		if req.token != nil {
+			secrets, err := a.createTOTPUserTokenSecrets(ctx, req.token, otpKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			challenge.QRCodeBytes = secrets.GetQRCode()
+		}
+
+		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_TOTP{TOTP: challenge}}, nil
+
+	case proto.DeviceType_DEVICE_TYPE_U2F:
+		cap, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		u2fConfig, err := cap.GetU2F()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		storageKey := req.username
+		if req.token != nil {
+			storageKey = req.token.GetName()
+		}
+
+		storage := req.u2fStorageOverride
+		if storage == nil || req.token != nil {
+			storage = a.Identity
+		}
+
+		regChallenge, err := u2f.RegisterInit(u2f.RegisterInitParams{
+			StorageKey: storageKey,
+			AppConfig:  *u2fConfig,
+			Storage:    storage,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_U2F{
+			U2F: &proto.U2FRegisterChallenge{
+				Challenge: regChallenge.Challenge,
+				AppID:     regChallenge.AppID,
+				Version:   regChallenge.Version,
+			},
+		}}, nil
+
+	case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
+		cap, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		webConfig, err := cap.GetWebauthn()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		identity := req.webIdentityOverride
+		if identity == nil {
+			identity = a.Identity
+		}
+
+		webRegistration := &wanlib.RegistrationFlow{
+			Webauthn: webConfig,
+			Identity: identity,
+		}
+
+		credentialCreation, err := webRegistration.Begin(ctx, req.username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_Webauthn{
+			Webauthn: wanlib.CredentialCreationToProto(credentialCreation),
+		}}, nil
+
+	default:
+		return nil, trace.BadParameter("MFA device type %q unsupported", req.deviceType.String())
+	}
+}
+
 // GetMFADevices returns all mfa devices for the user defined in the token or the user defined in context.
 func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
 	var username string

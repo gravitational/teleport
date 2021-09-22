@@ -457,6 +457,96 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 	}
 }
 
+func TestCreateRegisterChallenge(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	// Test invalid token type.
+	wrongToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+	require.NoError(t, err)
+	_, err = srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:    wrongToken.GetName(),
+		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+	})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Create a valid token.
+	validToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+	require.NoError(t, err)
+
+	// Test unspecified token returns error.
+	_, err = srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID: validToken.GetName(),
+	})
+	require.True(t, trace.IsBadParameter(err))
+
+	tests := []struct {
+		name       string
+		wantErr    bool
+		deviceType proto.DeviceType
+	}{
+		{
+			name:       "u2f challenge",
+			deviceType: proto.DeviceType_DEVICE_TYPE_U2F,
+		},
+		{
+			name:       "totp challenge",
+			deviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+		},
+		{
+			name:       "webauthn challenge",
+			deviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+				TokenID:    validToken.GetName(),
+				DeviceType: tc.deviceType,
+			})
+			require.NoError(t, err)
+
+			testDevice := &TestDevice{}
+			testDevice.clock = srv.Auth().clock
+
+			switch tc.deviceType {
+			case proto.DeviceType_DEVICE_TYPE_TOTP:
+				require.NotNil(t, res.GetTOTP().GetQRCodeBytes())
+				require.Nil(t, res.GetU2F())
+				require.Nil(t, res.GetWebauthn())
+
+			case proto.DeviceType_DEVICE_TYPE_U2F:
+				require.NotNil(t, res.GetU2F())
+				require.Nil(t, res.GetWebauthn())
+				require.Nil(t, res.GetTOTP())
+
+			case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
+				require.NotNil(t, res.GetWebauthn())
+				require.Nil(t, res.GetU2F())
+				require.Nil(t, res.GetTOTP())
+			}
+
+			// Test register challenge by solving.
+			registerRes, err := testDevice.solveRegister(res)
+			require.NoError(t, err)
+
+			_, err = srv.Auth().verifyMFARespAndAddDevice(ctx, registerRes, &newMFADeviceFields{
+				username:      u.username,
+				newDeviceName: tc.name,
+				tokenID:       validToken.GetName(),
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
 type configureMFAResp struct {
 	User, Password          string
 	TOTPDev, U2FDev, WebDev *TestDevice
