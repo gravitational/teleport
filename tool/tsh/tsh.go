@@ -545,10 +545,6 @@ func Run(args []string, opts ...cliOption) error {
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
-		ssh.Hidden()
-		join.Hidden()
-		play.Hidden()
-		scp.Hidden()
 		bench.Hidden()
 	}
 
@@ -1027,7 +1023,10 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 			},
 		}
 		err := checker.CheckHostKey(hostname, remote, hostKey)
-		if err != nil && oldHostKeyCallback != nil {
+		if err != nil {
+			if oldHostKeyCallback == nil {
+				return trace.Wrap(err)
+			}
 			errOld := oldHostKeyCallback(hostname, remote, hostKey)
 			if errOld != nil {
 				return trace.NewAggregate(err, errOld)
@@ -1741,7 +1740,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		hostAuthFunc, err := key.HostKeyCallback()
+		hostAuthFunc, err := key.HostKeyCallback(cf.InsecureSkipVerify)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

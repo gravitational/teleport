@@ -545,11 +545,17 @@ func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var certs proto.Certs
-	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
+	var response registerUsingTokenResponseJSON
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &certs, nil
+
+	return &proto.Certs{
+		SSH:        response.SSHCert,
+		TLS:        response.TLSCert,
+		SSHCACerts: response.SSHCACerts,
+		TLSCACerts: response.TLSCACerts,
+	}, nil
 }
 
 // RegisterNewAuthServer is used to register new auth server with token
@@ -1904,6 +1910,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
+	services.Apps
 	services.Databases
 	services.WindowsDesktops
 	WebService

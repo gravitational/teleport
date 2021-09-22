@@ -23,7 +23,6 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
-	"net"
 	"sync"
 	"time"
 
@@ -100,6 +99,8 @@ type AgentConfig struct {
 	Lease track.Lease
 	// Log optionally specifies the logger
 	Log log.FieldLogger
+	// FIPS indicates if Teleport was started in FIPS mode.
+	FIPS bool
 	// reverseTunnelDetails cacheable details about the Addr endpoint used to reduce proxy ping calls in order to prevent
 	// proxy endpoint stagnation where even numbers of proxy are hidden behind RoundRobbin Load Balancer.
 	// For instance in a situation where only two proxies [A, B] are configured behind RoundRobbin Load Balancer
@@ -241,29 +242,20 @@ func (a *Agent) getPrincipalsList() []string {
 	return out
 }
 
-func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.PublicKey) error {
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return trace.BadParameter("expected certificate")
-	}
+func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
 	cas, err := a.AccessPoint.GetCertAuthorities(types.HostCA, false)
 	if err != nil {
-		return trace.Wrap(err, "failed to fetch remote certs")
+		return nil, trace.Wrap(err)
 	}
+	var keys []ssh.PublicKey
 	for _, ca := range cas {
 		checkers, err := sshutils.GetCheckers(ca)
 		if err != nil {
-			return trace.BadParameter("error parsing key: %v", err)
+			return nil, trace.Wrap(err)
 		}
-		for _, checker := range checkers {
-			if apisshutils.KeysEqual(checker, cert.SignatureKey) {
-				a.setPrincipals(cert.ValidPrincipals)
-				return nil
-			}
-		}
+		keys = append(keys, checkers...)
 	}
-	return trace.NotFound(
-		"no matching keys found when checking server's host signature")
+	return keys, nil
 }
 
 // getReverseTunnelDetails pings the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
@@ -299,12 +291,25 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 			continue
 		}
 
+		callback, err := apisshutils.NewHostKeyCallback(
+			apisshutils.HostKeyCallbackConfig{
+				GetHostCheckers: a.getHostCheckers,
+				OnCheckCert: func(cert *ssh.Certificate) {
+					a.setPrincipals(cert.ValidPrincipals)
+				},
+				FIPS: a.FIPS,
+			})
+		if err != nil {
+			a.log.Debugf("Failed to create host key callback for %v: %v.", a.Addr.Addr, err)
+			continue
+		}
+
 		// Build a new client connection. This is done to get access to incoming
 		// global requests which dialer.Dial would not provide.
 		conn, chans, reqs, err := ssh.NewClientConn(pconn, a.Addr.Addr, &ssh.ClientConfig{
 			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: a.checkHostSignature,
+			HostKeyCallback: callback,
 			Timeout:         apidefaults.DefaultDialTimeout,
 		})
 		if err != nil {

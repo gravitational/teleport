@@ -109,6 +109,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Restrictions == nil {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
 	}
+	if cfg.Apps == nil {
+		cfg.Apps = local.NewAppService(cfg.Backend)
+	}
 	if cfg.Databases == nil {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
 	}
@@ -169,6 +172,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			DynamicAccessExt:     cfg.DynamicAccessExt,
 			ClusterConfiguration: cfg.ClusterConfiguration,
 			Restrictions:         cfg.Restrictions,
+			Apps:                 cfg.Apps,
 			Databases:            cfg.Databases,
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
@@ -195,6 +199,7 @@ type Services struct {
 	services.DynamicAccessExt
 	services.ClusterConfiguration
 	services.Restrictions
+	services.Apps
 	services.Databases
 	services.WindowsDesktops
 	types.Events
@@ -1225,11 +1230,10 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	}
 
 	kindToSF := map[string]constants.SecondFactorType{
-		fmt.Sprintf("%T", &types.MFADevice_Totp{}): constants.SecondFactorOTP,
-		fmt.Sprintf("%T", &types.MFADevice_U2F{}):  constants.SecondFactorU2F,
-		// TODO(codingllama): Map Webauthn devices to second factor.
+		fmt.Sprintf("%T", &types.MFADevice_Totp{}):     constants.SecondFactorOTP,
+		fmt.Sprintf("%T", &types.MFADevice_U2F{}):      constants.SecondFactorU2F,
+		fmt.Sprintf("%T", &types.MFADevice_Webauthn{}): constants.SecondFactorWebauthn,
 	}
-
 	sfToCount := make(map[constants.SecondFactorType]int)
 	var knownDevices int
 	var deviceToDelete *types.MFADevice
@@ -1250,11 +1254,9 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			continue
 		}
 
-		count := sfToCount[sf]
-		sfToCount[sf] = count + 1
+		sfToCount[sf]++
 		knownDevices++
 	}
-
 	if deviceToDelete == nil {
 		return trace.NotFound("MFA device %q does not exist", deviceName)
 	}
@@ -1268,14 +1270,13 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			return trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
-	case constants.SecondFactorWebauthn:
-		// TODO(codingllama): Handle webauthn device deletion.
-		return trace.NotImplemented("webauthn device deletion not yet implemented")
-	default:
+	case constants.SecondFactorOTP, constants.SecondFactorU2F, constants.SecondFactorWebauthn:
 		if sfToCount[sf] < minDevices {
 			return trace.BadParameter(
-				"cannot delete the last %v device for this user; add a replacement device first to avoid getting locked out", sf)
+				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
 		}
+	default:
+		return trace.BadParameter("unexpected second factor type: %s", sf)
 	}
 
 	if err := a.DeleteMFADevice(ctx, user, deviceToDelete.Id); err != nil {
@@ -1323,6 +1324,12 @@ type newMFADeviceFields struct {
 	// u2fStorage is the storage used to hold the u2f challenge.
 	// Field can be empty to use default services.Identity storage.
 	u2fStorage u2f.RegistrationStorage
+
+	// webIdentityOverride is an optional RegistrationIdentity override to be used
+	// for device registration. A common override is decorating the regular
+	// Identity with an in-memory SessionData storage.
+	// Defaults to the Server's IdentityService.
+	webIdentityOverride wanlib.RegistrationIdentity
 }
 
 // verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
@@ -1336,82 +1343,23 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, regResp *proto.M
 		return nil, trace.BadParameter("second factor disabled by cluster configuration")
 	}
 
-	// Validate MFARegisterResponse and upsert the new device on success.
 	var dev *types.MFADevice
 	switch regResp.GetResponse().(type) {
 	case *proto.MFARegisterResponse_TOTP:
-		if !cap.IsSecondFactorTOTPAllowed() {
-			return nil, trace.BadParameter("second factor TOTP not allowed by cluster")
-		}
-
-		var totpSecret string
-		switch {
-		case req.tokenID != "":
-			secrets, err := a.Identity.GetUserTokenSecrets(ctx, req.tokenID)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			totpSecret = secrets.GetOTPKey()
-		case req.totpSecret != "":
-			totpSecret = req.totpSecret
-		default:
-			return nil, trace.BadParameter("missing TOTP secret")
-		}
-
-		dev, err = services.NewTOTPDevice(req.newDeviceName, totpSecret, a.clock.Now())
+		dev, err = a.registerTOTPDevice(ctx, regResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if err := a.checkTOTP(ctx, req.username, regResp.GetTOTP().GetCode(), dev); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := a.UpsertMFADevice(ctx, req.username, dev); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 	case *proto.MFARegisterResponse_U2F:
-		if !cap.IsSecondFactorU2FAllowed() {
-			return nil, trace.BadParameter("second factor U2F not allowed by cluster")
-		}
-
-		u2fConfig, err := cap.GetU2F()
+		dev, err = a.registerU2FDevice(ctx, regResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		var storageKey string
-		var storage u2f.RegistrationStorage
-		switch {
-		case req.tokenID != "":
-			storage = a.Identity
-			storageKey = req.tokenID
-		case req.u2fStorage != nil:
-			storage = req.u2fStorage
-			storageKey = req.username
-		default:
-			return nil, trace.BadParameter("missing U2F storage")
-		}
-
-		// u2f.RegisterVerify will upsert the new device internally.
-		dev, err = u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
-			DevName: req.newDeviceName,
-			Resp: u2f.RegisterChallengeResponse{
-				RegistrationData: regResp.GetU2F().GetRegistrationData(),
-				ClientData:       regResp.GetU2F().GetClientData(),
-			},
-			RegistrationStorageKey: req.username,
-			ChallengeStorageKey:    storageKey,
-			Storage:                storage,
-			Clock:                  a.GetClock(),
-			AttestationCAs:         u2fConfig.DeviceAttestationCAs,
-		})
-
+	case *proto.MFARegisterResponse_Webauthn:
+		dev, err = a.registerWebauthnDevice(ctx, regResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 	default:
 		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", regResp.Response)
 	}
@@ -1435,6 +1383,112 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, regResp *proto.M
 	}
 
 	return dev, nil
+}
+
+func (a *Server) registerTOTPDevice(ctx context.Context, regResp *proto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
+	cap, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !cap.IsSecondFactorTOTPAllowed() {
+		return nil, trace.BadParameter("second factor TOTP not allowed by cluster")
+	}
+
+	var secret string
+	switch {
+	case req.tokenID != "":
+		secrets, err := a.Identity.GetUserTokenSecrets(ctx, req.tokenID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		secret = secrets.GetOTPKey()
+	case req.totpSecret != "":
+		secret = req.totpSecret
+	default:
+		return nil, trace.BadParameter("missing TOTP secret")
+	}
+
+	dev, err := services.NewTOTPDevice(req.newDeviceName, secret, a.clock.Now())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.checkTOTP(ctx, req.username, regResp.GetTOTP().GetCode(), dev); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.UpsertMFADevice(ctx, req.username, dev); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return dev, nil
+}
+
+func (a *Server) registerU2FDevice(ctx context.Context, regResp *proto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
+	cap, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !cap.IsSecondFactorU2FAllowed() {
+		return nil, trace.BadParameter("second factor U2F not allowed by cluster")
+	}
+
+	u2fConfig, err := cap.GetU2F()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var storageKey string
+	var storage u2f.RegistrationStorage
+	switch {
+	case req.tokenID != "":
+		storage = a.Identity
+		storageKey = req.tokenID
+	case req.u2fStorage != nil:
+		storage = req.u2fStorage
+		storageKey = req.username
+	default:
+		return nil, trace.BadParameter("missing U2F storage")
+	}
+
+	// u2f.RegisterVerify will upsert the new device internally.
+	dev, err := u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
+		DevName: req.newDeviceName,
+		Resp: u2f.RegisterChallengeResponse{
+			RegistrationData: regResp.GetU2F().GetRegistrationData(),
+			ClientData:       regResp.GetU2F().GetClientData(),
+		},
+		RegistrationStorageKey: req.username,
+		ChallengeStorageKey:    storageKey,
+		Storage:                storage,
+		Clock:                  a.GetClock(),
+		AttestationCAs:         u2fConfig.DeviceAttestationCAs,
+	})
+	return dev, trace.Wrap(err)
+}
+
+func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
+	cap, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !cap.IsSecondFactorWebauthnAllowed() {
+		return nil, trace.BadParameter("second factor webauthn not allowed by cluster")
+	}
+
+	webConfig, err := cap.GetWebauthn()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity := req.webIdentityOverride // Override Identity, if supplied.
+	if identity == nil {
+		identity = a.Identity
+	}
+	webRegistration := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: identity,
+	}
+	// Finish upserts the device on success.
+	dev, err := webRegistration.Finish(
+		ctx, req.username, req.newDeviceName, wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()))
+	return dev, trace.Wrap(err)
 }
 
 func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response *u2f.AuthenticateChallengeResponse) (*types.MFADevice, error) {
@@ -2514,6 +2568,97 @@ func (a *Server) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 	return a.GetCache().GetAppSession(ctx, req)
 }
 
+// CreateApp creates a new application resource.
+func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
+	if err := a.Apps.CreateApp(ctx, app); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			Type: events.AppCreateEvent,
+			Code: events.AppCreateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    app.GetName(),
+			Expires: app.Expiry(),
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        app.GetURI(),
+			AppPublicAddr: app.GetPublicAddr(),
+			AppLabels:     app.GetStaticLabels(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit app create event.")
+	}
+	return nil
+}
+
+// UpdateApp updates an existing application resource.
+func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
+	if err := a.Apps.UpdateApp(ctx, app); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AppUpdateEvent,
+			Code: events.AppUpdateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    app.GetName(),
+			Expires: app.Expiry(),
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        app.GetURI(),
+			AppPublicAddr: app.GetPublicAddr(),
+			AppLabels:     app.GetStaticLabels(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit app update event.")
+	}
+	return nil
+}
+
+// DeleteApp deletes an application resource.
+func (a *Server) DeleteApp(ctx context.Context, name string) error {
+	if err := a.Apps.DeleteApp(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppDelete{
+		Metadata: apievents.Metadata{
+			Type: events.AppDeleteEvent,
+			Code: events.AppDeleteCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: name,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit app delete event.")
+	}
+	return nil
+}
+
+// GetApps returns all application resources.
+func (a *Server) GetApps(ctx context.Context) ([]types.Application, error) {
+	return a.GetCache().GetApps(ctx)
+}
+
+// GetApp returns the specified application resource.
+func (a *Server) GetApp(ctx context.Context, name string) (types.Application, error) {
+	return a.GetCache().GetApp(ctx, name)
+}
+
 // GetDatabaseServers returns all registers database proxy servers.
 func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
@@ -2872,7 +3017,10 @@ func groupByDeviceType(devs []*types.MFADevice, groupU2F, groupWebauthn bool) de
 			if groupWebauthn {
 				res.Webauthn = append(res.Webauthn, dev)
 			}
-			// TODO(codingllama): Handle Webauthn device once we have it.
+		case *types.MFADevice_Webauthn:
+			if groupWebauthn {
+				res.Webauthn = append(res.Webauthn, dev)
+			}
 		default:
 			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
 		}
@@ -2891,6 +3039,22 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 			ClientData:    res.U2F.ClientData,
 			SignatureData: res.U2F.Signature,
 		}, u2fStorage)
+	case *proto.MFAAuthenticateResponse_Webauthn:
+		cap, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		u2f, _ := cap.GetU2F()
+		webConfig, err := cap.GetWebauthn()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		webLogin := &wanlib.LoginFlow{
+			U2F:      u2f,
+			Webauthn: webConfig,
+			Identity: a.Identity,
+		}
+		return webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}

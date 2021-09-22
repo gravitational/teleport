@@ -23,8 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moby/term"
-
+	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -40,6 +39,7 @@ type sessionPlayer struct {
 	sync.Mutex
 	stream        []byte
 	sessionEvents []events.EventFields
+	term          *terminal.Terminal
 
 	state    int
 	position int
@@ -48,11 +48,12 @@ type sessionPlayer struct {
 	stopC chan int
 }
 
-func newSessionPlayer(sessionEvents []events.EventFields, stream []byte) *sessionPlayer {
+func newSessionPlayer(sessionEvents []events.EventFields, stream []byte, term *terminal.Terminal) *sessionPlayer {
 	return &sessionPlayer{
 		stream:        stream,
 		sessionEvents: sessionEvents,
 		stopC:         make(chan int),
+		term:          term,
 	}
 }
 
@@ -117,12 +118,12 @@ func (p *sessionPlayer) waitUntil(state int) {
 
 // timestampFrame prints 'event timestamp' in the top right corner of the
 // terminal after playing every 'print' event
-func timestampFrame(message string) {
+func timestampFrame(term *terminal.Terminal, message string) {
 	const (
 		saveCursor    = "7"
 		restoreCursor = "8"
 	)
-	sz, err := term.GetWinsize(0)
+	width, _, err := term.Size()
 	if err != nil {
 		return
 	}
@@ -133,7 +134,9 @@ func timestampFrame(message string) {
 	defer esc(restoreCursor)
 
 	// move cursor to -10:0
-	esc(fmt.Sprintf("[%d;%df", 0, int(sz.Width)-len(message)))
+	// TODO(timothyb89): message length does not account for unicode characters
+	// or ANSI sequences.
+	esc(fmt.Sprintf("[%d;%df", 0, int(width)-len(message)))
 	os.Stdout.WriteString(message)
 }
 
@@ -171,7 +174,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 			if delay > 1000 {
 				delay = 1000
 			}
-			timestampFrame(e.GetString("time"))
+			timestampFrame(p.term, e.GetString("time"))
 			time.Sleep(time.Millisecond * delay)
 		}
 		prev = ms

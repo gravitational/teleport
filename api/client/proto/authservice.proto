@@ -117,6 +117,8 @@ message Event {
         types.DatabaseV3 Database = 28 [ (gogoproto.jsontag) = "database,omitempty" ];
         // AppServer is an application server resource.
         types.AppServerV3 AppServer = 29 [ (gogoproto.jsontag) = "app_server,omitempty" ];
+        // App is an application resource.
+        types.AppV3 App = 30 [ (gogoproto.jsontag) = "app,omitempty" ];
     }
 }
 
@@ -1573,6 +1575,19 @@ service AuthService {
     rpc SetNetworkRestrictions(types.NetworkRestrictionsV4) returns (google.protobuf.Empty);
     // DeleteNetworkRestrictions delete the network restrictions.
     rpc DeleteNetworkRestrictions(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetApps returns all registered applications.
+    rpc GetApps(google.protobuf.Empty) returns (types.AppV3List);
+    // GetApp returns an application by name.
+    rpc GetApp(types.ResourceRequest) returns (types.AppV3);
+    // CreateApp creates a new application resource.
+    rpc CreateApp(types.AppV3) returns (google.protobuf.Empty);
+    // UpdateApp updates existing application resource.
+    rpc UpdateApp(types.AppV3) returns (google.protobuf.Empty);
+    // DeleteApp removes specified application resource.
+    rpc DeleteApp(types.ResourceRequest) returns (google.protobuf.Empty);
+    // DeleteAllApps removes all application resources.
+    rpc DeleteAllApps(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // GetDatabases returns all registered databases.
     rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);

@@ -368,7 +368,7 @@ message AppServerSpecV3 {
 // AppV3List represents a list of app resources.
 message AppV3List {
     // Apps is a list of app resources.
-    repeated AppV3 App = 1;
+    repeated AppV3 Apps = 1;
 }
 
 // AppV3 represents an app resource.

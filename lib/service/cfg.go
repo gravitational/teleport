@@ -716,6 +716,9 @@ type AppsConfig struct {
 
 	// Apps is the list of applications that are being proxied.
 	Apps []App
+
+	// Selectors is a list of resource monitor selectors.
+	Selectors []services.Selector
 }
 
 // App is the specific application that will be proxied by the application
@@ -748,8 +751,8 @@ type App struct {
 	Rewrite *Rewrite
 }
 
-// Check validates an application.
-func (a App) Check() error {
+// CheckAndSetDefaults validates an application.
+func (a *App) CheckAndSetDefaults() error {
 	if a.Name == "" {
 		return trace.BadParameter("missing application name")
 	}
@@ -776,6 +779,11 @@ func (a App) Check() error {
 			return trace.BadParameter("application %q public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.Name, a.PublicAddr)
 		}
 	}
+	// Mark the app as coming from the static configuration.
+	if a.StaticLabels == nil {
+		a.StaticLabels = make(map[string]string)
+	}
+	a.StaticLabels[types.OriginLabel] = types.OriginConfigFile
 	// Make sure there are no reserved headers in the rewrite configuration.
 	// They wouldn't be rewritten even if we allowed them here but catch it
 	// early and let the user know.

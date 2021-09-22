@@ -15,9 +15,6 @@
           ]
         },
         { "title": "Installation", "slug": "/installation/" },
-        { "title": "User Manual", "slug": "/user-manual/" },
-        { "title": "Admin Manual", "slug": "/admin-guide/" },
-        { "title": "Production Guide", "slug": "/production/" },
         { "title": "FAQ", "slug": "/faq/" },
         { "title": "Changelog", "slug": "/changelog/" }
       ]
@@ -50,6 +47,16 @@
           ]
         },
         {
+          "title": "Operations",
+          "slug": "/setup/operations/",
+          "entries": [
+            { "title": "Scaling", "slug": "/setup/operations/scaling/" },
+            { "title": "Upgrading", "slug": "/setup/operations/upgrading/" },
+            { "title": "Backup and Restore", "slug": "/setup/operations/backup-restore/" },
+            { "title": "Cert Authority Rotation", "slug": "/setup/operations/ca-rotation/" }
+          ]
+        },
+        {
           "title": "Integrations",
           "slug": "/setup/guides/",
           "entries": [
@@ -67,7 +74,12 @@
             { "title": "Config Resources", "slug": "/setup/reference/resources/" },            
             { "title": "Command Line", "slug": "/setup/reference/cli/" },
             { "title": "Metrics", "slug": "/setup/reference/metrics/" },
-            { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" }            
+            { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" },
+            { "title": "Audit Events and Records", "slug": "/setup/reference/audit/" },
+            { "title": "Authentication", "slug": "/setup/reference/authentication/" },
+            { "title": "Storage Backends", "slug": "/setup/reference/backends/" },
+            { "title": "Networking", "slug": "/setup/reference/networking/" },
+            { "title": "Enterprise License File", "slug": "/setup/reference/license/" }
           ]
         }
       ]
@@ -102,7 +114,9 @@
           "title": "Guides",
           "slug": "/server-access/guides/",
           "entries": [
+            { "title": "Ansible", "slug": "/server-access/guides/ansible/" },
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
+            { "title": "Using TSH", "slug": "/server-access/guides/tsh/" },
             { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
             {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"},
             {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"},
@@ -329,6 +343,9 @@
       "major_version": "1",
       "minor_version": "17"
     },
+    "ansible": {
+      "min_version": "2.9.6"
+    },
     "mongodb": {
       "min_version": "3.6"
     },
@@ -347,6 +364,21 @@
     }
   },
   "redirects": [
+    {
+      "source": "/user-manual/",
+      "destination": "/server-access/guides/tsh/",
+      "permanent": true
+    },
+    {
+      "source": "/production/",
+      "destination": "/setup/deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guide/",
+      "destination": "/setup/admin/",
+      "permanent": true
+    },
     {
       "source": "/trustedclusters/",
       "destination": "/setup/admin/trustedclusters/",
