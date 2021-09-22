@@ -476,10 +476,12 @@ func TestValidRedirectURL(t *testing.T) {
 		desc, url string
 		valid     bool
 	}{
-		{"valid absolute url", "https://example.com?a=1", true},
+		{"valid absolute https url", "https://example.com?a=1", true},
+		{"valid absolute http url", "http://example.com?a=1", true},
 		{"valid relative url", "/path/to/something", true},
 		{"garbage", "fjoiewjwpods302j09", false},
 		{"empty string", "", false},
+		{"block bad protocol", "javascript:alert('xss')", false},
 	} {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {

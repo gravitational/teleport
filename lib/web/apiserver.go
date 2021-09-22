@@ -2393,8 +2393,8 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
 
 func isValidRedirectURL(redirectURL string) bool {
-	_, err := url.ParseRequestURI(redirectURL)
-	return err == nil
+	u, err := url.ParseRequestURI(redirectURL)
+	return err == nil && (!u.IsAbs() || (u.Scheme == "http" || u.Scheme == "https"))
 }
 
 // WithRedirect is a handler that redirects to the path specified in the returned value.
