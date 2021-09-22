@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"path"
 
 	"sort"
 
@@ -24,6 +25,10 @@ type Bot struct {
 	Environment  *environment.Environment
 	GithubClient GithubClient
 }
+
+// GithubClient is a wrapper around the Github client
+// to be used on methods that require the client, but don't
+// don't need the functionality of Bot.
 type GithubClient struct {
 	Client *github.Client
 }
@@ -102,16 +107,26 @@ func (gc GithubClient) DismissStaleWorkflowRuns(ctx context.Context, token, owne
 	return nil
 }
 
+const (
+	// GithubAPIHostname is the Github API hostname.
+	GithubAPIHostname = "api.github.com"
+	// Scheme is the protocol scheme used when making
+	// a request to delete a workflow run to the Github API.
+	Scheme = "https"
+)
+
 // deleteRun deletes a workflow run.
 // Note: the go-github client library does not support this endpoint.
 func (gc GithubClient) deleteRun(ctx context.Context, token, owner, repo string, runID int64) error {
 	// Construct url
-	s := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/runs/%v", owner, repo, runID)
-	u, err := url.Parse(s)
-	if err != nil {
-		return err
+	s := fmt.Sprintf("repos/%s/%s/actions/runs/%v", owner, repo, runID)
+	cleanPath := path.Join("/", s)
+	url := url.URL{
+		Scheme: Scheme,
+		Host:   GithubAPIHostname,
+		Path:   cleanPath,
 	}
-	req, err := gc.Client.NewRequest("DELETE", u.String(), nil)
+	req, err := gc.Client.NewRequest("DELETE", url.String(), nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}

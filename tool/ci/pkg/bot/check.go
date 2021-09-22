@@ -19,44 +19,48 @@ import (
 func (c *Bot) Check(ctx context.Context) error {
 	env := c.Environment
 	pr := c.Environment.PullRequest
+	// Remove any stale workflow runs. As only the current workflow run should
+	// be shown because it is the workflow that reflects the correct state of the pull.
+	//
+	// Note: This is run for all workflow runs triggered by an event from an internal contributor,
+	// but has to be run again in cron workflow because workflows triggered by external contributors do not
+	// grant the Github actions token the correct permissions to dismiss workflow runs.
 	if c.Environment.IsInternal(pr.Author) {
 		err := c.GithubClient.DismissStaleWorkflowRuns(ctx, env.GetToken(), pr.RepoOwner, pr.RepoName, pr.BranchName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	reviews, _, err := env.Client.PullRequests.ListReviews(ctx, pr.RepoOwner,
-		pr.RepoName,
-		pr.Number,
-		&github.ListOptions{})
+	// Check if the assigned reviewers have approved this PR.
+	err := c.check(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	currentReviewsSlice := []review{}
-	for _, rev := range reviews {
-		err := checkReviewFields(rev)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		currReview := review{
-			name:        *rev.User.Login,
-			status:      *rev.State,
-			commitID:    *rev.CommitID,
-			id:          *rev.ID,
-			submittedAt: rev.SubmittedAt,
-		}
-		currentReviewsSlice = append(currentReviewsSlice, currReview)
-	}
-	mostRecentReviews := mostRecent(currentReviewsSlice)
-	err = c.check(ctx, pr, c.Environment.GetReviewersForAuthor(pr.Author), mostRecentReviews)
+	return nil
+}
+
+// check checks to see if all the required reviewers have approved and invalidates
+// approvals for external contributors if a new commit is pushed
+func (c *Bot) check(ctx context.Context) error {
+	pr := c.Environment.PullRequest
+	mostRecentReviews, err := c.getReviews(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return err
 	}
+	if len(mostRecentReviews) == 0 {
+		return trace.BadParameter("pull request has no reviews")
+	}
+	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
+	err = approved(mostRecentReviews, c.Environment.GetReviewersForAuthor(pr.Author))
+	if err != nil {
+		return err
+	}
+	// For external contributors, invalidate all approvals if new commits have
+	// been pushed since reviewers approved the PR.
 	if hasNewCommit(pr.HeadSHA, mostRecentReviews) && !c.Environment.IsInternal(pr.Author) {
-		// Check file changes/commit verification
 		err := c.verifyCommit(ctx)
 		if err != nil {
-			if validationErr := c.invalidateApprovals(ctx, dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author)), currentReviewsSlice); validationErr != nil {
+			if validationErr := c.invalidateApprovals(ctx, dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author)), mostRecentReviews); validationErr != nil {
 				return trace.Wrap(validationErr)
 			}
 			return trace.Wrap(err)
@@ -65,16 +69,10 @@ func (c *Bot) Check(ctx context.Context) error {
 	return nil
 }
 
-// check checks to see if all the required reviewers have approved and invalidates
-// approvals for external contributors if a new commit is pushed
-func (c *Bot) check(ctx context.Context, pr *environment.PullRequestMetadata, required []string, currentReviews []review) error {
+func approved(mostRecentReviews []review, required []string) error {
 	var waitingOnApprovalsFrom []string
-	if len(currentReviews) == 0 {
-		return trace.BadParameter("pull request has no reviews")
-	}
-	log.Printf("checking if %v has approvals from the required reviewers %+v", pr.Author, required)
 	for _, requiredReviewer := range required {
-		reviewer, ok := hasApproved(requiredReviewer, currentReviews)
+		reviewer, ok := hasApproved(requiredReviewer, mostRecentReviews)
 		if !ok {
 			waitingOnApprovalsFrom = append(waitingOnApprovalsFrom, reviewer)
 		}
@@ -93,6 +91,34 @@ func (c *Bot) check(ctx context.Context, pr *environment.PullRequestMetadata, re
 			strings.Join(waitingOnApprovalsFrom, ", "), lastReviewer))
 	}
 	return nil
+}
+
+func (c *Bot) getReviews(ctx context.Context) ([]review, error) {
+	env := c.Environment
+	pr := c.Environment.PullRequest
+	reviews, _, err := env.Client.PullRequests.ListReviews(ctx, pr.RepoOwner,
+		pr.RepoName,
+		pr.Number,
+		&github.ListOptions{})
+	if err != nil {
+		return []review{}, trace.Wrap(err)
+	}
+	currentReviewsSlice := []review{}
+	for _, rev := range reviews {
+		err := checkReviewFields(rev)
+		if err != nil {
+			return []review{}, trace.Wrap(err)
+		}
+		currReview := review{
+			name:        *rev.User.Login,
+			status:      *rev.State,
+			commitID:    *rev.CommitID,
+			id:          *rev.ID,
+			submittedAt: rev.SubmittedAt,
+		}
+		currentReviewsSlice = append(currentReviewsSlice, currReview)
+	}
+	return mostRecent(currentReviewsSlice), nil
 }
 
 // review is a pull request review
@@ -196,6 +222,8 @@ func (c *Bot) verifyCommit(ctx context.Context) error {
 	if verification != nil {
 		if verification.Payload != nil && verification.Verified != nil {
 			payload := *verification.Payload
+			// If commit is empty (no file changes) and the commit is signed by Github,
+			// there is no need to invalidate the commit.
 			if strings.Contains(payload, ci.GithubCommit) && *verification.Verified {
 				return nil
 			}

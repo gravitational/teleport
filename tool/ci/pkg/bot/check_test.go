@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/teleport/tool/ci/pkg/environment"
@@ -9,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheck(t *testing.T) {
-	bot := &Bot{Environment: &environment.Environment{}}
+func TestApproved(t *testing.T) {
+	bot := &Bot{Environment: &environment.Environment{}} // create new env with reviewers
 	pull := &environment.PullRequestMetadata{Author: "test"}
 	tests := []struct {
 		botInstance    *Bot
@@ -59,7 +58,7 @@ func TestCheck(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			err := test.botInstance.check(context.TODO(), test.pr, test.required, test.currentReviews)
+			err := approved(test.currentReviews, test.required)
 			test.checkErr(t, err)
 		})
 	}
