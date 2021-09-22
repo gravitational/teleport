@@ -177,23 +177,6 @@ DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the s
 
 ## Next Steps
 
-### Static tokens
-
-Static tokens are defined ahead of time by an administrator and stored in the
-auth server's config file:
-
-```yaml
-# Config section in `/etc/teleport.yaml` file for the auth server
-auth_service:
-    enabled: true
-    tokens:
-    # This static token allows new hosts to join the cluster as "proxy" or "node"
-    - "proxy,node:secret-token-value"
-    # A token can also be stored in a file. In this example the token for adding
-    # new auth servers are stored in /path/to/tokenfile
-    - "auth:/path/to/tokenfile"
-```
-
 ### Untrusted auth servers
 
 Teleport nodes use the HTTPS protocol to offer the join tokens to the auth
@@ -203,9 +186,9 @@ e.g. `10.0.10.5`.
 
 To prevent this from happening, you need to supply every new node with an
 additional bit of information about the auth server. This technique is called
-"CA Pinning". It works by asking the auth server to produce a "CA Pin", which
-is a hashed value of its public key, i.e. for which an attacker can't forge a
-matching private key.
+"CA Pinning". It works by asking the auth server to produce a "CA Pin". 
+CA Pin is a hash value of the SPKI header in a certificate. An attacker can't
+easilly forge a matching private key.
 
 On the auth server:
 
@@ -218,7 +201,7 @@ $ tctl status
 # CA pin   sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
 ```
 
-The "CA pin" at the bottom needs to be passed to the new nodes when they're
+The CA pin at the bottom needs to be passed to the new nodes when they're
 starting for the first time, i.e. when they join a cluster:
 
 Via CLI:
@@ -258,3 +241,24 @@ teleport:
   [`tctl auth rotate`](../reference/cli.mdx#tctl-auth-rotate) .
 </Admonition>
 
+### Insecure: Static tokens
+
+<Admonition type="warning">
+Use short-lived tokens instead of long-lived static tokens.
+Static tokens are easier to steal, guess or leak.
+</Admonition>
+
+Static tokens are defined ahead of time by an administrator and stored in the
+auth server's config file:
+
+```yaml
+# Config section in `/etc/teleport.yaml` file for the auth server
+auth_service:
+    enabled: true
+    tokens:
+    # This static token allows new hosts to join the cluster as "proxy" or "node"
+    - "proxy,node:secret-token-value"
+    # A token can also be stored in a file. In this example the token for adding
+    # new auth servers are stored in /path/to/tokenfile
+    - "auth:/path/to/tokenfile"
+```

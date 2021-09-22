@@ -331,6 +331,13 @@ const (
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
 
+	// AppCreateCode is the app.create event code.
+	AppCreateCode = "TAP03I"
+	// AppUpdateCode is the app.update event code.
+	AppUpdateCode = "TAP04I"
+	// AppDeleteCode is the app.delete event code.
+	AppDeleteCode = "TAP05I"
+
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
 	// AppSessionChunkCode is the application session chunk create code.

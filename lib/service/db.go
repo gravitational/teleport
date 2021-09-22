@@ -31,6 +31,9 @@ import (
 )
 
 func (process *TeleportProcess) initDatabases() {
+	if len(process.Config.Databases.Databases) == 0 && len(process.Config.Databases.Selectors) == 0 {
+		return
+	}
 	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
@@ -226,6 +229,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		if agentPool != nil {
 			agentPool.Stop()
 		}
+		warnOnErr(conn.Close(), log)
 		log.Info("Exited.")
 	})
 
