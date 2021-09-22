@@ -320,7 +320,7 @@ func (t *proxySubsys) proxyToHost(
 	if site.GetName() == localCluster.GetName() {
 		servers, err = t.srv.authService.GetNodes(ctx.CancelContext(), t.namespace, services.SkipValidation())
 		if err != nil {
-			t.log.Warn(err)
+			t.log.WithError(err).Warnf("[routing-debug] Failed to get remote access point for server lookup.")
 		}
 	} else {
 		// "remote" CA? use a reverse tunnel to talk to it:
@@ -330,9 +330,13 @@ func (t *proxySubsys) proxyToHost(
 		} else {
 			servers, err = siteClient.GetNodes(ctx.CancelContext(), t.namespace, services.SkipValidation())
 			if err != nil {
-				t.log.Warn(err)
+				t.log.WithError(err).Warnf("[routing-debug] Failed to load servers from remote access point.")
 			}
 		}
+	}
+
+	if len(servers) == 0 {
+		t.log.Warnf("[routing-debug] Failed to load servers from site, cannot perform lookup for host %q", t.host)
 	}
 
 	// if port is 0, it means the client wants us to figure out
@@ -379,6 +383,8 @@ func (t *proxySubsys) proxyToHost(
 		}
 	}
 
+	t.log.Infof("[routing-debug] Host %q matched %d of %d servers.", t.host, matches, len(servers))
+
 	// if we matched more than one server, then the target was ambiguous.
 	if matches > 1 {
 		return trace.NotFound(teleport.NodeIsAmbiguous)
@@ -394,6 +400,10 @@ func (t *proxySubsys) proxyToHost(
 	// explicit UUID based resoltion in the future.
 	if hostIsUUID && matches < 1 {
 		return trace.NotFound("unable to locate node matching uuid-like target %s", t.host)
+	}
+
+	if hostIsUUID && server != nil {
+		t.log.Infof("[routing-debug] UUID %q matched server with hostname=%q, addr=%q, tunnel=%v", t.host, server.GetHostname(), server.GetAddr(), server.GetUseTunnel())
 	}
 
 	// Create a slice of principals that will be added into the host certificate.
@@ -447,6 +457,16 @@ func (t *proxySubsys) proxyToHost(
 		Principals:   principals,
 		ConnType:     services.NodeTunnel,
 	})
+
+	if err != nil && server == nil && len(servers) > 0 {
+		var uuids []string
+		for _, server := range servers {
+			uuids = append(uuids, server.GetName())
+		}
+
+		t.log.Warnf("[routing-debug] Dialing %q failed, with no matches in server set: %+v", t.host, uuids)
+	}
+
 	if err != nil {
 		failedConnectingToNode.Inc()
 		return trace.Wrap(err)
