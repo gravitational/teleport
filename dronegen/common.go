@@ -64,10 +64,11 @@ var (
 )
 
 type buildType struct {
-	os      string
-	arch    string
-	fips    bool
-	centos6 bool
+	os              string
+	arch            string
+	fips            bool
+	centos6         bool
+	windowsUnsigned bool
 }
 
 // dockerService generates a docker:dind service
@@ -101,6 +102,9 @@ func releaseMakefileTarget(b buildType) string {
 	}
 	if b.fips {
 		makefileTarget += "-fips"
+	}
+	if b.os == "windows" && b.windowsUnsigned {
+		makefileTarget = "release-windows-unsigned"
 	}
 	return makefileTarget
 }

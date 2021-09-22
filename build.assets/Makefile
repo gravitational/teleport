@@ -315,6 +315,14 @@ release-windows: buildbox
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows
 
 #
+# Create a Windows Teleport package using the build container.
+#
+.PHONY:release-windows-unsigned
+release-windows-unsigned: buildbox
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
+		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows
+
+#
 # Run docs tester to detect problems.
 #
 .PHONY: docsbox
