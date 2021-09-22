@@ -69,7 +69,7 @@ type SigningService struct {
 	fwd *forward.Forwarder
 }
 
-// SigningServiceConfig is
+// SigningServiceConfig is the SigningService configuration.
 type SigningServiceConfig struct {
 	// Client is an HTTP client instance used for HTTP calls.
 	Client *http.Client
@@ -77,7 +77,7 @@ type SigningServiceConfig struct {
 	Log logrus.FieldLogger
 	// Session is AWS session.
 	Session *awssession.Session
-	// Clock is used to override time in
+	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 
 	// getSigningCredentials allows so set the function responsible for obtaining STS credentials.
@@ -139,17 +139,17 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	resolvedEndpoint, err := resolveEndpoint(req)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	signedReq, err := s.paperSignedRequest(req, resolvedEndpoint, identity)
+	signedReq, err := s.prepareSignedRequest(req, resolvedEndpoint, identity)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	resp, err := s.Client.Do(signedReq)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	return resp, err
+	return resp, nil
 }
 
 func getUserIdentityFromContext(ctx context.Context) (*tlsca.Identity, error) {
@@ -176,6 +176,8 @@ func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *h
 	}
 }
 
+// resolveEndpoint extracts  the aws-service on and aws-region from the request authorization header
+// and resolves the aws-service and aws-region to AWS endpoint.
 func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	awsAuthHeader, err := ParseSigV4(r.Header.Get(authorizationHeader))
 	if err != nil {
@@ -188,9 +190,9 @@ func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	return &resolvedEndpoint, nil
 }
 
-// paperSignedRequest creates a new HTTP request and rewrites the header from the original request and returns a new
+// prepareSignedRequest creates a new HTTP request and rewrites the header from the original request and returns a new
 // HTTP request signed by STS AWS API.
-func (s *SigningService) paperSignedRequest(r *http.Request, re *endpoints.ResolvedEndpoint, identity *tlsca.Identity) (*http.Request, error) {
+func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.ResolvedEndpoint, identity *tlsca.Identity) (*http.Request, error) {
 	payload, err := GetAndReplaceReqBody(r)
 	if err != nil {
 		return nil, trace.Wrap(err)

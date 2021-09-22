@@ -334,7 +334,7 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 		Transport: tr,
 	}
 	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if err := l.checkAccess(req); err != nil {
+		if err := l.verifyAWSSignature(req); err != nil {
 			rw.WriteHeader(http.StatusForbidden)
 			return
 		}
@@ -346,10 +346,10 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 	return nil
 }
 
-// checkAccess validates the request signature ensuring that the request originates from tsh aws command execution
+// verifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
 // AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
 // the AWSCredentials LocalProxyConfig configuration.
-func (l *LocalProxy) checkAccess(req *http.Request) error {
+func (l *LocalProxy) verifyAWSSignature(req *http.Request) error {
 	sigV4, err := appaws.ParseSigV4(req.Header.Get("Authorization"))
 	if err != nil {
 		return trace.BadParameter(err.Error())
@@ -364,7 +364,7 @@ func (l *LocalProxy) checkAccess(req *http.Request) error {
 	reqCopy := req.Clone(context.Background())
 
 	// Remove all the headers that are not present in awsCred.SignedHeaders.
-	filterSingedHeaders(reqCopy, sigV4.SignedHeaders)
+	filterSignedHeaders(reqCopy, sigV4.SignedHeaders)
 
 	// Get the date that was used to create the signature of the original request
 	// originated from AWS CLI and reuse it as a timestamp during request signing call.
@@ -392,8 +392,8 @@ func (l *LocalProxy) checkAccess(req *http.Request) error {
 	return nil
 }
 
-// filterSingedHeaders removes request headers that are not in the signedHeaders list.
-func filterSingedHeaders(r *http.Request, signedHeaders []string) {
+// filterSignedHeaders removes request headers that are not in the signedHeaders list.
+func filterSignedHeaders(r *http.Request, signedHeaders []string) {
 	header := make(http.Header)
 	for _, v := range signedHeaders {
 		ck := textproto.CanonicalMIMEHeaderKey(v)

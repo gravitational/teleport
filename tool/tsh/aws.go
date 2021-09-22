@@ -62,11 +62,11 @@ func onAWS(cf *CLIConf) error {
 		}
 	}()
 
-	// Fake ENV AWS credentials need to be set in order to enforce AWS CLI to
+	// ENV AWS credentials need to be set in order to enforce AWS CLI to
 	// sign the request and provide Authorization Header where service-name and region-name are encoded.
 	// When endpoint-url AWS CLI flag provides the destination AWS API address is override by endpoint-url value.
 	// Teleport AWS Signing APP will resolve aws-service and aws-region to the proper Amazon API URL.
-	awsFakeCred, err := genAndSetAWSCredentials()
+	generatedAWSCred, err := genAndSetAWSCredentials()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -76,7 +76,7 @@ func onAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := createLocalAWSCLIProxy(cf, tc, awsFakeCred, tmpCert.getCert())
+	lp, err := createLocalAWSCLIProxy(cf, tc, generatedAWSCred, tmpCert.getCert())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -128,7 +128,7 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 		return nil, trace.NotFound("remote Teleport Proxy doesn't support AWS CLI access protocol")
 	}
 
-	appCerts, err := loadAWSAPPCertificate(tc)
+	appCerts, err := loadAWSAppCertificate(tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,7 +164,7 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	return lp, nil
 }
 
-func loadAWSAPPCertificate(tc *client.TeleportClient) (tls.Certificate, error) {
+func loadAWSAppCertificate(tc *client.TeleportClient) (tls.Certificate, error) {
 	if tc.CurrentAWSCLIApp == "" {
 		return tls.Certificate{}, trace.NotFound("please login into AWS Console App 'tsh app login' first")
 	}
@@ -184,38 +184,30 @@ func loadAWSAPPCertificate(tc *client.TeleportClient) (tls.Certificate, error) {
 }
 
 func validateARNRole(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, arnRole string) error {
-	ok := awsarn.IsARN(arnRole)
-
-	validARNs := make(map[string]struct{})
-	for _, roleName := range profile.Roles {
-		role, err := tc.GetRole(cf.Context, roleName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		roleARNs := role.GetAWSRoleARNs(types.Allow)
-		for _, v := range roleARNs {
-			if v == arnRole {
-				return nil
-			}
-			validARNs[v] = struct{}{}
-		}
-	}
-	printMapKeysAs(validARNs, "Available ARNs")
-	if !ok {
+	if ok := awsarn.IsARN(arnRole); !ok {
 		// User provided invalid formatted ARN role string, print all available ARN roles for the user and indicate
 		// and indicate about invalid ARN format.
+		printArrayAs(profile.AWSRolesARNs, "Available ARNs")
 		return trace.BadParameter("invalid AWS ARN role format: %q", arnRole)
 	}
+
+	for _, v := range profile.AWSRolesARNs {
+		if v == arnRole {
+			return nil
+		}
+	}
+
+	printArrayAs(profile.AWSRolesARNs, "Available ARNs")
 	return trace.NotFound("user is not allowed to use selected AWS ARN role: %q.", arnRole)
 }
 
-func printMapKeysAs(m map[string]struct{}, columnName string) {
-	if len(m) == 0 {
+func printArrayAs(validARNs []string, columnName string) {
+	if len(validARNs) == 0 {
 		return
 	}
 	t := asciitable.MakeTable([]string{columnName})
-	for k := range m {
-		t.AddRow([]string{k})
+	for _, v := range validARNs {
+		t.AddRow([]string{v})
 	}
 	fmt.Println(t.AsBuffer().String())
 
@@ -223,47 +215,39 @@ func printMapKeysAs(m map[string]struct{}, columnName string) {
 
 // findARNBasedOnRoleName tries to match roleName parameter with allowed user ARNs obtained from the Teleport API based on
 // user roles profile. If there is a match the IAM role is created based on accountID and roleName fields.
-func findARNBasedOnRoleName(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, accountID, roleName string) (string, error) {
-	validRolesName := make(map[string]struct{})
-	for _, v := range profile.Roles {
-		role, err := tc.GetRole(cf.Context, v)
+func findARNBasedOnRoleName(profile *client.ProfileStatus, accountID, roleName string) (string, error) {
+	var validRolesName []string
+	for _, v := range profile.AWSRolesARNs {
+		arn, err := awsarn.Parse(v)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		for _, v := range role.GetAWSRoleARNs(types.Allow) {
-			arn, err := awsarn.Parse(v)
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
 
-			// Example of the ANR Resource: 'role/EC2FullAccess'
-			parts := strings.Split(arn.Resource, "/")
-			if len(parts) != 2 {
-				continue
-			}
-			if parts[0] != "role" {
-				continue
-			}
+		// Example of the ANR Resource: 'role/EC2FullAccess'
+		parts := strings.Split(arn.Resource, "/")
+		if len(parts) < 1 || parts[0] != "role" {
+			continue
+		}
 
-			if arn.AccountID == accountID {
-				validRolesName[parts[1]] = struct{}{}
-			}
-			if arn.AccountID == accountID && parts[1] == roleName {
-				return arn.String(), nil
-			}
+		roleNameWithPath := strings.Join(parts[1:], "/")
+		if arn.AccountID == accountID {
+			validRolesName = append(validRolesName, roleNameWithPath)
+		}
+		if arn.AccountID == accountID && roleNameWithPath == roleName {
+			return arn.String(), nil
 		}
 	}
 	if len(validRolesName) != 0 {
-		printMapKeysAs(validRolesName, "Available Roles")
+		printArrayAs(validRolesName, "Available Roles")
 	}
 	return "", trace.NotFound("failed to find role ARN based on AWSAccountID(%q) and RoleName(%q)", accountID, roleName)
 }
 
-func setFakeAWSEnvCredentials(keyID, accessKey string) error {
-	if err := os.Setenv("AWS_ACCESS_KEY_ID", keyID); err != nil {
+func setFakeAWSEnvCredentials(accessKeyID, secretKey string) error {
+	if err := os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := os.Setenv("AWS_SECRET_ACCESS_KEY", accessKey); err != nil {
+	if err := os.Setenv("AWS_SECRET_ACCESS_KEY", secretKey); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -273,6 +257,7 @@ func getARNFromFlags(cf *CLIConf, tc *client.TeleportClient, profile *client.Pro
 	if cf.AWSRoleARN == "" && cf.AWSRoleName == "" {
 		return "", trace.BadParameter("either --aws-role-arn or --aws-role-name flag is required")
 	}
+
 	if cf.AWSRoleARN != "" {
 		if err := validateARNRole(cf, tc, profile, cf.AWSRoleARN); err != nil {
 			return "", trace.Wrap(err)
@@ -286,7 +271,7 @@ func getARNFromFlags(cf *CLIConf, tc *client.TeleportClient, profile *client.Pro
 		return "", trace.BadParameter("the role name is ambiguous, please provide role ARN by --aws-role-arn flag")
 	}
 	var err error
-	arn, err := findARNBasedOnRoleName(cf, tc, profile, accountID, cf.AWSRoleName)
+	arn, err := findARNBasedOnRoleName(profile, accountID, cf.AWSRoleName)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -300,7 +285,7 @@ type tempSelfSignedLocalCert struct {
 
 func newTempSelfSignedLocalCert() (*tempSelfSignedLocalCert, error) {
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-		CommonName:   "AWS Local Proxy",
+		CommonName:   "localhost",
 		Organization: []string{"Teleport"},
 	}, []string{"localhost"}, defaults.CATTL)
 	if err != nil {

@@ -373,8 +373,8 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 
 	// AWS.
-	aws := app.Command("aws", "AWS CLI wrapper")
-	aws.Arg("command", "aws command and subcommands argurments that are going to be forwarded to AWS CLI").StringsVar(&cf.AWSCommandArgs)
+	aws := app.Command("aws", "Access AWS API.")
+	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI").StringsVar(&cf.AWSCommandArgs)
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
@@ -389,8 +389,8 @@ func Run(args []string, opts ...cliOption) error {
 	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL)).StringVar(&cf.Format)
-	appLogin.Flag("aws-role-arn", "Amazon IAM role in ARN format.").StringVar(&cf.AWSRoleARN)
-	appLogin.Flag("aws-role-name", "Amazon IAM role name.").StringVar(&cf.AWSRoleName)
+	appLogin.Flag("aws-role-arn", "(For AWS CLI access only) Amazon IAM role in ARN format.").StringVar(&cf.AWSRoleARN)
+	appLogin.Flag("aws-role-name", "(For AWS CLI access only) Amazon IAM role name.").StringVar(&cf.AWSRoleName)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")

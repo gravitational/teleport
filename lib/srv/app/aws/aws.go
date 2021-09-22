@@ -36,7 +36,7 @@ const (
 	// https://github.com/aws/aws-sdk-go/blob/main/aws/signer/v4/v4.go#L84
 	AmzDateTimeFormat = "20060102T150405Z"
 
-	// AmzDateHeader header name containing timestamp when signature was generated.
+	// AmzDateHeader is header name containing timestamp when signature was generated.
 	// https://docs.aws.amazon.com/general/latest/gr/sigv4-date-handling.html
 	AmzDateHeader = "X-Amz-Date"
 
@@ -58,7 +58,7 @@ type SigV4 struct {
 	Service string
 	// SignedHeaders is a  list of request headers that you used to compute Signature.
 	SignedHeaders []string
-	// The 256-bit Signature of the request.
+	// Signature is the 256-bit Signature of the request.
 	Signature string
 }
 

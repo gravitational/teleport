@@ -402,6 +402,9 @@ type ProfileStatus struct {
 	// ActiveRequests tracks the privilege escalation requests applied
 	// during certificate construction.
 	ActiveRequests services.RequestIDs
+
+	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
+	AWSRolesARNs []string
 }
 
 // IsExpired returns true if profile is not expired yet
@@ -641,6 +644,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		KubeGroups:     tlsID.KubernetesGroups,
 		Databases:      databases,
 		Apps:           apps,
+		AWSRolesARNs:   tlsID.AWSRoleARNs,
 	}, nil
 }
 
