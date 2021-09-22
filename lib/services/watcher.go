@@ -176,6 +176,13 @@ func (p *resourceWatcher) runWatchLoop() {
 	for {
 		p.Log.WithField("retry", p.retry).Debug("Starting watch.")
 		err := p.watch()
+
+		select {
+		case <-p.ctx.Done():
+			return
+		default:
+		}
+
 		if err != nil && p.failureStartedAt.IsZero() {
 			// Note that failureStartedAt is zeroed in the watch routine immediately
 			// after the local resource set has been successfully updated.

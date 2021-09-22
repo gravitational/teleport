@@ -17,10 +17,10 @@ package webauthncli_test
 import (
 	"bytes"
 	"context"
-	"crypto"
-	"crypto/rand"
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/binary"
 	"fmt"
 	"testing"
 	"time"
@@ -40,16 +40,7 @@ import (
 )
 
 func TestLogin(t *testing.T) {
-	// Restore package defaults after test.
-	oldDevices, oldOpen, oldNewToken := *wancli.U2FDevices, *wancli.U2FOpen, *wancli.U2FNewToken
-	oldPollInterval := wancli.DevicePollInterval
-	t.Cleanup(func() {
-		*wancli.U2FDevices = oldDevices
-		*wancli.U2FOpen = oldOpen
-		*wancli.U2FNewToken = oldNewToken
-		wancli.DevicePollInterval = oldPollInterval
-	})
-	wancli.DevicePollInterval = 1 // as tight as possible.
+	resetU2FCallbacksAfterTest(t)
 
 	const appID = "https://example.com"
 	const rpID = "example.com"
@@ -58,17 +49,30 @@ func TestLogin(t *testing.T) {
 
 	devUnknown, err := newFakeDevice("unknown" /* name */, "unknown" /* appID */)
 	require.NoError(t, err)
-	devRPID, err := newFakeDevice("rpid" /* name */, rpID /* appID */)
-	require.NoError(t, err)
 	devAppID, err := newFakeDevice("appid" /* name */, appID /* appID */)
 	require.NoError(t, err)
+
+	// Create a device that authenticates using the RPID.
+	// In practice, it would be registered as a Webauthn device.
+	devRPID, err := newFakeDevice("rpid" /* name */, rpID /* appID */)
+	require.NoError(t, err)
+	pubKeyI, err := x509.ParsePKIXPublicKey(devRPID.mfaDevice.GetU2F().PubKey)
+	require.NoError(t, err)
+	pubKeyCBOR, err := wanlib.U2FKeyToCBOR(pubKeyI.(*ecdsa.PublicKey))
+	require.NoError(t, err)
+	devRPID.mfaDevice.Device = &types.MFADevice_Webauthn{
+		Webauthn: &types.WebauthnDevice{
+			CredentialId:  devRPID.key.KeyHandle,
+			PublicKeyCbor: pubKeyCBOR,
+		},
+	}
 
 	// Use a LoginFlow to create and check assertions.
 	identity := &fakeIdentity{
 		Devices: []*types.MFADevice{
 			devUnknown.mfaDevice,
-			devRPID.mfaDevice,
 			devAppID.mfaDevice,
+			devRPID.mfaDevice,
 		},
 	}
 	loginFlow := &wanlib.LoginFlow{
@@ -140,9 +144,7 @@ func TestLogin(t *testing.T) {
 			}
 
 			fakeDevs := &fakeDevices{devs: test.devs}
-			*wancli.U2FDevices = fakeDevs.devices
-			*wancli.U2FOpen = fakeDevs.open
-			*wancli.U2FNewToken = fakeDevs.newToken
+			fakeDevs.assignU2FCallbacks()
 
 			mfaResp, err := wancli.Login(ctx, origin, assertion)
 			switch hasErr := err != nil; {
@@ -258,8 +260,26 @@ func TestLogin_errors(t *testing.T) {
 	}
 }
 
+func resetU2FCallbacksAfterTest(t *testing.T) {
+	oldDevices, oldOpen, oldNewToken := *wancli.U2FDevices, *wancli.U2FOpen, *wancli.U2FNewToken
+	oldPollInterval := wancli.DevicePollInterval
+	t.Cleanup(func() {
+		*wancli.U2FDevices = oldDevices
+		*wancli.U2FOpen = oldOpen
+		*wancli.U2FNewToken = oldNewToken
+		wancli.DevicePollInterval = oldPollInterval
+	})
+}
+
 type fakeDevices struct {
 	devs []*fakeDevice
+}
+
+func (f *fakeDevices) assignU2FCallbacks() {
+	*wancli.U2FDevices = f.devices
+	*wancli.U2FOpen = f.open
+	*wancli.U2FNewToken = f.newToken
+	wancli.DevicePollInterval = 1 // as tight as possible.
 }
 
 func (f *fakeDevices) devices() ([]*hid.DeviceInfo, error) {
@@ -355,47 +375,45 @@ func (f *fakeDevice) CheckAuthenticate(req u2ftoken.AuthenticateRequest) error {
 }
 
 func (f *fakeDevice) Authenticate(req u2ftoken.AuthenticateRequest) (*u2ftoken.AuthenticateResponse, error) {
-	// Fail presence tests a few times.
-	const minPresenceCounter = 2
-	if !f.userPresent || f.presenceCounter < minPresenceCounter {
-		f.presenceCounter++
-		return nil, u2ftoken.ErrPresenceRequired
+	if err := f.checkUserPresent(); err != nil {
+		return nil, err // Do no wrap.
 	}
-	f.presenceCounter = 0
 
-	// Authenticate runs in a lower abstraction level than mocku2f.Key, so let's
-	// assemble the data and do the signing ourselves.
-	// See
-	// https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.html#authentication-response-message-success.
-	const userPresenceFlag = 1
-	counter := []byte{0, 0, 0, 0} // always zeroed, makes things simpler
-	dataToSign := &bytes.Buffer{}
-	dataToSign.Write(req.Application)
-	dataToSign.WriteByte(userPresenceFlag)
-	dataToSign.Write(counter)
-	dataToSign.Write(req.Challenge)
-	dataHash := sha256.Sum256(dataToSign.Bytes())
-
-	signature, err := f.key.PrivateKey.Sign(rand.Reader, dataHash[:], crypto.SHA256)
+	rawResp, err := f.key.AuthenticateRaw(req.Application, req.Challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	rawResponse := &bytes.Buffer{}
-	rawResponse.WriteByte(userPresenceFlag)
-	rawResponse.Write(counter)
-	rawResponse.Write(signature)
+	var counter uint32
+	binary.Read(bytes.NewReader(rawResp[1:5]), binary.BigEndian, &counter)
+	sign := rawResp[5:]
 
 	return &u2ftoken.AuthenticateResponse{
-		Counter:     0,
-		Signature:   signature,
-		RawResponse: rawResponse.Bytes(),
+		Counter:     counter,
+		Signature:   sign,
+		RawResponse: rawResp,
 	}, nil
 }
 
 func (f *fakeDevice) Register(req u2ftoken.RegisterRequest) ([]byte, error) {
-	// Unused by tests.
-	panic("unimplemented")
+	if err := f.checkUserPresent(); err != nil {
+		return nil, err // Do no wrap.
+	}
+
+	resp, err := f.key.RegisterRaw(req.Application, req.Challenge)
+	return resp, trace.Wrap(err)
+}
+
+func (f *fakeDevice) checkUserPresent() error {
+	// Fail presence tests a few times.
+	const minPresenceCounter = 2
+	if !f.userPresent || f.presenceCounter < minPresenceCounter {
+		f.presenceCounter++
+		return u2ftoken.ErrPresenceRequired
+	}
+
+	// Allowed.
+	f.presenceCounter = 0
+	return nil
 }
 
 type fakeIdentity struct {

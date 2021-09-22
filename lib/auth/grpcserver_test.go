@@ -102,7 +102,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "fail-dev",
-					Type:       proto.AddMFADeviceRequestInit_U2F,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.Len(t, req.U2F, 1)
@@ -135,7 +135,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "fail-dev",
-					Type:       proto.AddMFADeviceRequestInit_U2F,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, req.TOTP)
@@ -159,7 +159,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "fail-dev",
-					Type:       proto.AddMFADeviceRequestInit_U2F,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
 				},
 				authHandler:  devs.u2fAuthHandler,
 				checkAuthErr: require.NoError,
@@ -188,7 +188,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "fail-dev",
-					Type:       proto.AddMFADeviceRequestInit_TOTP,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 				},
 				authHandler:  devs.totpAuthHandler,
 				checkAuthErr: require.NoError,
@@ -219,7 +219,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: webDev2Name,
-					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
 				authHandler:  devs.webAuthHandler,
 				checkAuthErr: require.NoError,
@@ -241,7 +241,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "webauthn-1512000",
-					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
 				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, challenge.WebauthnChallenge) // webauthn enabled
@@ -270,7 +270,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "webauthn-1512000",
-					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
 				authHandler:  devs.webAuthHandler,
 				checkAuthErr: require.NoError,
@@ -565,7 +565,7 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: totpName,
-					Type:       proto.AddMFADeviceRequestInit_TOTP,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					// Empty for first device.
@@ -606,7 +606,7 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: u2fName,
-					Type:       proto.AddMFADeviceRequestInit_U2F,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
 				},
 				authHandler:  devs.totpAuthHandler,
 				checkAuthErr: require.NoError,
@@ -649,7 +649,7 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: webName,
-					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
 				authHandler:  devs.totpAuthHandler,
 				checkAuthErr: require.NoError,

@@ -40,23 +40,12 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	mockEmitter := &events.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
-	username := "joe@example.com"
-	pass := "pass123"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
-	require.NoError(t, err)
+	// Configure cluster and user for MFA, registering various devices.
+	mfa := configureForMFA(t, srv)
+	username := mfa.User
+	pass := mfa.Password
 
 	ctx := context.Background()
-
-	// Add several MFA devices.
-	mfaDev, err := services.NewTOTPDevice("otp1", "secret", srv.Clock().Now())
-	require.NoError(t, err)
-	err = srv.Auth().UpsertMFADevice(ctx, username, mfaDev)
-	require.NoError(t, err)
-	mfaDev, err = services.NewTOTPDevice("otp2", "secret", srv.Clock().Now())
-	require.NoError(t, err)
-	err = srv.Auth().UpsertMFADevice(ctx, username, mfaDev)
-	require.NoError(t, err)
-
 	req := CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
@@ -69,7 +58,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 
 	event := mockEmitter.LastEvent()
 	require.Equal(t, event.GetType(), events.ResetPasswordTokenCreateEvent)
-	require.Equal(t, event.(*apievents.UserTokenCreate).Name, "joe@example.com")
+	require.Equal(t, event.(*apievents.UserTokenCreate).Name, username)
 	require.Equal(t, event.(*apievents.UserTokenCreate).User, teleport.UserSystem)
 
 	// verify that user has no MFA devices
