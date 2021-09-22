@@ -25,6 +25,7 @@ import (
 	"fmt"
 	mathrand "math/rand"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -1268,21 +1269,26 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
 		},
 	})
 	require.NoError(t, err)
 	err = srv.Auth().SetAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
+	clt, err := srv.NewClient(TestUser(username))
+	require.NoError(t, err)
+
 	// Insert dummy devices.
-	deviceToDelete, err := insertDummyTOTPDevice(srv, username, "otp")
+	webDev1, err := RegisterTestDevice(ctx, clt, "web-1", TestWebauthnDevice, nil /* authenticator */)
 	require.NoError(t, err)
-	u2fDev, err := insertDummyU2FDevice(srv, username, "u2f")
+	webDev2, err := RegisterTestDevice(ctx, clt, "web-2", TestWebauthnDevice, webDev1)
 	require.NoError(t, err)
-	totpDev, err := insertDummyTOTPDevice(srv, username, "otp2")
+	totpDev, err := RegisterTestDevice(ctx, clt, "otp", TestOTPDevice, webDev1, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
+
+	deviceToDelete := webDev2
 
 	// Acquire an approved token.
 	token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
@@ -1297,7 +1303,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	// Delete the TOTP device.
 	err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
 		TokenID:    token.GetName(),
-		DeviceName: deviceToDelete.GetName(),
+		DeviceName: deviceToDelete.MFA.GetName(),
 	})
 	require.NoError(t, err)
 
@@ -1306,8 +1312,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 		RecoveryApprovedTokenID: token.GetName(),
 	})
 	require.NoError(t, err)
-	require.Greater(t, len(res.GetDevices()), 1)
-	require.ElementsMatch(t, []*types.MFADevice{u2fDev, totpDev}, res.GetDevices())
+	compareDevices(t, res.GetDevices(), webDev1.MFA, totpDev.MFA)
 
 	// Test events emitted.
 	event := mockEmitter.LastEvent()
@@ -1329,16 +1334,20 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
 		},
 	})
 	require.NoError(t, err)
 	err = srv.Auth().SetAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
+	clt, err := srv.NewClient(TestUser(username))
+	require.NoError(t, err)
+
 	// Insert a device.
-	deviceToDelete, err := insertDummyTOTPDevice(srv, username, "otp")
+	const devName = "otp"
+	_, err = RegisterTestDevice(ctx, clt, devName, TestOTPDevice, nil /* authenticator */, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1349,12 +1358,12 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	}{
 		{
 			name:          "token not found",
-			deviceName:    deviceToDelete.GetName(),
+			deviceName:    devName,
 			assertErrType: trace.IsAccessDenied,
 		},
 		{
 			name:       "invalid token type",
-			deviceName: deviceToDelete.GetName(),
+			deviceName: devName,
 			tokenRequest: &CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
@@ -1404,15 +1413,23 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 	ctx := context.Background()
 
 	u2fAuthSetting := &types.U2F{
-		AppID:  "teleport",
-		Facets: []string{"teleport"},
+		AppID:  "https://localhost",
+		Facets: []string{"https://localhost"},
+	}
+
+	newTOTPForUser := func(user string) *types.MFADevice {
+		clt, err := srv.NewClient(TestUser(user))
+		require.NoError(t, err)
+		dev, err := RegisterTestDevice(ctx, clt, "otp", TestOTPDevice, nil /* authenticator */, WithTestDeviceClock(srv.Clock()))
+		require.NoError(t, err)
+		return dev.MFA
 	}
 
 	tests := []struct {
 		name              string
 		wantErr           bool
 		setAuthPreference func()
-		createDevice      func(svr *TestTLSServer, user string) (*types.MFADevice, error)
+		createDevice      func(user string) *types.MFADevice
 	}{
 		{
 			name: "with second factor optional",
@@ -1426,9 +1443,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
-			createDevice: func(svr *TestTLSServer, user string) (*types.MFADevice, error) {
-				return insertDummyTOTPDevice(srv, user, "otp")
-			},
+			createDevice: newTOTPForUser,
 		},
 		{
 			name:    "with second factor otp",
@@ -1442,25 +1457,29 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
-			createDevice: func(svr *TestTLSServer, user string) (*types.MFADevice, error) {
-				return insertDummyTOTPDevice(srv, user, "otp")
-			},
+			createDevice: newTOTPForUser,
 		},
 		{
-			name:    "with second factor u2f",
+			name:    "with second factor webauthn",
 			wantErr: true,
 			setAuthPreference: func() {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorU2F,
-					U2F:          u2fAuthSetting,
+					SecondFactor: constants.SecondFactorWebauthn,
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
+					},
 				})
 				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
-			createDevice: func(svr *TestTLSServer, user string) (*types.MFADevice, error) {
-				return insertDummyU2FDevice(srv, user, "u2f")
+			createDevice: func(user string) *types.MFADevice {
+				clt, err := srv.NewClient(TestUser(user))
+				require.NoError(t, err)
+				dev, err := RegisterTestDevice(ctx, clt, "web", TestWebauthnDevice, nil /* authenticator */)
+				require.NoError(t, err)
+				return dev.MFA
 			},
 		},
 		{
@@ -1476,12 +1495,9 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
-			createDevice: func(svr *TestTLSServer, user string) (*types.MFADevice, error) {
-				return insertDummyTOTPDevice(srv, user, "otp")
-			},
+			createDevice: newTOTPForUser,
 		},
 	}
-
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a user with no MFA device.
@@ -1493,8 +1509,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 			tc.setAuthPreference()
 
 			// Insert a MFA device.
-			dev, err := tc.createDevice(srv, username)
-			require.NoError(t, err)
+			dev := tc.createDevice(username)
 
 			// Acquire an approved token.
 			token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
@@ -1533,13 +1548,27 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
-	username := "llama@goteleport.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
-	totpDev, err := insertDummyTOTPDevice(srv, username, "otp")
+	username := "llama@goteleport.com"
+	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
-	u2fDev, err := insertDummyU2FDevice(srv, username, "u2f")
+
+	clt, err := srv.NewClient(TestUser(username))
+	require.NoError(t, err)
+	webDev, err := RegisterTestDevice(ctx, clt, "web", TestWebauthnDevice, nil /* authenticator */)
+	require.NoError(t, err)
+	totpDev, err := RegisterTestDevice(ctx, clt, "otp", TestOTPDevice, webDev, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1594,8 +1623,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err))
 			default:
 				require.NoError(t, err)
-				require.Greater(t, len(res.GetDevices()), 1)
-				require.ElementsMatch(t, []*types.MFADevice{totpDev, u2fDev}, res.GetDevices())
+				compareDevices(t, res.GetDevices(), webDev.MFA, totpDev.MFA)
 			}
 		})
 	}
@@ -1606,22 +1634,32 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	username := "llama@goteleport.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
-	totpDev, err := insertDummyTOTPDevice(srv, username, "otp")
-	require.NoError(t, err)
-	u2fDev, err := insertDummyU2FDevice(srv, username, "u2f")
+	username := "llama@goteleport.com"
+	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
 
 	clt, err := srv.NewClient(TestUser(username))
 	require.NoError(t, err)
+	webDev, err := RegisterTestDevice(ctx, clt, "web", TestWebauthnDevice, nil /* authenticator */)
+	require.NoError(t, err)
+	totpDev, err := RegisterTestDevice(ctx, clt, "otp", TestOTPDevice, webDev, WithTestDeviceClock(srv.Clock()))
+	require.NoError(t, err)
 
 	res, err := clt.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
-	require.Greater(t, len(res.GetDevices()), 1)
-	require.ElementsMatch(t, []*types.MFADevice{totpDev, u2fDev}, res.GetDevices())
+	compareDevices(t, res.GetDevices(), webDev.MFA, totpDev.MFA)
 }
 
 func newTestServices(t *testing.T) Services {
@@ -1644,24 +1682,28 @@ func newTestServices(t *testing.T) Services {
 	}
 }
 
-func insertDummyTOTPDevice(srv *TestTLSServer, username, deviceName string) (*types.MFADevice, error) {
-	dev := types.NewMFADevice(deviceName, uuid.New(), srv.Auth().clock.Now())
-	dev.Device = &types.MFADevice_Totp{Totp: &types.TOTPDevice{}}
+func compareDevices(t *testing.T, got []*types.MFADevice, want ...*types.MFADevice) {
+	sort.Slice(got, func(i, j int) bool { return got[i].GetName() < got[j].GetName() })
+	sort.Slice(want, func(i, j int) bool { return want[i].GetName() < want[j].GetName() })
 
-	if err := srv.Auth().UpsertMFADevice(context.Background(), username, dev); err != nil {
-		return nil, trace.Wrap(err)
+	// Remove TOTP keys before comparison.
+	for _, w := range want {
+		totp := w.GetTotp()
+		if totp == nil {
+			continue
+		}
+		if totp.Key == "" {
+			continue
+		}
+		key := totp.Key
+		// defer in loop on purpose, we want this to run at the end of the function.
+		defer func() {
+			totp.Key = key
+		}()
+		totp.Key = ""
 	}
 
-	return dev, nil
-}
-
-func insertDummyU2FDevice(srv *TestTLSServer, username, deviceName string) (*types.MFADevice, error) {
-	dev := types.NewMFADevice(deviceName, uuid.New(), srv.Auth().clock.Now())
-	dev.Device = &types.MFADevice_U2F{U2F: &types.U2FDevice{}}
-
-	if err := srv.Auth().UpsertMFADevice(context.Background(), username, dev); err != nil {
-		return nil, trace.Wrap(err)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("compareDevices mismatch (-want +got):\n%s", diff)
 	}
-
-	return dev, nil
 }
