@@ -92,3 +92,30 @@ func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWrit
 
 	return client.MakeAuthenticateChallenge(chal), nil
 }
+
+// createRegisterChallengeWithTokenHandle creates and returns MFA register challenges for a new device for the specified device type.
+func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var deviceType proto.DeviceType
+
+	deviceTypeRequest := p.ByName("deviceType")
+	switch deviceTypeRequest {
+	case "totp":
+		deviceType = proto.DeviceType_DEVICE_TYPE_TOTP
+	case "u2f":
+		deviceType = proto.DeviceType_DEVICE_TYPE_U2F
+	case "webauthn":
+		deviceType = proto.DeviceType_DEVICE_TYPE_WEBAUTHN
+	default:
+		return nil, trace.BadParameter("MFA device type %q unsupported", deviceTypeRequest)
+	}
+
+	chal, err := h.cfg.ProxyClient.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
+		TokenID:    p.ByName("token"),
+		DeviceType: deviceType,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return client.MakeRegisterChallenge(chal), nil
+}

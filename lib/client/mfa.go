@@ -196,3 +196,45 @@ func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *auth.
 
 	return chal
 }
+
+type TOTPChallenge struct {
+	QRCodeBytes []byte `json:"qrCodeBytes"`
+}
+
+// MFAAuthenticateChallenge is an MFA register challenge sent on new MFA register.
+type MFARegisterChallenge struct {
+	// U2FChallenge contains U2F register challenge.
+	U2FChallenge *u2f.RegisterChallenge `json:"u2fChallenge"`
+	// WebauthnChallenge contains webauthn challenge.
+	WebauthnChallenge *wanlib.CredentialCreation `json:"webauthnChallenge"`
+	// TOTPChallenge contains TOTP challenge.
+	TOTPChallenge *TOTPChallenge `json:"totpChallenge"`
+}
+
+// MakeRegisterChallenge converts proto to JSON format.
+func MakeRegisterChallenge(protoChal *proto.MFARegisterChallenge) *MFARegisterChallenge {
+	switch protoChal.GetRequest().(type) {
+	case *proto.MFARegisterChallenge_TOTP:
+		return &MFARegisterChallenge{
+			TOTPChallenge: &TOTPChallenge{
+				QRCodeBytes: protoChal.GetTOTP().GetQRCodeBytes(),
+			},
+		}
+
+	case *proto.MFARegisterChallenge_U2F:
+		return &MFARegisterChallenge{
+			U2FChallenge: &u2f.RegisterChallenge{
+				Version:   protoChal.GetU2F().GetVersion(),
+				Challenge: protoChal.GetU2F().GetChallenge(),
+				AppID:     protoChal.GetU2F().GetAppID(),
+			},
+		}
+
+	case *proto.MFARegisterChallenge_Webauthn:
+		return &MFARegisterChallenge{
+			WebauthnChallenge: wanlib.CredentialCreationFromProto(protoChal.GetWebauthn()),
+		}
+	}
+
+	return nil
+}
