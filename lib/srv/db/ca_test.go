@@ -156,7 +156,7 @@ func TestInitCACertCaching(t *testing.T) {
 	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 
 	// Reset it and initialize again, it should already be downloaded.
-	rds.SetCA("")
+	rds.SetStatusCA("")
 	require.NoError(t, databaseServer.initCACert(ctx, rds))
 	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 }
