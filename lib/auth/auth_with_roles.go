@@ -3146,6 +3146,108 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
 }
 
+// CreateApp creates a new application resource.
+func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) error {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	// Don't allow users create apps they wouldn't have access to (e.g.
+	// non-matching labels).
+	if err := a.checkAccessToApp(app); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.CreateApp(ctx, app))
+}
+
+// UpdateApp updates existing application resource.
+func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) error {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	// Don't allow users update apps they don't have access to (e.g.
+	// non-matching labels). Make sure to check existing app too.
+	existing, err := a.authServer.GetApp(ctx, app.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToApp(existing); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToApp(app); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.UpdateApp(ctx, app))
+}
+
+// GetApp returns specified application resource.
+func (a *ServerWithRoles) GetApp(ctx context.Context, name string) (types.Application, error) {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	app, err := a.authServer.GetApp(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.checkAccessToApp(app); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return app, nil
+}
+
+// GetApps returns all application resources.
+func (a *ServerWithRoles) GetApps(ctx context.Context) (result []types.Application, err error) {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Filter out apps user doesn't have access to.
+	apps, err := a.authServer.GetApps(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, app := range apps {
+		if err := a.checkAccessToApp(app); err == nil {
+			result = append(result, app)
+		}
+	}
+	return result, nil
+}
+
+// DeleteApp removes the specified application resource.
+func (a *ServerWithRoles) DeleteApp(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	// Make sure user has access to the application before deleting.
+	app, err := a.authServer.GetApp(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToApp(app); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteApp(ctx, name))
+}
+
+// DeleteAllApps removes all application resources.
+func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	// Make sure to only delete apps user has access to.
+	apps, err := a.authServer.GetApps(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, app := range apps {
+		if err := a.checkAccessToApp(app); err == nil {
+			if err := a.authServer.DeleteApp(ctx, app.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}
+
 func (a *ServerWithRoles) checkAccessToDatabase(database types.Database) error {
 	return a.context.Checker.CheckAccessToDatabase(database,
 		// MFA is not required for operations on database resources but

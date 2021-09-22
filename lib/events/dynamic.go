@@ -320,6 +320,24 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
+	case AppCreateEvent:
+		var e events.AppCreate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case AppUpdateEvent:
+		var e events.AppUpdate
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
+	case AppDeleteEvent:
+		var e events.AppDelete
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
 	case DatabaseCreateEvent:
 		var e events.DatabaseCreate
 		if err := utils.FastUnmarshal(data, &e); err != nil {

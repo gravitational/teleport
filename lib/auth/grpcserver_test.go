@@ -1523,6 +1523,33 @@ func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
 	testOriginDynamicStored(t, setWithOrigin, getStored)
 }
 
+func TestGenerateHostCerts(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	priv, pub, err := clt.GenerateKeyPair("")
+	require.NoError(t, err)
+
+	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	certs, err := clt.GenerateHostCerts(ctx, &proto.HostCertsRequest{
+		HostID:   "Admin",
+		Role:     types.RoleAdmin,
+		NodeName: "foo",
+		// Ensure that 0.0.0.0 gets replaced with the RemoteAddr of the client
+		AdditionalPrincipals: []string{"0.0.0.0"},
+		PublicSSHKey:         pub,
+		PublicTLSKey:         pubTLS,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, certs)
+}
+
 func TestNodesCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1844,6 +1871,95 @@ func TestApplicationServersCRUD(t *testing.T) {
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
+}
+
+// TestAppsCRUD tests application resource operations.
+func TestAppsCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// Create a couple apps.
+	app1, err := types.NewAppV3(types.Metadata{
+		Name:   "app1",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+	app2, err := types.NewAppV3(types.Metadata{
+		Name:   "app2",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost2",
+	})
+	require.NoError(t, err)
+
+	// Initially we expect no apps.
+	out, err := clt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+
+	// Create both apps.
+	err = clt.CreateApp(ctx, app1)
+	require.NoError(t, err)
+	err = clt.CreateApp(ctx, app2)
+	require.NoError(t, err)
+
+	// Fetch all apps.
+	out, err = clt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Fetch a specific app.
+	app, err := clt.GetApp(ctx, app2.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(app2, app,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Try to fetch an app that doesn't exist.
+	_, err = clt.GetApp(ctx, "doesnotexist")
+	require.IsType(t, trace.NotFound(""), err)
+
+	// Try to create the same app.
+	err = clt.CreateApp(ctx, app1)
+	require.IsType(t, trace.AlreadyExists(""), err)
+
+	// Update an app.
+	app1.Metadata.Description = "description"
+	err = clt.UpdateApp(ctx, app1)
+	require.NoError(t, err)
+	app, err = clt.GetApp(ctx, app1.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(app1, app,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Delete an app.
+	err = clt.DeleteApp(ctx, app1.GetName())
+	require.NoError(t, err)
+	out, err = clt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Try to delete an app that doesn't exist.
+	err = clt.DeleteApp(ctx, "doesnotexist")
+	require.IsType(t, trace.NotFound(""), err)
+
+	// Delete all apps.
+	err = clt.DeleteAllApps(ctx)
+	require.NoError(t, err)
+	out, err = clt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 0)
 }
 
 // TestDatabasesCRUD tests database resource operations.

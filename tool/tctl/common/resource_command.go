@@ -98,6 +98,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
 		types.KindLock:                    rc.createLock,
 		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
+		types.KindApp:                     rc.createApp,
 		types.KindDatabase:                rc.createDatabase,
 	}
 	rc.config = config
@@ -543,6 +544,28 @@ func (rc *ResourceCommand) createNetworkRestrictions(client auth.ClientI, raw se
 	return nil
 }
 
+func (rc *ResourceCommand) createApp(client auth.ClientI, raw services.UnknownResource) error {
+	app, err := services.UnmarshalApp(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.CreateApp(context.Background(), app); err != nil {
+		if trace.IsAlreadyExists(err) {
+			if !rc.force {
+				return trace.AlreadyExists("application %q already exists", app.GetName())
+			}
+			if err := client.UpdateApp(context.Background(), app); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("application %q has been updated\n", app.GetName())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	fmt.Printf("application %q has been created\n", app.GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createDatabase(client auth.ClientI, raw services.UnknownResource) error {
 	database, err := services.UnmarshalDatabase(raw.Raw)
 	if err != nil {
@@ -690,6 +713,11 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
+	case types.KindApp:
+		if err = client.DeleteApp(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabase:
 		if err = client.DeleteDatabase(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1095,6 +1123,19 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.Wrap(err)
 		}
 		return &netRestrictionsCollection{nr}, nil
+	case types.KindApp:
+		if rc.ref.Name == "" {
+			apps, err := client.GetApps(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &appCollection{apps: apps}, nil
+		}
+		app, err := client.GetApp(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &appCollection{apps: []types.Application{app}}, nil
 	case types.KindDatabase:
 		if rc.ref.Name == "" {
 			databases, err := client.GetDatabases(ctx)
