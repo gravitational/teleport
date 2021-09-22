@@ -51,6 +51,7 @@ RUN apt-get update -y --fix-missing && \
         python-pip \
         pkg-config \
         shellcheck \
+        softhsm2 \
         tar \
         tree \
         unzip \
@@ -126,6 +127,8 @@ ENV PROTO_INCLUDE "/usr/local/include":"${GOPATH}/src":"${GOPATH}/src/github.com
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
+
+ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -169,6 +170,28 @@ func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
 	return cert, nil
 }
 
+// ParseCertificatePEM parses multiple PEM-encoded certificates
+func ParseCertificatePEMs(bytes []byte) ([]*x509.Certificate, error) {
+	if len(bytes) == 0 {
+		return nil, trace.BadParameter("missing PEM encoded block")
+	}
+	var blocks []*pem.Block
+	block, remaining := pem.Decode(bytes)
+	for block != nil {
+		blocks = append(blocks, block)
+		block, remaining = pem.Decode(remaining)
+	}
+	var certs []*x509.Certificate
+	for _, block := range blocks {
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
+}
+
 // ParsePrivateKeyPEM parses PEM-encoded private key
 func ParsePrivateKeyPEM(bytes []byte) (crypto.Signer, error) {
 	block, _ := pem.Decode(bytes)
@@ -253,4 +276,18 @@ func MarshalCertificatePEM(cert *x509.Certificate) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// CalculatePins returns the SPKI pins for the given set of concatenated
+// PEM-encoded certificates
+func CalculatePins(certsBytes []byte) ([]string, error) {
+	certs, err := ParseCertificatePEMs(certsBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pins := make([]string, 0, len(certs))
+	for _, cert := range certs {
+		pins = append(pins, utils.CalculateSPKI(cert))
+	}
+	return pins, nil
 }

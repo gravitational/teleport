@@ -306,9 +306,11 @@ func (a *ServerWithRoles) GetLocalClusterName() (string, error) {
 	return a.authServer.GetLocalClusterName()
 }
 
-// GetClusterCACert returns the CAs for the local cluster without signing keys.
+// getClusterCACert returns the PEM-encoded TLS certs for the local cluster
+// without signing keys. If the cluster has multiple TLS certs, they will all
+// be concatenated.
 func (a *ServerWithRoles) GetClusterCACert() (*LocalCAResponse, error) {
-	// Allow all roles to get the local CA.
+	// Allow all roles to get the CA certs.
 	return a.authServer.GetClusterCACert()
 }
 
