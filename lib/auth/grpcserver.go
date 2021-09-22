@@ -3268,14 +3268,14 @@ func (g *GRPCServer) StartAccountRecovery(ctx context.Context, req *proto.StartA
 	return r, nil
 }
 
-// ApproveAccountRecovery is implemented by AuthService.ApproveAccountRecovery.
-func (g *GRPCServer) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (*types.UserTokenV3, error) {
+// VerifyAccountRecovery is implemented by AuthService.VerifyAccountRecovery.
+func (g *GRPCServer) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAccountRecoveryRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	approvedToken, err := auth.ServerWithRoles.ApproveAccountRecovery(ctx, req)
+	approvedToken, err := auth.ServerWithRoles.VerifyAccountRecovery(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

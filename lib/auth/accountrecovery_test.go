@@ -314,7 +314,7 @@ func TestStartAccountRecovery_UserErrors(t *testing.T) {
 	}
 }
 
-func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
+func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 	fakeClock := srv.Clock().(clockwork.FakeClock)
@@ -331,22 +331,22 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 	cases := []struct {
 		name           string
 		recoverType    types.UserTokenUsage
-		invalidReq     *proto.ApproveAccountRecoveryRequest
-		createValidReq func(*proto.MFAAuthenticateChallenge) *proto.ApproveAccountRecoveryRequest
+		invalidReq     *proto.VerifyAccountRecoveryRequest
+		createValidReq func(*proto.MFAAuthenticateChallenge) *proto.VerifyAccountRecoveryRequest
 	}{
 		{
 			name:        "authenticate with invalid/valid totp code",
 			recoverType: types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
-			invalidReq: &proto.ApproveAccountRecoveryRequest{
-				AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+			invalidReq: &proto.VerifyAccountRecoveryRequest{
+				AuthnCred: &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
 					Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: "invalid-totp-code"}},
 				}},
 			},
-			createValidReq: func(c *proto.MFAAuthenticateChallenge) *proto.ApproveAccountRecoveryRequest {
+			createValidReq: func(c *proto.MFAAuthenticateChallenge) *proto.VerifyAccountRecoveryRequest {
 				mfaResp, err := u.totpDev.SolveAuthn(c)
 				require.NoError(t, err)
-				return &proto.ApproveAccountRecoveryRequest{
-					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{
+				return &proto.VerifyAccountRecoveryRequest{
+					AuthnCred: &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{
 						MFAAuthenticateResponse: mfaResp,
 					},
 				}
@@ -355,8 +355,8 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 		{
 			name:        "authenticate with invalid/valid webauthn response",
 			recoverType: types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
-			invalidReq: &proto.ApproveAccountRecoveryRequest{
-				AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{
+			invalidReq: &proto.VerifyAccountRecoveryRequest{
+				AuthnCred: &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{
 					MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
 						Response: &proto.MFAAuthenticateResponse_Webauthn{
 							Webauthn: &wantypes.CredentialAssertionResponse{}, // invalid response
@@ -364,11 +364,11 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 					},
 				},
 			},
-			createValidReq: func(c *proto.MFAAuthenticateChallenge) *proto.ApproveAccountRecoveryRequest {
+			createValidReq: func(c *proto.MFAAuthenticateChallenge) *proto.VerifyAccountRecoveryRequest {
 				mfaResp, err := u.webDev.SolveAuthn(c)
 				require.NoError(t, err)
-				return &proto.ApproveAccountRecoveryRequest{
-					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{
+				return &proto.VerifyAccountRecoveryRequest{
+					AuthnCred: &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{
 						MFAAuthenticateResponse: mfaResp,
 					},
 				}
@@ -377,12 +377,12 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 		{
 			name:        "authenticate with invalid/valid password",
 			recoverType: types.UserTokenUsage_USER_TOKEN_RECOVER_MFA,
-			invalidReq: &proto.ApproveAccountRecoveryRequest{
-				AuthnCred: &proto.ApproveAccountRecoveryRequest_Password{Password: []byte("invalid-password")},
+			invalidReq: &proto.VerifyAccountRecoveryRequest{
+				AuthnCred: &proto.VerifyAccountRecoveryRequest_Password{Password: []byte("invalid-password")},
 			},
-			createValidReq: func(c *proto.MFAAuthenticateChallenge) *proto.ApproveAccountRecoveryRequest {
-				return &proto.ApproveAccountRecoveryRequest{
-					AuthnCred: &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
+			createValidReq: func(c *proto.MFAAuthenticateChallenge) *proto.VerifyAccountRecoveryRequest {
+				return &proto.VerifyAccountRecoveryRequest{
+					AuthnCred: &proto.VerifyAccountRecoveryRequest_Password{Password: u.password},
 				}
 			},
 		},
@@ -397,9 +397,9 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 			// Try a failed attempt, to test it gets cleared later.
 			c.invalidReq.Username = u.username
 			c.invalidReq.RecoveryStartTokenID = startToken.GetName()
-			_, err = srv.Auth().ApproveAccountRecovery(ctx, c.invalidReq)
+			_, err = srv.Auth().VerifyAccountRecovery(ctx, c.invalidReq)
 			require.True(t, trace.IsAccessDenied(err))
-			require.Equal(t, approveRecoveryBadAuthnErrMsg, err.Error())
+			require.Equal(t, verifyRecoveryBadAuthnErrMsg, err.Error())
 
 			attempts, err := srv.Auth().GetUserRecoveryAttempts(ctx, u.username)
 			require.NoError(t, err)
@@ -418,7 +418,7 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 			req.RecoveryStartTokenID = startToken.GetName()
 
 			// Acquire an approval token with the start token.
-			approvedToken, err := srv.Auth().ApproveAccountRecovery(ctx, req)
+			approvedToken, err := srv.Auth().VerifyAccountRecovery(ctx, req)
 			require.NoError(t, err)
 			require.Equal(t, UserTokenTypeRecoveryApproved, approvedToken.GetSubKind())
 			require.Equal(t, c.recoverType.String(), approvedToken.GetUsage().String())
@@ -446,7 +446,7 @@ func TestApproveAccountRecovery_WithAuthnErrors(t *testing.T) {
 	}
 }
 
-func TestApproveAccountRecovery_WithLock(t *testing.T) {
+func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 	mockEmitter := &events.MockEmitter{}
@@ -467,10 +467,10 @@ func TestApproveAccountRecovery_WithLock(t *testing.T) {
 	triggerLoginLock(t, srv.Auth(), u.username)
 
 	// Test recovery is still allowed after login lock.
-	_, err = srv.Auth().ApproveAccountRecovery(ctx, &proto.ApproveAccountRecoveryRequest{
+	_, err = srv.Auth().VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{
 		Username:             u.username,
 		RecoveryStartTokenID: startToken.GetName(),
-		AuthnCred:            &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
+		AuthnCred:            &proto.VerifyAccountRecoveryRequest_Password{Password: u.password},
 	})
 	require.NoError(t, err)
 
@@ -480,23 +480,23 @@ func TestApproveAccountRecovery_WithLock(t *testing.T) {
 
 	// Trigger max failed recovery attempts.
 	for i := 1; i <= defaults.MaxAccountRecoveryAttempts; i++ {
-		_, err = srv.Auth().ApproveAccountRecovery(ctx, &proto.ApproveAccountRecoveryRequest{
+		_, err = srv.Auth().VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{
 			RecoveryStartTokenID: startToken.GetName(),
 			Username:             u.username,
-			AuthnCred:            &proto.ApproveAccountRecoveryRequest_Password{Password: []byte("wrong-password")},
+			AuthnCred:            &proto.VerifyAccountRecoveryRequest_Password{Password: []byte("wrong-password")},
 		})
 		require.True(t, trace.IsAccessDenied(err))
 
 		if i == defaults.MaxAccountRecoveryAttempts {
-			require.Equal(t, MaxFailedAttemptsFromApproveRecoveryErrMsg, err.Error())
+			require.Equal(t, MaxFailedAttemptsFromVerifyRecoveryErrMsg, err.Error())
 		}
 	}
 
 	// Test start token is deleted from max failed attempts.
-	_, err = srv.Auth().ApproveAccountRecovery(ctx, &proto.ApproveAccountRecoveryRequest{
+	_, err = srv.Auth().VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{
 		Username:             u.username,
 		RecoveryStartTokenID: startToken.GetName(),
-		AuthnCred:            &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
+		AuthnCred:            &proto.VerifyAccountRecoveryRequest_Password{Password: u.password},
 	})
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -513,7 +513,7 @@ func TestApproveAccountRecovery_WithLock(t *testing.T) {
 	require.Len(t, attempts, 0)
 }
 
-func TestApproveAccountRecovery_WithErrors(t *testing.T) {
+func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 	mockEmitter := &events.MockEmitter{}
@@ -529,38 +529,38 @@ func TestApproveAccountRecovery_WithErrors(t *testing.T) {
 	cases := []struct {
 		name       string
 		expErrMsg  string
-		getRequest func() *proto.ApproveAccountRecoveryRequest
+		getRequest func() *proto.VerifyAccountRecoveryRequest
 	}{
 		{
 			name: "invalid token type",
-			getRequest: func() *proto.ApproveAccountRecoveryRequest {
+			getRequest: func() *proto.VerifyAccountRecoveryRequest {
 				// Generate an incorrect token type.
 				approvedToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
 				require.NoError(t, err)
 
-				return &proto.ApproveAccountRecoveryRequest{
+				return &proto.VerifyAccountRecoveryRequest{
 					RecoveryStartTokenID: approvedToken.GetName(),
 				}
 			},
 		},
 		{
 			name:      "token not found",
-			expErrMsg: approveRecoveryGenericErrMsg,
-			getRequest: func() *proto.ApproveAccountRecoveryRequest {
-				return &proto.ApproveAccountRecoveryRequest{
+			expErrMsg: verifyRecoveryGenericErrMsg,
+			getRequest: func() *proto.VerifyAccountRecoveryRequest {
+				return &proto.VerifyAccountRecoveryRequest{
 					RecoveryStartTokenID: "non-existent-token-id",
 				}
 			},
 		},
 		{
 			name:      "username does not match",
-			expErrMsg: approveRecoveryBadAuthnErrMsg,
-			getRequest: func() *proto.ApproveAccountRecoveryRequest {
+			expErrMsg: verifyRecoveryBadAuthnErrMsg,
+			getRequest: func() *proto.VerifyAccountRecoveryRequest {
 				// Acquire a start token.
 				startToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
 				require.NoError(t, err)
 
-				return &proto.ApproveAccountRecoveryRequest{
+				return &proto.VerifyAccountRecoveryRequest{
 					RecoveryStartTokenID: startToken.GetName(),
 					Username:             "invalid-username",
 				}
@@ -568,29 +568,29 @@ func TestApproveAccountRecovery_WithErrors(t *testing.T) {
 		},
 		{
 			name:      "provide password when it expects MFA authn response",
-			expErrMsg: approveRecoveryBadAuthnErrMsg,
-			getRequest: func() *proto.ApproveAccountRecoveryRequest {
+			expErrMsg: verifyRecoveryBadAuthnErrMsg,
+			getRequest: func() *proto.VerifyAccountRecoveryRequest {
 				// Acquire a start token for recovering second factor.
 				startToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
 				require.NoError(t, err)
 
-				return &proto.ApproveAccountRecoveryRequest{
+				return &proto.VerifyAccountRecoveryRequest{
 					RecoveryStartTokenID: startToken.GetName(),
-					AuthnCred:            &proto.ApproveAccountRecoveryRequest_Password{Password: []byte("some-password")},
+					AuthnCred:            &proto.VerifyAccountRecoveryRequest_Password{Password: []byte("some-password")},
 				}
 			},
 		},
 		{
 			name:      "provide MFA authn response when it expects password",
-			expErrMsg: approveRecoveryBadAuthnErrMsg,
-			getRequest: func() *proto.ApproveAccountRecoveryRequest {
+			expErrMsg: verifyRecoveryBadAuthnErrMsg,
+			getRequest: func() *proto.VerifyAccountRecoveryRequest {
 				// Acquire a start token for recovering password.
 				startToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 				require.NoError(t, err)
 
-				return &proto.ApproveAccountRecoveryRequest{
+				return &proto.VerifyAccountRecoveryRequest{
 					RecoveryStartTokenID: startToken.GetName(),
-					AuthnCred:            &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{}},
+					AuthnCred:            &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{}},
 				}
 			},
 		},
@@ -598,7 +598,7 @@ func TestApproveAccountRecovery_WithErrors(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err = srv.Auth().ApproveAccountRecovery(ctx, c.getRequest())
+			_, err = srv.Auth().VerifyAccountRecovery(ctx, c.getRequest())
 			switch {
 			case c.expErrMsg != "":
 				require.True(t, trace.IsAccessDenied(err))
@@ -920,7 +920,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 	cases := []struct {
 		name               string
 		getStartRequest    func(*userAuthCreds) *proto.StartAccountRecoveryRequest
-		getApproveRequest  func(*userAuthCreds, *proto.MFAAuthenticateChallenge, string) *proto.ApproveAccountRecoveryRequest
+		getApproveRequest  func(*userAuthCreds, *proto.MFAAuthenticateChallenge, string) *proto.VerifyAccountRecoveryRequest
 		getCompleteRequest func(*userAuthCreds, string) *proto.CompleteAccountRecoveryRequest
 	}{
 		{
@@ -932,14 +932,14 @@ func TestAccountRecoveryFlow(t *testing.T) {
 					RecoveryCode: []byte(u.recoveryCodes[0]),
 				}
 			},
-			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.ApproveAccountRecoveryRequest {
+			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.VerifyAccountRecoveryRequest {
 				mfaResp, err := u.totpDev.SolveAuthn(c)
 				require.NoError(t, err)
 
-				return &proto.ApproveAccountRecoveryRequest{
+				return &proto.VerifyAccountRecoveryRequest{
 					RecoveryStartTokenID: startTokenID,
 					Username:             u.username,
-					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{
+					AuthnCred: &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{
 						MFAAuthenticateResponse: mfaResp,
 					},
 				}
@@ -960,14 +960,14 @@ func TestAccountRecoveryFlow(t *testing.T) {
 					RecoveryCode: []byte(u.recoveryCodes[0]),
 				}
 			},
-			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.ApproveAccountRecoveryRequest {
+			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.VerifyAccountRecoveryRequest {
 				mfaResp, err := u.webDev.SolveAuthn(c)
 				require.NoError(t, err)
 
-				return &proto.ApproveAccountRecoveryRequest{
+				return &proto.VerifyAccountRecoveryRequest{
 					RecoveryStartTokenID: startTokenID,
 					Username:             u.username,
-					AuthnCred: &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{
+					AuthnCred: &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{
 						MFAAuthenticateResponse: mfaResp,
 					},
 				}
@@ -988,11 +988,11 @@ func TestAccountRecoveryFlow(t *testing.T) {
 					RecoveryCode: []byte(u.recoveryCodes[0]),
 				}
 			},
-			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.ApproveAccountRecoveryRequest {
-				return &proto.ApproveAccountRecoveryRequest{
+			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.VerifyAccountRecoveryRequest {
+				return &proto.VerifyAccountRecoveryRequest{
 					RecoveryStartTokenID: startTokenID,
 					Username:             u.username,
-					AuthnCred:            &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
+					AuthnCred:            &proto.VerifyAccountRecoveryRequest_Password{Password: u.password},
 				}
 			},
 			getCompleteRequest: func(u *userAuthCreds, approvedTokenID string) *proto.CompleteAccountRecoveryRequest {
@@ -1015,11 +1015,11 @@ func TestAccountRecoveryFlow(t *testing.T) {
 					RecoveryCode: []byte(u.recoveryCodes[0]),
 				}
 			},
-			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.ApproveAccountRecoveryRequest {
-				return &proto.ApproveAccountRecoveryRequest{
+			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.VerifyAccountRecoveryRequest {
+				return &proto.VerifyAccountRecoveryRequest{
 					RecoveryStartTokenID: startTokenID,
 					Username:             u.username,
-					AuthnCred:            &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
+					AuthnCred:            &proto.VerifyAccountRecoveryRequest_Password{Password: u.password},
 				}
 			},
 			getCompleteRequest: func(u *userAuthCreds, approvedTokenID string) *proto.CompleteAccountRecoveryRequest {
@@ -1044,11 +1044,11 @@ func TestAccountRecoveryFlow(t *testing.T) {
 					RecoveryCode: []byte(u.recoveryCodes[0]),
 				}
 			},
-			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.ApproveAccountRecoveryRequest {
-				return &proto.ApproveAccountRecoveryRequest{
+			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.VerifyAccountRecoveryRequest {
+				return &proto.VerifyAccountRecoveryRequest{
 					RecoveryStartTokenID: startTokenID,
 					Username:             u.username,
-					AuthnCred:            &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
+					AuthnCred:            &proto.VerifyAccountRecoveryRequest_Password{Password: u.password},
 				}
 			},
 			getCompleteRequest: func(u *userAuthCreds, approvedTokenID string) *proto.CompleteAccountRecoveryRequest {
@@ -1089,7 +1089,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 				}},
 			})
 			require.NoError(t, err)
-			approvedToken, err := srv.Auth().ApproveAccountRecovery(ctx, c.getApproveRequest(user, mfaChallenge, startToken.GetName()))
+			approvedToken, err := srv.Auth().VerifyAccountRecovery(ctx, c.getApproveRequest(user, mfaChallenge, startToken.GetName()))
 			require.NoError(t, err)
 
 			// Step 3: Complete recovery with the obtained approved token.
