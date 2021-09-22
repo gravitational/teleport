@@ -176,7 +176,7 @@ func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *h
 	}
 }
 
-// resolveEndpoint extracts  the aws-service on and aws-region from the request authorization header
+// resolveEndpoint extracts the aws-service on and aws-region from the request authorization header
 // and resolves the aws-service and aws-region to AWS endpoint.
 func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	awsAuthHeader, err := ParseSigV4(r.Header.Get(authorizationHeader))
