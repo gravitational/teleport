@@ -355,6 +355,13 @@ const (
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
 
+	// AppCreateEvent is emitted when an application resource is created.
+	AppCreateEvent = "app.create"
+	// AppUpdateEvent is emitted when an application resource is updated.
+	AppUpdateEvent = "app.update"
+	// AppDeleteEvent is emitted when an application resource is deleted.
+	AppDeleteEvent = "app.delete"
+
 	// AppSessionStartEvent is emitted when a user is issued an application certificate.
 	AppSessionStartEvent = "app.session.start"
 
