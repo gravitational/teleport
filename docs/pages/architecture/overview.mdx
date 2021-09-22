@@ -26,7 +26,7 @@ Teleport was designed under the following principles:
 - **Open Standards**: There is no security through obscurity. Teleport is fully
   compatible with existing and open standards and other software, including
   [OpenSSH](../server-access/guides/openssh.mdx).
-- **Cluster-Oriented Design**: Teleport is built for managing clusters, not individual servers. In practice this means that hosts and [Users](../user-manual.mdx)
+- **Cluster-Oriented Design**: Teleport is built for managing clusters, not individual servers. In practice this means that hosts and users
   have cluster memberships. Identity management and authorization happen on a
   cluster level.
 - **Built for Teams**: Teleport was created under the assumption of multiple teams operating on several disconnected clusters. Example use cases might be production-vs-staging environment, or a cluster-per-customer or cluster-per-application basis.
@@ -232,7 +232,7 @@ When `tsh` logs in, the auto-expiring certificate is stored in `~/.tsh` and is
 valid for 12 hours by default, unless you specify another interval via the
 `--ttl` flag (capped by the server-side configuration).
 
-You can learn more about `tsh` in the [User Manual](../user-manual.mdx).
+You can learn more about `tsh` in the [User Manual](../server-access/guides/tsh.mdx).
 
 ### TCTL
 
