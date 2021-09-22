@@ -59,14 +59,14 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	fmt.Printf("Starting Teleport client\n")
+	fmt.Println("Starting Teleport client")
 	profile := apiclient.LoadProfile("", "")
 	teleport, err := apiclient.New(ctx, apiclient.Config{
 		Addrs:       []string{*authAddr},
 		Credentials: []apiclient.Credentials{profile},
 	})
 	if err != nil {
-		fmt.Printf("Teleport client startup failed, did you run tsh login?\n")
+		fmt.Println("Teleport client startup failed, did you run tsh login?")
 		return trace.Wrap(err)
 	}
 
