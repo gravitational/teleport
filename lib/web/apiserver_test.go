@@ -1984,6 +1984,30 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
+func TestCreatePrivilegeToken(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user with second factor totp.
+	pack := proxy.authPack(t, "foo@example.com")
+
+	// Get a totp code.
+	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	re, err := pack.clt.PostJSON(context.Background(), endpoint, &privilegeTokenRequest{
+		SecondFactorToken: totpCode,
+	})
+	require.NoError(t, err)
+
+	var privilegeToken string
+	err = json.Unmarshal(re.Bytes(), &privilegeToken)
+	require.NoError(t, err)
+	require.NotEmpty(t, privilegeToken)
+}
+
 func TestGetMFADevicesWithAuth(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
