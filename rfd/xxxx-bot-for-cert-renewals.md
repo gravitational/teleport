@@ -101,8 +101,8 @@ The bot joins the cluster and can be seen with the `tctl` command:
 
 ```
 $ tctl bots ls
-ID            NAME       LOCKED    CERTIFICATES
-0123-4567     foo        false     ssh (/home/ubuntu/.ssh/id_rsa-cert.pub)
+ID            NAME       LOCKED    ROLES     CERTIFICATES
+0123-4567     foo        false     dev,ssh   ssh (/home/ubuntu/.ssh/id_rsa-cert.pub)
 ```
 
 When the bot starts, it generates a set of keys, and uses the join token that
