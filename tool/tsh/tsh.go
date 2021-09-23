@@ -251,10 +251,8 @@ type CLIConf struct {
 	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
 	ConfigProxyTarget string
 
-	// AWSRoleARN is Amazon Role ARN that will be used for AWS CLI access.
-	AWSRoleARN string
-	// AWSRoleName is Amazon Role name that will be used for AWS CLI access.
-	AWSRoleName string
+	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
+	AWSRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
 }
@@ -389,8 +387,7 @@ func Run(args []string, opts ...cliOption) error {
 	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL)).StringVar(&cf.Format)
-	appLogin.Flag("aws-role-arn", "(For AWS CLI access only) Amazon IAM role in ARN format.").StringVar(&cf.AWSRoleARN)
-	appLogin.Flag("aws-role-name", "(For AWS CLI access only) Amazon IAM role name.").StringVar(&cf.AWSRoleName)
+	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")

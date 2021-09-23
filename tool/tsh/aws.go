@@ -26,14 +26,13 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -184,64 +183,17 @@ func loadAWSAppCertificate(tc *client.TeleportClient) (tls.Certificate, error) {
 	return cert, nil
 }
 
-func validateARNRole(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, arnRole string) error {
-	if ok := awsarn.IsARN(arnRole); !ok {
-		// User provided invalid formatted ARN role string, print all available ARN roles for the user and indicate
-		// and indicate about invalid ARN format.
-		printArrayAs(profile.AWSRolesARNs, "Available ARNs")
-		return trace.BadParameter("invalid AWS ARN role format: %q", arnRole)
-	}
-
-	for _, v := range profile.AWSRolesARNs {
-		if v == arnRole {
-			return nil
-		}
-	}
-
-	printArrayAs(profile.AWSRolesARNs, "Available ARNs")
-	return trace.NotFound("user is not allowed to use selected AWS ARN role: %q.", arnRole)
-}
-
-func printArrayAs(validARNs []string, columnName string) {
-	if len(validARNs) == 0 {
+func printArrayAs(arr []string, columnName string) {
+	sort.Strings(arr)
+	if len(arr) == 0 {
 		return
 	}
 	t := asciitable.MakeTable([]string{columnName})
-	for _, v := range validARNs {
+	for _, v := range arr {
 		t.AddRow([]string{v})
 	}
 	fmt.Println(t.AsBuffer().String())
 
-}
-
-// findARNBasedOnRoleName tries to match roleName parameter with allowed user ARNs obtained from the Teleport API based on
-// user roles profile. If there is a match the IAM role is created based on accountID and roleName fields.
-func findARNBasedOnRoleName(profile *client.ProfileStatus, accountID, roleName string) (string, error) {
-	var validRolesName []string
-	for _, v := range profile.AWSRolesARNs {
-		arn, err := awsarn.Parse(v)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		// Example of the ANR Resource: 'role/EC2FullAccess'
-		parts := strings.Split(arn.Resource, "/")
-		if len(parts) < 1 || parts[0] != "role" {
-			continue
-		}
-
-		roleNameWithPath := strings.Join(parts[1:], "/")
-		if arn.AccountID == accountID {
-			validRolesName = append(validRolesName, roleNameWithPath)
-		}
-		if arn.AccountID == accountID && roleNameWithPath == roleName {
-			return arn.String(), nil
-		}
-	}
-	if len(validRolesName) != 0 {
-		printArrayAs(validRolesName, "Available Roles")
-	}
-	return "", trace.NotFound("failed to find role ARN based on AWSAccountID(%q) and RoleName(%q)", accountID, roleName)
 }
 
 func setFakeAWSEnvCredentials(accessKeyID, secretKey string) error {
@@ -254,29 +206,56 @@ func setFakeAWSEnvCredentials(accessKeyID, secretKey string) error {
 	return nil
 }
 
-func getARNFromFlags(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, app types.Application) (string, error) {
-	if cf.AWSRoleARN == "" && cf.AWSRoleName == "" {
-		return "", trace.BadParameter("either --aws-role-arn or --aws-role-name flag is required")
+func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {
+	if cf.AWSRole == "" {
+		return "", trace.BadParameter("--aws-role flag is required")
+	}
+	for _, v := range profile.AWSRolesARNs {
+		if v == cf.AWSRole {
+			return v, nil
+		}
 	}
 
-	if cf.AWSRoleARN != "" {
-		if err := validateARNRole(cf, tc, profile, cf.AWSRoleARN); err != nil {
+	roleNameToARN := make(map[string]string)
+	for _, v := range profile.AWSRolesARNs {
+		arn, err := awsarn.Parse(v)
+		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		return cf.AWSRoleARN, nil
+		// Example of the ANR Resource: 'role/EC2FullAccess' or 'role/path/to/customrole'
+		parts := strings.Split(arn.Resource, "/")
+		if len(parts) < 1 || parts[0] != "role" {
+			continue
+		}
+		roleName := strings.Join(parts[1:], "/")
+
+		if val, ok := roleNameToARN[roleName]; ok && cf.AWSRole == roleName {
+			return "", trace.BadParameter(
+				"provided role name %q is ambiguous between %q and %q ARNs, please specify full role ARN",
+				cf.AWSRole, val, arn.String())
+		}
+		roleNameToARN[roleName] = arn.String()
 	}
-	// Try to construct ARN value based on RoleName and APP AWSAccountID.
-	accountID, ok := app.GetAllLabels()[constants.AWSAccountIDLabel]
+
+	roleARN, ok := roleNameToARN[cf.AWSRole]
 	if !ok {
-		// APP configuration doesn't contain an accountID value.
-		return "", trace.BadParameter("the role name is ambiguous, please provide role ARN by --aws-role-arn flag")
+		printArrayAs(profile.AWSRolesARNs, "Available Role ARNs")
+		printArrayAs(mapKeysToSlice(roleNameToARN), "Available Role Names")
+		inputType := "ARN"
+		if !awsarn.IsARN(cf.AWSRole) {
+			inputType = "name"
+		}
+		return "", trace.NotFound("failed to find the %q role %s", cf.AWSRole, inputType)
 	}
-	var err error
-	arn, err := findARNBasedOnRoleName(profile, accountID, cf.AWSRoleName)
-	if err != nil {
-		return "", trace.Wrap(err)
+	return roleARN, nil
+}
+
+func mapKeysToSlice(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
 	}
-	return arn, nil
+	return out
 }
 
 type tempSelfSignedLocalCert struct {

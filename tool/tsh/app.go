@@ -48,7 +48,7 @@ func onAppLogin(cf *CLIConf) error {
 	var arn string
 	if app.IsAWSConsole() {
 		var err error
-		arn, err = getARNFromFlags(cf, tc, profile, app)
+		arn, err = getARNFromFlags(cf, profile)
 		if err != nil {
 			return trace.Wrap(err)
 		}

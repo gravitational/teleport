@@ -34,6 +34,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -88,7 +89,13 @@ type SigningServiceConfig struct {
 // CheckAndSetDefaults validates the SigningServiceConfig config.
 func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 	if s.Client == nil {
-		s.Client = http.DefaultClient
+		tr, err := defaults.Transport()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.Client = &http.Client{
+			Transport: tr,
+		}
 	}
 	if s.Clock == nil {
 		s.Clock = clockwork.NewRealClock()
@@ -212,15 +219,16 @@ func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.Res
 }
 
 func rewriteHeaders(r *http.Request, reqCopy *http.Request) {
-	for k, kv := range r.Header {
+	for key, values := range r.Header {
 		// Remove Teleport app headers.
-		if appcommon.IsReservedHeader(k) {
+		if appcommon.IsReservedHeader(key) {
 			continue
 		}
-		for _, v := range kv {
-			reqCopy.Header.Add(k, v)
+		for _, v := range values {
+			reqCopy.Header.Add(key, v)
 		}
 	}
+	reqCopy.Header.Del("Content-Length")
 }
 
 type getSigningCredentialsFunc func(c client.ConfigProvider, identity *tlsca.Identity) *credentials.Credentials
