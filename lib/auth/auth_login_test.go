@@ -387,6 +387,7 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, res.GetTOTP())
 				require.NotEmpty(t, res.GetU2F())
+				require.NotEmpty(t, res.GetWebauthnChallenge())
 			}
 		})
 	}
@@ -452,6 +453,7 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, res.GetTOTP())
 				require.NotEmpty(t, res.GetU2F())
+				require.NotEmpty(t, res.GetWebauthnChallenge())
 			}
 		})
 	}
@@ -513,36 +515,16 @@ func TestCreateRegisterChallenge(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			testDevice := &TestDevice{}
-			testDevice.clock = srv.Auth().clock
-
 			switch tc.deviceType {
 			case proto.DeviceType_DEVICE_TYPE_TOTP:
-				require.NotNil(t, res.GetTOTP().GetQRCodeBytes())
-				require.Nil(t, res.GetU2F())
-				require.Nil(t, res.GetWebauthn())
+				require.NotNil(t, res.GetTOTP().GetQRCode())
 
 			case proto.DeviceType_DEVICE_TYPE_U2F:
 				require.NotNil(t, res.GetU2F())
-				require.Nil(t, res.GetWebauthn())
-				require.Nil(t, res.GetTOTP())
 
 			case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
 				require.NotNil(t, res.GetWebauthn())
-				require.Nil(t, res.GetU2F())
-				require.Nil(t, res.GetTOTP())
 			}
-
-			// Test register challenge by solving.
-			registerRes, err := testDevice.solveRegister(res)
-			require.NoError(t, err)
-
-			_, err = srv.Auth().verifyMFARespAndAddDevice(ctx, registerRes, &newMFADeviceFields{
-				username:      u.username,
-				newDeviceName: tc.name,
-				tokenID:       validToken.GetName(),
-			})
-			require.NoError(t, err)
 		})
 	}
 }

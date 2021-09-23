@@ -197,18 +197,18 @@ func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *auth.
 	return chal
 }
 
-type TOTPChallenge struct {
-	QRCodeBytes []byte `json:"qrCodeBytes"`
+type TOTPRegisterChallenge struct {
+	QRCode []byte `json:"qrCode"`
 }
 
 // MFAAuthenticateChallenge is an MFA register challenge sent on new MFA register.
 type MFARegisterChallenge struct {
-	// U2FChallenge contains U2F register challenge.
-	U2FChallenge *u2f.RegisterChallenge `json:"u2fChallenge"`
-	// WebauthnChallenge contains webauthn challenge.
-	WebauthnChallenge *wanlib.CredentialCreation `json:"webauthnChallenge"`
-	// TOTPChallenge contains TOTP challenge.
-	TOTPChallenge *TOTPChallenge `json:"totpChallenge"`
+	// U2F contains U2F register challenge.
+	U2F *u2f.RegisterChallenge `json:"u2f"`
+	// Webauthn contains webauthn challenge.
+	Webauthn *wanlib.CredentialCreation `json:"webauthn"`
+	// TOTP contains TOTP challenge.
+	TOTP *TOTPRegisterChallenge `json:"totp"`
 }
 
 // MakeRegisterChallenge converts proto to JSON format.
@@ -216,14 +216,14 @@ func MakeRegisterChallenge(protoChal *proto.MFARegisterChallenge) *MFARegisterCh
 	switch protoChal.GetRequest().(type) {
 	case *proto.MFARegisterChallenge_TOTP:
 		return &MFARegisterChallenge{
-			TOTPChallenge: &TOTPChallenge{
-				QRCodeBytes: protoChal.GetTOTP().GetQRCodeBytes(),
+			TOTP: &TOTPRegisterChallenge{
+				QRCode: protoChal.GetTOTP().GetQRCode(),
 			},
 		}
 
 	case *proto.MFARegisterChallenge_U2F:
 		return &MFARegisterChallenge{
-			U2FChallenge: &u2f.RegisterChallenge{
+			U2F: &u2f.RegisterChallenge{
 				Version:   protoChal.GetU2F().GetVersion(),
 				Challenge: protoChal.GetU2F().GetChallenge(),
 				AppID:     protoChal.GetU2F().GetAppID(),
@@ -232,7 +232,7 @@ func MakeRegisterChallenge(protoChal *proto.MFARegisterChallenge) *MFARegisterCh
 
 	case *proto.MFARegisterChallenge_Webauthn:
 		return &MFARegisterChallenge{
-			WebauthnChallenge: wanlib.CredentialCreationFromProto(protoChal.GetWebauthn()),
+			Webauthn: wanlib.CredentialCreationFromProto(protoChal.GetWebauthn()),
 		}
 	}
 

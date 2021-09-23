@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -93,12 +94,20 @@ func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWrit
 	return client.MakeAuthenticateChallenge(chal), nil
 }
 
+type createRegisterChallengeRequest struct {
+	// DeviceType is the type of MFA device to get a register challenge for.
+	DeviceType string `json:"deviceType"`
+}
+
 // createRegisterChallengeWithTokenHandle creates and returns MFA register challenges for a new device for the specified device type.
 func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var deviceType proto.DeviceType
+	var req createRegisterChallengeRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	deviceTypeRequest := p.ByName("deviceType")
-	switch deviceTypeRequest {
+	var deviceType proto.DeviceType
+	switch req.DeviceType {
 	case "totp":
 		deviceType = proto.DeviceType_DEVICE_TYPE_TOTP
 	case "u2f":
@@ -106,7 +115,7 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 	case "webauthn":
 		deviceType = proto.DeviceType_DEVICE_TYPE_WEBAUTHN
 	default:
-		return nil, trace.BadParameter("MFA device type %q unsupported", deviceTypeRequest)
+		return nil, trace.BadParameter("MFA device type %q unsupported", req.DeviceType)
 	}
 
 	chal, err := h.cfg.ProxyClient.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{

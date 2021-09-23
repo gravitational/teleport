@@ -1229,7 +1229,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 				return nil, trace.Wrap(err)
 			}
 
-			challenge.QRCodeBytes = secrets.GetQRCode()
+			challenge.QRCode = secrets.GetQRCode()
 		}
 
 		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_TOTP{TOTP: challenge}}, nil

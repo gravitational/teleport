@@ -355,7 +355,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
 	h.GET("/webapi/mfa/token/:token/devices", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
 	h.POST("/webapi/mfa/token/:token/authenticatechallenge", httplib.MakeHandler(h.createAuthenticateChallengeWithTokenHandle))
-	h.POST("/webapi/mfa/token/:token/registerchallenge/:deviceType", httplib.MakeHandler(h.createRegisterChallengeWithTokenHandle))
+	h.POST("/webapi/mfa/token/:token/registerchallenge", httplib.MakeHandler(h.createRegisterChallengeWithTokenHandle))
 
 	// MFA private endpoints.
 	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
@@ -1569,12 +1569,10 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 		return nil, trace.Wrap(err)
 	}
 
-	chal := client.MakeRegisterChallenge(res)
-
 	return ui.ResetPasswordToken{
 		TokenID: token.GetName(),
 		User:    token.GetUser(),
-		QRCode:  chal.TOTPChallenge.QRCodeBytes,
+		QRCode:  res.GetTOTP().GetQRCode(),
 	}, nil
 }
 
@@ -1596,7 +1594,7 @@ func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	chal := client.MakeRegisterChallenge(res)
-	return chal.U2FChallenge, nil
+	return chal.U2F, nil
 }
 
 // mfaLoginBegin is the first step in the MFA authentication ceremony, which

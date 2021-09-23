@@ -32,6 +32,7 @@ import (
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -680,7 +681,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 		{
 			name: "add new U2F device",
 			getRequest: func() *proto.CompleteAccountRecoveryRequest {
-				u2fRegResp, _, err := getMockedU2FAndRegisterRes(srv.Auth(), approvedToken.GetName())
+				u2fRegResp, _, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), approvedToken.GetName())
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -688,6 +689,21 @@ func TestCompleteAccountRecovery(t *testing.T) {
 					RecoveryApprovedTokenID: approvedToken.GetName(),
 					NewAuthnCred: &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_U2F{U2F: u2fRegResp},
+					}},
+				}
+			},
+		},
+		{
+			name: "add new WEBAUTHN device",
+			getRequest: func() *proto.CompleteAccountRecoveryRequest {
+				webauthnRes, _, err := getMockedU2FAndRegisterRes(srv.Auth(), approvedToken.GetName())
+				require.NoError(t, err)
+
+				return &proto.CompleteAccountRecoveryRequest{
+					NewDeviceName:           "new-webauthn",
+					RecoveryApprovedTokenID: approvedToken.GetName(),
+					NewAuthnCred: &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_Webauthn{Webauthn: webauthnRes},
 					}},
 				}
 			},
@@ -808,7 +824,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 				require.NotEmpty(t, devs)
 
 				// New u2f register response.
-				u2fRegResp, _, err := getMockedU2FAndRegisterRes(srv.Auth(), approvedToken.GetName())
+				u2fRegResp, _, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), approvedToken.GetName())
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -966,7 +982,35 @@ func TestAccountRecoveryFlow(t *testing.T) {
 				}
 			},
 		},
-		// TODO(codingllama): Provide a way to recover Webauthn with password.
+		{
+			name: "recover webauthn with password",
+			getStartRequest: func(u *userAuthCreds) *proto.StartAccountRecoveryRequest {
+				return &proto.StartAccountRecoveryRequest{
+					Username:     u.username,
+					RecoverType:  types.UserTokenUsage_USER_TOKEN_RECOVER_MFA,
+					RecoveryCode: []byte(u.recoveryCodes[0]),
+				}
+			},
+			getApproveRequest: func(u *userAuthCreds, c *proto.MFAAuthenticateChallenge, startTokenID string) *proto.ApproveAccountRecoveryRequest {
+				return &proto.ApproveAccountRecoveryRequest{
+					RecoveryStartTokenID: startTokenID,
+					Username:             u.username,
+					AuthnCred:            &proto.ApproveAccountRecoveryRequest_Password{Password: u.password},
+				}
+			},
+			getCompleteRequest: func(u *userAuthCreds, approvedTokenID string) *proto.CompleteAccountRecoveryRequest {
+				webauthnRes, _, err := getMockedU2FAndRegisterRes(srv.Auth(), approvedTokenID)
+				require.NoError(t, err)
+
+				return &proto.CompleteAccountRecoveryRequest{
+					NewDeviceName:           "new-webauthn",
+					RecoveryApprovedTokenID: approvedTokenID,
+					NewAuthnCred: &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_Webauthn{Webauthn: webauthnRes},
+					}},
+				}
+			},
+		},
 		{
 			name: "recover u2f with password",
 			getStartRequest: func(u *userAuthCreds) *proto.StartAccountRecoveryRequest {
@@ -984,7 +1028,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 				}
 			},
 			getCompleteRequest: func(u *userAuthCreds, approvedTokenID string) *proto.CompleteAccountRecoveryRequest {
-				u2fRegResp, _, err := getMockedU2FAndRegisterRes(srv.Auth(), approvedTokenID)
+				u2fRegResp, _, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), approvedTokenID)
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -1266,7 +1310,7 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	}
 
 	// Insert a password, u2f device, and recovery codes.
-	u2fRegResp, u2fKey, err := getMockedU2FAndRegisterRes(srv.Auth(), resetToken.GetName())
+	u2fRegResp, u2fKey, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), resetToken.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1305,8 +1349,8 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	}, nil
 }
 
-// TODO(codingllama): Replace with a properly-created Webauthn device (using non-streaming methods).
-func getMockedU2FAndRegisterRes(authSrv *Server, tokenID string) (*proto.U2FRegisterResponse, *mocku2f.Key, error) {
+// DELETE IN 9.0.0 in favor of getMockedU2FAndRegisterRes.
+func getLegacyMockedU2FAndRegisterRes(authSrv *Server, tokenID string) (*proto.U2FRegisterResponse, *mocku2f.Key, error) {
 	res, err := authSrv.CreateRegisterChallenge(context.TODO(), &proto.CreateRegisterChallengeRequest{
 		TokenID:    tokenID,
 		DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
@@ -1333,4 +1377,26 @@ func getMockedU2FAndRegisterRes(authSrv *Server, tokenID string) (*proto.U2FRegi
 		RegistrationData: u2fRegResp.RegistrationData,
 		ClientData:       u2fRegResp.ClientData,
 	}, u2fKey, nil
+}
+
+func getMockedU2FAndRegisterRes(authSrv *Server, tokenID string) (*wantypes.CredentialCreationResponse, *mocku2f.Key, error) {
+	res, err := authSrv.CreateRegisterChallenge(context.TODO(), &proto.CreateRegisterChallengeRequest{
+		TokenID:    tokenID,
+		DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	u2fKey, err := mocku2f.Create()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	ccr, err := u2fKey.SignCredentialCreation("https://localhost", wanlib.CredentialCreationFromProto(res.GetWebauthn()))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return wanlib.CredentialCreationResponseToProto(ccr), u2fKey, nil
 }

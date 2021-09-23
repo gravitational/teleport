@@ -830,9 +830,9 @@ message TOTPRegisterChallenge {
     uint32 Digits = 5;
     // Account is the account name for this user.
     string Account = 6;
-    // QRCodeBytes is an optional field for the QR code in PNG format. Used to display a QR code
+    // QRCode is an optional field for the QR code in PNG format. Used to display a QR code
     // image in the UI.
-    bytes QRCodeBytes = 7;
+    bytes QRCode = 7;
 }
 
 // TOTPRegisterResponse is a response to TOTPRegisterChallenge.

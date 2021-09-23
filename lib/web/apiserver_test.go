@@ -2193,8 +2193,10 @@ func TestCreateRegisterChallenge(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			endpoint := clt.Endpoint("webapi", "mfa", "token", token.GetName(), "registerchallenge", tc.deviceType)
-			res, err := clt.PostJSON(ctx, endpoint, url.Values{})
+			endpoint := clt.Endpoint("webapi", "mfa", "token", token.GetName(), "registerchallenge")
+			res, err := clt.PostJSON(ctx, endpoint, &createRegisterChallengeRequest{
+				DeviceType: tc.deviceType,
+			})
 			require.NoError(t, err)
 
 			var chal client.MFARegisterChallenge
@@ -2202,17 +2204,11 @@ func TestCreateRegisterChallenge(t *testing.T) {
 
 			switch tc.deviceType {
 			case "u2f":
-				require.NotNil(t, chal.U2FChallenge)
-				require.Nil(t, chal.TOTPChallenge)
-				require.Nil(t, chal.WebauthnChallenge)
+				require.NotNil(t, chal.U2F)
 			case "totp":
-				require.NotNil(t, chal.TOTPChallenge.QRCodeBytes)
-				require.Nil(t, chal.U2FChallenge)
-				require.Nil(t, chal.WebauthnChallenge)
+				require.NotNil(t, chal.TOTP.QRCode)
 			case "webauthn":
-				require.NotNil(t, chal.WebauthnChallenge)
-				require.Nil(t, chal.U2FChallenge)
-				require.Nil(t, chal.TOTPChallenge)
+				require.NotNil(t, chal.Webauthn)
 			}
 		})
 	}

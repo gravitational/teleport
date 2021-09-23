@@ -779,8 +779,10 @@ func (c *Client) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// Only the QRCode is returned b/c that was the only value the caller was using/needed.
 		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_TOTP{
-			TOTP: &proto.TOTPRegisterChallenge{QRCodeBytes: resp.GetQRCode()},
+			TOTP: &proto.TOTPRegisterChallenge{QRCode: resp.GetQRCode()},
 		}}, nil
 
 	case proto.DeviceType_DEVICE_TYPE_U2F:
