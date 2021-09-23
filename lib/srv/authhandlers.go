@@ -285,6 +285,15 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	permissions.Extensions[utils.CertTeleportClusterName] = clusterName.GetClusterName()
 	permissions.Extensions[utils.CertTeleportUserCertificate] = string(ssh.MarshalAuthorizedKey(cert))
 
+	switch cert.CertType {
+	case ssh.UserCert:
+		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeUser
+	case ssh.HostCert:
+		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeHost
+	default:
+		log.Warnf("Unexpected cert type: %v", cert.CertType)
+	}
+
 	if h.isProxy() {
 		return permissions, nil
 	}
