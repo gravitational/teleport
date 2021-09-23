@@ -256,7 +256,7 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 			RetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
-				Events: local.NewEventsService(bk, nil),
+				Events: local.NewEventsService(bk),
 			},
 			Clock: clock,
 		},
@@ -574,7 +574,7 @@ func TestAppWatcher(t *testing.T) {
 			RetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Apps:   appService,
-				Events: local.NewEventsService(bk, nil),
+				Events: local.NewEventsService(bk),
 			},
 		},
 		AppsC: make(chan types.Apps, 10),
