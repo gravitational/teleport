@@ -67,7 +67,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	require.Len(t, rc, numOfRecoveryCodes)
 
 	// Test codes are not marked used.
-	recovery, err := srv.Auth().GetRecoveryCodes(ctx, user, true)
+	recovery, err := srv.Auth().GetRecoveryCodes(ctx, user, true /* withSecrets */)
 	require.NoError(t, err)
 	for _, token := range recovery.GetCodes() {
 		require.False(t, token.IsUsed)
@@ -87,7 +87,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	}
 
 	// Test used codes are marked used.
-	recovery, err = srv.Auth().GetRecoveryCodes(ctx, user, true)
+	recovery, err = srv.Auth().GetRecoveryCodes(ctx, user, true /* withSecrets */)
 	require.NoError(t, err)
 	for _, token := range recovery.GetCodes() {
 		require.True(t, token.IsUsed)

@@ -147,7 +147,7 @@ func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string
 }
 
 func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode []byte) error {
-	recovery, err := s.GetRecoveryCodes(ctx, user, true)
+	recovery, err := s.GetRecoveryCodes(ctx, user, true /* withSecrets */)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
