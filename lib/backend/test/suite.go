@@ -97,11 +97,12 @@ func WithConcurrentBackend(target backend.Backend) ConstructionOption {
 }
 
 // Constructor describes a function for constructing new instances of a
-// backend, with various options as required by a given test.
+// backend, with various options as required by a given test. Note that
+// it's the caller's responsibility to close it when the test is finished.
 type Constructor func(options ...ConstructionOption) (backend.Backend, clockwork.FakeClock, error)
 
-// RunBackendComplianceSuite runs the entiore backend compliance suite,
-// createing a collection of named subtests under the context provided
+// RunBackendComplianceSuite runs the entire backend compliance suite,
+// creating a collection of named subtests under the context provided
 // by `t`.
 //
 // As each test requires a new backend instance it will invoke the supplied

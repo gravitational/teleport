@@ -65,8 +65,24 @@ func firestoreParams(t *testing.T) backend.Params {
 	}
 }
 
+func ensureTestsEnabled(t *testing.T) {
+	const varName = "TELEPORT_FIRESTORE_TEST"
+	if os.Getenv(varName) == "" {
+		t.Skip("Firestore tests are disabled. Enable by defining the " + varName + " environment variable")
+	}
+}
+
+func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
+	con, err := net.Dial("tcp", cfg["endpoint"].(string))
+	if err != nil {
+		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
+	}
+	con.Close()
+}
+
 func TestFirestoreDB(t *testing.T) {
 	cfg := firestoreParams(t)
+	ensureTestsEnabled(t)
 	ensureEmulatorRunning(t, cfg)
 
 	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
@@ -97,14 +113,6 @@ func TestFirestoreDB(t *testing.T) {
 	test.RunBackendComplianceSuite(t, newBackend)
 }
 
-func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
-	con, err := net.Dial("tcp", cfg["endpoint"].(string))
-	if err != nil {
-		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
-	}
-	con.Close()
-}
-
 // newBackend creates a self-closing firestore backend
 func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
 	uut, err := New(context.Background(), cfg)
@@ -119,6 +127,7 @@ func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
 
 func TestReadLegacyRecord(t *testing.T) {
 	cfg := firestoreParams(t)
+	ensureTestsEnabled(t)
 	ensureEmulatorRunning(t, cfg)
 
 	uut := newBackend(t, cfg)
