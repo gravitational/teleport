@@ -3348,7 +3348,9 @@ func (process *TeleportProcess) initApps() {
 	// If no applications are specified, exit early. This is due to the strange
 	// behavior in reading file configuration. If the user does not specify an
 	// "app_service" section, that is considered enabling "app_service".
-	if len(process.Config.Apps.Apps) == 0 && !process.Config.Apps.DebugApp && len(process.Config.Apps.Selectors) == 0 {
+	if len(process.Config.Apps.Apps) == 0 &&
+		!process.Config.Apps.DebugApp &&
+		len(process.Config.Apps.ResourceMatchers) == 0 {
 		return
 	}
 
@@ -3503,17 +3505,17 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		appServer, err = app.New(process.ExitContext(), &app.Config{
-			DataDir:      process.Config.DataDir,
-			AuthClient:   conn.Client,
-			AccessPoint:  accessPoint,
-			Authorizer:   authorizer,
-			TLSConfig:    tlsConfig,
-			CipherSuites: process.Config.CipherSuites,
-			HostID:       process.Config.HostUUID,
-			Hostname:     process.Config.Hostname,
-			GetRotation:  process.getRotation,
-			Apps:         applications,
-			Selectors:    process.Config.Apps.Selectors,
+			DataDir:          process.Config.DataDir,
+			AuthClient:       conn.Client,
+			AccessPoint:      accessPoint,
+			Authorizer:       authorizer,
+			TLSConfig:        tlsConfig,
+			CipherSuites:     process.Config.CipherSuites,
+			HostID:           process.Config.HostUUID,
+			Hostname:         process.Config.Hostname,
+			GetRotation:      process.getRotation,
+			Apps:             applications,
+			ResourceMatchers: process.Config.Apps.ResourceMatchers,
 			OnHeartbeat: func(err error) {
 				if err != nil {
 					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentApp})

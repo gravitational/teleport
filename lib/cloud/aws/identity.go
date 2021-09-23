@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cloud
+package aws
 
 import (
 	"context"
@@ -29,8 +29,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// AWSIdentity represents an AWS IAM identity such as user or role.
-type AWSIdentity interface {
+// Identity represents an AWS IAM identity such as user or role.
+type Identity interface {
 	// GetName returns the identity name.
 	GetName() string
 	// GetAccountID returns the AWS account ID the identity belongs to.
@@ -41,51 +41,57 @@ type AWSIdentity interface {
 	fmt.Stringer
 }
 
-// AWSUser represents an AWS IAM user identity.
-type AWSUser struct {
-	awsBase
+// User represents an AWS IAM user identity.
+type User struct {
+	identityBase
 }
 
-// AWSRole represents an AWS IAM role identity.
-type AWSRole struct {
-	awsBase
+// Role represents an AWS IAM role identity.
+type Role struct {
+	identityBase
 }
 
-// AWSUnknown represents an unknown/unsupported AWS IAM identity.
-type AWSUnknown struct {
-	awsBase
+// Unknown represents an unknown/unsupported AWS IAM identity.
+type Unknown struct {
+	identityBase
 }
 
-type awsBase struct {
+type identityBase struct {
 	arn arn.ARN
 }
 
 // GetName returns the identity name.
-func (i awsBase) GetName() string {
+func (i identityBase) GetName() string {
+	parts := strings.Split(i.arn.Resource, "/")
+	// EC2 instances running on AWS with attached IAM role will have
+	// assumed-role identity with ARN like:
+	// arn:aws:sts::1234567890:assumed-role/DatabaseAccess/i-1234567890
+	if parts[0] == "assumed-role" && len(parts) > 2 {
+		return parts[1]
+	}
 	// Resource can include a path and the name is its last component e.g.
 	// arn:aws:iam::1234567890:role/path/to/customrole
-	parts := strings.Split(i.arn.Resource, "/")
 	return parts[len(parts)-1]
 }
 
 // GetAccountID returns the identity account ID.
-func (i awsBase) GetAccountID() string {
+func (i identityBase) GetAccountID() string {
 	return i.arn.AccountID
 }
 
 // GetPartition returns the identity AWS partition.
-func (i awsBase) GetPartition() string {
+func (i identityBase) GetPartition() string {
 	return i.arn.Partition
 }
 
 // String returns the AWS identity ARN.
-func (i awsBase) String() string {
+func (i identityBase) String() string {
 	return i.arn.String()
 }
 
-// GetAWSIdentityWithClient determines AWS identity of this Teleport process
+// GetIdentityWithClient determines AWS identity of this Teleport process
 // using the provided STS API client.
-func GetAWSIdentityWithClient(ctx context.Context, stsClient stsiface.STSAPI) (AWSIdentity, error) {
+func GetIdentityWithClient(ctx context.Context, stsClient stsiface.STSAPI) (Identity, error) {
 	out, err := stsClient.GetCallerIdentityWithContext(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -96,21 +102,21 @@ func GetAWSIdentityWithClient(ctx context.Context, stsClient stsiface.STSAPI) (A
 	}
 	parts := strings.Split(parsedARN.Resource, "/")
 	switch parts[0] {
-	case "role":
-		return AWSRole{
-			awsBase: awsBase{
+	case "role", "assumed-role":
+		return Role{
+			identityBase: identityBase{
 				arn: parsedARN,
 			},
 		}, nil
 	case "user":
-		return AWSUser{
-			awsBase: awsBase{
+		return User{
+			identityBase: identityBase{
 				arn: parsedARN,
 			},
 		}, nil
 	}
-	return AWSUnknown{
-		awsBase: awsBase{
+	return Unknown{
+		identityBase: identityBase{
 			arn: parsedARN,
 		},
 	}, nil

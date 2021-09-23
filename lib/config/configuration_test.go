@@ -297,9 +297,9 @@ func TestConfigReading(t *testing.T) {
 					DynamicLabels: CommandLabels,
 				},
 			},
-			Selectors: []Selector{
+			ResourceMatchers: []ResourceMatcher{
 				{
-					MatchLabels: map[string]apiutils.Strings{
+					Labels: map[string]apiutils.Strings{
 						"*": {"*"},
 					},
 				},
@@ -318,10 +318,26 @@ func TestConfigReading(t *testing.T) {
 					DynamicLabels: CommandLabels,
 				},
 			},
-			Selectors: []Selector{
+			ResourceMatchers: []ResourceMatcher{
 				{
-					MatchLabels: map[string]apiutils.Strings{
+					Labels: map[string]apiutils.Strings{
 						"*": {"*"},
+					},
+				},
+			},
+			AWSMatchers: []AWSMatcher{
+				{
+					Types:   []string{"rds"},
+					Regions: []string{"us-west-1", "us-east-1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+				},
+				{
+					Types:   []string{"rds"},
+					Regions: []string{"us-central-1"},
+					Tags: map[string]apiutils.Strings{
+						"c": {"d"},
 					},
 				},
 			},
@@ -1008,9 +1024,9 @@ func makeConfigFixture() string {
 			DynamicLabels: CommandLabels,
 		},
 	}
-	conf.Apps.Selectors = []Selector{
+	conf.Apps.ResourceMatchers = []ResourceMatcher{
 		{
-			MatchLabels: map[string]apiutils.Strings{"*": {"*"}},
+			Labels: map[string]apiutils.Strings{"*": {"*"}},
 		},
 	}
 
@@ -1025,9 +1041,21 @@ func makeConfigFixture() string {
 			DynamicLabels: CommandLabels,
 		},
 	}
-	conf.Databases.Selectors = []Selector{
+	conf.Databases.ResourceMatchers = []ResourceMatcher{
 		{
-			MatchLabels: map[string]apiutils.Strings{"*": {"*"}},
+			Labels: map[string]apiutils.Strings{"*": {"*"}},
+		},
+	}
+	conf.Databases.AWSMatchers = []AWSMatcher{
+		{
+			Types:   []string{"rds"},
+			Regions: []string{"us-west-1", "us-east-1"},
+			Tags:    map[string]apiutils.Strings{"a": {"b"}},
+		},
+		{
+			Types:   []string{"rds"},
+			Regions: []string{"us-central-1"},
+			Tags:    map[string]apiutils.Strings{"c": {"d"}},
 		},
 	}
 
@@ -1356,8 +1384,8 @@ app_service:
       name: foo
       public_addr: "foo.example.com"
       uri: "http://127.0.0.1:8080"
-  selectors:
-  - match_labels:
+  resources:
+  - labels:
       '*': '*'
 `,
 			inComment: "config is valid",
@@ -1494,8 +1522,13 @@ func TestDatabaseConfig(t *testing.T) {
 			inConfigString: `
 db_service:
   enabled: true
-  selectors:
-  - match_labels:
+  resources:
+  - labels:
+      '*': '*'
+  aws:
+  - types: ["rds", "redshift"]
+    regions: ["us-east-1", "us-west-1"]
+    tags:
       '*': '*'
   databases:
   - name: foo

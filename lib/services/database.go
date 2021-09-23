@@ -18,11 +18,17 @@ package services
 
 import (
 	"context"
-
-	"github.com/gravitational/trace"
+	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/service/rds"
+
+	"github.com/gravitational/trace"
 )
 
 // DatabaseGetter defines interface for fetching database resources.
@@ -103,3 +109,142 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 	}
 	return nil, trace.BadParameter("unsupported database resource version %q", h.Version)
 }
+
+// NewDatabaseFromRDSInstance creates a database resource from an RDS instance.
+func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error) {
+	endpoint := instance.Endpoint
+	if endpoint == nil {
+		return nil, trace.BadParameter("empty endpoint")
+	}
+	metadata, err := MetadataFromRDSInstance(instance)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return types.NewDatabaseV3(types.Metadata{
+		Name:        aws.StringValue(instance.DBInstanceIdentifier),
+		Description: fmt.Sprintf("RDS instance in %v", metadata.Region),
+		Labels:      labelsFromRDSInstance(instance, metadata),
+	}, types.DatabaseSpecV3{
+		Protocol: engineToProtocol(aws.StringValue(instance.Engine)),
+		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
+		AWS:      *metadata,
+	})
+}
+
+// NewDatabaseFromRDSCluster creates a database resource from an RDS cluster (Aurora).
+func NewDatabaseFromRDSCluster(cluster *rds.DBCluster) (types.Database, error) {
+	metadata, err := MetadataFromRDSCluster(cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return types.NewDatabaseV3(types.Metadata{
+		Name:        aws.StringValue(cluster.DBClusterIdentifier),
+		Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
+		Labels:      labelsFromRDSCluster(cluster, metadata),
+	}, types.DatabaseSpecV3{
+		Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), aws.Int64Value(cluster.Port)),
+		AWS:      *metadata,
+	})
+}
+
+// MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
+func MetadataFromRDSInstance(rdsInstance *rds.DBInstance) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		RDS: types.RDS{
+			InstanceID: aws.StringValue(rdsInstance.DBInstanceIdentifier),
+			ClusterID:  aws.StringValue(rdsInstance.DBClusterIdentifier),
+			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
+			IAMAuth:    aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled),
+		},
+	}, nil
+}
+
+// MetadataFromRDSCluster creates AWS metadata from the provided RDS cluster.
+func MetadataFromRDSCluster(rdsCluster *rds.DBCluster) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(rdsCluster.DBClusterArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		RDS: types.RDS{
+			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
+			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
+			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
+		},
+	}, nil
+}
+
+// engineToProtocol converts RDS instance engine to the database protocol.
+func engineToProtocol(engine string) string {
+	switch engine {
+	case RDSEnginePostgres, RDSEngineAuroraPostgres:
+		return defaults.ProtocolPostgres
+	case RDSEngineMySQL, RDSEngineAurora, RDSEngineAuroraMySQL:
+		return defaults.ProtocolMySQL
+	}
+	return ""
+}
+
+// labelsFromRDSInstance creates database labels for the provided RDS instance.
+func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[string]string {
+	labels := tagsToLabels(rdsInstance.TagList)
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelAccountID] = meta.AccountID
+	labels[labelRegion] = meta.Region
+	labels[labelEngine] = aws.StringValue(rdsInstance.Engine)
+	labels[labelEngineVersion] = aws.StringValue(rdsInstance.EngineVersion)
+	return labels
+}
+
+// labelsFromRDSCluster creates database labels for the provided RDS cluster.
+func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS) map[string]string {
+	labels := tagsToLabels(rdsCluster.TagList)
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelAccountID] = meta.AccountID
+	labels[labelRegion] = meta.Region
+	labels[labelEngine] = aws.StringValue(rdsCluster.Engine)
+	labels[labelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
+	return labels
+}
+
+// tagsToLabels converts RDS tags to a labels map.
+func tagsToLabels(tags []*rds.Tag) map[string]string {
+	labels := make(map[string]string)
+	for _, tag := range tags {
+		labels[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+	}
+	return labels
+}
+
+const (
+	// labelAccountID is the label key containing AWS account ID.
+	labelAccountID = "account-id"
+	// labelRegion is the label key containing AWS region.
+	labelRegion = "region"
+	// labelEngine is the label key containing RDS database engine name.
+	labelEngine = "engine"
+	// labelEngineVersion is the label key containing RDS database engine version.
+	labelEngineVersion = "engine-version"
+)
+
+const (
+	// RDSEngineMySQL is RDS engine name for MySQL instances.
+	RDSEngineMySQL = "mysql"
+	// RDSEnginePostgres is RDS engine name for Postgres instances.
+	RDSEnginePostgres = "postgres"
+	// RDSEngineAurora is RDS engine name for Aurora MySQL 5.6 compatible clusters.
+	RDSEngineAurora = "aurora"
+	// RDSEngineAuroraMySQL is RDS engine name for Aurora MySQL 5.7 compatible clusters.
+	RDSEngineAuroraMySQL = "aurora-mysql"
+	// RDSEngineAuroraPostgres is RDS engine name for Aurora Postgres clusters.
+	RDSEngineAuroraPostgres = "aurora-postgresql"
+)
