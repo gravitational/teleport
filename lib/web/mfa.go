@@ -20,6 +20,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -64,6 +65,72 @@ func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.
 	}
 
 	return OK(), nil
+}
+
+type addMFADeviceRequest struct {
+	// PrivilegeTokenID is privilege token id.
+	PrivilegeTokenID string `json:"tokenId"`
+	// DeviceName is the name of new mfa device.
+	DeviceName string `json:"deviceName"`
+	// SecondFactorToken is the totp code.
+	SecondFactorToken string `json:"secondFactorToken"`
+	// U2FRegisterResponse is U2F registration challenge response.
+	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2fRegisterResponse"`
+}
+
+// addMFADeviceHandle adds a new mfa device for the user defined in the token.
+func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req addMFADeviceRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	protoReq := &proto.AddMFADeviceSyncRequest{
+		PrivilegeTokenID: req.PrivilegeTokenID,
+		NewDeviceName:    req.DeviceName,
+	}
+
+	switch {
+	case req.SecondFactorToken != "":
+		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
+		}}
+	case req.U2FRegisterResponse != nil:
+		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+			U2F: &proto.U2FRegisterResponse{
+				RegistrationData: req.U2FRegisterResponse.RegistrationData,
+				ClientData:       req.U2FRegisterResponse.ClientData,
+			},
+		}}
+	default:
+		return nil, trace.BadParameter("missing new mfa credentials")
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := clt.AddMFADeviceSync(r.Context(), protoReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}
+
+// createTOTPSecretsHandle creates a new qr code and secret to register a new TOTP device and returns only the qr code.
+func (h *Handler) createTOTPSecretsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	secrets, err := clt.RotateUserTokenSecrets(r.Context(), params.ByName("token"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return secrets.GetQRCode(), nil
 }
 
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).

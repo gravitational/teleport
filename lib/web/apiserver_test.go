@@ -87,6 +87,7 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	fidou2f "github.com/tstranex/u2f"
 	. "gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -1992,6 +1993,142 @@ func TestCreatePrivilegeToken(t *testing.T) {
 	err = json.Unmarshal(re.Bytes(), &privilegeToken)
 	require.NoError(t, err)
 	require.NotEmpty(t, privilegeToken)
+}
+
+func TestCreateTOTPSecrets(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	ctx := context.Background()
+	username := "foo@example.com"
+	pack := proxy.authPack(t, username)
+
+	// Acquire a user token.
+	token, err := types.NewUserToken("some-token-id")
+	require.NoError(t, err)
+	token.SetUser(username)
+	token.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, token)
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint("webapi", "mfa", "token", token.GetName(), "totpsecrets")
+	re, err := pack.clt.PostJSON(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var qrcode []byte
+	err = json.Unmarshal(re.Bytes(), &qrcode)
+	require.NoError(t, err)
+	require.NotEmpty(t, qrcode)
+}
+
+func TestAddMFADevice(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	// Enable second factor on.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "https://" + env.server.ClusterName(),
+			Facets: []string{"https://" + env.server.ClusterName()},
+		},
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Get a totp code to re-auth.
+	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	// Obtain a privilege token.
+	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
+		SecondFactorToken: totpCode,
+	})
+	require.NoError(t, err)
+	var privilegeToken string
+	require.NoError(t, json.Unmarshal(re.Bytes(), &privilegeToken))
+
+	tests := []struct {
+		name        string
+		deviceName  string
+		getTOTPCode func() string
+		getU2FResp  func() *fidou2f.RegisterResponse
+	}{
+		{
+			name:       "new TOTP device",
+			deviceName: "new-totp",
+			getTOTPCode: func() string {
+				// Create totp secrets.
+				endpoint := pack.clt.Endpoint("webapi", "mfa", "token", privilegeToken, "totpsecrets")
+				_, err := pack.clt.PostJSON(ctx, endpoint, url.Values{})
+				require.NoError(t, err)
+
+				// Get secret.
+				secrets, err := env.server.Auth().GetUserTokenSecrets(ctx, privilegeToken)
+				require.NoError(t, err)
+
+				// Get the new totp code.
+				newTOTPCode, err := totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+				require.NoError(t, err)
+
+				return newTOTPCode
+			},
+		},
+		{
+			name:       "new U2F device",
+			deviceName: "new-u2f",
+			getU2FResp: func() *fidou2f.RegisterResponse {
+				// Get u2f register challenge.
+				endpoint := pack.clt.Endpoint("webapi", "u2f", "signuptokens", privilegeToken)
+				re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+				require.NoError(t, err)
+
+				var u2fRegisterRequest *u2f.RegisterChallenge
+				require.NoError(t, json.Unmarshal(re.Bytes(), &u2fRegisterRequest))
+
+				// Sign register challenge.
+				u2fKey, err := mocku2f.Create()
+				require.NoError(t, err)
+				u2fRegResp, err := u2fKey.RegisterResponse(u2fRegisterRequest)
+				require.NoError(t, err)
+
+				return u2fRegResp
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var totpCode string
+			var u2fRegResp *fidou2f.RegisterResponse
+
+			switch {
+			case tc.getU2FResp != nil:
+				u2fRegResp = tc.getU2FResp()
+			default:
+				totpCode = tc.getTOTPCode()
+			}
+
+			// Add device.
+			endpoint = pack.clt.Endpoint("webapi", "mfa", "devices")
+			_, err = pack.clt.PostJSON(ctx, endpoint, addMFADeviceRequest{
+				PrivilegeTokenID:    privilegeToken,
+				DeviceName:          tc.deviceName,
+				SecondFactorToken:   totpCode,
+				U2FRegisterResponse: u2fRegResp,
+			})
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestGetMFADevicesWithAuth(t *testing.T) {
