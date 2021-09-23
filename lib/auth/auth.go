@@ -109,6 +109,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Restrictions == nil {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
 	}
+	if cfg.Apps == nil {
+		cfg.Apps = local.NewAppService(cfg.Backend)
+	}
 	if cfg.Databases == nil {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
 	}
@@ -169,6 +172,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			DynamicAccessExt:     cfg.DynamicAccessExt,
 			ClusterConfiguration: cfg.ClusterConfiguration,
 			Restrictions:         cfg.Restrictions,
+			Apps:                 cfg.Apps,
 			Databases:            cfg.Databases,
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
@@ -195,6 +199,7 @@ type Services struct {
 	services.DynamicAccessExt
 	services.ClusterConfiguration
 	services.Restrictions
+	services.Apps
 	services.Databases
 	services.WindowsDesktops
 	types.Events
@@ -1319,6 +1324,12 @@ type newMFADeviceFields struct {
 	// u2fStorage is the storage used to hold the u2f challenge.
 	// Field can be empty to use default services.Identity storage.
 	u2fStorage u2f.RegistrationStorage
+
+	// webIdentityOverride is an optional RegistrationIdentity override to be used
+	// for device registration. A common override is decorating the regular
+	// Identity with an in-memory SessionData storage.
+	// Defaults to the Server's IdentityService.
+	webIdentityOverride wanlib.RegistrationIdentity
 }
 
 // verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
@@ -1466,9 +1477,13 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	identity := req.webIdentityOverride // Override Identity, if supplied.
+	if identity == nil {
+		identity = a.Identity
+	}
 	webRegistration := &wanlib.RegistrationFlow{
 		Webauthn: webConfig,
-		Identity: a.Identity,
+		Identity: identity,
 	}
 	// Finish upserts the device on success.
 	dev, err := webRegistration.Finish(
@@ -2553,6 +2568,97 @@ func (a *Server) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 	return a.GetCache().GetAppSession(ctx, req)
 }
 
+// CreateApp creates a new application resource.
+func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
+	if err := a.Apps.CreateApp(ctx, app); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			Type: events.AppCreateEvent,
+			Code: events.AppCreateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    app.GetName(),
+			Expires: app.Expiry(),
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        app.GetURI(),
+			AppPublicAddr: app.GetPublicAddr(),
+			AppLabels:     app.GetStaticLabels(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit app create event.")
+	}
+	return nil
+}
+
+// UpdateApp updates an existing application resource.
+func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
+	if err := a.Apps.UpdateApp(ctx, app); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AppUpdateEvent,
+			Code: events.AppUpdateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    app.GetName(),
+			Expires: app.Expiry(),
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        app.GetURI(),
+			AppPublicAddr: app.GetPublicAddr(),
+			AppLabels:     app.GetStaticLabels(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit app update event.")
+	}
+	return nil
+}
+
+// DeleteApp deletes an application resource.
+func (a *Server) DeleteApp(ctx context.Context, name string) error {
+	if err := a.Apps.DeleteApp(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppDelete{
+		Metadata: apievents.Metadata{
+			Type: events.AppDeleteEvent,
+			Code: events.AppDeleteCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: name,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit app delete event.")
+	}
+	return nil
+}
+
+// GetApps returns all application resources.
+func (a *Server) GetApps(ctx context.Context) ([]types.Application, error) {
+	return a.GetCache().GetApps(ctx)
+}
+
+// GetApp returns the specified application resource.
+func (a *Server) GetApp(ctx context.Context, name string) (types.Application, error) {
+	return a.GetCache().GetApp(ctx, name)
+}
+
 // GetDatabaseServers returns all registers database proxy servers.
 func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
@@ -2924,7 +3030,6 @@ func groupByDeviceType(devs []*types.MFADevice, groupU2F, groupWebauthn bool) de
 }
 
 func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp *proto.MFAAuthenticateResponse, u2fStorage u2f.AuthenticationStorage) (*types.MFADevice, error) {
-	// TODO(codingllama): Consolidate with authenticateUser?
 	switch res := resp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
 		return a.checkOTP(user, res.TOTP.Code)

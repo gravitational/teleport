@@ -2457,7 +2457,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	err = s.server.Auth().SetAuthPreference(ctx, authPreference)
 	c.Assert(err, check.IsNil)
 
-	// authentication attempt fails with wrong passwrod
+	// authentication attempt fails with wrong password
 	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: []byte("wrong123"), Token: validToken},

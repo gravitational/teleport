@@ -18,6 +18,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
@@ -46,6 +48,59 @@ type RegistrationIdentity interface {
 	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
 	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
+}
+
+// WithInMemorySessionData returns a RegistrationIdentity implementation that
+// keeps SessionData in memory.
+func WithInMemorySessionData(identity RegistrationIdentity) RegistrationIdentity {
+	return &inMemoryIdentity{
+		RegistrationIdentity: identity,
+		sessionData:          make(map[string]*wantypes.SessionData),
+	}
+}
+
+type inMemoryIdentity struct {
+	RegistrationIdentity
+
+	// mu guards the fields below it.
+	// We don't foresee concurrent use for inMemoryIdentity, but it's easy enough
+	// to play it safe.
+	mu          sync.RWMutex
+	sessionData map[string]*wantypes.SessionData
+}
+
+func (identity *inMemoryIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
+	identity.mu.Lock()
+	defer identity.mu.Unlock()
+	identity.sessionData[sessionDataKey(user, sessionID)] = sd
+	return nil
+}
+
+func (identity *inMemoryIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
+	identity.mu.RLock()
+	defer identity.mu.RUnlock()
+	sd, ok := identity.sessionData[sessionDataKey(user, sessionID)]
+	if !ok {
+		return nil, trace.NotFound("session data for user %v not found ", user)
+	}
+	// The only known caller of GetWebauthnSessionData is the webauthn package
+	// itself, so we trust it to not modify the SessionData we are handing back.
+	return sd, nil
+}
+
+func (identity *inMemoryIdentity) DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error {
+	key := sessionDataKey(user, sessionID)
+	identity.mu.Lock()
+	defer identity.mu.Unlock()
+	if _, ok := identity.sessionData[key]; !ok {
+		return trace.NotFound("session data for user %v not found ", user)
+	}
+	delete(identity.sessionData, key)
+	return nil
+}
+
+func sessionDataKey(user, sessionID string) string {
+	return fmt.Sprintf("%v/%v", user, sessionID)
 }
 
 // RegistrationFlow represents the WebAuthn registration ceremony.
@@ -111,6 +166,9 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string) (*CredentialC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO(codingllama): Send U2F App ID back in creation requests too. Useful to
+	//  detect duplicate devices.
 
 	sessionDataPB, err := sessionToPB(sessionData)
 	if err != nil {

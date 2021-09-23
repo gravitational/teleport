@@ -394,6 +394,14 @@ func (d Databases) ToMap() map[string]Database {
 	return m
 }
 
+// AsResources returns these databases as resources with labels.
+func (d Databases) AsResources() (resources ResourcesWithLabels) {
+	for _, database := range d {
+		resources = append(resources, database)
+	}
+	return resources
+}
+
 // Len returns the slice length.
 func (d Databases) Len() int { return len(d) }
 

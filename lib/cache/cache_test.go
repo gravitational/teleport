@@ -79,6 +79,7 @@ type testPack struct {
 	presenceS       services.Presence
 	appSessionS     services.AppSession
 	restrictions    services.Restrictions
+	apps            services.Apps
 	databases       services.Databases
 	webSessionS     types.WebSessionInterface
 	webTokenS       types.WebTokenInterface
@@ -169,6 +170,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
+	p.apps = local.NewAppService(p.backend)
 	p.databases = local.NewDatabasesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
 
@@ -198,6 +200,7 @@ func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -273,6 +276,7 @@ func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -493,6 +497,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 			WebSession:      p.webSessionS,
 			WebToken:        p.webTokenS,
 			Restrictions:    p.restrictions,
+			Apps:            p.apps,
 			Databases:       p.databases,
 			WindowsDesktops: p.windowsDesktops,
 			RetryPeriod:     200 * time.Millisecond,
@@ -553,6 +558,7 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -618,6 +624,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -655,6 +662,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -704,6 +712,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -1882,6 +1891,90 @@ func TestApplicationServers(t *testing.T) {
 
 	// Check that the cache is now empty.
 	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+}
+
+// TestApps tests that CRUD operations on application resources are
+// replicated from the backend to the cache.
+func TestApps(t *testing.T) {
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	// Create an app.
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "foo",
+	}, types.AppSpecV3{
+		URI: "localhost",
+	})
+	require.NoError(t, err)
+
+	err = p.apps.CreateApp(ctx, app)
+	require.NoError(t, err)
+
+	// Check that the app is now in the backend.
+	out, err := p.apps.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single app in it.
+	out, err = p.apps.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update the app and upsert it into the backend again.
+	app.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	err = p.apps.UpdateApp(ctx, app)
+	require.NoError(t, err)
+
+	// Check that the app is in the backend and only one exists (so an
+	// update occurred).
+	out, err = p.apps.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single app in it.
+	out, err = p.cache.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Remove all apps from the backend.
+	err = p.apps.DeleteAllApps(ctx)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, err = p.apps.GetApps(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 }
