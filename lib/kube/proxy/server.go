@@ -200,7 +200,7 @@ func (t *TLSServer) Close() error {
 // and server's GetConfigForClient reloads the list of trusted
 // local and remote certificate authorities
 func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
-	return auth.AddClusterCAPoolsToTLSConfig(t.TLS, t.AccessPoint, t.ClusterName, t.Log)(info)
+	return auth.WithClusterCAs(t.TLS, t.AccessPoint, t.ClusterName, t.Log)(info)
 }
 
 // GetServerInfo returns a services.Server object for heartbeats (aka

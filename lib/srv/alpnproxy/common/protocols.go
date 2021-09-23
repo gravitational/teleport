@@ -50,6 +50,7 @@ const (
 	ProtocolAuth Protocol = "teleport-auth@"
 )
 
+// SupportedProtocols is the list of supported ALPN protocols.
 var SupportedProtocols = []Protocol{
 	acme.ALPNProto,
 	ProtocolPostgres,
@@ -63,7 +64,8 @@ var SupportedProtocols = []Protocol{
 	ProtocolAuth,
 }
 
-func ConvProtocolsToString(protocols []Protocol) []string {
+// ProtocolsToString converts the list of Protocols to the list of strings.
+func ProtocolsToString(protocols []Protocol) []string {
 	out := make([]string, 0, len(protocols))
 	for _, v := range protocols {
 		out = append(out, string(v))

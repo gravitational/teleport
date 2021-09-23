@@ -60,7 +60,7 @@ type ProxyConfig struct {
 	// of the connection). It is set to defaults.HandshakeReadDeadline if
 	// unspecified.
 	ReadDeadline time.Duration
-	// IdentityTLSConfig is TLS cluster configuration.
+	// IdentityTLSConfig is the TLS ProxyRole identity used in servers with localhost SANs values.
 	IdentityTLSConfig *tls.Config
 	// AccessPoint is the auth server client.
 	AccessPoint auth.AccessPoint
@@ -193,7 +193,6 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	if c.WebTLSConfig == nil {
 		return trace.BadParameter("tls config missing")
 	}
-
 	if c.Listener == nil {
 		return trace.BadParameter("listener missing")
 	}
@@ -212,16 +211,21 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	if err := c.Router.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if c.IdentityTLSConfig == nil {
-		return trace.BadParameter("missing identity tls config")
-	}
-	c.IdentityTLSConfig = c.IdentityTLSConfig.Clone()
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing access point")
 	}
 	if c.ClusterName == "" {
 		return trace.BadParameter("missing cluster name")
 	}
+
+	if c.IdentityTLSConfig == nil {
+		return trace.BadParameter("missing identity tls config")
+	}
+	c.IdentityTLSConfig = c.IdentityTLSConfig.Clone()
+	c.IdentityTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	fn := auth.WithClusterCAs(c.IdentityTLSConfig, c.AccessPoint, c.ClusterName, c.Log)
+	c.IdentityTLSConfig.GetConfigForClient = fn
+
 	return nil
 }
 
@@ -230,9 +234,6 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.IdentityTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
-	fn := auth.AddClusterCAPoolsToTLSConfig(cfg.IdentityTLSConfig, cfg.AccessPoint, cfg.ClusterName, cfg.Log)
-	cfg.IdentityTLSConfig.GetConfigForClient = fn
 
 	return &Proxy{
 		cfg:                cfg,
@@ -246,7 +247,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	p.cancel = cancel
-	p.cfg.WebTLSConfig.NextProtos = common.ConvProtocolsToString(p.supportedProtocols)
+	p.cfg.WebTLSConfig.NextProtos = common.ProtocolsToString(p.supportedProtocols)
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {

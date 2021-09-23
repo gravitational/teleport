@@ -336,8 +336,8 @@ func onDatabaseConnect(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		// In case of psql connection the cli takes only domain names into consideration thus
-		// connecting to 127.0.0.1 will fail with "does not match host name "127.0.0.1" psql error.
+		// When connecting over TLS, psql only validates hostname against presented certificate's
+		// DNS names. As such, connecting to 127.0.0.1 will fail validation, so connect to localhost.
 		host := "localhost"
 		opts = append(opts, WithLocalProxy(host, addr.Port(0), profile.CACertPath()))
 	}

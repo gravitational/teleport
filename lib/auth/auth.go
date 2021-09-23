@@ -3350,9 +3350,9 @@ func isHTTPS(u string) error {
 	return nil
 }
 
-// AddClusterCAPoolsToTLSConfig return a copy of tls.Config and set the  ClientCAs
-// to the cluster CA Pool.
-func AddClusterCAPoolsToTLSConfig(tlsConfig *tls.Config, ap AccessPoint, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+// WithClusterCAs returns a TLS hello callback that returns a copy of the provided
+// TLS config with client CAs pool of the specified cluster.
+func WithClusterCAs(tlsConfig *tls.Config, ap AccessPoint, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -3368,7 +3368,7 @@ func AddClusterCAPoolsToTLSConfig(tlsConfig *tls.Config, ap AccessPoint, current
 		}
 		pool, err := ClientCertPool(ap, clusterName)
 		if err != nil {
-			log.Errorf("failed to retrieve client pool: %v", trace.DebugReport(err))
+			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
 			// this falls back to the default config
 			return nil, nil
 		}
@@ -3392,11 +3392,11 @@ func AddClusterCAPoolsToTLSConfig(tlsConfig *tls.Config, ap AccessPoint, current
 			totalSubjectsLen += int64(len(s))
 		}
 		if totalSubjectsLen >= int64(math.MaxUint16) {
-			log.Debugf("number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate", len(pool.Subjects()))
+			log.Debugf("Number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.", len(pool.Subjects()))
 
 			pool, err = ClientCertPool(ap, currentClusterName)
 			if err != nil {
-				log.Errorf("failed to retrieve client pool: %v", trace.DebugReport(err))
+				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
 				// this falls back to the default config
 				return nil, nil
 			}
