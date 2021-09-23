@@ -434,7 +434,7 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req a
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.PostJSONWithFallback(ctx, clt.Endpoint("webapi", "host", "credentials"), req, insecure)
+	resp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "host", "credentials"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
