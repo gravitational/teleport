@@ -6042,7 +6042,7 @@ type DeleteMFADeviceSyncRequest struct {
 	// TokenID is the ID of a user token that will be used to verify this request.
 	// Token types accepted are:
 	//   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
-	//   - TODO(kimlisa) add privilege token doc after implementation
+	//   - Privilege token that is obtained with RPC CreatePrivilegeToken
 	TokenID string `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"token_id"`
 	// DeviceName is the name of the device to delete.
 	DeviceName           string   `protobuf:"bytes,2,opt,name=DeviceName,proto3" json:"device_name"`
@@ -8130,7 +8130,7 @@ type CreateAccountRecoveryCodesRequest struct {
 	// TokenID is the ID of a user token that will be used to verify this request.
 	// Token types accepted are:
 	//   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
-	//   - TODO(kimlisa) add privilege token doc after implementation
+	//   - Privilege token that is obtained with RPC CreatePrivilegeToken
 	TokenID              string   `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"token_id"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
