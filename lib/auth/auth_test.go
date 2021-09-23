@@ -1646,7 +1646,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 				require.NoError(t, err)
 
 				// Create register challenge and sign.
-				u2fRegRes, _, err := getMockedU2FAndRegisterRes(srv.Auth(), privExToken.GetName())
+				u2fRegRes, _, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), privExToken.GetName())
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
@@ -1658,16 +1658,36 @@ func TestAddMFADeviceSync(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:       "Webauthn device with privilege exception token",
+			deviceName: "new-webauthn",
+			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
+				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
+				require.NoError(t, err)
+
+				webauthnRes, _, err := getMockedU2FAndRegisterRes(srv.Auth(), privExToken.GetName())
+				require.NoError(t, err)
+
+				return &proto.AddMFADeviceSyncRequest{
+					PrivilegeTokenID: privExToken.GetName(),
+					NewDeviceName:    deviceName,
+					NewMFAResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
+						Webauthn: webauthnRes,
+					}},
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := clt.AddMFADeviceSync(ctx, tc.getReq(tc.deviceName))
+			res, err := clt.AddMFADeviceSync(ctx, tc.getReq(tc.deviceName))
 			switch {
 			case tc.wantErr:
 				require.True(t, trace.IsAccessDenied(err))
 			default:
 				require.NoError(t, err)
+				require.Equal(t, tc.deviceName, res.GetDevice().GetName())
 
 				// Test events emitted.
 				event := mockEmitter.LastEvent()

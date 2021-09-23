@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -76,6 +77,8 @@ type addMFADeviceRequest struct {
 	SecondFactorToken string `json:"secondFactorToken"`
 	// U2FRegisterResponse is U2F registration challenge response.
 	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2fRegisterResponse"`
+	// WebauthnRegisterResponse is U2F registration challenge response.
+	WebauthnRegisterResponse *webauthn.CredentialCreationResponse `json:"webauthnRegisterResponse"`
 }
 
 // addMFADeviceHandle adds a new mfa device for the user defined in the token.
@@ -102,6 +105,10 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 				ClientData:       req.U2FRegisterResponse.ClientData,
 			},
 		}}
+	case req.WebauthnRegisterResponse != nil:
+		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
+			Webauthn: webauthn.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
+		}}
 	default:
 		return nil, trace.BadParameter("missing new mfa credentials")
 	}
@@ -111,7 +118,7 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 		return nil, trace.Wrap(err)
 	}
 
-	if err := clt.AddMFADeviceSync(r.Context(), protoReq); err != nil {
+	if _, err := clt.AddMFADeviceSync(r.Context(), protoReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

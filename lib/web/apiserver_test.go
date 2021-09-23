@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
@@ -87,7 +88,6 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	fidou2f "github.com/tstranex/u2f"
 	. "gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -2002,13 +2002,13 @@ func TestAddMFADevice(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "foo@example.com")
 
-	// Enable second factor on.
+	// Enable second factor.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		U2F: &types.U2F{
-			AppID:  "https://" + env.server.ClusterName(),
-			Facets: []string{"https://" + env.server.ClusterName()},
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
 		},
 	})
 	require.NoError(t, err)
@@ -2029,26 +2029,25 @@ func TestAddMFADevice(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &privilegeToken))
 
 	tests := []struct {
-		name        string
-		deviceName  string
-		getTOTPCode func() string
-		getU2FResp  func() *fidou2f.RegisterResponse
+		name            string
+		deviceName      string
+		getTOTPCode     func() string
+		getU2FResp      func() *u2f.RegisterChallengeResponse
+		getWebauthnResp func() *wanlib.CredentialCreationResponse
 	}{
 		{
 			name:       "new TOTP device",
 			deviceName: "new-totp",
 			getTOTPCode: func() string {
 				// Create totp secrets.
-				endpoint := pack.clt.Endpoint("webapi", "mfa", "token", privilegeToken, "totpsecrets")
-				_, err := pack.clt.PostJSON(ctx, endpoint, url.Values{})
-				require.NoError(t, err)
-
-				// Get secret.
-				secrets, err := env.server.Auth().GetUserTokenSecrets(ctx, privilegeToken)
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+					TokenID:    privilegeToken,
+					DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+				})
 				require.NoError(t, err)
 
 				// Get the new totp code.
-				newTOTPCode, err := totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+				newTOTPCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
 				require.NoError(t, err)
 
 				return newTOTPCode
@@ -2057,22 +2056,45 @@ func TestAddMFADevice(t *testing.T) {
 		{
 			name:       "new U2F device",
 			deviceName: "new-u2f",
-			getU2FResp: func() *fidou2f.RegisterResponse {
+			getU2FResp: func() *u2f.RegisterChallengeResponse {
 				// Get u2f register challenge.
-				endpoint := pack.clt.Endpoint("webapi", "u2f", "signuptokens", privilegeToken)
-				re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+					TokenID:    privilegeToken,
+					DeviceType: apiProto.DeviceType_DEVICE_TYPE_U2F,
+				})
 				require.NoError(t, err)
-
-				var u2fRegisterRequest *u2f.RegisterChallenge
-				require.NoError(t, json.Unmarshal(re.Bytes(), &u2fRegisterRequest))
 
 				// Sign register challenge.
 				u2fKey, err := mocku2f.Create()
 				require.NoError(t, err)
-				u2fRegResp, err := u2fKey.RegisterResponse(u2fRegisterRequest)
+				u2fRegResp, err := u2fKey.RegisterResponse(&u2f.RegisterChallenge{
+					Version:   res.GetU2F().GetVersion(),
+					Challenge: res.GetU2F().GetChallenge(),
+					AppID:     res.GetU2F().GetAppID(),
+				})
 				require.NoError(t, err)
 
 				return u2fRegResp
+			},
+		},
+		{
+			name:       "new Webauthn device",
+			deviceName: "new-webauthn",
+			getWebauthnResp: func() *wanlib.CredentialCreationResponse {
+				// Get webauthn register challenge.
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+					TokenID:    privilegeToken,
+					DeviceType: apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+				})
+				require.NoError(t, err)
+
+				// Sign register challenge.
+				u2fKey, err := mocku2f.Create()
+				require.NoError(t, err)
+				ccr, err := u2fKey.SignCredentialCreation("https://localhost", wanlib.CredentialCreationFromProto(res.GetWebauthn()))
+				require.NoError(t, err)
+
+				return ccr
 			},
 		},
 	}
@@ -2082,11 +2104,14 @@ func TestAddMFADevice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var totpCode string
-			var u2fRegResp *fidou2f.RegisterResponse
+			var u2fRegResp *u2f.RegisterChallengeResponse
+			var webauthnRegResp *wanlib.CredentialCreationResponse
 
 			switch {
 			case tc.getU2FResp != nil:
 				u2fRegResp = tc.getU2FResp()
+			case tc.getWebauthnResp != nil:
+				webauthnRegResp = tc.getWebauthnResp()
 			default:
 				totpCode = tc.getTOTPCode()
 			}
@@ -2094,10 +2119,11 @@ func TestAddMFADevice(t *testing.T) {
 			// Add device.
 			endpoint = pack.clt.Endpoint("webapi", "mfa", "devices")
 			_, err = pack.clt.PostJSON(ctx, endpoint, addMFADeviceRequest{
-				PrivilegeTokenID:    privilegeToken,
-				DeviceName:          tc.deviceName,
-				SecondFactorToken:   totpCode,
-				U2FRegisterResponse: u2fRegResp,
+				PrivilegeTokenID:         privilegeToken,
+				DeviceName:               tc.deviceName,
+				SecondFactorToken:        totpCode,
+				U2FRegisterResponse:      u2fRegResp,
+				WebauthnRegisterResponse: webauthnRegResp,
 			})
 			require.NoError(t, err)
 		})
