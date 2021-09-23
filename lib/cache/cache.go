@@ -512,7 +512,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.WatcherInitTimeout = time.Minute
 	}
 	if c.CacheInitTimeout == 0 {
-		c.CacheInitTimeout = time.Second * 20
+		c.CacheInitTimeout = time.Minute
 	}
 	if c.Component == "" {
 		c.Component = teleport.ComponentCache
