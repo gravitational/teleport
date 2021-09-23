@@ -1116,7 +1116,13 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.presence.GetNodes(ctx, namespace, opts...)
+	start := time.Now()
+	nodes, err := rg.presence.GetNodes(ctx, namespace, opts...)
+	elapsed := time.Since(start)
+	if elapsed > time.Second*3 {
+		c.Warnf("[node-debug] Node loading took longer than expected (elapsed=%v).", elapsed)
+	}
+	return nodes, err
 }
 
 // ListNodes is a part of auth.AccessPoint implementation

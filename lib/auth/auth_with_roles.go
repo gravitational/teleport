@@ -628,6 +628,10 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 	}
 	elapsedFilter := time.Since(startFilter)
 
+	if elapsedFilter > (time.Second * 3) {
+		log.Warnf("[node-debug] RBAC node filtering took longer than expected (duration=%v).", elapsedFilter)
+	}
+
 	log.WithFields(logrus.Fields{
 		"user":           a.context.User.GetName(),
 		"elapsed_fetch":  elapsedFetch,
