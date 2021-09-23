@@ -50,15 +50,12 @@ func (muk *Key) SignAssertion(origin string, assertion *wanlib.CredentialAsserti
 		return nil, trace.BadParameter("device not allowed")
 	}
 
+	// Use RPID or App ID?
 	appID := assertion.Response.RelyingPartyID
-
-	// Use the U2F App ID?
-	var usedAppID bool
 	if value, ok := assertion.Response.Extensions[wanlib.AppIDExtension]; !muk.PreferRPID && ok {
 		if appID, ok = value.(string); !ok {
 			return nil, trace.BadParameter("u2f app ID has unexpected type: %T", value)
 		}
-		usedAppID = true
 	}
 	appIDHash := sha256.Sum256([]byte(appID))
 
@@ -86,9 +83,8 @@ func (muk *Key) SignAssertion(origin string, assertion *wanlib.CredentialAsserti
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID: muk.KeyHandle,
-			Extensions: &wanlib.AuthenticationExtensionsClientOutputs{
-				AppID: usedAppID,
-			},
+			// Mimic browsers and don't set the output AppID extension, even if we
+			// used it.
 		},
 		AssertionResponse: wanlib.AuthenticatorAssertionResponse{
 			AuthenticatorResponse: wanlib.AuthenticatorResponse{

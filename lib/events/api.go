@@ -223,6 +223,8 @@ const (
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
+	// PrivilegeTokenCreateEvent is emitted when a new user privilege token is created.
+	PrivilegeTokenCreateEvent = "privilege_token.create"
 
 	// FieldName contains name, e.g. resource name, etc.
 	FieldName = "name"
