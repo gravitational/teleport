@@ -18,6 +18,7 @@ limitations under the License.
 package s3sessions
 
 import (
+	"context"
 	"fmt"
 	"net/http/httptest"
 	"testing"
@@ -52,7 +53,7 @@ func TestThirdpartyStreams(t *testing.T) {
 	require.Nil(t, err)
 
 	defer func() {
-		if err := handler.deleteBucket(); err != nil {
+		if err := handler.deleteBucket(context.Background()); err != nil {
 			t.Fatalf("Failed to delete bucket: %#v", trace.DebugReport(err))
 		}
 	}()
