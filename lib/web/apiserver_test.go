@@ -1995,33 +1995,6 @@ func TestCreatePrivilegeToken(t *testing.T) {
 	require.NotEmpty(t, privilegeToken)
 }
 
-func TestCreateTOTPSecrets(t *testing.T) {
-	t.Parallel()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-
-	ctx := context.Background()
-	username := "foo@example.com"
-	pack := proxy.authPack(t, username)
-
-	// Acquire a user token.
-	token, err := types.NewUserToken("some-token-id")
-	require.NoError(t, err)
-	token.SetUser(username)
-	token.SetExpiry(env.clock.Now().Add(5 * time.Minute))
-	_, err = env.server.Auth().Identity.CreateUserToken(ctx, token)
-	require.NoError(t, err)
-
-	endpoint := pack.clt.Endpoint("webapi", "mfa", "token", token.GetName(), "totpsecrets")
-	re, err := pack.clt.PostJSON(ctx, endpoint, url.Values{})
-	require.NoError(t, err)
-
-	var qrcode []byte
-	err = json.Unmarshal(re.Bytes(), &qrcode)
-	require.NoError(t, err)
-	require.NotEmpty(t, qrcode)
-}
-
 func TestAddMFADevice(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

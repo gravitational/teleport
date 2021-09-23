@@ -118,21 +118,6 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 	return OK(), nil
 }
 
-// createTOTPSecretsHandle creates a new qr code and secret to register a new TOTP device and returns only the qr code.
-func (h *Handler) createTOTPSecretsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	secrets, err := clt.RotateUserTokenSecrets(r.Context(), params.ByName("token"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return secrets.GetQRCode(), nil
-}
-
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
 // Used when users need to re-authenticate their second factors.
 func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
