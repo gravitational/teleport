@@ -124,7 +124,7 @@ func (s *Config) CheckAndSetDefaults() error {
 }
 
 // NewHandler returns new S3 uploader
-func NewHandler(cfg Config) (*Handler, error) {
+func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -140,7 +140,7 @@ func NewHandler(cfg Config) (*Handler, error) {
 	}
 	start := time.Now()
 	h.Infof("Setting up bucket %q, sessions path %q in region %q.", h.Bucket, h.Path, h.Region)
-	if err := h.ensureBucket(context.Background()); err != nil {
+	if err := h.ensureBucket(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	h.WithFields(log.Fields{"duration": time.Since(start)}).Infof("Setup bucket %q completed.", h.Bucket)
