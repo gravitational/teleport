@@ -717,6 +717,10 @@ teleport:
   auth_token: ${TELEPORT_JOIN_TOKEN}
   auth_servers: ['${TELEPORT_PROXY_SERVER_LB}']
 
+auth_service:
+  enabled: no
+proxy_service:
+  enabled: no
 EOF
 
   # enable SSH service
@@ -735,6 +739,12 @@ EOF
     ${TELEPORT_AGENT_SSH_LABELS_EXPANDED}
 EOF
     fi
+  else
+    # we have to explicitly disable the SSH service if it's not being used, as it historically defaults to enabled
+    cat >>${USE_CONFIG_PATH} <<EOF
+  ssh_service:
+    enabled: no
+EOF
   fi
 
   # enable Kubernetes service
@@ -821,6 +831,9 @@ EOF
 EOF
     fi
   fi
+
+  # enable service
+  systemctl_wrap start --no-block teleport.service
 fi
 
 # make sure config file can be edited by pre-start commands running later (assuming it exists)

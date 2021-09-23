@@ -30,6 +30,18 @@ load fixtures/common
     cat "${TELEPORT_CONFIG_PATH?}" | grep -E "^  auth_token:" -A1 | grep -q "${TELEPORT_JOIN_TOKEN?}"
 }
 
+@test "[${TEST_SUITE?}] auth_service is not enabled" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${AUTH_BLOCK?}"
+    echo "${AUTH_BLOCK?}" | grep -E "^  enabled: no"
+}
+
+@test "[${TEST_SUITE?}] proxy_service is not enabled" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${PROXY_BLOCK?}"
+    echo "${PROXY_BLOCK?}" | grep -E "^  enabled: no"
+}
+
 # in each test, we echo the block so that if the test fails, the block is outputted
 @test "[${TEST_SUITE?}] app_service.enabled is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
