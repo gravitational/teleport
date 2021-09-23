@@ -703,51 +703,6 @@ message ClusterNameSpecV2 {
     string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
 }
 
-// ClusterConfigV3 implements the ClusterConfig interface.
-// DELETE IN 8.0.0
-message ClusterConfigV3 {
-    option (gogoproto.goproto_stringer) = false;
-    option (gogoproto.stringer) = false;
-
-    // Kind is a resource kind
-    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
-    // SubKind is an optional resource sub kind, used in some resources
-    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
-    // Version is version
-    string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is resource metadata
-    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
-    // Spec is a cluster config V3 spec
-    ClusterConfigSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
-}
-
-// ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
-message ClusterConfigSpecV3 {
-    reserved 1, 3, 5 to 10;
-
-    // ClusterID is the unique cluster ID that is set once during the first auth
-    // server startup.
-    // DELETE IN 8.0.0
-    string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
-
-    // Audit is a section with audit config
-    // DELETE IN 8.0.0
-    ClusterAuditConfigSpecV2 Audit = 4
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "audit,omitempty" ];
-
-    // DELETE IN 8.0.0
-    ClusterNetworkingConfigSpecV2 NetworkingConfig = 11
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
-
-    // DELETE IN 8.0.0
-    LegacySessionRecordingConfigSpec SessionRecordingConfig = 12
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
-
-    // DELETE IN 8.0.0
-    LegacyClusterConfigAuthFields AuthFields = 13
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
-}
-
 // ClusterAuditConfigV2 represents audit log settings in the cluster.
 message ClusterAuditConfigV2 {
     // Kind is a resource kind
@@ -878,16 +833,6 @@ message SessionRecordingConfigSpecV2 {
     ];
 }
 
-// LegacySessionRecordingConfigSpec facilitates a backward compatible transition
-// from ClusterConfig to standalone SessionRecordingConfig.
-// SessionRecordingConfigSpecV2 itself is not usable for this purpose because
-// of different jsontags.
-// DELETE IN 8.0.0
-message LegacySessionRecordingConfigSpec {
-    string Mode = 1 [ (gogoproto.jsontag) = "session_recording" ];
-    string ProxyChecksHostKeys = 2 [ (gogoproto.jsontag) = "proxy_checks_host_keys" ];
-}
-
 // AuthPreferenceV2 implements the AuthPreference interface.
 message AuthPreferenceV2 {
     option (gogoproto.goproto_stringer) = false;
@@ -952,15 +897,6 @@ message AuthPreferenceSpecV2 {
 
     // Webauthn are the settings for server-side Web Authentication support.
     Webauthn Webauthn = 10 [ (gogoproto.jsontag) = "webauthn,omitempty" ];
-}
-
-// LegacyClusterConfigAuthFields facilitates a backward compatible transition
-// for the auth related fields moved from ClusterConfig into ClusterAuthPreference.
-// DELETE IN 8.0.0
-message LegacyClusterConfigAuthFields {
-    bool DisconnectExpiredCert = 1
-        [ (gogoproto.jsontag) = "disconnect_expired_cert", (gogoproto.casttype) = "Bool" ];
-    bool AllowLocalAuth = 2 [ (gogoproto.jsontag) = "local_auth", (gogoproto.casttype) = "Bool" ];
 }
 
 // U2F defines settings for U2F device.

@@ -156,10 +156,10 @@ const (
 	MetaNameSessionRecordingConfig = "session-recording-config"
 
 	// KindClusterConfig is the resource that holds cluster level configuration.
+	// Deprecated: This does not correspond to an actual resource anymore but is
+	// still used when checking access to the new configuration resources, as an
+	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
-
-	// MetaNameClusterConfig is the exact name of the cluster config singleton resource.
-	MetaNameClusterConfig = "cluster-config"
 
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"

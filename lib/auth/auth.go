@@ -116,7 +116,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
 	}
 	if cfg.Events == nil {
-		cfg.Events = local.NewEventsService(cfg.Backend, cfg.ClusterConfiguration.GetClusterConfig)
+		cfg.Events = local.NewEventsService(cfg.Backend)
 	}
 	if cfg.AuditLog == nil {
 		cfg.AuditLog = events.NewDiscardAuditLog()
@@ -440,11 +440,6 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 // GetAuthPreference gets AuthPreference from the cache.
 func (a *Server) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return a.GetCache().GetAuthPreference(ctx)
-}
-
-// GetClusterConfig gets ClusterConfig from the cache.
-func (a *Server) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	return a.GetCache().GetClusterConfig(opts...)
 }
 
 // GetClusterAuditConfig gets ClusterAuditConfig from the cache.
