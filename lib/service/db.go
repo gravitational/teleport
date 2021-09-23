@@ -201,6 +201,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			AccessPoint: conn.Client,
 			HostSigner:  conn.ServerIdentity.KeySigner,
 			Cluster:     clusterName,
+			FIPS:        process.Config.FIPS,
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -226,6 +227,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		if agentPool != nil {
 			agentPool.Stop()
 		}
+		warnOnErr(conn.Close(), log)
 		log.Info("Exited.")
 	})
 

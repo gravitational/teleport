@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=7.1.0
+VERSION=7.1.3
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -299,19 +299,53 @@ release-unix: clean full
 	fi
 
 #
-# make release-windows - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make release-windows-unsigned - Produces a binary release archive containing only tsh.
 #
-.PHONY:
-release-windows: clean all
+.PHONY: release-windows-unsigned
+release-windows-unsigned: clean all
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
 		README.md \
 		CHANGELOG.md \
 		teleport/
-	mv teleport/tsh teleport/tsh.exe
+	mv teleport/tsh teleport/tsh-unsigned.exe
 	echo $(GITTAG) > teleport/VERSION
+	zip -9 -y -r -q $(RELEASE)-unsigned.zip teleport/
+	rm -rf teleport/
+	@echo "---> Created $(RELEASE)-unsigned.zip."
+
+#
+# make release-windows - Produces an archive containing a signed release of
+# tsh.exe
+#
+.PHONY: release-windows
+release-windows: release-windows-unsigned
+	@if [ ! -f "windows-signing-cert.pfx" ]; then \
+		echo "windows-signing-cert.pfx is missing or invalid, cannot create signed archive."; \
+		exit 1; \
+	fi
+
+	rm -rf teleport
+	@echo "---> Extracting $(RELEASE)-unsigned.zip"
+	unzip $(RELEASE)-unsigned.zip
+	
+	@echo "---> Signing Windows binary."
+	@osslsigncode sign \
+		-pkcs12 "windows-signing-cert.pfx" \
+		-n "Teleport" \
+		-i https://goteleport.com \
+		-t http://timestamp.digicert.com \
+		-h sha2 \
+		-in teleport/tsh-unsigned.exe \
+		-out teleport/tsh.exe; \
+	success=$$?; \
+	rm -f teleport/tsh-unsigned.exe; \
+	if [ "$${success}" -ne 0 ]; then \
+		echo "Failed to sign tsh.exe, aborting."; \
+		exit 1; \
+	fi
+
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
 	@echo "---> Created $(RELEASE).zip."

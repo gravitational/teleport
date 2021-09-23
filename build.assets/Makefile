@@ -225,8 +225,12 @@ test-sh: buildbox
 
 .PHONY:integration
 integration: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
+	docker run \
+		--env TELEPORT_ETCD_TEST="yes" \
+		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
+		/bin/bash -c \
+		"examples/etcd/start-etcd.sh & sleep 1; \
+		make -C $(SRCDIR) FLAGS='-cover' integration"
 
 .PHONY:integration-root
 integration-root: buildbox
@@ -309,6 +313,14 @@ release-centos6: buildbox-centos6
 release-windows: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows
+
+#
+# Create a Windows Teleport package using the build container.
+#
+.PHONY:release-windows-unsigned
+release-windows-unsigned: buildbox
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
+		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows
 
 #
 # Run docs tester to detect problems.

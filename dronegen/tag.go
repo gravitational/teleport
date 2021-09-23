@@ -47,11 +47,24 @@ func tagBuildCommands(b buildType) []string {
 		)
 	}
 
+	// For Windows builds, configure code signing.
+	if b.os == "windows" {
+		commands = append(commands,
+			`echo -n "$WINDOWS_SIGNING_CERT" | base64 -d > windows-signing-cert.pfx`,
+		)
+	}
+
 	commands = append(commands,
 		fmt.Sprintf(
 			`make -C build.assets %s`, releaseMakefileTarget(b),
 		),
 	)
+
+	if b.os == "windows" {
+		commands = append(commands,
+			`rm -f windows-signing-cert.pfx`,
+		)
+	}
 
 	return commands
 }
@@ -156,6 +169,8 @@ func tagPipelines() []pipeline {
 	// Also add the two CentOS 6 artifacts.
 	// CentOS 6 FIPS builds have been removed in Teleport 7.0. See https://github.com/gravitational/teleport/issues/7207
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
+
+	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline())
 	return ps
 }
 
@@ -183,6 +198,10 @@ func tagPipeline(b buildType) pipeline {
 	if b.fips {
 		pipelineName += "-fips"
 		tagEnvironment["FIPS"] = value{raw: "yes"}
+	}
+
+	if b.os == "windows" {
+		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{fromSecret: "WINDOWS_SIGNING_CERT"}
 	}
 
 	p := newKubePipeline(pipelineName)

@@ -6,7 +6,7 @@ h1: Architecture Introduction
 
 This guide is for those looking for a deeper understanding of Teleport. If you
 are looking for hands-on instructions on how to set up Teleport for your team,
-check out the [Admin Guide](../admin-guide.mdx)
+check out the [Admin Guide](../setup/admin.mdx)
 
 ## What makes Teleport different
 
@@ -26,7 +26,7 @@ Teleport was designed under the following principles:
 - **Open Standards**: There is no security through obscurity. Teleport is fully
   compatible with existing and open standards and other software, including
   [OpenSSH](../server-access/guides/openssh.mdx).
-- **Cluster-Oriented Design**: Teleport is built for managing clusters, not individual servers. In practice this means that hosts and [Users](../user-manual.mdx)
+- **Cluster-Oriented Design**: Teleport is built for managing clusters, not individual servers. In practice this means that hosts and users
   have cluster memberships. Identity management and authorization happen on a
   cluster level.
 - **Built for Teams**: Teleport was created under the assumption of multiple teams operating on several disconnected clusters. Example use cases might be production-vs-staging environment, or a cluster-per-customer or cluster-per-application basis.
@@ -60,7 +60,7 @@ daemon you may be familiar with. Users can log in to a Teleport Node with all
 of the following clients:
 
 - [OpenSSH: `ssh`](../server-access/guides/openssh.mdx) (works on Linux, macOS and Windows)
-- [Teleport CLI client: `tsh ssh`](../setup/reference/cli.mdx#tsh-ssh) (works on Linux and macOS)
+- [Teleport CLI client: `tsh ssh`](../setup/reference/cli.mdx#tsh-ssh) (works on Linux, macOS and Windows)
 - [Teleport Proxy UI](proxy.mdx#web-to-ssh-proxy) accessed via any modern web browser (including Safari on iOS and Chrome on Android)
 
 [**Teleport Auth**](authentication.mdx) authenticates Users and Nodes, authorizes User
@@ -184,7 +184,7 @@ sending the session history to the auth server to be stored.
   title="Note"
 >
   Teleport may also be configured to have the session recording
-  occur on the proxy, see [Audit Log](../admin-guide.mdx#audit-log) for more
+  occur on the proxy, see [Audit Reference](../setup/reference/audit.mdx) for more
   information.
 </Admonition>
 
@@ -232,7 +232,7 @@ When `tsh` logs in, the auto-expiring certificate is stored in `~/.tsh` and is
 valid for 12 hours by default, unless you specify another interval via the
 `--ttl` flag (capped by the server-side configuration).
 
-You can learn more about `tsh` in the [User Manual](../user-manual.mdx).
+You can learn more about `tsh` in the [User Manual](../server-access/guides/tsh.mdx).
 
 ### TCTL
 
@@ -243,13 +243,13 @@ nodes and users in the cluster.
 `tctl` is also a tool that can be used to modify the dynamic configuration of
 the cluster, like creating new user roles or connecting trusted clusters.
 
-You can learn more about `tctl` in the [Admin Manual](../admin-guide.mdx).
+You can learn more about `tctl` in the [Admin Manual](../setup/admin.mdx).
 
 ## Next steps
 
 - If you haven't already, read the [Getting Started Guide](../getting-started.mdx) to run a
   minimal setup of Teleport yourself.
-- Set up Teleport for your team with the [Admin Guide](../admin-guide.mdx).
+- Set up Teleport for your team with the [Admin Guide](../setup/admin.mdx).
 
 Read the rest of the Architecture Guides:
 

@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1087,7 +1088,13 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		tc.localAgent, err = NewLocalAgent(keystore, webProxyHost, c.Username, c.AddKeysToAgent)
+		tc.localAgent, err = NewLocalAgent(LocalAgentConfig{
+			Keystore:   keystore,
+			ProxyHost:  webProxyHost,
+			Username:   c.Username,
+			KeysOption: c.AddKeysToAgent,
+			Insecure:   c.InsecureSkipVerify,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1532,14 +1539,6 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		stream = append(stream, tmp...)
 	}
 
-	// configure terminal for direct unbuffered echo-less input:
-	if term.IsTerminal(0) {
-		state, err := term.MakeRaw(0)
-		if err != nil {
-			return nil
-		}
-		defer term.Restore(0, state)
-	}
 	return playSession(sessionEvents, stream)
 }
 
@@ -1565,6 +1564,7 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	return playSession(sessionEvents, stream)
 }
 
@@ -1920,6 +1920,13 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 		return trace.Wrap(err)
 	}
 	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
+		switch e := trace.Unwrap(err).(type) {
+		case *ssh.ExitError:
+			tc.ExitStatus = e.ExitStatus()
+		case *ssh.ExitMissingError:
+			tc.ExitStatus = 1
+		}
+
 		return trace.Wrap(err)
 	}
 	if nodeSession.ExitMsg == "" {
@@ -2028,7 +2035,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		signers, err := tc.localAgent.certsForCluster("")
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
 		// should be passing auth methods via tc.Config.AuthMethods.
-		if err != nil && !errors.Is(err, errNoLocalKeyStore) {
+		if err != nil && !errors.Is(err, errNoLocalKeyStore) && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 		if len(signers) > 0 {
@@ -2798,7 +2805,18 @@ func Username() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return u.Username, nil
+
+	username := u.Username
+
+	// If on Windows, strip the domain name.
+	if runtime.GOOS == constants.WindowsOS {
+		idx := strings.LastIndex(username, "\\")
+		if idx > -1 {
+			username = username[idx+1:]
+		}
+	}
+
+	return username, nil
 }
 
 // AskOTP prompts the user to enter the OTP token.
@@ -3068,8 +3086,23 @@ func isFIPS() bool {
 
 // playSession plays session in the terminal
 func playSession(sessionEvents []events.EventFields, stream []byte) error {
+	term, err := terminal.New(nil, nil, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer term.Close()
+
+	// configure terminal for direct unbuffered echo-less input:
+	if term.IsAttached() {
+		err := term.InitRaw(true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	var errorCh = make(chan error)
-	player := newSessionPlayer(sessionEvents, stream)
+	player := newSessionPlayer(sessionEvents, stream, term)
 	// keys:
 	const (
 		keyCtrlC = 3
@@ -3085,7 +3118,7 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 		defer player.Stop()
 		var key [1]byte
 		for {
-			_, err := os.Stdin.Read(key[:])
+			_, err := term.Stdin().Read(key[:])
 			if err != nil {
 				errorCh <- err
 				return

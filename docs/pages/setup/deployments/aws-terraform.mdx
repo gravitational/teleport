@@ -336,7 +336,7 @@ This is the default port used when connecting with the `tsh` client and will not
 
 Teleport's tunnel interface will be available via the same network load balancer with
 an AWS-controlled hostname on port 3024. This allows trusted clusters and nodes
-connected via node tunnelling to access the cluster.
+connected via node tunneling to access the cluster.
 
 After deploying, you can get the hostname of the proxy/tunnel network load balancer if needed with this command:
 
@@ -706,8 +706,8 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
 - [Install the Teleport binary on the Server](../../installation.mdx)
 - [Run Teleport - we recommend using systemd](../admin/daemon.mdx#systemd-unit-file)
-- [Set the correct settings in /etc/teleport.yaml](../../admin-guide.mdx#configuration-file)
-- [Add nodes to the Teleport cluster](../../admin-guide.mdx#adding-nodes-to-the-cluster)
+- [Set the correct settings in /etc/teleport.yaml](../reference/config.mdx)
+- [Add nodes to the Teleport cluster](../admin/adding-nodes.mdx#adding-nodes-to-the-cluster)
 
 ### Getting the CA pin hash
 
@@ -731,7 +731,7 @@ $ aws ssm get-parameter --name "/teleport/${TF_VAR_cluster_name}/tokens/node" --
 
 You should use this so that nodes can validate the auth server's identity when joining your cluster.
 
-You can also generate a node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../admin-guide.mdx#adding-nodes-to-the-cluster).
+You can also generate a node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../admin/adding-nodes.mdx#adding-nodes-to-the-cluster).
 
 ### Joining nodes via the Teleport auth server
 
@@ -750,10 +750,10 @@ auth_servers:
   - example-cluster-auth-c5b0fc2764ee015b.elb.us-east-1.amazonaws.com:3025
 ```
 
-### Joining nodes via Teleport IoT/node tunnelling
+### Joining nodes via Teleport IoT/node tunneling
 
 To join Teleport nodes from outside the same VPC, you will either need to investigate VPC peering/gateways (out of scope
-for this document) or join your nodes using [Teleport's node tunnelling](../../admin-guide.mdx#adding-a-node-located-behind-nat) functionality.
+for this document) or join your nodes using [Teleport's node tunneling](../admin/adding-nodes.mdx#adding-a-node-located-behind-nat) functionality.
 
 With this method, you can join the nodes using the public facing proxy address - `teleport.example.com:443` for our
 example.

@@ -22,9 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -220,7 +218,8 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		rotated, err := processRotationRequest(rotationReq{
+
+		rotated, err := a.processRotationRequest(rotationReq{
 			ca:           existing,
 			clock:        a.clock,
 			targetPhase:  req.TargetPhase,
@@ -310,6 +309,12 @@ func (a *Server) autoRotateCertAuthorities() error {
 		if err := a.autoRotate(ca); err != nil {
 			return trace.Wrap(err)
 		}
+		// make sure there are local AdditionalKeys during init phase of rotation
+		if ca.GetRotation().Phase == types.RotationPhaseInit {
+			if err := a.ensureLocalAdditionalKeys(ca); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	}
 	return nil
 }
@@ -367,7 +372,7 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 		return trace.BadParameter("phase is not supported: %q", rotation.Phase)
 	}
 	logger.Infof("Setting rotation phase to %q", req.targetPhase)
-	rotated, err := processRotationRequest(*req)
+	rotated, err := a.processRotationRequest(*req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -380,7 +385,7 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 
 // processRotationRequest processes rotation request based on the target and
 // current phase and state.
-func processRotationRequest(req rotationReq) (types.CertAuthority, error) {
+func (a *Server) processRotationRequest(req rotationReq) (types.CertAuthority, error) {
 	rotation := req.ca.GetRotation()
 	ca := req.ca.Clone()
 
@@ -393,7 +398,7 @@ func processRotationRequest(req rotationReq) (types.CertAuthority, error) {
 		default:
 			return nil, trace.BadParameter("can not initate rotation while another is in progress")
 		}
-		if err := startNewRotation(req, ca); err != nil {
+		if err := a.startNewRotation(req, ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return ca, nil
@@ -448,11 +453,7 @@ func processRotationRequest(req rotationReq) (types.CertAuthority, error) {
 			completeRotation(req.clock, ca)
 			return ca, nil
 		default:
-			return nil, trace.BadParameter(
-				"can only switch to phase %v from %v, current phase is %v",
-				types.RotationPhaseUpdateServers,
-				types.RotationPhaseUpdateClients,
-				rotation.Phase)
+			return nil, trace.BadParameter("can not transition to phase %q from %q phase.", req.targetPhase, rotation.Phase)
 		}
 	default:
 		return nil, trace.BadParameter("unsupported phase: %q", req.targetPhase)
@@ -462,7 +463,7 @@ func processRotationRequest(req rotationReq) (types.CertAuthority, error) {
 // startNewRotation starts new rotation. In this phase requests will continue
 // to be signed by the old CAKeySet, but a new CAKeySet will be added. This new
 // CA can be used to verify requests.
-func startNewRotation(req rotationReq, ca types.CertAuthority) error {
+func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error {
 	clock := req.clock
 	gracePeriod := req.gracePeriod
 
@@ -472,92 +473,89 @@ func startNewRotation(req rotationReq, ca types.CertAuthority) error {
 	rotation.Mode = req.mode
 	rotation.Schedule = req.schedule
 
-	var (
-		sshPublicKey  []byte
-		sshPrivateKey []byte
-		tlsPublicKey  []byte
-		tlsPrivateKey []byte
-		jwtPublicKey  []byte
-		jwtPrivateKey []byte
-	)
+	activeKeys := ca.GetActiveKeys()
+	additionalKeys := ca.GetAdditionalTrustedKeys()
+	var newKeys types.CAKeySet
 
 	// generate keys and certificates:
 	if len(req.privateKey) != 0 {
 		log.Infof("Generating CA, using pregenerated test private key.")
-		tlsPrivateKey = req.privateKey
 
 		rsaKey, err := ssh.ParseRawPrivateKey(req.privateKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		signer, err := ssh.NewSignerFromKey(rsaKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		sshPublicKey = ssh.MarshalAuthorizedKey(signer.PublicKey())
-		sshPrivateKey = req.privateKey
-
-		tlsPublicKey, err = tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-			Signer: rsaKey.(*rsa.PrivateKey),
-			Entity: pkix.Name{
-				CommonName:   ca.GetClusterName(),
-				Organization: []string{ca.GetClusterName()},
-			},
-			TTL:   defaults.CATTL,
-			Clock: req.clock,
-		})
-		if err != nil {
-			return trace.Wrap(err)
+		if len(activeKeys.SSH) > 0 {
+			signer, err := ssh.NewSignerFromKey(rsaKey)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			sshPublicKey := ssh.MarshalAuthorizedKey(signer.PublicKey())
+			newKeys.SSH = append(newKeys.SSH, &types.SSHKeyPair{
+				PublicKey:      sshPublicKey,
+				PrivateKey:     req.privateKey,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+			})
 		}
 
-		jwtPublicKey, jwtPrivateKey, err = utils.MarshalPrivateKey(rsaKey.(*rsa.PrivateKey))
-		if err != nil {
-			return trace.Wrap(err)
+		if len(activeKeys.TLS) > 0 {
+			tlsCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+				Signer: rsaKey.(*rsa.PrivateKey),
+				Entity: pkix.Name{
+					CommonName:   ca.GetClusterName(),
+					Organization: []string{ca.GetClusterName()},
+				},
+				TTL:   defaults.CATTL,
+				Clock: req.clock,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			newKeys.TLS = append(newKeys.TLS, &types.TLSKeyPair{
+				Cert:    tlsCert,
+				Key:     req.privateKey,
+				KeyType: types.PrivateKeyType_RAW,
+			})
+		}
+
+		if len(activeKeys.JWT) > 0 {
+			jwtPublicKey, jwtPrivateKey, err := utils.MarshalPrivateKey(rsaKey.(*rsa.PrivateKey))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			newKeys.JWT = append(newKeys.JWT, &types.JWTKeyPair{
+				PublicKey:      jwtPublicKey,
+				PrivateKey:     jwtPrivateKey,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+			})
 		}
 	} else {
-		var err error
-		sshPrivateKey, sshPublicKey, err = native.GenerateKeyPair("")
-		if err != nil {
-			return trace.Wrap(err)
+		if !additionalKeys.Empty() {
+			// Special case where a new HSM auth server is coming up and has
+			// already added local AdditionalTrustedKeys during the standby
+			// phase. Keep the existing AdditionalTrustedKeys to avoid
+			// invalidating the current Admin identity.
+			newKeys = additionalKeys.Clone()
 		}
-
-		tlsPrivateKey, tlsPublicKey, err = tlsca.GenerateSelfSignedCA(pkix.Name{
-			CommonName:   ca.GetClusterName(),
-			Organization: []string{ca.GetClusterName()},
-		}, nil, defaults.CATTL)
-		if err != nil {
-			return trace.Wrap(err)
+		if !a.keyStore.HasLocalAdditionalKeys(ca) {
+			// This auth server has no local AdditionalTrustedKeys in this CA.
+			// This is one of 2 cases:
+			// 1. There are no AdditionalTrustedKeys at all.
+			// 2. There are AdditionalTrustedKeys which were added by a
+			//    different auth server.
+			// In either case, we need to add newly generated local keys.
+			newLocalKeys, err := newKeySet(a.keyStore, ca.GetID())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			newKeys = mergeKeySets(newLocalKeys, newKeys)
 		}
-
-		jwtPublicKey, jwtPrivateKey, err = jwt.GenerateKeyPair()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	sshKeyPair := &types.SSHKeyPair{
-		PublicKey:      sshPublicKey,
-		PrivateKey:     sshPrivateKey,
-		PrivateKeyType: types.PrivateKeyType_RAW,
-	}
-	tlsKeyPair := &types.TLSKeyPair{
-		Cert:    tlsPublicKey,
-		Key:     tlsPrivateKey,
-		KeyType: types.PrivateKeyType_RAW,
-	}
-	jwtKeyPair := &types.JWTKeyPair{
-		PublicKey:      jwtPublicKey,
-		PrivateKey:     jwtPrivateKey,
-		PrivateKeyType: types.PrivateKeyType_RAW,
 	}
 
 	rotation.Started = clock.Now().UTC()
 	rotation.GracePeriod = types.NewDuration(gracePeriod)
 	rotation.CurrentID = id
-
-	activeKeys := ca.GetActiveKeys()
-	var additionalTrustedKeys types.CAKeySet
 
 	// If no grace period was set, drop old certificate authority without keeping
 	// it as trusted.
@@ -566,48 +564,21 @@ func startNewRotation(req rotationReq, ca types.CertAuthority) error {
 	// as primary signing key pairs, and generates new CAs that are trusted, but
 	// not used in the cluster.
 	if gracePeriod == 0 {
-		// Perform a length check because not every CA has all types of keys.
-		// For example, a JWT services.CertAuthority will not have SSH or TLS keys.
-		// Similarly SSH and TLS services.CertAuthority do not have JWT keys.
-		if len(activeKeys.SSH) > 0 {
-			activeKeys.SSH = []*types.SSHKeyPair{sshKeyPair}
+		if err := ca.SetActiveKeys(newKeys); err != nil {
+			return trace.Wrap(err)
 		}
-		if len(activeKeys.TLS) > 0 {
-			activeKeys.TLS = []*types.TLSKeyPair{tlsKeyPair}
-		}
-		if len(activeKeys.JWT) > 0 {
-			activeKeys.JWT = []*types.JWTKeyPair{jwtKeyPair}
-		}
-
 		// In case of forced rotation, rotation has been started and completed
 		// in the same step moving it to standby state.
 		rotation.State = types.RotationStateStandby
 		rotation.Phase = types.RotationPhaseStandby
 	} else {
-		// Perform a length check because not every CA has all types of keys.
-		// For example, a JWT services.CertAuthority will not have SSH or TLS keys.
-		// Similarly SSH and TLS services.CertAuthority do not have JWT keys.
-		if len(activeKeys.SSH) > 0 {
-			additionalTrustedKeys.SSH = []*types.SSHKeyPair{sshKeyPair}
+		if err := ca.SetAdditionalTrustedKeys(newKeys); err != nil {
+			return trace.Wrap(err)
 		}
-		if len(activeKeys.TLS) > 0 {
-			additionalTrustedKeys.TLS = []*types.TLSKeyPair{tlsKeyPair}
-		}
-		if len(activeKeys.JWT) > 0 {
-			additionalTrustedKeys.JWT = []*types.JWTKeyPair{jwtKeyPair}
-		}
-
 		rotation.State = types.RotationStateInProgress
 		rotation.Phase = types.RotationPhaseInit
 	}
 
-	// Update types.CertAuthority.
-	if err := ca.SetActiveKeys(activeKeys); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := ca.SetAdditionalTrustedKeys(additionalTrustedKeys); err != nil {
-		return trace.Wrap(err)
-	}
 	ca.SetRotation(rotation)
 	// The certificate signing algorithm is only set when signing algorithm is
 	// explicitly set in the config file. If the config file doesn't set a value,
@@ -648,15 +619,20 @@ func updateClients(ca types.CertAuthority, mode string) error {
 // Will keep the new CAKeySet around as trusted during rollback phase, both
 // types of clients may be present in the cluster.
 func startRollingBackRotation(ca types.CertAuthority) error {
-	oldActive, oldTrusted := ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()
-	if err := ca.SetActiveKeys(oldTrusted); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := ca.SetAdditionalTrustedKeys(oldActive); err != nil {
-		return trace.Wrap(err)
+	rotation := ca.GetRotation()
+
+	// if rolling back from the init phase, active and trusted keys have not yet
+	// been swapped
+	if rotation.Phase != types.RotationPhaseInit {
+		oldActive, oldTrusted := ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()
+		if err := ca.SetActiveKeys(oldTrusted); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := ca.SetAdditionalTrustedKeys(oldActive); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	rotation := ca.GetRotation()
 	// Rollback always sets rotation to manual mode.
 	rotation.Mode = types.RotationModeManual
 	rotation.State = types.RotationStateInProgress
