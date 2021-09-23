@@ -36,6 +36,7 @@ import (
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
+	ctx := context.Background()
 	uri := os.Getenv(teleport.GCSTestURI)
 	if uri == "" {
 		t.Skip(
@@ -49,7 +50,7 @@ func TestStreams(t *testing.T) {
 	err = config.SetFromURL(u)
 	require.NoError(t, err)
 
-	handler, err := DefaultNewHandler(config)
+	handler, err := DefaultNewHandler(ctx, config)
 	require.NoError(t, err)
 	defer handler.Close()
 
@@ -79,7 +80,7 @@ func TestStreams(t *testing.T) {
 			return composer.Run(ctx)
 		}
 
-		handler, err := DefaultNewHandler(config)
+		handler, err := DefaultNewHandler(ctx, config)
 		require.NoError(t, err)
 		defer handler.Close()
 
@@ -105,7 +106,7 @@ func TestStreams(t *testing.T) {
 			return nil
 		}
 
-		handler, err := DefaultNewHandler(config)
+		handler, err := DefaultNewHandler(ctx, config)
 		require.NoError(t, err)
 		defer handler.Close()
 
