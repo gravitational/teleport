@@ -274,45 +274,34 @@ export default class Codec {
     throw new Error('Not implemented');
   }
 
-  // decodeMessageType decodes the MessageType from a raw blob of data
-  // (typically raw data recieved over a web socket).
+  // decodeMessageType decodes the MessageType from a raw tdp message
+  // passed in as an ArrayBuffer (this typically would come from a websocket).
   // Throws an error on an invalid or unexpected MessageType value.
-  decodeMessageType(blob: Blob): Promise<MessageType> {
-    // Convert the first byte into an ArrayBuffer and read out the MessageType
-    return blob
-      .slice(0, 1)
-      .arrayBuffer()
-      .then(buffer => {
-        const messageType = new DataView(buffer).getUint8(0);
-        if (messageType === MessageType.PNG_FRAME) {
-          return MessageType.PNG_FRAME;
-        } else if (messageType === MessageType.CLIPBOARD_DATA) {
-          return MessageType.CLIPBOARD_DATA;
-        } else {
-          // We don't expect to need to decode any other value on the client side
-          throw new Error(`invalid message type: ${messageType}`);
-        }
-      });
+  decodeMessageType(buffer: ArrayBuffer): MessageType {
+    const messageType = new DataView(buffer).getUint8(0);
+    if (messageType === MessageType.PNG_FRAME) {
+      return MessageType.PNG_FRAME;
+    } else if (messageType === MessageType.CLIPBOARD_DATA) {
+      return MessageType.CLIPBOARD_DATA;
+    } else {
+      // We don't expect to need to decode any other value on the client side
+      throw new Error(`invalid message type: ${messageType}`);
+    }
   }
 
-  // decodeRegion decodes the region from a PNG_FRAME blob
-  decodeRegion(blob: Blob): Promise<Region> {
-    return blob
-      .slice(1, 17)
-      .arrayBuffer()
-      .then(buf => {
-        let dv = new DataView(buf);
-        return {
-          left: dv.getUint32(0),
-          top: dv.getUint32(4),
-          right: dv.getUint32(8),
-          bottom: dv.getUint32(12),
-        };
-      });
+  // decodeRegion decodes the region from a PNG_FRAME tdp message.
+  decodeRegion(buffer: ArrayBuffer): Region {
+    let dv = new DataView(buffer);
+    return {
+      left: dv.getUint32(1),
+      top: dv.getUint32(5),
+      right: dv.getUint32(9),
+      bottom: dv.getUint32(15),
+    };
   }
 
-  // decodePng decodes the image bitmap from the png data part of a PNG_FRAME blob
-  decodePng(blob: Blob): Promise<ImageBitmap> {
-    return createImageBitmap(blob.slice(17));
+  // decodePng decodes the image bitmap from the png data part of a PNG_FRAME tdp message.
+  decodePng(buffer: ArrayBuffer): Promise<ImageBitmap> {
+    return createImageBitmap(new Blob([buffer.slice(17)]));
   }
 }

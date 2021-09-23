@@ -35,13 +35,14 @@ export default class Client extends EventEmitter {
   // Connect to the websocket and register websocket event handlers.
   init() {
     this.socket = new WebSocket(this.socketAddr);
+    this.socket.binaryType = 'arraybuffer';
 
     this.socket.onopen = () => {
       this.logger.info('websocket is open');
       this.emit('init');
     };
 
-    this.socket.onmessage = (ev: MessageEvent) => {
+    this.socket.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
       this.processMessage(ev.data);
     };
 
@@ -73,30 +74,29 @@ export default class Client extends EventEmitter {
     this.emit('connect');
   }
 
-  processMessage(blob: Blob) {
-    this.codec
-      .decodeMessageType(blob)
-      .then(messageType => {
-        if (messageType === MessageType.PNG_FRAME) {
-          this.processFrame(blob);
-        } else {
-          this.handleError(
-            new Error(`recieved unsupported message type ${messageType}`)
-          );
-        }
-      })
-      .catch(err => {
-        this.handleError(err);
-      });
+  processMessage(buffer: ArrayBuffer) {
+    const messageType = this.codec.decodeMessageType(buffer);
+    try {
+      if (messageType === MessageType.PNG_FRAME) {
+        this.processFrame(buffer);
+      } else {
+        this.handleError(
+          new Error(`recieved unsupported message type ${messageType}`)
+        );
+      }
+    } catch (err) {
+      this.handleError(err);
+    }
   }
 
   // Assuming we have a message of type PNG_FRAME, extract its
   // bounds and png bitmap and emit a render event.
-  processFrame(blob: Blob) {
-    Promise.all([this.codec.decodeRegion(blob), this.codec.decodePng(blob)])
-      .then(values => {
-        const { left, top } = values[0];
-        const bitmap = values[1];
+  processFrame(buffer: ArrayBuffer) {
+    const { left, top } = this.codec.decodeRegion(buffer);
+    console.log(`left: ${left} top: ${top}`);
+    this.codec
+      .decodePng(buffer)
+      .then(bitmap => {
         this.emit('render', { bitmap, left, top });
       })
       .catch(err => {
