@@ -717,6 +717,20 @@ message DeleteRoleRequest {
     string Name = 1;
 }
 
+// DeviceType describes supported MFA device types.
+enum DeviceType {
+    DEVICE_TYPE_UNSPECIFIED = 0;
+    // TOTP is a Time-based One-Time Password device.
+    DEVICE_TYPE_TOTP = 1;
+    // U2F is a U2F/CTAP1 capable device registered via U2F APIs.
+    DEVICE_TYPE_U2F = 2;
+    // Webauthn is a device compatible with the Web Authentication
+    // specification, registered via Webauthn APIs.
+    // Supports various kinds of devices: U2F/CTAP1, CTAP2, platform
+    // authenticators (Touch ID), etc.
+    DEVICE_TYPE_WEBAUTHN = 3;
+}
+
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
 // user.
 message MFAAuthenticateChallenge {
@@ -853,13 +867,18 @@ message AddMFADeviceResponse {
 
 // AddMFADeviceRequestInit describes the new MFA device.
 message AddMFADeviceRequestInit {
-    string DeviceName = 1;
-    enum DeviceType {
+    // DELETE IN 9.x, superseded by DeviceType (codingllama).
+    // LegacyDeviceType is deprecated in favor of DeviceType.
+    enum LegacyDeviceType {
         TOTP = 0;
         U2F = 1;
         Webauthn = 2;
     }
-    DeviceType Type = 2;
+    // LegacyType is deprecated in favor of DeviceType.
+    LegacyDeviceType LegacyType = 2 [ deprecated = true ];
+
+    string DeviceName = 1;
+    DeviceType DeviceType = 3;
 }
 
 // AddMFADeviceResponseAck is a confirmation of successful device registration.
@@ -1247,6 +1266,18 @@ message CreateAuthenticateChallengeRequest {
         string RecoveryStartTokenID = 2
             [ (gogoproto.jsontag) = "recovery_start_token_id,omitempty" ];
     }
+}
+
+// CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
+// Only logged in users are allowed to obtain privilege tokens after they have successfully
+// re-authenticated with their second factor.
+message CreatePrivilegeTokenRequest {
+    // ExistingMFAResponse is a response to a challenge from the user's existing MFA devices.
+    // This field can be empty to create a UserTokenTypePrivilegeException token that
+    // allows a user to bypass second factor re-authentication eg: allowing a user
+    // with no mfa devices to add a device without re-authenticating.
+    MFAAuthenticateResponse ExistingMFAResponse = 1
+        [ (gogoproto.jsontag) = "existing_mfa_response,omitempty" ];
 }
 
 // AuthService is authentication/authorization service implementation
@@ -1682,4 +1713,9 @@ service AuthService {
     // the token e.g: username, state of recovery (started or approved) and the type of recovery
     // requested (password or second factor).
     rpc GetAccountRecoveryToken(GetAccountRecoveryTokenRequest) returns (types.UserTokenV3);
+
+    // CreatePrivilegeToken returns a new privilege token after a logged in user successfully
+    // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
+    // is used to gain access to privileged actions eg: deleting/adding a MFA device.
+    rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
 }

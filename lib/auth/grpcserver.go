@@ -1772,10 +1772,22 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	// RPCs.
 	webIdentity := wanlib.WithInMemorySessionData(auth.Identity)
 
+	devType := initReq.DeviceType
+	if devType == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+		// Try and convert from legacy type.
+		// Keep conversion until 9.x, when the field is marked for deletion.
+		m := map[proto.AddMFADeviceRequestInit_LegacyDeviceType]proto.DeviceType{
+			proto.AddMFADeviceRequestInit_TOTP:     proto.DeviceType_DEVICE_TYPE_TOTP,
+			proto.AddMFADeviceRequestInit_U2F:      proto.DeviceType_DEVICE_TYPE_U2F,
+			proto.AddMFADeviceRequestInit_Webauthn: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		}
+		devType = m[initReq.LegacyType]
+	}
+
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
-	switch initReq.Type {
-	case proto.AddMFADeviceRequestInit_TOTP:
+	switch devType {
+	case proto.DeviceType_DEVICE_TYPE_TOTP:
 		otpKey, otpOpts, err := auth.newTOTPKey(user)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1789,7 +1801,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			Digits:        uint32(otpOpts.Digits.Length()),
 			Account:       otpKey.AccountName(),
 		}}
-	case proto.AddMFADeviceRequestInit_U2F:
+	case proto.DeviceType_DEVICE_TYPE_U2F:
 		cap, err := auth.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1812,7 +1824,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			Challenge: challenge.Challenge,
 			AppID:     challenge.AppID,
 		}}
-	case proto.AddMFADeviceRequestInit_Webauthn:
+	case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
 		cap, err := auth.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1835,7 +1847,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			Webauthn: wanlib.CredentialCreationToProto(credentialCreation),
 		}
 	default:
-		return nil, trace.BadParameter("AddMFADeviceRequestInit sent an unknown DeviceType %v", initReq.Type)
+		return nil, trace.BadParameter("AddMFADeviceRequestInit sent an unknown DeviceType %s", initReq.DeviceType)
 	}
 	if err := stream.Send(&proto.AddMFADeviceResponse{
 		Response: &proto.AddMFADeviceResponse_NewMFARegisterChallenge{NewMFARegisterChallenge: regChallenge},
@@ -3400,6 +3412,17 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *proto
 	}
 
 	return res, nil
+}
+
+// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+func (g *GRPCServer) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := auth.CreatePrivilegeToken(ctx, req)
+	return token, trace.Wrap(err)
 }
 
 // GRPCServerConfig specifies GRPC server configuration

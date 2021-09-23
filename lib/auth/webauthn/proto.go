@@ -116,7 +116,7 @@ func CredentialAssertionFromProto(assertion *wantypes.CredentialAssertion) *Cred
 // CredentialAssertionResponseFromProto converts a CredentialAssertionResponse
 // proto to its lib counterpart.
 func CredentialAssertionResponseFromProto(car *wantypes.CredentialAssertionResponse) *CredentialAssertionResponse {
-	if car == nil {
+	if car == nil || car.Response == nil {
 		return nil
 	}
 	return &CredentialAssertionResponse{
