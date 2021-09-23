@@ -45,6 +45,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -569,22 +570,23 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	return userContext, nil
 }
 
-func localSettings(authClient auth.ClientI, cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
+func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
 		Type:         constants.Local,
 		SecondFactor: cap.GetSecondFactor(),
 	}
 
-	// Add U2F settings, if available.
-	u2fs, err := cap.GetU2F()
-	if trace.IsNotFound(err) {
-		// No U2F settings.
-		return as, nil
+	// U2F settings.
+	if u2f, _ := cap.GetU2F(); u2f != nil {
+		as.U2F = &webclient.U2FSettings{AppID: u2f.AppID}
 	}
-	if err != nil {
-		return webclient.AuthenticationSettings{}, trace.Wrap(err)
+
+	// Webauthn settings.
+	if webConfig, _ := cap.GetWebauthn(); webConfig != nil {
+		as.Webauthn = &webclient.Webauthn{
+			RPID: webConfig.RPID,
+		}
 	}
-	as.U2F = &webclient.U2FSettings{AppID: u2fs.AppID}
 
 	return as, nil
 }
@@ -634,7 +636,7 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 
 	switch cap.GetType() {
 	case constants.Local:
-		as, err = localSettings(authClient, cap)
+		as, err = localSettings(cap)
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
@@ -741,7 +743,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	if connectorName == constants.Local {
-		as, err := localSettings(h.cfg.ProxyClient, cap)
+		as, err := localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1450,7 +1452,8 @@ type changeUserAuthenticationRequest struct {
 	Password []byte `json:"password"`
 	// U2FRegisterResponse is U2F registration challenge response.
 	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
-	// TODO webauthn
+	// WebauthnRegisterResponse is the signed credential creation response.
+	WebauthnRegisterResponse *wanlib.CredentialCreationResponse `json:"webauthn_register_response"`
 }
 
 func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1463,19 +1466,23 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		TokenID:     req.TokenID,
 		NewPassword: req.Password,
 	}
-
-	if req.SecondFactorToken != "" {
-		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
-		}}
-	}
-
-	if req.U2FRegisterResponse != nil {
+	switch {
+	case req.WebauthnRegisterResponse != nil:
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wanlib.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
+			},
+		}
+	case req.U2FRegisterResponse != nil:
 		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
 			U2F: &proto.U2FRegisterResponse{
 				RegistrationData: req.U2FRegisterResponse.RegistrationData,
 				ClientData:       req.U2FRegisterResponse.ClientData,
 			},
+		}}
+	case req.SecondFactorToken != "":
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
 		}}
 	}
 
