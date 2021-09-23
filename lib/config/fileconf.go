@@ -893,14 +893,26 @@ type Databases struct {
 	Service `yaml:",inline"`
 	// Databases is a list of databases proxied by the service.
 	Databases []*Database `yaml:"databases"`
-	// Selectors defines resource monitor selectors.
-	Selectors []Selector `yaml:"selectors,omitempty"`
+	// ResourceMatchers match cluster database resources.
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
+	// AWSMatchers match AWS hosted databases.
+	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 }
 
-// Selector represents a single resource monitor selector.
-type Selector struct {
-	// MatchLabels represents a selector that matches labels.
-	MatchLabels map[string]apiutils.Strings `yaml:"match_labels,omitempty"`
+// ResourceMatcher matches cluster resources.
+type ResourceMatcher struct {
+	// Labels match resource labels.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+}
+
+// AWSMatcher matches AWS databases.
+type AWSMatcher struct {
+	// Types are AWS database types to match, "rds" or "redshift".
+	Types []string `yaml:"types,omitempty"`
+	// Regions are AWS regions to query for databases.
+	Regions []string `yaml:"regions,omitempty"`
+	// Tags are AWS tags to match.
+	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
@@ -971,8 +983,8 @@ type Apps struct {
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`
 
-	// Selectors defines resource monitor selectors.
-	Selectors []Selector `yaml:"selectors,omitempty"`
+	// ResourceMatchers match cluster application resources.
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 }
 
 // App is the specific application that will be proxied by the application
