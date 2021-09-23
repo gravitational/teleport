@@ -18,6 +18,7 @@ package cloud
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -41,6 +42,8 @@ type awsConfig struct {
 	identity cloud.AWSIdentity
 	// database is the database instance to configure.
 	database types.Database
+	// hostID is the host identifier where this agent's running.
+	hostID string
 }
 
 // Check validates the config.
@@ -53,6 +56,9 @@ func (c *awsConfig) Check() error {
 	}
 	if c.database == nil {
 		return trace.BadParameter("missing parameter database")
+	}
+	if c.hostID == "" {
+		return trace.BadParameter("missing parameter host ID")
 	}
 	return nil
 }
@@ -147,14 +153,17 @@ func (r *awsClient) enableIAMAuth(ctx context.Context) error {
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
-	} else {
+		return common.ConvertError(err)
+	}
+	if r.cfg.database.GetAWS().RDS.InstanceID != "" {
 		_, err = r.rds.ModifyDBInstanceWithContext(ctx, &rds.ModifyDBInstanceInput{
 			DBInstanceIdentifier:            aws.String(r.cfg.database.GetAWS().RDS.InstanceID),
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
+		return common.ConvertError(err)
 	}
-	return common.ConvertError(err)
+	return trace.BadParameter("no RDS cluster ID or instance ID for %v", r.cfg.database)
 }
 
 // attachIAMPolicy attaches IAM access policy to the identity this agent is running as.
@@ -164,13 +173,13 @@ func (r *awsClient) attachIAMPolicy(ctx context.Context) error {
 	switch r.cfg.identity.(type) {
 	case cloud.AWSRole:
 		_, err = r.iam.PutRolePolicyWithContext(ctx, &iam.PutRolePolicyInput{
-			PolicyName:     aws.String(r.cfg.database.GetName()),
+			PolicyName:     aws.String(r.policyName()),
 			PolicyDocument: aws.String(r.cfg.database.GetIAMPolicy()),
 			RoleName:       aws.String(r.cfg.identity.GetName()),
 		})
 	case cloud.AWSUser:
 		_, err = r.iam.PutUserPolicyWithContext(ctx, &iam.PutUserPolicyInput{
-			PolicyName:     aws.String(r.cfg.database.GetName()),
+			PolicyName:     aws.String(r.policyName()),
 			PolicyDocument: aws.String(r.cfg.database.GetIAMPolicy()),
 			UserName:       aws.String(r.cfg.identity.GetName()),
 		})
@@ -187,16 +196,20 @@ func (r *awsClient) detachIAMPolicy(ctx context.Context) error {
 	switch r.cfg.identity.(type) {
 	case cloud.AWSRole:
 		_, err = r.iam.DeleteRolePolicyWithContext(ctx, &iam.DeleteRolePolicyInput{
-			PolicyName: aws.String(r.cfg.database.GetName()),
+			PolicyName: aws.String(r.policyName()),
 			RoleName:   aws.String(r.cfg.identity.GetName()),
 		})
 	case cloud.AWSUser:
 		_, err = r.iam.DeleteUserPolicyWithContext(ctx, &iam.DeleteUserPolicyInput{
-			PolicyName: aws.String(r.cfg.database.GetName()),
+			PolicyName: aws.String(r.policyName()),
 			UserName:   aws.String(r.cfg.identity.GetName()),
 		})
 	default:
 		return trace.BadParameter("can only detach policies from roles or users, got %v", r.cfg.identity)
 	}
 	return common.ConvertError(err)
+}
+
+func (r *awsClient) policyName() string {
+	return fmt.Sprintf("%v-%v", r.cfg.database.GetName(), r.cfg.hostID)
 }

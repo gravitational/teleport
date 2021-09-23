@@ -601,8 +601,10 @@ type DatabasesConfig struct {
 	Enabled bool
 	// Databases is a list of databases proxied by this service.
 	Databases []Database
-	// Selectors is a list of resource monitor selectors.
-	Selectors []services.Selector
+	// ResourceMatchers match cluster database resources.
+	ResourceMatchers []services.ResourceMatcher
+	// AWSMatchers match AWS hosted databases.
+	AWSMatchers []services.AWSMatcher
 }
 
 // Database represents a single database that's being proxied.
@@ -727,8 +729,8 @@ type AppsConfig struct {
 	// Apps is the list of applications that are being proxied.
 	Apps []App
 
-	// Selectors is a list of resource monitor selectors.
-	Selectors []services.Selector
+	// ResourceMatchers match cluster database resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // App is the specific application that will be proxied by the application

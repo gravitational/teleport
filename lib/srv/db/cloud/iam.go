@@ -32,12 +32,17 @@ import (
 type IAMConfig struct {
 	// Clients is an interface for retrieving cloud clients.
 	Clients common.CloudClients
+	// HostID is the host identified where this agent is running.
+	HostID string
 }
 
 // Check validates the IAM configurator config.
 func (c *IAMConfig) Check() error {
 	if c.Clients == nil {
 		c.Clients = common.NewCloudClients()
+	}
+	if c.HostID == "" {
+		return trace.BadParameter("missing HostID")
 	}
 	return nil
 }
@@ -95,6 +100,7 @@ func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (
 		clients:  c.cfg.Clients,
 		identity: identity,
 		database: database,
+		hostID:   c.cfg.HostID,
 	})
 }
 

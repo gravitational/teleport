@@ -936,10 +936,18 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 // applyDatabasesConfig applies file configuration for the "db_service" section.
 func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Databases.Enabled = true
-	for _, selector := range fc.Databases.Selectors {
-		cfg.Databases.Selectors = append(cfg.Databases.Selectors,
-			services.Selector{
-				MatchLabels: selector.MatchLabels,
+	for _, matcher := range fc.Databases.ResourceMatchers {
+		cfg.Databases.ResourceMatchers = append(cfg.Databases.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
+			})
+	}
+	for _, matcher := range fc.Databases.AWSMatchers {
+		cfg.Databases.AWSMatchers = append(cfg.Databases.AWSMatchers,
+			services.AWSMatcher{
+				Types:   matcher.Types,
+				Regions: matcher.Regions,
+				Tags:    matcher.Tags,
 			})
 	}
 	for _, database := range fc.Databases.Databases {
@@ -1005,10 +1013,10 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
 	// Configure resource watcher selectors if present.
-	for _, selector := range fc.Apps.Selectors {
-		cfg.Apps.Selectors = append(cfg.Apps.Selectors,
-			services.Selector{
-				MatchLabels: selector.MatchLabels,
+	for _, matcher := range fc.Apps.ResourceMatchers {
+		cfg.Apps.ResourceMatchers = append(cfg.Apps.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
 			})
 	}
 

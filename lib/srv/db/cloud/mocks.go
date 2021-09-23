@@ -33,29 +33,29 @@ import (
 // STSMock mocks AWS STS API.
 type STSMock struct {
 	stsiface.STSAPI
-	arn string
+	ARN string
 }
 
 func (m *STSMock) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdentityInput, ...request.Option) (*sts.GetCallerIdentityOutput, error) {
 	return &sts.GetCallerIdentityOutput{
-		Arn: aws.String(m.arn),
+		Arn: aws.String(m.ARN),
 	}, nil
 }
 
 // RDSMock mocks AWS RDS API.
 type RDSMock struct {
 	rdsiface.RDSAPI
-	dbInstances []*rds.DBInstance
-	dbClusters  []*rds.DBCluster
+	DBInstances []*rds.DBInstance
+	DBClusters  []*rds.DBCluster
 }
 
 func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
 	if aws.StringValue(input.DBInstanceIdentifier) == "" {
 		return &rds.DescribeDBInstancesOutput{
-			DBInstances: m.dbInstances,
+			DBInstances: m.DBInstances,
 		}, nil
 	}
-	for _, instance := range m.dbInstances {
+	for _, instance := range m.DBInstances {
 		if aws.StringValue(instance.DBInstanceIdentifier) == aws.StringValue(input.DBInstanceIdentifier) {
 			return &rds.DescribeDBInstancesOutput{
 				DBInstances: []*rds.DBInstance{instance},
@@ -65,13 +65,20 @@ func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.Des
 	return nil, trace.NotFound("instance %v not found", aws.StringValue(input.DBInstanceIdentifier))
 }
 
+func (m *RDSMock) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
+	fn(&rds.DescribeDBInstancesOutput{
+		DBInstances: m.DBInstances,
+	}, true)
+	return nil
+}
+
 func (m *RDSMock) DescribeDBClustersWithContext(ctx aws.Context, input *rds.DescribeDBClustersInput, options ...request.Option) (*rds.DescribeDBClustersOutput, error) {
 	if aws.StringValue(input.DBClusterIdentifier) == "" {
 		return &rds.DescribeDBClustersOutput{
-			DBClusters: m.dbClusters,
+			DBClusters: m.DBClusters,
 		}, nil
 	}
-	for _, cluster := range m.dbClusters {
+	for _, cluster := range m.DBClusters {
 		if aws.StringValue(cluster.DBClusterIdentifier) == aws.StringValue(input.DBClusterIdentifier) {
 			return &rds.DescribeDBClustersOutput{
 				DBClusters: []*rds.DBCluster{cluster},
@@ -81,14 +88,21 @@ func (m *RDSMock) DescribeDBClustersWithContext(ctx aws.Context, input *rds.Desc
 	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.DBClusterIdentifier))
 }
 
+func (m *RDSMock) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
+	fn(&rds.DescribeDBClustersOutput{
+		DBClusters: m.DBClusters,
+	}, true)
+	return nil
+}
+
 func (m *RDSMock) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.ModifyDBInstanceInput, options ...request.Option) (*rds.ModifyDBInstanceOutput, error) {
-	for i, instance := range m.dbInstances {
+	for i, instance := range m.DBInstances {
 		if aws.StringValue(instance.DBInstanceIdentifier) == aws.StringValue(input.DBInstanceIdentifier) {
 			if aws.BoolValue(input.EnableIAMDatabaseAuthentication) {
-				m.dbInstances[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
+				m.DBInstances[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
 			}
 			return &rds.ModifyDBInstanceOutput{
-				DBInstance: m.dbInstances[i],
+				DBInstance: m.DBInstances[i],
 			}, nil
 		}
 	}
@@ -96,13 +110,13 @@ func (m *RDSMock) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.Modify
 }
 
 func (m *RDSMock) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
-	for i, cluster := range m.dbClusters {
+	for i, cluster := range m.DBClusters {
 		if aws.StringValue(cluster.DBClusterIdentifier) == aws.StringValue(input.DBClusterIdentifier) {
 			if aws.BoolValue(input.EnableIAMDatabaseAuthentication) {
-				m.dbClusters[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
+				m.DBClusters[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
 			}
 			return &rds.ModifyDBClusterOutput{
-				DBCluster: m.dbClusters[i],
+				DBCluster: m.DBClusters[i],
 			}, nil
 		}
 	}
@@ -161,16 +175,16 @@ func (m *IAMMock) DeleteUserPolicyWithContext(ctx aws.Context, input *iam.Delete
 // RedshiftMock mocks AWS Redshift API.
 type RedshiftMock struct {
 	redshiftiface.RedshiftAPI
-	clusters []*redshift.Cluster
+	Clusters []*redshift.Cluster
 }
 
 func (m *RedshiftMock) DescribeClustersWithContext(ctx aws.Context, input *redshift.DescribeClustersInput, options ...request.Option) (*redshift.DescribeClustersOutput, error) {
 	if aws.StringValue(input.ClusterIdentifier) == "" {
 		return &redshift.DescribeClustersOutput{
-			Clusters: m.clusters,
+			Clusters: m.Clusters,
 		}, nil
 	}
-	for _, cluster := range m.clusters {
+	for _, cluster := range m.Clusters {
 		if aws.StringValue(cluster.ClusterIdentifier) == aws.StringValue(input.ClusterIdentifier) {
 			return &redshift.DescribeClustersOutput{
 				Clusters: []*redshift.Cluster{cluster},
