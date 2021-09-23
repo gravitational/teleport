@@ -658,8 +658,12 @@ func (r *RoleV4) CheckAndSetDefaults() error {
 
 // String returns the human readable representation of a role.
 func (r *RoleV4) String() string {
+	options, err := json.Marshal(r.Spec.Options)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return fmt.Sprintf("Role(Name=%v,Options=%v,Allow=%+v,Deny=%+v)",
-		r.GetName(), r.Spec.Options, r.Spec.Allow, r.Spec.Deny)
+		r.GetName(), string(options), r.Spec.Allow, r.Spec.Deny)
 }
 
 // IsEmpty returns true if conditions are unspecified
