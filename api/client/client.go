@@ -1173,9 +1173,9 @@ func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteM
 }
 
 // AddMFADeviceSync adds a new MFA device (nonstream).
-func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) error {
-	_, err := c.grpc.AddMFADeviceSync(ctx, in, c.callOpts...)
-	return trail.FromGRPC(err)
+func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	res, err := c.grpc.AddMFADeviceSync(ctx, in, c.callOpts...)
+	return res, trail.FromGRPC(err)
 }
 
 // DeleteMFADeviceSync deletes a users MFA device (nonstream).

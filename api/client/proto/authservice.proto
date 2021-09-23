@@ -938,6 +938,9 @@ message AddMFADeviceSyncRequest {
     MFARegisterResponse NewMFAResponse = 3 [ (gogoproto.jsontag) = "new_mfa_response,omitempty" ];
 }
 
+// AddMFADeviceSyncResponse is a response to AddMFADeviceSyncRequest.
+message AddMFADeviceSyncResponse { types.MFADevice Device = 1 [ (gogoproto.jsontag) = "device" ]; }
+
 // GetMFADeviceRequest is a request for MFA devices for the calling user.
 message GetMFADevicesRequest {
     // RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
@@ -1525,8 +1528,8 @@ service AuthService {
     // -> MFAResponse
     // <- Ack
     rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
-    // AddMFADeviceSync deletes a users MFA device (nonstream).
-    rpc AddMFADeviceSync(AddMFADeviceSyncRequest) returns (google.protobuf.Empty);
+    // AddMFADeviceSync adds a new MFA device (nonstream).
+    rpc AddMFADeviceSync(AddMFADeviceSyncRequest) returns (AddMFADeviceSyncResponse);
     // DeleteMFADeviceSync deletes a users MFA device (nonstream).
     rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
     // GetMFADevices returns all MFA devices registered for the user calling

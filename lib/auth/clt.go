@@ -1780,7 +1780,7 @@ type IdentityService interface {
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 	// AddMFADeviceSync adds a new MFA device (nonstream).
-	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) error
+	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
 	DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error
 	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
