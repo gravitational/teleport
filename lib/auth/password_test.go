@@ -446,6 +446,39 @@ func TestChangeUserAuthentication(t *testing.T) {
 			},
 		},
 		{
+			name: "with second factor webauthn",
+			setAuthPreference: func() {
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorWebauthn,
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
+					},
+				})
+				require.NoError(t, err)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
+			},
+			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
+				require.NoError(t, err)
+
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:                resetTokenID,
+					NewPassword:            []byte("password3"),
+					NewMFARegisterResponse: webauthnRes,
+				}
+			},
+			// Invalid totp fields when auth settings set to only webauthn.
+			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:                resetTokenID,
+					NewPassword:            []byte("password3"),
+					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{}},
+				}
+			},
+		},
+		{
 			name: "with second factor on",
 			setAuthPreference: func() {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{

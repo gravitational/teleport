@@ -32,7 +32,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/pquerna/otp/totp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1574,8 +1573,8 @@ func TestAddMFADeviceSync(t *testing.T) {
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
 		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
 		},
 	})
 	require.NoError(t, err)
@@ -1623,17 +1622,19 @@ func TestAddMFADeviceSync(t *testing.T) {
 				require.NoError(t, err)
 
 				// Create token secrets.
-				secrets, err := srv.Auth().RotateUserTokenSecrets(ctx, privelegeToken.GetName())
+				res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:    privelegeToken.GetName(),
+					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+				})
 				require.NoError(t, err)
-				newTOTPCode, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
+
+				_, totpRegRes, err := NewTestDeviceFromChallenge(res, WithTestDeviceClock(srv.Auth().clock))
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
 					PrivilegeTokenID: privelegeToken.GetName(),
 					NewDeviceName:    deviceName,
-					NewMFAResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-						TOTP: &proto.TOTPRegisterResponse{Code: newTOTPCode},
-					}},
+					NewMFAResponse:   totpRegRes,
 				}
 			},
 		},
@@ -1665,15 +1666,13 @@ func TestAddMFADeviceSync(t *testing.T) {
 				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
 				require.NoError(t, err)
 
-				webauthnRes, _, err := getMockedU2FAndRegisterRes(srv.Auth(), privExToken.GetName())
+				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName())
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
 					PrivilegeTokenID: privExToken.GetName(),
 					NewDeviceName:    deviceName,
-					NewMFAResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
-						Webauthn: webauthnRes,
-					}},
+					NewMFAResponse:   webauthnRes,
 				}
 			},
 		},

@@ -2046,11 +2046,10 @@ func TestAddMFADevice(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				// Get the new totp code.
-				newTOTPCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
+				_, regRes, err := auth.NewTestDeviceFromChallenge(res, auth.WithTestDeviceClock(env.clock))
 				require.NoError(t, err)
 
-				return newTOTPCode
+				return regRes.GetTOTP().Code
 			},
 		},
 		{
@@ -2064,17 +2063,13 @@ func TestAddMFADevice(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				// Sign register challenge.
-				u2fKey, err := mocku2f.Create()
-				require.NoError(t, err)
-				u2fRegResp, err := u2fKey.RegisterResponse(&u2f.RegisterChallenge{
-					Version:   res.GetU2F().GetVersion(),
-					Challenge: res.GetU2F().GetChallenge(),
-					AppID:     res.GetU2F().GetAppID(),
-				})
+				_, regRes, err := auth.NewTestDeviceFromChallenge(res)
 				require.NoError(t, err)
 
-				return u2fRegResp
+				return &u2f.RegisterChallengeResponse{
+					RegistrationData: regRes.GetU2F().RegistrationData,
+					ClientData:       regRes.GetU2F().ClientData,
+				}
 			},
 		},
 		{
@@ -2088,13 +2083,10 @@ func TestAddMFADevice(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				// Sign register challenge.
-				u2fKey, err := mocku2f.Create()
-				require.NoError(t, err)
-				ccr, err := u2fKey.SignCredentialCreation("https://localhost", wanlib.CredentialCreationFromProto(res.GetWebauthn()))
+				_, regRes, err := auth.NewTestDeviceFromChallenge(res)
 				require.NoError(t, err)
 
-				return ccr
+				return wanlib.CredentialCreationResponseFromProto(regRes.GetWebauthn())
 			},
 		},
 	}
