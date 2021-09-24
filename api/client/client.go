@@ -1172,6 +1172,12 @@ func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteM
 	return stream, nil
 }
 
+// AddMFADeviceSync adds a new MFA device (nonstream).
+func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	res, err := c.grpc.AddMFADeviceSync(ctx, in, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
 // DeleteMFADeviceSync deletes a users MFA device (nonstream).
 func (c *Client) DeleteMFADeviceSync(ctx context.Context, in *proto.DeleteMFADeviceSyncRequest) error {
 	_, err := c.grpc.DeleteMFADeviceSync(ctx, in, c.callOpts...)
@@ -2131,6 +2137,12 @@ func (c *Client) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 // request is not expired and is of the correct recovery type.
 func (c *Client) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error) {
 	res, err := c.grpc.GetAccountRecoveryToken(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
+func (c *Client) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	res, err := c.grpc.GetAccountRecoveryCodes(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
 
