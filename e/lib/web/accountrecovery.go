@@ -40,11 +40,14 @@ func (p *Plugin) getAccountRecoveryTokenHandle(w http.ResponseWriter, r *http.Re
 
 	// Return qrcode to register a new TOTP device.
 	if uiToken.IsApproved && !uiToken.IsRecoverPassword {
-		secrets, err := p.h.GetProxyClient().RotateUserTokenSecrets(r.Context(), token.GetName())
+		res, err := p.h.GetProxyClient().CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
+			TokenID:    token.GetName(),
+			DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		uiToken.QRCode = secrets.GetQRCode()
+		uiToken.QRCode = res.GetTOTP().GetQRCode()
 	}
 
 	return uiToken, nil
@@ -169,21 +172,10 @@ func (p *Plugin) approveAccountRecoveryHandle(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	uiToken := ui.RecoveryToken{
+	return ui.RecoveryToken{
 		TokenID:           token.GetName(),
-		User:              token.GetUser(),
 		IsRecoverPassword: token.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
-	}
-
-	if !uiToken.IsRecoverPassword {
-		secrets, err := p.h.GetProxyClient().RotateUserTokenSecrets(r.Context(), token.GetName())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		uiToken.QRCode = secrets.GetQRCode()
-	}
-
-	return uiToken, nil
+	}, nil
 }
 
 type completeAccountRecoveryRequest struct {
