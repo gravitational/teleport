@@ -18,10 +18,19 @@ package desktop
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
+	"encoding/pem"
+	"fmt"
 	"net"
 	"strings"
+	"time"
 
+	"github.com/go-ldap/ldap/v3"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -29,6 +38,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -64,10 +74,55 @@ type WindowsServiceConfig struct {
 	TLS *tls.Config
 	// AccessPoint is the Auth API client (with caching).
 	AccessPoint auth.AccessPoint
+	// AuthClient is the Auth API client (without caching).
+	AuthClient auth.ClientI
 	// ConnLimiter limits the number of active connections per client IP.
 	ConnLimiter *limiter.ConnectionsLimiter
 	// Heartbeat contains configuration for service heartbeats.
 	Heartbeat HeartbeatConfig
+	// LDAPConfig contains parameters for connecting to an LDAP server.
+	LDAPConfig
+}
+
+// LDAPConfig contains parameters for connecting to an LDAP server.
+type LDAPConfig struct {
+	Addr     string
+	Domain   string
+	Username string
+	Password string
+}
+
+func (cfg LDAPConfig) check() error {
+	if cfg.Addr == "" {
+		return trace.BadParameter("missing Addr in LDAPConfig")
+	}
+	if cfg.Domain == "" {
+		return trace.BadParameter("missing Domain in LDAPConfig")
+	}
+	if cfg.Username == "" {
+		return trace.BadParameter("missing Username in LDAPConfig")
+	}
+	if cfg.Password == "" {
+		return trace.BadParameter("missing Password in LDAPConfig")
+	}
+	return nil
+}
+
+func (cfg LDAPConfig) connect() (ldap.Client, error) {
+	con, err := ldap.Dial("tcp", cfg.Addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO(awly): should we get a CA cert for the LDAP cert validation?
+	if err := con.StartTLS(&tls.Config{InsecureSkipVerify: true}); err != nil {
+		defer con.Close()
+		return nil, trace.Wrap(err)
+	}
+	if err := con.Bind(cfg.Username, cfg.Password); err != nil {
+		defer con.Close()
+		return nil, trace.Wrap(err)
+	}
+	return con, nil
 }
 
 // HeartbeatConfig contains the configuration for service heartbeats.
@@ -96,10 +151,16 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if cfg.AccessPoint == nil {
 		return trace.BadParameter("WindowsServiceConfig is missing AccessPoint")
 	}
+	if cfg.AuthClient == nil {
+		return trace.BadParameter("WindowsServiceConfig is missing AuthClient")
+	}
 	if cfg.ConnLimiter == nil {
 		return trace.BadParameter("WindowsServiceConfig is missing ConnLimiter")
 	}
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := cfg.LDAPConfig.check(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -143,7 +204,18 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if err := s.startServiceHeartbeat(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO(awly): fetch registered hosts automatically.
 	if err := s.startStaticHostHeartbeats(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(awly): publish Teleport CA cert.
+
+	// Push an empty valid CRL into LDAP once at startup.
+	// The CRL should be valid for a year, so we don't have to periodically
+	// update it.
+	if err := s.updateCRL(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -281,16 +353,19 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 
 	// TODO(awly): authorization
 
-	if err := s.connectRDP(log, tlsCon, desktop); err != nil {
+	if err := s.connectRDP(ctx, log, tlsCon, desktop); err != nil {
 		log.WithError(err).Error("RDP connection failed")
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(log logrus.FieldLogger, con net.Conn, desktop types.WindowsDesktop) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, con net.Conn, desktop types.WindowsDesktop) error {
 	dpc := deskproto.NewConn(con)
-	rdpc, err := rdpclient.New(rdpclient.Config{
-		Log:           log,
+	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
+		Log: log,
+		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
+			return s.generateCredentials(ctx, username, desktop.GetDomain())
+		},
 		Addr:          desktop.GetAddr(),
 		InputMessage:  dpc.InputMessage,
 		OutputMessage: dpc.OutputMessage,
@@ -326,7 +401,8 @@ func (s *WindowsService) getHostHeartbeatInfo(netAddr utils.NetAddr) func() (typ
 			name,
 			nil, // TODO(awly): set RBAC labels.
 			types.WindowsDesktopSpecV3{
-				Addr: addr,
+				Addr:   addr,
+				Domain: s.cfg.Domain,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -358,4 +434,197 @@ func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
 		}
 	}
 	return uuid.New().String(), nil
+}
+
+// crlDN returns the distinguished name (DN) of the CRL entry in the LDAP
+// server (ActiveDirectory), along with its parent container entry DN.
+func (s *WindowsService) crlDN(ctx context.Context, domain string) (dn string, container string, err error) {
+	clusterName, err := s.cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return "", "", trace.Wrap(err, "fetching cluster name: %v", err)
+	}
+
+	// Here's an example DN:
+	//
+	// CN=mycluster,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com
+	//
+	// You read it backwards:
+	// - DC=example,DC=com means "example.com" domain
+	// - CN=mycluster,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration
+	//   means "Configuration/Services/Public Key Services/CDP/Teleport/mycluster"
+	//   entry, where "mycluster" is the Teleport cluster name
+	//
+	// CDP stands for CRL Distribution Point, this is where the Windows CA
+	// stores its own CRLs and we mimic it.
+
+	domainParts := strings.Split(domain, ".")
+	parentDN := "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration"
+	for _, dc := range domainParts {
+		parentDN += fmt.Sprintf(",DC=%s", dc)
+	}
+
+	crlDN := fmt.Sprintf("CN=%s,%s", clusterName.GetClusterName(), parentDN)
+	return crlDN, parentDN, nil
+}
+
+func (s *WindowsService) updateCRL(ctx context.Context) error {
+	// Publish the CRL for current cluster CA. For trusted clusters, their
+	// respective windows_desktop_services will publish CRLs of their CAs so we
+	// don't have to do it here.
+	crlDER, err := s.cfg.AccessPoint.GetCertAuthorityCRL(ctx, types.UserCA)
+	if err != nil {
+		return trace.Wrap(err, "generating CRL: %v", err)
+	}
+	crlDN, parentDN, err := s.crlDN(ctx, s.cfg.LDAPConfig.Domain)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	con, err := s.cfg.LDAPConfig.connect()
+	if err != nil {
+		return trace.Wrap(err, "connecting to LDAP server: %v", err)
+	}
+	defer con.Close()
+
+	// Try to create the parent container first, ignore the error if it already
+	// exists.
+	areq := ldap.NewAddRequest(parentDN, nil)
+	areq.Attribute("objectClass", []string{"container"})
+	if err := con.Add(areq); err != nil && !ldap.IsErrorWithCode(err, ldap.LDAPResultEntryAlreadyExists) {
+		return trace.Wrap(err, "creating container: %v", err)
+	}
+
+	// Try to create the CRL entry.
+	// If it exists, issue a Modify request to replace the data.
+	areq = ldap.NewAddRequest(crlDN, nil)
+	areq.Attribute("objectClass", []string{"cRLDistributionPoint"})
+	areq.Attribute("certificateRevocationList", []string{string(crlDER)})
+	if err := con.Add(areq); err != nil {
+		if !ldap.IsErrorWithCode(err, ldap.LDAPResultEntryAlreadyExists) {
+			return trace.Wrap(err, "creating CRL: %v", err)
+		}
+		mreq := ldap.NewModifyRequest(crlDN, nil)
+		mreq.Replace("certificateRevocationList", []string{string(crlDER)})
+		if err := con.Modify(mreq); err != nil {
+			if err != nil {
+				return trace.Wrap(err, "updating CRL: %v", err)
+			}
+		}
+		s.cfg.Log.Info("Updated CRL for Windows logins via LDAP")
+	} else {
+		s.cfg.Log.Info("Added CRL for Windows logins via LDAP")
+	}
+	return nil
+}
+
+func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string) (certDER, keyDER []byte, err error) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	keyDER = x509.MarshalPKCS1PrivateKey(rsaKey)
+
+	// Generate the Windows-compatible certificate, see
+	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
+	// for requirements.
+	san, err := subjectAltNameExtension(username, domain)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	csr := &x509.CertificateRequest{
+		Subject: pkix.Name{CommonName: username},
+		// We have to pass SAN and ExtKeyUsage as raw extensions because
+		// crypto/x509 doesn't support what we need:
+		// - x509.ExtKeyUsage doesn't have the Smartcard Logon variant
+		// - x509.CertificateRequest doesn't have OtherName SAN fields (which
+		//   is a type of SAN distinct from DNSNames, EmailAddresses, IPAddresses
+		//   and URIs)
+		ExtraExtensions: []pkix.Extension{
+			extKeyUsageExtension,
+			san,
+		},
+	}
+	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, rsaKey)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
+	// Note: this CRL DN may or may not be the same DN published in updateCRL.
+	//
+	// There can be multiple AD domains connected to Teleport. Each
+	// windows_desktop_service is connected to a single AD domain and publishes
+	// CRLs in it. Each service can also handle RDP connections for a different
+	// domain, with the assumption that some other windows_desktop_service
+	// published a CRL there.
+	//
+	// In other words, the domain var below may not be the same as
+	// s.cfg.LDAPConfig.Domain.
+	crlDN, _, err := s.crlDN(ctx, domain)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	genResp, err := s.cfg.AuthClient.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
+		CSR: csrPEM,
+		// LDAP URI pointing at the CRL created with updateCRL.
+		CRLEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN),
+		TTL:         proto.Duration(5 * time.Minute),
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	certBlock, _ := pem.Decode(genResp.Cert)
+	certDER = certBlock.Bytes
+	return certDER, keyDER, nil
+}
+
+var extKeyUsageExtension = pkix.Extension{
+	Id: asn1.ObjectIdentifier{2, 5, 29, 37}, // Extended Key Usage OID.
+	Value: func() []byte {
+		val, err := asn1.Marshal([]asn1.ObjectIdentifier{
+			{1, 3, 6, 1, 5, 5, 7, 3, 2},       // Client Authentication OID.
+			{1, 3, 6, 1, 4, 1, 311, 20, 2, 2}, // Smartcard Logon OID.
+		})
+		if err != nil {
+			panic(err)
+		}
+		return val
+	}(),
+}
+
+func subjectAltNameExtension(user, domain string) (pkix.Extension, error) {
+	// Setting otherName SAN according to
+	// https://samfira.com/2020/05/16/golang-x-509-certificates-and-othername/
+	//
+	// othernName SAN is needed to pass the UPN of the user, per
+	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
+	ext := pkix.Extension{Id: asn1.ObjectIdentifier{2, 5, 29, 17}}
+	var err error
+	ext.Value, err = asn1.Marshal(
+		subjectAltName{
+			OtherName: otherName{
+				OID: asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 3}, // UPN OID
+				Value: upn{
+					Value: fmt.Sprintf("%s@%s", user, domain), // TODO(awly): sanitize username to avoid domain spoofing
+				},
+			},
+		},
+	)
+	if err != nil {
+		return ext, trace.Wrap(err)
+	}
+	return ext, nil
+}
+
+// Types for ASN.1 SAN serialization.
+
+type subjectAltName struct {
+	OtherName otherName `asn1:"tag:0"`
+}
+
+type otherName struct {
+	OID   asn1.ObjectIdentifier
+	Value upn `asn1:"tag:0"`
+}
+
+type upn struct {
+	Value string `asn1:"utf8"`
 }

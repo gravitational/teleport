@@ -3441,6 +3441,16 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 	return a.authServer.DeleteAllWindowsDesktops(ctx)
 }
 
+// GenerateWindowsDesktopCert generates a certificate for Windows RDP
+// authentication.
+func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+	// Only windows_desktop_service should be requesting Windows certificates.
+	if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return nil, trace.AccessDenied("access denied")
+	}
+	return a.authServer.GenerateWindowsDesktopCert(ctx, req)
+}
+
 // StartAccountRecovery is implemented by AuthService.StartAccountRecovery.
 func (a *ServerWithRoles) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
 	return a.authServer.StartAccountRecovery(ctx, req)
@@ -3492,6 +3502,19 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
 	// User in context can retrieve their own recovery codes.
 	return a.authServer.GetAccountRecoveryCodes(ctx, req)
+}
+
+// GetCertAuthorityCRL generates an empty CRL for a CA.
+func (a *ServerWithRoles) GetCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	// Only windows_desktop_service should be requesting CRLs
+	if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return nil, trace.AccessDenied("access denied")
+	}
+	crl, err := a.authServer.GetCertAuthorityCRL(ctx, caType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return crl, nil
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,
