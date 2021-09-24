@@ -2,6 +2,8 @@
 # releases of Teleport and its documentation.
 FROM centos:6
 
+ARG CURL_FLAGS
+
 ENV LANGUAGE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
@@ -21,8 +23,8 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 # Install etcd.
-RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+RUN (curl $CURL_FLAGS -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
+    cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
 
 # BoringCrypto (unlike regular Go) requires glibc 2.14, so we have to build from source.
 # 1) Install older binary Go runtime for bootstrapping
@@ -31,8 +33,10 @@ RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9
 # 4) Print compiled Go version
 ARG BORINGCRYPTO_RUNTIME
 ARG GO_BOOTSTRAP_RUNTIME=go1.9.7
-RUN mkdir -p /go-bootstrap && cd /go-bootstrap && curl https://dl.google.com/go/${GO_BOOTSTRAP_RUNTIME}.linux-amd64.tar.gz | tar xz && \
-    mkdir -p /opt && cd /opt && curl https://go-boringcrypto.storage.googleapis.com/${BORINGCRYPTO_RUNTIME}.src.tar.gz | tar xz && \
+RUN mkdir -p /go-bootstrap && cd /go-bootstrap && \
+    curl $CURL_FLAGS https://dl.google.com/go/${GO_BOOTSTRAP_RUNTIME}.linux-amd64.tar.gz | tar xz && \
+    mkdir -p /opt && cd /opt && \
+    curl $CURL_FLAGS https://go-boringcrypto.storage.googleapis.com/${BORINGCRYPTO_RUNTIME}.src.tar.gz | tar xz && \
     cd /opt/go/src && GOROOT_BOOTSTRAP=/go-bootstrap/go ./make.bash && \
     rm -rf /go-bootstrap && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
