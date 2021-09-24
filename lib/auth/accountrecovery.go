@@ -147,7 +147,7 @@ func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string
 }
 
 func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode []byte) error {
-	recovery, err := s.GetRecoveryCodes(ctx, user)
+	recovery, err := s.GetRecoveryCodes(ctx, user, true /* withSecrets */)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -459,30 +459,32 @@ func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	approvedToken, err := s.GetUserToken(ctx, req.GetTokenID())
+	token, err := s.GetUserToken(ctx, req.GetTokenID())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
-	if _, err := mail.ParseAddress(approvedToken.GetUser()); err != nil {
-		log.Debugf("Failed to create new recovery codes, username %q is not a valid email: %v.", approvedToken.GetUser(), err)
+	if _, err := mail.ParseAddress(token.GetUser()); err != nil {
+		log.Debugf("Failed to create new recovery codes, username %q is not a valid email: %v.", token.GetUser(), err)
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
-	if err := s.verifyUserToken(approvedToken, UserTokenTypeRecoveryApproved); err != nil {
+	if err := s.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	codes, err := s.generateAndUpsertRecoveryCodes(ctx, approvedToken.GetUser())
+	codes, err := s.generateAndUpsertRecoveryCodes(ctx, token.GetUser())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
 	// If used as part of the recovery flow, getting new recovery codes marks the end of the flow in the UI.
-	if err := s.deleteUserTokens(ctx, approvedToken.GetUser()); err != nil {
-		log.Error(trace.DebugReport(err))
+	if token.GetSubKind() == UserTokenTypeRecoveryApproved {
+		if err := s.deleteUserTokens(ctx, token.GetUser()); err != nil {
+			log.Error(trace.DebugReport(err))
+		}
 	}
 
 	return &proto.CreateAccountRecoveryCodesResponse{
@@ -503,6 +505,21 @@ func (s *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 	}
 
 	return token, nil
+}
+
+// GetAccountRecoveryCodes implements AuthService.GetAccountRecoveryCodes.
+func (s *Server) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	username, err := GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rc, err := s.GetRecoveryCodes(ctx, username, false /* without secrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rc, nil
 }
 
 func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username string) ([]string, error) {
