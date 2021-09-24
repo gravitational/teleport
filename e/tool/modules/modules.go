@@ -44,6 +44,7 @@ func (p *enterpriseModules) Features() modules.Features {
 		SAML:                    true,
 		AccessControls:          true,
 		AdvancedAccessWorkflows: true,
+		HSM:                     true,
 	}
 }
 
