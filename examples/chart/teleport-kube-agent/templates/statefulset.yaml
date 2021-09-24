@@ -82,6 +82,10 @@ spec:
         {{- if .Values.insecureSkipProxyTLSVerify }}
         - "--insecure"
         {{- end }}
+        {{- if .Values.extraEnv }}
+        env:
+          {{- toYaml .Values.extraEnv | nindent 8 }}
+        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
