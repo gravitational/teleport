@@ -115,10 +115,8 @@ func (s *OIDCSuite) TestUserInfo(c *check.C) {
 	fixtures.ExpectNotFound(c, err)
 }
 
-
-
 // TestPingProvider confirms that the client_secret_post auth
-//method was set for a oauthclient.  
+//method was set for a oauthclient.
 func (s *OIDCSuite) TestPingProvider(c *check.C) {
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP()
@@ -129,11 +127,13 @@ func (s *OIDCSuite) TestPingProvider(c *check.C) {
 		IssuerURL:    idp.s.URL,
 		ClientID:     "00000000000000000000000000000000",
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
-		Provider: teleport.Ping,
+		Provider:     teleport.Ping,
 	})
 	c.Assert(err, check.IsNil)
 	oidcClient, err := s.a.getOrCreateOIDCClient(connector)
-	
+
+	c.Assert(err, check.IsNil)
+
 	oac, err := oidcClient.OAuthClient()
 
 	c.Assert(err, check.IsNil)
@@ -145,9 +145,8 @@ func (s *OIDCSuite) TestPingProvider(c *check.C) {
 		oac.SetAuthMethod(oauth2.AuthMethodClientSecretPost)
 	}
 
-
-    // authMethod should be client secret post now
-	c.Assert.(oac.GetAuthMethod(), Equals, oauth2.AuthMethodClientSecretPost)
+	// authMethod should be client secret post now
+	c.Assert(oac.GetAuthMethod(), check.Equals, oauth2.AuthMethodClientSecretPost)
 }
 
 // fakeIDP is a configurable OIDC IdP that can be used to mock responses in
