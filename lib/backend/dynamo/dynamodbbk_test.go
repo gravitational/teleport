@@ -39,7 +39,7 @@ const tableName = "teleport.dynamo.test"
 func ensureTestsEnabled(t *testing.T) {
 	const varName = "TELEPORT_DYNAMODB_TEST"
 	if os.Getenv(varName) == "" {
-		t.Skip("Firestore tests are disabled. Enable by defining the " + varName + " environment variable")
+		t.Skipf("DynamoDB tests are disabled. Enable by defining the %v environment variable", varName)
 	}
 }
 
