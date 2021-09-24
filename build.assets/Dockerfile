@@ -70,7 +70,7 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+     cp etcd-v3.3.9-linux-amd64/etcd* /bin/ && sleep 5)
 
 # Install Go.
 ARG RUNTIME
@@ -85,7 +85,7 @@ ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
-    make install
+    make install && sleep 5
 
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
@@ -94,7 +94,7 @@ ENV GOPATH="/go" \
 # Install meta-linter.
 RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.38.0/golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
      cp golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
-     rm -r golangci-lint*)
+     rm -r golangci-lint* && sleep 5)
 
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
@@ -104,7 +104,7 @@ RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env G
 # Install bats.
 RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
      cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
-     rm -r bats-core-1.2.1)
+     rm -r bats-core-1.2.1 && sleep 5)
 
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
@@ -116,7 +116,7 @@ ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
 RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
-     rm /tmp/${PROTOC_TARBALL})
+     rm /tmp/${PROTOC_TARBALL} && sleep 5)
 RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && go install golang.org/x/tools/cmd/goimports@latest && \
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      git reset --hard ${GOGO_PROTO_TAG} && \
