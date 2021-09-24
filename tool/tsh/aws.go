@@ -58,7 +58,8 @@ func onAWS(cf *CLIConf) error {
 	}
 	defer func() {
 		if err := tmpCert.Clean(); err != nil {
-			log.WithError(err).Errorf("Failed clean temporary self-signed local proxy cert.")
+			log.WithError(err).Errorf(
+				"Failed to clean temporary self-signed local proxy cert %q.", tmpCert.getCAPath())
 		}
 	}()
 
