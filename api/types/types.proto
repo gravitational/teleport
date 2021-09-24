@@ -2556,6 +2556,8 @@ message WindowsDesktopV3 {
 message WindowsDesktopSpecV3 {
     // Addr is the address that this host can be reached at.
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
+    // Domain is the ActiveDirectory domain that this host belongs to.
+    string Domain = 2 [ (gogoproto.jsontag) = "domain" ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain

@@ -18,13 +18,13 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new() -> Self {
+    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>) -> Self {
         Client {
-            scard: scard::Client::new(),
+            scard: scard::Client::new(cert_der, key_der),
         }
     }
     pub fn read<S: Read + Write>(
-        &self,
+        &mut self,
         payload: tpkt::Payload,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
@@ -118,7 +118,7 @@ impl Client {
         }
     }
 
-    fn handle_device_io_request(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = DeviceIoRequest::decode(payload)?;
         debug!("got {:?}", req);
 
@@ -142,12 +142,6 @@ impl Client {
                 &req.major_function
             )))
         }
-    }
-}
-
-impl Default for Client {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
