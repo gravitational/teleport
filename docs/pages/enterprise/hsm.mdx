@@ -18,7 +18,7 @@ This section will cover:
 While most PKCS#11 HSMs should be supported, the Teleport team tests with AWS
 CloudHSM, YubiHSM2, and SoftHSM2.
 
-## Step 1/N. Set up your HSM
+## Step 1/5. Set up your HSM
 
 You will need to set up your HSM and make sure that it is accessible from your
 Teleport auth server. You should create a unique HSM user or token for Teleport
@@ -94,7 +94,7 @@ On the EC2 instance where you will run your Teleport auth server:
   </TabItem>
 </Tabs>
 
-## Step 2/N. Configure Teleport
+## Step 2/5. Configure Teleport
 
 To configure Teleport to use an HSM for all CA private key generation, storage,
 and signing, include the `ca_key_params` section in `/etc/teleport.yaml` on the
@@ -146,24 +146,23 @@ auth_service:
   </TabItem>
 </Tabs>
 
-## Step 3/3. (Re)start Teleport Auth
+## Step 3/5. (Re)start Teleport Auth
 
-If this is a new auth server starting a brand new cluster, HSM keys will be
-automatically generated at startup and no further steps are required. Check the
-teleport logs for `Creating new HSM key pair` to confirm that the feature is
-working. You can also check that keys were created in your HSM.
+If this is a new auth server which has not been started yet, starting a brand
+new cluster with an empty backend, HSM keys will be automatically generated at
+startup and no further action is required, skip to step 5. Otherwise, continue
+reading.
 
 If you are connecting an HSM to an existing Teleport cluster, restart the auth
 server for the configuration changes to take effect. New CA keys will
 automatically be generated in the HSM. For these keys to be trusted by the rest
 of the cluster you will need to permorm a CA rotation, see
-[Next Steps](#certificate-rotation-with-hsm). The auth server will not perform
+[Step 4](#step-45-certificate-rotation-with-hsm). The auth server will not perform
 any signing operations until the rotation has started. In an HA cluster you
 should add the HSM to the auth configuration one server at a time, and do not
 route any traffic to the auth server where the HSM is currently being added.
 
-## Next Steps
-### Certificate Rotation with HSM
+## Step 4/5. Certificate Rotation with HSM
 
 When adding a new HSM to an existing Teleport cluster, or adding a new
 HSM-connected Auth server to an HA Teleport cluster, CA rotation needs to be
@@ -196,3 +195,9 @@ $ tctl status
 If you are updating a live cluster, make sure to wait for all nodes which may
 intermittently lose connection to connect and receive new certs or they may lose
 access to the cluster and have to re-join.
+
+## Step 5/5. Confirm that Teleport is using your HSM
+
+You are all set! Check the teleport logs for `Creating new HSM key pair` to
+confirm that the feature is working. You can also check that keys were created
+in your HSM using your HSM's admin tool.
