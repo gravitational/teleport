@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 )
@@ -48,7 +49,7 @@ type LocalProxyConfig struct {
 	// RemoteProxyAddr is the downstream destination address of remote ALPN proxy service.
 	RemoteProxyAddr string
 	// Protocol set for the upstream TLS connection.
-	Protocol Protocol
+	Protocol common.Protocol
 	// Insecure turns off verification for x509 upstream ALPN proxy service certificate.
 	InsecureSkipVerify bool
 	// Listener is listener running on local machine.
