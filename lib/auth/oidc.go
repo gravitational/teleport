@@ -907,6 +907,9 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 func (a *Server) getOAuthClient(oidcClient *oidc.Client, connector types.OIDCConnector) (*oauth2.Client, error) {
 
 	oac, err := oidcClient.OAuthClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	//If the default client secret basic is used the Ping OIDC
 	// will throw an error of multiple client credentials.  Even if you set in Ping
