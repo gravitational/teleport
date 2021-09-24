@@ -382,20 +382,20 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		return trace.Wrap(err)
 	}
 
-	approvedToken, err := s.GetUserToken(ctx, req.GetRecoveryApprovedTokenID())
+	privilegeToken, err := s.GetUserToken(ctx, req.GetPrivilegeTokenID())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)
 	}
 
-	if err := s.verifyUserToken(approvedToken, UserTokenTypeRecoveryApproved); err != nil {
+	if err := s.verifyUserToken(privilegeToken, UserTokenTypeRecoveryApproved); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Check that the correct auth credential is being recovered before setting a new one.
 	switch req.GetNewAuthnCred().(type) {
 	case *proto.CompleteAccountRecoveryRequest_NewPassword:
-		if approvedToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD {
+		if privilegeToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD {
 			log.Debugf("Failed to recover account, expected new password, but received %T.", req.GetNewAuthnCred())
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
@@ -404,21 +404,21 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 			return trace.Wrap(err)
 		}
 
-		if err := s.UpsertPassword(approvedToken.GetUser(), req.GetNewPassword()); err != nil {
+		if err := s.UpsertPassword(privilegeToken.GetUser(), req.GetNewPassword()); err != nil {
 			log.Error(trace.DebugReport(err))
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
 
 	case *proto.CompleteAccountRecoveryRequest_NewMFAResponse:
-		if approvedToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_MFA {
+		if privilegeToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_MFA {
 			log.Debugf("Failed to recover account, expected new MFA register response, but received %T.", req.GetNewAuthnCred())
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
 
 		_, err = s.verifyMFARespAndAddDevice(ctx, req.GetNewMFAResponse(), &newMFADeviceFields{
-			username:      approvedToken.GetUser(),
+			username:      privilegeToken.GetUser(),
 			newDeviceName: req.GetNewDeviceName(),
-			tokenID:       approvedToken.GetName(),
+			tokenID:       privilegeToken.GetName(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -429,7 +429,7 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	}
 
 	// Check and remove user locks so user can immediately sign in after finishing recovering.
-	user, err := s.GetUser(approvedToken.GetUser(), false /* without secrets */)
+	user, err := s.GetUser(privilegeToken.GetUser(), false /* without secrets */)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)
@@ -442,7 +442,7 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
 
-		if err := s.DeleteUserLoginAttempts(approvedToken.GetUser()); err != nil {
+		if err := s.DeleteUserLoginAttempts(privilegeToken.GetUser()); err != nil {
 			log.Error(trace.DebugReport(err))
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
@@ -459,7 +459,7 @@ func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := s.GetUserToken(ctx, req.GetTokenID())
+	token, err := s.GetUserToken(ctx, req.GetPrivilegeTokenID())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)

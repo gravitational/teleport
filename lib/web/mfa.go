@@ -32,7 +32,7 @@ import (
 // getMFADevicesWithTokenHandle retrieves the list of registered MFA devices for the user defined in token.
 func (h *Handler) getMFADevicesWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	mfas, err := h.cfg.ProxyClient.GetMFADevices(r.Context(), &proto.GetMFADevicesRequest{
-		RecoveryApprovedTokenID: p.ByName("token"),
+		PrivilegeTokenID: p.ByName("token"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -59,8 +59,8 @@ func (h *Handler) getMFADevicesHandle(w http.ResponseWriter, r *http.Request, p 
 // deleteMFADeviceWithTokenHandle deletes a mfa device for the user defined in the `token`, given as a query parameter.
 func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	if err := h.GetProxyClient().DeleteMFADeviceSync(r.Context(), &proto.DeleteMFADeviceSyncRequest{
-		TokenID:    p.ByName("token"),
-		DeviceName: p.ByName("devicename"),
+		PrivilegeTokenID: p.ByName("token"),
+		DeviceName:       p.ByName("devicename"),
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}

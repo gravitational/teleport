@@ -1322,8 +1322,8 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
 	var username string
 
-	if req.GetRecoveryApprovedTokenID() != "" {
-		token, err := a.GetUserToken(ctx, req.GetRecoveryApprovedTokenID())
+	if req.GetPrivilegeTokenID() != "" {
+		token, err := a.GetUserToken(ctx, req.GetPrivilegeTokenID())
 		if err != nil {
 			log.Error(trace.DebugReport(err))
 			return nil, trace.AccessDenied("invalid token")
@@ -1356,7 +1356,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 
 // DeleteMFADeviceSync implements AuthService.DeleteMFADeviceSync.
 func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
-	token, err := a.GetUserToken(ctx, req.GetTokenID())
+	token, err := a.GetUserToken(ctx, req.GetPrivilegeTokenID())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied("invalid token")

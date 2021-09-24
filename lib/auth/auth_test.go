@@ -1321,8 +1321,8 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 			// Delete the TOTP device.
 			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
-				TokenID:    token.GetName(),
-				DeviceName: tc.deviceToDelete,
+				PrivilegeTokenID: token.GetName(),
+				DeviceName:       tc.deviceToDelete,
 			})
 			require.NoError(t, err)
 		})
@@ -1416,8 +1416,8 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 			}
 
 			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
-				TokenID:    tokenID,
-				DeviceName: tc.deviceName,
+				PrivilegeTokenID: tokenID,
+				DeviceName:       tc.deviceName,
 			})
 			require.True(t, tc.assertErrType(err))
 		})
@@ -1542,8 +1542,8 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 
 			// Delete the device.
 			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
-				TokenID:    token.GetName(),
-				DeviceName: dev.GetName(),
+				PrivilegeTokenID: token.GetName(),
+				DeviceName:       dev.GetName(),
 			})
 
 			switch {
@@ -1551,7 +1551,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				require.Error(t, err)
 				// Check it hasn't been deleted.
 				res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
-					RecoveryApprovedTokenID: token.GetName(),
+					PrivilegeTokenID: token.GetName(),
 				})
 				require.NoError(t, err)
 				require.Len(t, res.GetDevices(), 1)
@@ -1783,7 +1783,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 			}
 
 			res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
-				RecoveryApprovedTokenID: tokenID,
+				PrivilegeTokenID: tokenID,
 			})
 
 			switch {
