@@ -134,16 +134,9 @@ func (s *OIDCSuite) TestPingProvider(c *check.C) {
 
 	c.Assert(err, check.IsNil)
 
-	oac, err := oidcClient.OAuthClient()
+	oac, err := s.a.getOAuthClient(oidcClient, connector)
 
 	c.Assert(err, check.IsNil)
-
-	//If the default client secret basic is used the Ping OIDC
-	// will throw an error of multiple client credentials.  Even if you set in Ping
-	// to use Client Secret Post it will return to use client secret basic.
-	if connector.GetProvider() == teleport.Ping {
-		oac.SetAuthMethod(oauth2.AuthMethodClientSecretPost)
-	}
 
 	// authMethod should be client secret post now
 	c.Assert(oac.GetAuthMethod(), check.Equals, oauth2.AuthMethodClientSecretPost)

@@ -769,18 +769,8 @@ func mergeClaims(a jose.Claims, b jose.Claims) (jose.Claims, error) {
 // getClaims gets claims from ID token and UserInfo and returns UserInfo claims merged into ID token claims.
 func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
 
-	oac, err := oidcClient.OAuthClient()
+	oac, err := a.getOAuthClient(oidcClient, connector)
 
-	//If the default client secret basic is used the Ping OIDC
-	// will throw an error of multiple client credentials.  Even if you set in Ping
-	// to use Client Secret Post it will return to use client secret basic.
-	// Issue https://github.com/gravitational/teleport/issues/8374
-	if connector.GetProvider() == teleport.Ping {
-		oac.SetAuthMethod(oauth2.AuthMethodClientSecretPost)
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -911,6 +901,21 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 	}
 
 	return claims, nil
+}
+
+// Returns a Oauth2 client.  If is a Ping provider sets the client_secret_post auth method
+func (a *Server) getOAuthClient(oidcClient *oidc.Client, connector types.OIDCConnector) (*oauth2.Client, error) {
+
+	oac, err := oidcClient.OAuthClient()
+
+	//If the default client secret basic is used the Ping OIDC
+	// will throw an error of multiple client credentials.  Even if you set in Ping
+	// to use Client Secret Post it will return to use client secret basic.
+	// Issue https://github.com/gravitational/teleport/issues/8374
+	if connector.GetProvider() == teleport.Ping {
+		oac.SetAuthMethod(oauth2.AuthMethodClientSecretPost)
+	}
+	return oac, err
 }
 
 // validateACRValues validates that we get an appropriate response for acr values. By default
