@@ -32,7 +32,7 @@ const errorMessage = "special characters are not allowed in resource names, plea
 
 // whitelistPattern is the pattern of allowed characters for each key within
 // the path.
-var whitelistPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/]*$`)
+var whitelistPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/+]*$`)
 
 // blacklistPattern matches some unallowed combinations
 var blacklistPattern = regexp.MustCompile(`//`)
