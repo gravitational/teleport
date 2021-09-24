@@ -68,7 +68,7 @@ func (c *AppsCommand) ListApps(client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := &appCollection{servers: servers}
+	coll := &appServerCollection{servers: servers}
 
 	switch c.format {
 	case teleport.Text:

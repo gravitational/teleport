@@ -432,7 +432,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	select {
 	case <-eventC:
 		process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
-	case <-process.ExitContext().Done():
+	case <-process.GracefulExitContext().Done():
 		return nil
 	}
 
@@ -451,7 +451,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after ~%v.", err, defaults.HighResPollingPeriod)
 		select {
 		case <-periodic.Next():
-		case <-process.ExitContext().Done():
+		case <-process.GracefulExitContext().Done():
 			return nil
 		}
 	}
@@ -531,7 +531,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 			if status.needsReload {
 				return nil
 			}
-		case <-process.ExitContext().Done():
+		case <-process.GracefulExitContext().Done():
 			return nil
 		}
 	}

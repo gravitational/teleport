@@ -342,10 +342,6 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_ClusterName{
 			ClusterName: r,
 		}
-	case *types.ClusterConfigV3:
-		out.Resource = &proto.Event_ClusterConfig{
-			ClusterConfig: r,
-		}
 	case *types.UserV2:
 		out.Resource = &proto.Event_User{
 			User: r,
@@ -410,6 +406,10 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 	case *types.DatabaseV3:
 		out.Resource = &proto.Event_Database{
 			Database: r,
+		}
+	case *types.AppV3:
+		out.Resource = &proto.Event_App{
+			App: r,
 		}
 	case *types.ClusterAuditConfigV2:
 		out.Resource = &proto.Event_ClusterAuditConfig{
@@ -1768,10 +1768,22 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	// RPCs.
 	webIdentity := wanlib.WithInMemorySessionData(auth.Identity)
 
+	devType := initReq.DeviceType
+	if devType == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+		// Try and convert from legacy type.
+		// Keep conversion until 9.x, when the field is marked for deletion.
+		m := map[proto.AddMFADeviceRequestInit_LegacyDeviceType]proto.DeviceType{
+			proto.AddMFADeviceRequestInit_TOTP:     proto.DeviceType_DEVICE_TYPE_TOTP,
+			proto.AddMFADeviceRequestInit_U2F:      proto.DeviceType_DEVICE_TYPE_U2F,
+			proto.AddMFADeviceRequestInit_Webauthn: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		}
+		devType = m[initReq.LegacyType]
+	}
+
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
-	switch initReq.Type {
-	case proto.AddMFADeviceRequestInit_TOTP:
+	switch devType {
+	case proto.DeviceType_DEVICE_TYPE_TOTP:
 		otpKey, otpOpts, err := auth.newTOTPKey(user)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1785,7 +1797,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			Digits:        uint32(otpOpts.Digits.Length()),
 			Account:       otpKey.AccountName(),
 		}}
-	case proto.AddMFADeviceRequestInit_U2F:
+	case proto.DeviceType_DEVICE_TYPE_U2F:
 		cap, err := auth.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1808,7 +1820,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			Challenge: challenge.Challenge,
 			AppID:     challenge.AppID,
 		}}
-	case proto.AddMFADeviceRequestInit_Webauthn:
+	case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
 		cap, err := auth.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1831,7 +1843,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 			Webauthn: wanlib.CredentialCreationToProto(credentialCreation),
 		}
 	default:
-		return nil, trace.BadParameter("AddMFADeviceRequestInit sent an unknown DeviceType %v", initReq.Type)
+		return nil, trace.BadParameter("AddMFADeviceRequestInit sent an unknown DeviceType %s", initReq.DeviceType)
 	}
 	if err := stream.Send(&proto.AddMFADeviceResponse{
 		Response: &proto.AddMFADeviceResponse_NewMFARegisterChallenge{NewMFARegisterChallenge: regChallenge},
@@ -2942,6 +2954,96 @@ func (g *GRPCServer) ReplaceRemoteLocks(ctx context.Context, req *proto.ReplaceR
 	return &empty.Empty{}, nil
 }
 
+// CreateApp creates a new application resource.
+func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	app.SetOrigin(types.OriginDynamic)
+	if err := auth.CreateApp(ctx, app); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// UpdateApp updates existing application resource.
+func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	app.SetOrigin(types.OriginDynamic)
+	if err := auth.UpdateApp(ctx, app); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetApp returns the specified application resource.
+func (g *GRPCServer) GetApp(ctx context.Context, req *types.ResourceRequest) (*types.AppV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	app, err := auth.GetApp(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return nil, trace.BadParameter("unsupported application type %T", app)
+	}
+	return appV3, nil
+}
+
+// GetApps returns all application resources.
+func (g *GRPCServer) GetApps(ctx context.Context, _ *empty.Empty) (*types.AppV3List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	apps, err := auth.GetApps(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var appsV3 []*types.AppV3
+	for _, app := range apps {
+		appV3, ok := app.(*types.AppV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported application type %T", app)
+		}
+		appsV3 = append(appsV3, appV3)
+	}
+	return &types.AppV3List{
+		Apps: appsV3,
+	}, nil
+}
+
+// DeleteApp removes the specified application resource.
+func (g *GRPCServer) DeleteApp(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteApp(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllApps removes all application resources.
+func (g *GRPCServer) DeleteAllApps(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteAllApps(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 // CreateDatabase creates a new database resource.
 func (g *GRPCServer) CreateDatabase(ctx context.Context, database *types.DatabaseV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -3306,6 +3408,17 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *proto
 	}
 
 	return res, nil
+}
+
+// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+func (g *GRPCServer) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := auth.CreatePrivilegeToken(ctx, req)
+	return token, trace.Wrap(err)
 }
 
 // GRPCServerConfig specifies GRPC server configuration

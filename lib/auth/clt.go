@@ -47,7 +47,6 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 )
 
 const (
@@ -1453,36 +1452,6 @@ func (c *Client) CreateRole(role types.Role) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// GetClusterConfig returns cluster level configuration information.
-func (c *Client) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	out, err := c.Get(c.Endpoint("configuration"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cc, err := services.UnmarshalClusterConfig(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cc, err
-}
-
-// SetClusterConfig sets cluster level configuration information.
-func (c *Client) SetClusterConfig(cc types.ClusterConfig) error {
-	data, err := services.MarshalClusterConfig(cc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(c.Endpoint("configuration"), &setClusterConfigReq{ClusterConfig: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // GetClusterName returns a cluster name
 func (c *Client) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	out, err := c.Get(c.Endpoint("configuration", "name"), url.Values{})
@@ -1560,11 +1529,6 @@ func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()
 }
 
-// DeleteClusterConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterConfig() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // DeleteClusterName not implemented: can only be called locally.
 func (c *Client) DeleteClusterName() error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -1636,22 +1600,12 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	resp, err := c.APIClient.GetAppServers(ctx, namespace)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return resp, nil
+	return c.APIClient.GetAppServers(ctx, namespace)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
-	resp, err := c.APIClient.GetDatabaseServers(ctx, namespace)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return resp, nil
+	return c.APIClient.GetDatabaseServers(ctx, namespace)
 }
 
 // UpsertAppSession not implemented: can only be called locally.
@@ -1673,19 +1627,19 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (apieven
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
 
-// GetNetworkRestrictions retrieves the network restrictions (allow/deny lists)
-func (c *Client) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
-	return c.APIClient.GetNetworkRestrictions(ctx)
+// GetClusterAuditConfig gets cluster audit configuration.
+func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	return c.APIClient.GetClusterAuditConfig(ctx)
 }
 
-// SetNetworkRestrictions updates the network restrictions (allow/deny lists)
-func (c *Client) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
-	return c.APIClient.SetNetworkRestrictions(ctx, nr)
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	return c.APIClient.GetClusterNetworkingConfig(ctx)
 }
 
-// DeleteNetworkRestrictions deletes the network restrictions (allow/deny lists)
-func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
-	return c.APIClient.DeleteNetworkRestrictions(ctx)
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
 // WebService implements features used by Web UI clients
@@ -1868,6 +1822,10 @@ type IdentityService interface {
 	// GetAccountRecoveryToken returns a user token resource after verifying the token in
 	// request is not expired and is of the correct recovery type.
 	GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error)
+
+	// CreatePrivilegeToken creates a privilege token for the logged in user who has successfully re-authenticated with their second factor.
+	// A privilege token allows users to perform privileged action eg: add/delete their MFA device.
+	CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
 }
 
 // ProvisioningService is a service in control
@@ -1910,6 +1868,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
+	services.Apps
 	services.Databases
 	services.WindowsDesktops
 	WebService

@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -630,125 +629,6 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	}
 
 	return re, nil
-}
-
-// GetAuthPreference gets cluster auth preference.
-func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	authPref, err := c.APIClient.GetAuthPreference(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-		out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		authPref, err = services.UnmarshalAuthPreference(out.Bytes())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	resp, err := c.Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// AuthPreference was updated in 7.0.0 to hold legacy cluster config fields. If the
-	// server version is < 7.0.0, we must update the AuthPreference with the legacy fields.
-	if err := utils.CheckVersion(resp.ServerVersion, utils.VersionBeforeAlpha("7.0.0")); err != nil {
-		if !trace.IsBadParameter(err) {
-			return nil, trace.Wrap(err)
-		}
-		legacyConfig, err := c.GetClusterConfig()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := services.UpdateAuthPreferenceWithLegacyClusterConfig(legacyConfig, authPref); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return authPref, nil
-}
-
-// SetAuthPreference sets cluster auth preference.
-func (c *Client) SetAuthPreference(ctx context.Context, cap types.AuthPreference) error {
-	if err := c.APIClient.SetAuthPreference(ctx, cap); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-	data, err := services.MarshalAuthPreference(cap)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(c.Endpoint("authentication", "preference"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// GetClusterAuditConfig gets cluster audit configuration.
-func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
-	auditConfig, err := c.APIClient.GetClusterAuditConfig(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return auditConfig, nil
-	}
-
-	cfg, err := c.GetClusterConfig(opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cfg.GetClusterAuditConfig()
-}
-
-// GetClusterNetworkingConfig gets cluster networking configuration.
-func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
-	netConfig, err := c.APIClient.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return netConfig, nil
-	}
-
-	cfg, err := c.GetClusterConfig(opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cfg.GetClusterNetworkingConfig()
-}
-
-// GetSessionRecordingConfig gets session recording configuration.
-func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
-	recConfig, err := c.APIClient.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return recConfig, nil
-	}
-
-	cfg, err := c.GetClusterConfig(opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cfg.GetSessionRecordingConfig()
 }
 
 // DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go

@@ -1459,24 +1459,6 @@ func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
 	c.Assert(recoveryCodes, HasLen, 0)
 }
 
-// TestPing ensures that a response is returned by /webapi/ping
-// and that that response body contains authentication information.
-func (s *WebSuite) TestPing(c *C) {
-	wc := s.client()
-
-	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
-	c.Assert(err, IsNil)
-
-	var out *webclient.PingResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
-
-	preference, err := s.server.Auth().GetAuthPreference(s.ctx)
-	c.Assert(err, IsNil)
-
-	c.Assert(out.Auth.Type, Equals, preference.GetType())
-	c.Assert(out.Auth.SecondFactor, Equals, preference.GetSecondFactor())
-}
-
 // TestEmptyMotD ensures that responses returned by both /webapi/ping and
 // /webapi/motd work when no MotD is set
 func (s *WebSuite) TestEmptyMotD(c *C) {
@@ -1982,6 +1964,30 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
+}
+
+func TestCreatePrivilegeToken(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user with second factor totp.
+	pack := proxy.authPack(t, "foo@example.com")
+
+	// Get a totp code.
+	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	re, err := pack.clt.PostJSON(context.Background(), endpoint, &privilegeTokenRequest{
+		SecondFactorToken: totpCode,
+	})
+	require.NoError(t, err)
+
+	var privilegeToken string
+	err = json.Unmarshal(re.Bytes(), &privilegeToken)
+	require.NoError(t, err)
+	require.NotEmpty(t, privilegeToken)
 }
 
 func TestGetMFADevicesWithAuth(t *testing.T) {
@@ -3199,20 +3205,4 @@ func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
 
 	err = waitForOutput(stream, "foo")
 	require.NoError(t, err)
-}
-
-// TestProxyMultiAddr makes sure ping endpoint can be called over any of
-// the proxy's configured public addresses.
-func TestProxyMultiAddr(t *testing.T) {
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	req, err := http.NewRequest(http.MethodGet, proxy.newClient(t).Endpoint("webapi", "ping"), nil)
-	require.NoError(t, err)
-	// Make sure ping endpoint can be reached over all proxy public addrs.
-	for _, proxyAddr := range proxy.handler.handler.cfg.ProxyPublicAddrs {
-		req.Host = proxyAddr.Host()
-		resp, err := client.NewInsecureWebClient().Do(req)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
-	}
 }

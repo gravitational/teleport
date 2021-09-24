@@ -2123,44 +2123,12 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	return a.authServer.DeleteRole(ctx, name)
 }
 
-// GetClusterConfig gets cluster level configuration.
-func (a *ServerWithRoles) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	if err := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetClusterConfig(opts...)
-}
-
-// DeleteClusterConfig deletes cluster config
-func (a *ServerWithRoles) DeleteClusterConfig() error {
-	if err := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteClusterConfig()
-}
-
 // DeleteClusterName deletes cluster name
 func (a *ServerWithRoles) DeleteClusterName() error {
 	if err := a.action(apidefaults.Namespace, types.KindClusterName, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteClusterName()
-}
-
-// DeleteStaticTokens deletes static tokens
-func (a *ServerWithRoles) DeleteStaticTokens() error {
-	if err := a.action(apidefaults.Namespace, types.KindStaticTokens, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteStaticTokens()
-}
-
-// SetClusterConfig sets cluster level configuration.
-func (a *ServerWithRoles) SetClusterConfig(c types.ClusterConfig) error {
-	if err := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.SetClusterConfig(c)
 }
 
 // GetClusterName gets the name of the cluster.
@@ -2185,6 +2153,14 @@ func (a *ServerWithRoles) UpsertClusterName(c types.ClusterName) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertClusterName(c)
+}
+
+// DeleteStaticTokens deletes static tokens
+func (a *ServerWithRoles) DeleteStaticTokens() error {
+	if err := a.action(apidefaults.Namespace, types.KindStaticTokens, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteStaticTokens()
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -2251,7 +2227,9 @@ func (a *ServerWithRoles) DeleteAuthPreference(context.Context) error {
 // GetClusterAuditConfig gets cluster audit configuration.
 func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuditConfig, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetClusterAuditConfig(ctx, opts...)
 }
@@ -2269,7 +2247,9 @@ func (a *ServerWithRoles) DeleteClusterAuditConfig(ctx context.Context) error {
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetClusterNetworkingConfig(ctx, opts...)
 }
@@ -2282,7 +2262,9 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 	}
 
 	if err := a.action(apidefaults.Namespace, types.KindClusterNetworkingConfig, verbsToReplaceResourceWithOrigin(storedNetConfig)...); err != nil {
-		return trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, verbsToReplaceResourceWithOrigin(storedNetConfig)...); err2 != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
@@ -2299,7 +2281,9 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 	}
 
 	if err := a.action(apidefaults.Namespace, types.KindClusterNetworkingConfig, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
@@ -2313,7 +2297,9 @@ func (a *ServerWithRoles) DeleteClusterNetworkingConfig(ctx context.Context) err
 // GetSessionRecordingConfig gets session recording configuration.
 func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetSessionRecordingConfig(ctx, opts...)
 }
@@ -2326,7 +2312,9 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 	}
 
 	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, verbsToReplaceResourceWithOrigin(storedRecConfig)...); err != nil {
-		return trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, verbsToReplaceResourceWithOrigin(storedRecConfig)...); err2 != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
@@ -2343,7 +2331,9 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 	}
 
 	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
@@ -3146,6 +3136,108 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
 }
 
+// CreateApp creates a new application resource.
+func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) error {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	// Don't allow users create apps they wouldn't have access to (e.g.
+	// non-matching labels).
+	if err := a.checkAccessToApp(app); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.CreateApp(ctx, app))
+}
+
+// UpdateApp updates existing application resource.
+func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) error {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	// Don't allow users update apps they don't have access to (e.g.
+	// non-matching labels). Make sure to check existing app too.
+	existing, err := a.authServer.GetApp(ctx, app.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToApp(existing); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToApp(app); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.UpdateApp(ctx, app))
+}
+
+// GetApp returns specified application resource.
+func (a *ServerWithRoles) GetApp(ctx context.Context, name string) (types.Application, error) {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	app, err := a.authServer.GetApp(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.checkAccessToApp(app); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return app, nil
+}
+
+// GetApps returns all application resources.
+func (a *ServerWithRoles) GetApps(ctx context.Context) (result []types.Application, err error) {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Filter out apps user doesn't have access to.
+	apps, err := a.authServer.GetApps(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, app := range apps {
+		if err := a.checkAccessToApp(app); err == nil {
+			result = append(result, app)
+		}
+	}
+	return result, nil
+}
+
+// DeleteApp removes the specified application resource.
+func (a *ServerWithRoles) DeleteApp(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	// Make sure user has access to the application before deleting.
+	app, err := a.authServer.GetApp(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToApp(app); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteApp(ctx, name))
+}
+
+// DeleteAllApps removes all application resources.
+func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	// Make sure to only delete apps user has access to.
+	apps, err := a.authServer.GetApps(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, app := range apps {
+		if err := a.checkAccessToApp(app); err == nil {
+			if err := a.authServer.DeleteApp(ctx, app.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}
+
 func (a *ServerWithRoles) checkAccessToDatabase(database types.Database) error {
 	return a.context.Checker.CheckAccessToDatabase(database,
 		// MFA is not required for operations on database resources but
@@ -3382,6 +3474,11 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 	//   - token provide its own auth
 	//   - the user extracted from context can retrieve their own challenges
 	return a.authServer.CreateAuthenticateChallenge(ctx, req)
+}
+
+// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	return a.authServer.CreatePrivilegeToken(ctx, req)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

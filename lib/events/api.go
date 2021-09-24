@@ -223,6 +223,8 @@ const (
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
+	// PrivilegeTokenCreateEvent is emitted when a new user privilege token is created.
+	PrivilegeTokenCreateEvent = "privilege_token.create"
 
 	// FieldName contains name, e.g. resource name, etc.
 	FieldName = "name"
@@ -354,6 +356,13 @@ const (
 	// SessionRejected fires when a user's attempt to create an authenticated
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
+
+	// AppCreateEvent is emitted when an application resource is created.
+	AppCreateEvent = "app.create"
+	// AppUpdateEvent is emitted when an application resource is updated.
+	AppUpdateEvent = "app.update"
+	// AppDeleteEvent is emitted when an application resource is deleted.
+	AppDeleteEvent = "app.delete"
 
 	// AppSessionStartEvent is emitted when a user is issued an application certificate.
 	AppSessionStartEvent = "app.session.start"
