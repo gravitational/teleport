@@ -132,6 +132,7 @@ buildbox-fips:
 			--build-arg GID=$(GID) \
 			--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+			--build-arg CURL_FLAGS=$(CURL_FLAGS) \
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
 	fi
@@ -146,6 +147,7 @@ buildbox-centos6:
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg RUNTIME=$(RUNTIME) \
+		--build-arg CURL_FLAGS=$(CURL_FLAGS) \
 		--cache-from $(BUILDBOX_CENTOS6) \
 		--tag $(BUILDBOX_CENTOS6) -f Dockerfile-centos6 .
 
@@ -162,6 +164,7 @@ buildbox-arm: buildbox
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM) || true; fi;
 	docker build \
 		--build-arg RUNTIME=$(RUNTIME) \
+		--build-arg CURL_FLAGS=$(CURL_FLAGS) \
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
@@ -176,6 +179,7 @@ buildbox-arm-fips: buildbox-fips
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_FIPS) || true; fi;
 	docker build \
 		--build-arg RUNTIME=$(RUNTIME) \
+		--build-arg CURL_FLAGS=$(CURL_FLAGS) \
 		--cache-from $(BUILDBOX_FIPS) \
 		--cache-from $(BUILDBOX_ARM_FIPS) \
 		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
