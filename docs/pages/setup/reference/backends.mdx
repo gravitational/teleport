@@ -215,6 +215,119 @@ These optional `GET` parameters control how Teleport interacts with an S3 endpoi
 - `endpoint=mys3.example.com` - connect to a custom S3 endpoint.
 - `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled.
 - `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time.
+- `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
+
+### S3 Server Side Encryption
+
+Teleport supports using a custom AWS KMS Customer Managed Key for encrypting objects uploaded to S3.
+This allows you to restrict who can read objects like session recordings separately from those that have read
+access to a bucket by restricting key access.
+
+The `sse_kms_key` parameter above can be set to any valid KMS CMK ID corresponding to a symmetric standard spec KMS key.
+Example template KMS key policies are provided below for common usage cases. IAM users do not have access to any
+key by default. Permissions have to be explicitly granted in the policy.
+
+#### Encryption/Decryption
+
+This policy allows an IAM user to encrypt and decrypt objects.
+This allows a cluster auth to write and play back session recordings.
+
+Replace `[iam-key-admin-arn]` with the IAM ARN of the user(s) that should have
+administrative key access and `[auth-node-iam-arn]` with the IAM ARN
+of the user the Teleport auth nodes are using.
+
+```json
+{
+  "Id": "Teleport Encryption and Decryption",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Teleport CMK Admin",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "[iam-key-admin-arn]"
+      },
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "Teleport CMK Auth",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "[auth-node-iam-arn]"
+      },
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+### Encryption/Decryption with separate clusters
+
+This policy allows specifying separate IAM users for encryption and decrtion.
+This can be used to set up a multi cluster configuration where the main cluster
+cannot play back session recordings but only write them.
+A separate cluster authenticating as a different IAM user with decryption access
+can be used for playing back the session recordings.
+
+Replace `[iam-key-admin-arn]` with the IAM ARN of the user(s) that should have
+administrative key access, `[iam-node-write-arn]` with the IAM ARN of the user the
+main write-only cluster auth nodes are using and `[iam-node-read-arn]` with the
+IAM ARN of the user used by the read-only cluster.
+
+For this to work the second cluster has to be connected to the same audit log as the main cluster.
+This is needed to detect session recordings.
+
+```json
+{
+  "Id": "Teleport Separate Encryption and Decryption",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Teleport CMK Admin",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "[iam-key-admin-arn]"
+      },
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "Teleport CMK Auth Encrypt",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "[auth-node-write-arn]"
+      },
+      "Action": [
+        "kms:Encrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Teleport CMK Auth Decrypt",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "[auth-node-read-arn]"
+      },
+      "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
 
 ## DynamoDB
 
