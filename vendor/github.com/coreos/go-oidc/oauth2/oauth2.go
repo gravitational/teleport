@@ -146,11 +146,19 @@ func (c *Client) HttpClient() phttp.Client {
 	return c.hc
 }
 
-// set a specific auth method that can override the value set in NewClient
+
+// SetAuthMethodAllows allows for setting the authMethod that provides a workaround for the Ping OIDC issue
+// as noted in https://github.com/gravitational/teleport/issues/8374
+// The Ping OIDC will throw a multiple client credentials error due to the client id being
+// set in the query and basic auth with the client_secret_basic auth method.  client_secret_post
+// does not have that issue and this allows for setting that auth method. Since Ping
+// always returns client_secret_basic and client_secret_post as valid methods the default logic will always use client_secret_basic.
 func (c *Client) SetAuthMethod(authMethodValue string) {
 	c.authMethod = authMethodValue
 }
 
+// GetAuthMethod returns the current assigned auth method.  Useful
+// for confirming what method has been used as part of the above Ping workaround
 func (c *Client) GetAuthMethod() string {
 	return c.authMethod
 }
