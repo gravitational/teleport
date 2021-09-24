@@ -53,6 +53,7 @@ const (
 	ProtocolAWSCLI = "teleport-aws-cli"
 )
 
+// SupportedProtocols is the list of supported ALPN protocols.
 var SupportedProtocols = []Protocol{
 	acme.ALPNProto,
 	ProtocolPostgres,
@@ -66,6 +67,7 @@ var SupportedProtocols = []Protocol{
 	ProtocolAuth,
 }
 
+// ProtocolsToString converts the list of Protocols to the list of strings.
 func ProtocolsToString(protocols []Protocol) []string {
 	out := make([]string, 0, len(protocols))
 	for _, v := range protocols {

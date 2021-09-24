@@ -168,20 +168,6 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 		return nil, trace.Wrap(err)
 	}
 
-	// If the appid extension is present, then we must set RPID = AppID and ensure
-	// the credential comes from an U2F device.
-	rpID := f.Webauthn.RPID
-	var usingAppID bool
-	// TODO(codingllama): Consider ignoring appid and basing the decision solely
-	//  in the device type. May be safer than assuming compliance?
-	// Do not read from parsedResp here, extensions don't carry over.
-	switch usingAppID := resp.Extensions != nil && resp.Extensions.AppID; {
-	case usingAppID && (f.U2F == nil || f.U2F.AppID == ""):
-		return nil, trace.BadParameter("appid extension provided but U2F app_id not configured")
-	case usingAppID:
-		rpID = f.U2F.AppID // Allow RPID = AppID for legacy devices
-	}
-
 	origin := parsedResp.Response.CollectedClientData.Origin
 	if err := validateOrigin(origin, f.Webauthn.RPID); err != nil {
 		return nil, trace.Wrap(err)
@@ -198,9 +184,18 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 	case !ok:
 		return nil, trace.BadParameter(
 			"unknown device credential: %q", base64.RawURLEncoding.EncodeToString(parsedResp.RawID))
-	case usingAppID && dev.GetU2F() == nil:
-		return nil, trace.BadParameter(
-			"appid extension is true, but credential is not for an U2F device: %q", base64.RawURLEncoding.EncodeToString(parsedResp.RawID))
+	}
+
+	// Is an U2F device trying to login? If yes, use RPID = App ID.
+	// Technically browsers should reply with the appid extension set to true[1],
+	// but in actuality they don't send anything.
+	// [1] https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
+	rpID := f.Webauthn.RPID
+	switch {
+	case dev.GetU2F() != nil && f.U2F == nil:
+		return nil, trace.BadParameter("U2F device attempted login, but U2F configuration not present")
+	case dev.GetU2F() != nil:
+		rpID = f.U2F.AppID
 	}
 
 	// Fetch the user web ID, it must exist if they got here.
