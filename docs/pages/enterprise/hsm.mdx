@@ -45,7 +45,7 @@ On the EC2 instance where you will run your Teleport auth server:
    $ sudo service start cloudhsm-client
    ```
 
-7. Install the AWS CloudHSM Client SDK 3 by following
+4. Install the AWS CloudHSM Client SDK 3 by following
    https://docs.aws.amazon.com/cloudhsm/latest/userguide/pkcs11-library-install.html.
 
    This step installs the PKCS#11 module at `/opt/cloudhsm/lib/libcloudhsm_pkcs11.so`
@@ -53,6 +53,7 @@ On the EC2 instance where you will run your Teleport auth server:
 
   <TabItem label="YubiHSM2">
 1. Install the YubiHSM2 [SDK](https://developers.yubico.com/YubiHSM2/Releases/).
+
 2. Start `yubihsm-connector`
 
    ```code
@@ -78,6 +79,7 @@ On the EC2 instance where you will run your Teleport auth server:
 
    Take note of the hex slot number output above, it will be used in the pin
    when configuring Teleport.
+
 4. Create a `yubihsm_pkcs11.conf` file pointing to your connector
 
    ```text
