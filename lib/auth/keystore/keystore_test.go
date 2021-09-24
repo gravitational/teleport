@@ -125,20 +125,10 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 	}
 )
 
-type testModules struct {
-	modules.Modules
-}
-
-func (t testModules) Features() modules.Features {
-	return modules.Features{
-		HSM: true,
-	}
-}
-
 func TestKeyStore(t *testing.T) {
 	defaultModules := modules.GetModules()
 	defer modules.SetModules(defaultModules)
-	modules.SetModules(testModules{})
+	modules.SetModules(keystore.TestModules{})
 
 	skipSoftHSM := os.Getenv("SOFTHSM2_PATH") == ""
 	var softHSMConfig keystore.Config
@@ -367,7 +357,7 @@ func TestLicenseRequirement(t *testing.T) {
 
 	defaultModules := modules.GetModules()
 	defer modules.SetModules(defaultModules)
-	modules.SetModules(testModules{})
+	modules.SetModules(keystore.TestModules{})
 
 	// should succeed when HSM feature is enabled
 	_, err = keystore.NewKeyStore(config)
