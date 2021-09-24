@@ -79,7 +79,7 @@ func main() {
 
 	testOutput := make(map[string][]string)
 	failedTests := make(map[string][]string)
-	counts := make(map[string]int)
+	actionCounts := make(map[string]int)
 
 	events := make(chan TestEvent)
 	go readInput(os.Stdin, events)
