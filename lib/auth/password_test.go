@@ -412,8 +412,6 @@ func TestChangeUserAuthentication(t *testing.T) {
 				}
 			},
 		},
-		// TODO(codingllama): Test ChangeUserAuthentication with Webauthn.
-		//  To do that properly we first need the CreateRegisterChallenge RPC.
 		{
 			name: "with second factor webauthn",
 			setAuthPreference: func() {
