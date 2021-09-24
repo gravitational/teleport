@@ -768,16 +768,14 @@ func mergeClaims(a jose.Claims, b jose.Claims) (jose.Claims, error) {
 
 // getClaims gets claims from ID token and UserInfo and returns UserInfo claims merged into ID token claims.
 func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
-	var err error
-	var oac *oauth2.Client
+
+	oac, err := oidcClient.OAuthClient()
 
 	//If the default client secret basic is used the Ping OIDC
 	// will throw an error of multiple client credentials.  Even if you set in Ping
-	// to use Client Secret Post it will return to use client secret basic, client secret post support.
+	// to use Client Secret Post it will return to use client secret basic.
 	if connector.GetProvider() == teleport.Ping {
-		oac, err = oidcClient.OAuthClientWithClientSecretPost()
-	} else {
-		oac, err = oidcClient.OAuthClient()
+		oac.SetAuthMethod(oauth2.AuthMethodClientSecretPost)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)

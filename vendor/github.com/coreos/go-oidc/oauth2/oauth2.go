@@ -146,6 +146,11 @@ func (c *Client) HttpClient() phttp.Client {
 	return c.hc
 }
 
+// set a specific auth method that can override the value set in NewClient
+func (c *Client) SetAuthMethod(authMethodValue string) {
+	c.authMethod = authMethodValue
+}
+
 // Generate the url for initial redirect to oauth provider.
 func (c *Client) AuthCodeURL(state, accessType, prompt string) string {
 	v := c.commonURLValues()
