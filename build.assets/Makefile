@@ -27,6 +27,10 @@ PROTOC_VER ?= 3.6.1
 PROTOC_PLATFORM := linux-x86_64
 GOGO_PROTO_TAG ?= v1.3.2
 
+# CURL_FLAGS defines flags to support client-side retries, delays, and timeouts
+# to make downloads more resilient against intermittent network issues.
+CURL_FLAGS := "--connect-timeout 120 --retry 10 --retry-delay 30"
+
 BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
 BUILDBOX_FIPS=quay.io/gravitational/teleport-buildbox-fips:$(RUNTIME)
 BUILDBOX_CENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
@@ -111,6 +115,7 @@ buildbox:
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg PROTOC_PLATFORM=$(PROTOC_PLATFORM) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+			--build-arg CURL_FLAGS=$(CURL_FLAGS) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi
@@ -127,6 +132,7 @@ buildbox-fips:
 			--build-arg GID=$(GID) \
 			--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+			--build-arg CURL_FLAGS=$(CURL_FLAGS) \
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
 	fi
@@ -141,6 +147,7 @@ buildbox-centos6:
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg RUNTIME=$(RUNTIME) \
+		--build-arg CURL_FLAGS=$(CURL_FLAGS) \
 		--cache-from $(BUILDBOX_CENTOS6) \
 		--tag $(BUILDBOX_CENTOS6) -f Dockerfile-centos6 .
 
@@ -157,6 +164,7 @@ buildbox-arm: buildbox
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM) || true; fi;
 	docker build \
 		--build-arg RUNTIME=$(RUNTIME) \
+		--build-arg CURL_FLAGS=$(CURL_FLAGS) \
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
@@ -171,6 +179,7 @@ buildbox-arm-fips: buildbox-fips
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_FIPS) || true; fi;
 	docker build \
 		--build-arg RUNTIME=$(RUNTIME) \
+		--build-arg CURL_FLAGS=$(CURL_FLAGS) \
 		--cache-from $(BUILDBOX_FIPS) \
 		--cache-from $(BUILDBOX_ARM_FIPS) \
 		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .

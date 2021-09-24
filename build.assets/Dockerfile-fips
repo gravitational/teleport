@@ -8,6 +8,8 @@
 # of this.
 FROM ubuntu:18.04
 
+ARG CURL_FLAGS
+
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
 
@@ -52,12 +54,13 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 # Install etcd.
-RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+RUN (curl $CURL_FLAGS -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
+    cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
 
 # Install Go.
 ARG BORINGCRYPTO_RUNTIME
-RUN mkdir -p /opt && cd /opt && curl https://go-boringcrypto.storage.googleapis.com/${BORINGCRYPTO_RUNTIME}.linux-amd64.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && \
+    curl $CURL_FLAGS https://go-boringcrypto.storage.googleapis.com/${BORINGCRYPTO_RUNTIME}.linux-amd64.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -65,7 +68,8 @@ RUN mkdir -p /opt && cd /opt && curl https://go-boringcrypto.storage.googleapis.
 
 # Install libbpf
 ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && \
+    curl $CURL_FLAGS -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
     make install
