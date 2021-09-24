@@ -2163,10 +2163,11 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, env.server.Auth().SetAuthPreference(ctx, ap))
 
-	// Acquire a token.
+	// Acquire an accepted token.
 	token, err := types.NewUserToken("some-token-id")
 	require.NoError(t, err)
 	token.SetUser("llama")
+	token.SetSubKind(auth.UserTokenTypePrivilege)
 	token.SetExpiry(env.clock.Now().Add(5 * time.Minute))
 	_, err = env.server.Auth().Identity.CreateUserToken(ctx, token)
 	require.NoError(t, err)

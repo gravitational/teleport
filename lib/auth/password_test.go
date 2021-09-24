@@ -429,15 +429,13 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				webauthnRes, _, err := getMockedU2FAndRegisterRes(srv.Auth(), resetTokenID)
+				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
-					TokenID:     resetTokenID,
-					NewPassword: []byte("password3"),
-					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
-						Webauthn: webauthnRes,
-					}},
+					TokenID:                resetTokenID,
+					NewPassword:            []byte("password3"),
+					NewMFARegisterResponse: webauthnRegRes,
 				}
 			},
 			// Invalid totp fields when auth settings set to only webauthn.

@@ -1168,8 +1168,15 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		return nil, trace.AccessDenied("invalid token")
 	}
 
-	// Accepts all token types except recovery start token.
-	if err := a.verifyUserToken(token, UserTokenTypeRecoveryStart); err == nil {
+	allowedTokenTypes := []string{
+		UserTokenTypePrivilege,
+		UserTokenTypePrivilegeException,
+		UserTokenTypeResetPassword,
+		UserTokenTypeResetPasswordInvite,
+		UserTokenTypeRecoveryApproved,
+	}
+
+	if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
 		return nil, trace.AccessDenied("invalid token")
 	}
 
