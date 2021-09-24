@@ -151,6 +151,10 @@ func (c *Client) SetAuthMethod(authMethodValue string) {
 	c.authMethod = authMethodValue
 }
 
+func (c *Client) GetAuthMethod() string {
+	return c.authMethod
+}
+
 // Generate the url for initial redirect to oauth provider.
 func (c *Client) AuthCodeURL(state, accessType, prompt string) string {
 	v := c.commonURLValues()

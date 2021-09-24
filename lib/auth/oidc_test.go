@@ -23,6 +23,8 @@ import (
 	"net/http/httptest"
 	"time"
 
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -111,6 +113,41 @@ func (s *OIDCSuite) TestUserInfo(c *check.C) {
 	// Verify HTTP endpoints return trace.NotFound.
 	_, err = claimsFromUserInfo(oidcClient, idp.s.URL, "")
 	fixtures.ExpectNotFound(c, err)
+}
+
+
+
+// TestPingProvider confirms that the client_secret_post auth
+//method was set for a oauthclient.  
+func (s *OIDCSuite) TestPingProvider(c *check.C) {
+	// Create configurable IdP to use in tests.
+	idp := newFakeIDP()
+	defer idp.Close()
+
+	// Create OIDC connector and client.
+	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV2{
+		IssuerURL:    idp.s.URL,
+		ClientID:     "00000000000000000000000000000000",
+		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
+		Provider: teleport.Ping,
+	})
+	c.Assert(err, check.IsNil)
+	oidcClient, err := s.a.getOrCreateOIDCClient(connector)
+	
+	oac, err := oidcClient.OAuthClient()
+
+	c.Assert(err, check.IsNil)
+
+	//If the default client secret basic is used the Ping OIDC
+	// will throw an error of multiple client credentials.  Even if you set in Ping
+	// to use Client Secret Post it will return to use client secret basic.
+	if connector.GetProvider() == teleport.Ping {
+		oac.SetAuthMethod(oauth2.AuthMethodClientSecretPost)
+	}
+
+
+    // authMethod should be client secret post now
+	c.Assert.(oac.GetAuthMethod(), Equals, oauth2.AuthMethodClientSecretPost)
 }
 
 // fakeIDP is a configurable OIDC IdP that can be used to mock responses in
