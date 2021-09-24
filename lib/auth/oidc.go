@@ -774,6 +774,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 	//If the default client secret basic is used the Ping OIDC
 	// will throw an error of multiple client credentials.  Even if you set in Ping
 	// to use Client Secret Post it will return to use client secret basic.
+	// Issue https://github.com/gravitational/teleport/issues/8374
 	if connector.GetProvider() == teleport.Ping {
 		oac.SetAuthMethod(oauth2.AuthMethodClientSecretPost)
 	}
