@@ -37,7 +37,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -1078,19 +1077,6 @@ func (c *Client) GenerateHostCert(
 	return []byte(cert), nil
 }
 
-// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
-func (c *Client) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
-	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
-	if err != nil {
-		return nil, err
-	}
-	var u2fRegReq u2f.RegisterChallenge
-	if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
-		return nil, err
-	}
-	return &u2fRegReq, nil
-}
-
 // CreateOIDCAuthRequest creates OIDCAuthRequest
 func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
 	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
@@ -1716,9 +1702,6 @@ type IdentityService interface {
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
-	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
-	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
-
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)
 
@@ -1790,9 +1773,6 @@ type IdentityService interface {
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
 
-	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
-	RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
-
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
 	// AddMFADevice adds a new MFA device for the calling user.
@@ -1803,6 +1783,8 @@ type IdentityService interface {
 	DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error
 	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
 	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+	CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
 
 	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
 	// This token is used as part of a URL that will be emailed to the user (not done in this request).

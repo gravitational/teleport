@@ -350,10 +350,13 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				secrets, err := srv.Auth().RotateUserTokenSecrets(ctx, resetTokenID)
+				res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:    resetTokenID,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+				})
 				require.NoError(t, err)
 
-				otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), srv.Clock().Now())
+				otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), srv.Clock().Now())
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
@@ -380,8 +383,8 @@ func TestChangeUserAuthentication(t *testing.T) {
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorU2F,
 					U2F: &types.U2F{
-						AppID:  "teleport",
-						Facets: []string{"teleport"},
+						AppID:  "https://localhost",
+						Facets: []string{"https://localhost"},
 					},
 				})
 				require.NoError(t, err)
@@ -389,7 +392,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				u2fRegResp, _, err := getMockedU2FAndRegisterRes(srv.Auth(), resetTokenID)
+				u2fRegResp, _, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), resetTokenID)
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
@@ -409,17 +412,14 @@ func TestChangeUserAuthentication(t *testing.T) {
 				}
 			},
 		},
-		// TODO(codingllama): Test ChangeUserAuthentication with Webauthn.
-		//  To do that properly we first need the CreateRegisterChallenge RPC.
 		{
-			name: "with second factor on",
+			name: "with second factor webauthn",
 			setAuthPreference: func() {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOn,
-					U2F: &types.U2F{
-						AppID:  "teleport",
-						Facets: []string{"teleport"},
+					SecondFactor: constants.SecondFactorWebauthn,
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
 					},
 				})
 				require.NoError(t, err)
@@ -427,7 +427,41 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				u2fRegResp, _, err := getMockedU2FAndRegisterRes(srv.Auth(), resetTokenID)
+				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
+				require.NoError(t, err)
+
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:                resetTokenID,
+					NewPassword:            []byte("password3"),
+					NewMFARegisterResponse: webauthnRegRes,
+				}
+			},
+			// Invalid totp fields when auth settings set to only webauthn.
+			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:                resetTokenID,
+					NewPassword:            []byte("password3"),
+					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{}},
+				}
+			},
+		},
+		{
+			name: "with second factor on",
+			setAuthPreference: func() {
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOn,
+					U2F: &types.U2F{
+						AppID:  "https://localhost",
+						Facets: []string{"https://localhost"},
+					},
+				})
+				require.NoError(t, err)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
+			},
+			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				u2fRegResp, _, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), resetTokenID)
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
@@ -453,8 +487,8 @@ func TestChangeUserAuthentication(t *testing.T) {
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOptional,
 					U2F: &types.U2F{
-						AppID:  "teleport",
-						Facets: []string{"teleport"},
+						AppID:  "https://localhost",
+						Facets: []string{"https://localhost"},
 					},
 				})
 				require.NoError(t, err)

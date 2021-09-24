@@ -1367,13 +1367,17 @@ func (s *WebSuite) TestChangePasswordAndAddTOTPDeviceWithToken(c *C) {
 	c.Assert(json.Unmarshal(re.Bytes(), &uiToken), IsNil)
 	c.Assert(uiToken.User, Equals, token.GetUser())
 	c.Assert(uiToken.TokenID, Equals, token.GetName())
+	c.Assert(uiToken.QRCode, NotNil)
 
-	secrets, err := s.server.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
+	res, err := s.server.Auth().CreateRegisterChallenge(context.Background(), &apiProto.CreateRegisterChallengeRequest{
+		TokenID:    token.GetName(),
+		DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	c.Assert(err, IsNil)
 
 	// Advance the clock to invalidate the TOTP token
 	s.clock.Advance(1 * time.Minute)
-	secondFactorToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.clock.Now())
+	secondFactorToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), s.clock.Now())
 	c.Assert(err, IsNil)
 
 	data, err := json.Marshal(auth.ChangePasswordWithTokenRequest{
@@ -2140,6 +2144,77 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 	}
 }
 
+func TestCreateRegisterChallenge(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	clt := proxy.newClient(t)
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		U2F: &types.U2F{
+			AppID:  "https://" + env.server.ClusterName(),
+			Facets: []string{"https://" + env.server.ClusterName()},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().SetAuthPreference(ctx, ap))
+
+	// Acquire an accepted token.
+	token, err := types.NewUserToken("some-token-id")
+	require.NoError(t, err)
+	token.SetUser("llama")
+	token.SetSubKind(auth.UserTokenTypePrivilege)
+	token.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, token)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		deviceType string
+	}{
+		{
+			name:       "u2f challenge",
+			deviceType: "u2f",
+		},
+		{
+			name:       "totp challenge",
+			deviceType: "totp",
+		},
+		{
+			name:       "webauthn challenge",
+			deviceType: "webauthn",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			endpoint := clt.Endpoint("webapi", "mfa", "token", token.GetName(), "registerchallenge")
+			res, err := clt.PostJSON(ctx, endpoint, &createRegisterChallengeRequest{
+				DeviceType: tc.deviceType,
+			})
+			require.NoError(t, err)
+
+			var chal client.MFARegisterChallenge
+			require.NoError(t, json.Unmarshal(res.Bytes(), &chal))
+
+			switch tc.deviceType {
+			case "u2f":
+				require.NotNil(t, chal.U2F)
+			case "totp":
+				require.NotNil(t, chal.TOTP.QRCode)
+			case "webauthn":
+				require.NotNil(t, chal.Webauthn)
+			}
+		})
+	}
+}
+
 // TestCreateAppSession verifies that an existing session to the Web UI can
 // be exchanged for a application specific session.
 func (s *WebSuite) TestCreateAppSession(c *C) {
@@ -2449,9 +2524,12 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		Name: "invalid-name-for-recovery",
 	})
 	require.NoError(t, err)
-	secrets, err := env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
+	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+		TokenID:    resetToken.GetName(),
+		DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	require.NoError(t, err)
-	totpCode, err := totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	totpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
 	require.NoError(t, err)
 
 	// Test invalid username does not receive codes.
@@ -2476,9 +2554,12 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		Name: "valid-username@example.com",
 	})
 	require.NoError(t, err)
-	secrets, err = env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
+	res, err = env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+		TokenID:    resetToken.GetName(),
+		DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	require.NoError(t, err)
-	totpCode, err = totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	totpCode, err = totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
 	require.NoError(t, err)
 
 	// Test valid username (email) returns codes.

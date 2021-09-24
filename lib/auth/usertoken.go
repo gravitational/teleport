@@ -243,6 +243,8 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 	return fmt.Sprintf("%v@%v", username, proxyHost), nil
 }
 
+// DELETE IN 9.0.0 replaced by CreateRegisterChallenge.
+//
 // RotateUserTokenSecrets rotates secrets for a given tokenID.
 // It gets called every time a user fetches 2nd-factor secrets during registration attempt.
 // This ensures that an attacker that gains the user token link can not view it,
@@ -254,14 +256,20 @@ func (s *Server) RotateUserTokenSecrets(ctx context.Context, tokenID string) (ty
 		return nil, trace.Wrap(err)
 	}
 
-	key, _, err := s.newTOTPKey(token.GetUser())
+	otpKey, _, err := s.newTOTPKey(token.GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	secrets, err := s.createTOTPUserTokenSecrets(ctx, token, otpKey)
+	return secrets, trace.Wrap(err)
+}
+
+// createTOTPUserTokenSecrets creates new UserTokenSecretes resource for the given token.
+func (s *Server) createTOTPUserTokenSecrets(ctx context.Context, token types.UserToken, otpKey *otp.Key) (types.UserTokenSecrets, error) {
 	// Create QR code.
 	var otpQRBuf bytes.Buffer
-	otpImage, err := key.Image(456, 456)
+	otpImage, err := otpKey.Image(456, 456)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -269,11 +277,11 @@ func (s *Server) RotateUserTokenSecrets(ctx context.Context, tokenID string) (ty
 		return nil, trace.Wrap(err)
 	}
 
-	secrets, err := types.NewUserTokenSecrets(tokenID)
+	secrets, err := types.NewUserTokenSecrets(token.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	secrets.SetOTPKey(key.Secret())
+	secrets.SetOTPKey(otpKey.Secret())
 	secrets.SetQRCode(otpQRBuf.Bytes())
 	secrets.SetExpiry(token.Expiry())
 	err = s.UpsertUserTokenSecrets(ctx, secrets)

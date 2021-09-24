@@ -638,16 +638,6 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
 func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	if secrets, err := c.grpc.RotateUserTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
-		TokenID: tokenID,
-	}, c.callOpts...); err != nil {
-		if !trace.IsNotImplemented(trail.FromGRPC(err)) {
-			return nil, trail.FromGRPC(err)
-		}
-	} else {
-		return secrets, nil
-	}
-
 	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
@@ -2153,5 +2143,11 @@ func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.Crea
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
 func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	resp, err := c.grpc.CreatePrivilegeToken(ctx, req, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	resp, err := c.grpc.CreateRegisterChallenge(ctx, in, c.callOpts...)
 	return resp, trail.FromGRPC(err)
 }
