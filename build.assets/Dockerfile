@@ -69,7 +69,7 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 # Install etcd.
-RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
+RUN (curl --connect-timeout 60 --retry 5 --retry-delay 30 -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/ && sleep 5)
 
 # Install Go.
@@ -82,7 +82,7 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNT
 
 # Install libbpf
 ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl --connect-timeout 60 --retry 5 --retry-delay 30 -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
     make install && sleep 5
@@ -92,7 +92,7 @@ ENV GOPATH="/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Install meta-linter.
-RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.38.0/golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+RUN (curl --connect-timeout 60 --retry 5 --retry-delay 30 -L https://github.com/golangci/golangci-lint/releases/download/v1.38.0/golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
      cp golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint* && sleep 5)
 
@@ -102,7 +102,7 @@ RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env G
      rm -r helm-tarball*)
 
 # Install bats.
-RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
+RUN (curl --connect-timeout 60 --retry 5 --retry-delay 30 -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
      cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
      rm -r bats-core-1.2.1 && sleep 5)
 
@@ -114,7 +114,7 @@ ARG GOGO_PROTO_TAG
 ENV PROTOC_TARBALL protoc-${PROTOC_VER}-${PROTOC_PLATFORM}.zip
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
-RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+RUN (curl --connect-timeout 60 --retry 5 --retry-delay 30 -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      rm /tmp/${PROTOC_TARBALL} && sleep 5)
 RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && go install golang.org/x/tools/cmd/goimports@latest && \
