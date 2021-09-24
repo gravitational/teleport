@@ -23,8 +23,10 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
@@ -179,10 +181,14 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		Verified:       sessionCtx.Identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
-	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams,
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Database.GetAllLabels()},
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
-		&services.DatabaseNameMatcher{Name: sessionCtx.DatabaseName})
+
+	dbRoleMatchers := role.DatabaseRoleMatchers(
+		defaults.ProtocolPostgres,
+		sessionCtx.DatabaseUser,
+		sessionCtx.DatabaseName,
+		sessionCtx.Database.GetAllLabels(),
+	)
+	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams, dbRoleMatchers...)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)

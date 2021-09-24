@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -2732,11 +2733,15 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if db == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
-		noMFAAccessErr = checker.CheckAccessToDatabase(db,
-			services.AccessMFAParams{AlwaysRequired: false, Verified: false},
-			&services.DatabaseLabelsMatcher{Labels: db.GetAllLabels()},
-			&services.DatabaseUserMatcher{User: t.Database.Username},
+
+		dbRoleMatchers := role.DatabaseRoleMatchers(
+			db.GetProtocol(),
+			t.Database.Username,
+			t.Database.GetDatabase(),
+			db.GetAllLabels(),
 		)
+		mfaParams := services.AccessMFAParams{AlwaysRequired: false, Verified: false}
+		noMFAAccessErr = checker.CheckAccessToDatabase(db, mfaParams, dbRoleMatchers...)
 
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)
@@ -2762,6 +2767,22 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// ErrSessionMFARequired.
 
 	return &proto.IsMFARequiredResponse{Required: true}, nil
+}
+
+func databaseRoleMatchers(dbProtocol string, user, database string, labels map[string]string) services.RoleMatchers {
+	switch dbProtocol {
+	case defaults.ProtocolPostgres:
+		return services.RoleMatchers{
+			&services.DatabaseLabelsMatcher{Labels: labels},
+			&services.DatabaseUserMatcher{User: user},
+			&services.DatabaseNameMatcher{Name: database},
+		}
+	default:
+		return services.RoleMatchers{
+			&services.DatabaseLabelsMatcher{Labels: labels},
+			&services.DatabaseUserMatcher{User: user},
+		}
+	}
 }
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
