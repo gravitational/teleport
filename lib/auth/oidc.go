@@ -903,7 +903,7 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 	return claims, nil
 }
 
-// Returns a Oauth2 client.  If is a Ping provider sets the client_secret_post auth method
+// getOAuthClient returns a Oauth2 client from the oidc.Client.  If the connector is set as a Ping provider sets the Client Secret Post auth method
 func (a *Server) getOAuthClient(oidcClient *oidc.Client, connector types.OIDCConnector) (*oauth2.Client, error) {
 
 	oac, err := oidcClient.OAuthClient()
