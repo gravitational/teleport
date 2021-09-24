@@ -301,8 +301,10 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 	}
 
 	// Migrate the table.
-	go b.migrateWithRetry(ctx, b.migrateRFD24, "migrateRFD24")
-	go b.migrateWithRetry(ctx, b.migrateFieldsMap, "migrateFieldsMap")
+	go b.migrateWithRetry(ctx, []migrationTask{
+		{b.migrateRFD24, "migrateRFD24"},
+		{b.migrateFieldsMap, "migrateFieldsMap"},
+	})
 
 	// Enable continuous backups if requested.
 	if b.Config.EnableContinuousBackups {
@@ -349,23 +351,31 @@ const (
 )
 
 // migrateWithRetry performs a migration task until it is successful.
-func (l *Log) migrateWithRetry(ctx context.Context, task func(context.Context) error, desc string) {
-	g := l.WithField("task", desc)
-	for {
-		err := task(ctx)
-		if err == nil {
-			return
-		}
+func (l *Log) migrateWithRetry(ctx context.Context, tasks []migrationTask) {
+TaskLoop:
+	for _, task := range tasks {
+		g := l.WithField("task", task.desc)
+		for {
+			err := task.run(ctx)
+			if err == nil {
+				continue TaskLoop
+			}
 
-		delay := utils.HalfJitter(time.Minute)
-		g.WithError(err).Errorf("Background migration task failed, retrying in %f seconds.", delay.Seconds())
-		select {
-		case <-time.After(delay):
-		case <-ctx.Done():
-			g.WithError(ctx.Err()).Error("Background migration task cancelled.")
-			return
+			delay := utils.HalfJitter(time.Minute)
+			g.WithError(err).Errorf("Background migration task failed, retrying in %f seconds.", delay.Seconds())
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				g.WithError(ctx.Err()).Error("Background migration task cancelled.")
+				continue TaskLoop
+			}
 		}
 	}
+}
+
+type migrationTask struct {
+	run  func(context.Context) error
+	desc string
 }
 
 // migrateRFD24 checks if any migration actions need to be performed
