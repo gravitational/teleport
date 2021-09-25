@@ -1177,7 +1177,6 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		UserTokenTypePrivilegeException,
 		UserTokenTypeResetPassword,
 		UserTokenTypeResetPasswordInvite,
-		UserTokenTypeRecoveryApproved,
 	}
 
 	if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
@@ -1329,7 +1328,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved); err != nil {
+		if err := a.verifyUserToken(token, UserTokenTypePrivilege); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -1362,7 +1361,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 		return trace.AccessDenied("invalid token")
 	}
 
-	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+	if err := a.verifyUserToken(token, UserTokenTypePrivilege); err != nil {
 		return trace.Wrap(err)
 	}
 

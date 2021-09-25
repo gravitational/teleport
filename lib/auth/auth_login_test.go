@@ -410,7 +410,7 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 			name:    "invalid token type",
 			wantErr: true,
 			getRequest: func() *proto.CreateAuthenticateChallengeRequest {
-				wrongToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+				wrongToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypePrivilege, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 				require.NoError(t, err)
 
 				return &proto.CreateAuthenticateChallengeRequest{
@@ -477,7 +477,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Create a valid token.
-	validToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+	validToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypePrivilege, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 	require.NoError(t, err)
 
 	// Test unspecified token returns error.

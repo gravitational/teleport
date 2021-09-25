@@ -270,7 +270,7 @@ func (s *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		return nil, trace.AccessDenied("unsupported authentication method")
 	}
 
-	approvedToken, err := s.createRecoveryToken(ctx, startToken.GetUser(), UserTokenTypeRecoveryApproved, startToken.GetUsage())
+	privilegeToken, err := s.createRecoveryToken(ctx, startToken.GetUser(), UserTokenTypePrivilege, startToken.GetUsage())
 	if err != nil {
 		return nil, trace.AccessDenied(verifyRecoveryGenericErrMsg)
 	}
@@ -280,7 +280,7 @@ func (s *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		log.Error(trace.DebugReport(err))
 	}
 
-	return approvedToken, nil
+	return privilegeToken, nil
 }
 
 // verifyAuthnWithRecoveryLock counts number of failed attempts at providing a valid password or second factor.
@@ -388,7 +388,7 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)
 	}
 
-	if err := s.verifyUserToken(privilegeToken, UserTokenTypeRecoveryApproved); err != nil {
+	if err := s.verifyUserToken(privilegeToken, UserTokenTypePrivilege); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -470,7 +470,7 @@ func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
-	if err := s.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+	if err := s.verifyUserToken(token, UserTokenTypePrivilege); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -481,7 +481,7 @@ func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 	}
 
 	// If used as part of the recovery flow, getting new recovery codes marks the end of the flow in the UI.
-	if token.GetSubKind() == UserTokenTypeRecoveryApproved {
+	if token.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_MFA || token.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD {
 		if err := s.deleteUserTokens(ctx, token.GetUser()); err != nil {
 			log.Error(trace.DebugReport(err))
 		}
@@ -500,8 +500,15 @@ func (s *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	if err := s.verifyUserToken(token, UserTokenTypeRecoveryStart, UserTokenTypeRecoveryApproved); err != nil {
+	if err := s.verifyUserToken(token, UserTokenTypeRecoveryStart, UserTokenTypePrivilege); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Usage must be set to a recovery related enum.
+	// This usage ensures we are verifying and recovering the correct type of authentication.
+	if token.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD && token.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_MFA {
+		log.Debugf("Invalid recovery token(%s) usage %s", token.GetName(), token.GetUsage().String())
+		return nil, trace.AccessDenied("access denied")
 	}
 
 	return token, nil

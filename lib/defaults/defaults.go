@@ -162,9 +162,6 @@ const (
 	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
 	RecoveryStartTokenTTL = 3 * time.Hour
 
-	// RecoveryApprovedTokenTTL is a default expiry time for a recovery approved token.
-	RecoveryApprovedTokenTTL = 15 * time.Minute
-
 	// PrivilegeTokenTTL is a default expiry time for a privilege token.
 	PrivilegeTokenTTL = 5 * time.Minute
 

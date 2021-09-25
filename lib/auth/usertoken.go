@@ -48,15 +48,13 @@ const (
 	// UserTokenTypeRecoveryStart describes a recovery token issued to users who
 	// successfully verified their recovery code.
 	UserTokenTypeRecoveryStart = "recovery_start"
-	// UserTokenTypeRecoveryApproved describes a recovery token issued to users who
-	// successfully verified their second auth credential (either password or a second factor) and
-	// can now start changing their password or add a new second factor device.
-	// This token is also used to allow users to delete exisiting second factor devices
-	// and retrieve their new set of recovery codes as part of the recovery flow.
-	UserTokenTypeRecoveryApproved = "recovery_approved"
 	// UserTokenTypePrivilege describes a token type that grants access to a privileged action
 	// that requires users to re-authenticate with their second factor while looged in. This
 	// token is issued to users who has successfully re-authenticated.
+	//
+	// This token is also granted with successful invocation of RPC VerifyAccountRecovery.
+	// Allows users to perform protected actions during the recovery flow in which users
+	// are not logged in.
 	UserTokenTypePrivilege = "privilege"
 	// UserTokenTypePrivilegeException describes a token type that allowed a user to bypass
 	// second factor re-authentication which in other cases would be required eg:
@@ -113,9 +111,6 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 
 	case UserTokenTypeRecoveryStart:
 		r.TTL = defaults.RecoveryStartTokenTTL
-
-	case UserTokenTypeRecoveryApproved:
-		r.TTL = defaults.RecoveryApprovedTokenTTL
 
 	case UserTokenTypePrivilege, UserTokenTypePrivilegeException:
 		r.TTL = defaults.PrivilegeTokenTTL
@@ -424,7 +419,7 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 
 // createRecoveryToken creates a user token for account recovery.
 func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType string, usage types.UserTokenUsage) (types.UserToken, error) {
-	if tokenType != UserTokenTypeRecoveryStart && tokenType != UserTokenTypeRecoveryApproved {
+	if tokenType != UserTokenTypeRecoveryStart && tokenType != UserTokenTypePrivilege {
 		return nil, trace.BadParameter("invalid recovery token type: %s", tokenType)
 	}
 
@@ -453,11 +448,18 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 		return nil, trace.Wrap(err)
 	}
 
+	eventMetadata := apievents.Metadata{
+		Type: events.RecoveryTokenCreateEvent,
+		Code: events.RecoveryTokenCreateCode,
+	}
+
+	if tokenType == UserTokenTypePrivilege {
+		eventMetadata.Type = events.PrivilegeTokenCreateEvent
+		eventMetadata.Code = events.PrivilegeTokenCreateCode
+	}
+
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
-		Metadata: apievents.Metadata{
-			Type: events.RecoveryTokenCreateEvent,
-			Code: events.RecoveryTokenCreateCode,
-		},
+		Metadata: eventMetadata,
 		UserMetadata: apievents.UserMetadata{
 			User: username,
 		},

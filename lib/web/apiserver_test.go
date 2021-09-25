@@ -2138,7 +2138,7 @@ func TestGetMFADevicesWithAuth(t *testing.T) {
 	require.Len(t, devices, 1)
 }
 
-func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
+func TestGetAndDeleteMFADevices_WithPrivilegeToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	env := newWebPack(t, 1)
@@ -2161,18 +2161,18 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	err = env.server.Auth().SetAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
-	// Acquire an approved token.
-	approvedToken, err := types.NewUserToken("some-token-id")
+	// Acquire a privilege token.
+	privilegeToken, err := types.NewUserToken("some-token-id")
 	require.NoError(t, err)
-	approvedToken.SetUser(username)
-	approvedToken.SetSubKind(auth.UserTokenTypeRecoveryApproved)
-	approvedToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
-	_, err = env.server.Auth().Identity.CreateUserToken(ctx, approvedToken)
+	privilegeToken.SetUser(username)
+	privilegeToken.SetSubKind(auth.UserTokenTypePrivilege)
+	privilegeToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, privilegeToken)
 	require.NoError(t, err)
 
 	// Call the getter endpoint.
 	clt := proxy.newClient(t)
-	getDevicesEndpoint := clt.Endpoint("webapi", "mfa", "token", approvedToken.GetName(), "devices")
+	getDevicesEndpoint := clt.Endpoint("webapi", "mfa", "token", privilegeToken.GetName(), "devices")
 	res, err := clt.Get(ctx, getDevicesEndpoint, url.Values{})
 	require.NoError(t, err)
 
@@ -2182,7 +2182,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	require.Len(t, devices, 1)
 
 	// Call the delete endpoint.
-	_, err = clt.Delete(ctx, clt.Endpoint("webapi", "mfa", "token", approvedToken.GetName(), "devices", devices[0].Name))
+	_, err = clt.Delete(ctx, clt.Endpoint("webapi", "mfa", "token", privilegeToken.GetName(), "devices", devices[0].Name))
 	require.NoError(t, err)
 
 	// Check device has been deleted.

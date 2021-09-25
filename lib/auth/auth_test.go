@@ -1284,54 +1284,26 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	require.NoError(t, err)
 	totpDev1, err := RegisterTestDevice(ctx, clt, "otp-1", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
-	totpDev2, err := RegisterTestDevice(ctx, clt, "otp-2", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(srv.Clock()))
+
+	deviceToDelete := webDev2
+
+	// Acquire a privilege token.
+	privilegeToken, err := srv.Auth().createPrivilegeToken(ctx, username, UserTokenTypePrivilege)
 	require.NoError(t, err)
 
-	tests := []struct {
-		name           string
-		deviceToDelete string
-		tokenReq       CreateUserTokenRequest
-	}{
-		{
-			name:           "recovery approved token",
-			deviceToDelete: webDev1.MFA.GetName(),
-			tokenReq: CreateUserTokenRequest{
-				Name: username,
-				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryApproved,
-			},
-		},
-		{
-			name:           "privilege token",
-			deviceToDelete: totpDev1.MFA.GetName(),
-			tokenReq: CreateUserTokenRequest{
-				Name: username,
-				TTL:  5 * time.Minute,
-				Type: UserTokenTypePrivilege,
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			token, err := srv.Auth().newUserToken(tc.tokenReq)
-			require.NoError(t, err)
-			_, err = srv.Auth().Identity.CreateUserToken(ctx, token)
-			require.NoError(t, err)
-
-			// Delete the TOTP device.
-			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
-				PrivilegeTokenID: token.GetName(),
-				DeviceName:       tc.deviceToDelete,
-			})
-			require.NoError(t, err)
-		})
-	}
+	// Delete the TOTP device.
+	err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
+		PrivilegeTokenID: privilegeToken.GetName(),
+		DeviceName:       deviceToDelete.MFA.GetName(),
+	})
+	require.NoError(t, err)
 
 	// Check it's been deleted.
-	devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false)
+	res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
+		PrivilegeTokenID: privilegeToken.GetName(),
+	})
 	require.NoError(t, err)
-	compareDevices(t, devs, webDev2.MFA, totpDev2.MFA)
+	compareDevices(t, res.GetDevices(), webDev1.MFA, totpDev1.MFA)
 
 	// Test last events emitted.
 	event := mockEmitter.LastEvent()
@@ -1396,7 +1368,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 			tokenRequest: &CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryApproved,
+				Type: UserTokenTypePrivilege,
 			},
 			assertErrType: trace.IsNotFound,
 		},
@@ -1530,19 +1502,13 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 			// Insert a MFA device.
 			dev := tc.createDevice(username)
 
-			// Acquire an approved token.
-			token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
-				Name: username,
-				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryApproved,
-			})
-			require.NoError(t, err)
-			_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+			// Acquire a privilege token.
+			privilegeToken, err := srv.Auth().createPrivilegeToken(ctx, username, UserTokenTypePrivilege)
 			require.NoError(t, err)
 
 			// Delete the device.
 			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
-				PrivilegeTokenID: token.GetName(),
+				PrivilegeTokenID: privilegeToken.GetName(),
 				DeviceName:       dev.GetName(),
 			})
 
@@ -1551,7 +1517,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				require.Error(t, err)
 				// Check it hasn't been deleted.
 				res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
-					PrivilegeTokenID: token.GetName(),
+					PrivilegeTokenID: privilegeToken.GetName(),
 				})
 				require.NoError(t, err)
 				require.Len(t, res.GetDevices(), 1)
@@ -1762,7 +1728,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 			tokenRequest: &CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryApproved,
+				Type: UserTokenTypePrivilege,
 			},
 		},
 	}
