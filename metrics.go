@@ -188,7 +188,4 @@ const (
 
 	// TagResource is a tag specifying the resource for an event
 	TagResource = "resource"
-
-	// TagSize is a tag specifying the size of an event
-	TagSize = "size"
 )

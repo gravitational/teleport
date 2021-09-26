@@ -59,17 +59,18 @@ var (
 			Help: "Number of times auth received a heartbeat connection",
 		},
 	)
-	watcherEventsEmitted = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: teleport.MetricWatcherEventsEmitted,
-			Help: "Number of watcher events emitted",
+	watcherEventsEmitted = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    teleport.MetricWatcherEventsEmitted,
+			Help:    "Per resources size of events emitted",
+			Buckets: prometheus.LinearBuckets(0, 200, 5),
 		},
-		[]string{"resource", "size"},
+		[]string{teleport.TagResource},
 	)
 	watcherEventSizes = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    teleport.MetricWatcherEventSizes,
-			Help:    "Size of events being emitted",
+			Help:    "Overall size of events emitted",
 			Buckets: prometheus.LinearBuckets(0, 100, 20),
 		},
 	)
@@ -320,7 +321,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 				return trace.Wrap(err)
 			}
 
-			watcherEventsEmitted.WithLabelValues(resourceLabel(event), fmt.Sprintf("%d", out.Size())).Inc()
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
 			watcherEventSizes.Observe(float64(out.Size()))
 
 			if err := stream.Send(out); err != nil {

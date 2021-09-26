@@ -23,9 +23,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -33,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/dustin/go-humanize"
 	ui "github.com/gizak/termui/v3"
@@ -186,7 +185,7 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 		return t
 	}
 
-	eventsGraph := func(title string, buf *CircularBuffer) *widgets.Plot {
+	eventsGraph := func(title string, buf *utils.CircularBuffer) *widgets.Plot {
 		lc := widgets.NewPlot()
 		lc.Title = title
 		lc.TitleStyle = ui.NewStyle(ui.ColorCyan)
@@ -284,10 +283,9 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 		tabpane.ActiveTabIndex = 0
 		grid.Set(
 			ui.NewRow(0.05,
-				ui.NewCol(0.3, tabpane),
-				ui.NewCol(0.7, h),
+				ui.NewCol(1.0, tabpane),
 			),
-			ui.NewRow(0.95,
+			ui.NewRow(0.925,
 				ui.NewCol(0.5,
 					ui.NewRow(0.3, t1),
 					ui.NewRow(0.3, t2),
@@ -297,15 +295,17 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 					ui.NewRow(0.3, percentileTable("Generate Server Certificates Histogram", re.Cluster.GenerateRequestsHistogram)),
 				),
 			),
+			ui.NewRow(0.025,
+				ui.NewCol(1.0, h),
+			),
 		)
 	case "2":
 		tabpane.ActiveTabIndex = 1
 		grid.Set(
 			ui.NewRow(0.05,
-				ui.NewCol(0.3, tabpane),
-				ui.NewCol(0.7, h),
+				ui.NewCol(1.0, tabpane),
 			),
-			ui.NewRow(0.95,
+			ui.NewRow(0.925,
 				ui.NewCol(0.5,
 					ui.NewRow(1.0, backendRequestsTable("Top Backend Requests", re.Backend)),
 				),
@@ -315,15 +315,17 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 					ui.NewRow(0.3, percentileTable("Backend Write Percentiles", re.Backend.Write)),
 				),
 			),
+			ui.NewRow(0.025,
+				ui.NewCol(1.0, h),
+			),
 		)
 	case "3":
 		tabpane.ActiveTabIndex = 2
 		grid.Set(
 			ui.NewRow(0.05,
-				ui.NewCol(0.3, tabpane),
-				ui.NewCol(0.7, h),
+				ui.NewCol(1.0, tabpane),
 			),
-			ui.NewRow(0.95,
+			ui.NewRow(0.925,
 				ui.NewCol(0.5,
 					ui.NewRow(1.0, backendRequestsTable("Top Cache Requests", re.Cache)),
 				),
@@ -333,15 +335,17 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 					ui.NewRow(0.3, percentileTable("Cache Write Percentiles", re.Cache.Write)),
 				),
 			),
+			ui.NewRow(0.025,
+				ui.NewCol(1.0, h),
+			),
 		)
 	case "4":
 		tabpane.ActiveTabIndex = 3
 		grid.Set(
 			ui.NewRow(0.05,
-				ui.NewCol(0.3, tabpane),
-				ui.NewCol(0.7, h),
+				ui.NewCol(1.0, tabpane),
 			),
-			ui.NewRow(0.95,
+			ui.NewRow(0.925,
 				ui.NewCol(0.5,
 					ui.NewRow(1.0, eventsTable(re.Watcher)),
 				),
@@ -349,6 +353,9 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 					ui.NewRow(0.5, eventsGraph("Events/Sec", re.Watcher.EventsPerSecond)),
 					ui.NewRow(0.5, eventsGraph("Bytes/Sec", re.Watcher.BytesPerSecond)),
 				),
+			),
+			ui.NewRow(0.025,
+				ui.NewCol(1.0, h),
 			),
 		)
 	}
@@ -401,76 +408,10 @@ type WatcherStats struct {
 	EventSize Histogram
 	// TopEvents is a collection of resources to their events
 	TopEvents map[string]Event
-	//EventsPerSecond is the events per sec buffer
-	EventsPerSecond *CircularBuffer
+	// EventsPerSecond is the events per sec buffer
+	EventsPerSecond *utils.CircularBuffer
 	// BytesPerSecond is the bytes per sec buffer
-	BytesPerSecond *CircularBuffer
-}
-
-// CircularBuffer implements an in-memory circular buffer of predefined size
-type CircularBuffer struct {
-	sync.Mutex
-	buf   []float64
-	start int
-	end   int
-	size  int
-}
-
-// NewCircularBuffer returns a new instance of a circular buffer that will hold
-// size elements before it rotates
-func NewCircularBuffer(size int) (*CircularBuffer, error) {
-	if size <= 0 {
-		return nil, trace.BadParameter("circular buffer size should be > 0")
-	}
-	buf := &CircularBuffer{
-		buf:   make([]float64, size),
-		start: -1,
-		end:   -1,
-		size:  0,
-	}
-	return buf, nil
-}
-
-// Data returns the data in the correct order
-func (t *CircularBuffer) Data(count int) []float64 {
-	t.Lock()
-	defer t.Unlock()
-
-	if t.size == 0 {
-		return nil
-	}
-
-	// skip first N items so that the most recent are always displayed
-	start := t.start
-	if count < t.size {
-		start = t.start + (t.size - count)
-	}
-
-	if start <= t.end {
-		return t.buf[start : t.end+1]
-	}
-
-	return append(t.buf[start:], t.buf[:start]...)
-}
-
-// Add pushes a new item onto the buffer
-func (t *CircularBuffer) Add(d float64) {
-	t.Lock()
-	defer t.Unlock()
-
-	if t.size == 0 {
-		t.start = 0
-		t.end = 0
-		t.size = 1
-	} else if t.size < len(t.buf) {
-		t.end = (t.end + 1) % len(t.buf)
-		t.size++
-	} else {
-		t.end = t.start
-		t.start = (t.start + 1) % len(t.buf)
-	}
-
-	t.buf[t.end] = d
+	BytesPerSecond *utils.CircularBuffer
 }
 
 // SortedTopEvents returns top events sorted either
@@ -672,7 +613,7 @@ type Histogram struct {
 	// Count is a total number of elements counted
 	Count int64
 	// Sum is sum of all elements counted
-	Sum int64
+	Sum float64
 	// Buckets is a list of buckets
 	Buckets []Bucket
 }
@@ -745,10 +686,10 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 			}
 			stats.TopRequests[req.Key] = req
 		}
-		stats.Read = getComponentHistogram(component, metrics[teleport.MetricBackendReadHistogram])
-		stats.Write = getComponentHistogram(component, metrics[teleport.MetricBackendWriteHistogram])
-		stats.BatchRead = getComponentHistogram(component, metrics[teleport.MetricBackendBatchReadHistogram])
-		stats.BatchWrite = getComponentHistogram(component, metrics[teleport.MetricBackendBatchWriteHistogram])
+		stats.Read = getHistogramWithFilter(metrics[teleport.MetricBackendReadHistogram], histogramForComponent(component))
+		stats.Write = getHistogramWithFilter(metrics[teleport.MetricBackendWriteHistogram], histogramForComponent(component))
+		stats.BatchRead = getHistogramWithFilter(metrics[teleport.MetricBackendBatchReadHistogram], histogramForComponent(component))
+		stats.BatchWrite = getHistogramWithFilter(metrics[teleport.MetricBackendBatchWriteHistogram], histogramForComponent(component))
 	}
 
 	var stats *BackendStats
@@ -845,36 +786,34 @@ func getRequests(component string, metric *dto.MetricFamily) []Request {
 }
 
 func getWatcherStats(metrics map[string]*dto.MetricFamily, prev *WatcherStats, period time.Duration) *WatcherStats {
-	metric := metrics[teleport.MetricWatcherEventsEmitted]
-	if metric == nil || metric.GetType() != dto.MetricType_COUNTER || len(metric.Metric) == 0 {
-		metric = &dto.MetricFamily{}
+	eventsEmitted := metrics[teleport.MetricWatcherEventsEmitted]
+	if eventsEmitted == nil || eventsEmitted.GetType() != dto.MetricType_HISTOGRAM || len(eventsEmitted.Metric) == 0 {
+		eventsEmitted = &dto.MetricFamily{}
 	}
 
 	events := make(map[string]Event)
-	for _, counter := range metric.Metric {
-		evt := Event{
-			Counter: Counter{
-				Count: int64(*counter.Counter.Value),
-			},
-		}
-		for _, label := range counter.Label {
-			switch label.GetName() {
-			case teleport.TagResource:
-				evt.Resource = label.GetValue()
-			case teleport.TagSize:
-				size, err := strconv.ParseFloat(label.GetValue(), 64)
-				if err != nil {
-					break
-				}
+	for i, metric := range eventsEmitted.Metric {
+		histogram := getHistogramWithFilter(eventsEmitted, histogramAtIndex(i))
 
-				evt.Size = size * (*counter.Counter.Value)
+		resource := ""
+		for _, pair := range metric.GetLabel() {
+			if pair.GetName() == teleport.TagResource {
+				resource = pair.GetValue()
+				break
 			}
 		}
 
-		if e, ok := events[evt.Resource]; ok {
-			e.Count += evt.Count
-			e.Size += evt.Size
-			evt = e
+		// only continue processing if we found the resource
+		if resource == "" {
+			continue
+		}
+
+		evt := Event{
+			Resource: resource,
+			Size:     histogram.Sum,
+			Counter: Counter{
+				Count: histogram.Count,
+			},
 		}
 
 		if prev != nil {
@@ -888,40 +827,20 @@ func getWatcherStats(metrics map[string]*dto.MetricFamily, prev *WatcherStats, p
 		events[evt.Resource] = evt
 	}
 
-	getHistogramComponent := func(metric *dto.MetricFamily) Histogram {
-		if metric == nil || metric.GetType() != dto.MetricType_HISTOGRAM || len(metric.Metric) == 0 || metric.Metric[0].Histogram == nil {
-			return Histogram{}
-		}
-		var hist *dto.Histogram
-		if len(metric.Metric) == 1 {
-			hist = metric.Metric[0].Histogram
-		}
-
-		if hist == nil {
-			return Histogram{}
-		}
-		out := Histogram{
-			Count: int64(hist.GetSampleCount()),
-			Sum:   int64(hist.GetSampleSum()),
-		}
-
-		return out
-	}
-
-	histogram := getHistogramComponent(metrics[teleport.MetricWatcherEventSizes])
+	histogram := getHistogram(metrics[teleport.MetricWatcherEventSizes])
 	var (
-		eventsPerSec *CircularBuffer
-		bytesPerSec  *CircularBuffer
+		eventsPerSec *utils.CircularBuffer
+		bytesPerSec  *utils.CircularBuffer
 		eventsRate   float64
 		bytesRate    float64
 	)
 	if prev == nil {
-		eps, err := NewCircularBuffer(150)
+		eps, err := utils.NewCircularBuffer(150)
 		if err != nil {
 			return nil
 		}
 
-		bps, err := NewCircularBuffer(150)
+		bps, err := utils.NewCircularBuffer(150)
 		if err != nil {
 			return nil
 		}
@@ -933,7 +852,7 @@ func getWatcherStats(metrics map[string]*dto.MetricFamily, prev *WatcherStats, p
 		bytesPerSec = prev.BytesPerSecond
 
 		eventsRate = float64(histogram.Count-prev.EventSize.Count) / float64(period/time.Second)
-		bytesRate = float64(histogram.Sum-prev.EventSize.Sum) / float64(period/time.Second)
+		bytesRate = histogram.Sum - prev.EventSize.Sum/float64(period/time.Second)
 	}
 
 	eventsPerSec.Add(eventsRate)
@@ -994,43 +913,47 @@ func getCounterValue(metric *dto.MetricFamily) int64 {
 	return int64(*metric.Metric[0].Counter.Value)
 }
 
-func getComponentHistogram(component string, metric *dto.MetricFamily) Histogram {
-	if metric == nil || metric.GetType() != dto.MetricType_HISTOGRAM || len(metric.Metric) == 0 || metric.Metric[0].Histogram == nil {
-		return Histogram{}
-	}
-	var hist *dto.Histogram
-	for i := range metric.Metric {
-		if matchesLabelValue(metric.Metric[i].Label, teleport.ComponentLabel, component) {
-			hist = metric.Metric[i].Histogram
-			break
+func histogramAtIndex(index int) func(metric []*dto.Metric) *dto.Histogram {
+	return func(metrics []*dto.Metric) *dto.Histogram {
+		if index < 0 || index >= len(metrics) {
+			return nil
 		}
-	}
-	if hist == nil {
-		return Histogram{}
-	}
-	out := Histogram{
-		Count:   int64(hist.GetSampleCount()),
-		Sum:     int64(hist.GetSampleSum()),
-		Buckets: make([]Bucket, len(hist.Bucket)),
-	}
 
-	for i, bucket := range hist.Bucket {
-		out.Buckets[i] = Bucket{
-			Count:      int64(bucket.GetCumulativeCount()),
-			UpperBound: bucket.GetUpperBound(),
-		}
+		return metrics[index].Histogram
 	}
-	return out
+}
+
+func histogramForComponent(label string) func(metric []*dto.Metric) *dto.Histogram {
+	return func(metrics []*dto.Metric) *dto.Histogram {
+		var hist *dto.Histogram
+		for i := range metrics {
+			if matchesLabelValue(metrics[i].Label, teleport.ComponentLabel, label) {
+				hist = metrics[i].Histogram
+				break
+			}
+		}
+
+		return hist
+	}
 }
 
 func getHistogram(metric *dto.MetricFamily) Histogram {
+	return getHistogramWithFilter(metric, histogramAtIndex(0))
+}
+
+func getHistogramWithFilter(metric *dto.MetricFamily, histogramFilter func(metrics []*dto.Metric) *dto.Histogram) Histogram {
 	if metric == nil || metric.GetType() != dto.MetricType_HISTOGRAM || len(metric.Metric) == 0 || metric.Metric[0].Histogram == nil {
 		return Histogram{}
 	}
-	hist := metric.Metric[0].Histogram
+
+	hist := histogramFilter(metric.Metric)
+	if hist == nil {
+		return Histogram{}
+	}
+
 	out := Histogram{
 		Count:   int64(hist.GetSampleCount()),
-		Sum:     int64(hist.GetSampleSum()),
+		Sum:     hist.GetSampleSum(),
 		Buckets: make([]Bucket, len(hist.Bucket)),
 	}
 
