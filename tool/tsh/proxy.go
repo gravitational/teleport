@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -41,7 +42,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    client.WebProxyAddr,
-		Protocol:           alpnproxy.ProtocolProxySSH,
+		Protocol:           alpncommon.ProtocolProxySSH,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
@@ -123,14 +124,14 @@ func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, 
 	return lp, nil
 }
 
-func toALPNProtocol(dbProtocol string) (alpnproxy.Protocol, error) {
+func toALPNProtocol(dbProtocol string) (alpncommon.Protocol, error) {
 	switch dbProtocol {
 	case defaults.ProtocolMySQL:
-		return alpnproxy.ProtocolMySQL, nil
+		return alpncommon.ProtocolMySQL, nil
 	case defaults.ProtocolPostgres:
-		return alpnproxy.ProtocolPostgres, nil
+		return alpncommon.ProtocolPostgres, nil
 	case defaults.ProtocolMongoDB:
-		return alpnproxy.ProtocolMongoDB, nil
+		return alpncommon.ProtocolMongoDB, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}

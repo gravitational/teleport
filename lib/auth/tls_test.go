@@ -2567,10 +2567,13 @@ func (s *TLSSuite) TestChangeUserAuthentication(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	secrets, err := s.server.Auth().RotateUserTokenSecrets(ctx, token.GetName())
+	res, err := s.server.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:    token.GetName(),
+		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	c.Assert(err, check.IsNil)
 
-	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.server.Clock().Now())
+	otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), s.server.Clock().Now())
 	c.Assert(err, check.IsNil)
 
 	_, err = s.server.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{

@@ -355,10 +355,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
 	h.GET("/webapi/mfa/token/:token/devices", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
 	h.POST("/webapi/mfa/token/:token/authenticatechallenge", httplib.MakeHandler(h.createAuthenticateChallengeWithTokenHandle))
+	h.POST("/webapi/mfa/token/:token/registerchallenge", httplib.MakeHandler(h.createRegisterChallengeWithTokenHandle))
 
 	// MFA private endpoints.
 	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
 	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
+	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
@@ -1555,12 +1557,15 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 		return nil, trace.Wrap(err)
 	}
 
-	// RotateUserTokenSecrets rotates secrets for a given tokenID.
-	// It gets called every time a user fetches 2nd-factor secrets during registration attempt.
+	// CreateRegisterChallenge rotates TOTP secrets for a given tokenID.
+	// It is required to get called every time a user fetches 2nd-factor secrets during registration attempt.
 	// This ensures that an attacker that gains the ResetPasswordToken link can not view it,
 	// extract the OTP key from the QR code, then allow the user to signup with
 	// the same OTP token.
-	secrets, err := h.auth.proxyClient.RotateUserTokenSecrets(ctx, tokenID)
+	res, err := h.auth.proxyClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:    tokenID,
+		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1568,7 +1573,7 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 	return ui.ResetPasswordToken{
 		TokenID: token.GetName(),
 		User:    token.GetUser(),
-		QRCode:  secrets.GetQRCode(),
+		QRCode:  res.GetTOTP().GetQRCode(),
 	}, nil
 }
 
@@ -1581,13 +1586,16 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 // {"version":"U2F_V2","challenge":"randombase64string","appId":"https://mycorp.com:3080"}
 //
 func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	token := p.ByName("token")
-	u2fRegisterRequest, err := h.auth.GetUserInviteU2FRegisterRequest(token)
+	res, err := h.auth.proxyClient.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
+		TokenID:    p.ByName("token"),
+		DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return u2fRegisterRequest, nil
+	chal := client.MakeRegisterChallenge(res)
+	return chal.U2F, nil
 }
 
 // mfaLoginBegin is the first step in the MFA authentication ceremony, which

@@ -29,7 +29,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1565,11 +1564,6 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	return certs, nil
 }
 
-func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
-	// signup token are their own authz resource
-	return a.authServer.CreateSignupU2FRegisterRequest(token)
-}
-
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -3027,6 +3021,13 @@ func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthServic
 	return nil, trace.NotImplemented("bug: DeleteMFADevice must not be called on auth.ServerWithRoles")
 }
 
+// AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
+func (a *ServerWithRoles) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	// The token provides its own authorization and authentication.
+	res, err := a.authServer.AddMFADeviceSync(ctx, req)
+	return res, trace.Wrap(err)
+}
+
 // DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
 func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
 	// The token provides its own authorization and authentication.
@@ -3479,6 +3480,18 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
 func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	return a.authServer.CreatePrivilegeToken(ctx, req)
+}
+
+// CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.
+func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	// The token provides its own authorization and authentication.
+	return a.authServer.CreateRegisterChallenge(ctx, req)
+}
+
+// GetAccountRecoveryCodes is implemented by AuthService.GetAccountRecoveryCodes.
+func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	// User in context can retrieve their own recovery codes.
+	return a.authServer.GetAccountRecoveryCodes(ctx, req)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,
