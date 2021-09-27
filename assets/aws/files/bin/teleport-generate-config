@@ -747,25 +747,6 @@ EOF
 EOF
   fi
 
-  # enable Kubernetes service
-  if [[ "${TELEPORT_AGENT_KUBE_ENABLED}" == "true" ]]; then
-    cat >>${USE_CONFIG_PATH} <<EOF
-kubernetes_service:
-  enabled: yes
-  kube_cluster_name: ${TELEPORT_AGENT_KUBE_CLUSTER_NAME}
-EOF
-    # add Kubernetes labels
-    if [[ "${TELEPORT_AGENT_KUBE_LABELS}" != "" ]]; then
-    # replace | with a literal newline and space
-      TELEPORT_AGENT_KUBE_LABELS_EXPANDED="${TELEPORT_AGENT_KUBE_LABELS//|/
-    }"
-      cat >>${USE_CONFIG_PATH} <<EOF
-  labels:
-    ${TELEPORT_AGENT_KUBE_LABELS_EXPANDED}
-EOF
-    fi
-  fi
-
   # enable database service
   if [[ "${TELEPORT_AGENT_DB_ENABLED}" == "true" ]]; then
     cat >>${USE_CONFIG_PATH} <<EOF
