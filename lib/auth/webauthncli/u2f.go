@@ -32,6 +32,11 @@ import (
 // like Login.
 var DevicePollInterval = 200 * time.Millisecond
 
+// ErrAlreadyRegistered may be used by RunOnU2FDevices callbacks to signify that
+// a certain authenticator is already registered, and thus should be removed
+// from the loop.
+var ErrAlreadyRegistered = errors.New("already registered")
+
 var errKeyMissingOrNotVerified = errors.New("key missing or user presence not verified")
 
 // Token represents the actions possible using an U2F/CTAP1 token.
@@ -49,7 +54,7 @@ var u2fNewToken = func(d u2ftoken.Device) Token {
 	return u2ftoken.NewToken(d)
 }
 
-type unknownHandleKey struct {
+type deviceKey struct {
 	Callback int
 	Path     string
 }
@@ -66,9 +71,9 @@ func RunOnU2FDevices(ctx context.Context, runCredentials ...func(Token) error) e
 	ticker := time.NewTicker(DevicePollInterval)
 	defer ticker.Stop()
 
-	unknownHandles := make(map[unknownHandleKey]bool)
+	removedDevices := make(map[deviceKey]bool)
 	for {
-		switch err := runOnU2FDevicesOnce(unknownHandles, runCredentials); {
+		switch err := runOnU2FDevicesOnce(removedDevices, runCredentials); {
 		case errors.Is(err, errKeyMissingOrNotVerified):
 			// This is expected to happen a few times.
 		case err != nil:
@@ -85,7 +90,7 @@ func RunOnU2FDevices(ctx context.Context, runCredentials ...func(Token) error) e
 	}
 }
 
-func runOnU2FDevicesOnce(unknownHandles map[unknownHandleKey]bool, runCredentials []func(Token) error) error {
+func runOnU2FDevicesOnce(removedDevices map[deviceKey]bool, runCredentials []func(Token) error) error {
 	// Ask for devices every iteration, the user may plug a new device.
 	infos, err := u2fDevices()
 	if err != nil {
@@ -104,23 +109,22 @@ func runOnU2FDevicesOnce(unknownHandles map[unknownHandleKey]bool, runCredential
 
 		token := u2fNewToken(dev)
 		for i, fn := range runCredentials {
-			key := unknownHandleKey{Callback: i, Path: info.Path}
-			if info.Path != "" && unknownHandles[key] {
-				// Device doesn't know the KeyHandle+RPID pair. This won't change during
-				// the attempt.
-				// We may get to a situation where none of the devices know the
-				// {KeyHandle,RPID} pair, but we keep on trying because the user may
-				// plug another device.
+			key := deviceKey{Callback: i, Path: info.Path}
+			if info.Path != "" && removedDevices[key] {
+				// Device previously removed during loop (likely doesn't know the key
+				// handle or is already registered).
+				// We may get to a situation where all devices are removed, but we keep
+				// on trying because the user may plug another device.
 				continue
 			}
 
 			switch err := fn(token); {
 			case err == nil:
 				return nil // OK, we got it.
-			case err == u2ftoken.ErrPresenceRequired:
+			case errors.Is(err, u2ftoken.ErrPresenceRequired):
 				// Wait for user action, they will choose the device to use.
-			case err == u2ftoken.ErrUnknownKeyHandle:
-				unknownHandles[key] = true // No need to try this anymore.
+			case errors.Is(err, u2ftoken.ErrUnknownKeyHandle) || errors.Is(err, ErrAlreadyRegistered):
+				removedDevices[key] = true // No need to try this anymore.
 			case err != nil:
 				swallowed = append(swallowed, err)
 			}

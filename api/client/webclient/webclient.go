@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 // newWebClient creates a new client to the HTTPS web proxy.
@@ -59,7 +59,7 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 func doWithFallback(clt *http.Client, allowPlainHTTP bool, req *http.Request) (*http.Response, error) {
 	// first try https and see how that goes
 	req.URL.Scheme = "https"
-	log.Printf("Attempting %s %s%s", req.Method, req.URL.Host, req.URL.Path)
+	log.Debugf("Attempting %s %s%s", req.Method, req.URL.Host, req.URL.Path)
 	resp, err := clt.Do(req)
 
 	// If the HTTPS succeeds, return that.
@@ -77,7 +77,7 @@ func doWithFallback(clt *http.Client, allowPlainHTTP bool, req *http.Request) (*
 	// If we get to here a) the HTTPS attempt failed, and b) we're allowed to try
 	// clear-text HTTP to see if that works.
 	req.URL.Scheme = "http"
-	log.Printf("WARN: Request for %s%s falling back to PLAIN HTTP", req.URL.Host, req.URL.Path)
+	log.Warnf("Request for %s %s%s falling back to PLAIN HTTP", req.Method, req.URL.Host, req.URL.Path)
 	resp, err = clt.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -269,6 +269,8 @@ type AuthenticationSettings struct {
 	// SecondFactor is the type of second factor to use in authentication.
 	// Supported options are: off, otp, and u2f.
 	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
+	// Webauthn contains MFA settings for Web Authentication.
+	Webauthn *Webauthn `json:"webauthn,omitempty"`
 	// U2F contains the Universal Second Factor settings needed for authentication.
 	U2F *U2FSettings `json:"u2f,omitempty"`
 	// OIDC contains OIDC connector settings needed for authentication.
@@ -282,6 +284,12 @@ type AuthenticationSettings struct {
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
 	HasMessageOfTheDay bool `json:"has_motd"`
+}
+
+// Webauthn holds MFA settings for Web Authentication.
+type Webauthn struct {
+	// RPID is the Webauthn Relying Party ID used by the server.
+	RPID string `json:"rp_id"`
 }
 
 // U2FSettings contains the AppID for Universal Second Factor.

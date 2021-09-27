@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package alpnproxy
+package common
 
 import "golang.org/x/crypto/acme"
 
@@ -50,7 +50,8 @@ const (
 	ProtocolAuth Protocol = "teleport-auth@"
 )
 
-var supportedProtocols = []Protocol{
+// SupportedProtocols is the list of supported ALPN protocols.
+var SupportedProtocols = []Protocol{
 	acme.ALPNProto,
 	ProtocolPostgres,
 	ProtocolMySQL,
@@ -63,7 +64,8 @@ var supportedProtocols = []Protocol{
 	ProtocolAuth,
 }
 
-func convProtocolsToString(protocols []Protocol) []string {
+// ProtocolsToString converts the list of Protocols to the list of strings.
+func ProtocolsToString(protocols []Protocol) []string {
 	out := make([]string, 0, len(protocols))
 	for _, v := range protocols {
 		out = append(out, string(v))

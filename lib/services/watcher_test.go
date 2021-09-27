@@ -58,7 +58,7 @@ func TestProxyWatcher(t *testing.T) {
 			RetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Presence: presence,
-				Events:   local.NewEventsService(bk, nil),
+				Events:   local.NewEventsService(bk),
 			},
 		},
 		ProxiesC: make(chan []types.Server, 10),
@@ -151,7 +151,7 @@ func TestLockWatcher(t *testing.T) {
 			RetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
-				Events: local.NewEventsService(bk, nil),
+				Events: local.NewEventsService(bk),
 			},
 			Clock: clock,
 		},
@@ -256,7 +256,7 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 			RetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
-				Events: local.NewEventsService(bk, nil),
+				Events: local.NewEventsService(bk),
 			},
 			Clock: clock,
 		},
@@ -327,7 +327,7 @@ func TestLockWatcherStale(t *testing.T) {
 	}
 
 	access := local.NewAccessService(bk)
-	events := &withUnreliability{Events: local.NewEventsService(bk, nil)}
+	events := &withUnreliability{Events: local.NewEventsService(bk)}
 	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component:   "test",
@@ -477,10 +477,10 @@ func TestDatabaseWatcher(t *testing.T) {
 			RetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Databases: databasesService,
-				Events:    local.NewEventsService(bk, nil),
+				Events:    local.NewEventsService(bk),
 			},
 		},
-		DatabasesC: make(chan []types.Database, 10),
+		DatabasesC: make(chan types.Databases, 10),
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
@@ -548,4 +548,100 @@ func newDatabase(t *testing.T, name string) types.Database {
 	})
 	require.NoError(t, err)
 	return database
+}
+
+// TestAppWatcher tests that application resource watcher properly receives
+// and dispatches updates.
+func TestAppWatcher(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Apps
+		types.Events
+	}
+
+	appService := local.NewAppService(bk)
+	w, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:   "test",
+			RetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Apps:   appService,
+				Events: local.NewEventsService(bk),
+			},
+		},
+		AppsC: make(chan types.Apps, 10),
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Initially there are no apps so watcher should send an empty list.
+	select {
+	case changeset := <-w.AppsC:
+		require.Len(t, changeset, 0)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add an app.
+	app1 := newApp(t, "app1")
+	require.NoError(t, appService.CreateApp(ctx, app1))
+
+	// The first event is always the current list of apps.
+	select {
+	case changeset := <-w.AppsC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], app1))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add a second app.
+	app2 := newApp(t, "app2")
+	require.NoError(t, appService.CreateApp(ctx, app2))
+
+	// Watcher should detect the app list change.
+	select {
+	case changeset := <-w.AppsC:
+		require.Len(t, changeset, 2)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+
+	// Delete the first app.
+	require.NoError(t, appService.DeleteApp(ctx, app1.GetName()))
+
+	// Watcher should detect the database list change.
+	select {
+	case changeset := <-w.AppsC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, resourceDiff(changeset[0], app2))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+}
+
+func newApp(t *testing.T, name string) types.Application {
+	app, err := types.NewAppV3(types.Metadata{
+		Name: name,
+	}, types.AppSpecV3{
+		URI: "localhost",
+	})
+	require.NoError(t, err)
+	return app
 }
