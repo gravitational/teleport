@@ -709,7 +709,6 @@ elif [[ "${TELEPORT_ROLE}" == "agent" ]]; then
     echo "agent" > ${USE_CONFD_DIR}/role.agent
     cat >${USE_CONFIG_PATH} <<EOF
 teleport:
-  nodename: ${LOCAL_HOSTNAME}
   log:
     output: stderr
     severity: INFO
