@@ -1,0 +1,205 @@
+---
+title: HSM Support
+description: How to configure Hardware Security Modules to manage your Teleport CA private keys
+h1: Teleport HSM Support
+---
+
+This section will cover:
+
+- Setting up a Teleport auth server to use an HSM to store and handle private
+  keys.
+
+## Prerequisites
+
+- Teleport v(=teleport.version=) Enterprise self-hosted.
+- An HSM reachable from your Teleport auth server.
+- The PKCS#11 module for your HSM.
+
+While most PKCS#11 HSMs should be supported, the Teleport team tests with AWS
+CloudHSM, YubiHSM2, and SoftHSM2.
+
+## Step 1/5. Set up your HSM
+
+You will need to set up your HSM and make sure that it is accessible from your
+Teleport auth server. You should create a unique HSM user or token for Teleport
+to use.
+
+<Tabs>
+  <TabItem label="AWS CloudHSM">
+Before getting started you should create and activate a CloudHSM cluster in
+the VPC where you will run your Teleport auth server. Create a Crypto User (CU)
+to be used by Teleport. See the AWS CloudHSM
+[User Guide](https://docs.aws.amazon.com/cloudhsm/latest/userguide/getting-started.html)
+for help.
+
+On the EC2 instance where you will run your Teleport auth server:
+
+1. Add the security group with the same name as your CloudHSM cluster to your
+   EC2 instance, to allow incoming traffic from CloudHSM on ports 2223-2225.
+
+2. Install and configure the CloudHSM client by following
+   https://docs.aws.amazon.com/cloudhsm/latest/userguide/install-and-configure-client-linux.html.
+
+3. Start the CloudHSM client.
+   ```code
+   $ sudo service start cloudhsm-client
+   ```
+
+4. Install the AWS CloudHSM Client SDK 3 by following
+   https://docs.aws.amazon.com/cloudhsm/latest/userguide/pkcs11-library-install.html.
+
+   This step installs the PKCS#11 module at `/opt/cloudhsm/lib/libcloudhsm_pkcs11.so`
+  </TabItem>
+
+  <TabItem label="YubiHSM2">
+1. Install the YubiHSM2 [SDK](https://developers.yubico.com/YubiHSM2/Releases/).
+
+2. Start `yubihsm-connector`
+
+   ```code
+   $ yubihsm-connector
+   ```
+3. Use `yubihsm-shell` to create a new authentication key to be used by
+   Teleport with the below capabilities.
+   <Admonition type="note">
+   YubiHSM2 comes with a default authentication key at slot 1 with password
+   `password`, you should replace and delete it as recommended by Yubico.
+
+   When creating the authentication key to be used by teleport, the password
+   must have at least 8 characters. The example `hunter22` is used here.
+   </Admonition>
+
+   ```text
+   $ yubihsm-shell
+   yubihsm> connect
+   yubihsm> session open 1 password
+   yubihsm> put authkey 0 0 "Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:delete-asymmetric-key sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep hunter22
+   Stored Authentication key 0x53bf
+   ```
+
+   Take note of the hex slot number output above, it will be used in the pin
+   when configuring Teleport.
+
+4. Create a `yubihsm_pkcs11.conf` file pointing to your connector
+
+   ```text
+   # /etc/yubishm_pkcs11.conf
+   connector = https://127.0.0.1:12345
+   ```
+
+5. Set the environment variable `YUBIHSM_PKCS11_CONF` to the path of your
+   configuration file. This will be read by the PKCS#11 module and needs to be
+   set in the Teleport auth server's environment.
+   ```code
+   $ export YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf
+   ```
+  </TabItem>
+</Tabs>
+
+## Step 2/5. Configure Teleport
+
+To configure Teleport to use an HSM for all CA private key generation, storage,
+and signing, include the `ca_key_params` section in `/etc/teleport.yaml` on the
+auth server.
+
+<Tabs>
+  <TabItem label="AWS CloudHSM">
+```yaml
+# /etc/teleport.yaml
+teleport:
+  ...
+
+auth_service:
+  enabled: true
+  ...
+
+  ca_key_params:
+    pkcs11:
+      module_path: /opt/cloudhsm/lib/libcloudhsm_pkcs11.so
+      # token_label should always be "cavium" for CloudHSM
+      token_label: "cavium"
+      pin: "<CU_username>:<CU_password>"
+      # pin_path can optionally be used to read the pin from a file
+      # pin_path: /path/to/pin_file
+```
+  </TabItem>
+
+  <TabItem label="YubiHSM2">
+```yaml
+# /etc/teleport.yaml
+teleport:
+  ...
+
+auth_service:
+  enabled: true
+  ...
+
+  ca_key_params:
+    pkcs11:
+      module_path: /usr/local/lib/pkcs11/yubihsm_pkcs11.dylib
+      # slot_number should be set to 0 for YubiHSM2
+      slot_number: 0
+      # pin should be the (hex) slot of your authentication key,
+      # concatenated with the password
+      pin: "53bfhunter22"
+      # pin_path can optionally be used to read the pin from a file
+      # pin_path: /path/to/pin_file
+```
+  </TabItem>
+</Tabs>
+
+## Step 3/5. (Re)start Teleport Auth
+
+If this is a new auth server which has not been started yet, starting a brand
+new cluster with an empty backend, HSM keys will be automatically generated at
+startup and no further action is required, skip to step 5. Otherwise, continue
+reading.
+
+If you are connecting an HSM to an existing Teleport cluster, restart the auth
+server for the configuration changes to take effect. New CA keys will
+automatically be generated in the HSM. For these keys to be trusted by the rest
+of the cluster you will need to permorm a CA rotation, see
+[Step 4](#step-45-certificate-rotation-with-hsm). The auth server will not perform
+any signing operations until the rotation has started. In an HA cluster you
+should add the HSM to the auth configuration one server at a time, and do not
+route any traffic to the auth server where the HSM is currently being added.
+
+## Step 4/5. Certificate Rotation with HSM
+
+When adding a new HSM to an existing Teleport cluster, or adding a new
+HSM-connected Auth server to an HA Teleport cluster, CA rotation needs to be
+performed in order for the cluster to trust the new HSM certificates. `teleport`
+will print a warning during startup if this needs to be completed, and will not
+sign any certificates (except the `Admin` certificate used by `tctl` which will
+be signed by a temporary HSM key). A warning will also be printed in `tctl
+status` if this is required for any Auth server in the cluster.
+
+CA rotation can be performed manually or semi-automatically, see our admin guide
+on [Certificate rotation](../setup/operations/ca-rotation.mdx). To rotate the
+CAs manually you can run:
+
+```code
+$ tctl status
+WARNING: One or more auth servers has a newly added or removed HSM...
+$ tctl auth rotate --manual --phase init
+# all auth servers will generate new HSM keys, wait for logs to stabilize
+$ tctl auth rotate --manual --phase update_clients
+# wait for all teleport servers and clients to reload and receive new certs, up
+# to ~10 minutes if all clients are connected
+$ tctl auth rotate --manual --phase update_servers
+# wait for all teleport servers to reload, up to ~10 minutes
+$ tctl auth rotate --manual --phase standby
+# rotation is complete
+$ tctl status
+# no warning should be printed
+```
+
+If you are updating a live cluster, make sure to wait for all nodes which may
+intermittently lose connection to connect and receive new certs or they may lose
+access to the cluster and have to re-join.
+
+## Step 5/5. Confirm that Teleport is using your HSM
+
+You are all set! Check the teleport logs for `Creating new HSM key pair` to
+confirm that the feature is working. You can also check that keys were created
+in your HSM using your HSM's admin tool.

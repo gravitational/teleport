@@ -954,3 +954,53 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 		})
 	}
 }
+
+// TestKindClusterConfig verifies that types.KindClusterConfig can be used
+// as an alternative privilege to provide access to cluster configuration
+// resources.
+func TestKindClusterConfig(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
+		authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestUser(user.GetName()).I))
+		require.NoError(t, err, trace.DebugReport(err))
+		s := &ServerWithRoles{
+			authServer: srv.AuthServer,
+			sessions:   srv.SessionServer,
+			alog:       srv.AuditLog,
+			context:    *authContext,
+		}
+		_, err1 := s.GetClusterAuditConfig(ctx)
+		_, err2 := s.GetClusterNetworkingConfig(ctx)
+		_, err3 := s.GetSessionRecordingConfig(ctx)
+		return []error{err1, err2, err3}
+	}
+
+	t.Run("without KindClusterConfig privilege", func(t *testing.T) {
+		user, err := CreateUser(srv.AuthServer, "test-user")
+		require.NoError(t, err)
+		for _, err := range getClusterConfigResources(ctx, user) {
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
+		}
+	})
+
+	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
+		role, err := types.NewRole("test-role", types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),
+				},
+			},
+		})
+		require.NoError(t, err)
+		user, err := CreateUser(srv.AuthServer, "test-user", role)
+		require.NoError(t, err)
+		for _, err := range getClusterConfigResources(ctx, user) {
+			require.NoError(t, err)
+		}
+	})
+}

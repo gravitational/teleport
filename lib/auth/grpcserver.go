@@ -342,10 +342,6 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_ClusterName{
 			ClusterName: r,
 		}
-	case *types.ClusterConfigV3:
-		out.Resource = &proto.Event_ClusterConfig{
-			ClusterConfig: r,
-		}
 	case *types.UserV2:
 		out.Resource = &proto.Event_User{
 			User: r,
@@ -689,31 +685,6 @@ func (g *GRPCServer) RotateResetPasswordTokenSecrets(ctx context.Context, req *p
 	r, ok := secrets.(*types.UserTokenSecretsV3)
 	if !ok {
 		err = trace.BadParameter("unexpected ResetPasswordTokenSecrets type %T", secrets)
-		return nil, trace.Wrap(err)
-	}
-
-	return r, nil
-}
-
-func (g *GRPCServer) RotateUserTokenSecrets(ctx context.Context, req *proto.RotateUserTokenSecretsRequest) (*types.UserTokenSecretsV3, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tokenID := ""
-	if req != nil {
-		tokenID = req.TokenID
-	}
-
-	secrets, err := auth.RotateUserTokenSecrets(ctx, tokenID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	r, ok := secrets.(*types.UserTokenSecretsV3)
-	if !ok {
-		err = trace.BadParameter("unexpected UserTokenSecrets type %T", secrets)
 		return nil, trace.Wrap(err)
 	}
 
@@ -1786,69 +1757,18 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
-	switch devType {
-	case proto.DeviceType_DEVICE_TYPE_TOTP:
-		otpKey, otpOpts, err := auth.newTOTPKey(user)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 
-		regChallenge.Request = &proto.MFARegisterChallenge_TOTP{TOTP: &proto.TOTPRegisterChallenge{
-			Secret:        otpKey.Secret(),
-			Issuer:        otpKey.Issuer(),
-			PeriodSeconds: uint32(otpOpts.Period),
-			Algorithm:     otpOpts.Algorithm.String(),
-			Digits:        uint32(otpOpts.Digits.Length()),
-			Account:       otpKey.AccountName(),
-		}}
-	case proto.DeviceType_DEVICE_TYPE_U2F:
-		cap, err := auth.GetAuthPreference(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		u2fConfig, err := cap.GetU2F()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		challenge, err := u2f.RegisterInit(u2f.RegisterInitParams{
-			StorageKey: user,
-			AppConfig:  *u2fConfig,
-			Storage:    u2fStorage,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		regChallenge.Request = &proto.MFARegisterChallenge_U2F{U2F: &proto.U2FRegisterChallenge{
-			Version:   challenge.Version,
-			Challenge: challenge.Challenge,
-			AppID:     challenge.AppID,
-		}}
-	case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
-		cap, err := auth.GetAuthPreference(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		webConfig, err := cap.GetWebauthn()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		webRegistration := &wanlib.RegistrationFlow{
-			Webauthn: webConfig,
-			Identity: webIdentity,
-		}
-		credentialCreation, err := webRegistration.Begin(ctx, user)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		regChallenge.Request = &proto.MFARegisterChallenge_Webauthn{
-			Webauthn: wanlib.CredentialCreationToProto(credentialCreation),
-		}
-	default:
-		return nil, trace.BadParameter("AddMFADeviceRequestInit sent an unknown DeviceType %s", initReq.DeviceType)
+	res, err := auth.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
+		username:            user,
+		deviceType:          devType,
+		u2fStorageOverride:  u2fStorage,
+		webIdentityOverride: webIdentity,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	regChallenge.Request = res.GetRequest()
+
 	if err := stream.Send(&proto.AddMFADeviceResponse{
 		Response: &proto.AddMFADeviceResponse_NewMFARegisterChallenge{NewMFARegisterChallenge: regChallenge},
 	}); err != nil {
@@ -1961,6 +1881,17 @@ func mfaDeviceEventMetadata(d *types.MFADevice) apievents.MFADeviceMetadata {
 		DeviceID:   d.Id,
 		DeviceType: d.MFAType(),
 	}
+}
+
+// AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
+func (g *GRPCServer) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := actx.ServerWithRoles.AddMFADeviceSync(ctx, req)
+	return res, trace.Wrap(err)
 }
 
 // DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
@@ -3399,6 +3330,21 @@ func (g *GRPCServer) GetAccountRecoveryToken(ctx context.Context, req *proto.Get
 	return r, nil
 }
 
+// GetAccountRecoveryCodes is implemented by AuthService.GetAccountRecoveryCodes.
+func (g *GRPCServer) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rc, err := auth.ServerWithRoles.GetAccountRecoveryCodes(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rc, nil
+}
+
 // CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
 func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	actx, err := g.authenticate(ctx)
@@ -3423,6 +3369,21 @@ func (g *GRPCServer) CreatePrivilegeToken(ctx context.Context, req *proto.Create
 
 	token, err := auth.CreatePrivilegeToken(ctx, req)
 	return token, trace.Wrap(err)
+}
+
+// CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.
+func (g *GRPCServer) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := actx.ServerWithRoles.CreateRegisterChallenge(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration
