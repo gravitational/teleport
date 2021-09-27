@@ -10,7 +10,7 @@ EOM
 
 # ask for cluster name
 echo "___"
-printf "• Enter Teleport cluster name (public domain name): "
+printf "• Enter Teleport cluster name (FQDN): "
 read -r cluster_name
 
 # ask email address for acme
@@ -51,10 +51,12 @@ done
 
 # create Teleport user
 echo
-tctl users add $username --roles=editor,access --logins=root
+SIGNUP_LINK=$(tctl users add $username --roles=editor,access --logins=root | grep "https://")
+echo "User $username has been created but requires a password. Open the URL link below to complete the setup. The link is valid for 1h."
+echo "-  $SIGNUP_LINK"
 echo
 
-systemctl enable teleport >/dev/null
+systemctl enable teleport &>/dev/null
 
 
 echo 
@@ -69,6 +71,7 @@ cat <<EOM
 **                     HAPPY TELEPORTING :)                         **
 **********************************************************************
 EOM
+echo
 
 # replace .bashrc to prevent running this script again.
 cp -f /etc/skel/.bashrc /root/.bashrc
