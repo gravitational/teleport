@@ -921,7 +921,7 @@ message DeleteMFADeviceResponseAck {}
 message DeleteMFADeviceSyncRequest {
     // TokenID is the ID of a user token that will be used to verify this request.
     // Token types accepted are:
-    //   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
+    //   - Recovery approved token that is obtained with RPC VerifyAccountRecovery
     //   - Privilege token that is obtained with RPC CreatePrivilegeToken
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
     // DeviceName is the name of the device to delete.
@@ -930,10 +930,10 @@ message DeleteMFADeviceSyncRequest {
 
 // AddMFADeviceSyncRequest is a request to add a MFA device (nonstream).
 message AddMFADeviceSyncRequest {
-    // PrivilegeTokenID is the ID of a privilege token that will be used to verify this request.
-    // Privilege tokens are obtained after a logged in user re-authenticates with their second
-    // factor.
-    string PrivilegeTokenID = 1 [ (gogoproto.jsontag) = "privilege_token_id" ];
+    // TokenID is the ID of a user token that will be used to verify this request.
+    // Token types accepted are:
+    //  - Privilege token that is obtained with RPC CreatePrivilegeToken
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
     // NewDeviceName is the name of a new mfa device.
     string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
     // NewMFAResponse is a user's new mfa response to a mfa register challenge.
@@ -945,12 +945,14 @@ message AddMFADeviceSyncResponse { types.MFADevice Device = 1 [ (gogoproto.jsont
 
 // GetMFADeviceRequest is a request for MFA devices for the calling user.
 message GetMFADevicesRequest {
-    // RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
-    // request. Token is obtained with RPC VerifyAccountRecovery and allows users to view their
-    // MFA devices without being logged in.
-    // This field can be empty which implies the logged in user wants to view their devices.
-    string RecoveryApprovedTokenID = 1
-        [ (gogoproto.jsontag) = "recovery_approved_token_id,omitempty" ];
+    // TokenID is an optional field for the ID of a user token that will be used to
+    // verify this request. Token is only required if an unauthenticated user wants to view their
+    // list of devices eg: during account recovery process. An empty field implies the logged in
+    // user wants to view their devices.
+    // Token types accepted are:
+    //  - Recovery approved token that is obtained after successful invocation of RPC
+    //  VerifyAccountRecovery
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id,omitempty" ];
 }
 
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
@@ -1243,7 +1245,7 @@ message CompleteAccountRecoveryRequest {
 message CreateAccountRecoveryCodesRequest {
     // TokenID is the ID of a user token that will be used to verify this request.
     // Token types accepted are:
-    //   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
+    //   - Recovery approved token that is obtained with RPC VerifyAccountRecovery
     //   - Privilege token that is obtained with RPC CreatePrivilegeToken
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
 }
