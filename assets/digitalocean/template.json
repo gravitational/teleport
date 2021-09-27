@@ -2,10 +2,10 @@
 {
   "variables": {
     "do_api_token": "{{env `DIGITALOCEAN_API_TOKEN`}}",
-    "image_name": "teleport-7-1-0-snapshot-{{timestamp}}",
+    "image_name": "teleport-7-1-3-snapshot-{{timestamp}}",
     "apt_packages": "bpfcc-tools linux-headers-$(uname -r)",
     "application_name": "Teleport",
-    "application_version": "7.1.0"
+    "application_version": "7.1.3"
   },
   "sensitive-variables": ["do_api_token"],
   "builders": [

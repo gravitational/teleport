@@ -49,27 +49,37 @@ while ! lsof -Pi :443 -sTCP:LISTEN -t >/dev/null; do
     sleep 2
 done
 
-# create Teleport user
-echo
-SIGNUP_LINK=$(tctl users add $username --roles=editor,access --logins=root | grep "https://")
-echo "User $username has been created but requires a password. Open the URL link below to complete the setup. The link is valid for 1h."
-echo "-  $SIGNUP_LINK"
-echo
-
+# enable teleport service
 systemctl enable teleport &>/dev/null
+
+# create Teleport user
+
+SIGNUP_LINK=$(tctl users add $username --roles=editor,access --logins=root | grep "https://")
+
+echo
+echo "***************************************************************************"
+echo "**                             ---                                      "
+echo "**    Teleport is configured and user $username has been created    "
+echo "**    but requires a password. Open the URL link below to complete the   "
+echo "**    setup. The link is valid for 1h:"
+echo "**"
+echo "**    $SIGNUP_LINK  "
+echo "**"
+echo "**                             ---                                       "
+echo "**                     HAPPY TELEPORTING :)                              "
+echo "***************************************************************************"
+
 
 
 echo 
 cat <<EOM
-**********************************************************************
-**                    Teleport is configured!                       ** 
-**    To restart this wizard, perform following steps:              **
-**    1) Delete existing config file: $ rm -rf /etc/teleport.yaml   **
-**    2) Delete existing local data: $ rm -rf /var/lib/teleport/    **
-**    3) Start wizard: $ /opt/teleport/start_teleport.sh            **
-**                             ---                                  ** 
-**                     HAPPY TELEPORTING :)                         **
-**********************************************************************
+Is it OK if we collect some info about your install?
+Please run this command to send in a survey.
+(optional - replace email to join our newsletter and get a swag package.)
+
+curl -X POST https://usage.teleport.dev -F OS=linux -F use-case="access my ..." -F email="alice@example.com"
+
+Otherwise, ignore!
 EOM
 echo
 
