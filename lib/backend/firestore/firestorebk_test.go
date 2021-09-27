@@ -52,7 +52,7 @@ func TestMarshal(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func firestoreParams(t *testing.T) backend.Params {
+func firestoreParams() backend.Params {
 	// Creating the indices on - even an empty - live Firestore collection
 	// can take 5 minutes, so we re-use the same project and collection
 	// names for each test.
@@ -81,7 +81,7 @@ func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
 }
 
 func TestFirestoreDB(t *testing.T) {
-	cfg := firestoreParams(t)
+	cfg := firestoreParams()
 	ensureTestsEnabled(t)
 	ensureEmulatorRunning(t, cfg)
 
@@ -126,7 +126,7 @@ func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
 }
 
 func TestReadLegacyRecord(t *testing.T) {
-	cfg := firestoreParams(t)
+	cfg := firestoreParams()
 	ensureTestsEnabled(t)
 	ensureEmulatorRunning(t, cfg)
 
