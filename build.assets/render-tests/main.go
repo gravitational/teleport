@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package renderetests implements a filter that takes a stream of
+// Package main implements a filter that takes a stream of
 // JSON fragmens as emitted by `go test -json` as input on stdin,
 // then filters & renders them in arbitrarily complex ways
 package main
@@ -26,17 +26,21 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"regexp"
 	"sort"
+	"strconv"
 	"time"
 )
 
+var covPattern *regexp.Regexp = regexp.MustCompile(`^coverage: (\d+\.\d+)\% of statements`)
+
 type TestEvent struct {
-	Time    time.Time // encodes as an RFC3339-format string
-	Action  string
-	Package string
-	Test    string
-	Elapsed float64 // seconds
-	Output  string
+	Time           time.Time // encodes as an RFC3339-format string
+	Action         string
+	Package        string
+	Test           string
+	ElapsedSeconds float64 `json:Elapsed`
+	Output         string
 }
 
 const (
@@ -80,6 +84,7 @@ func main() {
 	testOutput := make(map[string][]string)
 	failedTests := make(map[string][]string)
 	actionCounts := make(map[string]int)
+	coverage := make(map[string]float64)
 
 	events := make(chan TestEvent)
 	go readInput(os.Stdin, events)
@@ -104,16 +109,29 @@ func main() {
 
 			switch event.Action {
 			case actionOutput:
+				if matches := covPattern.FindStringSubmatch(event.Output); len(matches) != 0 {
+					value, err := strconv.ParseFloat(matches[1], 64)
+					if err != nil {
+						panic("Malformed coverage value: " + err.Error())
+					}
+					coverage[testName] = value
+				}
 				testOutput[testName] = append(testOutput[testName], event.Output)
 
 			case actionPass, actionFail, actionSkip:
 				// If this is a whole-package summary result
 				if event.Test == "" {
+					// extract and format coverage value
+					covText := "------"
+					if covValue, ok := coverage[testName]; ok {
+						covText = fmt.Sprintf("%5.1f%%", covValue)
+					}
+
 					// only display package results as progress messages
-					fmt.Printf("%s: %s\n", event.Action, event.Package)
+					fmt.Printf("%s %s: %s\n", covText, event.Action, event.Package)
 				} else {
 					// packages results don't count towards our test count.
-					counts[event.Action] += 1
+					actionCounts[event.Action] += 1
 
 					// we want to preserve the log of our failed tests for
 					// later examination
@@ -126,14 +144,13 @@ func main() {
 				// display it.
 				delete(testOutput, testName)
 			}
-
 		}
 	}
 
 	fmt.Println(separator)
 
 	fmt.Printf("%d tests passed. %d failed, %d skipped\n",
-		counts[actionPass], counts[actionFail], counts[actionSkip])
+		actionCounts[actionPass], actionCounts[actionFail], actionCounts[actionSkip])
 
 	fmt.Println(separator)
 
