@@ -107,10 +107,6 @@ func (s *CacheSuite) newPackForProxy(c *check.C) *testPack {
 	return s.newPack(c, ForProxy)
 }
 
-func (s *CacheSuite) newPackForOldRemoteProxy(c *check.C) *testPack {
-	return s.newPack(c, ForOldRemoteProxy)
-}
-
 func (s *CacheSuite) newPackForNode(c *check.C) *testPack {
 	return s.newPack(c, ForNode)
 }
@@ -161,7 +157,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
-	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend, p.clusterConfigS.GetClusterConfig)}
+	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend)}
 	p.presenceS = local.NewPresenceService(p.backend)
 	p.usersS = local.NewIdentityService(p.backend)
 	p.accessS = local.NewAccessService(p.backend)
@@ -1026,81 +1022,6 @@ func (s *CacheSuite) TestClusterName(c *check.C) {
 
 	clusterName.SetResourceID(outName.GetResourceID())
 	fixtures.DeepCompare(c, outName, clusterName)
-}
-
-// TestClusterConfig tests cluster configuration
-// DELETE IN 8.0.0
-func (s *CacheSuite) TestClusterConfig(c *check.C) {
-	ctx := context.Background()
-	p := s.newPackForOldRemoteProxy(c)
-	defer p.Close()
-
-	// Since changes to configuration-related resources trigger ClusterConfig events
-	// for backward compatibility reasons, ignore these additional events while waiting
-	// for expected resource updates to propagate.
-	waitForEventIgnoreClusterConfig := func(resourceKind string) {
-		timeC := time.After(5 * time.Second)
-		for {
-			select {
-			case event := <-p.eventsC:
-				c.Assert(event.Type, check.Equals, EventProcessed)
-				if event.Event.Resource.GetKind() == types.KindClusterConfig {
-					continue
-				}
-				c.Assert(event.Event.Resource.GetKind(), check.Equals, resourceKind)
-				return
-			case <-timeC:
-				c.Fatalf("Timeout waiting for update to resource %v", resourceKind)
-			}
-		}
-	}
-
-	err := p.clusterConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterNetworkingConfig)
-
-	err = p.clusterConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterAuthPreference)
-
-	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindSessionRecordingConfig)
-
-	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
-	})
-	c.Assert(err, check.IsNil)
-	err = p.clusterConfigS.SetClusterAuditConfig(ctx, auditConfig)
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterAuditConfig)
-
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: "example.com",
-	})
-	c.Assert(err, check.IsNil)
-	err = p.clusterConfigS.SetClusterName(clusterName)
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterName)
-
-	err = p.clusterConfigS.SetClusterConfig(types.DefaultClusterConfig())
-	c.Assert(err, check.IsNil)
-
-	clusterConfig, err := p.clusterConfigS.GetClusterConfig()
-	c.Assert(err, check.IsNil)
-
-	select {
-	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
-		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterConfig)
-	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetClusterConfig()
-	c.Assert(err, check.IsNil)
-	clusterConfig.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, clusterConfig, out)
 }
 
 // TestNamespaces tests caching of namespaces

@@ -638,16 +638,6 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
 func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	if secrets, err := c.grpc.RotateUserTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
-		TokenID: tokenID,
-	}, c.callOpts...); err != nil {
-		if !trace.IsNotImplemented(trail.FromGRPC(err)) {
-			return nil, trail.FromGRPC(err)
-		}
-	} else {
-		return secrets, nil
-	}
-
 	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
@@ -1180,6 +1170,12 @@ func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteM
 		return nil, trail.FromGRPC(err)
 	}
 	return stream, nil
+}
+
+// AddMFADeviceSync adds a new MFA device (nonstream).
+func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	res, err := c.grpc.AddMFADeviceSync(ctx, in, c.callOpts...)
+	return res, trail.FromGRPC(err)
 }
 
 // DeleteMFADeviceSync deletes a users MFA device (nonstream).
@@ -2144,6 +2140,12 @@ func (c *Client) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 	return res, trail.FromGRPC(err)
 }
 
+// GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
+func (c *Client) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	res, err := c.grpc.GetAccountRecoveryCodes(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
 // CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
 func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	resp, err := c.grpc.CreateAuthenticateChallenge(ctx, in, c.callOpts...)
@@ -2153,5 +2155,11 @@ func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.Crea
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
 func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	resp, err := c.grpc.CreatePrivilegeToken(ctx, req, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	resp, err := c.grpc.CreateRegisterChallenge(ctx, in, c.callOpts...)
 	return resp, trail.FromGRPC(err)
 }

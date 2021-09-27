@@ -40,6 +40,8 @@ enum Operation {
 
 // Event returns cluster event
 message Event {
+    reserved 7;
+
     // Operation identifies operation
     Operation Type = 1 [ (gogoproto.jsontag) = "type,omitempty" ];
     // Resource contains the updated resource
@@ -58,9 +60,6 @@ message Event {
             [ (gogoproto.jsontag) = "provision_token,omitempty" ];
         // ClusterNameV2 is a cluster name resource
         types.ClusterNameV2 ClusterName = 6 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
-        // ClusterConfig is a cluster configuration resource
-        types.ClusterConfigV3 ClusterConfig = 7
-            [ (gogoproto.jsontag) = "cluster_config,omitempty" ];
         // User is a user resource
         types.UserV2 User = 8 [ (gogoproto.jsontag) = "user,omitempty" ];
         // Role is a role resource
@@ -831,6 +830,9 @@ message TOTPRegisterChallenge {
     uint32 Digits = 5;
     // Account is the account name for this user.
     string Account = 6;
+    // QRCode is an optional field for the QR code in PNG format. Used to display a QR code
+    // image in the UI.
+    bytes QRCode = 7;
 }
 
 // TOTPRegisterResponse is a response to TOTPRegisterChallenge.
@@ -918,11 +920,26 @@ message DeleteMFADeviceSyncRequest {
     // TokenID is the ID of a user token that will be used to verify this request.
     // Token types accepted are:
     //   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
-    //   - TODO(kimlisa) add privilege token doc after implementation
+    //   - Privilege token that is obtained with RPC CreatePrivilegeToken
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
     // DeviceName is the name of the device to delete.
     string DeviceName = 2 [ (gogoproto.jsontag) = "device_name" ];
 }
+
+// AddMFADeviceSyncRequest is a request to add a MFA device (nonstream).
+message AddMFADeviceSyncRequest {
+    // PrivilegeTokenID is the ID of a privilege token that will be used to verify this request.
+    // Privilege tokens are obtained after a logged in user re-authenticates with their second
+    // factor.
+    string PrivilegeTokenID = 1 [ (gogoproto.jsontag) = "privilege_token_id" ];
+    // NewDeviceName is the name of a new mfa device.
+    string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
+    // NewMFAResponse is a user's new mfa response to a mfa register challenge.
+    MFARegisterResponse NewMFAResponse = 3 [ (gogoproto.jsontag) = "new_mfa_response,omitempty" ];
+}
+
+// AddMFADeviceSyncResponse is a response to AddMFADeviceSyncRequest.
+message AddMFADeviceSyncResponse { types.MFADevice Device = 1 [ (gogoproto.jsontag) = "device" ]; }
 
 // GetMFADeviceRequest is a request for MFA devices for the calling user.
 message GetMFADevicesRequest {
@@ -1225,7 +1242,7 @@ message CreateAccountRecoveryCodesRequest {
     // TokenID is the ID of a user token that will be used to verify this request.
     // Token types accepted are:
     //   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
-    //   - TODO(kimlisa) add privilege token doc after implementation
+    //   - Privilege token that is obtained with RPC CreatePrivilegeToken
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
 }
 
@@ -1243,6 +1260,10 @@ message GetAccountRecoveryTokenRequest {
     // Recovery tokens are obtained with RPC StartAccountRecovery or ApproveAccountRecovery.
     string RecoveryTokenID = 1 [ (gogoproto.jsontag) = "recovery_token_id" ];
 }
+
+// GetAccountRecoveryCodesRequest is a request to return the user in context their
+// recovery codes. This request will not return any secrets (the values of recovery codes).
+message GetAccountRecoveryCodesRequest {}
 
 // UserCredentials describes fields for a user's username and password.
 message UserCredentials {
@@ -1278,6 +1299,16 @@ message CreatePrivilegeTokenRequest {
     // with no mfa devices to add a device without re-authenticating.
     MFAAuthenticateResponse ExistingMFAResponse = 1
         [ (gogoproto.jsontag) = "existing_mfa_response,omitempty" ];
+}
+
+// CreateRegisterChallengeRequest is a request for creating MFA register challenge for a
+// new MFA device.
+message CreateRegisterChallengeRequest {
+    // TokenID is the ID of a user token that will be used to verify this request.
+    // All user token types are accepted except UserTokenTypeRecoveryStart.
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
+    // DeviceType is the type of MFA device to make a register challenge for.
+    DeviceType DeviceType = 2 [ (gogoproto.jsontag) = "device_type" ];
 }
 
 // AuthService is authentication/authorization service implementation
@@ -1336,11 +1367,9 @@ service AuthService {
     rpc Ping(PingRequest) returns (PingResponse);
 
     // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
-    // DELETE IN: 9.0.0 in favor of RotateUserTokenSecrets.
+    // DELETE IN: 9.0.0 in favor of CreateRegisterChallenge.
     rpc RotateResetPasswordTokenSecrets(RotateUserTokenSecretsRequest)
         returns (types.UserTokenSecretsV3);
-    // RotateUserTokenSecrets rotates token secrets for a given tokenID.
-    rpc RotateUserTokenSecrets(RotateUserTokenSecretsRequest) returns (types.UserTokenSecretsV3);
     // GetResetPasswordToken returns a reset password token.
     rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
     // CreateResetPasswordToken resets users current password and second factors and creates a reset
@@ -1499,6 +1528,8 @@ service AuthService {
     // -> MFAResponse
     // <- Ack
     rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
+    // AddMFADeviceSync adds a new MFA device (nonstream).
+    rpc AddMFADeviceSync(AddMFADeviceSyncRequest) returns (AddMFADeviceSyncResponse);
     // DeleteMFADeviceSync deletes a users MFA device (nonstream).
     rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
     // GetMFADevices returns all MFA devices registered for the user calling
@@ -1508,6 +1539,8 @@ service AuthService {
     // devices.
     rpc CreateAuthenticateChallenge(CreateAuthenticateChallengeRequest)
         returns (MFAAuthenticateChallenge);
+    // CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+    rpc CreateRegisterChallenge(CreateRegisterChallengeRequest) returns (MFARegisterChallenge);
 
     // GetOIDCConnector gets an OIDC connector resource by name.
     rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
@@ -1713,6 +1746,10 @@ service AuthService {
     // the token e.g: username, state of recovery (started or approved) and the type of recovery
     // requested (password or second factor).
     rpc GetAccountRecoveryToken(GetAccountRecoveryTokenRequest) returns (types.UserTokenV3);
+    // GetAccountRecoveryCodes (exclusive to cloud users) is a request to return the user in context
+    // their recovery codes. This request will not return any secrets (the values of recovery
+    // codes), but instead returns non-sensitive data eg. when the recovery codes were created.
+    rpc GetAccountRecoveryCodes(GetAccountRecoveryCodesRequest) returns (types.RecoveryCodesV1);
 
     // CreatePrivilegeToken returns a new privilege token after a logged in user successfully
     // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and

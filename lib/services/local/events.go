@@ -34,16 +34,14 @@ import (
 // EventsService implements service to watch for events
 type EventsService struct {
 	*logrus.Entry
-	backend          backend.Backend
-	getClusterConfig getClusterConfigFunc
+	backend backend.Backend
 }
 
 // NewEventsService returns new events service instance
-func NewEventsService(b backend.Backend, getClusterConfig getClusterConfigFunc) *EventsService {
+func NewEventsService(b backend.Backend) *EventsService {
 	return &EventsService{
-		Entry:            logrus.WithFields(logrus.Fields{trace.Component: "Events"}),
-		backend:          b,
-		getClusterConfig: getClusterConfig,
+		Entry:   logrus.WithFields(logrus.Fields{trace.Component: "Events"}),
+		backend: b,
 	}
 }
 
@@ -66,14 +64,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newProvisionTokenParser()
 		case types.KindStaticTokens:
 			parser = newStaticTokensParser()
-		case types.KindClusterConfig:
-			parser = newClusterConfigParser(e.getClusterConfig)
 		case types.KindClusterAuditConfig:
 			parser = newClusterAuditConfigParser()
 		case types.KindClusterNetworkingConfig:
 			parser = newClusterNetworkingConfigParser()
 		case types.KindClusterAuthPreference:
-			parser = newAuthPreferenceParser(e.getClusterConfig)
+			parser = newAuthPreferenceParser()
 		case types.KindSessionRecordingConfig:
 			parser = newSessionRecordingConfigParser()
 		case types.KindClusterName:
@@ -380,53 +376,6 @@ func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) 
 	}
 }
 
-func newClusterConfigParser(getClusterConfig getClusterConfigFunc) *clusterConfigParser {
-	prefixes := [][]byte{
-		backend.Key(clusterConfigPrefix, generalPrefix),
-		backend.Key(clusterConfigPrefix, namePrefix),
-		backend.Key(clusterConfigPrefix, auditPrefix),
-		backend.Key(clusterConfigPrefix, networkingPrefix),
-		backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
-		backend.Key(authPrefix, preferencePrefix, generalPrefix),
-	}
-	return &clusterConfigParser{
-		baseParser:       newBaseParser(prefixes...),
-		getClusterConfig: getClusterConfig,
-	}
-}
-
-type clusterConfigParser struct {
-	baseParser
-	getClusterConfig getClusterConfigFunc
-}
-
-func (p *clusterConfigParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		if !bytes.HasPrefix(event.Item.Key, backend.Key(clusterConfigPrefix, generalPrefix)) {
-			return nil, nil
-		}
-		h, err := resourceHeader(event, types.KindClusterConfig, types.V3, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		h.SetName(types.MetaNameClusterConfig)
-		return h, nil
-	case types.OpPut:
-		// To ensure backward compatibility, do not use the ClusterConfig
-		// resource passed with the event but perform a separate get from the
-		// backend. The resource fetched in this way is populated with all the
-		// fields expected by legacy event consumers.  DELETE IN 8.0.0
-		clusterConfig, err := p.getClusterConfig()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return clusterConfig, nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
 func newClusterAuditConfigParser() *clusterAuditConfigParser {
 	return &clusterAuditConfigParser{
 		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, auditPrefix)),
@@ -495,7 +444,7 @@ func (p *clusterNetworkingConfigParser) parse(event backend.Event) (types.Resour
 	}
 }
 
-func newAuthPreferenceParser(getClusterConfig getClusterConfigFunc) *authPreferenceParser {
+func newAuthPreferenceParser() *authPreferenceParser {
 	return &authPreferenceParser{
 		baseParser: newBaseParser(backend.Key(authPrefix, preferencePrefix, generalPrefix)),
 	}
@@ -1352,7 +1301,3 @@ func baseTwoKeys(key []byte) (string, string, error) {
 	}
 	return string(parts[len(parts)-2]), string(parts[len(parts)-1]), nil
 }
-
-// getClusterConfigFunc gets ClusterConfig to facilitate backward compatible
-// transition to standalone configuration resources.  DELETE IN 8.0.0
-type getClusterConfigFunc func(...services.MarshalOption) (types.ClusterConfig, error)

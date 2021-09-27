@@ -280,11 +280,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetClusterConfig(types.DefaultClusterConfig())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{},

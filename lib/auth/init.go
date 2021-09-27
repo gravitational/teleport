@@ -145,9 +145,6 @@ type InitConfig struct {
 	// AuditLog is used for emitting events to audit log.
 	AuditLog events.IAuditLog
 
-	// ClusterConfig holds cluster level configuration.
-	ClusterConfig types.ClusterConfig
-
 	// ClusterAuditConfig holds cluster audit configuration.
 	ClusterAuditConfig types.ClusterAuditConfig
 
@@ -521,10 +518,6 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 
 	if err := migrateCertAuthorities(ctx, asrv); err != nil {
 		return trace.Wrap(err, "fail to migrate certificate authorities to the v7 storage format: %v; please report this at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md including the *redacted* output of 'tctl get cert_authority'", err)
-	}
-
-	if err := migrateClusterID(ctx, asrv); err != nil {
-		return trace.Wrap(err)
 	}
 
 	return nil
@@ -1351,34 +1344,5 @@ func migrateCertAuthority(ctx context.Context, asrv *Server, ca types.CertAuthor
 		return trace.Wrap(err, "failed storing the migrated CA: %v", err)
 	}
 	log.Infof("Successfully migrated %v to 7.0 storage format.", ca)
-	return nil
-}
-
-// DELETE IN: 8.0.0
-// migrateClusterID moves the cluster ID information
-// from ClusterConfig to ClusterName.
-func migrateClusterID(ctx context.Context, asrv *Server) error {
-	clusterConfig, err := asrv.ClusterConfiguration.GetClusterConfig()
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-
-	clusterName, err := asrv.ClusterConfiguration.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if clusterName.GetClusterID() == clusterConfig.GetLegacyClusterID() {
-		return nil
-	}
-
-	log.Infof("Migrating cluster ID %q from legacy ClusterConfig to ClusterName.", clusterConfig.GetLegacyClusterID())
-
-	clusterName.SetClusterID(clusterConfig.GetLegacyClusterID())
-	if err := asrv.ClusterConfiguration.UpsertClusterName(clusterName); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }

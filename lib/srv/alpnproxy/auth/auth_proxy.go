@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -79,10 +80,10 @@ func getClusterName(info alpnproxy.ConnectionInfo) (string, error) {
 		return "", trace.NotFound("missing ALPN value")
 	}
 	protocol := info.ALPN[0]
-	if !strings.HasPrefix(protocol, string(alpnproxy.ProtocolAuth)) {
+	if !strings.HasPrefix(protocol, string(common.ProtocolAuth)) {
 		return "", trace.BadParameter("auth routing prefix not found")
 	}
-	routeToCluster := strings.TrimPrefix(protocol, string(alpnproxy.ProtocolAuth))
+	routeToCluster := strings.TrimPrefix(protocol, string(common.ProtocolAuth))
 	cn, err := apiutils.DecodeClusterName(routeToCluster)
 	if err != nil {
 		return "", trace.Wrap(err)

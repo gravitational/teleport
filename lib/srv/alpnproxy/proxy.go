@@ -28,7 +28,9 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -45,8 +47,8 @@ const (
 type ProxyConfig struct {
 	// Listener is a listener to serve requests on.
 	Listener net.Listener
-	// TLSConfig specifies the TLS configuration used by the Proxy server.
-	TLSConfig *tls.Config
+	// WebTLSConfig specifies the TLS configuration used by the Proxy server.
+	WebTLSConfig *tls.Config
 	// Router contains definition of protocol routing and handlers description.
 	Router *Router
 	// Log is used for logging.
@@ -58,6 +60,12 @@ type ProxyConfig struct {
 	// of the connection). It is set to defaults.HandshakeReadDeadline if
 	// unspecified.
 	ReadDeadline time.Duration
+	// IdentityTLSConfig is the TLS ProxyRole identity used in servers with localhost SANs values.
+	IdentityTLSConfig *tls.Config
+	// AccessPoint is the auth server client.
+	AccessPoint auth.AccessPoint
+	// ClusterName is the name of the teleport cluster.
+	ClusterName string
 }
 
 // NewRouter creates a ALPN new router.
@@ -79,13 +87,13 @@ type Router struct {
 type MatchFunc func(sni, alpn string) bool
 
 // MatchByProtocol creates match function based on client TLS ALPN protocol.
-func MatchByProtocol(protocols ...Protocol) MatchFunc {
-	m := make(map[Protocol]struct{})
+func MatchByProtocol(protocols ...common.Protocol) MatchFunc {
+	m := make(map[common.Protocol]struct{})
 	for _, v := range protocols {
 		m[v] = struct{}{}
 	}
 	return func(sni, alpn string) bool {
-		_, ok := m[Protocol(alpn)]
+		_, ok := m[common.Protocol(alpn)]
 		return ok
 	}
 }
@@ -175,17 +183,16 @@ type HandlerFunc func(ctx context.Context, conn net.Conn) error
 // TLS SNI ALPN values to particular service.
 type Proxy struct {
 	cfg                ProxyConfig
-	supportedProtocols []Protocol
+	supportedProtocols []common.Protocol
 	log                logrus.FieldLogger
 	cancel             context.CancelFunc
 }
 
 // CheckAndSetDefaults checks and sets default values of ProxyConfig
 func (c *ProxyConfig) CheckAndSetDefaults() error {
-	if c.TLSConfig == nil {
+	if c.WebTLSConfig == nil {
 		return trace.BadParameter("tls config missing")
 	}
-
 	if c.Listener == nil {
 		return trace.BadParameter("listener missing")
 	}
@@ -204,6 +211,21 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	if err := c.Router.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	if c.AccessPoint == nil {
+		return trace.BadParameter("missing access point")
+	}
+	if c.ClusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+
+	if c.IdentityTLSConfig == nil {
+		return trace.BadParameter("missing identity tls config")
+	}
+	c.IdentityTLSConfig = c.IdentityTLSConfig.Clone()
+	c.IdentityTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	fn := auth.WithClusterCAs(c.IdentityTLSConfig, c.AccessPoint, c.ClusterName, c.Log)
+	c.IdentityTLSConfig.GetConfigForClient = fn
+
 	return nil
 }
 
@@ -212,10 +234,11 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &Proxy{
 		cfg:                cfg,
 		log:                cfg.Log,
-		supportedProtocols: supportedProtocols,
+		supportedProtocols: common.SupportedProtocols,
 	}, nil
 }
 
@@ -224,7 +247,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	p.cancel = cancel
-	p.cfg.TLSConfig.NextProtos = convProtocolsToString(p.supportedProtocols)
+	p.cfg.WebTLSConfig.NextProtos = common.ProtocolsToString(p.supportedProtocols)
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
@@ -290,7 +313,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
 	}
 
-	tlsConn := tls.Server(conn, p.cfg.TLSConfig)
+	tlsConn := tls.Server(conn, p.cfg.WebTLSConfig)
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -350,8 +373,12 @@ func (p *Proxy) handleDatabaseConnection(ctx context.Context, conn net.Conn, con
 func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
 	// DB Protocols like Mongo have native support for TLS thus TLS connection needs to be terminated twice.
 	// First time for custom local proxy connection and the second time from Mongo protocol where TLS connection is used.
-
-	tlsConn := tls.Server(conn, p.cfg.TLSConfig)
+	//
+	// Terminate the CLI TLS connection established by a database client that supports native TLS protocol like mongo.
+	// Mongo client establishes a connection to SNI ALPN Local Proxy with server name 127.0.0.1 where LocalProxy wraps
+	// the connection in TLS and forward to Teleport SNI ALPN Proxy where first TLS layer is terminated
+	// by Proxy.handleConn using ProxyConfig.WebTLSConfig.
+	tlsConn := tls.Server(conn, p.cfg.IdentityTLSConfig)
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		if err := tlsConn.Close(); err != nil {
 			p.log.WithError(err).Error("Failed to close TLS connection.")
@@ -378,9 +405,9 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, info))
 }
 
-func isDBTLSProtocol(protocol Protocol) bool {
+func isDBTLSProtocol(protocol common.Protocol) bool {
 	switch protocol {
-	case ProtocolMongoDB:
+	case common.ProtocolMongoDB:
 		return true
 	default:
 		return false
@@ -399,9 +426,9 @@ func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHe
 
 // getHandleDescBasedOnALPNVal returns the HandlerDesc base on ALPN field read from ClientHelloInfo message.
 func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
-	protocol := ProtocolDefault
+	protocol := common.ProtocolDefault
 	if len(clientHelloInfo.SupportedProtos) != 0 {
-		protocol = Protocol(clientHelloInfo.SupportedProtos[0])
+		protocol = common.Protocol(clientHelloInfo.SupportedProtos[0])
 	}
 
 	if isDBTLSProtocol(protocol) {
