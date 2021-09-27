@@ -82,7 +82,6 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 				msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
 			}
 			code, err := promptOTP(ctx, os.Stderr, prompt.Stdin(), msg)
-			fmt.Fprintln(os.Stderr) // Print a new line after the prompt
 			if err != nil {
 				respC <- response{kind: kind, err: err}
 				return
@@ -132,6 +131,10 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 			if err := resp.err; err != nil {
 				log.WithError(err).Debugf("%s authentication failed", resp.kind)
 				continue
+			}
+
+			if hasTOTP {
+				fmt.Fprintln(os.Stderr) // Print a new line after the prompt
 			}
 
 			// Exiting cancels the context via defer, which makes the remaining
@@ -192,4 +195,46 @@ func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *auth.
 	}
 
 	return chal
+}
+
+type TOTPRegisterChallenge struct {
+	QRCode []byte `json:"qrCode"`
+}
+
+// MFAAuthenticateChallenge is an MFA register challenge sent on new MFA register.
+type MFARegisterChallenge struct {
+	// U2F contains U2F register challenge.
+	U2F *u2f.RegisterChallenge `json:"u2f"`
+	// Webauthn contains webauthn challenge.
+	Webauthn *wanlib.CredentialCreation `json:"webauthn"`
+	// TOTP contains TOTP challenge.
+	TOTP *TOTPRegisterChallenge `json:"totp"`
+}
+
+// MakeRegisterChallenge converts proto to JSON format.
+func MakeRegisterChallenge(protoChal *proto.MFARegisterChallenge) *MFARegisterChallenge {
+	switch protoChal.GetRequest().(type) {
+	case *proto.MFARegisterChallenge_TOTP:
+		return &MFARegisterChallenge{
+			TOTP: &TOTPRegisterChallenge{
+				QRCode: protoChal.GetTOTP().GetQRCode(),
+			},
+		}
+
+	case *proto.MFARegisterChallenge_U2F:
+		return &MFARegisterChallenge{
+			U2F: &u2f.RegisterChallenge{
+				Version:   protoChal.GetU2F().GetVersion(),
+				Challenge: protoChal.GetU2F().GetChallenge(),
+				AppID:     protoChal.GetU2F().GetAppID(),
+			},
+		}
+
+	case *proto.MFARegisterChallenge_Webauthn:
+		return &MFARegisterChallenge{
+			Webauthn: wanlib.CredentialCreationFromProto(protoChal.GetWebauthn()),
+		}
+	}
+
+	return nil
 }

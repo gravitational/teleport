@@ -34,18 +34,17 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/sshutils"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -305,9 +304,25 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 	return keyring, cert, nil
 }
 
+func (c *SessionContext) getCheckers() ([]ssh.PublicKey, error) {
+	cas, err := c.unsafeCachedAuthClient.GetCertAuthorities(types.HostCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var keys []ssh.PublicKey
+	for _, ca := range cas {
+		checkers, err := sshutils.GetCheckers(ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		keys = append(keys, checkers...)
+	}
+	return keys, nil
+}
+
 // GetSSHCertificate returns the *ssh.Certificate associated with this session.
 func (c *SessionContext) GetSSHCertificate() (*ssh.Certificate, error) {
-	return sshutils.ParseCertificate(c.session.GetPub())
+	return apisshutils.ParseCertificate(c.session.GetPub())
 }
 
 // GetX509Certificate returns the *x509.Certificate associated with this session.
@@ -640,10 +655,6 @@ func (s *sessionCache) AuthenticateSSHUser(c client.AuthenticateSSHUserRequest) 
 // Ping gets basic info about the auth server.
 func (s *sessionCache) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return s.proxyClient.Ping(ctx)
-}
-
-func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
-	return s.proxyClient.GetSignupU2FRegisterRequest(token)
 }
 
 func (s *sessionCache) ValidateTrustedCluster(validateRequest *auth.ValidateTrustedClusterRequest) (*auth.ValidateTrustedClusterResponse, error) {

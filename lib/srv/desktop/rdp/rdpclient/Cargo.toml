@@ -8,7 +8,11 @@ edition = "2018"
 crate-type = ["staticlib"]
 
 [dependencies]
+bitflags = "1.3.2"
+byteorder = "1.4.3"
 env_logger = "0.9.0"
 libc = "0.2.98"
 log = "0.4.14"
-rdp-rs = "0.1.0"
+num-derive = "0.3"
+num-traits = "0.2"
+rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "52e69b1c73f3601219fa04a43baaf1fc07ab31bf" }

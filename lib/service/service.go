@@ -82,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/desktop"
@@ -1188,7 +1189,6 @@ func (process *TeleportProcess) initAuthService() error {
 		Backend:                 b,
 		Authority:               cfg.Keygen,
 		ClusterConfiguration:    cfg.ClusterConfiguration,
-		ClusterConfig:           cfg.Auth.ClusterConfig,
 		ClusterAuditConfig:      cfg.Auth.AuditConfig,
 		ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
 		SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
@@ -1385,7 +1385,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Mode:      srv.HeartbeatModeAuth,
-		Context:   process.ExitContext(),
+		Context:   process.GracefulExitContext(),
 		Component: teleport.ComponentAuth,
 		Announcer: authServer,
 		GetServerInfo: func() (types.Resource, error) {
@@ -1446,9 +1446,14 @@ func (process *TeleportProcess) initAuthService() error {
 			log.Info("Shutting down immediately.")
 			warnOnErr(tlsServer.Close(), log)
 		} else {
-			log.Info("Shutting down gracefully.")
-			ctx := payloadContext(payload, log)
-			warnOnErr(tlsServer.Shutdown(ctx), log)
+			log.Info("Shutting down immediately (auth service does not currently support graceful shutdown).")
+			// NOTE: Graceful shutdown of auth.TLSServer is disabled right now, because we don't
+			// have a good model for performing it.  In particular, watchers and other GRPC streams
+			// are a problem.  Even if we distinguish between user-created and server-created streams
+			// (as is done with ssh connections), we don't have a way to distinguish "service accounts"
+			// such as access workflow plugins from normal users.  Without this, a graceful shutdown
+			// of the auth server basically never exits.
+			warnOnErr(tlsServer.Close(), log)
 		}
 		if uploadCompleter != nil {
 			warnOnErr(uploadCompleter.Close(), log)
@@ -1573,6 +1578,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		DynamicAccess:   cfg.services,
 		Presence:        cfg.services,
 		Restrictions:    cfg.services,
+		Apps:            cfg.services,
 		Databases:       cfg.services,
 		AppSession:      cfg.services,
 		WindowsDesktops: cfg.services,
@@ -1898,6 +1904,7 @@ func (process *TeleportProcess) initSSH() error {
 					HostSigner:  conn.ServerIdentity.KeySigner,
 					Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 					Server:      s,
+					FIPS:        process.Config.FIPS,
 				})
 			if err != nil {
 				return trace.Wrap(err)
@@ -1949,6 +1956,10 @@ func (process *TeleportProcess) initSSH() error {
 			warnOnErr(asyncEmitter.Close(), log)
 		}
 
+		if conn != nil {
+			warnOnErr(conn.Close(), log)
+		}
+
 		log.Infof("Exited.")
 	})
 
@@ -1965,13 +1976,6 @@ func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, ev
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.OnExit(fmt.Sprintf("auth.client.%v", serviceName), func(interface{}) {
-			process.log.Debugf("Closed client for %v.", role)
-			err := connector.Client.Close()
-			if err != nil {
-				process.log.Debugf("Failed to close client: %v", err)
-			}
-		})
 		process.BroadcastEvent(Event{Name: eventName, Payload: connector})
 		return nil
 	})
@@ -2204,7 +2208,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 			select {
 			case e := <-eventCh:
 				ps.update(e)
-			case <-process.ExitContext().Done():
+			case <-process.GracefulExitContext().Done():
 				log.Debugf("Teleport is exiting, returning.")
 				return nil
 			}
@@ -2283,6 +2287,10 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 	switch role {
 	case types.RoleProxy:
 		addrs = append(process.Config.Proxy.PublicAddrs,
+			process.Config.Proxy.WebAddr,
+			process.Config.Proxy.SSHAddr,
+			process.Config.Proxy.ReverseTunnelListenAddr,
+			process.Config.Proxy.MySQLAddr,
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
@@ -2349,9 +2357,9 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 		if addr.IsEmpty() {
 			continue
 		}
-		host, err := utils.Host(addr.Addr)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
+		host := addr.Host()
+		if host == "" {
+			host = defaults.BindIP
 		}
 		principals = append(principals, host)
 	}
@@ -2392,11 +2400,8 @@ func (process *TeleportProcess) initProxy() error {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
 
-		err := process.initProxyEndpoint(conn)
-		if err != nil {
-			if conn.Client != nil {
-				warnOnErr(conn.Client.Close(), process.log)
-			}
+		if err := process.initProxyEndpoint(conn); err != nil {
+			warnOnErr(conn.Close(), process.log)
 			return trace.Wrap(err)
 		}
 
@@ -2871,6 +2876,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 		KubeDialAddr:        utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
 		ReverseTunnelServer: tsrv,
+		FIPS:                process.Config.FIPS,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2985,18 +2991,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		if alpnRouter != nil && !cfg.Proxy.DisableDatabaseProxy {
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				MatchFunc: alpnproxy.MatchByProtocol(alpnproxy.ProtocolMySQL),
+				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMySQL),
 				Handler:   dbProxyServer.MySQLProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				MatchFunc: alpnproxy.MatchByProtocol(alpnproxy.ProtocolPostgres),
+				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolPostgres),
 				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
 				// Add MongoDB teleport ALPN protocol without setting custom Handler.
 				// ALPN Proxy will handle MongoDB connection internally (terminate wrapped TLS traffic) and route
 				// extracted connection to ALPN Proxy DB TLS Handler.
-				MatchFunc: alpnproxy.MatchByProtocol(alpnproxy.ProtocolMongoDB),
+				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMongoDB),
 			})
 		}
 
@@ -3034,14 +3040,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, accessPoint)
 		alpnRouter.Add(alpnproxy.HandlerDecs{
-			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpnproxy.ProtocolAuth)),
+			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
 			HandlerWithConnInfo: authDialerService.HandleConnection,
 			ForwardTLS:          true,
 		})
+		identityTLSConf, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		alpnServer, err = alpnproxy.New(alpnproxy.ProxyConfig{
-			TLSConfig: tlsConfigWeb.Clone(),
-			Router:    alpnRouter,
-			Listener:  listeners.alpn,
+			WebTLSConfig:      tlsConfigWeb.Clone(),
+			IdentityTLSConfig: identityTLSConf,
+			Router:            alpnRouter,
+			Listener:          listeners.alpn,
+			ClusterName:       clusterName,
+			AccessPoint:       accessPoint,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3091,10 +3104,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		} else {
 			log.Infof("Shutting down gracefully.")
 			ctx := payloadContext(payload, log)
+			warnOnErr(sshProxy.Shutdown(ctx), log)
 			if tsrv != nil {
 				warnOnErr(tsrv.Shutdown(ctx), log)
 			}
-			warnOnErr(sshProxy.Shutdown(ctx), log)
 			if webServer != nil {
 				warnOnErr(webServer.Shutdown(ctx), log)
 			}
@@ -3108,11 +3121,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(alpnServer.Close(), log)
 			}
 		}
-		// Close client after graceful shutdown has been completed,
-		// to make sure in flight streams are not terminated,
-		if conn.Client != nil {
-			warnOnErr(conn.Client.Close(), log)
-		}
+		warnOnErr(conn.Close(), log)
 		log.Infof("Exited.")
 	})
 	if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
@@ -3212,7 +3221,7 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 	if !cfg.Proxy.DisableReverseTunnel {
 		reverseTunnel := alpnproxy.NewMuxListenerWrapper(listeners.reverseTunnel, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
-			MatchFunc: alpnproxy.MatchByProtocol(alpnproxy.ProtocolReverseTunnel),
+			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolReverseTunnel),
 			Handler:   reverseTunnel.HandleConnection,
 		})
 		listeners.reverseTunnel = reverseTunnel
@@ -3222,9 +3231,9 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 		webWrapper := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
 			MatchFunc: alpnproxy.MatchByProtocol(
-				alpnproxy.ProtocolHTTP,
-				alpnproxy.ProtocolHTTP2,
-				alpnproxy.ProtocolDefault,
+				alpncommon.ProtocolHTTP,
+				alpncommon.ProtocolHTTP2,
+				alpncommon.ProtocolDefault,
 				acme.ALPNProto,
 			),
 			Handler:    webWrapper.HandleConnection,
@@ -3234,7 +3243,7 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 	}
 	sshProxyListener := alpnproxy.NewMuxListenerWrapper(listeners.ssh, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
-		MatchFunc: alpnproxy.MatchByProtocol(alpnproxy.ProtocolProxySSH),
+		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxySSH),
 		Handler:   sshProxyListener.HandleConnection,
 	})
 	listeners.ssh = sshProxyListener
@@ -3329,7 +3338,7 @@ func (process *TeleportProcess) initApps() {
 	// If no applications are specified, exit early. This is due to the strange
 	// behavior in reading file configuration. If the user does not specify an
 	// "app_service" section, that is considered enabling "app_service".
-	if len(process.Config.Apps.Apps) == 0 && !process.Config.Apps.DebugApp {
+	if len(process.Config.Apps.Apps) == 0 && !process.Config.Apps.DebugApp && len(process.Config.Apps.Selectors) == 0 {
 		return
 	}
 
@@ -3347,6 +3356,7 @@ func (process *TeleportProcess) initApps() {
 
 	var appServer *app.Server
 	var agentPool *reversetunnel.AgentPool
+	var conn *Connector
 
 	process.RegisterCriticalFunc("apps.start", func() error {
 		var ok bool
@@ -3493,6 +3503,7 @@ func (process *TeleportProcess) initApps() {
 			Hostname:     process.Config.Hostname,
 			GetRotation:  process.getRotation,
 			Apps:         applications,
+			Selectors:    process.Config.Apps.Selectors,
 			OnHeartbeat: func(err error) {
 				if err != nil {
 					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentApp})
@@ -3522,6 +3533,7 @@ func (process *TeleportProcess) initApps() {
 				AccessPoint: accessPoint,
 				HostSigner:  conn.ServerIdentity.KeySigner,
 				Cluster:     clusterName,
+				FIPS:        process.Config.FIPS,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3551,6 +3563,10 @@ func (process *TeleportProcess) initApps() {
 		}
 		if agentPool != nil {
 			agentPool.Stop()
+		}
+
+		if conn != nil {
+			warnOnErr(conn.Close(), log)
 		}
 
 		log.Infof("Exited.")

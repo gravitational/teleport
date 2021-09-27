@@ -568,9 +568,10 @@ func (s *server) Close() error {
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
-	s.cancel()
+	err := s.srv.Shutdown(ctx)
 	s.proxyWatcher.Close()
-	return s.srv.Shutdown(ctx)
+	s.cancel()
+	return trace.Wrap(err)
 }
 
 func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
@@ -629,7 +630,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 // TODO(awly): unit test this
 func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	s.log.Debugf("New tunnel from %v.", sconn.RemoteAddr())
-	if sconn.Permissions.Extensions[extCertType] != extCertTypeHost {
+	if sconn.Permissions.Extensions[utils.ExtIntCertType] != utils.ExtIntCertTypeHost {
 		s.log.Error(trace.BadParameter("can't retrieve certificate type in certType"))
 		return
 	}
@@ -760,7 +761,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		if !ok || certRole == "" {
 			return nil, trace.BadParameter("certificate missing %q extension; this SSH host certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport nodes/proxies", utils.CertExtensionRole)
 		}
-		certType = extCertTypeHost
+		certType = utils.ExtIntCertTypeHost
 		caType = types.HostCA
 	case ssh.UserCert:
 		var ok bool
@@ -780,7 +781,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 			return nil, trace.BadParameter("certificate missing roles in %q extension; make sure your user has some roles assigned (or ask your Teleport admin to) and log in again (or export an identity file, if that's what you used)", teleport.CertExtensionTeleportRoles)
 		}
 		certRole = roles[0]
-		certType = extCertTypeUser
+		certType = utils.ExtIntCertTypeUser
 		caType = types.UserCA
 	default:
 		return nil, trace.BadParameter("unsupported cert type: %v.", cert.CertType)
@@ -791,10 +792,10 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 	}
 	return &ssh.Permissions{
 		Extensions: map[string]string{
-			extHost:      conn.User(),
-			extCertType:  certType,
-			extCertRole:  certRole,
-			extAuthority: clusterName,
+			extHost:              conn.User(),
+			utils.ExtIntCertType: certType,
+			extCertRole:          certRole,
+			extAuthority:         clusterName,
 		},
 	}, nil
 }
@@ -824,7 +825,7 @@ func (s *server) checkClientCert(logger *log.Entry, user string, clusterName str
 		return trace.NotFound("cluster %v has no matching CA keys", clusterName)
 	}
 
-	checker := utils.CertChecker{
+	checker := apisshutils.CertChecker{
 		FIPS: s.FIPS,
 	}
 	if err := checker.CheckCert(user, cert); err != nil {
@@ -1129,12 +1130,9 @@ func sendVersionRequest(ctx context.Context, sconn ssh.Conn) (string, error) {
 }
 
 const (
-	extHost         = "host@teleport"
-	extCertType     = "certtype@teleport"
-	extAuthority    = "auth@teleport"
-	extCertTypeHost = "host"
-	extCertTypeUser = "user"
-	extCertRole     = "role"
+	extHost      = "host@teleport"
+	extAuthority = "auth@teleport"
+	extCertRole  = "role"
 
 	versionRequest = "x-teleport-version"
 )

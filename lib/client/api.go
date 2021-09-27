@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -62,7 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1095,7 +1096,13 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		tc.localAgent, err = NewLocalAgent(keystore, webProxyHost, c.Username, c.AddKeysToAgent)
+		tc.localAgent, err = NewLocalAgent(LocalAgentConfig{
+			Keystore:   keystore,
+			ProxyHost:  webProxyHost,
+			Username:   c.Username,
+			KeysOption: c.AddKeysToAgent,
+			Insecure:   c.InsecureSkipVerify,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2062,7 +2069,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		signers, err := tc.localAgent.certsForCluster("")
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
 		// should be passing auth methods via tc.Config.AuthMethods.
-		if err != nil && !errors.Is(err, errNoLocalKeyStore) {
+		if err != nil && !errors.Is(err, errNoLocalKeyStore) && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 		if len(signers) > 0 {
@@ -2102,7 +2109,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 
 func makeProxySSHClientWithTLSWrapper(cfg Config, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
 	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, &tls.Config{
-		NextProtos:         []string{string(alpnproxy.ProtocolProxySSH)},
+		NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 	})
 	if err != nil {
@@ -2810,7 +2817,7 @@ func (tc *TeleportClient) EventsChannel() <-chan events.EventFields {
 // loopbackPool reads trusted CAs if it finds it in a predefined location
 // and will work only if target proxy address is loopback
 func loopbackPool(proxyAddr string) *x509.CertPool {
-	if !utils.IsLoopback(proxyAddr) {
+	if !apiutils.IsLoopback(proxyAddr) {
 		log.Debugf("not using loopback pool for remote proxy addr: %v", proxyAddr)
 		return nil
 	}

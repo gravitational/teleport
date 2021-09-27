@@ -141,7 +141,9 @@ func (c *ClusterNameV2) CheckAndSetDefaults() error {
 	if c.Spec.ClusterName == "" {
 		return trace.BadParameter("cluster name is required")
 	}
-
+	if c.Spec.ClusterID == "" {
+		return trace.BadParameter("cluster ID is required")
+	}
 	return nil
 }
 

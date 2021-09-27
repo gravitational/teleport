@@ -201,8 +201,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/roles/:role", srv.withAuth(srv.deleteRole))
 
 	// cluster configuration
-	srv.GET("/:version/configuration", srv.withAuth(srv.getClusterConfig))
-	srv.POST("/:version/configuration", srv.withAuth(srv.setClusterConfig))
 	srv.GET("/:version/configuration/name", srv.withAuth(srv.getClusterName))
 	srv.POST("/:version/configuration/name", srv.withAuth(srv.setClusterName))
 	srv.GET("/:version/configuration/static_tokens", srv.withAuth(srv.getStaticTokens))
@@ -1371,13 +1369,22 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 	return se, nil
 }
 
+// DELETE IN 9.0.0 replaced by grpc CreateRegisterChallenge.
 func (s *APIServer) getSignupU2FRegisterRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	token := p.ByName("token")
-	u2fRegReq, err := auth.GetSignupU2FRegisterRequest(token)
+	res, err := auth.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
+		TokenID:    token,
+		DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return u2fRegReq, nil
+
+	return &u2f.RegisterChallenge{
+		Challenge: res.GetU2F().GetChallenge(),
+		AppID:     res.GetU2F().GetAppID(),
+		Version:   res.GetU2F().GetVersion(),
+	}, nil
 }
 
 type upsertOIDCConnectorRawReq struct {
@@ -2296,40 +2303,6 @@ func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("role %q deleted", role)), nil
-}
-
-func (s *APIServer) getClusterConfig(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cc, err := auth.GetClusterConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalClusterConfig(cc, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-type setClusterConfigReq struct {
-	ClusterConfig json.RawMessage `json:"cluster_config"`
-}
-
-func (s *APIServer) setClusterConfig(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req setClusterConfigReq
-
-	err := httplib.ReadJSON(r, &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cc, err := services.UnmarshalClusterConfig(req.ClusterConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.SetClusterConfig(cc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message("cluster config set"), nil
 }
 
 func (s *APIServer) getClusterName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

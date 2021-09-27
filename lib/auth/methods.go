@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -42,7 +43,7 @@ type AuthenticateUserRequest struct {
 	U2F *U2FSignResponseCreds `json:"u2f,omitempty"`
 	// Webauthn is a signed credential assertion used to authenticate via WebAuthn
 	// or U2F devices.
-	Webauthn *wanlib.CredentialAssertionResponse
+	Webauthn *wanlib.CredentialAssertionResponse `json:"webauthn,omitempty"`
 	// OTP is a password and second factor, used in two factor authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
@@ -121,36 +122,59 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	authPreference, err := s.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	user := req.Username
 
 	// Try 2nd-factor-enabled authentication schemes first.
-	var authenticateFn func(context.Context, AuthenticateUserRequest) (*types.MFADevice, error)
+	var authenticateFn func() (*types.MFADevice, error)
 	var failMsg string // failMsg kept obscure on purpose, use logging for details
 	switch {
+	// cases in order of preference
 	case req.Webauthn != nil:
-		authenticateFn = s.makeAuthenticateWebauthn(authPreference)
+		authenticateFn = func() (*types.MFADevice, error) {
+			mfaResponse := &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Webauthn{
+					Webauthn: wanlib.CredentialAssertionResponseToProto(req.Webauthn),
+				},
+			}
+			return s.validateMFAAuthResponse(ctx, user, mfaResponse, s.Identity /* u2fStorage */)
+		}
 		failMsg = "invalid Webauthn response"
 	case req.U2F != nil:
-		authenticateFn = s.authenticateU2F
+		authenticateFn = func() (*types.MFADevice, error) {
+			mfaResponse := &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_U2F{
+					U2F: &proto.U2FResponse{
+						KeyHandle:  req.U2F.SignResponse.KeyHandle,
+						ClientData: req.U2F.SignResponse.ClientData,
+						Signature:  req.U2F.SignResponse.SignatureData,
+					},
+				},
+			}
+			return s.validateMFAAuthResponse(ctx, user, mfaResponse, s.Identity /* u2fStorage */)
+		}
 		failMsg = "invalid U2F response"
 	case req.OTP != nil:
-		authenticateFn = s.authenticateTOTP
+		authenticateFn = func() (*types.MFADevice, error) {
+			// OTP cannot be validated by validateMFAAuthResponse because we need to
+			// check the user's password too.
+			res, err := s.checkPassword(user, req.OTP.Password, req.OTP.Token)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return res.mfaDev, nil
+		}
 		failMsg = "invalid username, password or second factor"
 	}
 	if authenticateFn != nil {
 		var dev *types.MFADevice
-		err := s.WithUserLock(req.Username, func() error {
+		err := s.WithUserLock(user, func() error {
 			var err error
-			dev, err = authenticateFn(ctx, req)
+			dev, err = authenticateFn()
 			return err
 		})
 		switch {
 		case err != nil:
-			log.Debugf("User %v failed to authenticate: %v.", req.Username, err)
+			log.Debugf("User %v failed to authenticate: %v.", user, err)
 			return nil, trace.AccessDenied(failMsg)
 		case dev == nil:
 			log.Debugf(
@@ -167,6 +191,11 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		return nil, trace.AccessDenied("unsupported authentication method")
 	}
 
+	authPreference, err := s.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// When using password only make sure that auth preference does not require
 	// second factor, otherwise users could bypass it.
 	switch authPreference.GetSecondFactor() {
@@ -175,64 +204,30 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	case constants.SecondFactorOptional:
 		// 2FA is optional. Make sure that a user does not have MFA devices
 		// registered.
-		devs, err := s.Identity.GetMFADevices(ctx, req.Username, false /* withSecrets */)
+		devs, err := s.Identity.GetMFADevices(ctx, user, false /* withSecrets */)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 		if len(devs) != 0 {
-			log.Warningf("MFA bypass attempt by user %q, access denied.", req.Username)
+			log.Warningf("MFA bypass attempt by user %q, access denied.", user)
 			return nil, trace.AccessDenied("missing second factor authentication")
 		}
 	default:
 		// Some form of MFA is required but none provided. Either client is
 		// buggy (didn't send MFA response) or someone is trying to bypass
 		// MFA.
-		log.Warningf("MFA bypass attempt by user %q, access denied.", req.Username)
+		log.Warningf("MFA bypass attempt by user %q, access denied.", user)
 		return nil, trace.AccessDenied("missing second factor")
 	}
-	if err = s.WithUserLock(req.Username, func() error {
-		return s.checkPasswordWOToken(req.Username, req.Pass.Password)
+	if err = s.WithUserLock(user, func() error {
+		return s.checkPasswordWOToken(user, req.Pass.Password)
 	}); err != nil {
 		// provide obscure message on purpose, while logging the real
 		// error server side
-		log.Debugf("User %v failed to authenticate: %v.", req.Username, err)
+		log.Debugf("User %v failed to authenticate: %v.", user, err)
 		return nil, trace.AccessDenied("invalid username or password")
 	}
 	return nil, nil
-}
-
-func (s *Server) makeAuthenticateWebauthn(
-	authPreference types.AuthPreference) func(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, error) {
-	return func(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, error) {
-		// U2F is not required for Webauthn, but we take it into account if it's
-		// present.
-		u2f, _ := authPreference.GetU2F()
-
-		webConfig, err := authPreference.GetWebauthn()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		webLogin := &wanlib.LoginFlow{
-			U2F:      u2f,
-			Webauthn: webConfig,
-			Identity: s.Identity,
-		}
-		return webLogin.Finish(ctx, req.Username, req.Webauthn)
-	}
-}
-
-func (s *Server) authenticateU2F(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, error) {
-	dev, err := s.CheckU2FSignResponse(ctx, req.Username, &req.U2F.SignResponse)
-	return dev, trace.Wrap(err)
-}
-
-func (s *Server) authenticateTOTP(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, error) {
-	res, err := s.checkPassword(req.Username, req.OTP.Password, req.OTP.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res.mfaDev, nil
 }
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session

@@ -24,9 +24,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // TestProxySSHHandler tests the ALPN routing. Connection with ALPN 'teleport-proxy-ssh' value should
@@ -39,7 +40,7 @@ func TestProxySSHHandler(t *testing.T) {
 	suite := NewSuite(t)
 
 	suite.router.Add(HandlerDecs{
-		MatchFunc:  MatchByProtocol(ProtocolProxySSH),
+		MatchFunc:  MatchByProtocol(common.ProtocolProxySSH),
 		ForwardTLS: false,
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			defer conn.Close()
@@ -51,7 +52,7 @@ func TestProxySSHHandler(t *testing.T) {
 	suite.Start(t)
 
 	conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-		NextProtos: []string{string(ProtocolProxySSH)},
+		NextProtos: []string{string(common.ProtocolProxySSH)},
 		ServerName: "localhost",
 		RootCAs:    suite.GetCertPool(),
 	})
@@ -88,7 +89,7 @@ func TestProxyKubeHandler(t *testing.T) {
 	suite.Start(t)
 
 	conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-		NextProtos: []string{string(ProtocolHTTP2)},
+		NextProtos: []string{string(common.ProtocolHTTP2)},
 		ServerName: kubeSNI,
 		RootCAs:    suite.GetCertPool(),
 	})
@@ -144,7 +145,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 
 	t.Run("tls database connection wrapped with ALPN value", func(t *testing.T) {
 		conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-			NextProtos: []string{string(ProtocolMongoDB)},
+			NextProtos: []string{string(common.ProtocolMongoDB)},
 			RootCAs:    suite.GetCertPool(),
 			ServerName: "localhost",
 		})
@@ -174,7 +175,7 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 
 	suite := NewSuite(t)
 	suite.router.Add(HandlerDecs{
-		MatchFunc: MatchByProtocol(ProtocolPostgres),
+		MatchFunc: MatchByProtocol(common.ProtocolPostgres),
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			defer conn.Close()
 			_, err := fmt.Fprint(conn, databaseHandleResponse)
@@ -188,7 +189,7 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 	require.NoError(t, err)
 	localProxyConfig := LocalProxyConfig{
 		RemoteProxyAddr:    suite.GetServerAddress(),
-		Protocol:           ProtocolPostgres,
+		Protocol:           common.ProtocolPostgres,
 		Listener:           localProxyListener,
 		SNI:                "localhost",
 		ParentContext:      context.Background(),
@@ -221,7 +222,7 @@ func TestProxyHTTPConnection(t *testing.T) {
 
 	suite.router = NewRouter()
 	suite.router.Add(HandlerDecs{
-		MatchFunc: MatchByProtocol(ProtocolHTTP2, ProtocolHTTP, ProtocolDefault),
+		MatchFunc: MatchByProtocol(common.ProtocolHTTP2, common.ProtocolHTTP, common.ProtocolDefault),
 		Handler:   lw.HandleConnection,
 	})
 	suite.Start(t)

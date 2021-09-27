@@ -1090,6 +1090,62 @@ message KubeRequest {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// AppMetadata contains common application information.
+message AppMetadata {
+    // AppURI is the application endpoint.
+    string AppURI = 1 [ (gogoproto.jsontag) = "app_uri" ];
+    // AppPublicAddr is the configured application public address.
+    string AppPublicAddr = 2 [ (gogoproto.jsontag) = "app_public_addr,omitempty" ];
+    // AppLabels are the configured application labels.
+    map<string, string> AppLabels = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "app_labels,omitempty" ];
+}
+
+// AppCreate is emitted when a new application resource is created.
+message AppCreate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // ResourceMetadata is a common resource event metadata.
+    ResourceMetadata Resource = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // AppMetadata is a common application resource metadata.
+    AppMetadata App = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// AppUpdate is emitted when an existing application resource is updated.
+message AppUpdate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // ResourceMetadata is a common resource event metadata.
+    ResourceMetadata Resource = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // AppMetadata is a common application resource metadata.
+    AppMetadata App = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// AppDelete is emitted when an application resource is deleted.
+message AppDelete {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // ResourceMetadata is a common resource event metadata.
+    ResourceMetadata Resource = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // AppSessionStart is emitted when a user is issued an application certificate.
 message AppSessionStart {
     // Metadata is a common event metadata
@@ -1479,6 +1535,9 @@ message OneOf {
         events.DatabaseCreate DatabaseCreate = 53;
         events.DatabaseUpdate DatabaseUpdate = 54;
         events.DatabaseDelete DatabaseDelete = 55;
+        events.AppCreate AppCreate = 56;
+        events.AppUpdate AppUpdate = 57;
+        events.AppDelete AppDelete = 58;
     }
 }
 

@@ -23,21 +23,18 @@ import (
 	"net"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/u2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/coreos/go-semver/semver"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
@@ -48,8 +45,10 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
-	// Register gzip compressor for gRPC.
-	_ "google.golang.org/grpc/encoding/gzip"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+
+	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
 )
 
 var heartbeatConnectionsReceived = prometheus.NewCounter(
@@ -343,10 +342,6 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_ClusterName{
 			ClusterName: r,
 		}
-	case *types.ClusterConfigV3:
-		out.Resource = &proto.Event_ClusterConfig{
-			ClusterConfig: r,
-		}
 	case *types.UserV2:
 		out.Resource = &proto.Event_User{
 			User: r,
@@ -411,6 +406,10 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 	case *types.DatabaseV3:
 		out.Resource = &proto.Event_Database{
 			Database: r,
+		}
+	case *types.AppV3:
+		out.Resource = &proto.Event_App{
+			App: r,
 		}
 	case *types.ClusterAuditConfigV2:
 		out.Resource = &proto.Event_ClusterAuditConfig{
@@ -480,6 +479,13 @@ func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *proto.HostCerts
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Pass along the remote address the request came from to the registration function.
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trace.BadParameter("unable to find peer")
+	}
+	req.RemoteAddr = p.Addr.String()
 
 	certs, err := auth.ServerWithRoles.GenerateHostCerts(ctx, req)
 	if err != nil {
@@ -679,31 +685,6 @@ func (g *GRPCServer) RotateResetPasswordTokenSecrets(ctx context.Context, req *p
 	r, ok := secrets.(*types.UserTokenSecretsV3)
 	if !ok {
 		err = trace.BadParameter("unexpected ResetPasswordTokenSecrets type %T", secrets)
-		return nil, trace.Wrap(err)
-	}
-
-	return r, nil
-}
-
-func (g *GRPCServer) RotateUserTokenSecrets(ctx context.Context, req *proto.RotateUserTokenSecretsRequest) (*types.UserTokenSecretsV3, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tokenID := ""
-	if req != nil {
-		tokenID = req.TokenID
-	}
-
-	secrets, err := auth.RotateUserTokenSecrets(ctx, tokenID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	r, ok := secrets.(*types.UserTokenSecretsV3)
-	if !ok {
-		err = trace.BadParameter("unexpected UserTokenSecrets type %T", secrets)
 		return nil, trace.Wrap(err)
 	}
 
@@ -1758,73 +1739,36 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Keep Webauthn session data in memory, we can afford that for the streaming
+	// RPCs.
+	webIdentity := wanlib.WithInMemorySessionData(auth.Identity)
+
+	devType := initReq.DeviceType
+	if devType == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+		// Try and convert from legacy type.
+		// Keep conversion until 9.x, when the field is marked for deletion.
+		m := map[proto.AddMFADeviceRequestInit_LegacyDeviceType]proto.DeviceType{
+			proto.AddMFADeviceRequestInit_TOTP:     proto.DeviceType_DEVICE_TYPE_TOTP,
+			proto.AddMFADeviceRequestInit_U2F:      proto.DeviceType_DEVICE_TYPE_U2F,
+			proto.AddMFADeviceRequestInit_Webauthn: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		}
+		devType = m[initReq.LegacyType]
+	}
 
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
-	switch initReq.Type {
-	case proto.AddMFADeviceRequestInit_TOTP:
-		otpKey, otpOpts, err := auth.newTOTPKey(user)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 
-		regChallenge.Request = &proto.MFARegisterChallenge_TOTP{TOTP: &proto.TOTPRegisterChallenge{
-			Secret:        otpKey.Secret(),
-			Issuer:        otpKey.Issuer(),
-			PeriodSeconds: uint32(otpOpts.Period),
-			Algorithm:     otpOpts.Algorithm.String(),
-			Digits:        uint32(otpOpts.Digits.Length()),
-			Account:       otpKey.AccountName(),
-		}}
-	case proto.AddMFADeviceRequestInit_U2F:
-		cap, err := auth.GetAuthPreference(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		u2fConfig, err := cap.GetU2F()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		challenge, err := u2f.RegisterInit(u2f.RegisterInitParams{
-			StorageKey: user,
-			AppConfig:  *u2fConfig,
-			Storage:    u2fStorage,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		regChallenge.Request = &proto.MFARegisterChallenge_U2F{U2F: &proto.U2FRegisterChallenge{
-			Version:   challenge.Version,
-			Challenge: challenge.Challenge,
-			AppID:     challenge.AppID,
-		}}
-	case proto.AddMFADeviceRequestInit_Webauthn:
-		cap, err := auth.GetAuthPreference(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		webConfig, err := cap.GetWebauthn()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// TODO(codingllama): Use in-memory session data storage?
-		webRegistration := &wanlib.RegistrationFlow{
-			Webauthn: webConfig,
-			Identity: auth.Identity,
-		}
-		credentialCreation, err := webRegistration.Begin(ctx, user)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		regChallenge.Request = &proto.MFARegisterChallenge_Webauthn{
-			Webauthn: wanlib.CredentialCreationToProto(credentialCreation),
-		}
-	default:
-		return nil, trace.BadParameter("AddMFADeviceRequestInit sent an unknown DeviceType %v", initReq.Type)
+	res, err := auth.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
+		username:            user,
+		deviceType:          devType,
+		u2fStorageOverride:  u2fStorage,
+		webIdentityOverride: webIdentity,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	regChallenge.Request = res.GetRequest()
+
 	if err := stream.Send(&proto.AddMFADeviceResponse{
 		Response: &proto.AddMFADeviceResponse_NewMFARegisterChallenge{NewMFARegisterChallenge: regChallenge},
 	}); err != nil {
@@ -1843,10 +1787,11 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 
 	// Validate MFARegisterResponse and upsert the new device on success.
 	dev, err := auth.verifyMFARespAndAddDevice(ctx, regResp, &newMFADeviceFields{
-		username:      user,
-		newDeviceName: initReq.DeviceName,
-		totpSecret:    regChallenge.GetTOTP().GetSecret(),
-		u2fStorage:    u2fStorage,
+		username:            user,
+		newDeviceName:       initReq.DeviceName,
+		totpSecret:          regChallenge.GetTOTP().GetSecret(),
+		u2fStorage:          u2fStorage,
+		webIdentityOverride: webIdentity,
 	})
 
 	return dev, trace.Wrap(err)
@@ -1938,6 +1883,17 @@ func mfaDeviceEventMetadata(d *types.MFADevice) apievents.MFADeviceMetadata {
 	}
 }
 
+// AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
+func (g *GRPCServer) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := actx.ServerWithRoles.AddMFADeviceSync(ctx, req)
+	return res, trace.Wrap(err)
+}
+
 // DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
 func (g *GRPCServer) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) (*empty.Empty, error) {
 	actx, err := g.authenticate(ctx)
@@ -1961,6 +1917,7 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *proto.GetMFADevices
 	devs, err := actx.ServerWithRoles.GetMFADevices(ctx, req)
 	return devs, trace.Wrap(err)
 }
+
 func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_GenerateUserSingleUseCertsServer) error {
 	ctx := stream.Context()
 	actx, err := g.authenticate(ctx)
@@ -2056,15 +2013,15 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 		return nil, trace.Wrap(err)
 	}
 
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
+	challenge, err := auth.mfaAuthChallenge(ctx, user, u2fStorage)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if authChallenge.TOTP == nil && len(authChallenge.U2F) == 0 {
+	if challenge.TOTP == nil && len(challenge.U2F) == 0 && challenge.WebauthnChallenge == nil {
 		return nil, trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
 	}
 	if err := stream.Send(&proto.UserSingleUseCertsResponse{
-		Response: &proto.UserSingleUseCertsResponse_MFAChallenge{MFAChallenge: authChallenge},
+		Response: &proto.UserSingleUseCertsResponse_MFAChallenge{MFAChallenge: challenge},
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2932,6 +2889,96 @@ func (g *GRPCServer) ReplaceRemoteLocks(ctx context.Context, req *proto.ReplaceR
 	return &empty.Empty{}, nil
 }
 
+// CreateApp creates a new application resource.
+func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	app.SetOrigin(types.OriginDynamic)
+	if err := auth.CreateApp(ctx, app); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// UpdateApp updates existing application resource.
+func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	app.SetOrigin(types.OriginDynamic)
+	if err := auth.UpdateApp(ctx, app); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetApp returns the specified application resource.
+func (g *GRPCServer) GetApp(ctx context.Context, req *types.ResourceRequest) (*types.AppV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	app, err := auth.GetApp(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return nil, trace.BadParameter("unsupported application type %T", app)
+	}
+	return appV3, nil
+}
+
+// GetApps returns all application resources.
+func (g *GRPCServer) GetApps(ctx context.Context, _ *empty.Empty) (*types.AppV3List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	apps, err := auth.GetApps(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var appsV3 []*types.AppV3
+	for _, app := range apps {
+		appV3, ok := app.(*types.AppV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported application type %T", app)
+		}
+		appsV3 = append(appsV3, appV3)
+	}
+	return &types.AppV3List{
+		Apps: appsV3,
+	}, nil
+}
+
+// DeleteApp removes the specified application resource.
+func (g *GRPCServer) DeleteApp(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteApp(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllApps removes all application resources.
+func (g *GRPCServer) DeleteAllApps(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteAllApps(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 // CreateDatabase creates a new database resource.
 func (g *GRPCServer) CreateDatabase(ctx context.Context, database *types.DatabaseV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -3283,6 +3330,21 @@ func (g *GRPCServer) GetAccountRecoveryToken(ctx context.Context, req *proto.Get
 	return r, nil
 }
 
+// GetAccountRecoveryCodes is implemented by AuthService.GetAccountRecoveryCodes.
+func (g *GRPCServer) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rc, err := auth.ServerWithRoles.GetAccountRecoveryCodes(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rc, nil
+}
+
 // CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
 func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	actx, err := g.authenticate(ctx)
@@ -3291,6 +3353,32 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *proto
 	}
 
 	res, err := actx.ServerWithRoles.CreateAuthenticateChallenge(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
+// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+func (g *GRPCServer) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := auth.CreatePrivilegeToken(ctx, req)
+	return token, trace.Wrap(err)
+}
+
+// CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.
+func (g *GRPCServer) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := actx.ServerWithRoles.CreateRegisterChallenge(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
