@@ -1,12 +1,17 @@
+---
+authors: Marek Smoliński (marek@goteleport.com)
+state: draft
+---
+
 ## What
 
-Defines ALPN SNI proxy configuration changes needed to support Teleport proxy running in single port mode.
+Defines ALPN SNI proxy configuration changes allowing to start Teleport proxy in with only one open port (multiplex mode).
 
 ## Why
 
-The current Proxy configuration doesn't allow disabling a particular proxy listener in proxy configuration. After
-introducing ALPN SNI listener allowing to multiplex all proxy service into one single port the legacy listener is no
-longer needed in order to simplify proxy configuration legacy per service listener can be removed.
+The current Proxy configuration doesn't allow disabling a particular proxy listener in proxy configuration - default ports values are used if not provided. After
+introducing ALPN SNI listener allowing to multiplex all proxy service into one single proxy port the legacy listeners are no
+longer needed.
 
 ## Details
 
@@ -16,7 +21,8 @@ longer needed in order to simplify proxy configuration legacy per service listen
 enum ProxyListenerMode {
   // Separate is proxy listener mode indicating the proxy should use legacy per service listener mode.
   Separate = 0;
-  // multiplex is proxy listener mode indicating the proxy should use multiplex mode and all proxy services are multiplexed on a single proxy port.
+  // multiplex is proxy listener mode indicating the proxy should use multiplex mode
+  // and all proxy services are multiplexed on a single proxy port.
   Multiplex = 1;
 }
 ```
@@ -32,7 +38,7 @@ message ClusterNetworkingConfigSpecV2 {
 ### Proxy Ping Response Changes:
 
 The Proxy ping response will be extended by the `ListenerMode` field used to propagate the current
-cluster `ProxyListenerMode` to proxy clients.
+cluster `ProxyListenerMode` value.
 
 ```go
 // ProxyListenerMode is the proxy listener mode used by Teleport Proxies.
@@ -41,7 +47,8 @@ type ProxyListenerMode string
 const (
     // ProxyListenerModeSeparate is proxy listener mode indicating the proxy per service listeners.
     ProxyListenerModeSeparate  ProxyListenerMode = "separate"
-    //ProxyListenerModeMultiplex is proxy listener mode indicating the proxy should use multiplex mode and all proxy service are multiplexed on single proxy port.
+    // ProxyListenerModeMultiplex is proxy listener mode indicating the proxy should use multiplex mode
+	// and all proxy service are multiplexed on single proxy port.
     ProxyListenerModeMultiplex ProxyListenerMode = "multiplex"
 )
 
@@ -79,19 +86,17 @@ teleport:
 ### Configuration Scenarios:
 
 #### Scenario 1 - reverse tunnel connection reconfiguration.
-
-
 #### Precondition:
 
-- Teleport cluster network config (ClusterNetworkingConfigSpecV2) ProxyListenerMode is set to `single` mode.
-- Teleport Proxy is configured in v2 single mode.
+- Teleport cluster network config (ClusterNetworkingConfigSpecV2) ProxyListenerMode is set to `separate` mode.
+- Teleport Proxy is configured in v2 separate mode.
 ```yaml
    version: v2
    teleport:
       proxy:
         web_proxy_addr: 0.0.0.0:443
-        tunnel_listen_addr: 0.0.0.0:3024 
-        listener_mode: single 
+        tunnel_listen_addr: 0.0.0.0:3024
+        listener_mode: separate
 ```
 
 ```
@@ -112,18 +117,17 @@ teleport:
   └───────────────────┘
 ```
 #### Action:
-The `ClusterNetworkingConfigSpecV2` `ProxyListenerMode` is changed from `single` to `multiple` mode.
+The `ClusterNetworkingConfigSpecV2` `ProxyListenerMode` is changed from `separate` to `multiplex` mode.
 
 Result:
-DB Agent still is connected to the old reverse tunnel port where Cluster ProxyListenerMode was set to `single`  mode.
+DB Agent is still connected to the old reverse tunnel port.
 
 #### Solutions:
-- Proxy restart.
 - DB Agent restart.
-- Dynamic reverse tunnel connection reconfiguration.
+- Adding support for dynamic reverse tunnel connection reconfiguration.
 
 
-### Scenario 2 - switching from `Multiplex` to `Separate proxy mode when proxies are configured with a single port listener.
+### Scenario 2 - switching from `multiplex` to `separate` proxy mode when Teleport proxy is configured only with multiplex port.
 
 #### Precondition:
 
@@ -135,7 +139,7 @@ DB Agent still is connected to the old reverse tunnel port where Cluster ProxyLi
    teleport:
       proxy:
         web_proxy_addr: 0.0.0.0:443
-        listener_mode: multiplex 
+        listener_mode: multiplex
    ```
 
 - Client uses MySQL CLI to connect to DB instance through Proxy configured with multiplex mode.
@@ -154,7 +158,7 @@ DB Agent still is connected to the old reverse tunnel port where Cluster ProxyLi
 
 #### Action:
 
-The `ClusterNetworkingConfigSpecV2` `ProxyListenerMode` is changed from `multiple` to `single` mode.
+The `ClusterNetworkingConfigSpecV2` `ProxyListenerMode` is changed from `multiple` to `separate` mode.
 
 #### Result:
 
@@ -164,20 +168,20 @@ try to obtain and connect to MySQL single port listener but `mysql_listen_addr` 
 reach proxy service.
 
 
-### Scenario 3 - legacy proxy client:
+### Scenario 3 - legacy tsh client without ALPN SNI support:
 #### Precondition:
-- Teleport cluster network config (ClusterNetworkingConfigSpecV2) ProxyListenerMode is set to `single` mode.
-- Teleport Proxy is configured in v2 single mode.
+- Teleport cluster network config (ClusterNetworkingConfigSpecV2) ProxyListenerMode is set to `multiplex` mode.
+- Teleport Proxy is configured in v2 multiplex.
 ```yaml
    version: v2
    teleport:
       proxy:
         web_proxy_addr: 0.0.0.0:443
-        listener_mode: single 
+        listener_mode: multiplex
 ```
 
 #### Action:
-Legacy `tsh` client wants to connect to the proxy configured.
+Legacy `tsh` client without support for ALPN dialer wants to connect to the proxy configured.
 
 #### Result:
 `tsh` client is unable to connect to the Teleport Proxy running in `single` v2 mode.
