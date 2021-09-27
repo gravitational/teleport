@@ -236,7 +236,7 @@ type Identity interface {
 	UpsertRecoveryCodes(ctx context.Context, user string, recovery *types.RecoveryCodesV1) error
 
 	// GetRecoveryCodes gets a user's recovery codes.
-	GetRecoveryCodes(ctx context.Context, user string) (*types.RecoveryCodesV1, error)
+	GetRecoveryCodes(ctx context.Context, user string, withSecrets bool) (*types.RecoveryCodesV1, error)
 
 	// CreateUserRecoveryAttempt logs user recovery attempt.
 	CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error

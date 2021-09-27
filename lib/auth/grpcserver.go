@@ -1883,6 +1883,17 @@ func mfaDeviceEventMetadata(d *types.MFADevice) apievents.MFADeviceMetadata {
 	}
 }
 
+// AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
+func (g *GRPCServer) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := actx.ServerWithRoles.AddMFADeviceSync(ctx, req)
+	return res, trace.Wrap(err)
+}
+
 // DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
 func (g *GRPCServer) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) (*empty.Empty, error) {
 	actx, err := g.authenticate(ctx)
@@ -3317,6 +3328,21 @@ func (g *GRPCServer) GetAccountRecoveryToken(ctx context.Context, req *proto.Get
 	}
 
 	return r, nil
+}
+
+// GetAccountRecoveryCodes is implemented by AuthService.GetAccountRecoveryCodes.
+func (g *GRPCServer) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rc, err := auth.ServerWithRoles.GetAccountRecoveryCodes(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rc, nil
 }
 
 // CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
