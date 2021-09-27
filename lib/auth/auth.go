@@ -3090,22 +3090,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	return &proto.IsMFARequiredResponse{Required: true}, nil
 }
 
-func databaseRoleMatchers(dbProtocol string, user, database string, labels map[string]string) services.RoleMatchers {
-	switch dbProtocol {
-	case defaults.ProtocolPostgres:
-		return services.RoleMatchers{
-			&services.DatabaseLabelsMatcher{Labels: labels},
-			&services.DatabaseUserMatcher{User: user},
-			&services.DatabaseNameMatcher{Name: database},
-		}
-	default:
-		return services.RoleMatchers{
-			&services.DatabaseLabelsMatcher{Labels: labels},
-			&services.DatabaseUserMatcher{User: user},
-		}
-	}
-}
-
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
 func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u2f.AuthenticationStorage) (*proto.MFAAuthenticateChallenge, error) {
