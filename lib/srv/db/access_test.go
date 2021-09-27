@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"os"
 	"sort"
@@ -391,6 +392,63 @@ func TestAccessDisabled(t *testing.T) {
 	_, err := testCtx.postgresClient(ctx, userName, "postgres", dbUser, dbName)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for database access")
+}
+
+// TestPostgresInjectionDatabase makes sure Postgres connection is not
+// susceptible to malicious database name injections.
+func TestPostgresInjectionDatabase(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	go testCtx.startHandlingConnections()
+
+	postgresServer := testCtx.postgres["postgres"].db
+
+	// Make sure the role allows wildcard database users and names.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Connect and make sure connection parameters are as expected.
+	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "alice", "test&user=bob")
+	require.NoError(t, err)
+
+	select {
+	case p := <-postgresServer.ParametersCh():
+		require.Equal(t, map[string]string{"user": "alice", "database": "test&user=bob"}, p)
+	case <-time.After(time.Second):
+		t.Fatal("didn't receive startup message parameters after 1s")
+	}
+
+	err = psql.Close(ctx)
+	require.NoError(t, err)
+}
+
+// TestPostgresInjectionUser makes sure Postgres connection is not
+// susceptible to malicious user name injections.
+func TestPostgresInjectionUser(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	go testCtx.startHandlingConnections()
+
+	postgresServer := testCtx.postgres["postgres"].db
+
+	// Make sure the role allows wildcard database users and names.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Construct malicious username that simulates the connection string.
+	user := fmt.Sprintf("alice@localhost:%v?database=prod&foo=", postgresServer.Port())
+
+	// Connect and make sure startup parameters are as expected.
+	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", user, "test")
+	require.NoError(t, err)
+
+	select {
+	case p := <-postgresServer.ParametersCh():
+		require.Equal(t, map[string]string{"user": user, "database": "test"}, p)
+	case <-time.After(time.Second):
+		t.Fatal("didn't receive startup message parameters after 1s")
+	}
+
+	err = psql.Close(ctx)
+	require.NoError(t, err)
 }
 
 // TestCompatibilityWithOldAgents verifies that older database agents where
