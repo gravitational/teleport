@@ -27,9 +27,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/subtle"
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"net"
 	"net/url"
@@ -39,6 +41,14 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	saml2 "github.com/russellhaering/gosaml2"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -63,12 +73,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	saml2 "github.com/russellhaering/gosaml2"
-	"golang.org/x/crypto/ssh"
 )
 
 // ServerOption allows setting options as functional arguments to Server
@@ -116,7 +120,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
 	}
 	if cfg.Events == nil {
-		cfg.Events = local.NewEventsService(cfg.Backend, cfg.ClusterConfiguration.GetClusterConfig)
+		cfg.Events = local.NewEventsService(cfg.Backend)
 	}
 	if cfg.AuditLog == nil {
 		cfg.AuditLog = events.NewDiscardAuditLog()
@@ -440,11 +444,6 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 // GetAuthPreference gets AuthPreference from the cache.
 func (a *Server) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return a.GetCache().GetAuthPreference(ctx)
-}
-
-// GetClusterConfig gets ClusterConfig from the cache.
-func (a *Server) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	return a.GetCache().GetClusterConfig(opts...)
 }
 
 // GetClusterAuditConfig gets ClusterAuditConfig from the cache.
@@ -1165,6 +1164,160 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 	return challenges, nil
 }
 
+// CreateRegisterChallenge implements AuthService.CreateRegisterChallenge.
+func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	token, err := a.GetUserToken(ctx, req.GetTokenID())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied("invalid token")
+	}
+
+	allowedTokenTypes := []string{
+		UserTokenTypePrivilege,
+		UserTokenTypePrivilegeException,
+		UserTokenTypeResetPassword,
+		UserTokenTypeResetPasswordInvite,
+		UserTokenTypeRecoveryApproved,
+	}
+
+	if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
+		return nil, trace.AccessDenied("invalid token")
+	}
+
+	regChal, err := a.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
+		username:   token.GetUser(),
+		token:      token,
+		deviceType: req.GetDeviceType(),
+	})
+
+	return regChal, trace.Wrap(err)
+}
+
+type newRegisterChallengeRequest struct {
+	username   string
+	deviceType proto.DeviceType
+	// token is a user token resource.
+	// It is used as following:
+	//  - TOTP:
+	//    - create a UserTokenSecrets resource
+	//    - store by token's ID using Server's IdentityService.
+	//  - U2F:
+	//    - store U2F challenge by the token's ID
+	//    - store by token's ID using Server's IdentityService.
+	// This field can be empty to use storage overrides.
+	token types.UserToken
+	// u2fStorageOverride is an optional RegistrationStorage override to be used
+	// to store the U2F challenge.
+	u2fStorageOverride u2f.RegistrationStorage
+
+	// webIdentityOverride is an optional RegistrationIdentity override to be used
+	// to store webauthn challenge. A common override is decorating the regular
+	// Identity with an in-memory SessionData storage.
+	// Defaults to the Server's IdentityService.
+	webIdentityOverride wanlib.RegistrationIdentity
+}
+
+func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	switch req.deviceType {
+	case proto.DeviceType_DEVICE_TYPE_TOTP:
+		otpKey, otpOpts, err := a.newTOTPKey(req.username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		challenge := &proto.TOTPRegisterChallenge{
+			Secret:        otpKey.Secret(),
+			Issuer:        otpKey.Issuer(),
+			PeriodSeconds: uint32(otpOpts.Period),
+			Algorithm:     otpOpts.Algorithm.String(),
+			Digits:        uint32(otpOpts.Digits.Length()),
+			Account:       otpKey.AccountName(),
+		}
+
+		if req.token != nil {
+			secrets, err := a.createTOTPUserTokenSecrets(ctx, req.token, otpKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			challenge.QRCode = secrets.GetQRCode()
+		}
+
+		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_TOTP{TOTP: challenge}}, nil
+
+	case proto.DeviceType_DEVICE_TYPE_U2F:
+		cap, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		u2fConfig, err := cap.GetU2F()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		storageKey := req.username
+		if req.token != nil {
+			storageKey = req.token.GetName()
+		}
+
+		storage := req.u2fStorageOverride
+		if storage == nil || req.token != nil {
+			storage = a.Identity
+		}
+
+		regChallenge, err := u2f.RegisterInit(u2f.RegisterInitParams{
+			StorageKey: storageKey,
+			AppConfig:  *u2fConfig,
+			Storage:    storage,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_U2F{
+			U2F: &proto.U2FRegisterChallenge{
+				Challenge: regChallenge.Challenge,
+				AppID:     regChallenge.AppID,
+				Version:   regChallenge.Version,
+			},
+		}}, nil
+
+	case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
+		cap, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		webConfig, err := cap.GetWebauthn()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		identity := req.webIdentityOverride
+		if identity == nil {
+			identity = a.Identity
+		}
+
+		webRegistration := &wanlib.RegistrationFlow{
+			Webauthn: webConfig,
+			Identity: identity,
+		}
+
+		credentialCreation, err := webRegistration.Begin(ctx, req.username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_Webauthn{
+			Webauthn: wanlib.CredentialCreationToProto(credentialCreation),
+		}}, nil
+
+	default:
+		return nil, trace.BadParameter("MFA device type %q unsupported", req.deviceType.String())
+	}
+}
+
 // GetMFADevices returns all mfa devices for the user defined in the token or the user defined in context.
 func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
 	var username string
@@ -1209,7 +1362,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 		return trace.AccessDenied("invalid token")
 	}
 
-	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1303,6 +1456,30 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	}
 
 	return nil
+}
+
+// AddMFADeviceSync implements AuthService.AddMFADeviceSync.
+func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	privilegeToken, err := a.GetUserToken(ctx, req.GetPrivilegeTokenID())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied("invalid token")
+	}
+
+	if err := a.verifyUserToken(privilegeToken, UserTokenTypePrivilege, UserTokenTypePrivilegeException); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dev, err := a.verifyMFARespAndAddDevice(ctx, req.GetNewMFAResponse(), &newMFADeviceFields{
+		username:      privilegeToken.GetUser(),
+		newDeviceName: req.GetNewDeviceName(),
+		tokenID:       privilegeToken.GetName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.AddMFADeviceSyncResponse{Device: dev}, nil
 }
 
 type newMFADeviceFields struct {
@@ -3440,4 +3617,61 @@ func isHTTPS(u string) error {
 	}
 
 	return nil
+}
+
+// WithClusterCAs returns a TLS hello callback that returns a copy of the provided
+// TLS config with client CAs pool of the specified cluster.
+func WithClusterCAs(tlsConfig *tls.Config, ap AccessPoint, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+		var clusterName string
+		var err error
+		if info.ServerName != "" {
+			// Newer clients will set SNI that encodes the cluster name.
+			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					log.Debugf("Ignoring unsupported cluster name name %q.", info.ServerName)
+					clusterName = ""
+				}
+			}
+		}
+		pool, err := ClientCertPool(ap, clusterName)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
+			// this falls back to the default config
+			return nil, nil
+		}
+
+		// Per https://tools.ietf.org/html/rfc5246#section-7.4.4 the total size of
+		// the known CA subjects sent to the client can't exceed 2^16-1 (due to
+		// 2-byte length encoding). The crypto/tls stack will panic if this
+		// happens.
+		//
+		// This usually happens on the root cluster with a very large (>500) number
+		// of leaf clusters. In these cases, the client cert will be signed by the
+		// current (root) cluster.
+		//
+		// If the number of CAs turns out too large for the handshake, drop all but
+		// the current cluster CA. In the unlikely case where it's wrong, the
+		// client will be rejected.
+		var totalSubjectsLen int64
+		for _, s := range pool.Subjects() {
+			// Each subject in the list gets a separate 2-byte length prefix.
+			totalSubjectsLen += 2
+			totalSubjectsLen += int64(len(s))
+		}
+		if totalSubjectsLen >= int64(math.MaxUint16) {
+			log.Debugf("Number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.", len(pool.Subjects()))
+
+			pool, err = ClientCertPool(ap, currentClusterName)
+			if err != nil {
+				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
+				// this falls back to the default config
+				return nil, nil
+			}
+		}
+		tlsCopy := tlsConfig.Clone()
+		tlsCopy.ClientCAs = pool
+		return tlsCopy, nil
+	}
 }

@@ -147,9 +147,6 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 	if err := p.a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.SetClusterConfig(types.DefaultClusterConfig()); err != nil {
-		return p, trace.Wrap(err)
-	}
 
 	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
@@ -1285,36 +1282,58 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	require.NoError(t, err)
 	webDev2, err := RegisterTestDevice(ctx, clt, "web-2", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, webDev1)
 	require.NoError(t, err)
-	totpDev, err := RegisterTestDevice(ctx, clt, "otp", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(srv.Clock()))
+	totpDev1, err := RegisterTestDevice(ctx, clt, "otp-1", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(srv.Clock()))
+	require.NoError(t, err)
+	totpDev2, err := RegisterTestDevice(ctx, clt, "otp-2", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
 
-	deviceToDelete := webDev2
+	tests := []struct {
+		name           string
+		deviceToDelete string
+		tokenReq       CreateUserTokenRequest
+	}{
+		{
+			name:           "recovery approved token",
+			deviceToDelete: webDev1.MFA.GetName(),
+			tokenReq: CreateUserTokenRequest{
+				Name: username,
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypeRecoveryApproved,
+			},
+		},
+		{
+			name:           "privilege token",
+			deviceToDelete: totpDev1.MFA.GetName(),
+			tokenReq: CreateUserTokenRequest{
+				Name: username,
+				TTL:  5 * time.Minute,
+				Type: UserTokenTypePrivilege,
+			},
+		},
+	}
 
-	// Acquire an approved token.
-	token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
-		Name: username,
-		TTL:  5 * time.Minute,
-		Type: UserTokenTypeRecoveryApproved,
-	})
-	require.NoError(t, err)
-	_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
-	require.NoError(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			token, err := srv.Auth().newUserToken(tc.tokenReq)
+			require.NoError(t, err)
+			_, err = srv.Auth().Identity.CreateUserToken(ctx, token)
+			require.NoError(t, err)
 
-	// Delete the TOTP device.
-	err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
-		TokenID:    token.GetName(),
-		DeviceName: deviceToDelete.MFA.GetName(),
-	})
-	require.NoError(t, err)
+			// Delete the TOTP device.
+			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
+				TokenID:    token.GetName(),
+				DeviceName: tc.deviceToDelete,
+			})
+			require.NoError(t, err)
+		})
+	}
 
 	// Check it's been deleted.
-	res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
-		RecoveryApprovedTokenID: token.GetName(),
-	})
+	devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false)
 	require.NoError(t, err)
-	compareDevices(t, res.GetDevices(), webDev1.MFA, totpDev.MFA)
+	compareDevices(t, devs, webDev2.MFA, totpDev2.MFA)
 
-	// Test events emitted.
+	// Test last events emitted.
 	event := mockEmitter.LastEvent()
 	require.Equal(t, events.MFADeviceDeleteEvent, event.GetType())
 	require.Equal(t, events.MFADeviceDeleteEventCode, event.GetCode())
@@ -1543,6 +1562,155 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 	}
 }
 
+func TestAddMFADeviceSync(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		U2F: &types.U2F{
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	require.NoError(t, err)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	clt, err := srv.NewClient(TestUser(u.username))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		deviceName string
+		wantErr    bool
+		getReq     func(string) *proto.AddMFADeviceSyncRequest
+	}{
+		{
+			name:    "invalid token type",
+			wantErr: true,
+			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
+				// Obtain a non privilege token.
+				token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
+					Name: u.username,
+					TTL:  5 * time.Minute,
+					Type: UserTokenTypeResetPassword,
+				})
+				require.NoError(t, err)
+				_, err = srv.Auth().Identity.CreateUserToken(ctx, token)
+				require.NoError(t, err)
+
+				return &proto.AddMFADeviceSyncRequest{
+					PrivilegeTokenID: token.GetName(),
+					NewDeviceName:    deviceName,
+				}
+			},
+		},
+		{
+			name:       "TOTP device with privilege token",
+			deviceName: "new-totp",
+			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
+				// Obtain a privilege token.
+				privelegeToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilege)
+				require.NoError(t, err)
+
+				// Create token secrets.
+				res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:    privelegeToken.GetName(),
+					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+				})
+				require.NoError(t, err)
+
+				_, totpRegRes, err := NewTestDeviceFromChallenge(res, WithTestDeviceClock(srv.Auth().clock))
+				require.NoError(t, err)
+
+				return &proto.AddMFADeviceSyncRequest{
+					PrivilegeTokenID: privelegeToken.GetName(),
+					NewDeviceName:    deviceName,
+					NewMFAResponse:   totpRegRes,
+				}
+			},
+		},
+		{
+			name:       "U2F device with privilege exception token",
+			deviceName: "new-u2f",
+			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
+				// Obtain a privilege exception token.
+				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
+				require.NoError(t, err)
+
+				// Create register challenge and sign.
+				u2fRegRes, _, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), privExToken.GetName())
+				require.NoError(t, err)
+
+				return &proto.AddMFADeviceSyncRequest{
+					PrivilegeTokenID: privExToken.GetName(),
+					NewDeviceName:    deviceName,
+					NewMFAResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
+						U2F: u2fRegRes,
+					}},
+				}
+			},
+		},
+		{
+			name:       "Webauthn device with privilege exception token",
+			deviceName: "new-webauthn",
+			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
+				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
+				require.NoError(t, err)
+
+				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName())
+				require.NoError(t, err)
+
+				return &proto.AddMFADeviceSyncRequest{
+					PrivilegeTokenID: privExToken.GetName(),
+					NewDeviceName:    deviceName,
+					NewMFAResponse:   webauthnRes,
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := clt.AddMFADeviceSync(ctx, tc.getReq(tc.deviceName))
+			switch {
+			case tc.wantErr:
+				require.True(t, trace.IsAccessDenied(err))
+			default:
+				require.NoError(t, err)
+				require.Equal(t, tc.deviceName, res.GetDevice().GetName())
+
+				// Test events emitted.
+				event := mockEmitter.LastEvent()
+				require.Equal(t, events.MFADeviceAddEvent, event.GetType())
+				require.Equal(t, events.MFADeviceAddEventCode, event.GetCode())
+				require.Equal(t, event.(*apievents.MFADeviceAdd).UserMetadata.User, u.username)
+
+				// Check it's been added.
+				res, err := clt.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+				require.NoError(t, err)
+
+				found := false
+				for _, mfa := range res.GetDevices() {
+					if mfa.GetName() == tc.deviceName {
+						found = true
+						break
+					}
+				}
+				require.True(t, found, "MFA device %q not found", tc.deviceName)
+			}
+		})
+	}
+}
+
 func TestGetMFADevices_WithToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
@@ -1677,7 +1845,7 @@ func newTestServices(t *testing.T) Services {
 		Access:               local.NewAccessService(bk),
 		DynamicAccessExt:     local.NewDynamicAccessService(bk),
 		ClusterConfiguration: configService,
-		Events:               local.NewEventsService(bk, configService.GetClusterConfig),
+		Events:               local.NewEventsService(bk),
 		IAuditLog:            events.NewDiscardAuditLog(),
 	}
 }

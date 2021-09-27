@@ -58,7 +58,7 @@ func TestProxyWatcher(t *testing.T) {
 			RetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Presence: presence,
-				Events:   local.NewEventsService(bk, nil),
+				Events:   local.NewEventsService(bk),
 			},
 		},
 		ProxiesC: make(chan []types.Server, 10),
@@ -151,7 +151,7 @@ func TestLockWatcher(t *testing.T) {
 			RetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
-				Events: local.NewEventsService(bk, nil),
+				Events: local.NewEventsService(bk),
 			},
 			Clock: clock,
 		},
@@ -256,7 +256,7 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 			RetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
-				Events: local.NewEventsService(bk, nil),
+				Events: local.NewEventsService(bk),
 			},
 			Clock: clock,
 		},
@@ -327,7 +327,7 @@ func TestLockWatcherStale(t *testing.T) {
 	}
 
 	access := local.NewAccessService(bk)
-	events := &withUnreliability{Events: local.NewEventsService(bk, nil)}
+	events := &withUnreliability{Events: local.NewEventsService(bk)}
 	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component:   "test",
@@ -477,7 +477,7 @@ func TestDatabaseWatcher(t *testing.T) {
 			RetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Databases: databasesService,
-				Events:    local.NewEventsService(bk, nil),
+				Events:    local.NewEventsService(bk),
 			},
 		},
 		DatabasesC: make(chan types.Databases, 10),
@@ -574,7 +574,7 @@ func TestAppWatcher(t *testing.T) {
 			RetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Apps:   appService,
-				Events: local.NewEventsService(bk, nil),
+				Events: local.NewEventsService(bk),
 			},
 		},
 		AppsC: make(chan types.Apps, 10),

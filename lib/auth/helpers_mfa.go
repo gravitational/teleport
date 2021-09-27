@@ -56,6 +56,20 @@ func WithTestDeviceOrigin(origin string) TestDeviceOpt {
 	}
 }
 
+func NewTestDeviceFromChallenge(c *proto.MFARegisterChallenge, opts ...TestDeviceOpt) (*TestDevice, *proto.MFARegisterResponse, error) {
+	dev := &TestDevice{}
+	for _, opt := range opts {
+		opt(dev)
+	}
+
+	registerRes, err := dev.solveRegister(c)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return dev, registerRes, nil
+}
+
 // RegisterTestDevice creates and registers a TestDevice.
 // TOTP devices require a clock option.
 func RegisterTestDevice(

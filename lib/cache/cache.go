@@ -156,7 +156,6 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: types.KindClusterConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindNamespace},
@@ -1129,16 +1128,6 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 		}
 	}
 	return token, trace.Wrap(err)
-}
-
-// GetClusterConfig gets services.ClusterConfig from the backend.
-func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.clusterConfig.GetClusterConfig(opts...)
 }
 
 // GetClusterAuditConfig gets ClusterAuditConfig from the backend.
