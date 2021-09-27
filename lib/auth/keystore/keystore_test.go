@@ -344,6 +344,8 @@ func TestKeyStore(t *testing.T) {
 }
 
 func TestLicenseRequirement(t *testing.T) {
+	// we need the SoftHSM2 tests to be enabled so that the HSM keystore can be
+	// selected
 	if os.Getenv("SOFTHSM2_PATH") == "" {
 		t.SkipNow()
 	}
