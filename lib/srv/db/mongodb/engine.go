@@ -191,7 +191,7 @@ func (e *Engine) authorizeClientMessage(sessionCtx *common.Session, message prot
 	dbRoleMatchers := role.DatabaseRoleMatchers(
 		defaults.ProtocolMongoDB,
 		sessionCtx.DatabaseUser,
-		sessionCtx.DatabaseName,
+		database,
 		sessionCtx.Database.GetAllLabels(),
 	)
 	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database,

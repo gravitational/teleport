@@ -165,25 +165,21 @@ func fetchDatabaseCreds(cf *CLIConf, tc *client.TeleportClient) error {
 	defer cluster.Close()
 
 	for _, db := range profile.Databases {
-		if false {
-			mfaResp, err := cluster.IsMFARequired(cf.Context, &proto.IsMFARequiredRequest{
-				Target: &proto.IsMFARequiredRequest_Database{
-					Database: &proto.RouteToDatabase{
-						ServiceName: db.ServiceName,
-						Protocol:    db.Protocol,
-						Username:    cf.Username,
-						Database:    db.Database,
-					},
+		mfaResp, err := cluster.IsMFARequired(cf.Context, &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Database{
+				Database: &proto.RouteToDatabase{
+					ServiceName: db.ServiceName,
+					Protocol:    db.Protocol,
+					Username:    cf.Username,
+					Database:    db.Database,
 				},
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if mfaResp.GetRequired() {
-				// Skip DB if databaseLogin command will require MFA.
-				// to prevent MFA prompt during tsh db ls command where DB certs are refreshed.
-				continue
-			}
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if mfaResp.GetRequired() {
+			continue
 		}
 		if err := databaseLogin(cf, tc, db, true); err != nil {
 			log.WithError(err).Errorf("Failed to fetch database access certificate for %s.", db)

@@ -24,7 +24,7 @@ import (
 // DatabaseRoleMatchers returns role matchers based on the database protocol.
 func DatabaseRoleMatchers(dbProtocol string, user, database string, labels map[string]string) services.RoleMatchers {
 	switch dbProtocol {
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolMySQL:
 		// In MySQL, unlike Postgres, "database" and "schema" are the same thing
 		// and there's no good way to prevent users from performing cross-database
 		// queries once they're connected, apart from granting proper privileges
