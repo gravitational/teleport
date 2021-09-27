@@ -686,10 +686,10 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 			}
 			stats.TopRequests[req.Key] = req
 		}
-		stats.Read = getHistogramWithFilter(metrics[teleport.MetricBackendReadHistogram], histogramForComponent(component))
-		stats.Write = getHistogramWithFilter(metrics[teleport.MetricBackendWriteHistogram], histogramForComponent(component))
-		stats.BatchRead = getHistogramWithFilter(metrics[teleport.MetricBackendBatchReadHistogram], histogramForComponent(component))
-		stats.BatchWrite = getHistogramWithFilter(metrics[teleport.MetricBackendBatchWriteHistogram], histogramForComponent(component))
+		stats.Read = getHistogram(metrics[teleport.MetricBackendReadHistogram], forLabel(component))
+		stats.Write = getHistogram(metrics[teleport.MetricBackendWriteHistogram], forLabel(component))
+		stats.BatchRead = getHistogram(metrics[teleport.MetricBackendBatchReadHistogram], forLabel(component))
+		stats.BatchWrite = getHistogram(metrics[teleport.MetricBackendBatchWriteHistogram], forLabel(component))
 	}
 
 	var stats *BackendStats
@@ -736,7 +736,7 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 		GenerateRequests:               getGaugeValue(metrics[teleport.MetricGenerateRequestsCurrent]),
 		GenerateRequestsCount:          Counter{Count: getCounterValue(metrics[teleport.MetricGenerateRequests])},
 		GenerateRequestsThrottledCount: Counter{Count: getCounterValue(metrics[teleport.MetricGenerateRequestsThrottled])},
-		GenerateRequestsHistogram:      getHistogram(metrics[teleport.MetricGenerateRequestsHistogram]),
+		GenerateRequestsHistogram:      getHistogram(metrics[teleport.MetricGenerateRequestsHistogram], atIndex(0)),
 	}
 
 	if prev != nil {
@@ -793,7 +793,7 @@ func getWatcherStats(metrics map[string]*dto.MetricFamily, prev *WatcherStats, p
 
 	events := make(map[string]Event)
 	for i, metric := range eventsEmitted.Metric {
-		histogram := getHistogramWithFilter(eventsEmitted, histogramAtIndex(i))
+		histogram := getHistogram(eventsEmitted, atIndex(i))
 
 		resource := ""
 		for _, pair := range metric.GetLabel() {
@@ -827,7 +827,7 @@ func getWatcherStats(metrics map[string]*dto.MetricFamily, prev *WatcherStats, p
 		events[evt.Resource] = evt
 	}
 
-	histogram := getHistogram(metrics[teleport.MetricWatcherEventSizes])
+	histogram := getHistogram(metrics[teleport.MetricWatcherEventSizes], atIndex(0))
 	var (
 		eventsPerSec *utils.CircularBuffer
 		bytesPerSec  *utils.CircularBuffer
@@ -913,7 +913,9 @@ func getCounterValue(metric *dto.MetricFamily) int64 {
 	return int64(*metric.Metric[0].Counter.Value)
 }
 
-func histogramAtIndex(index int) func(metric []*dto.Metric) *dto.Histogram {
+type histogramFilterFunc func(metrics []*dto.Metric) *dto.Histogram
+
+func atIndex(index int) histogramFilterFunc {
 	return func(metrics []*dto.Metric) *dto.Histogram {
 		if index < 0 || index >= len(metrics) {
 			return nil
@@ -923,7 +925,7 @@ func histogramAtIndex(index int) func(metric []*dto.Metric) *dto.Histogram {
 	}
 }
 
-func histogramForComponent(label string) func(metric []*dto.Metric) *dto.Histogram {
+func forLabel(label string) histogramFilterFunc {
 	return func(metrics []*dto.Metric) *dto.Histogram {
 		var hist *dto.Histogram
 		for i := range metrics {
@@ -937,16 +939,12 @@ func histogramForComponent(label string) func(metric []*dto.Metric) *dto.Histogr
 	}
 }
 
-func getHistogram(metric *dto.MetricFamily) Histogram {
-	return getHistogramWithFilter(metric, histogramAtIndex(0))
-}
-
-func getHistogramWithFilter(metric *dto.MetricFamily, histogramFilter func(metrics []*dto.Metric) *dto.Histogram) Histogram {
+func getHistogram(metric *dto.MetricFamily, filterFn histogramFilterFunc) Histogram {
 	if metric == nil || metric.GetType() != dto.MetricType_HISTOGRAM || len(metric.Metric) == 0 || metric.Metric[0].Histogram == nil {
 		return Histogram{}
 	}
 
-	hist := histogramFilter(metric.Metric)
+	hist := filterFn(metric.Metric)
 	if hist == nil {
 		return Histogram{}
 	}

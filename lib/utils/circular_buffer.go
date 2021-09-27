@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2021 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ func (t *CircularBuffer) Data(n int) []float64 {
 		return nil
 	}
 
-	// skip first N items so that the most recent are always displayed
+	// skip first N items so that the most recent are always provided
 	start := t.start
 	if n < t.size {
 		start = (t.start + (t.size - n)) % len(t.buf)
@@ -65,7 +65,7 @@ func (t *CircularBuffer) Data(n int) []float64 {
 		return t.buf[start : t.end+1]
 	}
 
-	return append(t.buf[start:], t.buf[:start]...)
+	return append(t.buf[start:], t.buf[:t.end+1]...)
 }
 
 // Add pushes a new item onto the buffer

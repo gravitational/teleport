@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2021 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ package utils
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,47 +39,30 @@ func TestCircularBuffer_Data(t *testing.T) {
 	buff, err := NewCircularBuffer(5)
 	require.NoError(t, err)
 
-	data := buff.Data(1)
-	require.Nil(t, data)
+	expectData := func(expected []float64) {
+		for i := 0; i < 15; i++ {
+			if i <= len(expected) {
+				data := buff.Data(i)
+				expect := expected[len(expected)-i:]
+				require.Empty(t, cmp.Diff(expect, data, cmpopts.EquateEmpty()), "i = %v", i)
+				continue
+			}
+			require.Empty(t, cmp.Diff(expected, buff.Data(i), cmpopts.EquateEmpty()), "i = %v", i)
+		}
+	}
 
-	buff.Add(1.0)
+	expectData(nil)
 
-	buff.Data(0)
-	require.Nil(t, data)
-
-	data = buff.Data(1)
-	require.Equal(t, []float64{1}, data)
-
-	data = buff.Data(2)
-	require.Equal(t, []float64{1}, data)
-
-	data = buff.Data(10)
-	require.Equal(t, []float64{1}, data)
+	buff.Add(1)
+	expectData([]float64{1})
 
 	buff.Add(2)
 	buff.Add(3)
 	buff.Add(4)
-
-	data = buff.Data(1)
-	require.Equal(t, []float64{4}, data)
-
-	data = buff.Data(2)
-	require.Equal(t, []float64{3, 4}, data)
-
-	data = buff.Data(10)
-	require.Equal(t, []float64{1, 2, 3, 4}, data)
+	expectData([]float64{1, 2, 3, 4})
 
 	buff.Add(5)
 	buff.Add(6)
 	buff.Add(7)
-
-	data = buff.Data(1)
-	require.Equal(t, []float64{7}, data)
-
-	data = buff.Data(2)
-	require.Equal(t, []float64{6, 7}, data)
-
-	data = buff.Data(10)
-	require.Equal(t, []float64{3, 4, 5, 6, 7}, data)
-
+	expectData([]float64{3, 4, 5, 6, 7})
 }
