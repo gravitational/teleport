@@ -84,17 +84,6 @@ func (s *ClusterConfigurationService) DeleteClusterName() error {
 // SetClusterName sets the name of the cluster in the backend. SetClusterName
 // can only be called once on a cluster after which it will return trace.AlreadyExists.
 func (s *ClusterConfigurationService) SetClusterName(c types.ClusterName) error {
-	// DELETE IN 8.0.0: Move this ClusterID check to ClusterName.CheckAndSetDefaults.
-	if c.GetClusterID() == "" {
-		return trace.BadParameter("cluster ID is required")
-	}
-	return s.ForceSetClusterName(c)
-}
-
-// ForceSetClusterName creates types.ClusterName on the backend
-// without additional field checks.  To be used only in tests.
-// DELETE IN 8.0.0
-func (s *ClusterConfigurationService) ForceSetClusterName(c types.ClusterName) error {
 	value, err := services.MarshalClusterName(c)
 	if err != nil {
 		return trace.Wrap(err)
@@ -114,11 +103,6 @@ func (s *ClusterConfigurationService) ForceSetClusterName(c types.ClusterName) e
 
 // UpsertClusterName sets the name of the cluster in the backend.
 func (s *ClusterConfigurationService) UpsertClusterName(c types.ClusterName) error {
-	// DELETE IN 8.0.0: Move this ClusterID check to ClusterName.CheckAndSetDefaults.
-	if c.GetClusterID() == "" {
-		return trace.BadParameter("cluster ID is required")
-	}
-
 	value, err := services.MarshalClusterName(c)
 	if err != nil {
 		return trace.Wrap(err)
@@ -231,143 +215,6 @@ func (s *ClusterConfigurationService) DeleteAuthPreference(ctx context.Context) 
 		}
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-// GetClusterConfig gets types.ClusterConfig from the backend.
-func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	ctx := context.TODO()
-
-	var clusterConfig types.ClusterConfig
-	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, generalPrefix))
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		// When there is no legacy ClusterConfig stored in the backend, supply
-		// a default ClusterConfig instead (to be filled with data from the other
-		// resources).  This helps keep backward compatibility when a non-upgraded
-		// v7.x auth server needs to work with v6.x cluster components.
-		clusterConfig = types.DefaultClusterConfig()
-	} else {
-		clusterConfig, err = services.UnmarshalClusterConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// To ensure backward compatibility, extend the fetched ClusterConfig
-	// resource with the ID that is now stored in ClusterName.
-	// (But only if the cluster ID is not set already, to retain the ability
-	// to provide legacy cluster ID.)
-	// DELETE IN 8.0.0
-	if clusterConfig.GetLegacyClusterID() == "" {
-		clusterName, err := s.GetClusterName()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		clusterConfig.SetLegacyClusterID(clusterName.GetClusterID())
-	}
-
-	// To ensure backward compatibility, extend the fetched ClusterConfig
-	// resource with the values that are now stored in ClusterAuditConfig.
-	// DELETE IN 8.0.0
-	auditConfig, err := s.GetClusterAuditConfig(context.TODO())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := clusterConfig.SetAuditConfig(auditConfig); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// To ensure backward compatibility, extend the fetched ClusterConfig
-	// resource with the values that are now stored in ClusterNetworkingConfig.
-	// DELETE IN 8.0.0
-	netConfig, err := s.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := clusterConfig.SetNetworkingFields(netConfig); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// To ensure backward compatibility, extend the fetched ClusterConfig
-	// resource with the values that are now stored in SessionRecordingConfig.
-	// DELETE IN 8.0.0
-	recConfig, err := s.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := clusterConfig.SetSessionRecordingFields(recConfig); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// To ensure backward compatibility, extend the fetched ClusterConfig
-	// resource with the values that are now stored in AuthPreference.
-	// DELETE IN 8.0.0
-	authPref, err := s.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := clusterConfig.SetAuthFields(authPref); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clusterConfig, nil
-}
-
-// DeleteClusterConfig deletes types.ClusterConfig from the backend.
-func (s *ClusterConfigurationService) DeleteClusterConfig() error {
-	err := s.Delete(context.TODO(), backend.Key(clusterConfigPrefix, generalPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("cluster configuration not found")
-		}
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// SetClusterConfig sets types.ClusterConfig on the backend.
-func (s *ClusterConfigurationService) SetClusterConfig(c types.ClusterConfig) error {
-	if c.HasAuditConfig() {
-		return trace.BadParameter("cluster config has legacy audit config, call SetClusterAuditConfig to set these fields")
-	}
-	if c.HasNetworkingFields() {
-		return trace.BadParameter("cluster config has legacy networking fields, call SetClusterNetworkingConfig to set these fields")
-	}
-	if c.HasSessionRecordingFields() {
-		return trace.BadParameter("cluster config has legacy session recording fields, call SetSessionRecordingConfig to set these fields")
-	}
-	if c.HasAuthFields() {
-		return trace.BadParameter("cluster config has legacy auth fields, call SetAuthPreference to set these fields")
-	}
-	if c.GetLegacyClusterID() != "" {
-		return trace.BadParameter("cluster config has legacy cluster ID set, call SetClusterName to set this field")
-	}
-
-	return s.ForceSetClusterConfig(c)
-}
-
-// ForceSetClusterConfig sets types.ClusterConfig on the backend
-// without legacy field checks.  To be used only in tests.
-func (s *ClusterConfigurationService) ForceSetClusterConfig(c types.ClusterConfig) error {
-	value, err := services.MarshalClusterConfig(c)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, generalPrefix),
-		Value: value,
-		ID:    c.GetResourceID(),
-	}
-
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 

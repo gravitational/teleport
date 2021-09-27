@@ -19,13 +19,13 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-
 	"github.com/gravitational/trace"
-
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -39,6 +39,8 @@ type changePasswordReq struct {
 	SecondFactorToken string `json:"second_factor_token"`
 	// U2FSignResponse is U2F response
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
+	// WebauthnResponse is a Webauthn response
+	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
 }
 
 // changePassword updates users password based on the old password.
@@ -59,6 +61,7 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 		NewPassword:       req.NewPassword,
 		SecondFactorToken: req.SecondFactorToken,
 		U2FSignResponse:   req.U2FSignResponse,
+		WebauthnResponse:  req.WebauthnResponse,
 	}
 
 	if err := clt.ChangePassword(servicedReq); err != nil {
@@ -80,7 +83,12 @@ func (h *Handler) u2fChangePasswordRequest(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	u2fReq, err := clt.GetMFAAuthenticateChallenge(ctx.GetUser(), []byte(req.Pass))
+	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+			Username: req.User,
+			Password: []byte(req.Pass),
+		}},
+	})
 	if err != nil && trace.IsAccessDenied(err) {
 		// logout in case of access denied
 		logoutErr := h.logout(w, ctx)
@@ -93,5 +101,5 @@ func (h *Handler) u2fChangePasswordRequest(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return u2fReq, nil
+	return client.MakeAuthenticateChallenge(chal), nil
 }

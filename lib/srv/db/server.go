@@ -166,6 +166,8 @@ type Server struct {
 	mu sync.RWMutex
 	// log is used for logging.
 	log *logrus.Entry
+	// reconciler is used to reconcile proxied databases with database resources.
+	reconciler *services.Reconciler
 }
 
 // New returns a new database server.
@@ -188,6 +190,12 @@ func New(ctx context.Context, config Config) (*Server, error) {
 			AccessPoint:   config.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
+	}
+
+	// Reconciler will be reconciling database resources with proxied databases.
+	server.reconciler, err = server.getReconciler()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Update TLS config to require client certificate.
@@ -298,8 +306,8 @@ func (s *Server) registerDatabase(ctx context.Context, database types.Database) 
 	return nil
 }
 
-// reRegisterDatabase updates database that is already registered.
-func (s *Server) reRegisterDatabase(ctx context.Context, database types.Database) error {
+// updateDatabase updates database that is already registered.
+func (s *Server) updateDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels before starting new ones.
 	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
 		return trace.Wrap(err)
@@ -403,11 +411,6 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
 	}
-	// Update CA rotation state.
-	rotation, err := s.cfg.GetRotation(types.RoleDatabase)
-	if err != nil && !trace.IsNotFound(err) {
-		s.log.WithError(err).Warn("Failed to get rotation state.")
-	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	return types.NewDatabaseServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -416,9 +419,21 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 		Version:  teleport.Version,
 		Hostname: s.cfg.Hostname,
 		HostID:   s.cfg.HostID,
-		Rotation: *rotation,
+		Rotation: s.getRotationState(),
 		Database: copy,
 	})
+}
+
+// getRotationState is a helper to return this server's CA rotation state.
+func (s *Server) getRotationState() types.Rotation {
+	rotation, err := s.cfg.GetRotation(types.RoleDatabase)
+	if err != nil && !trace.IsNotFound(err) {
+		s.log.WithError(err).Warn("Failed to get rotation state.")
+	}
+	if rotation != nil {
+		return *rotation
+	}
+	return types.Rotation{}
 }
 
 // Start starts proxying all server's registered databases.
@@ -435,7 +450,7 @@ func (s *Server) Start(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.reconcileResources(ctx, databases); err != nil {
+	if err := s.reconciler.Reconcile(ctx, types.Databases(databases).AsResources()); err != nil {
 		return trace.Wrap(err)
 	}
 

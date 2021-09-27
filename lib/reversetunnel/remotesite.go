@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
@@ -112,7 +113,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		// encode the name of this cluster to identify this cluster,
 		// connecting to the remote one (it is used to find the right certificate
 		// authority to verify)
-		tlsConfig.ServerName = auth.EncodeClusterName(s.srv.ClusterName)
+		tlsConfig.ServerName = apiutils.EncodeClusterName(s.srv.ClusterName)
 		clt, err := auth.NewClient(client.Config{
 			Dialer: client.ContextDialerFunc(s.authServerContextDialer),
 			Credentials: []client.Credentials{

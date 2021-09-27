@@ -51,7 +51,12 @@ type Announcer interface {
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
 
 	// UpsertAppServer adds an application server.
+	//
+	// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
 	UpsertAppServer(context.Context, types.Server) (*types.KeepAlive, error)
+
+	// UpsertApplicationServer registers an application server.
+	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 
 	// UpsertDatabaseServer registers a database proxy server.
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
@@ -78,9 +83,6 @@ type ReadAccessPoint interface {
 
 	// GetClusterName returns cluster name
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
-
-	// GetClusterConfig returns cluster level configuration.
-	GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -140,7 +142,18 @@ type ReadAccessPoint interface {
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
 
 	// GetAppServers gets all application servers.
+	//
+	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
 	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+
+	// GetApps returns all application resources.
+	GetApps(ctx context.Context) ([]types.Application, error)
+
+	// GetApp returns the specified application resource.
+	GetApp(ctx context.Context, name string) (types.Application, error)
+
+	// GetApplicationServers returns all registered application servers.
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
@@ -208,9 +221,6 @@ type AccessCache interface {
 
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
-
-	// GetClusterConfig returns cluster level configuration.
-	GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -349,8 +359,15 @@ func (w *Wrapper) UpsertKubeService(ctx context.Context, s types.Server) error {
 }
 
 // UpsertAppServer adds an application server.
+//
+// DELETE IN 9.0. Deprecated, use UpsertAppServer.
 func (w *Wrapper) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	return w.NoCache.UpsertAppServer(ctx, server)
+}
+
+// UpsertApplicationServer registers an application server.
+func (w *Wrapper) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	return w.NoCache.UpsertApplicationServer(ctx, server)
 }
 
 // UpsertDatabaseServer registers a database proxy server.

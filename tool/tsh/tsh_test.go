@@ -213,6 +213,47 @@ func TestOIDCLogin(t *testing.T) {
 	// request to be generated.
 }
 
+// TestLoginIdentityOut makes sure that "tsh login --out <ident>" command
+// writes identity credentials to the specified path.
+func TestLoginIdentityOut(t *testing.T) {
+	os.RemoveAll(profile.FullProfilePath(""))
+	t.Cleanup(func() {
+		os.RemoveAll(profile.FullProfilePath(""))
+	})
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"admin"})
+
+	authProcess, proxyProcess := makeTestServers(t, connector, alice)
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	identPath := filepath.Join(t.TempDir(), "ident")
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+		"--out", identPath,
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	_, err = client.KeyFromIdentityFile(identPath)
+	require.NoError(t, err)
+}
+
 func TestRelogin(t *testing.T) {
 	os.RemoveAll(profile.FullProfilePath(""))
 	t.Cleanup(func() {
@@ -394,7 +435,7 @@ func TestIdentityRead(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, k)
 
-		cb, err := k.HostKeyCallback()
+		cb, err := k.HostKeyCallback(false)
 		require.NoError(t, err)
 		require.Nil(t, cb)
 
@@ -412,7 +453,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, k)
 
-	cb, err := k.HostKeyCallback()
+	cb, err := k.HostKeyCallback(true)
 	require.NoError(t, err)
 	require.NotNil(t, cb)
 
@@ -461,7 +502,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Equals Sign Delimited",
 			inOptions:   []string{"AddKeysToAgent=yes"},
 			assertError: require.NoError,
@@ -471,12 +513,14 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Invalid key",
 			inOptions:   []string{"foo foo"},
 			assertError: require.Error,
 			outOptions:  Options{},
-		}, {
+		},
+		{
 			desc:        "Incomplete option",
 			inOptions:   []string{"AddKeysToAgent"},
 			assertError: require.Error,
@@ -500,7 +544,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Forward Agent No",
 			inOptions:   []string{"ForwardAgent no"},
 			assertError: require.NoError,
@@ -510,7 +555,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Forward Agent Local",
 			inOptions:   []string{"ForwardAgent local"},
 			assertError: require.NoError,
@@ -520,7 +566,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Forward Agent InvalidValue",
 			inOptions:   []string{"ForwardAgent potato"},
 			assertError: require.Error,

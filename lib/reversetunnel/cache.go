@@ -144,7 +144,7 @@ func (c *certificateCache) generateHostCert(principals []string) (ssh.Signer, er
 		principals[0],
 		principals,
 		clusterName,
-		types.SystemRoles{types.RoleNode},
+		types.RoleNode,
 		0)
 	if err != nil {
 		return nil, trace.Wrap(err)

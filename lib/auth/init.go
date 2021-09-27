@@ -22,14 +22,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -124,6 +125,9 @@ type InitConfig struct {
 	// Restrictions is a service to access network restrictions, etc
 	Restrictions services.Restrictions
 
+	// Apps is a service that manages application resources.
+	Apps services.Apps
+
 	// Databases is a service that manages database resources.
 	Databases services.Databases
 
@@ -140,9 +144,6 @@ type InitConfig struct {
 
 	// AuditLog is used for emitting events to audit log.
 	AuditLog events.IAuditLog
-
-	// ClusterConfig holds cluster level configuration.
-	ClusterConfig types.ClusterConfig
 
 	// ClusterAuditConfig holds cluster audit configuration.
 	ClusterAuditConfig types.ClusterAuditConfig
@@ -519,10 +520,6 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 		return trace.Wrap(err, "fail to migrate certificate authorities to the v7 storage format: %v; please report this at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md including the *redacted* output of 'tctl get cert_authority'", err)
 	}
 
-	if err := migrateClusterID(ctx, asrv); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
@@ -531,7 +528,8 @@ func createPresets(ctx context.Context, asrv *Server) error {
 	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
-		services.NewPresetAuditorRole()}
+		services.NewPresetAuditorRole(),
+	}
 	for _, role := range roles {
 		err := asrv.CreateRole(role)
 		if err != nil {
@@ -789,17 +787,30 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 
 // GenerateIdentity generates identity for the auth server
 func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames []string) (*Identity, error) {
-	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               id.HostUUID,
-		NodeName:             id.NodeName,
-		Roles:                types.SystemRoles{id.Role},
-		AdditionalPrincipals: additionalPrincipals,
-		DNSNames:             dnsNames,
-	})
+	priv, pub, err := a.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(keys)
+
+	tlsPub, err := PrivateKeyToPublicKeyTLS(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := a.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               id.HostUUID,
+			NodeName:             id.NodeName,
+			Role:                 id.Role,
+			AdditionalPrincipals: additionalPrincipals,
+			DNSNames:             dnsNames,
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ReadIdentityFromKeyPair(priv, certs)
 }
 
 // Identity is collection of certificates and signers that represent server identity
@@ -924,43 +935,35 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ClientCAs = certPool
-	tlsConfig.ServerName = EncodeClusterName(i.ClusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(i.ClusterName)
 	return tlsConfig, nil
+}
+
+func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
+	checkers, err := apisshutils.ParseAuthorizedKeys(i.SSHCACertBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return checkers, nil
 }
 
 // SSHClientConfig returns a ssh.ClientConfig used by nodes to connect to
 // the reverse tunnel server.
-func (i *Identity) SSHClientConfig() *ssh.ClientConfig {
+func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: i.getSSHCheckers,
+			FIPS:            fips,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &ssh.ClientConfig{
-		User: i.ID.HostUUID,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(i.KeySigner),
-		},
-		HostKeyCallback: i.hostKeyCallback,
+		User:            i.ID.HostUUID,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
+		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultDialTimeout,
-	}
-}
-
-// hostKeyCallback checks if the host certificate was signed by any of the
-// known CAs.
-func (i *Identity) hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return trace.BadParameter("only host certificates supported")
-	}
-
-	// Loop over all CAs and see if any of them signed the certificate.
-	for _, k := range i.SSHCACertBytes {
-		pubkey, _, _, _, err := ssh.ParseAuthorizedKey(k)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if apisshutils.KeysEqual(cert.SignatureKey, pubkey) {
-			return nil
-		}
-	}
-
-	return trace.BadParameter("no matching keys found")
+	}, nil
 }
 
 // IdentityID is a combination of role, host UUID, and node name.
@@ -990,25 +993,25 @@ func (id *IdentityID) String() string {
 }
 
 // ReadIdentityFromKeyPair reads SSH and TLS identity from key pair.
-func ReadIdentityFromKeyPair(keys *PackedKeys) (*Identity, error) {
-	identity, err := ReadSSHIdentityFromKeyPair(keys.Key, keys.Cert)
+func ReadIdentityFromKeyPair(privateKey []byte, certs *proto.Certs) (*Identity, error) {
+	identity, err := ReadSSHIdentityFromKeyPair(privateKey, certs.SSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(keys.SSHCACerts) != 0 {
-		identity.SSHCACertBytes = keys.SSHCACerts
+	if len(certs.SSHCACerts) != 0 {
+		identity.SSHCACertBytes = certs.SSHCACerts
 	}
 
-	if len(keys.TLSCACerts) != 0 {
+	if len(certs.TLSCACerts) != 0 {
 		// Parse the key pair to verify that identity parses properly for future use.
-		i, err := ReadTLSIdentityFromKeyPair(keys.Key, keys.TLSCert, keys.TLSCACerts)
+		i, err := ReadTLSIdentityFromKeyPair(privateKey, certs.TLS, certs.TLSCACerts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		identity.XCert = i.XCert
-		identity.TLSCertBytes = keys.TLSCert
-		identity.TLSCACertsBytes = keys.TLSCACerts
+		identity.TLSCertBytes = certs.TLS
+		identity.TLSCACertsBytes = certs.TLSCACerts
 	}
 
 	return identity, nil
@@ -1341,34 +1344,5 @@ func migrateCertAuthority(ctx context.Context, asrv *Server, ca types.CertAuthor
 		return trace.Wrap(err, "failed storing the migrated CA: %v", err)
 	}
 	log.Infof("Successfully migrated %v to 7.0 storage format.", ca)
-	return nil
-}
-
-// DELETE IN: 8.0.0
-// migrateClusterID moves the cluster ID information
-// from ClusterConfig to ClusterName.
-func migrateClusterID(ctx context.Context, asrv *Server) error {
-	clusterConfig, err := asrv.ClusterConfiguration.GetClusterConfig()
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-
-	clusterName, err := asrv.ClusterConfiguration.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if clusterName.GetClusterID() == clusterConfig.GetLegacyClusterID() {
-		return nil
-	}
-
-	log.Infof("Migrating cluster ID %q from legacy ClusterConfig to ClusterName.", clusterConfig.GetLegacyClusterID())
-
-	clusterName.SetClusterID(clusterConfig.GetLegacyClusterID())
-	if err := asrv.ClusterConfiguration.UpsertClusterName(clusterName); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }

@@ -320,7 +320,9 @@ message ServerSpecV2 {
     // TeleportVersion is the teleport version that the server is running on
     string Version = 7 [ (gogoproto.jsontag) = "version" ];
     // Apps is a list of applications this server is proxying.
-    repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty" ];
+    //
+    // DELETE IN 9.0. Deprecated, moved to AppServerSpecV3.
+    repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty", deprecated = true ];
     // KubernetesClusters is a list of kubernetes clusters provided by this
     // Proxy or KubeService server.
     //
@@ -331,7 +333,79 @@ message ServerSpecV2 {
         [ (gogoproto.jsontag) = "kube_clusters,omitempty" ];
 }
 
+// AppServerV3 represents a single proxied web app.
+message AppServerV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is the app server resource kind. Always "app_server".
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the app server metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the app server spec.
+    AppServerSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// AppServerSpecV3 is the app access server spec.
+message AppServerSpecV3 {
+    // Version is the Teleport version that the server is running.
+    string Version = 1 [ (gogoproto.jsontag) = "version" ];
+    // Hostname is the app server hostname.
+    string Hostname = 2 [ (gogoproto.jsontag) = "hostname" ];
+    // HostID is the app server host uuid.
+    string HostID = 3 [ (gogoproto.jsontag) = "host_id" ];
+    // Rotation contains the app server CA rotation information.
+    Rotation Rotation = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
+    // App is the app proxied by this app server.
+    AppV3 App = 5 [ (gogoproto.jsontag) = "app" ];
+}
+
+// AppV3List represents a list of app resources.
+message AppV3List {
+    // Apps is a list of app resources.
+    repeated AppV3 Apps = 1;
+}
+
+// AppV3 represents an app resource.
+message AppV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is the app resource kind. Always "app".
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the app resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the app resource spec.
+    AppSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// AppSpecV3 is the AppV3 resource spec.
+message AppSpecV3 {
+    // URI is the web app endpoint.
+    string URI = 1 [ (gogoproto.jsontag) = "uri" ];
+    // PublicAddr is the public address the application is accessible at.
+    string PublicAddr = 2 [ (gogoproto.jsontag) = "public_addr,omitempty" ];
+    // DynamicLabels are the app's command labels.
+    map<string, CommandLabelV2> DynamicLabels = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
+    // InsecureSkipVerify disables app's TLS certificate verification.
+    bool InsecureSkipVerify = 4 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
+    // Rewrite is a list of rewriting rules to apply to requests and responses.
+    Rewrite Rewrite = 5 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
+}
+
 // App is a specific application that a server proxies.
+//
+// DELETE IN 9.0. Deprecated, use AppV3.
 message App {
     // Name is the name of the application.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
@@ -629,51 +703,6 @@ message ClusterNameSpecV2 {
     string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
 }
 
-// ClusterConfigV3 implements the ClusterConfig interface.
-// DELETE IN 8.0.0
-message ClusterConfigV3 {
-    option (gogoproto.goproto_stringer) = false;
-    option (gogoproto.stringer) = false;
-
-    // Kind is a resource kind
-    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
-    // SubKind is an optional resource sub kind, used in some resources
-    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
-    // Version is version
-    string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is resource metadata
-    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
-    // Spec is a cluster config V3 spec
-    ClusterConfigSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
-}
-
-// ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
-message ClusterConfigSpecV3 {
-    reserved 1, 3, 5 to 10;
-
-    // ClusterID is the unique cluster ID that is set once during the first auth
-    // server startup.
-    // DELETE IN 8.0.0
-    string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
-
-    // Audit is a section with audit config
-    // DELETE IN 8.0.0
-    ClusterAuditConfigSpecV2 Audit = 4
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "audit,omitempty" ];
-
-    // DELETE IN 8.0.0
-    ClusterNetworkingConfigSpecV2 NetworkingConfig = 11
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
-
-    // DELETE IN 8.0.0
-    LegacySessionRecordingConfigSpec SessionRecordingConfig = 12
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
-
-    // DELETE IN 8.0.0
-    LegacyClusterConfigAuthFields AuthFields = 13
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
-}
-
 // ClusterAuditConfigV2 represents audit log settings in the cluster.
 message ClusterAuditConfigV2 {
     // Kind is a resource kind
@@ -804,16 +833,6 @@ message SessionRecordingConfigSpecV2 {
     ];
 }
 
-// LegacySessionRecordingConfigSpec facilitates a backward compatible transition
-// from ClusterConfig to standalone SessionRecordingConfig.
-// SessionRecordingConfigSpecV2 itself is not usable for this purpose because
-// of different jsontags.
-// DELETE IN 8.0.0
-message LegacySessionRecordingConfigSpec {
-    string Mode = 1 [ (gogoproto.jsontag) = "session_recording" ];
-    string ProxyChecksHostKeys = 2 [ (gogoproto.jsontag) = "proxy_checks_host_keys" ];
-}
-
 // AuthPreferenceV2 implements the AuthPreference interface.
 message AuthPreferenceV2 {
     option (gogoproto.goproto_stringer) = false;
@@ -880,15 +899,6 @@ message AuthPreferenceSpecV2 {
     Webauthn Webauthn = 10 [ (gogoproto.jsontag) = "webauthn,omitempty" ];
 }
 
-// LegacyClusterConfigAuthFields facilitates a backward compatible transition
-// for the auth related fields moved from ClusterConfig into ClusterAuthPreference.
-// DELETE IN 8.0.0
-message LegacyClusterConfigAuthFields {
-    bool DisconnectExpiredCert = 1
-        [ (gogoproto.jsontag) = "disconnect_expired_cert", (gogoproto.casttype) = "Bool" ];
-    bool AllowLocalAuth = 2 [ (gogoproto.jsontag) = "local_auth", (gogoproto.casttype) = "Bool" ];
-}
-
 // U2F defines settings for U2F device.
 message U2F {
     // AppID returns the application ID for universal second factor.
@@ -935,6 +945,14 @@ message Webauthn {
     // By default no devices are denied.
     repeated string AttestationDeniedCAs = 3
         [ (gogoproto.jsontag) = "attestation_denied_cas,omitempty" ];
+    // Disables Webauthn, regardless of other cluster settings.
+    // Allows fallback to pure U2F in clusters with second_factor:on or
+    // second_factor:optional.
+    // Must not be set for clusters with second_factor:webauthn.
+    // Temporary safety switch for Webauthn, to be removed in future versions of
+    // Teleport.
+    // DELETE IN 9.x, fallback not possible without U2F (codingllama).
+    bool Disabled = 4 [ (gogoproto.jsontag) = "disabled,omitempty" ];
 }
 
 // Namespace represents namespace resource specification
@@ -1746,6 +1764,7 @@ message MFADevice {
     oneof device {
         TOTPDevice totp = 8;
         U2FDevice u2f = 9;
+        WebauthnDevice webauthn = 10;
     }
 }
 
@@ -1760,6 +1779,27 @@ message U2FDevice {
     bytes pub_key = 2;
     // Counter is the latest seen value of the U2F usage counter.
     uint32 counter = 3;
+}
+
+// WebauthnDevice holds Webauthn-specific fields of MFADevice.
+message WebauthnDevice {
+    // Credential ID for the authenticator.
+    bytes credential_id = 1;
+    // Public key encoded in CBOR format.
+    // Webauthn support various key algorithms; CBOR encoding is used to reflect
+    // those choices.
+    // See https://w3c.github.io/webauthn/#sctn-alg-identifier for a starter
+    // reference.
+    bytes public_key_cbor = 2;
+    // Attestation format used by the authenticator, if any.
+    string attestation_type = 3;
+    // AAGUID is the globally unique identifier of the authenticator model.
+    // Zeroed for U2F devices.
+    bytes aaguid = 4;
+    // Signature counter for login operations.
+    // Actual counter values received from the authenticator are expected to be
+    // higher than the previously-stored value.
+    uint32 signature_counter = 5;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.

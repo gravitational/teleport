@@ -23,7 +23,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
@@ -118,7 +118,7 @@ func (c *hsmKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	signer, err := c.ctx.GenerateRSAKeyPairWithLabel(id[:], []byte(c.hostUUID), teleport.RSAKeySize)
+	signer, err := c.ctx.GenerateRSAKeyPairWithLabel(id[:], []byte(c.hostUUID), constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

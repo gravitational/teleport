@@ -63,6 +63,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
+		{Kind: types.KindApp},
+		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
 		{Kind: types.KindWebToken},
@@ -98,6 +100,8 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
+		{Kind: types.KindAppServer, Version: types.V2},
+		{Kind: types.KindApp},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
 		{Kind: types.KindWebToken},
@@ -131,6 +135,8 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
+		{Kind: types.KindAppServer, Version: types.V2},
+		{Kind: types.KindApp},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
@@ -150,7 +156,6 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: types.KindClusterConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindNamespace},
@@ -159,7 +164,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
-		{Kind: types.KindAppServer},
+		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
@@ -225,6 +230,7 @@ func ForApps(cfg Config) Config {
 		// Applications only need to "know" about default namespace events to avoid
 		// matching too much data about other namespaces or events.
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindApp},
 	}
 	cfg.QueueSize = defaults.AppsQueueSize
 	return cfg
@@ -334,6 +340,7 @@ type Cache struct {
 	dynamicAccessCache   services.DynamicAccessExt
 	presenceCache        services.Presence
 	restrictionsCache    services.Restrictions
+	appsCache            services.Apps
 	databasesCache       services.Databases
 	appSessionCache      services.AppSession
 	webSessionCache      types.WebSessionInterface
@@ -387,6 +394,7 @@ func (c *Cache) read() (readGuard, error) {
 			dynamicAccess:   c.dynamicAccessCache,
 			presence:        c.presenceCache,
 			restrictions:    c.restrictionsCache,
+			apps:            c.appsCache,
 			databases:       c.databasesCache,
 			appSession:      c.appSessionCache,
 			webSession:      c.webSessionCache,
@@ -405,6 +413,7 @@ func (c *Cache) read() (readGuard, error) {
 		dynamicAccess:   c.Config.DynamicAccess,
 		presence:        c.Config.Presence,
 		restrictions:    c.Config.Restrictions,
+		apps:            c.Config.Apps,
 		databases:       c.Config.Databases,
 		appSession:      c.Config.AppSession,
 		webSession:      c.Config.WebSession,
@@ -428,6 +437,7 @@ type readGuard struct {
 	presence        services.Presence
 	appSession      services.AppSession
 	restrictions    services.Restrictions
+	apps            services.Apps
 	databases       services.Databases
 	webSession      types.WebSessionInterface
 	webToken        types.WebTokenInterface
@@ -479,6 +489,8 @@ type Config struct {
 	Presence services.Presence
 	// Restrictions is a restrictions service
 	Restrictions services.Restrictions
+	// Apps is an apps service.
+	Apps services.Apps
 	// Databases is a databases service.
 	Databases services.Databases
 	// AppSession holds application sessions.
@@ -638,6 +650,7 @@ func New(config Config) (*Cache, error) {
 		dynamicAccessCache:   local.NewDynamicAccessService(wrapper),
 		presenceCache:        local.NewPresenceService(wrapper),
 		restrictionsCache:    local.NewRestrictionsService(wrapper),
+		appsCache:            local.NewAppService(wrapper),
 		databasesCache:       local.NewDatabasesService(wrapper),
 		appSessionCache:      local.NewIdentityService(wrapper),
 		webSessionCache:      local.NewIdentityService(wrapper).WebSessions(),
@@ -1117,16 +1130,6 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 	return token, trace.Wrap(err)
 }
 
-// GetClusterConfig gets services.ClusterConfig from the backend.
-func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.clusterConfig.GetClusterConfig(opts...)
-}
-
 // GetClusterAuditConfig gets ClusterAuditConfig from the backend.
 func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
 	rg, err := c.read()
@@ -1358,7 +1361,39 @@ func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	return rg.presence.GetKubeServices(ctx)
 }
 
+// GetApplicationServers returns all registered application servers.
+func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.GetApplicationServers(ctx, namespace)
+}
+
+// GetApps returns all application resources.
+func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.apps.GetApps(ctx)
+}
+
+// GetApp returns the specified application resource.
+func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.apps.GetApp(ctx, name)
+}
+
 // GetAppServers gets all application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServers.
 func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {

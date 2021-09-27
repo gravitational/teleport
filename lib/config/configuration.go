@@ -315,8 +315,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
 	}
 
-	// Read in how nodes will validate the CA.
-	cfg.CAPins = fc.CAPin
+	// Read in how nodes will validate the CA. A single empty string in the file
+	// conf should indicate no pins.
+	if len(fc.CAPin) > 1 || (len(fc.CAPin) == 1 && fc.CAPin[0] != "") {
+		cfg.CAPins = fc.CAPin
+	}
 
 	// Set diagnostic address
 	if fc.DiagAddr != "" {
@@ -992,6 +995,14 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 	// Enable debugging application if requested.
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
+	// Configure resource watcher selectors if present.
+	for _, selector := range fc.Apps.Selectors {
+		cfg.Apps.Selectors = append(cfg.Apps.Selectors,
+			services.Selector{
+				MatchLabels: selector.MatchLabels,
+			})
+	}
+
 	// Loop over all apps and load app configuration.
 	for _, application := range fc.Apps.Apps {
 		// Parse the static labels of the application.
@@ -1033,7 +1044,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 				Headers:  headers,
 			}
 		}
-		if err := app.Check(); err != nil {
+		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
@@ -1405,7 +1416,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			StaticLabels:  static,
 			DynamicLabels: dynamic,
 		}
-		if err := app.Check(); err != nil {
+		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)

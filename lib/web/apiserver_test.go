@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
@@ -177,15 +178,24 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	// start node
-	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: s.server.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
-	})
+	priv, pub, err := s.server.AuthServer.AuthServer.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	c.Assert(err, IsNil)
+
+	// start node
+	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
+		&apiProto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     s.server.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	c.Assert(err, IsNil)
+
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	c.Assert(err, IsNil)
 
 	nodeID := "node"
@@ -372,6 +382,7 @@ type authPack struct {
 	otpSecret string
 	user      string
 	login     string
+	password  string
 	session   *CreateSessionResponse
 	clt       *client.WebClient
 	cookies   []*http.Cookie
@@ -815,7 +826,6 @@ func (s *WebSuite) TestResolveServerHostPort(c *C) {
 		c.Assert(err, NotNil, Commentf(testCase.expectedErr))
 		c.Assert(err, ErrorMatches, ".*"+testCase.expectedErr+".*")
 	}
-
 }
 
 func (s *WebSuite) TestNewTerminalHandler(c *C) {
@@ -1358,13 +1368,17 @@ func (s *WebSuite) TestChangePasswordAndAddTOTPDeviceWithToken(c *C) {
 	c.Assert(json.Unmarshal(re.Bytes(), &uiToken), IsNil)
 	c.Assert(uiToken.User, Equals, token.GetUser())
 	c.Assert(uiToken.TokenID, Equals, token.GetName())
+	c.Assert(uiToken.QRCode, NotNil)
 
-	secrets, err := s.server.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
+	res, err := s.server.Auth().CreateRegisterChallenge(context.Background(), &apiProto.CreateRegisterChallengeRequest{
+		TokenID:    token.GetName(),
+		DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	c.Assert(err, IsNil)
 
 	// Advance the clock to invalidate the TOTP token
 	s.clock.Advance(1 * time.Minute)
-	secondFactorToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.clock.Now())
+	secondFactorToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), s.clock.Now())
 	c.Assert(err, IsNil)
 
 	data, err := json.Marshal(auth.ChangePasswordWithTokenRequest{
@@ -1448,24 +1462,6 @@ func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
 	var recoveryCodes []string
 	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
 	c.Assert(recoveryCodes, HasLen, 0)
-}
-
-// TestPing ensures that a response is returned by /webapi/ping
-// and that that response body contains authentication information.
-func (s *WebSuite) TestPing(c *C) {
-	wc := s.client()
-
-	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
-	c.Assert(err, IsNil)
-
-	var out *webclient.PingResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
-
-	preference, err := s.server.Auth().GetAuthPreference(s.ctx)
-	c.Assert(err, IsNil)
-
-	c.Assert(out.Auth.Type, Equals, preference.GetType())
-	c.Assert(out.Auth.SecondFactor, Equals, preference.GetSecondFactor())
 }
 
 // TestEmptyMotD ensures that responses returned by both /webapi/ping and
@@ -1922,7 +1918,8 @@ func TestClusterKubesGet(t *testing.T) {
 				{
 					Name:         "test-kube-name",
 					StaticLabels: map[string]string{"test-field": "test-value"},
-				}},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1952,25 +1949,16 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	pack := proxy.authPack(t, "foo@example.com")
 
 	// Register an application.
-	server := &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
-		},
-		Spec: types.ServerSpecV2{
-			Version: teleport.Version,
-			Apps: []*types.App{
-				{
-					Name:       "panel",
-					PublicAddr: "panel.example.com",
-					URI:        "http://127.0.0.1:8080",
-				},
-			},
-		},
-	}
-	_, err := env.server.Auth().UpsertAppServer(context.Background(), server)
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), server)
 	require.NoError(t, err)
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
@@ -1983,14 +1971,164 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
-// TestGetMFADevices gets devices for the authenticated user.
-func TestGetMFADevices(t *testing.T) {
+func TestCreatePrivilegeToken(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user with second factor totp.
+	pack := proxy.authPack(t, "foo@example.com")
+
+	// Get a totp code.
+	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	re, err := pack.clt.PostJSON(context.Background(), endpoint, &privilegeTokenRequest{
+		SecondFactorToken: totpCode,
+	})
+	require.NoError(t, err)
+
+	var privilegeToken string
+	err = json.Unmarshal(re.Bytes(), &privilegeToken)
+	require.NoError(t, err)
+	require.NotEmpty(t, privilegeToken)
+}
+
+func TestAddMFADevice(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
+		},
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Get a totp code to re-auth.
+	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	// Obtain a privilege token.
+	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
+		SecondFactorToken: totpCode,
+	})
+	require.NoError(t, err)
+	var privilegeToken string
+	require.NoError(t, json.Unmarshal(re.Bytes(), &privilegeToken))
+
+	tests := []struct {
+		name            string
+		deviceName      string
+		getTOTPCode     func() string
+		getU2FResp      func() *u2f.RegisterChallengeResponse
+		getWebauthnResp func() *wanlib.CredentialCreationResponse
+	}{
+		{
+			name:       "new TOTP device",
+			deviceName: "new-totp",
+			getTOTPCode: func() string {
+				// Create totp secrets.
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+					TokenID:    privilegeToken,
+					DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+				})
+				require.NoError(t, err)
+
+				_, regRes, err := auth.NewTestDeviceFromChallenge(res, auth.WithTestDeviceClock(env.clock))
+				require.NoError(t, err)
+
+				return regRes.GetTOTP().Code
+			},
+		},
+		{
+			name:       "new U2F device",
+			deviceName: "new-u2f",
+			getU2FResp: func() *u2f.RegisterChallengeResponse {
+				// Get u2f register challenge.
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+					TokenID:    privilegeToken,
+					DeviceType: apiProto.DeviceType_DEVICE_TYPE_U2F,
+				})
+				require.NoError(t, err)
+
+				_, regRes, err := auth.NewTestDeviceFromChallenge(res)
+				require.NoError(t, err)
+
+				return &u2f.RegisterChallengeResponse{
+					RegistrationData: regRes.GetU2F().RegistrationData,
+					ClientData:       regRes.GetU2F().ClientData,
+				}
+			},
+		},
+		{
+			name:       "new Webauthn device",
+			deviceName: "new-webauthn",
+			getWebauthnResp: func() *wanlib.CredentialCreationResponse {
+				// Get webauthn register challenge.
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+					TokenID:    privilegeToken,
+					DeviceType: apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+				})
+				require.NoError(t, err)
+
+				_, regRes, err := auth.NewTestDeviceFromChallenge(res)
+				require.NoError(t, err)
+
+				return wanlib.CredentialCreationResponseFromProto(regRes.GetWebauthn())
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var totpCode string
+			var u2fRegResp *u2f.RegisterChallengeResponse
+			var webauthnRegResp *wanlib.CredentialCreationResponse
+
+			switch {
+			case tc.getU2FResp != nil:
+				u2fRegResp = tc.getU2FResp()
+			case tc.getWebauthnResp != nil:
+				webauthnRegResp = tc.getWebauthnResp()
+			default:
+				totpCode = tc.getTOTPCode()
+			}
+
+			// Add device.
+			endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
+			_, err := pack.clt.PostJSON(ctx, endpoint, addMFADeviceRequest{
+				PrivilegeTokenID:         privilegeToken,
+				DeviceName:               tc.deviceName,
+				SecondFactorToken:        totpCode,
+				U2FRegisterResponse:      u2fRegResp,
+				WebauthnRegisterResponse: webauthnRegResp,
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestGetMFADevicesWithAuth(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "foo@example.com")
 
-	endpoint := pack.clt.Endpoint("webapi", "mfa")
+	endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
@@ -1998,8 +2136,211 @@ func TestGetMFADevices(t *testing.T) {
 	err = json.Unmarshal(re.Bytes(), &devices)
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
-	require.Equal(t, "TOTP", devices[0].Type)
-	require.Equal(t, "otp", devices[0].Name) // default device name
+}
+
+func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user with a TOTP device.
+	username := "llama"
+	proxy.createUser(ctx, t, username, "root", "password", "some-otp-secret")
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "https://" + env.server.ClusterName(),
+			Facets: []string{"https://" + env.server.ClusterName()},
+		},
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Acquire an approved token.
+	approvedToken, err := types.NewUserToken("some-token-id")
+	require.NoError(t, err)
+	approvedToken.SetUser(username)
+	approvedToken.SetSubKind(auth.UserTokenTypeRecoveryApproved)
+	approvedToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, approvedToken)
+	require.NoError(t, err)
+
+	// Call the getter endpoint.
+	clt := proxy.newClient(t)
+	getDevicesEndpoint := clt.Endpoint("webapi", "mfa", "token", approvedToken.GetName(), "devices")
+	res, err := clt.Get(ctx, getDevicesEndpoint, url.Values{})
+	require.NoError(t, err)
+
+	var devices []ui.MFADevice
+	err = json.Unmarshal(res.Bytes(), &devices)
+	require.NoError(t, err)
+	require.Len(t, devices, 1)
+
+	// Call the delete endpoint.
+	_, err = clt.Delete(ctx, clt.Endpoint("webapi", "mfa", "token", approvedToken.GetName(), "devices", devices[0].Name))
+	require.NoError(t, err)
+
+	// Check device has been deleted.
+	res, err = clt.Get(ctx, getDevicesEndpoint, url.Values{})
+	require.NoError(t, err)
+
+	err = json.Unmarshal(res.Bytes(), &devices)
+	require.NoError(t, err)
+	require.Len(t, devices, 0)
+}
+
+func TestCreateAuthenticateChallenge(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user with a TOTP device, with second factor preference to OTP only.
+	authPack := proxy.authPack(t, "llama@example.com")
+
+	// Authenticated client for private endpoints.
+	authnClt := authPack.clt
+
+	// Unauthenticated client for public endpoints.
+	publicClt := proxy.newClient(t)
+
+	// Acquire a start token, for the request the requires it.
+	startToken, err := types.NewUserToken("some-token-id")
+	require.NoError(t, err)
+	startToken.SetUser(authPack.user)
+	startToken.SetSubKind(auth.UserTokenTypeRecoveryStart)
+	startToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, startToken)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		clt     *client.WebClient
+		ep      []string
+		reqBody client.MFAChallengeRequest
+	}{
+		{
+			name: "/webapi/u2f/password/changerequest",
+			clt:  authnClt,
+			ep:   []string{"webapi", "u2f", "password", "changerequest"},
+			reqBody: client.MFAChallengeRequest{
+				User: authPack.user,
+				Pass: authPack.password,
+			},
+		},
+		{
+			name: "/webapi/mfa/login/begin",
+			clt:  publicClt,
+			ep:   []string{"webapi", "mfa", "login", "begin"},
+			reqBody: client.MFAChallengeRequest{
+				User: authPack.user,
+				Pass: authPack.password,
+			},
+		},
+		{
+			name: "/webapi/mfa/authenticatechallenge",
+			clt:  authnClt,
+			ep:   []string{"webapi", "mfa", "authenticatechallenge"},
+		},
+		{
+			name: "/webapi/mfa/token/:token/authenticatechallenge",
+			clt:  publicClt,
+			ep:   []string{"webapi", "mfa", "token", startToken.GetName(), "authenticatechallenge"},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			endpoint := tc.clt.Endpoint(tc.ep...)
+			res, err := tc.clt.PostJSON(ctx, endpoint, tc.reqBody)
+			require.NoError(t, err)
+
+			var chal auth.MFAAuthenticateChallenge
+			err = json.Unmarshal(res.Bytes(), &chal)
+			require.NoError(t, err)
+			require.True(t, chal.TOTPChallenge)
+			require.Empty(t, chal.U2FChallenges)
+			require.Empty(t, chal.WebauthnChallenge)
+		})
+	}
+}
+
+func TestCreateRegisterChallenge(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	clt := proxy.newClient(t)
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		U2F: &types.U2F{
+			AppID:  "https://" + env.server.ClusterName(),
+			Facets: []string{"https://" + env.server.ClusterName()},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().SetAuthPreference(ctx, ap))
+
+	// Acquire an accepted token.
+	token, err := types.NewUserToken("some-token-id")
+	require.NoError(t, err)
+	token.SetUser("llama")
+	token.SetSubKind(auth.UserTokenTypePrivilege)
+	token.SetExpiry(env.clock.Now().Add(5 * time.Minute))
+	_, err = env.server.Auth().Identity.CreateUserToken(ctx, token)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		deviceType string
+	}{
+		{
+			name:       "u2f challenge",
+			deviceType: "u2f",
+		},
+		{
+			name:       "totp challenge",
+			deviceType: "totp",
+		},
+		{
+			name:       "webauthn challenge",
+			deviceType: "webauthn",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			endpoint := clt.Endpoint("webapi", "mfa", "token", token.GetName(), "registerchallenge")
+			res, err := clt.PostJSON(ctx, endpoint, &createRegisterChallengeRequest{
+				DeviceType: tc.deviceType,
+			})
+			require.NoError(t, err)
+
+			var chal client.MFARegisterChallenge
+			require.NoError(t, json.Unmarshal(res.Bytes(), &chal))
+
+			switch tc.deviceType {
+			case "u2f":
+				require.NotNil(t, chal.U2F)
+			case "totp":
+				require.NotNil(t, chal.TOTP.QRCode)
+			case "webauthn":
+				require.NotNil(t, chal.Webauthn)
+			}
+		})
+	}
 }
 
 // TestCreateAppSession verifies that an existing session to the Web UI can
@@ -2008,25 +2349,16 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	pack := s.authPack(c, "foo@example.com")
 
 	// Register an application called "panel".
-	server := &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Namespace: apidefaults.Namespace,
-			Name:      uuid.New(),
-		},
-		Spec: types.ServerSpecV2{
-			Version: teleport.Version,
-			Apps: []*types.App{
-				{
-					Name:       "panel",
-					PublicAddr: "panel.example.com",
-					URI:        "http://127.0.0.1:8080",
-				},
-			},
-		},
-	}
-	_, err := s.server.Auth().UpsertAppServer(context.Background(), server)
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "panel.example.com",
+	})
+	c.Assert(err, IsNil)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	c.Assert(err, IsNil)
+	_, err = s.server.Auth().UpsertApplicationServer(context.Background(), server)
 	c.Assert(err, IsNil)
 
 	// Extract the session ID and bearer token for the current session.
@@ -2037,7 +2369,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	c.Assert(err, IsNil)
 
-	var tests = []struct {
+	tests := []struct {
 		inComment       CommentInterface
 		inCreateRequest *CreateAppSessionRequest
 		outError        bool
@@ -2320,9 +2652,12 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		Name: "invalid-name-for-recovery",
 	})
 	require.NoError(t, err)
-	secrets, err := env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
+	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+		TokenID:    resetToken.GetName(),
+		DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	require.NoError(t, err)
-	totpCode, err := totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	totpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
 	require.NoError(t, err)
 
 	// Test invalid username does not receive codes.
@@ -2347,9 +2682,12 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		Name: "valid-username@example.com",
 	})
 	require.NoError(t, err)
-	secrets, err = env.server.Auth().RotateUserTokenSecrets(ctx, resetToken.GetName())
+	res, err = env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+		TokenID:    resetToken.GetName(),
+		DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	require.NoError(t, err)
-	totpCode, err = totp.GenerateCode(secrets.GetOTPKey(), env.clock.Now())
+	totpCode, err = totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
 	require.NoError(t, err)
 
 	// Test valid username (email) returns codes.
@@ -2654,15 +2992,24 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	})
 	require.NoError(t, err)
 
-	// start auth server
-	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: server.TLS.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
-	})
+	priv, pub, err := server.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
 
-	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	// start auth server
+	certs, err := server.Auth().GenerateHostCerts(ctx,
+		&apiProto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     server.TLS.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 	hostSigners := []ssh.Signer{signer}
 
@@ -2925,6 +3272,7 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 		session:   session,
 		clt:       clt,
 		cookies:   resp.Cookies(),
+		password:  pass,
 	}
 }
 
@@ -3066,20 +3414,4 @@ func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
 
 	err = waitForOutput(stream, "foo")
 	require.NoError(t, err)
-}
-
-// TestProxyMultiAddr makes sure ping endpoint can be called over any of
-// the proxy's configured public addresses.
-func TestProxyMultiAddr(t *testing.T) {
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	req, err := http.NewRequest(http.MethodGet, proxy.newClient(t).Endpoint("webapi", "ping"), nil)
-	require.NoError(t, err)
-	// Make sure ping endpoint can be reached over all proxy public addrs.
-	for _, proxyAddr := range proxy.handler.handler.cfg.ProxyPublicAddrs {
-		req.Host = proxyAddr.Host()
-		resp, err := client.NewInsecureWebClient().Do(req)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
-	}
 }
