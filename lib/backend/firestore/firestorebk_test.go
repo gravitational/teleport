@@ -68,7 +68,7 @@ func firestoreParams(t *testing.T) backend.Params {
 func ensureTestsEnabled(t *testing.T) {
 	const varName = "TELEPORT_FIRESTORE_TEST"
 	if os.Getenv(varName) == "" {
-		t.Skip("Firestore tests are disabled. Enable by defining the " + varName + " environment variable")
+		t.Skipf("Firestore tests are disabled. Enable by defining the %v environment variable", varName)
 	}
 }
 
