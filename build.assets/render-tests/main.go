@@ -39,7 +39,7 @@ type TestEvent struct {
 	Action         string
 	Package        string
 	Test           string
-	ElapsedSeconds float64 `json:Elapsed`
+	ElapsedSeconds float64 `json:"Elapsed"`
 	Output         string
 }
 
@@ -131,7 +131,7 @@ func main() {
 					fmt.Printf("%s %s: %s\n", covText, event.Action, event.Package)
 				} else {
 					// packages results don't count towards our test count.
-					actionCounts[event.Action] += 1
+					actionCounts[event.Action]++
 
 					// we want to preserve the log of our failed tests for
 					// later examination
