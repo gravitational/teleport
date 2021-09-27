@@ -19,7 +19,8 @@
         { "title": "Admin Manual", "slug": "/admin-guide/" },
         { "title": "Production Guide", "slug": "/production/" },
         { "title": "FAQ", "slug": "/faq/" },
-        { "title": "Changelog", "slug": "/changelog/" }
+        { "title": "Changelog", "slug": "/changelog/" },
+        { "title": "Docs Guide", "slug": "/docs/" }
       ]
     },
     {
