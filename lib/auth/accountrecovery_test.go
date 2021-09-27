@@ -1102,40 +1102,64 @@ func TestAccountRecoveryFlow(t *testing.T) {
 func TestGetAccountRecoveryToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
+	ctx := context.Background()
 
 	cases := []struct {
-		name    string
-		wantErr bool
-		req     CreateUserTokenRequest
+		name       string
+		tokenType  string
+		wantErr    bool
+		getRequest func() *proto.GetAccountRecoveryTokenRequest
 	}{
 		{
-			name:    "invalid recovery token type",
+			name:    "invalid token type",
 			wantErr: true,
-			req: CreateUserTokenRequest{
-				TTL:  5 * time.Minute,
-				Type: UserTokenTypeResetPassword,
+			getRequest: func() *proto.GetAccountRecoveryTokenRequest {
+				wrongTokenType, err := srv.Auth().newUserToken(CreateUserTokenRequest{
+					Name: "llama",
+					TTL:  5 * time.Minute,
+					Type: UserTokenTypeResetPassword,
+				})
+				require.NoError(t, err)
+
+				_, err = srv.Auth().Identity.CreateUserToken(ctx, wrongTokenType)
+				require.NoError(t, err)
+
+				return &proto.GetAccountRecoveryTokenRequest{
+					RecoveryTokenID: wrongTokenType.GetName(),
+				}
 			},
 		},
 		{
 			name:    "token not found",
 			wantErr: true,
-			req: CreateUserTokenRequest{
-				TTL:  5 * time.Minute,
-				Type: "unknown-token-type",
+			getRequest: func() *proto.GetAccountRecoveryTokenRequest {
+				return &proto.GetAccountRecoveryTokenRequest{
+					RecoveryTokenID: "token-not-found",
+				}
 			},
 		},
 		{
-			name: "recovery start token type",
-			req: CreateUserTokenRequest{
-				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryStart,
+			name:      "recovery start token",
+			tokenType: UserTokenTypeRecoveryStart,
+			getRequest: func() *proto.GetAccountRecoveryTokenRequest {
+				token, err := srv.Auth().createRecoveryToken(ctx, "llama", UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
+				require.NoError(t, err)
+
+				return &proto.GetAccountRecoveryTokenRequest{
+					RecoveryTokenID: token.GetName(),
+				}
 			},
 		},
 		{
-			name: "recovery approve token type",
-			req: CreateUserTokenRequest{
-				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryApproved,
+			name:      "recovery approve token",
+			tokenType: UserTokenTypeRecoveryApproved,
+			getRequest: func() *proto.GetAccountRecoveryTokenRequest {
+				token, err := srv.Auth().createRecoveryToken(ctx, "llama", UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
+				require.NoError(t, err)
+
+				return &proto.GetAccountRecoveryTokenRequest{
+					RecoveryTokenID: token.GetName(),
+				}
 			},
 		},
 	}
@@ -1145,22 +1169,14 @@ func TestGetAccountRecoveryToken(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create and insert a token.
-			token, err := srv.Auth().newUserToken(c.req)
-			require.NoError(t, err)
-			_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
-			require.NoError(t, err)
-
-			retToken, err := srv.Auth().GetAccountRecoveryToken(context.Background(), &proto.GetAccountRecoveryTokenRequest{
-				RecoveryTokenID: token.GetName(),
-			})
+			retToken, err := srv.Auth().GetAccountRecoveryToken(ctx, c.getRequest())
 
 			switch {
 			case c.wantErr:
 				require.True(t, trace.IsAccessDenied(err))
 			default:
 				require.NoError(t, err)
-				require.Equal(t, c.req.Type, retToken.GetSubKind())
+				require.Equal(t, c.tokenType, retToken.GetSubKind())
 			}
 		})
 	}
@@ -1185,65 +1201,73 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 	require.NoError(t, err)
 
 	cases := []struct {
-		name    string
-		wantErr bool
-		req     CreateUserTokenRequest
+		name        string
+		wantErr     bool
+		forRecovery bool
+		getRequest  func() *proto.CreateAccountRecoveryCodesRequest
 	}{
 		{
 			name:    "invalid token type",
 			wantErr: true,
-			req: CreateUserTokenRequest{
-				Name: "llama@email.com",
-				TTL:  5 * time.Minute,
-				Type: UserTokenTypeResetPassword,
+			getRequest: func() *proto.CreateAccountRecoveryCodesRequest {
+				token, err := srv.Auth().createRecoveryToken(ctx, "llama@example.com", UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
+				require.NoError(t, err)
+
+				return &proto.CreateAccountRecoveryCodesRequest{
+					TokenID: token.GetName(),
+				}
 			},
 		},
 		{
 			name:    "token not found",
 			wantErr: true,
-			req: CreateUserTokenRequest{
-				TTL:  5 * time.Minute,
-				Type: "unknown-token-type",
+			getRequest: func() *proto.CreateAccountRecoveryCodesRequest {
+				return &proto.CreateAccountRecoveryCodesRequest{
+					TokenID: "token-not-found",
+				}
 			},
 		},
 		{
 			name:    "invalid user name",
 			wantErr: true,
-			req: CreateUserTokenRequest{
-				Name: "invalid-email",
-				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryApproved,
+			getRequest: func() *proto.CreateAccountRecoveryCodesRequest {
+				token, err := srv.Auth().createRecoveryToken(ctx, "invalid-username", UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
+				require.NoError(t, err)
+
+				return &proto.CreateAccountRecoveryCodesRequest{
+					TokenID: token.GetName(),
+				}
 			},
 		},
 		{
-			name: "recovery approved token",
-			req: CreateUserTokenRequest{
-				Name: "llama@email.com",
-				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryApproved,
+			name:        "recovery approved token",
+			forRecovery: true,
+			getRequest: func() *proto.CreateAccountRecoveryCodesRequest {
+				token, err := srv.Auth().createRecoveryToken(ctx, "llama@example.com", UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
+				require.NoError(t, err)
+
+				return &proto.CreateAccountRecoveryCodesRequest{
+					TokenID: token.GetName(),
+				}
 			},
 		},
 		{
 			name: "privilege token",
-			req: CreateUserTokenRequest{
-				Name: "llama@email.com",
-				TTL:  5 * time.Minute,
-				Type: UserTokenTypePrivilege,
+			getRequest: func() *proto.CreateAccountRecoveryCodesRequest {
+				token, err := srv.Auth().createPrivilegeToken(ctx, "llama@example.com", UserTokenTypePrivilege)
+				require.NoError(t, err)
+
+				return &proto.CreateAccountRecoveryCodesRequest{
+					TokenID: token.GetName(),
+				}
 			},
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			token, err := srv.Auth().newUserToken(c.req)
-			require.NoError(t, err)
-
-			_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
-			require.NoError(t, err)
-
-			res, err := srv.Auth().CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
-				TokenID: token.GetName(),
-			})
+			req := c.getRequest()
+			res, err := srv.Auth().CreateAccountRecoveryCodes(ctx, req)
 
 			switch {
 			case c.wantErr:
@@ -1254,9 +1278,9 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 				require.Len(t, res.GetRecoveryCodes(), numOfRecoveryCodes)
 
 				// Check token is deleted after success.
-				_, err = srv.Auth().Identity.GetUserToken(ctx, token.GetName())
+				_, err = srv.Auth().Identity.GetUserToken(ctx, req.TokenID)
 				switch {
-				case c.req.Type == UserTokenTypeRecoveryApproved:
+				case c.forRecovery:
 					require.True(t, trace.IsNotFound(err))
 				default:
 					require.NoError(t, err)
