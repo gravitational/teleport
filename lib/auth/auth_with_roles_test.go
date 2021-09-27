@@ -822,7 +822,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	}
 }
 
-// IsMFARequired test isMFARequest logic per database protocol where different role matchers are used.
+// TestIsMFARequiredMFADB tests isMFARequest logic per database protocol where different role matchers are used.
 func TestIsMFARequiredMFADB(t *testing.T) {
 	const (
 		databaseName = "test-database"
