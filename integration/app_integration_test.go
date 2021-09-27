@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -186,6 +187,45 @@ func TestAppAccessClientCert(t *testing.T) {
 			require.Equal(t, tt.outStatusCode, status)
 			require.Contains(t, body, tt.outMessage)
 		})
+	}
+}
+
+// TestAppAccessFlush makes sure that application access periodically flushes
+// buffered data to the response.
+func TestAppAccessFlush(t *testing.T) {
+	pack := setup(t)
+
+	req, err := http.NewRequest("GET", pack.assembleRootProxyURL("/"), nil)
+	require.NoError(t, err)
+
+	cookie := pack.createAppSession(t, pack.flushAppPublicAddr, pack.flushAppClusterName)
+	req.AddCookie(&http.Cookie{
+		Name:  app.CookieName,
+		Value: cookie,
+	})
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// The "flush server" will send 2 messages, "hello" and "world", with a
+	// 500ms delay between them. They should arrive as 2 different frames
+	// due to the periodic flushing.
+	frames := []string{"hello", "world"}
+	for _, frame := range frames {
+		buffer := make([]byte, 1024)
+		n, err := resp.Body.Read(buffer)
+		if err != nil {
+			require.ErrorIs(t, err, io.EOF)
+		}
+		require.Equal(t, frame, strings.TrimSpace(string(buffer[:n])))
 	}
 }
 
@@ -585,6 +625,10 @@ type pack struct {
 	headerAppName        string
 	headerAppPublicAddr  string
 	headerAppClusterName string
+
+	flushAppName        string
+	flushAppPublicAddr  string
+	flushAppClusterName string
 }
 
 type appTestOptions struct {
@@ -646,6 +690,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		headerAppName:        "app-04",
 		headerAppPublicAddr:  "app-04.example.com",
 		headerAppClusterName: "example.com",
+
+		flushAppName:        "app-05",
+		flushAppPublicAddr:  "app-05.example.com",
+		flushAppClusterName: "example.com",
 	}
 
 	// Start a few different HTTP server that will be acting like a proxied application.
@@ -691,6 +739,25 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		}
 	}))
 	t.Cleanup(headerServer.Close)
+	flushServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.(http.Hijacker)
+		conn, _, err := h.Hijack()
+		require.NoError(t, err)
+		defer conn.Close()
+		data := "HTTP/1.1 200 OK\r\n" +
+			"Transfer-Encoding: chunked\r\n" +
+			"\r\n" +
+			"05\r\n" +
+			"hello\r\n"
+		fmt.Fprint(conn, data)
+		time.Sleep(500 * time.Millisecond)
+		data = "05\r\n" +
+			"world\r\n" +
+			"0\r\n" +
+			"\r\n"
+		fmt.Fprint(conn, data)
+	}))
+	t.Cleanup(flushServer.Close)
 
 	p.jwtAppURI = jwtServer.URL
 
@@ -805,6 +872,11 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 			Name:       p.headerAppName,
 			URI:        headerServer.URL,
 			PublicAddr: p.headerAppPublicAddr,
+		},
+		{
+			Name:       p.flushAppName,
+			URI:        flushServer.URL,
+			PublicAddr: p.flushAppPublicAddr,
 		},
 	}, opts.extraRootApps...)
 	p.rootAppServer, err = p.rootCluster.StartApp(raConf)
