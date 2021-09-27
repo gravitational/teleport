@@ -7,13 +7,16 @@
 # if you use the build_image task.
 #
 
-# download teleport binaries
-curl -O https://get.gravitational.com/teleport-v7.1.0-linux-amd64-bin.tar.gz
 
+# get the lastest release
+LATEST_VERSION=$(curl --silent "https://api.github.com/repos/gravitational/teleport/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+# download latest teleport install archive
+curl -O https://get.gravitational.com/teleport-$LATEST_VERSION-linux-amd64-bin.tar.gz
 # extract and install
-tar -xzf teleport-v7.1.0-linux-amd64-bin.tar.gz
+tar -xzf teleport-$LATEST_VERSION-linux-amd64-bin.tar.gz
 teleport/install
-rm -rf teleport && rm teleport-v7.1.0-linux-amd64-bin.tar.gz
+# remove install dir
+rm -rf teleport && rm teleport-$LATEST_VERSION-linux-amd64-bin.tar.gz
 
 # enable and start Teleport service
 cat > /usr/lib/systemd/system/teleport.service <<EOM
