@@ -773,7 +773,7 @@ EOF
       TELEPORT_AGENT_DB_LABELS_EXPANDED="${TELEPORT_AGENT_DB_LABELS//|/
       }"
       cat >>${USE_CONFIG_PATH} <<EOF
-    labels:
+    static_labels:
       ${TELEPORT_AGENT_DB_LABELS_EXPANDED}
 EOF
     fi

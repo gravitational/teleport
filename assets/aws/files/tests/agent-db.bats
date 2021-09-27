@@ -80,3 +80,9 @@ load fixtures/common
     echo "${DB_DATABASES_BLOCK?}"
     echo "${DB_DATABASES_BLOCK?}" | grep -E -A1 "^    aws:" | grep -E "^      region: ${TELEPORT_AGENT_DB_REGION}"
 }
+
+@test "[${TEST_SUITE?}] db_service.databases.static_labels key exists when labels are set" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${DB_DATABASES_BLOCK?}"
+    echo "${DB_DATABASES_BLOCK?}" | grep -E -A1 "^    static_labels:"
+}
