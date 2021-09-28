@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
@@ -453,7 +454,7 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 	return configPath
 }
 
-func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpnproxy.Protocol) *alpnproxy.LocalProxy {
+func mustStartALPNLocalProxy(t *testing.T, addr string, protocol common.Protocol) *alpnproxy.LocalProxy {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 

@@ -187,7 +187,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		// ACME uses TLS-ALPN-01 challenge that requires port 443
 		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
 		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
-		p.WebAddr = fmt.Sprintf(":%d", teleport.StandardHTTPSPort)
+		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
 	}
 
 	fc = &FileConfig{
@@ -964,6 +964,9 @@ type Apps struct {
 
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`
+
+	// Selectors defines resource monitor selectors.
+	Selectors []Selector `yaml:"selectors,omitempty"`
 }
 
 // App is the specific application that will be proxied by the application

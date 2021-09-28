@@ -106,7 +106,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
 	}
 	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferSize
+		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.PollStreamPeriod == 0 {
 		cfg.PollStreamPeriod = backend.DefaultPollStreamPeriod
@@ -212,10 +212,9 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	buf := backend.NewCircularBuffer(
+		backend.BufferCapacity(cfg.BufferSize),
+	)
 	closeCtx, cancel := context.WithCancel(ctx)
 	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	b := &Backend{

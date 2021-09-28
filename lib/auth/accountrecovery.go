@@ -51,20 +51,20 @@ const (
 	approveRecoveryBadAuthnErrMsg = "invalid username, password, or second factor"
 
 	completeRecoveryGenericErrMsg = "unable to recover your account, please contact your system administrator"
+
+	// MaxFailedAttemptsFromStartRecoveryErrMsg is a user friendly error message to try again later.
+	// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
+	MaxFailedAttemptsFromStartRecoveryErrMsg = "you have reached max attempts, please try again later"
+
+	// MaxFailedAttemptsFromApproveRecoveryErrMsg is a user friendly error message to start over.
+	// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
+	MaxFailedAttemptsFromApproveRecoveryErrMsg = "too many incorrect attempts, please start over with a new recovery code"
 )
 
 // fakeRecoveryCodeHash is bcrypt hash for "fake-barbaz x 8".
 // This is a fake hash used to mitigate timing attacks against invalid usernames or if user does
 // exist but does not have recovery codes.
 var fakeRecoveryCodeHash = []byte(`$2a$10$c2.h4pF9AA25lbrWo6U0D.ZmnYpFDaNzN3weNNYNC3jAkYEX9kpzu`)
-
-// ErrMaxFailedAttemptsFromStartRecovery is a user friendly error message to try again later.
-// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
-var ErrMaxFailedAttemptsFromStartRecovery = trace.AccessDenied(startRecoveryMaxFailedAttemptsErrMsg)
-
-// ErrMaxFailedAttemptsFromApproveRecovery is a user friendly error message to start over.
-// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
-var ErrMaxFailedAttemptsFromApproveRecovery = trace.AccessDenied("too many incorrect attempts, please start over with a new recovery code")
 
 // StartAccountRecovery implements AuthService.StartAccountRecovery.
 func (s *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
@@ -143,11 +143,11 @@ func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string
 		return trace.Wrap(verifyCodeErr)
 	}
 
-	return trace.Wrap(ErrMaxFailedAttemptsFromStartRecovery)
+	return trace.AccessDenied(MaxFailedAttemptsFromStartRecoveryErrMsg)
 }
 
 func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode []byte) error {
-	recovery, err := s.GetRecoveryCodes(ctx, user)
+	recovery, err := s.GetRecoveryCodes(ctx, user, true /* withSecrets */)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -342,7 +342,7 @@ func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken typ
 		return trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
 	}
 
-	return trace.Wrap(ErrMaxFailedAttemptsFromApproveRecovery)
+	return trace.AccessDenied(MaxFailedAttemptsFromApproveRecoveryErrMsg)
 }
 
 // recordFailedRecoveryAttempt creates and inserts a recovery attempt and if user has reached max failed attempts,
@@ -459,30 +459,32 @@ func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	approvedToken, err := s.GetUserToken(ctx, req.GetTokenID())
+	token, err := s.GetUserToken(ctx, req.GetTokenID())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
-	if _, err := mail.ParseAddress(approvedToken.GetUser()); err != nil {
-		log.Debugf("Failed to create new recovery codes, username %q is not a valid email: %v.", approvedToken.GetUser(), err)
+	if _, err := mail.ParseAddress(token.GetUser()); err != nil {
+		log.Debugf("Failed to create new recovery codes, username %q is not a valid email: %v.", token.GetUser(), err)
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
-	if err := s.verifyUserToken(approvedToken, UserTokenTypeRecoveryApproved); err != nil {
+	if err := s.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	codes, err := s.generateAndUpsertRecoveryCodes(ctx, approvedToken.GetUser())
+	codes, err := s.generateAndUpsertRecoveryCodes(ctx, token.GetUser())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
 	// If used as part of the recovery flow, getting new recovery codes marks the end of the flow in the UI.
-	if err := s.deleteUserTokens(ctx, approvedToken.GetUser()); err != nil {
-		log.Error(trace.DebugReport(err))
+	if token.GetSubKind() == UserTokenTypeRecoveryApproved {
+		if err := s.deleteUserTokens(ctx, token.GetUser()); err != nil {
+			log.Error(trace.DebugReport(err))
+		}
 	}
 
 	return &proto.CreateAccountRecoveryCodesResponse{
@@ -503,6 +505,21 @@ func (s *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 	}
 
 	return token, nil
+}
+
+// GetAccountRecoveryCodes implements AuthService.GetAccountRecoveryCodes.
+func (s *Server) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	username, err := GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rc, err := s.GetRecoveryCodes(ctx, username, false /* without secrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rc, nil
 }
 
 func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username string) ([]string, error) {

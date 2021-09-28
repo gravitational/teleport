@@ -996,6 +996,14 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 	// Enable debugging application if requested.
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
+	// Configure resource watcher selectors if present.
+	for _, selector := range fc.Apps.Selectors {
+		cfg.Apps.Selectors = append(cfg.Apps.Selectors,
+			services.Selector{
+				MatchLabels: selector.MatchLabels,
+			})
+	}
+
 	// Loop over all apps and load app configuration.
 	for _, application := range fc.Apps.Apps {
 		// Parse the static labels of the application.
@@ -1037,7 +1045,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 				Headers:  headers,
 			}
 		}
-		if err := app.Check(); err != nil {
+		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
@@ -1409,7 +1417,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			StaticLabels:  static,
 			DynamicLabels: dynamic,
 		}
-		if err := app.Check(); err != nil {
+		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)

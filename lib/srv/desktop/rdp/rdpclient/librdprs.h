@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define NTSTATUS_OK 0
+
+#define SPECIAL_NO_RESPONSE 4294967295
+
 typedef enum CGOPointerButton {
   PointerButtonNone,
   PointerButtonLeft,

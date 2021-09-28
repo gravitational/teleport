@@ -638,16 +638,6 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
 func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	if secrets, err := c.grpc.RotateUserTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
-		TokenID: tokenID,
-	}, c.callOpts...); err != nil {
-		if !trace.IsNotImplemented(trail.FromGRPC(err)) {
-			return nil, trail.FromGRPC(err)
-		}
-	} else {
-		return secrets, nil
-	}
-
 	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
@@ -1180,6 +1170,12 @@ func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteM
 		return nil, trail.FromGRPC(err)
 	}
 	return stream, nil
+}
+
+// AddMFADeviceSync adds a new MFA device (nonstream).
+func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	res, err := c.grpc.AddMFADeviceSync(ctx, in, c.callOpts...)
+	return res, trail.FromGRPC(err)
 }
 
 // DeleteMFADeviceSync deletes a users MFA device (nonstream).
@@ -1878,6 +1874,63 @@ func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
 	return nil
 }
 
+// CreateApp creates a new application resource.
+func (c *Client) CreateApp(ctx context.Context, app types.Application) error {
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return trace.BadParameter("unsupported application type %T", app)
+	}
+	_, err := c.grpc.CreateApp(ctx, appV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateApp updates existing application resource.
+func (c *Client) UpdateApp(ctx context.Context, app types.Application) error {
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return trace.BadParameter("unsupported application type %T", app)
+	}
+	_, err := c.grpc.UpdateApp(ctx, appV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetApp returns the specified application resource.
+func (c *Client) GetApp(ctx context.Context, name string) (types.Application, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing application name")
+	}
+	app, err := c.grpc.GetApp(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return app, nil
+}
+
+// GetApps returns all application resources.
+func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
+	items, err := c.grpc.GetApps(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	apps := make([]types.Application, len(items.Apps))
+	for i := range items.Apps {
+		apps[i] = items.Apps[i]
+	}
+	return apps, nil
+}
+
+// DeleteApp deletes specified application resource.
+func (c *Client) DeleteApp(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteApp(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllApps deletes all application resources.
+func (c *Client) DeleteAllApps(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllApps(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // CreateDatabase creates a new database resource.
 func (c *Client) CreateDatabase(ctx context.Context, database types.Database) error {
 	databaseV3, ok := database.(*types.DatabaseV3)
@@ -2087,8 +2140,26 @@ func (c *Client) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 	return res, trail.FromGRPC(err)
 }
 
+// GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
+func (c *Client) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	res, err := c.grpc.GetAccountRecoveryCodes(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
 // CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
 func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	resp, err := c.grpc.CreateAuthenticateChallenge(ctx, in, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	resp, err := c.grpc.CreatePrivilegeToken(ctx, req, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	resp, err := c.grpc.CreateRegisterChallenge(ctx, in, c.callOpts...)
 	return resp, trail.FromGRPC(err)
 }

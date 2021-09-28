@@ -106,6 +106,9 @@ const (
 	AWSConsoleURL = "https://console.aws.amazon.com"
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
+
+	// RSAKeySize is the size of the RSA key.
+	RSAKeySize = 2048
 )
 
 // SecondFactorType is the type of 2FA authentication.

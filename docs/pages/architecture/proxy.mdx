@@ -81,7 +81,7 @@ client `ssh` or using `tsh`:
   type="tip"
   title="NOTE"
 >
-  Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation. See [User Manual](../user-manual.mdx#ssh-proxy-configuration).
+  Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation.
 </Admonition>
 
 ## Recording Proxy mode
@@ -113,7 +113,7 @@ prevent sessions logs from reaching the Auth Service. With sessions recorded at
 the proxy, users with root privileges on Nodes have no way of disabling the
 audit.
 
-See the [admin guide](../admin-guide.mdx#recorded-sessions) to learn how to turn
+See the [reference](../setup/reference/audit.mdx#recorded-sessions) to learn how to turn
 on the recording proxy mode. Note that the recording mode is configured on the
 Auth Service.
 
