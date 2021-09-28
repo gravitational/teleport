@@ -831,8 +831,6 @@ func getWatcherStats(metrics map[string]*dto.MetricFamily, prev *WatcherStats, p
 	var (
 		eventsPerSec *utils.CircularBuffer
 		bytesPerSec  *utils.CircularBuffer
-		eventsRate   float64
-		bytesRate    float64
 	)
 	if prev == nil {
 		eps, err := utils.NewCircularBuffer(150)
@@ -851,12 +849,9 @@ func getWatcherStats(metrics map[string]*dto.MetricFamily, prev *WatcherStats, p
 		eventsPerSec = prev.EventsPerSecond
 		bytesPerSec = prev.BytesPerSecond
 
-		eventsRate = float64(histogram.Count-prev.EventSize.Count) / float64(period/time.Second)
-		bytesRate = histogram.Sum - prev.EventSize.Sum/float64(period/time.Second)
+		eventsPerSec.Add(float64(histogram.Count-prev.EventSize.Count) / float64(period/time.Second))
+		bytesPerSec.Add(histogram.Sum - prev.EventSize.Sum/float64(period/time.Second))
 	}
-
-	eventsPerSec.Add(eventsRate)
-	bytesPerSec.Add(bytesRate)
 
 	stats := &WatcherStats{
 		EventSize:       histogram,
