@@ -28,7 +28,7 @@ import (
 )
 
 // errorMessage is the error message to return when invalid input is provided by the caller.
-const errorMessage = "special characters are not allowed in resource names, please use name composed only from characters, hyphens and dots: %q"
+const errorMessage = "special characters are not allowed in resource names, please use name composed only from characters, hyphens, dots, and plus signs: %q"
 
 // whitelistPattern is the pattern of allowed characters for each key within
 // the path.
