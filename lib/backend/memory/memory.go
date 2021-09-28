@@ -96,7 +96,6 @@ func New(cfg Config) (*Memory, error) {
 	)
 	buf.SetInit()
 	m := &Memory{
-		Mutex: &sync.Mutex{},
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentMemory,
 		}),
@@ -112,8 +111,8 @@ func New(cfg Config) (*Memory, error) {
 
 // Memory is a memory B-Tree based backend
 type Memory struct {
-	*sync.Mutex
 	*log.Entry
+	rw sync.RWMutex
 	Config
 	backend.NoMigrations
 	// tree is a BTree with items
@@ -133,8 +132,8 @@ type Memory struct {
 // Close closes memory backend
 func (m *Memory) Close() error {
 	m.cancel()
-	m.Lock()
-	defer m.Unlock()
+	m.rw.Lock()
+	defer m.rw.Unlock()
 	m.buf.Close()
 	return nil
 }
@@ -155,8 +154,8 @@ func (m *Memory) Create(ctx context.Context, i backend.Item) (*backend.Lease, er
 	if len(i.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
-	m.Lock()
-	defer m.Unlock()
+	m.rw.Lock()
+	defer m.rw.Unlock()
 	m.removeExpired()
 	if m.tree.Get(&btreeItem{Item: i}) != nil {
 		return nil, trace.AlreadyExists("key %q already exists", string(i.Key))
@@ -177,9 +176,14 @@ func (m *Memory) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	if len(key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
-	m.Lock()
-	defer m.Unlock()
-	m.removeExpired()
+	if m.Mirror {
+		m.rw.RLock()
+		defer m.rw.RUnlock()
+	} else {
+		m.rw.Lock()
+		defer m.rw.Unlock()
+		m.removeExpired()
+	}
 	i := m.tree.Get(&btreeItem{Item: backend.Item{Key: key}})
 	if i == nil {
 		return nil, trace.NotFound("key %q is not found", string(key))
@@ -193,8 +197,8 @@ func (m *Memory) Update(ctx context.Context, i backend.Item) (*backend.Lease, er
 	if len(i.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
-	m.Lock()
-	defer m.Unlock()
+	m.rw.Lock()
+	defer m.rw.Unlock()
 	m.removeExpired()
 	if m.tree.Get(&btreeItem{Item: i}) == nil {
 		return nil, trace.NotFound("key %q is not found", string(i.Key))
@@ -219,8 +223,8 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 	if len(i.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
-	m.Lock()
-	defer m.Unlock()
+	m.rw.Lock()
+	defer m.rw.Unlock()
 	m.removeExpired()
 	event := backend.Event{
 		Type: backend.OpPut,
@@ -241,8 +245,8 @@ func (m *Memory) PutRange(ctx context.Context, items []backend.Item) error {
 			return trace.BadParameter("missing parameter key in item %v", i)
 		}
 	}
-	m.Lock()
-	defer m.Unlock()
+	m.rw.Lock()
+	defer m.rw.Unlock()
 	m.removeExpired()
 	for _, item := range items {
 		event := backend.Event{
@@ -266,8 +270,8 @@ func (m *Memory) Delete(ctx context.Context, key []byte) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
-	m.Lock()
-	defer m.Unlock()
+	m.rw.Lock()
+	defer m.rw.Unlock()
 	m.removeExpired()
 	if m.tree.Get(&btreeItem{Item: backend.Item{Key: key}}) == nil {
 		return trace.NotFound("key %q is not found", string(key))
@@ -294,8 +298,8 @@ func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey []byte) error
 	if len(endKey) == 0 {
 		return trace.BadParameter("missing parameter endKey")
 	}
-	m.Lock()
-	defer m.Unlock()
+	m.rw.Lock()
+	defer m.rw.Unlock()
 	m.removeExpired()
 	re := m.getRange(ctx, startKey, endKey, backend.NoLimit)
 	for _, item := range re.Items {
@@ -322,9 +326,14 @@ func (m *Memory) GetRange(ctx context.Context, startKey []byte, endKey []byte, l
 	if limit <= 0 {
 		limit = backend.DefaultLargeLimit
 	}
-	m.Lock()
-	defer m.Unlock()
-	m.removeExpired()
+	if m.Mirror {
+		m.rw.RLock()
+		defer m.rw.RUnlock()
+	} else {
+		m.rw.Lock()
+		defer m.rw.Unlock()
+		m.removeExpired()
+	}
 	re := m.getRange(ctx, startKey, endKey, limit)
 	return &re, nil
 }
@@ -334,8 +343,8 @@ func (m *Memory) KeepAlive(ctx context.Context, lease backend.Lease, expires tim
 	if lease.IsEmpty() {
 		return trace.BadParameter("lease is empty")
 	}
-	m.Lock()
-	defer m.Unlock()
+	m.rw.Lock()
+	defer m.rw.Unlock()
 	m.removeExpired()
 	i := m.tree.Get(&btreeItem{Item: backend.Item{Key: lease.Key}})
 	if i == nil {
@@ -365,8 +374,8 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 	if !bytes.Equal(expected.Key, replaceWith.Key) {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
-	m.Lock()
-	defer m.Unlock()
+	m.rw.Lock()
+	defer m.rw.Unlock()
 	m.removeExpired()
 	i := m.tree.Get(&btreeItem{Item: expected})
 	if i == nil {
