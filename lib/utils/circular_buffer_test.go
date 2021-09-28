@@ -41,13 +41,11 @@ func TestCircularBuffer_Data(t *testing.T) {
 
 	expectData := func(expected []float64) {
 		for i := 0; i < 15; i++ {
+			e := expected
 			if i <= len(expected) {
-				data := buff.Data(i)
-				expect := expected[len(expected)-i:]
-				require.Empty(t, cmp.Diff(expect, data, cmpopts.EquateEmpty()), "i = %v", i)
-				continue
+				e = expected[len(expected)-i:]
 			}
-			require.Empty(t, cmp.Diff(expected, buff.Data(i), cmpopts.EquateEmpty()), "i = %v", i)
+			require.Empty(t, cmp.Diff(e, buff.Data(i), cmpopts.EquateEmpty()), "i = %v", i)
 		}
 	}
 
