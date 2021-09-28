@@ -55,21 +55,25 @@ export function Desktops(props: State) {
         </Box>
       )}
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-      <Flex
-        mb={4}
-        alignItems="center"
-        flex="0 0 auto"
-        justifyContent="space-between"
-      >
-        <InputSearch mr={3} value={searchValue} onChange={setSearchValue} />
-      </Flex>
-      <DesktopList
-        desktops={desktops}
-        username={username}
-        clusterId={clusterId}
-        searchValue={searchValue}
-        openRemoteDesktopWindow={openRemoteDesktopWindow}
-      />
+      {attempt.status === 'success' && (
+        <>
+          <Flex
+            mb={4}
+            alignItems="center"
+            flex="0 0 auto"
+            justifyContent="space-between"
+          >
+            <InputSearch mr={3} value={searchValue} onChange={setSearchValue} />
+          </Flex>
+          <DesktopList
+            desktops={desktops}
+            username={username}
+            clusterId={clusterId}
+            searchValue={searchValue}
+            openRemoteDesktopWindow={openRemoteDesktopWindow}
+          />
+        </>
+      )}
     </FeatureBox>
   );
 }
