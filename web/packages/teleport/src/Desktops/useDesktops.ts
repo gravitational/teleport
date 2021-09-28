@@ -20,6 +20,7 @@ import Ctx from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Desktop } from 'teleport/services/desktops';
 import cfg from 'teleport/config';
+import { openNewTab } from 'teleport/lib/util';
 
 export default function useDesktops(ctx: Ctx) {
   const { attempt, run } = useAttempt('processing');
@@ -41,24 +42,7 @@ export default function useDesktops(ctx: Ctx) {
       username,
     });
 
-    openNewWindow(url);
-  };
-
-  // It turns out opening a new window is not as simple as one would hope with modern browsers.
-  // The following solution works on recent versions of Chrome/Firefox/Safari, but it may be unstable
-  // since it is not explicitly defined behavior. For now it should be tested manually before releases.
-  const openNewWindow = (url: string) => {
-    const element = document.createElement('a');
-    // see https://forums.asp.net/post/4841258.aspx
-    element.setAttribute('href', `${url}`);
-    element.setAttribute(
-      'onclick',
-      `window.open(this.href, '_blank', 'scrollbars=no,status=no,toolbar=no,menubar=no,location=no'); return false;`
-    );
-    element.style.display = 'none';
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    openNewTab(url);
   };
 
   return {

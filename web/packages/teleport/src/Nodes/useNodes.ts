@@ -20,6 +20,7 @@ import Ctx from 'teleport/teleportContext';
 import { StickyCluster } from 'teleport/types';
 import cfg from 'teleport/config';
 import { Node } from 'teleport/services/nodes';
+import { openNewTab } from 'teleport/lib/util';
 
 export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   const { isLeafCluster, clusterId } = stickyCluster;
@@ -38,17 +39,6 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     (serverId: string) => makeOptions(clusterId, serverId, logins),
     [logins]
   );
-
-  const openNewTab = (url: string) => {
-    const element = document.createElement('a');
-    element.setAttribute('href', `${url}`);
-    // works in ie11
-    element.setAttribute('target', `_blank`);
-    element.style.display = 'none';
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
 
   const startSshSession = (login: string, serverId: string) => {
     const url = cfg.getSshConnectRoute({
