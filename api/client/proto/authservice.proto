@@ -40,6 +40,8 @@ enum Operation {
 
 // Event returns cluster event
 message Event {
+    reserved 7;
+
     // Operation identifies operation
     Operation Type = 1 [ (gogoproto.jsontag) = "type,omitempty" ];
     // Resource contains the updated resource
@@ -58,9 +60,6 @@ message Event {
             [ (gogoproto.jsontag) = "provision_token,omitempty" ];
         // ClusterNameV2 is a cluster name resource
         types.ClusterNameV2 ClusterName = 6 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
-        // ClusterConfig is a cluster configuration resource
-        types.ClusterConfigV3 ClusterConfig = 7
-            [ (gogoproto.jsontag) = "cluster_config,omitempty" ];
         // User is a user resource
         types.UserV2 User = 8 [ (gogoproto.jsontag) = "user,omitempty" ];
         // Role is a role resource
@@ -386,6 +385,8 @@ message Features {
     bool AdvancedAccessWorkflows = 7 [ (gogoproto.jsontag) = "advanced_access_workflows" ];
     // Cloud enables some cloud-related features
     bool Cloud = 8 [ (gogoproto.jsontag) = "cloud" ];
+    // HSM enables PKCS#11 HSM support
+    bool HSM = 9 [ (gogoproto.jsontag) = "hsm" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -831,6 +832,9 @@ message TOTPRegisterChallenge {
     uint32 Digits = 5;
     // Account is the account name for this user.
     string Account = 6;
+    // QRCode is an optional field for the QR code in PNG format. Used to display a QR code
+    // image in the UI.
+    bytes QRCode = 7;
 }
 
 // TOTPRegisterResponse is a response to TOTPRegisterChallenge.
@@ -917,21 +921,38 @@ message DeleteMFADeviceResponseAck {}
 message DeleteMFADeviceSyncRequest {
     // TokenID is the ID of a user token that will be used to verify this request.
     // Token types accepted are:
-    //   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
-    //   - TODO(kimlisa) add privilege token doc after implementation
+    //   - Recovery approved token that is obtained with RPC VerifyAccountRecovery
+    //   - Privilege token that is obtained with RPC CreatePrivilegeToken
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
     // DeviceName is the name of the device to delete.
     string DeviceName = 2 [ (gogoproto.jsontag) = "device_name" ];
 }
 
+// AddMFADeviceSyncRequest is a request to add a MFA device (nonstream).
+message AddMFADeviceSyncRequest {
+    // TokenID is the ID of a user token that will be used to verify this request.
+    // Token types accepted are:
+    //  - Privilege token that is obtained with RPC CreatePrivilegeToken
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
+    // NewDeviceName is the name of a new mfa device.
+    string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
+    // NewMFAResponse is a user's new mfa response to a mfa register challenge.
+    MFARegisterResponse NewMFAResponse = 3 [ (gogoproto.jsontag) = "new_mfa_response,omitempty" ];
+}
+
+// AddMFADeviceSyncResponse is a response to AddMFADeviceSyncRequest.
+message AddMFADeviceSyncResponse { types.MFADevice Device = 1 [ (gogoproto.jsontag) = "device" ]; }
+
 // GetMFADeviceRequest is a request for MFA devices for the calling user.
 message GetMFADevicesRequest {
-    // RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
-    // request. Token is obtained with RPC ApproveAccountRecovery and allows users to view their
-    // MFA devices without being logged in.
-    // This field can be empty which implies the logged in user wants to view their devices.
-    string RecoveryApprovedTokenID = 1
-        [ (gogoproto.jsontag) = "recovery_approved_token_id,omitempty" ];
+    // TokenID is an optional field for the ID of a user token that will be used to
+    // verify this request. Token is only required if an unauthenticated user wants to view their
+    // list of devices eg: during account recovery process. An empty field implies the logged in
+    // user wants to view their devices.
+    // Token types accepted are:
+    //  - Recovery approved token that is obtained after successful invocation of RPC
+    //  VerifyAccountRecovery
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id,omitempty" ];
 }
 
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
@@ -1162,7 +1183,7 @@ message ChangeUserAuthenticationResponse {
 // StartAccountRecoveryRequest defines a request to create a recovery start token for a user who is
 // allowed to recover their account. The tokens ID is used as part of a URL that will be emailed to
 // the user (not done in this request). Represents step 1 of the account recovery process, next step
-// is RPC ApproveAccountRecovery.
+// is RPC VerifyAccountRecovery.
 message StartAccountRecoveryRequest {
     // Username is the requesting user. The username must meet the following requirements to be
     // allowed to recover their account:
@@ -1175,10 +1196,10 @@ message StartAccountRecoveryRequest {
     types.UserTokenUsage RecoverType = 3 [ (gogoproto.jsontag) = "recover_type" ];
 }
 
-// ApproveAccountRecoveryRequest is a request to create a recovery approved token that allows users
+// VerifyAccountRecoveryRequest is a request to create a recovery approved token that allows users
 // to perform protected actions while not logged in. Represents step 2 of the account recovery
 // process after RPC StartAccountRecovery, next step is RPC CompleteAccountRecovery.
-message ApproveAccountRecoveryRequest {
+message VerifyAccountRecoveryRequest {
     // RecoveryStartTokenID is the ID of a recovery start token that's required to verify this
     // request.
     string RecoveryStartTokenID = 1 [ (gogoproto.jsontag) = "recovery_start_token_id" ];
@@ -1198,7 +1219,7 @@ message ApproveAccountRecoveryRequest {
 // CompleteAccountRecoveryRequest is a request to set either a new password or
 // add a new mfa device, allowing the user to regain access to their account with the new
 // credentials. Represents the last step in the account recovery process after RPC's
-// StartAccountRecovery and ApproveAccountRecovery.
+// StartAccountRecovery and VerifyAccountRecovery.
 message CompleteAccountRecoveryRequest {
     // RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
     // request.
@@ -1224,8 +1245,8 @@ message CompleteAccountRecoveryRequest {
 message CreateAccountRecoveryCodesRequest {
     // TokenID is the ID of a user token that will be used to verify this request.
     // Token types accepted are:
-    //   - Recovery approved token that is obtained with RPC ApproveAccountRecovery
-    //   - TODO(kimlisa) add privilege token doc after implementation
+    //   - Recovery approved token that is obtained with RPC VerifyAccountRecovery
+    //   - Privilege token that is obtained with RPC CreatePrivilegeToken
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
 }
 
@@ -1240,9 +1261,13 @@ message CreateAccountRecoveryCodesResponse {
 // the token in the request is not expired and is of the recovery kind.
 message GetAccountRecoveryTokenRequest {
     // RecoveryTokenID is the ID of a recovery token to verify.
-    // Recovery tokens are obtained with RPC StartAccountRecovery or ApproveAccountRecovery.
+    // Recovery tokens are obtained with RPC StartAccountRecovery or VerifyAccountRecovery.
     string RecoveryTokenID = 1 [ (gogoproto.jsontag) = "recovery_token_id" ];
 }
+
+// GetAccountRecoveryCodesRequest is a request to return the user in context their
+// recovery codes. This request will not return any secrets (the values of recovery codes).
+message GetAccountRecoveryCodesRequest {}
 
 // UserCredentials describes fields for a user's username and password.
 message UserCredentials {
@@ -1262,7 +1287,7 @@ message CreateAuthenticateChallengeRequest {
         UserCredentials UserCredentials = 1 [ (gogoproto.jsontag) = "user_credentials,omitempty" ];
         // RecoveryStartTokenID is the ID of a recovery start token obtained with RPC
         // StartAccountRecovery. This token allows a user to retrieve their MFA challenges for RPC
-        // ApproveAccountRecovery (step 2 of the recovery process after RPC StartAccountRecovery).
+        // VerifyAccountRecovery (step 2 of the recovery process after RPC StartAccountRecovery).
         string RecoveryStartTokenID = 2
             [ (gogoproto.jsontag) = "recovery_start_token_id,omitempty" ];
     }
@@ -1278,6 +1303,16 @@ message CreatePrivilegeTokenRequest {
     // with no mfa devices to add a device without re-authenticating.
     MFAAuthenticateResponse ExistingMFAResponse = 1
         [ (gogoproto.jsontag) = "existing_mfa_response,omitempty" ];
+}
+
+// CreateRegisterChallengeRequest is a request for creating MFA register challenge for a
+// new MFA device.
+message CreateRegisterChallengeRequest {
+    // TokenID is the ID of a user token that will be used to verify this request.
+    // All user token types are accepted except UserTokenTypeRecoveryStart.
+    string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
+    // DeviceType is the type of MFA device to make a register challenge for.
+    DeviceType DeviceType = 2 [ (gogoproto.jsontag) = "device_type" ];
 }
 
 // AuthService is authentication/authorization service implementation
@@ -1336,11 +1371,9 @@ service AuthService {
     rpc Ping(PingRequest) returns (PingResponse);
 
     // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
-    // DELETE IN: 9.0.0 in favor of RotateUserTokenSecrets.
+    // DELETE IN: 9.0.0 in favor of CreateRegisterChallenge.
     rpc RotateResetPasswordTokenSecrets(RotateUserTokenSecretsRequest)
         returns (types.UserTokenSecretsV3);
-    // RotateUserTokenSecrets rotates token secrets for a given tokenID.
-    rpc RotateUserTokenSecrets(RotateUserTokenSecretsRequest) returns (types.UserTokenSecretsV3);
     // GetResetPasswordToken returns a reset password token.
     rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
     // CreateResetPasswordToken resets users current password and second factors and creates a reset
@@ -1499,6 +1532,8 @@ service AuthService {
     // -> MFAResponse
     // <- Ack
     rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
+    // AddMFADeviceSync adds a new MFA device (nonstream).
+    rpc AddMFADeviceSync(AddMFADeviceSyncRequest) returns (AddMFADeviceSyncResponse);
     // DeleteMFADeviceSync deletes a users MFA device (nonstream).
     rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
     // GetMFADevices returns all MFA devices registered for the user calling
@@ -1508,6 +1543,8 @@ service AuthService {
     // devices.
     rpc CreateAuthenticateChallenge(CreateAuthenticateChallengeRequest)
         returns (MFAAuthenticateChallenge);
+    // CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+    rpc CreateRegisterChallenge(CreateRegisterChallengeRequest) returns (MFARegisterChallenge);
 
     // GetOIDCConnector gets an OIDC connector resource by name.
     rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV2);
@@ -1674,7 +1711,7 @@ service AuthService {
     //
     // Start tokens last RecoveryStartTokenTTL.
     rpc StartAccountRecovery(StartAccountRecoveryRequest) returns (types.UserTokenV3);
-    // ApproveAccountRecovery (exclusive to cloud users) is the second step of the two step
+    // VerifyAccountRecovery (exclusive to cloud users) is the second step of the two step
     // verification needed to allow a user to recover their account, after RPC StartAccountRecovery.
     // The second form of verification is a user's password or their second factor (depending on
     // what authentication they needed to recover). After successful verification, a recovery
@@ -1694,9 +1731,9 @@ service AuthService {
     // from step 1 (RPC StartAccountRecovery).
     //
     // Recovery approved tokens last RecoveryApprovedTokenTTL.
-    rpc ApproveAccountRecovery(ApproveAccountRecoveryRequest) returns (types.UserTokenV3);
+    rpc VerifyAccountRecovery(VerifyAccountRecoveryRequest) returns (types.UserTokenV3);
     // CompleteAccountRecovery (exclusive to cloud users) is the last step in account
-    // recovery, after RPC's StartAccountRecovery and ApproveAccountRecovery. This step sets a new
+    // recovery, after RPC's StartAccountRecovery and VerifyAccountRecovery. This step sets a new
     // password or adds a new mfa device, allowing the user to regain access to their account with
     // the new credentials. When the new authentication is successfully set, any user lock is
     // removed so the user can login immediately afterwards.
@@ -1713,6 +1750,10 @@ service AuthService {
     // the token e.g: username, state of recovery (started or approved) and the type of recovery
     // requested (password or second factor).
     rpc GetAccountRecoveryToken(GetAccountRecoveryTokenRequest) returns (types.UserTokenV3);
+    // GetAccountRecoveryCodes (exclusive to cloud users) is a request to return the user in context
+    // their recovery codes. This request will not return any secrets (the values of recovery
+    // codes), but instead returns non-sensitive data eg. when the recovery codes were created.
+    rpc GetAccountRecoveryCodes(GetAccountRecoveryCodesRequest) returns (types.RecoveryCodesV1);
 
     // CreatePrivilegeToken returns a new privilege token after a logged in user successfully
     // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and

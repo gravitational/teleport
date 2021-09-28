@@ -29,7 +29,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1565,11 +1564,6 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	return certs, nil
 }
 
-func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
-	// signup token are their own authz resource
-	return a.authServer.CreateSignupU2FRegisterRequest(token)
-}
-
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -2123,44 +2117,12 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	return a.authServer.DeleteRole(ctx, name)
 }
 
-// GetClusterConfig gets cluster level configuration.
-func (a *ServerWithRoles) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	if err := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetClusterConfig(opts...)
-}
-
-// DeleteClusterConfig deletes cluster config
-func (a *ServerWithRoles) DeleteClusterConfig() error {
-	if err := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteClusterConfig()
-}
-
 // DeleteClusterName deletes cluster name
 func (a *ServerWithRoles) DeleteClusterName() error {
 	if err := a.action(apidefaults.Namespace, types.KindClusterName, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteClusterName()
-}
-
-// DeleteStaticTokens deletes static tokens
-func (a *ServerWithRoles) DeleteStaticTokens() error {
-	if err := a.action(apidefaults.Namespace, types.KindStaticTokens, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteStaticTokens()
-}
-
-// SetClusterConfig sets cluster level configuration.
-func (a *ServerWithRoles) SetClusterConfig(c types.ClusterConfig) error {
-	if err := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.SetClusterConfig(c)
 }
 
 // GetClusterName gets the name of the cluster.
@@ -2185,6 +2147,14 @@ func (a *ServerWithRoles) UpsertClusterName(c types.ClusterName) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertClusterName(c)
+}
+
+// DeleteStaticTokens deletes static tokens
+func (a *ServerWithRoles) DeleteStaticTokens() error {
+	if err := a.action(apidefaults.Namespace, types.KindStaticTokens, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteStaticTokens()
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -2251,7 +2221,9 @@ func (a *ServerWithRoles) DeleteAuthPreference(context.Context) error {
 // GetClusterAuditConfig gets cluster audit configuration.
 func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuditConfig, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetClusterAuditConfig(ctx, opts...)
 }
@@ -2269,7 +2241,9 @@ func (a *ServerWithRoles) DeleteClusterAuditConfig(ctx context.Context) error {
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetClusterNetworkingConfig(ctx, opts...)
 }
@@ -2282,7 +2256,9 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 	}
 
 	if err := a.action(apidefaults.Namespace, types.KindClusterNetworkingConfig, verbsToReplaceResourceWithOrigin(storedNetConfig)...); err != nil {
-		return trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, verbsToReplaceResourceWithOrigin(storedNetConfig)...); err2 != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
@@ -2299,7 +2275,9 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 	}
 
 	if err := a.action(apidefaults.Namespace, types.KindClusterNetworkingConfig, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
@@ -2313,7 +2291,9 @@ func (a *ServerWithRoles) DeleteClusterNetworkingConfig(ctx context.Context) err
 // GetSessionRecordingConfig gets session recording configuration.
 func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetSessionRecordingConfig(ctx, opts...)
 }
@@ -2326,7 +2306,9 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 	}
 
 	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, verbsToReplaceResourceWithOrigin(storedRecConfig)...); err != nil {
-		return trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, verbsToReplaceResourceWithOrigin(storedRecConfig)...); err2 != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
@@ -2343,7 +2325,9 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 	}
 
 	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
@@ -3037,6 +3021,13 @@ func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthServic
 	return nil, trace.NotImplemented("bug: DeleteMFADevice must not be called on auth.ServerWithRoles")
 }
 
+// AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
+func (a *ServerWithRoles) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	// The token provides its own authorization and authentication.
+	res, err := a.authServer.AddMFADeviceSync(ctx, req)
+	return res, trace.Wrap(err)
+}
+
 // DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
 func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
 	// The token provides its own authorization and authentication.
@@ -3455,10 +3446,10 @@ func (a *ServerWithRoles) StartAccountRecovery(ctx context.Context, req *proto.S
 	return a.authServer.StartAccountRecovery(ctx, req)
 }
 
-// ApproveAccountRecovery is implemented by AuthService.ApproveAccountRecovery.
-func (a *ServerWithRoles) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error) {
+// VerifyAccountRecovery is implemented by AuthService.VerifyAccountRecovery.
+func (a *ServerWithRoles) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAccountRecoveryRequest) (types.UserToken, error) {
 	// The token provides its own authorization and authentication.
-	return a.authServer.ApproveAccountRecovery(ctx, req)
+	return a.authServer.VerifyAccountRecovery(ctx, req)
 }
 
 // CompleteAccountRecovery is implemented by AuthService.CompleteAccountRecovery.
@@ -3489,6 +3480,18 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
 func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	return a.authServer.CreatePrivilegeToken(ctx, req)
+}
+
+// CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.
+func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	// The token provides its own authorization and authentication.
+	return a.authServer.CreateRegisterChallenge(ctx, req)
+}
+
+// GetAccountRecoveryCodes is implemented by AuthService.GetAccountRecoveryCodes.
+func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	// User in context can retrieve their own recovery codes.
+	return a.authServer.GetAccountRecoveryCodes(ctx, req)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

@@ -85,7 +85,6 @@ func (process *TeleportProcess) connectToAuthService(role types.SystemRole) (*Co
 		return nil, trace.Wrap(err)
 	}
 	process.log.Debugf("Connected client: %v", connector.ClientIdentity)
-	process.log.Debugf("Connected server: %v", connector.ServerIdentity)
 	process.addConnector(connector)
 
 	return connector, nil
