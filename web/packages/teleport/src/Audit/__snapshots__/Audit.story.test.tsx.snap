@@ -680,12 +680,12 @@ exports[`loaded 1`] = `
           </strong>
            - 
           <strong>
-            43
+            47
           </strong>
            
           of 
           <strong>
-            43
+            47
           </strong>
         </div>
       </div>
@@ -801,6 +801,146 @@ exports[`loaded 1`] = `
             style="min-width: 120px;"
           >
             2021-08-06 18:47:19
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-vpn_key c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Recovery Code Use Failed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [user@example.com] failed an attempt to use a recovery code
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-08-05 23:32:41
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-info_outline c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Recovery Token Created
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Recovery token was created for user [user@example.com]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-08-05 21:41:14
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-vpn_key c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Recovery Code Used
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [user@example.com] successfully used a recovery code
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-08-05 21:22:46
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-keypair c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Recovery Codes Generated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            New recovery codes were generated for user [user@example.com]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-08-05 21:16:17
           </td>
           <td
             align="right"

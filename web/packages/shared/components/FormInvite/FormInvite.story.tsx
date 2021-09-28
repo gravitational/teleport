@@ -15,71 +15,54 @@ limitations under the License.
 */
 
 import React from 'react';
-import FormInvite from './FormInvite';
+import FormInvite, { Props } from './FormInvite';
 
 export default {
   title: 'Shared/FormInvite',
   component: FormInvite,
 };
 
-export function Off() {
-  const props = {
-    ...defaultProps,
-    auth2faType: 'off' as const,
-  };
+export const Off = () => <FormInvite {...props} auth2faType="off" />;
 
-  return <FormInvite {...props} />;
-}
+export const Otp = () => <FormInvite {...props} />;
 
-export function Otp() {
-  return <FormInvite {...defaultProps} />;
-}
+export const OtpError = () => (
+  <FormInvite
+    {...props}
+    attempt={{
+      status: 'failed',
+      statusText:
+        'Server error with a long teeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeext',
+    }}
+  />
+);
 
-export function OtpError() {
-  const props = {
-    ...defaultProps,
-    attempt: {
-      ...defaultProps.attempt,
-      isFailed: true,
-      message: 'Server error with a long teeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeext',
-    },
-  };
-
-  return <FormInvite {...props} />;
-}
-
-export function U2f() {
-  const props = {
-    ...defaultProps,
-    attempt: {
-      ...defaultProps.attempt,
-      isProcessing: true,
-    },
-    auth2faType: 'u2f' as const,
-  };
-
-  return <FormInvite {...props} />;
-}
+export const U2f = () => (
+  <FormInvite {...props} auth2faType="u2f" attempt={{ status: 'processing' }} />
+);
 
 U2f.storyName = 'U2f';
 
-export function U2fError() {
-  const props = {
-    ...defaultProps,
-    attempt: {
-      ...defaultProps.attempt,
-      isFailed: true,
-      message: 'Message whic has [U2F] word',
-    },
-    auth2faType: 'u2f' as const,
-  };
+export const U2fError = () => (
+  <FormInvite
+    {...props}
+    auth2faType="u2f"
+    attempt={{ status: 'failed', statusText: 'Message with has [U2F] word' }}
+  />
+);
 
-  return <FormInvite {...props} />;
-}
+U2fError.storyName = 'U2f Error';
 
-U2fError.storyName = 'U2fError';
+export const Optional = () => <FormInvite {...props} auth2faType="optional" />;
 
-const userToken = {
+const props: Props = {
+  auth2faType: 'otp',
+  onSubmitWithU2f() {},
+  onSubmit() {},
+  attempt: {
+    status: '',
+  },
+  clearSubmitAttempt: () => null,
   user: 'test@gravitational.com',
   qr:
     'iVBORw0KGgoAAAANSUhEUgAAAcgAAAHIEAAAAAC/Wvl1AAAJV0lEQVR4nOzdsW4jORZA0fbC///LXowV' +
@@ -123,18 +106,4 @@ const userToken = {
     'SAgRJIQIEkIECSGChBBBQsjy6FxhtGvlHaY2yV1beW7hCtV93d1uUz879WkPTkgIESSECBJCBAkhgoQQ' +
     'QUKIICFEkBAiSAgRJIQ8GZ3rjnbtD76d3X92ber60v0xsClnB9/OsnUO3pAgIUSQECJICBEkhAgSQgQJ' +
     'IYKEEEFCiCAh5KMwdgQ8OCEhRJAQ8v8AAAD//1QuL6EmJFBiAAAAAElFTkSuQmCC',
-};
-
-const defaultProps = {
-  auth2faType: 'otp' as const,
-  authType: '',
-  onSubmitWithU2f() {},
-  onSubmit() {},
-  attempt: {
-    isProcessing: false,
-    isFailed: false,
-    isSuccess: false,
-    message: '',
-  },
-  ...userToken,
 };

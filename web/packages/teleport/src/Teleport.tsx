@@ -35,39 +35,18 @@ import cfg from './config';
 
 const teleportIco = require('./favicon.ico').default;
 
-const Teleport: React.FC<Props> = ({ ctx, history, children }) => {
+const Teleport: React.FC<Props> = props => {
   useFavicon(teleportIco);
+  const { ctx, history } = props;
+  const publicRoutes = props.renderPublicRoutes || renderPublicRoutes;
+  const privateRoutes = props.renderPrivateRoutes || renderPrivateRoutes;
+
   return (
     <CatchError>
       <ThemeProvider>
         <Router history={history}>
           <Switch>
-            <Route
-              title="Login Failed"
-              path={cfg.routes.loginError}
-              component={LoginFailed}
-            />
-            <Route
-              title="Login Failed"
-              path={cfg.routes.loginErrorLegacy}
-              component={LoginFailed}
-            />
-            <Route title="Login" path={cfg.routes.login} component={Login} />
-            <Route
-              title="Success"
-              path={cfg.routes.loginSuccess}
-              component={LoginSuccess}
-            />
-            <Route
-              title="Invite"
-              path={cfg.routes.userInvite}
-              component={Invite}
-            />
-            <Route
-              title="Password Reset"
-              path={cfg.routes.userReset}
-              component={ResetPassword}
-            />
+            {publicRoutes()}
             <Route path={cfg.routes.root}>
               <Authenticated>
                 <TeleportContextProvider ctx={ctx}>
@@ -76,7 +55,7 @@ const Teleport: React.FC<Props> = ({ ctx, history, children }) => {
                       path={cfg.routes.appLauncher}
                       component={AppLauncher}
                     />
-                    <Route>{renderAuthenticated(children)}</Route>
+                    <Route>{privateRoutes()}</Route>
                   </Switch>
                 </TeleportContextProvider>
               </Authenticated>
@@ -88,18 +67,50 @@ const Teleport: React.FC<Props> = ({ ctx, history, children }) => {
   );
 };
 
-// TODO: make it lazy loadable
-function renderAuthenticated(children) {
-  // this is how enterprise version renders it's own routes
-  if (children) {
-    return children;
-  }
+export function renderPublicRoutes(children = []) {
+  return [
+    ...children,
+    <Route
+      key={1}
+      title="Login Failed"
+      path={cfg.routes.loginError}
+      component={LoginFailed}
+    />,
+    <Route
+      key={2}
+      title="Login Failed"
+      path={cfg.routes.loginErrorLegacy}
+      component={LoginFailed}
+    />,
+    <Route key={3} title="Login" path={cfg.routes.login} component={Login} />,
+    <Route
+      key={4}
+      title="Success"
+      path={cfg.routes.loginSuccess}
+      component={LoginSuccess}
+    />,
+    <Route
+      key={5}
+      title="Invite"
+      path={cfg.routes.userInvite}
+      component={Invite}
+    />,
+    <Route
+      key={6}
+      title="Password Reset"
+      path={cfg.routes.userReset}
+      component={ResetPassword}
+    />,
+  ];
+}
 
+// TODO: make it lazy loadable
+export function renderPrivateRoutes(CustomMain = Main) {
   return (
     <Switch>
       <Route path={cfg.routes.console} component={Console} />
       <Route path={cfg.routes.player} component={Player} />
-      <Route path={cfg.routes.root} component={Main} />
+      <Route path={cfg.routes.root} component={CustomMain} />
     </Switch>
   );
 }
@@ -109,4 +120,6 @@ export default hot(Teleport);
 export type Props = {
   ctx: TeleportContext;
   history: History;
+  renderPublicRoutes?(children?: JSX.Element[]): JSX.Element[];
+  renderPrivateRoutes?(CustomMain?: JSX.Element): JSX.Element;
 };

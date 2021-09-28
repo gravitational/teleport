@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ import React from 'react';
 import { MemoryRouter, Route } from 'react-router';
 import { screen, fireEvent, act, render } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
-import auth from 'teleport/services/auth';
 import cfg from 'teleport/config';
+import auth from 'teleport/services/auth';
 import Invite from './Invite';
 import { AuthTfaOn, AuthTfaOptional } from './Invite.story';
 
@@ -28,6 +28,8 @@ describe('teleport/components/Invite', () => {
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
     jest.spyOn(auth, 'fetchPasswordToken').mockImplementation(async () => ({
       user: 'sam',
+      tokenId: 'test123',
+      qrCode: 'test12345',
     }));
   });
 
@@ -49,7 +51,7 @@ describe('teleport/components/Invite', () => {
     // fill out input boxes and trigger submit
     fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
-    fireEvent.click(screen.getByText('Create Account'));
+    fireEvent.click(screen.getByRole('button'));
 
     expect(auth.resetPassword).toHaveBeenCalledWith('5182', 'pwd_value', '');
   });
@@ -70,7 +72,7 @@ describe('teleport/components/Invite', () => {
     fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
     fireEvent.change(otpField, { target: { value: '2222' } });
-    fireEvent.click(screen.getByText('Create Account'));
+    fireEvent.click(screen.getByRole('button'));
 
     expect(auth.resetPassword).toHaveBeenCalledWith(
       '5182',
@@ -95,7 +97,7 @@ describe('teleport/components/Invite', () => {
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
     fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
-    fireEvent.click(screen.getByText('Create Account'));
+    fireEvent.click(screen.getByRole('button'));
 
     expect(auth.resetPassword).not.toHaveBeenCalled();
     expect(auth.resetPasswordWithU2f).toHaveBeenCalledWith('5182', 'pwd_value');
@@ -119,7 +121,7 @@ describe('teleport/components/Invite', () => {
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
 
     await act(async () => {
-      fireEvent.click(screen.getByText('Create Account'));
+      fireEvent.click(screen.getByRole('button'));
       reject(new Error('server_error'));
     });
 

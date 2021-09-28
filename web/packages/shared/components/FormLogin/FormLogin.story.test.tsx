@@ -17,6 +17,8 @@
 import React from 'react';
 import {
   Basic,
+  Multi,
+  Cloud,
   ServerError,
   SSOProviders,
   Universal2ndFactor,
@@ -27,6 +29,16 @@ import { render } from 'design/utils/testing';
 
 test('auth2faType: otp rendering', () => {
   const { container } = render(<Basic />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('auth2faType: optional rendering', () => {
+  const { container } = render(<Multi />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('cloud auth2faType: on rendering', () => {
+  const { container } = render(<Cloud />);
   expect(container.firstChild).toMatchSnapshot();
 });
 

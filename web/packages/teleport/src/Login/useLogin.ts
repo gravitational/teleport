@@ -82,4 +82,7 @@ function getEntryRoute() {
   return history.ensureBaseUrl(entryUrl);
 }
 
-export type State = ReturnType<typeof useLogin>;
+export type State = ReturnType<typeof useLogin> & {
+  isRecoveryEnabled?: boolean;
+  onRecover?: (isRecoverPassword: boolean) => void;
+};

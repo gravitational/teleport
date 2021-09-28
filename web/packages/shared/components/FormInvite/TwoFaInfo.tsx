@@ -15,62 +15,45 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box, Text, ButtonLink, Link } from 'design';
+import { Box, Text, Link } from 'design';
 import { Auth2faType } from 'shared/services';
 
-const U2F_HELP_URL = 'https://support.google.com/accounts/answer/6103523?hl=en';
-
-export default function TwoFAData({ auth2faType, qr }: Props) {
+export default function TwoFAData({ auth2faType, qr, submitBtnText }: Props) {
   const imgSrc = `data:image/png;base64,${qr}`;
 
-  // Temporary hack: if cluster supports all 2FA types, require the user to
-  // sign up with OTP. We should ideally let the user choose a different 2FA
-  // method when there's engineering capacity to build this.
-  if (
-    auth2faType === 'otp' ||
-    auth2faType === 'on' ||
-    auth2faType === 'optional'
-  ) {
+  if (auth2faType === 'otp') {
     return (
-      <div>
+      <Box width="168px">
         <Text typography="paragraph2" mb={3}>
-          Scan the bar code with Google Authenticator to generate a two-factor
-          token.
+          Scan the QR Code with any authenticator app and enter the generated
+          code.
         </Text>
-        <img width="152" src={imgSrc} style={{ border: '8px solid' }} />
-        <ButtonLink
-          width="100%"
-          kind="secondary"
-          target="_blank"
-          size="small"
-          href="https://support.google.com/accounts/answer/1066447?co=GENIE.Platform%3DiOS&hl=en&oco=0"
-          rel="noreferrer"
-        >
-          Download Google Authenticator
-        </ButtonLink>
-      </div>
+        <img width="152px" src={imgSrc} style={{ border: '8px solid' }} />
+        <Text typography="paragraph2" color="text.secondary">
+          We recommend{' '}
+          <Link href="https://authy.com/download/" target="_blank">
+            Authy
+          </Link>
+          .
+        </Text>
+      </Box>
     );
   }
 
   if (auth2faType === 'u2f') {
     return (
-      <div>
+      <Box width="168px">
         <Text typography="h5" mb="2">
-          Insert your U2F key
+          Insert your hardware key
         </Text>
-        <Box color="text.primary">
-          <Text typography="paragraph2" mb={3}>
-            Press the button on the U2F key after you press the{' '}
-            <b>CREATE ACCOUNT</b> button.
-          </Text>
-          <Text typography="paragraph2" mb={3}>
-            <Link color="light" target="_blank" href={U2F_HELP_URL}>
-              Learn more
-            </Link>{' '}
-            about U2F 2-Step Verification.
-          </Text>
-        </Box>
-      </div>
+        <Text typography="paragraph2" mb={3}>
+          Press the button on the hardware key after you press the{' '}
+          <Text as="span" caps bold>
+            {submitBtnText}
+          </Text>{' '}
+          button.
+        </Text>
+      </Box>
     );
   }
 
@@ -80,4 +63,5 @@ export default function TwoFAData({ auth2faType, qr }: Props) {
 type Props = {
   qr: string;
   auth2faType: Auth2faType;
+  submitBtnText: string;
 };

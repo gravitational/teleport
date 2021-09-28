@@ -120,9 +120,8 @@ test('login with 2fa set to "optional", select option: u2f', async () => {
   const selectEl = screen.getByTestId('mfa-select').querySelector('input');
   fireEvent.focus(selectEl);
   fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  fireEvent.click(screen.getByText(/u2f/i));
-  screen.getByText(/u2f/i);
-  expect(screen.queryAllByLabelText(/two factor token/i)).toHaveLength(0);
+  fireEvent.click(screen.getByText(/hardware key/i));
+  expect(screen.queryAllByLabelText(/authenticator code/i)).toHaveLength(0);
 
   // fill form
   const username = screen.getByPlaceholderText(/username/i);
@@ -132,7 +131,7 @@ test('login with 2fa set to "optional", select option: u2f', async () => {
 
   // test login pathway
   await wait(() => fireEvent.click(screen.getByText(/login/i)));
-  screen.getByText(/Insert your U2F key/i);
+  screen.getByText(/Insert your hardware key/i);
   expect(auth.loginWithU2f).toHaveBeenCalledWith('username', '123');
 });
 
@@ -146,8 +145,7 @@ test('login with 2fa set to "optional", select option: totp', async () => {
   const selectEl = screen.getByTestId('mfa-select').querySelector('input');
   fireEvent.focus(selectEl);
   fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  fireEvent.click(screen.getByText(/totp/i));
-  screen.getByText(/totp/i);
+  fireEvent.click(screen.getByText(/authenticator app/i));
 
   // fill form
   const username = screen.getByPlaceholderText(/username/i);
@@ -174,14 +172,13 @@ test('login with 2fa set to "on" have correct select options', async () => {
   render(<Login />);
 
   // default mfa dropdown is set to u2f
-  expect(screen.getByTestId('mfa-select').textContent).toMatch(/u2f/i);
+  expect(screen.getByTestId('mfa-select').textContent).toMatch(/hardware key/i);
 
   // select totp from mfa dropdown
   const selectEl = screen.getByTestId('mfa-select').querySelector('input');
   fireEvent.focus(selectEl);
   fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  fireEvent.click(screen.getByText(/totp/i));
-  screen.getByText(/totp/i);
+  fireEvent.click(screen.getByText(/authenticator app/i));
 
   // none type is not part of mfa dropdown
   fireEvent.focus(selectEl);

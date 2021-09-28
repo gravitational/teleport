@@ -48,7 +48,7 @@ export default function useAttemptNext(status = '' as Attempt['status']) {
     }
   }
 
-  return { attempt, setAttempt, run };
+  return { attempt, setAttempt, run, handleError };
 }
 
 export type Attempt = {

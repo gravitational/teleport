@@ -40,6 +40,16 @@ export const Basic = () => <FormLogin {...props} auth2faType="otp" />;
 
 export const Multi = () => <FormLogin {...props} auth2faType="optional" />;
 
+export const Cloud = () => (
+  <FormLogin
+    {...props}
+    title="Teleport Cloud"
+    auth2faType="on"
+    isRecoveryEnabled={true}
+    onRecover={() => null}
+  />
+);
+
 export const ServerError = () => {
   const attempt = {
     ...props.attempt,

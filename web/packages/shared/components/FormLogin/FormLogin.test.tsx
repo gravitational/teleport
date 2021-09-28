@@ -115,7 +115,7 @@ test('login with auth2faType: U2F', () => {
   );
 
   const expEl = getByText(
-    /insert your U2F key and press the button on the key/i
+    /insert your hardware key and press the button on the key/i
   );
 
   expect(expEl).toBeInTheDocument();

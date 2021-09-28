@@ -405,6 +405,28 @@ export const formatters: Formatters = {
     desc: 'Lock Deleted',
     format: ({ user, name }) => `Lock [${name}] was deleted by user [${user}]`,
   },
+  [eventCodes.RECOVERY_TOKEN_CREATED]: {
+    type: 'recovery_token.create',
+    desc: 'Recovery Token Created',
+    format: ({ name }) => `Recovery token was created for user [${name}]`,
+  },
+  [eventCodes.RECOVERY_CODE_GENERATED]: {
+    type: 'recovery_code.generated',
+    desc: 'Recovery Codes Generated',
+    format: ({ user }) =>
+      `New recovery codes were generated for user [${user}]`,
+  },
+  [eventCodes.RECOVERY_CODE_USED]: {
+    type: 'recovery_code.used',
+    desc: 'Recovery Code Used',
+    format: ({ user }) => `User [${user}] successfully used a recovery code`,
+  },
+  [eventCodes.RECOVERY_CODE_USED_FAILURE]: {
+    type: 'recovery_code.used',
+    desc: 'Recovery Code Use Failed',
+    format: ({ user }) =>
+      `User [${user}] failed an attempt to use a recovery code`,
+  },
 };
 
 const unknownFormatter = {
