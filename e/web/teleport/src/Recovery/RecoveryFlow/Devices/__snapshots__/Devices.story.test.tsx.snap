@@ -1,0 +1,832 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render device list 1`] = `
+.c3 {
+  box-sizing: border-box;
+  padding: 32px;
+}
+
+.c5 {
+  box-sizing: border-box;
+}
+
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+}
+
+.c11:active {
+  opacity: 0.56;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c11:active {
+  opacity: 0.24;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c12 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 40px;
+  width: 100%;
+}
+
+.c12:active {
+  opacity: 0.56;
+}
+
+.c12:hover,
+.c12:focus {
+  background: #651FFF;
+}
+
+.c12:active {
+  background: #354AA4;
+}
+
+.c12:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  width: 604px;
+  background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c6 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c6 > thead > tr > th,
+.c6 > tbody > tr > th,
+.c6 > tfoot > tr > th,
+.c6 > thead > tr > td,
+.c6 > tbody > tr > td,
+.c6 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c6 > thead > tr > th:first-child,
+.c6 > tbody > tr > th:first-child,
+.c6 > tfoot > tr > th:first-child,
+.c6 > thead > tr > td:first-child,
+.c6 > tbody > tr > td:first-child,
+.c6 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c6 > thead > tr > th:last-child,
+.c6 > tbody > tr > th:last-child,
+.c6 > tfoot > tr > th:last-child,
+.c6 > thead > tr > td:last-child,
+.c6 > tbody > tr > td:last-child,
+.c6 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c6 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c6 > thead > tr > th .c8 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c6 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c6 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c6 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c6 tbody > tr:last-child td:first-child {
+  border-bottom-left-radius: 8px;
+}
+
+.c6 tbody > tr:last-child td:last-child {
+  border-bottom-right-radius: 8px;
+}
+
+.c7 > tbody > tr td {
+  vertical-align: middle;
+  height: 32px;
+}
+
+<div
+  class="c0"
+  width="604px"
+>
+  <div
+    class="c1"
+    color="light"
+  >
+    Device Successfully Enrolled
+  </div>
+  <div
+    class="c2"
+    color="text.secondary"
+  >
+    Step 3 of 4
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+      color="text.secondary"
+    >
+      Take a look at your enrolled devices below and remove any that you don't need anymore.
+    </div>
+    <div
+      class="c5"
+    >
+      <table
+        class="c6 c7"
+        style="overflow: hidden; border-radius: 8px;"
+      >
+        <thead>
+          <tr>
+            <th>
+              Type
+            </th>
+            <th>
+              Device Name
+            </th>
+            <th>
+              <a>
+                Registered
+                <span
+                  class="c8 c9 icon icon-chevron-up "
+                  color="light"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Last Used
+                <span
+                  class="c8 c9 icon icon-chevrons-expand-vertical "
+                  color="light"
+                />
+              </a>
+            </th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              Authenticator App
+            </td>
+            <td
+              title="iphone 12"
+            >
+              <div
+                class="c10"
+                style="max-width: 96px; white-space: nowrap;"
+              >
+                iphone 12
+              </div>
+            </td>
+            <td>
+              2021-08-12
+            </td>
+            <td>
+              2021-08-12
+            </td>
+          </tr>
+          <tr>
+            <td>
+              Hardware Key
+            </td>
+            <td
+              title="solokey"
+            >
+              <div
+                class="c10"
+                style="max-width: 96px; white-space: nowrap;"
+              >
+                solokey
+              </div>
+            </td>
+            <td>
+              2021-06-15
+            </td>
+            <td>
+              2021-06-18
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c11"
+                kind="border"
+              >
+                Remove
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              Hardware Key
+            </td>
+            <td
+              title="backup yubikey"
+            >
+              <div
+                class="c10"
+                style="max-width: 96px; white-space: nowrap;"
+              >
+                backup yubikey
+              </div>
+            </td>
+            <td>
+              2021-04-18
+            </td>
+            <td>
+              2021-07-16
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c11"
+                kind="border"
+              >
+                Remove
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              Hardware Key
+            </td>
+            <td
+              title="yubikey"
+            >
+              <div
+                class="c10"
+                style="max-width: 96px; white-space: nowrap;"
+              >
+                yubikey
+              </div>
+            </td>
+            <td>
+              2021-02-05
+            </td>
+            <td>
+              2021-02-28
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c11"
+                kind="border"
+              >
+                Remove
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <button
+      class="c12"
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      Continue
+    </button>
+  </div>
+</div>
+`;
+
+exports[`render device removal dialog 1`] = `
+.c9 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #d50000;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+}
+
+.c9:active {
+  opacity: 0.56;
+}
+
+.c9:hover,
+.c9:focus {
+  background: #ff1744;
+}
+
+.c9:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c10:active {
+  opacity: 0.56;
+}
+
+.c10:hover,
+.c10:focus {
+  background: #2C3A73;
+}
+
+.c10:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 28px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 40px;
+  margin-top: 8px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  color: #FFFFFF;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  width: 400px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.c8 {
+  box-sizing: border-box;
+}
+
+<div
+  class="c0"
+  data-testid="Modal"
+>
+  <div
+    aria-hidden="true"
+    class="c1"
+    data-testid="backdrop"
+  />
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      data-testid="dialogbox"
+    >
+      <div
+        class="sc-AxirZ sc-fzqBZW c4"
+        width="400px"
+      >
+        <div
+          class="c5"
+        >
+          Remove Device
+        </div>
+        <div
+          class="c6"
+        >
+          Are you sure you want to remove device
+           
+          <span
+            class="c7"
+            color="primary.contrastText"
+          >
+            yubikey
+          </span>
+           
+          ?
+        </div>
+      </div>
+      <div
+        class="sc-AxirZ c8"
+      >
+        <button
+          class="c9"
+          kind="warning"
+        >
+          Remove
+        </button>
+        <button
+          class="c10"
+          kind="secondary"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render failed state for device list 1`] = `
+.c6 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-all;
+  line-height: 1.5;
+  margin: 0px;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c6 a {
+  color: #FFFFFF;
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding: 32px;
+}
+
+.c5 {
+  box-sizing: border-box;
+}
+
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 40px;
+  width: 100%;
+}
+
+.c7:active {
+  opacity: 0.56;
+}
+
+.c7:hover,
+.c7:focus {
+  background: #651FFF;
+}
+
+.c7:active {
+  background: #354AA4;
+}
+
+.c7:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  width: 604px;
+  background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+<div
+  class="c0"
+  width="604px"
+>
+  <div
+    class="c1"
+    color="light"
+  >
+    Device Successfully Enrolled
+  </div>
+  <div
+    class="c2"
+    color="text.secondary"
+  >
+    Step 3 of 4
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+      color="text.secondary"
+    >
+      Take a look at your enrolled devices below and remove any that you don't need anymore.
+    </div>
+    <div
+      class="c5"
+    >
+      <div
+        class="c6"
+        kind="danger"
+      >
+        failed to fetch devices
+      </div>
+    </div>
+    <button
+      class="c7"
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      Continue
+    </button>
+  </div>
+</div>
+`;

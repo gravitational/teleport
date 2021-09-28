@@ -1,0 +1,387 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render correct form for clicking forgot mfa device 1`] = `
+.c2 {
+  box-sizing: border-box;
+  padding: 32px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.c7:active {
+  opacity: 0.56;
+}
+
+.c7:hover,
+.c7:focus {
+  background: #651FFF;
+}
+
+.c7:active {
+  background: #354AA4;
+}
+
+.c7:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  width: 704px;
+  background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c6 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #324148;
+  background-color: #FFFFFF;
+}
+
+.c6::-ms-clear {
+  display: none;
+}
+
+.c6::placeholder {
+  opacity: 0.4;
+}
+
+.c6:read-only {
+  cursor: not-allowed;
+}
+
+.c5 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+}
+
+<form
+  class="c0"
+  width="704px"
+>
+  <div
+    class="c1"
+    color="light"
+  >
+    Two-Factor Device Recovery
+  </div>
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      color="text.secondary"
+    >
+      Please enter the username for your account and one of your recovery codes. We'll send you an email with a link to the recovery process for your account.
+    </div>
+    <div
+      class="c4"
+      width="100%"
+    >
+      <label
+        class="c5"
+        font-size="0"
+      >
+        Username
+      </label>
+      <input
+        autocomplete="off"
+        class="c6"
+        color="text.onLight"
+        type="text"
+        value=""
+      />
+    </div>
+    <div
+      class="c4"
+      width="100%"
+    >
+      <label
+        class="c5"
+        font-size="0"
+      >
+        Recovery Code (Use 1 Recovery Code)
+      </label>
+      <input
+        autocomplete="off"
+        class="c6"
+        color="text.onLight"
+        type="text"
+        value=""
+      />
+    </div>
+    <button
+      class="c7"
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      Send Recovery Email
+    </button>
+  </div>
+</form>
+`;
+
+exports[`render correct form for clicking forgot password 1`] = `
+.c2 {
+  box-sizing: border-box;
+  padding: 32px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.c7:active {
+  opacity: 0.56;
+}
+
+.c7:hover,
+.c7:focus {
+  background: #651FFF;
+}
+
+.c7:active {
+  background: #354AA4;
+}
+
+.c7:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  width: 704px;
+  background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c6 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #324148;
+  background-color: #FFFFFF;
+}
+
+.c6::-ms-clear {
+  display: none;
+}
+
+.c6::placeholder {
+  opacity: 0.4;
+}
+
+.c6:read-only {
+  cursor: not-allowed;
+}
+
+.c5 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+}
+
+<form
+  class="c0"
+  width="704px"
+>
+  <div
+    class="c1"
+    color="light"
+  >
+    Password Recovery
+  </div>
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      color="text.secondary"
+    >
+      Please enter the username for your account and one of your recovery codes. We'll send you an email with a link to the recovery process for your account.
+    </div>
+    <div
+      class="c4"
+      width="100%"
+    >
+      <label
+        class="c5"
+        font-size="0"
+      >
+        Username
+      </label>
+      <input
+        autocomplete="off"
+        class="c6"
+        color="text.onLight"
+        type="text"
+        value=""
+      />
+    </div>
+    <div
+      class="c4"
+      width="100%"
+    >
+      <label
+        class="c5"
+        font-size="0"
+      >
+        Recovery Code (Use 1 Recovery Code)
+      </label>
+      <input
+        autocomplete="off"
+        class="c6"
+        color="text.onLight"
+        type="text"
+        value=""
+      />
+    </div>
+    <button
+      class="c7"
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      Send Recovery Email
+    </button>
+  </div>
+</form>
+`;

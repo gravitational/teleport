@@ -1,0 +1,1571 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render correct form to add TOTP device 1`] = `
+.c3 {
+  box-sizing: border-box;
+  padding: 32px;
+}
+
+.c10 {
+  box-sizing: border-box;
+  max-width: 50%;
+  margin-bottom: 24px;
+  margin-right: 16px;
+  width: 100%;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 50%;
+}
+
+.c15 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.c16 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.c16:active {
+  opacity: 0.56;
+}
+
+.c16:hover,
+.c16:focus {
+  background: #651FFF;
+}
+
+.c16:active {
+  background: #354AA4;
+}
+
+.c16:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  width: 512px;
+  background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c14 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #324148;
+  background-color: #FFFFFF;
+}
+
+.c14::-ms-clear {
+  display: none;
+}
+
+.c14::placeholder {
+  opacity: 0.4;
+}
+
+.c14:read-only {
+  cursor: not-allowed;
+}
+
+.c11 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c8 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c5 {
+  display: block;
+  outline: none;
+  width: 152px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  background-color: #1C254D;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.c9 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c12 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c12 .react-select__control,
+.c12 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c12 .react-select__control:hover,
+.c12 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c12 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c12 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c12 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c12 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c12 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c12 .react-select__indicator-separator {
+  display: none;
+}
+
+.c12 .react-select__loading-indicator {
+  display: none;
+}
+
+.c12 .react-select--is-disabled .react-select__single-value,
+.c12 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c12 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+<form
+  class="c0"
+  width="512px"
+>
+  <div
+    class="c1"
+    color="light"
+  >
+    Enroll New Two-Factor Device
+  </div>
+  <div
+    class="c2"
+    color="text.secondary"
+  >
+    Step 2 of 4
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+      height="256px"
+    >
+      <img
+        class="c5"
+        src="data:image/png;base64,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"
+        style="border: 8px solid;"
+        width="152px"
+      />
+      <div
+        class="c6"
+        font-size="1"
+      >
+        Scan the QR Code with any authenticator app and enter the generated code.
+         
+        <div
+          class="c7"
+          color="text.secondary"
+        >
+          We recommend
+           
+          <a
+            class="c8"
+            href="https://authy.com/download/"
+            rel="noreferrer"
+            target="_blank"
+          >
+            Authy
+          </a>
+          .
+        </div>
+      </div>
+    </div>
+    <div
+      class="c9"
+    >
+      <div
+        class="c10"
+        width="100%"
+      >
+        <label
+          class="c11"
+          font-size="0"
+        >
+          Two-factor type
+        </label>
+        <div
+          class="c12"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  Authenticator App
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-3-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c13"
+        width="50%"
+      >
+        <label
+          class="c11"
+          font-size="0"
+        >
+          Authenticator code
+        </label>
+        <input
+          autocomplete="off"
+          class="c14"
+          color="text.onLight"
+          placeholder="123 456"
+          type="text"
+          value=""
+        />
+      </div>
+    </div>
+    <div
+      class="c15"
+      width="100%"
+    >
+      <label
+        class="c11"
+        font-size="0"
+      >
+        Device name
+      </label>
+      <input
+        autocomplete="off"
+        class="c14"
+        color="text.onLight"
+        placeholder="Name"
+        type="text"
+        value=""
+      />
+    </div>
+    <button
+      class="c16"
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      Continue
+    </button>
+  </div>
+</form>
+`;
+
+exports[`render correct form to add U2F device 1`] = `
+.c3 {
+  box-sizing: border-box;
+  padding: 32px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  max-width: 50%;
+  margin-bottom: 24px;
+  margin-right: 16px;
+  width: 100%;
+}
+
+.c11 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #651FFF;
+}
+
+.c13:active {
+  background: #354AA4;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  width: 512px;
+  background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c12 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #324148;
+  background-color: #FFFFFF;
+}
+
+.c12::-ms-clear {
+  display: none;
+}
+
+.c12::placeholder {
+  opacity: 0.4;
+}
+
+.c12:read-only {
+  cursor: not-allowed;
+}
+
+.c9 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c5 {
+  display: block;
+  outline: none;
+  width: 152px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  background-color: #1C254D;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.c7 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c10 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c10 .react-select__control,
+.c10 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c10 .react-select__control:hover,
+.c10 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c10 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c10 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c10 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c10 .react-select__indicator-separator {
+  display: none;
+}
+
+.c10 .react-select__loading-indicator {
+  display: none;
+}
+
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c10 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+<form
+  class="c0"
+  width="512px"
+>
+  <div
+    class="c1"
+    color="light"
+  >
+    Enroll New Two-Factor Device
+  </div>
+  <div
+    class="c2"
+    color="text.secondary"
+  >
+    Step 2 of 4
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+      height="256px"
+    >
+      <img
+        class="c5"
+        src="file_stub"
+        width="152px"
+      />
+      <div
+        class="c6"
+      >
+        Enter a name for this hardware key.
+      </div>
+    </div>
+    <div
+      class="c7"
+    >
+      <div
+        class="c8"
+        width="100%"
+      >
+        <label
+          class="c9"
+          font-size="0"
+        >
+          Two-factor type
+        </label>
+        <div
+          class="c10"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  Hardware Key
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-4-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c11"
+      width="100%"
+    >
+      <label
+        class="c9"
+        font-size="0"
+      >
+        Device name
+      </label>
+      <input
+        autocomplete="off"
+        class="c12"
+        color="text.onLight"
+        placeholder="Name"
+        type="text"
+        value=""
+      />
+    </div>
+    <button
+      class="c13"
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      Continue
+    </button>
+  </div>
+</form>
+`;
+
+exports[`render correct form to add either TOTP or U2F device 1`] = `
+.c3 {
+  box-sizing: border-box;
+  padding: 32px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  max-width: 50%;
+  margin-bottom: 24px;
+  margin-right: 16px;
+  width: 100%;
+}
+
+.c11 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #651FFF;
+}
+
+.c13:active {
+  background: #354AA4;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  width: 512px;
+  background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c12 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #324148;
+  background-color: #FFFFFF;
+}
+
+.c12::-ms-clear {
+  display: none;
+}
+
+.c12::placeholder {
+  opacity: 0.4;
+}
+
+.c12:read-only {
+  cursor: not-allowed;
+}
+
+.c9 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c5 {
+  display: block;
+  outline: none;
+  width: 152px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  background-color: #1C254D;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.c7 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c10 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c10 .react-select__control,
+.c10 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c10 .react-select__control:hover,
+.c10 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c10 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c10 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c10 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c10 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c10 .react-select__indicator-separator {
+  display: none;
+}
+
+.c10 .react-select__loading-indicator {
+  display: none;
+}
+
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c10 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+<form
+  class="c0"
+  width="512px"
+>
+  <div
+    class="c1"
+    color="light"
+  >
+    Enroll New Two-Factor Device
+  </div>
+  <div
+    class="c2"
+    color="text.secondary"
+  >
+    Step 2 of 4
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+      height="256px"
+    >
+      <img
+        class="c5"
+        src="file_stub"
+        width="152px"
+      />
+      <div
+        class="c6"
+      >
+        Enter a name for this hardware key.
+      </div>
+    </div>
+    <div
+      class="c7"
+    >
+      <div
+        class="c8"
+        width="100%"
+      >
+        <label
+          class="c9"
+          font-size="0"
+        >
+          Two-factor type
+        </label>
+        <div
+          class="c10"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  Hardware Key
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-2-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c11"
+      width="100%"
+    >
+      <label
+        class="c9"
+        font-size="0"
+      >
+        Device name
+      </label>
+      <input
+        autocomplete="off"
+        class="c12"
+        color="text.onLight"
+        placeholder="Name"
+        type="text"
+        value=""
+      />
+    </div>
+    <button
+      class="c13"
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      Continue
+    </button>
+  </div>
+</form>
+`;
+
+exports[`render failed state for form to add either TOTP or U2F device 1`] = `
+.c4 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-all;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+  width: 100%;
+}
+
+.c4 a {
+  color: #FFFFFF;
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding: 32px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  max-width: 50%;
+  margin-bottom: 24px;
+  margin-right: 16px;
+  width: 100%;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.c14 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.c14:active {
+  opacity: 0.56;
+}
+
+.c14:hover,
+.c14:focus {
+  background: #651FFF;
+}
+
+.c14:active {
+  background: #354AA4;
+}
+
+.c14:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  width: 512px;
+  background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c13 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #324148;
+  background-color: #FFFFFF;
+}
+
+.c13::-ms-clear {
+  display: none;
+}
+
+.c13::placeholder {
+  opacity: 0.4;
+}
+
+.c13:read-only {
+  cursor: not-allowed;
+}
+
+.c10 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c6 {
+  display: block;
+  outline: none;
+  width: 152px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  background-color: #1C254D;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.c8 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c11 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  border: none;
+  display: block;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
+  margin-bottom: 0px;
+  border-radius: 4px;
+}
+
+.c11 .react-select__control,
+.c11 .react-select__control--is-focused {
+  min-height: 40px;
+  height: 40px;
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+.c11 .react-select__control:hover,
+.c11 .react-select__control--is-focused:hover {
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.c11 .react-select__option:hover {
+  cursor: pointer;
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-focused {
+  background-color: #eceff1;
+}
+
+.c11 .react-select__option--is-selected {
+  background-color: #cfd8dc;
+  color: inherit;
+}
+
+.c11 .react-select__option--is-selected:hover {
+  background-color: #cfd8dc;
+}
+
+.c11 .react-select__menu {
+  margin-top: 0px;
+}
+
+.c11 .react-select__indicator-separator {
+  display: none;
+}
+
+.c11 .react-select__loading-indicator {
+  display: none;
+}
+
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
+}
+
+.c11 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
+}
+
+<form
+  class="c0"
+  width="512px"
+>
+  <div
+    class="c1"
+    color="light"
+  >
+    Enroll New Two-Factor Device
+  </div>
+  <div
+    class="c2"
+    color="text.secondary"
+  >
+    Step 2 of 4
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+      kind="danger"
+      width="100%"
+    >
+      failed to add device
+    </div>
+    <div
+      class="c5"
+      height="256px"
+    >
+      <img
+        class="c6"
+        src="file_stub"
+        width="152px"
+      />
+      <div
+        class="c7"
+      >
+        Enter a name for this hardware key.
+      </div>
+    </div>
+    <div
+      class="c8"
+    >
+      <div
+        class="c9"
+        width="100%"
+      >
+        <label
+          class="c10"
+          font-size="0"
+        >
+          Two-factor type
+        </label>
+        <div
+          class="c11"
+        >
+          <div
+            class="react-select-container css-2b097c-container"
+          >
+            <div
+              class="react-select__control css-yk16xz-control"
+            >
+              <div
+                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+              >
+                <div
+                  class="react-select__single-value css-1uccc91-singleValue"
+                >
+                  Hardware Key
+                </div>
+                <input
+                  aria-autocomplete="list"
+                  class="css-62g3xt-dummyInput"
+                  id="react-select-5-input"
+                  readonly=""
+                  tabindex="0"
+                  value=""
+                />
+              </div>
+              <div
+                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+              >
+                <span
+                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                />
+                <div
+                  aria-hidden="true"
+                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="css-6q0nyr-Svg"
+                    focusable="false"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    width="20"
+                  >
+                    <path
+                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c12"
+      width="100%"
+    >
+      <label
+        class="c10"
+        font-size="0"
+      >
+        Device name
+      </label>
+      <input
+        autocomplete="off"
+        class="c13"
+        color="text.onLight"
+        placeholder="Name"
+        type="text"
+        value=""
+      />
+    </div>
+    <button
+      class="c14"
+      kind="primary"
+      type="submit"
+      width="100%"
+    >
+      Continue
+    </button>
+  </div>
+</form>
+`;
