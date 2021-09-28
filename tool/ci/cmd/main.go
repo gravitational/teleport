@@ -35,10 +35,11 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 
+	client := makeGithubClient(ctx, *token)
 	switch subcommand {
 	case ci.AssignSubcommand:
 		log.Println("Assigning reviewers")
-		bot, err := constructBot(ctx, *token, *reviewers)
+		bot, err := constructBot(ctx, client, *reviewers)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -49,7 +50,7 @@ func main() {
 		log.Print("Assign completed.")
 	case ci.CheckSubcommand:
 		log.Println("Checking reviewers.")
-		bot, err := constructBot(ctx, *token, *reviewers)
+		bot, err := constructBot(ctx, client, *reviewers)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -60,7 +61,21 @@ func main() {
 		log.Print("Check completed.")
 	case ci.Dismiss:
 		log.Println("Dismissing stale runs.")
-		err := dismissRuns(ctx, *token)
+		// Get the repository name and owner, on the Github Actions runner the
+		// GITHUB_REPOSITORY environment variable is in the format of
+		// repo-owner/repo-name.
+		repoOwner, repoName, err := getRepositoryMetadata()
+		if err != nil {
+			log.Fatal(err)
+		}
+		// Constructing Bot without PullRequestEnvironment.
+		// Dismiss runs does not need PullRequestEnvironment because it
+		// is used for pull request or PR adjacent (PR reviews, pushes to PRs, PR opening, reopening, etc.) events.
+		bot, err := bot.New(bots.Config{GithubClient: client})
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = bot.DimissStaleWorkflowRunsForExternalContributors(ctx, repoOwner, repoName)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -71,12 +86,23 @@ func main() {
 
 }
 
-func constructBot(ctx context.Context, token, reviewers string) (*bots.Bot, error) {
+func getRepositoryMetadata() (repositoryOwner string, repositoryName string, err error) {
+	repository := os.Getenv(ci.GithubRepository)
+	if repository == "" {
+		return "", "", trace.BadParameter("environment variable GITHUB_REPOSITORY is not set")
+	}
+	metadata := strings.Split(repository, "/")
+	if len(metadata) != 2 {
+		return "", "", trace.BadParameter("environment variable GITHUB_REPOSITORY is not in the correct format,\n the valid format is '<repo owner>/<repo name>'")
+	}
+	return metadata[0], metadata[1], nil
+}
+
+func constructBot(ctx context.Context, clt *github.Client, reviewers string) (*bots.Bot, error) {
 	path := os.Getenv(ci.GithubEventPath)
-	env, err := environment.New(environment.Config{Client: makeGithubClient(ctx, token),
+	env, err := environment.New(environment.Config{Client: clt,
 		Reviewers: reviewers,
 		EventPath: path,
-		Token:     token,
 		Context:   ctx,
 	})
 	if err != nil {
@@ -88,24 +114,6 @@ func constructBot(ctx context.Context, token, reviewers string) (*bots.Bot, erro
 		return nil, trace.Wrap(err)
 	}
 	return bot, nil
-}
-
-func dismissRuns(ctx context.Context, token string) error {
-	repository := os.Getenv(ci.GithubRepository)
-	if repository == "" {
-		return trace.BadParameter("environment variable GITHUB_REPOSITORY is not set")
-	}
-	metadata := strings.Split(repository, "/")
-	if len(metadata) != 2 {
-		return trace.BadParameter("environment variable GITHUB_REPOSITORY is not in the correct format,\n the valid format is '<repo owner>/<repo name>'")
-	}
-	clt := makeGithubClient(ctx, token)
-	githubClient := bot.GithubClient{Client: clt}
-	err := githubClient.DimissStaleWorkflowRunsForExternalContributors(ctx, token, metadata[0], metadata[1])
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func makeGithubClient(ctx context.Context, token string) *github.Client {
