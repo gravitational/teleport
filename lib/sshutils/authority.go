@@ -62,8 +62,11 @@ func ValidateSigners(ca types.CertAuthority) error {
 		if len(kp.PrivateKey) == 0 {
 			continue
 		}
-		if _, err := ssh.ParsePrivateKey(kp.PrivateKey); err != nil {
-			return trace.Wrap(err)
+		// TODO(nic): validate PKCS11 signers
+		if kp.PrivateKeyType == types.PrivateKeyType_RAW {
+			if _, err := ssh.ParsePrivateKey(kp.PrivateKey); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 	return nil

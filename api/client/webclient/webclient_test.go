@@ -18,89 +18,12 @@ package webclient
 
 import (
 	"context"
-	"encoding/json"
-	"net"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/stretchr/testify/require"
 )
-
-func newPingHandler(path string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.RequestURI != path {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(PingResponse{ServerVersion: "test"})
-	})
-}
-
-func TestPlainHttpFallback(t *testing.T) {
-	testCases := []struct {
-		desc            string
-		handler         http.Handler
-		actionUnderTest func(addr string, insecure bool) error
-	}{
-		{
-			desc:    "Ping",
-			handler: newPingHandler("/webapi/ping"),
-			actionUnderTest: func(addr string, insecure bool) error {
-				_, err := Ping(context.Background(), addr, insecure, nil /*pool*/, "")
-				return err
-			},
-		}, {
-			desc:    "Find",
-			handler: newPingHandler("/webapi/find"),
-			actionUnderTest: func(addr string, insecure bool) error {
-				_, err := Find(context.Background(), addr, insecure, nil /*pool*/)
-				return err
-			},
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.desc, func(t *testing.T) {
-			t.Run("Allowed on insecure & loopback", func(t *testing.T) {
-				httpSvr := httptest.NewServer(testCase.handler)
-				defer httpSvr.Close()
-
-				err := testCase.actionUnderTest(httpSvr.Listener.Addr().String(), true /* insecure */)
-				require.NoError(t, err)
-			})
-
-			t.Run("Denied on secure", func(t *testing.T) {
-				httpSvr := httptest.NewServer(testCase.handler)
-				defer httpSvr.Close()
-
-				err := testCase.actionUnderTest(httpSvr.Listener.Addr().String(), false /* secure */)
-				require.Error(t, err)
-			})
-
-			t.Run("Denied on non-loopback", func(t *testing.T) {
-				nonLoopbackSvr := httptest.NewUnstartedServer(testCase.handler)
-
-				// replace the test-supplied loopback listener with the first available
-				// non-loopback address
-				nonLoopbackSvr.Listener.Close()
-				l, err := net.Listen("tcp", "0.0.0.0:0")
-				require.NoError(t, err)
-				nonLoopbackSvr.Listener = l
-				nonLoopbackSvr.Start()
-				defer nonLoopbackSvr.Close()
-
-				err = testCase.actionUnderTest(nonLoopbackSvr.Listener.Addr().String(), true /* insecure */)
-				require.Error(t, err)
-			})
-		})
-	}
-}
 
 func TestGetTunnelAddr(t *testing.T) {
 	ctx := context.Background()

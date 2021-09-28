@@ -22,13 +22,17 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509/pkix"
+	"log"
+	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -122,18 +126,74 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 )
 
 func TestKeyStore(t *testing.T) {
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(keystore.TestModules{})
+
+	skipSoftHSM := os.Getenv("SOFTHSM2_PATH") == ""
+	var softHSMConfig keystore.Config
+	if !skipSoftHSM {
+		softHSMConfig = keystore.SetupSoftHSMTest(t)
+		softHSMConfig.HostUUID = "server1"
+	}
+
+	yubiSlotNumber := 0
 	testcases := []struct {
 		desc       string
-		rawConfig  *keystore.RawConfig
+		config     keystore.Config
+		isRaw      bool
 		shouldSkip func() bool
-		setup      func(t *testing.T)
 	}{
 		{
 			desc: "raw keystore",
-			rawConfig: &keystore.RawConfig{
+			config: keystore.Config{
 				RSAKeyPairSource: native.GenerateKeyPair,
 			},
+			isRaw:      true,
 			shouldSkip: func() bool { return false },
+		},
+		{
+			desc:   "softhsm",
+			config: softHSMConfig,
+			shouldSkip: func() bool {
+				if skipSoftHSM {
+					log.Println("Skipping softhsm test because SOFTHSM2_PATH is not set.")
+					return true
+				}
+				return false
+			},
+		},
+		{
+			desc: "yubihsm",
+			config: keystore.Config{
+				Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
+				SlotNumber: &yubiSlotNumber,
+				Pin:        "0001password",
+				HostUUID:   "server1",
+			},
+			shouldSkip: func() bool {
+				if os.Getenv("YUBIHSM_PKCS11_CONF") == "" || os.Getenv("YUBIHSM_PKCS11_PATH") == "" {
+					log.Println("Skipping yubihsm test because YUBIHSM_PKCS11_CONF or YUBIHSM_PKCS11_PATH is not set.")
+					return true
+				}
+				return false
+			},
+		},
+		{
+			desc: "cloudhsm",
+			config: keystore.Config{
+				Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
+				TokenLabel: "cavium",
+				Pin:        os.Getenv("CLOUDHSM_PIN"),
+				HostUUID:   "server1",
+			},
+			shouldSkip: func() bool {
+				if os.Getenv("CLOUDHSM_PIN") == "" {
+					log.Println("Skipping cloudhsm test because CLOUDHSM_PIN is not set.")
+					return true
+				}
+				return false
+			},
 		},
 	}
 
@@ -141,17 +201,13 @@ func TestKeyStore(t *testing.T) {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.shouldSkip() {
+				t.SkipNow()
 				return
-			}
-			t.Parallel()
-
-			if tc.setup != nil {
-				tc.setup(t)
 			}
 
 			// create the keystore
-			keyStore := keystore.NewRawKeyStore(tc.rawConfig)
-			require.NotNil(t, keyStore)
+			keyStore, err := keystore.NewKeyStore(tc.config)
+			require.NoError(t, err)
 
 			// create a key
 			key, signer, err := keyStore.GenerateRSA()
@@ -258,19 +314,54 @@ func TestKeyStore(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			// test that keyStore is able to get a signer
-			sshSigner, err = keyStore.GetSSHSigner(ca)
-			require.NoError(t, err)
-			require.NotNil(t, sshSigner)
+			if !tc.isRaw {
+				// hsm keyStore should not get any signer from raw keys
+				_, err = keyStore.GetSSHSigner(ca)
+				require.True(t, trace.IsNotFound(err))
 
-			tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ca)
-			require.NoError(t, err)
-			require.NotNil(t, tlsCert)
-			require.NotNil(t, tlsSigner)
+				_, _, err = keyStore.GetTLSCertAndSigner(ca)
+				require.True(t, trace.IsNotFound(err))
 
-			jwtSigner, err = keyStore.GetJWTSigner(ca)
-			require.NoError(t, err)
-			require.NotNil(t, jwtSigner)
+				_, err = keyStore.GetJWTSigner(ca)
+				require.True(t, trace.IsNotFound(err))
+			} else {
+				// raw keyStore should be able to get a signer
+				sshSigner, err = keyStore.GetSSHSigner(ca)
+				require.NoError(t, err)
+				require.NotNil(t, sshSigner)
+
+				tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ca)
+				require.NoError(t, err)
+				require.NotNil(t, tlsCert)
+				require.NotNil(t, tlsSigner)
+
+				jwtSigner, err = keyStore.GetJWTSigner(ca)
+				require.NoError(t, err)
+				require.NotNil(t, jwtSigner)
+			}
 		})
 	}
+}
+
+func TestLicenseRequirement(t *testing.T) {
+	// we need the SoftHSM2 tests to be enabled so that the HSM keystore can be
+	// selected
+	if os.Getenv("SOFTHSM2_PATH") == "" {
+		t.SkipNow()
+	}
+
+	config := keystore.SetupSoftHSMTest(t)
+	config.HostUUID = "server1"
+
+	// should fail to create the keystore with default modules
+	_, err := keystore.NewKeyStore(config)
+	require.Error(t, err)
+
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetModules(keystore.TestModules{})
+
+	// should succeed when HSM feature is enabled
+	_, err = keystore.NewKeyStore(config)
+	require.NoError(t, err)
 }

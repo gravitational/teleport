@@ -176,6 +176,13 @@ func (p *resourceWatcher) runWatchLoop() {
 	for {
 		p.Log.WithField("retry", p.retry).Debug("Starting watch.")
 		err := p.watch()
+
+		select {
+		case <-p.ctx.Done():
+			return
+		default:
+		}
+
 		select {
 		case <-p.retry.After():
 			p.retry.Inc()

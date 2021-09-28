@@ -82,6 +82,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 	fwd, err := forward.New(
+		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(h.log),
 		forward.PassHostHeader(true),

@@ -119,7 +119,8 @@
             { "title": "Using TSH", "slug": "/server-access/guides/tsh/" },
             { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
             {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"},
-            {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"}
+            {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"},
+            {"title": "Visual Studio Code", "slug": "/server-access/guides/vscode/"}
           ]
         }
       ]
@@ -266,6 +267,10 @@
         {
           "title": "SOC2",
           "slug": "/enterprise/soc2/"
+        },
+        {
+          "title": "HSM",
+          "slug": "/enterprise/hsm/"
         }
       ]
     },
