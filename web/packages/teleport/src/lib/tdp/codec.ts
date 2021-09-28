@@ -307,10 +307,8 @@ export default class Codec {
     return btoa(binary);
   }
 
-  // decodePng decodes the image bitmap from the png data part of a PNG_FRAME tdp message.
-  decodePng(buffer: ArrayBuffer): HTMLImageElement {
-    const image = new Image();
-    image.src = `data:image/png;base64,${this.toBase64(buffer)}`;
-    return image;
+  // decodePng creates a data:image uri from the png data part of a PNG_FRAME tdp message.
+  decodePng(buffer: ArrayBuffer): string {
+    return `data:image/png;base64,${this.toBase64(buffer)}`;
   }
 }

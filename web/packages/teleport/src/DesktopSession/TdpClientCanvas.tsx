@@ -33,10 +33,12 @@ export default function TdpClientCanvas(props: Props) {
     onResize,
     style,
   } = props;
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
 
     // React's vdom apparently doesn't support
     // standard html document.activeElement semantics
@@ -97,7 +99,7 @@ export default function TdpClientCanvas(props: Props) {
     });
 
     tdpClient.on('render', (data: RenderData) => {
-      onRender(canvas, data);
+      onRender(ctx, data);
     });
 
     tdpClient.on('disconnect', () => {

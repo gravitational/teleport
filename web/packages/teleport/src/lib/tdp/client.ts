@@ -93,8 +93,9 @@ export default class Client extends EventEmitter {
   // bounds and png bitmap and emit a render event.
   processFrame(buffer: ArrayBuffer) {
     const { left, top } = this.codec.decodeRegion(buffer);
-    const image = this.codec.decodePng(buffer);
-    this.emit('render', { image, left, top });
+    const image = new Image();
+    image.onload = () => this.emit('render', { image, left, top });
+    image.src = this.codec.decodePng(buffer);
   }
 
   sendUsername(username: string) {
