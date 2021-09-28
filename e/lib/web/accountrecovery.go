@@ -127,29 +127,29 @@ type verifyAccountRecoveryRequest struct {
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2fSignResponse"`
 }
 
-// approveAccountRecoveryHandle is the second step in recovery process which obtains a recovery approved token
+// verifyAccountRecoveryHandle is the second step in recovery process which obtains a recovery approved token
 // that will allow a user to make protected actions eg: set new authentication, delete device, and get new recovery codes.
 // If a user gets locked from too many incorrect attempts, an email will be sent to notify user.
-func (p *Plugin) approveAccountRecoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error) {
+func (p *Plugin) verifyAccountRecoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error) {
 	var req verifyAccountRecoveryRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	protoReq := &proto.ApproveAccountRecoveryRequest{
+	protoReq := &proto.VerifyAccountRecoveryRequest{
 		RecoveryStartTokenID: req.TokenID,
 		Username:             req.Username,
 	}
 
 	switch {
 	case req.Password != "":
-		protoReq.AuthnCred = &proto.ApproveAccountRecoveryRequest_Password{Password: []byte(req.Password)}
+		protoReq.AuthnCred = &proto.VerifyAccountRecoveryRequest_Password{Password: []byte(req.Password)}
 	case req.SecondFactorToken != "":
-		protoReq.AuthnCred = &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+		protoReq.AuthnCred = &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{Code: req.SecondFactorToken}},
 		}}
 	case req.U2FSignResponse != nil:
-		protoReq.AuthnCred = &proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+		protoReq.AuthnCred = &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
 				KeyHandle:  req.U2FSignResponse.KeyHandle,
 				ClientData: req.U2FSignResponse.ClientData,
@@ -160,9 +160,9 @@ func (p *Plugin) approveAccountRecoveryHandle(w http.ResponseWriter, r *http.Req
 		return nil, trace.BadParameter("at least one auth credential is required")
 	}
 
-	token, err := p.h.GetProxyClient().ApproveAccountRecovery(r.Context(), protoReq)
+	token, err := p.h.GetProxyClient().VerifyAccountRecovery(r.Context(), protoReq)
 	if err != nil {
-		if err.Error() == auth.MaxFailedAttemptsFromApproveRecoveryErrMsg {
+		if err.Error() == auth.MaxFailedAttemptsFromVerifyRecoveryErrMsg {
 			if _, emailErr := client.SendAccountLocked(r.Context(), &v1.SendAccountLockedRequest{
 				Email: req.Username,
 			}); emailErr != nil {

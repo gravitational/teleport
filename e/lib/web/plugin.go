@@ -106,7 +106,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 		// Recovery related endpoints.
 		h.POST("/enterprise/cloud/recovery/start", p.withCloud(p.startAccountRecoveryHandle))
-		h.POST("/enterprise/cloud/recovery/verify", p.withCloud(p.approveAccountRecoveryHandle))
+		h.POST("/enterprise/cloud/recovery/verify", p.withCloud(p.verifyAccountRecoveryHandle))
 		h.POST("/enterprise/cloud/recovery/newcredentials", p.withCloud(p.completeAccountRecoveryHandle))
 		h.GET("/enterprise/cloud/recovery/token/:token", p.withCloud(p.getAccountRecoveryTokenHandle))
 		h.POST("/enterprise/cloud/recovery/codes", p.withCloud(p.createAccountRecoveryCodesHandle))
