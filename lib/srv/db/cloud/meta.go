@@ -76,7 +76,7 @@ func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 			return trace.Wrap(err)
 		}
 		m.log.Debugf("Fetched RDS metadata for %q: %v.", database.GetName(), metadata)
-		database.SetAWS(*metadata)
+		database.SetStatusAWS(*metadata)
 	} else if database.IsRedshift() {
 		metadata, err := m.fetchRedshiftMetadata(ctx, database)
 		if err != nil {
@@ -87,7 +87,7 @@ func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 			return trace.Wrap(err)
 		}
 		m.log.Debugf("Fetched Redshift metadata for %q: %v.", database.GetName(), metadata)
-		database.SetAWS(*metadata)
+		database.SetStatusAWS(*metadata)
 	}
 	return nil
 }

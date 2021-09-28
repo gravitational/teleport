@@ -232,6 +232,8 @@ message DatabaseV3 {
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is the database spec.
     DatabaseSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    // Status is the database runtime information.
+    DatabaseStatusV3 Status = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "status" ];
 }
 
 // DatabaseSpecV3 is the database spec.
@@ -249,6 +251,14 @@ message DatabaseSpecV3 {
     AWS AWS = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws,omitempty" ];
     // GCP contains parameters specific to GCP Cloud SQL databases.
     GCPCloudSQL GCP = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
+}
+
+// DatabaseStatusV3 contains runtime information about the database.
+message DatabaseStatusV3 {
+    // CACert is the auto-downloaded cloud database CA certificate.
+    string CACert = 1 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
+    // AWS is the auto-discovered AWS cloud database metadata.
+    AWS AWS = 2 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws" ];
 }
 
 // AWS contains AWS metadata about the database.
