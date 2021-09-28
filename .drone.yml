@@ -4232,6 +4232,49 @@ steps:
         make change-amis-to-public-ent
         make change-amis-to-public-ent-fips
 
+  # Download all previously packaged charts. This is needed to rebuild the
+  # index and re-publish the repository.
+  - name: "Helm: Download chart repository"
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+    commands:
+      - mkdir -p /go/chart
+      - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
+
+  - name: "Helm: Package chart repository"
+    image: alpine/helm:latest
+    commands:
+      - cd /go/chart
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-cluster
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-kube-agent
+      # copy index.html to root of the S3 bucket.
+      - cp /go/src/github.com/gravitational/teleport/examples/chart/index.html /go/chart
+      # this will index all previous versions of the charts downloaded from the S3 bucket,
+      # plus the just-packaged charts listed above
+      - helm repo index /go/chart
+      - ls /go/chart
+
+  - name: "Helm: Publish chart repository to S3"
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+      access_key:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+      region: us-east-2
+      acl: public-read
+      source: /go/chart/*
+      target: /
+      strip_prefix: /go/chart
+
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
   #
