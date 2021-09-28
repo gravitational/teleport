@@ -1616,20 +1616,20 @@ func (m *DatabaseNameMatcher) String() string {
 	return fmt.Sprintf("DatabaseNameMatcher(Name=%v)", m.Name)
 }
 
-// LoginMatcher is a RoleMatcher that checks whether the role's logins
+type loginMatcher struct {
+	login string
+}
+
+// NewLoginMatcher creates a RoleMatcher that checks whether the role's logins
 // match the specified condition.
-type LoginMatcher struct {
-	login *string
-}
-
 func NewLoginMatcher(login string) RoleMatcher {
-	return &LoginMatcher{login: &login}
+	return &loginMatcher{login: login}
 }
 
-func (l *LoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetLogins(typ)
 	for _, login := range logins {
-		if *l.login == login {
+		if l.login == login {
 			return true, nil
 		}
 	}
@@ -1645,7 +1645,11 @@ type AccessCheckable interface {
 }
 
 // CheckAccess checks if this role set has access to a particular resource.
+//
 // It attempts to match labels if roleLabelsFn is not nil.
+// For example, to match labels for a database:
+//
+//     set.CheckAccess(db, AccessMFAParams{}, (types.Role).GetDatabaseLabels)
 //
 // Note: logging in this function only happens in debug mode. This is because
 // adding logging to this function (which is called on every resource returned

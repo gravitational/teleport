@@ -3066,7 +3066,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		noMFAAccessErr = checker.CheckAccess(
 			db,
 			services.AccessMFAParams{AlwaysRequired: false, Verified: false},
-			nil, // we do not check labels for databases
+			nil, // do not check labels here, as we're only concerned with whether access is denied due to MFA
 		)
 
 	default:

@@ -20,7 +20,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// KubeClusterResourceWrapper stubs out a minimal implementation of
+// KubeClusterResourceWrapper is a minimal implementation of
 // services.AccessCheckable for *types.KubernetesCluster.
 // This allows us to use common RBAC checks for Kubernetes Clusters
 // and other resources.
