@@ -578,7 +578,7 @@ func (a *ServerWithRoles) filterNodes(nodes []types.Server) ([]types.Server, err
 	// For certain built-in roles, continue to allow full access and return
 	// the full set of nodes to not break existing clusters during migration.
 	//
-	// In addition, allow proxy (and remote proxy) to access all nodes for it's
+	// In addition, allow proxy (and remote proxy) to access all nodes for its
 	// smart resolution address resolution. Once the smart resolution logic is
 	// moved to the auth server, this logic can be removed.
 	if a.hasBuiltinRole(string(types.RoleAdmin)) ||
@@ -608,7 +608,11 @@ func (a *ServerWithRoles) filterNodes(nodes []types.Server) ([]types.Server, err
 NextNode:
 	for _, node := range nodes {
 		for login := range allowedLogins {
-			err := roleset.CheckAccessToServer(login, node, mfaParams)
+			err := roleset.CheckAccess(
+				node,
+				mfaParams,
+				(types.Role).GetNodeLabels,
+				services.NewLoginMatcher(login))
 			if err == nil {
 				filteredNodes = append(filteredNodes, node)
 				continue NextNode
@@ -2669,10 +2673,12 @@ func (a *ServerWithRoles) canImpersonateBuiltinRole(role types.SystemRole) error
 }
 
 func (a *ServerWithRoles) checkAccessToApp(app types.Application) error {
-	return a.context.Checker.CheckAccessToApp(app.GetNamespace(), app,
-		// MFA is not required for operations on database resources but
+	return a.context.Checker.CheckAccess(
+		app,
+		// MFA is not required for operations on app resources but
 		// will be enforced at the connection time.
-		services.AccessMFAParams{Verified: true})
+		services.AccessMFAParams{Verified: true},
+		(types.Role).GetAppLabels)
 }
 
 // GetApplicationServers returns all registered application servers.
@@ -2747,7 +2753,7 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			err = a.context.Checker.CheckAccessToApp(server.GetNamespace(), appV3, mfaParams)
+			err = a.context.Checker.CheckAccess(appV3, mfaParams, (types.Role).GetAppLabels)
 			if err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
@@ -2920,8 +2926,13 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 		Verified:       isService || isMFAVerified,
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
+
 	for _, kube := range s.GetKubernetesClusters() {
-		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube, mfaParams); err != nil {
+		if err := a.context.Checker.CheckAccess(
+			services.NewKubeClusterWrapperForRBAC(s, kube),
+			mfaParams,
+			(types.Role).GetKubernetesLabels,
+		); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}
@@ -2948,7 +2959,10 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, 
 	for _, server := range servers {
 		filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 		for _, kube := range server.GetKubernetesClusters() {
-			if err := a.context.Checker.CheckAccessToKubernetes(server.GetNamespace(), kube, mfaParams); err != nil {
+			if err := a.context.Checker.CheckAccess(
+				services.NewKubeClusterWrapperForRBAC(server, kube),
+				mfaParams,
+				(types.Role).GetKubernetesLabels); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
@@ -3240,11 +3254,11 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 }
 
 func (a *ServerWithRoles) checkAccessToDatabase(database types.Database) error {
-	return a.context.Checker.CheckAccessToDatabase(database,
+	return a.context.Checker.CheckAccess(database,
 		// MFA is not required for operations on database resources but
 		// will be enforced at the connection time.
 		services.AccessMFAParams{Verified: true},
-		&services.DatabaseLabelsMatcher{Labels: database.GetAllLabels()})
+		(types.Role).GetDatabaseLabels)
 }
 
 // CreateDatabase creates a new database resource.

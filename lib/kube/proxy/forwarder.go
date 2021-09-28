@@ -652,7 +652,11 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			if ks.Name != actx.kubeCluster {
 				continue
 			}
-			if err := actx.Checker.CheckAccessToKubernetes(s.GetNamespace(), ks, mfaParams); err != nil {
+			if err := actx.Checker.CheckAccess(
+				services.NewKubeClusterWrapperForRBAC(s, ks),
+				mfaParams,
+				(types.Role).GetKubernetesLabels,
+			); err != nil {
 				return clusterNotFound
 			}
 			return nil
