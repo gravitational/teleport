@@ -25,22 +25,18 @@ type Config struct {
 	// EventPath is the path of the file with the complete
 	// webhook event payload on the runner.
 	EventPath string
-	// Token is the token to authenticate on behalf of the GitHub.
-	Token string
 	// unmarshalReviewers is the function to unmarshal
 	// the `Reviewers` string into map[string][]string.
 	unmarshalReviewers unmarshalReviewersFn
 }
 
-// Environment contains information about the environment
-type Environment struct {
+// PullRequestEnvironment contains information about the environment
+type PullRequestEnvironment struct {
 	// Client is the authenticated Github client
 	Client *github.Client
-	// PullRequest is the pull request in the
+	// Metadata is the pull request in the
 	// current context.
-	PullRequest *PullRequestMetadata
-	// token is the Github token.
-	token string
+	Metadata *Metadata
 	// reviewers is a map of reviewers where the key
 	// is the user name of the author and the value is a list
 	// of required reviewers.
@@ -52,8 +48,8 @@ type Environment struct {
 	action string
 }
 
-// PullRequestMetadata is the current pull request metadata
-type PullRequestMetadata struct {
+// Metadata is the current pull request metadata
+type Metadata struct {
 	// Author is the pull request author.
 	Author string
 	// RepoName is the repository name that the
@@ -92,9 +88,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.EventPath == "" {
 		return trace.BadParameter("missing parameter EventPath")
 	}
-	if c.Token == "" {
-		return trace.BadParameter("missing parameter Token")
-	}
 	if c.unmarshalReviewers == nil {
 		c.unmarshalReviewers = unmarshalReviewers
 	}
@@ -102,7 +95,7 @@ func (c *Config) CheckAndSetDefaults() error {
 }
 
 // New creates a new instance of Environment.
-func New(c Config) (*Environment, error) {
+func New(c Config) (*PullRequestEnvironment, error) {
 	err := c.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -111,15 +104,15 @@ func New(c Config) (*Environment, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pr, err := GetPullRequest(c.EventPath)
+	pr, err := GetMetadata(c.EventPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &Environment{
+	return &PullRequestEnvironment{
 		Client:           c.Client,
 		reviewers:        revs,
 		defaultReviewers: revs[""],
-		PullRequest:      pr,
+		Metadata:         pr,
 	}, nil
 }
 
@@ -168,7 +161,7 @@ func userExists(ctx context.Context, userLogin string, client *github.Client) (*
 }
 
 // GetReviewersForAuthor gets the required reviewers for the current user.
-func (e *Environment) GetReviewersForAuthor(user string) []string {
+func (e *PullRequestEnvironment) GetReviewersForAuthor(user string) []string {
 	value, ok := e.reviewers[user]
 	// author is external or does not have set reviewers
 	if !ok {
@@ -178,18 +171,13 @@ func (e *Environment) GetReviewersForAuthor(user string) []string {
 }
 
 // IsInternal determines if an author is an internal contributor.
-func (e *Environment) IsInternal(author string) bool {
+func (e *PullRequestEnvironment) IsInternal(author string) bool {
 	_, ok := e.reviewers[author]
 	return ok
 }
 
-// GetToken gets token
-func (e *Environment) GetToken() string {
-	return e.token
-}
-
-// GetPullRequest gets the pull request metadata in the current context.
-func GetPullRequest(path string) (*PullRequestMetadata, error) {
+// GetMetadata gets the pull request metadata in the current context.
+func GetMetadata(path string) (*Metadata, error) {
 	var actionType action
 	file, err := os.Open(path)
 	if err != nil {
@@ -204,11 +192,11 @@ func GetPullRequest(path string) (*PullRequestMetadata, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return getPullRequest(body, actionType.Action)
+	return getMetadata(body, actionType.Action)
 }
 
-func getPullRequest(body []byte, action string) (*PullRequestMetadata, error) {
-	var pr PullRequestMetadata
+func getMetadata(body []byte, action string) (*Metadata, error) {
+	var pr Metadata
 
 	switch action {
 	case ci.Synchronize:
@@ -217,7 +205,7 @@ func getPullRequest(body []byte, action string) (*PullRequestMetadata, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		pr, err = push.toPullRequestMetadata()
+		pr, err = push.toMetadata()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -227,7 +215,7 @@ func getPullRequest(body []byte, action string) (*PullRequestMetadata, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		pr, err = pull.toPullRequestMetadata()
+		pr, err = pull.toMetadata()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -237,7 +225,7 @@ func getPullRequest(body []byte, action string) (*PullRequestMetadata, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		pr, err = rev.toPullRequestMetadata()
+		pr, err = rev.toMetadata()
 		if err != nil {
 			return nil, err
 		}
@@ -245,7 +233,7 @@ func getPullRequest(body []byte, action string) (*PullRequestMetadata, error) {
 	return &pr, nil
 }
 
-func (r ReviewEvent) toPullRequestMetadata() (PullRequestMetadata, error) {
+func (r ReviewEvent) toMetadata() (Metadata, error) {
 	pr, err := validateData(r.PullRequest.Number,
 		r.PullRequest.Author.Login,
 		r.Repository.Owner.Name,
@@ -255,16 +243,16 @@ func (r ReviewEvent) toPullRequestMetadata() (PullRequestMetadata, error) {
 		r.PullRequest.Head.BranchName,
 	)
 	if err != nil {
-		return PullRequestMetadata{}, err
+		return Metadata{}, err
 	}
 	if r.Review.User.Login == "" {
-		return PullRequestMetadata{}, trace.BadParameter("missing reviewer username.")
+		return Metadata{}, trace.BadParameter("missing reviewer username.")
 	}
 	pr.Reviewer = r.Review.User.Login
 	return pr, nil
 }
 
-func (p PullRequestEvent) toPullRequestMetadata() (PullRequestMetadata, error) {
+func (p PullRequestEvent) toMetadata() (Metadata, error) {
 	return validateData(p.Number,
 		p.PullRequest.User.Login,
 		p.Repository.Owner.Name,
@@ -275,7 +263,7 @@ func (p PullRequestEvent) toPullRequestMetadata() (PullRequestMetadata, error) {
 	)
 }
 
-func (s PushEvent) toPullRequestMetadata() (PullRequestMetadata, error) {
+func (s PushEvent) toMetadata() (Metadata, error) {
 	return validateData(s.Number,
 		s.PullRequest.User.Login,
 		s.Repository.Owner.Name,
@@ -286,24 +274,24 @@ func (s PushEvent) toPullRequestMetadata() (PullRequestMetadata, error) {
 	)
 }
 
-func validateData(num int, login, owner, repoName, headSHA, baseSHA, branchName string) (PullRequestMetadata, error) {
+func validateData(num int, login, owner, repoName, headSHA, baseSHA, branchName string) (Metadata, error) {
 	switch {
 	case num == 0:
-		return PullRequestMetadata{}, trace.BadParameter("missing pull request number")
+		return Metadata{}, trace.BadParameter("missing pull request number")
 	case login == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing user login")
+		return Metadata{}, trace.BadParameter("missing user login")
 	case owner == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing repository owner")
+		return Metadata{}, trace.BadParameter("missing repository owner")
 	case repoName == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing repository name")
+		return Metadata{}, trace.BadParameter("missing repository name")
 	case headSHA == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing head commit sha")
+		return Metadata{}, trace.BadParameter("missing head commit sha")
 	case baseSHA == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing base commit sha")
+		return Metadata{}, trace.BadParameter("missing base commit sha")
 	case branchName == "":
-		return PullRequestMetadata{}, trace.BadParameter("missing branch name")
+		return Metadata{}, trace.BadParameter("missing branch name")
 	}
-	return PullRequestMetadata{Number: num,
+	return Metadata{Number: num,
 		Author:     login,
 		RepoOwner:  owner,
 		RepoName:   repoName,

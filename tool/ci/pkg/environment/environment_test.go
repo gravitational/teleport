@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewEnvironment(t *testing.T) {
-	pr := &PullRequestMetadata{Author: "Codertocat",
+func TestNewPullRequestEnvironment(t *testing.T) {
+	pr := &Metadata{Author: "Codertocat",
 		RepoName:   "Hello-World",
 		RepoOwner:  "Codertocat",
 		Number:     2,
@@ -26,7 +26,7 @@ func TestNewEnvironment(t *testing.T) {
 	tests := []struct {
 		cfg        Config
 		checkErr   require.ErrorAssertionFunc
-		expected   *Environment
+		expected   *PullRequestEnvironment
 		desc       string
 		createFile bool
 	}{
@@ -35,10 +35,9 @@ func TestNewEnvironment(t *testing.T) {
 				Client:             github.NewClient(nil),
 				EventPath:          "",
 				unmarshalReviewers: UnmarshalReviewersTest,
-				Token:              "testtoken",
 			},
 			checkErr:   require.Error,
-			desc:       "invalid Environment config with Reviewers parameter",
+			desc:       "invalid PullRequestEnvironment config with Reviewers parameter",
 			expected:   nil,
 			createFile: true,
 		},
@@ -47,14 +46,13 @@ func TestNewEnvironment(t *testing.T) {
 				Client:             github.NewClient(nil),
 				Reviewers:          `{"foo": ["bar", "baz"], "":["admin"]}`,
 				unmarshalReviewers: UnmarshalReviewersTest,
-				Token:              "testtoken",
 			},
 			checkErr: require.NoError,
-			desc:     "valid Environment config",
-			expected: &Environment{
+			desc:     "valid PullRequestEnvironment config",
+			expected: &PullRequestEnvironment{
 				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "": {"admin"}},
 				Client:           github.NewClient(nil),
-				PullRequest:      pr,
+				Metadata:         pr,
 				defaultReviewers: []string{"admin"},
 			},
 			createFile: true,
@@ -64,14 +62,13 @@ func TestNewEnvironment(t *testing.T) {
 				Client:             github.NewClient(nil),
 				Reviewers:          `{"foo": ["bar", "baz"], "":["admin"]}`,
 				unmarshalReviewers: UnmarshalReviewersTest,
-				Token:              "testtoken",
 			},
 			checkErr: require.NoError,
-			desc:     "valid Environment config",
-			expected: &Environment{
+			desc:     "valid PullRequestEnvironment config",
+			expected: &PullRequestEnvironment{
 				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "": {"admin"}},
 				Client:           github.NewClient(nil),
-				PullRequest:      pr,
+				Metadata:         pr,
 				defaultReviewers: []string{"admin"},
 			},
 			createFile: true,
@@ -81,10 +78,9 @@ func TestNewEnvironment(t *testing.T) {
 				Client:             github.NewClient(nil),
 				Reviewers:          `{"foo": ["bar", "baz"]}`,
 				unmarshalReviewers: UnmarshalReviewersTest,
-				Token:              "testtoken",
 			},
 			checkErr:   require.Error,
-			desc:       "invalid Environment config, has no default reviewers key",
+			desc:       "invalid PullRequestEnvironment config, has no default reviewers key",
 			expected:   nil,
 			createFile: true,
 		},
@@ -93,7 +89,6 @@ func TestNewEnvironment(t *testing.T) {
 				Reviewers:          `{"foo": "baz", "":["admin"]}`,
 				Client:             github.NewClient(nil),
 				unmarshalReviewers: UnmarshalReviewersTest,
-				Token:              "testtoken",
 			},
 			checkErr:   require.Error,
 			desc:       "invalid reviewers object format",
@@ -103,7 +98,6 @@ func TestNewEnvironment(t *testing.T) {
 		{
 			cfg: Config{
 				unmarshalReviewers: UnmarshalReviewersTest,
-				Token:              "testtoken",
 			},
 			checkErr:   require.Error,
 			desc:       "invalid config with no client",
@@ -132,17 +126,17 @@ func TestNewEnvironment(t *testing.T) {
 func TestSetPullRequest(t *testing.T) {
 	tests := []struct {
 		checkErr require.ErrorAssertionFunc
-		env      *Environment
+		env      *PullRequestEnvironment
 		input    []byte
 		desc     string
-		value    *PullRequestMetadata
+		value    *Metadata
 		action   string
 	}{
 		{
-			env:      &Environment{},
+			env:      &PullRequestEnvironment{},
 			checkErr: require.NoError,
 			input:    []byte(synchronize),
-			value: &PullRequestMetadata{Author: "quinqu",
+			value: &Metadata{Author: "quinqu",
 				RepoName:   "gh-actions-poc",
 				RepoOwner:  "gravitational",
 				Number:     28,
@@ -154,10 +148,10 @@ func TestSetPullRequest(t *testing.T) {
 			action: ci.Synchronize,
 		},
 		{
-			env:      &Environment{},
+			env:      &PullRequestEnvironment{},
 			checkErr: require.NoError,
 			input:    []byte(pullRequest),
-			value: &PullRequestMetadata{Author: "Codertocat",
+			value: &Metadata{Author: "Codertocat",
 				RepoName:   "Hello-World",
 				RepoOwner:  "Codertocat",
 				Number:     2,
@@ -169,10 +163,10 @@ func TestSetPullRequest(t *testing.T) {
 			action: ci.Opened,
 		},
 		{
-			env:      &Environment{action: "submitted"},
+			env:      &PullRequestEnvironment{action: "submitted"},
 			checkErr: require.NoError,
 			input:    []byte(submitted),
-			value: &PullRequestMetadata{Author: "Codertocat",
+			value: &Metadata{Author: "Codertocat",
 				RepoName:   "Hello-World",
 				RepoOwner:  "Codertocat",
 				Number:     2,
@@ -186,7 +180,7 @@ func TestSetPullRequest(t *testing.T) {
 		},
 
 		{
-			env:      &Environment{},
+			env:      &PullRequestEnvironment{},
 			checkErr: require.Error,
 			input:    []byte(submitted),
 			value:    nil,
@@ -194,7 +188,7 @@ func TestSetPullRequest(t *testing.T) {
 			action:   ci.Synchronize,
 		},
 		{
-			env:      &Environment{},
+			env:      &PullRequestEnvironment{},
 			checkErr: require.Error,
 			input:    []byte(submitted),
 			value:    nil,
@@ -202,7 +196,7 @@ func TestSetPullRequest(t *testing.T) {
 			action:   ci.Opened,
 		},
 		{
-			env:      &Environment{},
+			env:      &PullRequestEnvironment{},
 			checkErr: require.Error,
 			input:    []byte(pullRequest),
 			value:    nil,
@@ -213,7 +207,7 @@ func TestSetPullRequest(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			pr, err := getPullRequest(test.input, test.action)
+			pr, err := getMetadata(test.input, test.action)
 			test.checkErr(t, err)
 			require.Equal(t, test.value, pr)
 		})
