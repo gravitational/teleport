@@ -17,8 +17,7 @@ import (
 
 // Check checks if all the reviewers have approved the pull request in the current context.
 func (c *Bot) Check(ctx context.Context) error {
-	env := c.Environment
-	pr := c.Environment.PullRequest
+	pr := c.Environment.Metadata
 	// Remove any stale workflow runs. As only the current workflow run should
 	// be shown because it is the workflow that reflects the correct state of the pull.
 	//
@@ -26,7 +25,7 @@ func (c *Bot) Check(ctx context.Context) error {
 	// but has to be run again in cron workflow because workflows triggered by external contributors do not
 	// grant the Github actions token the correct permissions to dismiss workflow runs.
 	if c.Environment.IsInternal(pr.Author) {
-		err := c.GithubClient.DismissStaleWorkflowRuns(ctx, env.GetToken(), pr.RepoOwner, pr.RepoName, pr.BranchName)
+		err := c.DismissStaleWorkflowRuns(ctx, pr.RepoOwner, pr.RepoName, pr.BranchName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -42,7 +41,7 @@ func (c *Bot) Check(ctx context.Context) error {
 // check checks to see if all the required reviewers have approved and invalidates
 // approvals for external contributors if a new commit is pushed
 func (c *Bot) check(ctx context.Context) error {
-	pr := c.Environment.PullRequest
+	pr := c.Environment.Metadata
 	mostRecentReviews, err := c.getReviews(ctx)
 	if err != nil {
 		return err
@@ -95,7 +94,7 @@ func approved(mostRecentReviews []review, required []string) error {
 
 func (c *Bot) getReviews(ctx context.Context) ([]review, error) {
 	env := c.Environment
-	pr := c.Environment.PullRequest
+	pr := c.Environment.Metadata
 	reviews, _, err := env.Client.PullRequests.ListReviews(ctx, pr.RepoOwner,
 		pr.RepoName,
 		pr.Number,
@@ -178,7 +177,7 @@ func hasApproved(reviewer string, reviews []review) (string, bool) {
 }
 
 // dimissMessage returns the dimiss message when a review is dismissed
-func dismissMessage(pr *environment.PullRequestMetadata, required []string) string {
+func dismissMessage(pr *environment.Metadata, required []string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString("new commit pushed, please re-review ")
 	for _, reviewer := range required {
@@ -200,7 +199,7 @@ func hasNewCommit(headSHA string, revs []review) bool {
 
 // verifyCommit verfies GitHub is the commit author and that the commit is empty
 func (c *Bot) verifyCommit(ctx context.Context) error {
-	pr := c.Environment.PullRequest
+	pr := c.Environment.Metadata
 	comparison, _, err := c.Environment.Client.Repositories.CompareCommits(
 		ctx,
 		pr.RepoOwner,
@@ -234,7 +233,7 @@ func (c *Bot) verifyCommit(ctx context.Context) error {
 
 // invalidateApprovals dismisses all approved reviews on a pull request.
 func (c *Bot) invalidateApprovals(ctx context.Context, msg string, reviews []review) error {
-	pr := c.Environment.PullRequest
+	pr := c.Environment.Metadata
 	for _, v := range reviews {
 		if v.status == ci.Approved {
 			_, _, err := c.Environment.Client.PullRequests.DismissReview(ctx,

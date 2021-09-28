@@ -9,11 +9,11 @@ import (
 )
 
 func TestApproved(t *testing.T) {
-	bot := &Bot{Environment: &environment.Environment{}} 
-	pull := &environment.PullRequestMetadata{Author: "test"}
+	bot := &Bot{Environment: &environment.PullRequestEnvironment{}}
+	pull := &environment.Metadata{Author: "test"}
 	tests := []struct {
 		botInstance    *Bot
-		pr             *environment.PullRequestMetadata
+		pr             *environment.Metadata
 		required       []string
 		currentReviews []review
 		desc           string

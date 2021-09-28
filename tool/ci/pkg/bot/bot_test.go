@@ -5,17 +5,19 @@ import (
 
 	"github.com/gravitational/teleport/tool/ci/pkg/environment"
 
+	"github.com/google/go-github/v37/github"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewBot(t *testing.T) {
+	clt := github.NewClient(nil)
 	tests := []struct {
 		cfg      Config
 		checkErr require.ErrorAssertionFunc
 		expected *Bot
 	}{
 		{
-			cfg:      Config{Environment: &environment.Environment{}},
+			cfg:      Config{Environment: &environment.PullRequestEnvironment{}, GithubClient: clt},
 			checkErr: require.NoError,
 		},
 		{

@@ -10,7 +10,7 @@ import (
 
 // Assign assigns reviewers to the pull request
 func (a *Bot) Assign(ctx context.Context) error {
-	pullReq := a.Environment.PullRequest
+	pullReq := a.Environment.Metadata
 	// Getting and setting reviewers for author of pull request
 	r := a.Environment.GetReviewersForAuthor(pullReq.Author)
 	client := a.Environment.Client
