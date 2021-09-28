@@ -146,7 +146,6 @@ func (c *Client) HttpClient() phttp.Client {
 	return c.hc
 }
 
-
 // SetAuthMethodAllows allows for setting the authMethod variable that provides a workaround for the Ping OIDC issue
 // as noted in https://github.com/gravitational/teleport/issues/8374
 // The Ping OIDC will throw a multiple client credentials error due to the client id being
