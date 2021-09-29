@@ -141,7 +141,6 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
 		mfaParams,
-		true,
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)

@@ -714,7 +714,7 @@ type AccessChecker interface {
 	RoleNames() []string
 
 	// CheckAccess checks access to the specified resource.
-	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchLabels bool, matchers ...RoleMatcher) error
+	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
@@ -1610,6 +1610,7 @@ func NewLoginMatcher(login string) RoleMatcher {
 	return &loginMatcher{login: login}
 }
 
+// Match matches a login against a role.
 func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetLogins(typ)
 	for _, login := range logins {
@@ -1628,19 +1629,18 @@ type AccessCheckable interface {
 	GetAllLabels() map[string]string
 }
 
+// rbacDebugLogger creates a debug logger for Teleport's RBAC component.
+// It also returns a flag indicating whether debug logging is enabled,
+// allowing the RBAC system to generate more verbose errors in debug mode.
 func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
 	isDebugEnabled := log.IsLevelEnabled(log.DebugLevel)
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
-	return isDebugEnabled, func(format string, args ...interface{}) {
-		if isDebugEnabled {
-			log.Debugf(format, args...)
-		}
-	}
+	return isDebugEnabled, log.Debugf
 }
 
 // CheckAccess checks if this role set has access to a particular resource,
 // optionally matching the resource's labels.
-func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchLabels bool, matchers ...RoleMatcher) error {
+func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error {
 	// Note: logging in this function only happens in debug mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
@@ -1655,19 +1655,17 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchLabe
 	allLabels := r.GetAllLabels()
 
 	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
-	if matchLabels {
-		switch r.GetKind() {
-		case types.KindDatabase:
-			getRoleLabels = types.Role.GetDatabaseLabels
-		case types.KindApp:
-			getRoleLabels = types.Role.GetAppLabels
-		case types.KindNode:
-			getRoleLabels = types.Role.GetNodeLabels
-		case kindKubeClusterRBAC:
-			getRoleLabels = types.Role.GetKubernetesLabels
-		default:
-			return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
-		}
+	switch r.GetKind() {
+	case types.KindDatabase:
+		getRoleLabels = types.Role.GetDatabaseLabels
+	case types.KindApp:
+		getRoleLabels = types.Role.GetAppLabels
+	case types.KindNode:
+		getRoleLabels = types.Role.GetNodeLabels
+	case types.KindKubernetesCluster:
+		getRoleLabels = types.Role.GetKubernetesLabels
+	default:
+		return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
 	}
 
 	// Check deny rules.
@@ -1677,16 +1675,14 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchLabe
 			continue
 		}
 
-		if getRoleLabels != nil {
-			matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, Deny), allLabels)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if matchLabels {
-				debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, label=%v)",
-					r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-				return trace.AccessDenied("access to %v denied", r.GetKind())
-			}
+		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, Deny), allLabels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchLabels {
+			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, label=%v)",
+				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
+			return trace.AccessDenied("access to %v denied", r.GetKind())
 		}
 
 		// Deny rules are greedy on purpose. They will always match if
@@ -1715,18 +1711,16 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchLabe
 			continue
 		}
 
-		if getRoleLabels != nil {
-			matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, Allow), allLabels)
-			if err != nil {
-				return trace.Wrap(err)
+		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, Allow), allLabels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !matchLabels {
+			if isDebugEnabled {
+				errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
+					role.GetName(), labelsMessage))
 			}
-			if !matchLabels {
-				if isDebugEnabled {
-					errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
-						role.GetName(), labelsMessage))
-				}
-				continue
-			}
+			continue
 		}
 
 		// Allow rules are not greedy. They will match only if all of the
@@ -1754,6 +1748,7 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchLabe
 				r.GetKind(), r.GetName(), role.GetName())
 			return ErrSessionMFARequired
 		}
+
 		// Check all remaining roles, even if we found a match.
 		// RequireSessionMFA should be enforced when at least one role has
 		// it.

@@ -611,7 +611,6 @@ NextNode:
 			err := roleset.CheckAccess(
 				node,
 				mfaParams,
-				true,
 				services.NewLoginMatcher(login))
 			if err == nil {
 				filteredNodes = append(filteredNodes, node)
@@ -2677,8 +2676,7 @@ func (a *ServerWithRoles) checkAccessToApp(app types.Application) error {
 		app,
 		// MFA is not required for operations on app resources but
 		// will be enforced at the connection time.
-		services.AccessMFAParams{Verified: true},
-		true)
+		services.AccessMFAParams{Verified: true})
 }
 
 // GetApplicationServers returns all registered application servers.
@@ -2753,7 +2751,7 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			err = a.context.Checker.CheckAccess(appV3, mfaParams, true)
+			err = a.context.Checker.CheckAccess(appV3, mfaParams)
 			if err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
@@ -2928,11 +2926,11 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 	}
 
 	for _, kube := range s.GetKubernetesClusters() {
-		if err := a.context.Checker.CheckAccess(
-			services.NewKubernetesClusterRBAC(s.GetNamespace(), kube),
-			mfaParams,
-			true,
-		); err != nil {
+		kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := a.context.Checker.CheckAccess(kV3, mfaParams); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}
@@ -2959,10 +2957,11 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, 
 	for _, server := range servers {
 		filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 		for _, kube := range server.GetKubernetesClusters() {
-			if err := a.context.Checker.CheckAccess(
-				services.NewKubernetesClusterRBAC(server.GetNamespace(), kube),
-				mfaParams,
-				true); err != nil {
+			kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if err := a.context.Checker.CheckAccess(kV3, mfaParams); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
@@ -3257,8 +3256,7 @@ func (a *ServerWithRoles) checkAccessToDatabase(database types.Database) error {
 	return a.context.Checker.CheckAccess(database,
 		// MFA is not required for operations on database resources but
 		// will be enforced at the connection time.
-		services.AccessMFAParams{Verified: true},
-		true)
+		services.AccessMFAParams{Verified: true})
 }
 
 // CreateDatabase creates a new database resource.

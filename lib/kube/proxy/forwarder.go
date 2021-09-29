@@ -652,11 +652,11 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			if ks.Name != actx.kubeCluster {
 				continue
 			}
-			if err := actx.Checker.CheckAccess(
-				services.NewKubernetesClusterRBAC(s.GetNamespace(), ks),
-				mfaParams,
-				true,
-			); err != nil {
+			kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), ks)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := actx.Checker.CheckAccess(kV3, mfaParams); err != nil {
 				return clusterNotFound
 			}
 			return nil

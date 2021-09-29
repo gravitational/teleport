@@ -872,7 +872,6 @@ func TestCheckAccessToServer(t *testing.T) {
 				err := set.CheckAccess(
 					check.server,
 					tc.mfaParams,
-					true,
 					NewLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, comment)
@@ -2357,7 +2356,6 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
 				err := tc.roles.CheckAccess(access.server, tc.mfaParams,
-					true,
 					&DatabaseUserMatcher{User: access.dbUser},
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -2443,7 +2441,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.CheckAccess(access.server, AccessMFAParams{}, true, &DatabaseUserMatcher{User: access.dbUser})
+				err := tc.roles.CheckAccess(access.server, AccessMFAParams{}, &DatabaseUserMatcher{User: access.dbUser})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2664,7 +2662,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.CheckAccess(access.server, AccessMFAParams{}, true)
+				err := tc.roles.CheckAccess(access.server, AccessMFAParams{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2773,7 +2771,6 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 				err := test.roles.CheckAccess(
 					app,
 					AccessMFAParams{},
-					true,
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
 				if access.hasAccess {
 					require.NoError(t, err)
@@ -2956,11 +2953,10 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			for _, r := range tc.roles {
 				set = append(set, r)
 			}
-			err := set.CheckAccess(
-				NewKubernetesClusterRBAC(apidefaults.Namespace, tc.cluster),
-				tc.mfaParams,
-				true,
-			)
+			kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(apidefaults.Namespace, tc.cluster)
+			require.NoError(t, err)
+
+			err = set.CheckAccess(kV3, tc.mfaParams)
 			if tc.hasAccess {
 				require.NoError(t, err)
 			} else {
@@ -3053,7 +3049,6 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 				_ = set.CheckAccess(
 					servers[i],
 					AccessMFAParams{},
-					true,
 					NewLoginMatcher(login),
 				)
 			}

@@ -163,7 +163,6 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
 		mfaParams,
-		true,
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 	)
 	if err != nil {
@@ -191,7 +190,6 @@ func (e *Engine) authorizeClientMessage(sessionCtx *common.Session, message prot
 	}
 	err := sessionCtx.Checker.CheckAccess(sessionCtx.Database,
 		services.AccessMFAParams{Verified: true},
-		true,
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 		&services.DatabaseNameMatcher{Name: database})
 	e.Audit.OnQuery(e.Context, sessionCtx, common.Query{
