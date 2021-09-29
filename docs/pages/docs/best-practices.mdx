@@ -184,6 +184,14 @@ Includes will only work in these two cases:
 - Includes will be linted when a PR is created as part of our CI/CD process.
 - If the file didn't exist in the repository, it will throw an error. Wrong placement of includes will also throw errors.
 
+### Scopes
+
+There are three versions of Teleport: `oss`, `enterprise`, and `cloud`. And docs can be switched
+to one of these versions using a selector at the top of the page. Based on the selector's value, 
+some MDX components can hide or show different content sections. Check the components' descriptions
+below to see which component can be affected by this selector. They will have a `scope` subsection
+in their description.
+
 ### Image pixel density marker
 
 - The browser can't distinguish between retina-ready and not retina-ready images.
@@ -194,6 +202,28 @@ Includes will only work in these two cases:
   down twice to show them in their actual size.
 - Different Operating Systems may require different suffixes based on which logical and physical resolutions their screens have.
 
+### Notice
+
+<Notice type="tip">Notice content.</Notice>
+
+If you want to add notice like the one above to the page, use this syntax:
+
+```
+<Notice type="tip">
+  Notice content.
+</Notice>
+```
+
+`type` can be one of the following values: `warning`, `tip`, `note`, `danger`.
+Different types will result in different colors for the background and different icons. 
+Omitting the type or using some other value will result in resetting it to the `tip`.
+
+**Scope**
+
+`scope` is an optional prop. If `scope` is set, component will be only shown if provided scope
+is selected. `scope` can be either one of these strings `oss`, `enterprise`, `cloud`, or an array of
+multiple scopes. To set multiple scopes use this syntax: `scope={["oss", "cloud"]}`.
+
 ### Admonitons
 
 <Admonition
@@ -203,7 +233,7 @@ Includes will only work in these two cases:
   Admontion content.
 </Admonition>
 
-If you want to add admonition like the one above to the page use this syntax:
+If you want to add admonition like the one above to the page, use this syntax:
 
 ```jsx
 <Admonition title="Admontion title" type="tip">
@@ -241,6 +271,38 @@ To insert tabs block like the one above use this syntax:
   </TabItem>
 </Tabs>
 ```
+
+**Scope**
+
+`scope` is an optional prop for `TabItem`. If `scope` is set, the tab will be automatically selected
+if the provided scope is selected. If multiple tabs have the same `scope` value, the first
+will be selected. `scope` can be either one of these strings `oss`, `enterprise`, `cloud`,
+or an array of multiple scopes. To set multiple scopes use this syntax: `scope={["oss", "cloud"]}`.
+
+### Datails
+
+<Details title="Details title" min="7.0" opened>
+  Details content
+</Details>
+
+To insert details block like the one above, use this syntax:
+
+```
+<Details title="Details title" min="7.0" opened>
+  Details content
+</Details>
+```
+
+**Scope**
+
+`scope` is an optional prop. If `scope` is set, the component will be unfolded when this scope
+is selected and folded in some other scope is selected (but the user will still be able
+to unfold it manually). `scope` can be either one of these strings `oss`, `enterprise`, `cloud`,
+or an array of multiple scopes. To set multiple scopes use this syntax: `scope={["oss", "cloud"]}`.
+
+
+`scopeOnly`- if this prop is set on the component, the component will only be visible
+in the provided scope and invisible in all other scopes.
 
 ### Figures
 
