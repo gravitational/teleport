@@ -3003,7 +3003,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			err := checker.CheckAccess(
 				n,
 				services.AccessMFAParams{},
-				types.Role.GetNodeLabels,
+				true,
 				services.NewLoginMatcher(t.Node.Login),
 			)
 
@@ -3042,7 +3042,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		noMFAAccessErr = checker.CheckAccess(
 			services.NewKubernetesClusterRBAC(server.GetNamespace(), cluster),
 			services.AccessMFAParams{},
-			types.Role.GetKubernetesLabels)
+			true)
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
@@ -3066,7 +3066,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		noMFAAccessErr = checker.CheckAccess(
 			db,
 			services.AccessMFAParams{},
-			nil, // do not check labels here, as we're only concerned with whether access is denied due to MFA
+			false, // do not check labels here, as we're only concerned with whether access is denied due to MFA
 		)
 
 	default:

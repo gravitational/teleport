@@ -705,8 +705,6 @@ func (set RuleSet) Slice() []types.Rule {
 	return out
 }
 
-type RoleLabelGetterFn func(types.Role, types.RoleConditionType) types.Labels
-
 // AccessChecker interface implements access checks for given role or role set
 type AccessChecker interface {
 	// HasRole checks if the checker includes the role
@@ -716,7 +714,7 @@ type AccessChecker interface {
 	RoleNames() []string
 
 	// CheckAccess checks access to the specified resource.
-	CheckAccess(r AccessCheckable, mfa AccessMFAParams, roleLabelsFn RoleLabelGetterFn, matchers ...RoleMatcher) error
+	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchLabels bool, matchers ...RoleMatcher) error
 
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
@@ -1640,14 +1638,9 @@ func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...in
 	}
 }
 
-// CheckAccess checks if this role set has access to a particular resource.
-//
-// It attempts to match labels if roleLabelsFn is not nil.
-// For example, to match labels for a database:
-//
-//     set.CheckAccess(db, AccessMFAParams{}, types.Role.GetDatabaseLabels)
-//
-func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, roleLabelsFn RoleLabelGetterFn, matchers ...RoleMatcher) error {
+// CheckAccess checks if this role set has access to a particular resource,
+// optionally matching the resource's labels.
+func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchLabels bool, matchers ...RoleMatcher) error {
 	// Note: logging in this function only happens in debug mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
@@ -1658,8 +1651,25 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, roleLabel
 		return ErrSessionMFARequired
 	}
 
-	allLabels := r.GetAllLabels()
 	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
+	allLabels := r.GetAllLabels()
+
+	type roleLabelGetterFn func(types.Role, types.RoleConditionType) types.Labels
+	var getRoleLabels roleLabelGetterFn
+	if matchLabels {
+		switch r.GetKind() {
+		case types.KindDatabase:
+			getRoleLabels = types.Role.GetDatabaseLabels
+		case types.KindApp:
+			getRoleLabels = types.Role.GetAppLabels
+		case types.KindNode:
+			getRoleLabels = types.Role.GetNodeLabels
+		case kindKubeClusterRBAC:
+			getRoleLabels = types.Role.GetKubernetesLabels
+		default:
+			return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
+		}
+	}
 
 	// Check deny rules.
 	for _, role := range set {
@@ -1668,8 +1678,8 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, roleLabel
 			continue
 		}
 
-		if roleLabelsFn != nil {
-			matchLabels, labelsMessage, err := MatchLabels(roleLabelsFn(role, Deny), allLabels)
+		if getRoleLabels != nil {
+			matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, Deny), allLabels)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1706,8 +1716,8 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, roleLabel
 			continue
 		}
 
-		if roleLabelsFn != nil {
-			matchLabels, labelsMessage, err := MatchLabels(roleLabelsFn(role, Allow), allLabels)
+		if getRoleLabels != nil {
+			matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, Allow), allLabels)
 			if err != nil {
 				return trace.Wrap(err)
 			}

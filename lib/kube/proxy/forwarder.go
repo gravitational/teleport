@@ -655,7 +655,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			if err := actx.Checker.CheckAccess(
 				services.NewKubernetesClusterRBAC(s.GetNamespace(), ks),
 				mfaParams,
-				types.Role.GetKubernetesLabels,
+				true,
 			); err != nil {
 				return clusterNotFound
 			}

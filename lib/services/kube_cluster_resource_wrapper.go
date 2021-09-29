@@ -29,6 +29,8 @@ type KubernetesClusterRBAC struct {
 	cluster   *types.KubernetesCluster
 }
 
+const kindKubeClusterRBAC = "kube_cluster"
+
 func NewKubernetesClusterRBAC(namespace string, kube *types.KubernetesCluster) KubernetesClusterRBAC {
 	return KubernetesClusterRBAC{
 		namespace: namespace,
@@ -37,7 +39,7 @@ func NewKubernetesClusterRBAC(namespace string, kube *types.KubernetesCluster) K
 }
 
 func (k KubernetesClusterRBAC) GetKind() string {
-	return "kube_cluster"
+	return kindKubeClusterRBAC
 }
 
 func (k KubernetesClusterRBAC) GetAllLabels() map[string]string {

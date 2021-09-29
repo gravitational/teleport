@@ -611,7 +611,7 @@ NextNode:
 			err := roleset.CheckAccess(
 				node,
 				mfaParams,
-				types.Role.GetNodeLabels,
+				true,
 				services.NewLoginMatcher(login))
 			if err == nil {
 				filteredNodes = append(filteredNodes, node)
@@ -2678,7 +2678,7 @@ func (a *ServerWithRoles) checkAccessToApp(app types.Application) error {
 		// MFA is not required for operations on app resources but
 		// will be enforced at the connection time.
 		services.AccessMFAParams{Verified: true},
-		types.Role.GetAppLabels)
+		true)
 }
 
 // GetApplicationServers returns all registered application servers.
@@ -2753,7 +2753,7 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			err = a.context.Checker.CheckAccess(appV3, mfaParams, types.Role.GetAppLabels)
+			err = a.context.Checker.CheckAccess(appV3, mfaParams, true)
 			if err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
@@ -2931,7 +2931,7 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 		if err := a.context.Checker.CheckAccess(
 			services.NewKubernetesClusterRBAC(s.GetNamespace(), kube),
 			mfaParams,
-			types.Role.GetKubernetesLabels,
+			true,
 		); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
@@ -2962,7 +2962,7 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, 
 			if err := a.context.Checker.CheckAccess(
 				services.NewKubernetesClusterRBAC(server.GetNamespace(), kube),
 				mfaParams,
-				types.Role.GetKubernetesLabels); err != nil {
+				true); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
@@ -3258,7 +3258,7 @@ func (a *ServerWithRoles) checkAccessToDatabase(database types.Database) error {
 		// MFA is not required for operations on database resources but
 		// will be enforced at the connection time.
 		services.AccessMFAParams{Verified: true},
-		types.Role.GetDatabaseLabels)
+		true)
 }
 
 // CreateDatabase creates a new database resource.

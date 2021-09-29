@@ -428,7 +428,8 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	// check if roles allow access to server
 	if err := roles.CheckAccess(
 		h.c.Server.GetInfo(),
-		mfaParams, types.Role.GetNodeLabels,
+		mfaParams,
+		true,
 		services.NewLoginMatcher(osUser),
 	); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
