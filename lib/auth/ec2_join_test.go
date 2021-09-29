@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -190,12 +191,16 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 	_, err := a.UpsertNode(context.Background(), node)
 	require.NoError(t, err)
 
+	isNil := func(err error) bool {
+		return err == nil
+	}
+
 	testCases := []struct {
 		desc        string
 		tokenRules  []*types.TokenRule
 		ec2Client   ec2Client
 		request     RegisterUsingTokenRequest
-		expectError bool
+		expectError func(error) bool
 		clock       clockwork.Clock
 	}{
 		{
@@ -214,7 +219,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expectError: false,
+			expectError: isNil,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
@@ -237,7 +242,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expectError: false,
+			expectError: isNil,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
@@ -256,7 +261,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expectError: false,
+			expectError: isNil,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
@@ -274,7 +279,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expectError: false,
+			expectError: isNil,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
@@ -293,7 +298,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expectError: true,
+			expectError: trace.IsAccessDenied,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
@@ -312,7 +317,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expectError: true,
+			expectError: trace.IsAccessDenied,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
@@ -331,7 +336,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              "bad host id",
 				EC2IdentityDocument: instance1.iid,
 			},
-			expectError: true,
+			expectError: trace.IsAccessDenied,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
@@ -350,7 +355,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: []byte("bad document"),
 			},
-			expectError: true,
+			expectError: trace.IsAccessDenied,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
@@ -369,7 +374,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              instance2.account + "-" + instance2.instanceID,
 				EC2IdentityDocument: instance2.iid,
 			},
-			expectError: true,
+			expectError: trace.IsAccessDenied,
 			clock:       clockwork.NewFakeClockAt(instance2.pendingTime),
 		},
 		{
@@ -388,7 +393,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              "fake id",
 				EC2IdentityDocument: instance2.iid,
 			},
-			expectError: true,
+			expectError: trace.IsAccessDenied,
 			clock:       clockwork.NewFakeClockAt(instance2.pendingTime),
 		},
 		{
@@ -407,7 +412,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expectError: true,
+			expectError: trace.IsAccessDenied,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
@@ -426,7 +431,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expectError: true,
+			expectError: trace.IsAccessDenied,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
@@ -445,7 +450,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				HostID:              instance1.account + "-" + instance1.instanceID,
 				EC2IdentityDocument: instance1.iid,
 			},
-			expectError: true,
+			expectError: trace.IsAccessDenied,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime.Add(5*time.Minute + time.Second)),
 		},
 	}
@@ -472,7 +477,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 			ctx := context.WithValue(context.Background(), ec2ClientKey{}, tc.ec2Client)
 
 			err = a.CheckEC2Request(ctx, tc.request)
-			require.Equal(t, tc.expectError, err != nil)
+			require.True(t, tc.expectError(err))
 
 			err = a.DeleteToken(context.Background(), token.GetName())
 			require.NoError(t, err)

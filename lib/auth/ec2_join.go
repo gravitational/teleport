@@ -115,14 +115,14 @@ func checkInstanceRunning(ctx context.Context, instanceID, region, IAMRole strin
 	}
 
 	if len(output.Reservations) == 0 || len(output.Reservations[0].Instances) == 0 {
-		return trace.AccessDenied("")
+		return trace.AccessDenied("failed to get instance state")
 	}
 	instance := output.Reservations[0].Instances[0]
 	if instance.InstanceId == nil || *instance.InstanceId != instanceID {
-		return trace.AccessDenied("")
+		return trace.AccessDenied("failed to get instance state")
 	}
 	if instance.State == nil || instance.State.Name != ec2types.InstanceStateNameRunning {
-		return trace.AccessDenied("")
+		return trace.AccessDenied("instance is not running")
 	}
 	return nil
 }
