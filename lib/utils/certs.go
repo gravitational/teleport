@@ -257,22 +257,4 @@ func ReadCertificateChain(certificateChainBytes []byte) ([]*x509.Certificate, er
 	return x509Chain, nil
 }
 
-// IsExpiredCert loads the x509 certificate from the certPath and check is cert is still valid.
-func IsExpiredCert(certPath string) (bool, error) {
-	pemByte, err := ioutil.ReadFile(certPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return true, trace.NotFound(err.Error())
-		}
-		return false, trace.ConvertSystemError(err)
-	}
-	cert, err := tlsutils.ParseCertificatePEM(pemByte)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	// If cert expiration time is less than 1s thread cert as expired.
-	return time.Until(cert.NotAfter) < time.Second, nil
-}
-
 const pemBlockCertificate = "CERTIFICATE"

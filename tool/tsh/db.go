@@ -52,11 +52,6 @@ func onListDatabases(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Refresh the creds in case user was logged into any databases.
-	err = fetchDatabaseCreds(cf, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	// Retrieve profile to be able to show which databases user is logged into.
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
@@ -430,15 +425,14 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 }
 
 func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
-	// Load DB cert and check if cert is still valid. Missing cert is treated as expired cert.
-	certExpired, err := utils.IsExpiredCert(profile.DatabaseCertPath(database.ServiceName))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return true, nil
+	found := false
+	for _,v := range profile.Databases  {
+		if v.ServiceName == database.ServiceName {
+			found = true
 		}
-		return false, trace.Wrap(err)
 	}
-	if certExpired {
+	// database not found in active list of databases.
+	if !found {
 		return true, nil
 	}
 	// Call API and check is a user needs to use MFA to connect to the database.
