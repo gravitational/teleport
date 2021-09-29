@@ -219,6 +219,9 @@ resources: {}
 #    cpu: "1"
 #    memory: "2Gi"
 
+# Priority class name to add to the deployment
+priorityClassName: ""
+
 # Tolerations for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 tolerations: []
