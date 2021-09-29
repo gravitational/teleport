@@ -611,7 +611,7 @@ NextNode:
 			err := roleset.CheckAccess(
 				node,
 				mfaParams,
-				(types.Role).GetNodeLabels,
+				types.Role.GetNodeLabels,
 				services.NewLoginMatcher(login))
 			if err == nil {
 				filteredNodes = append(filteredNodes, node)
@@ -2678,7 +2678,7 @@ func (a *ServerWithRoles) checkAccessToApp(app types.Application) error {
 		// MFA is not required for operations on app resources but
 		// will be enforced at the connection time.
 		services.AccessMFAParams{Verified: true},
-		(types.Role).GetAppLabels)
+		types.Role.GetAppLabels)
 }
 
 // GetApplicationServers returns all registered application servers.
@@ -2753,7 +2753,7 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			err = a.context.Checker.CheckAccess(appV3, mfaParams, (types.Role).GetAppLabels)
+			err = a.context.Checker.CheckAccess(appV3, mfaParams, types.Role.GetAppLabels)
 			if err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
@@ -2929,9 +2929,9 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 
 	for _, kube := range s.GetKubernetesClusters() {
 		if err := a.context.Checker.CheckAccess(
-			services.NewKubeClusterWrapperForRBAC(s, kube),
+			services.NewKubernetesClusterRBAC(s.GetNamespace(), kube),
 			mfaParams,
-			(types.Role).GetKubernetesLabels,
+			types.Role.GetKubernetesLabels,
 		); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
@@ -2960,9 +2960,9 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, 
 		filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 		for _, kube := range server.GetKubernetesClusters() {
 			if err := a.context.Checker.CheckAccess(
-				services.NewKubeClusterWrapperForRBAC(server, kube),
+				services.NewKubernetesClusterRBAC(server.GetNamespace(), kube),
 				mfaParams,
-				(types.Role).GetKubernetesLabels); err != nil {
+				types.Role.GetKubernetesLabels); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
@@ -3258,7 +3258,7 @@ func (a *ServerWithRoles) checkAccessToDatabase(database types.Database) error {
 		// MFA is not required for operations on database resources but
 		// will be enforced at the connection time.
 		services.AccessMFAParams{Verified: true},
-		(types.Role).GetDatabaseLabels)
+		types.Role.GetDatabaseLabels)
 }
 
 // CreateDatabase creates a new database resource.

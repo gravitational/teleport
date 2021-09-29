@@ -1649,16 +1649,16 @@ type AccessCheckable interface {
 // It attempts to match labels if roleLabelsFn is not nil.
 // For example, to match labels for a database:
 //
-//     set.CheckAccess(db, AccessMFAParams{}, (types.Role).GetDatabaseLabels)
+//     set.CheckAccess(db, AccessMFAParams{}, types.Role.GetDatabaseLabels)
 //
 // Note: logging in this function only happens in debug mode. This is because
 // adding logging to this function (which is called on every resource returned
 // by the backend) can slow down this function by 50x for large clusters!
 func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, roleLabelsFn RoleLabelGetterFn, matchers ...RoleMatcher) error {
-	isDebug := log.GetLevel() == log.DebugLevel
+	isDebugEnabled := log.IsLevelEnabled(log.DebugLevel)
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
 	debugf := func(format string, args ...interface{}) {
-		if isDebug {
+		if isDebugEnabled {
 			log.Debugf(format, args...)
 		}
 	}
@@ -1709,7 +1709,7 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, roleLabel
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
 		if !matchNamespace {
-			if isDebug {
+			if isDebugEnabled {
 				errs = append(errs, trace.AccessDenied("role=%v, match(namespace=%v)",
 					role.GetName(), namespaceMessage))
 			}
@@ -1722,7 +1722,7 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, roleLabel
 				return trace.Wrap(err)
 			}
 			if !matchLabels {
-				if isDebug {
+				if isDebugEnabled {
 					errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
 						role.GetName(), labelsMessage))
 				}
@@ -1737,7 +1737,7 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, roleLabel
 			return trace.Wrap(err)
 		}
 		if !matchMatchers {
-			if isDebug {
+			if isDebugEnabled {
 				errs = append(errs, fmt.Errorf("role=%v, match(matchers=%v)",
 					role.GetName(), err))
 			}
@@ -1954,7 +1954,7 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 	return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
 }
 
-// AccessMFAParams contains MFA-related parameters for CheckAccessTo* methods.
+// AccessMFAParams contains MFA-related parameters for methods that check access.
 type AccessMFAParams struct {
 	// AlwaysRequired is set when MFA is required for all sessions, regardless
 	// of per-role options.

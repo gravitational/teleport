@@ -963,7 +963,7 @@ func (b *BoolOption) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// ProcessNamespace returns the default namespace in case namespace is empty.
+// ProcessNamespace returns the default namespace in case the namespace is empty.
 func ProcessNamespace(namespace string) string {
 	if namespace == "" {
 		return defaults.Namespace

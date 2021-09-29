@@ -139,7 +139,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	// detecting full-qualified table names like db.table, until then the
 	// proper way is to use MySQL grants system.
 	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, mfaParams,
-		(types.Role).GetDatabaseLabels,
+		types.Role.GetDatabaseLabels,
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)

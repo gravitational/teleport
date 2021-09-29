@@ -162,7 +162,7 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 	// database name with each protocol message (for query, update, etc.)
 	// so it is checked when we receive a message from client.
 	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, mfaParams,
-		(types.Role).GetDatabaseLabels,
+		types.Role.GetDatabaseLabels,
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 	)
 	if err != nil {
@@ -190,7 +190,7 @@ func (e *Engine) authorizeClientMessage(sessionCtx *common.Session, message prot
 	}
 	err := sessionCtx.Checker.CheckAccess(sessionCtx.Database,
 		services.AccessMFAParams{Verified: true},
-		(types.Role).GetDatabaseLabels,
+		types.Role.GetDatabaseLabels,
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 		&services.DatabaseNameMatcher{Name: database})
 	e.Audit.OnQuery(e.Context, sessionCtx, common.Query{

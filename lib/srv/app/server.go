@@ -609,7 +609,7 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 	err = authContext.Checker.CheckAccess(
 		app,
 		mfaParams,
-		(types.Role).GetAppLabels,
+		types.Role.GetAppLabels,
 		matchers...)
 	if err != nil {
 		return nil, nil, utils.OpaqueAccessDenied(err)

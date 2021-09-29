@@ -872,7 +872,7 @@ func TestCheckAccessToServer(t *testing.T) {
 				err := set.CheckAccess(
 					check.server,
 					tc.mfaParams,
-					(types.Role).GetNodeLabels,
+					types.Role.GetNodeLabels,
 					NewLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, comment)
@@ -2357,7 +2357,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
 				err := tc.roles.CheckAccess(access.server, tc.mfaParams,
-					(types.Role).GetDatabaseLabels,
+					types.Role.GetDatabaseLabels,
 					&DatabaseUserMatcher{User: access.dbUser},
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -2444,7 +2444,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
 				err := tc.roles.CheckAccess(access.server, AccessMFAParams{},
-					(types.Role).GetDatabaseLabels,
+					types.Role.GetDatabaseLabels,
 					&DatabaseUserMatcher{User: access.dbUser})
 				if access.access {
 					require.NoError(t, err)
@@ -2667,7 +2667,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
 				err := tc.roles.CheckAccess(access.server, AccessMFAParams{},
-					(types.Role).GetDatabaseLabels)
+					types.Role.GetDatabaseLabels)
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2774,7 +2774,7 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			for _, access := range test.access {
 				err := test.roles.CheckAccess(app, AccessMFAParams{},
-					(types.Role).GetAppLabels,
+					types.Role.GetAppLabels,
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
 				if access.hasAccess {
 					require.NoError(t, err)
@@ -2958,9 +2958,9 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 				set = append(set, r)
 			}
 			err := set.CheckAccess(
-				NewKubeClusterWrapperForRBAC(&types.ServerV2{}, tc.cluster),
+				NewKubernetesClusterRBAC(apidefaults.Namespace, tc.cluster),
 				tc.mfaParams,
-				(types.Role).GetKubernetesLabels,
+				types.Role.GetKubernetesLabels,
 			)
 			if tc.hasAccess {
 				require.NoError(t, err)
@@ -3051,10 +3051,10 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 			for login := range allowLogins {
 				// note: we don't check the error here because this benchmark
 				// is testing the performance of failed RBAC checks
-				set.CheckAccess(
+				_ = set.CheckAccess(
 					servers[i],
 					AccessMFAParams{},
-					(types.Role).GetNodeLabels,
+					types.Role.GetNodeLabels,
 					NewLoginMatcher(login),
 				)
 			}

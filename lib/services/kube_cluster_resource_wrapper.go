@@ -20,37 +20,37 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// KubeClusterResourceWrapper is a minimal implementation of
+// KubernetesClusterRBAC is a minimal implementation of
 // services.AccessCheckable for *types.KubernetesCluster.
 // This allows us to use common RBAC checks for Kubernetes Clusters
 // and other resources.
-type KubeClusterResourceWrapper struct {
-	server  types.Server
-	cluster *types.KubernetesCluster
+type KubernetesClusterRBAC struct {
+	namespace string
+	cluster   *types.KubernetesCluster
 }
 
-func NewKubeClusterWrapperForRBAC(s types.Server, kube *types.KubernetesCluster) KubeClusterResourceWrapper {
-	return KubeClusterResourceWrapper{
-		server:  s,
-		cluster: kube,
+func NewKubernetesClusterRBAC(namespace string, kube *types.KubernetesCluster) KubernetesClusterRBAC {
+	return KubernetesClusterRBAC{
+		namespace: namespace,
+		cluster:   kube,
 	}
 }
 
-func (k KubeClusterResourceWrapper) GetKind() string {
+func (k KubernetesClusterRBAC) GetKind() string {
 	return "kube_cluster"
 }
 
-func (k KubeClusterResourceWrapper) GetAllLabels() map[string]string {
+func (k KubernetesClusterRBAC) GetAllLabels() map[string]string {
 	return types.CombineLabels(k.cluster.StaticLabels, k.cluster.DynamicLabels)
 }
 
-func (k KubeClusterResourceWrapper) GetName() string {
+func (k KubernetesClusterRBAC) GetName() string {
 	return k.cluster.Name
 }
 
-func (k KubeClusterResourceWrapper) GetMetadata() types.Metadata {
+func (k KubernetesClusterRBAC) GetMetadata() types.Metadata {
 	return types.Metadata{
 		Name:      k.GetName(),
-		Namespace: types.ProcessNamespace(k.server.GetNamespace()),
+		Namespace: types.ProcessNamespace(k.namespace),
 	}
 }
