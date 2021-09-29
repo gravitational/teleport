@@ -25,6 +25,11 @@ export default class Client extends EventEmitter {
   logger = Logger.create('TDPClient');
   userDisconnected = false;
 
+  // Set record to true and each websocket message will be stored in recordArray,
+  // which will be printed to the console on disconnect (used for dev/testing purposes only).
+  record = false;
+  recordArray: ArrayBuffer[] = [];
+
   constructor(socketAddr: string, username: string) {
     super();
     this.socketAddr = socketAddr;
@@ -42,9 +47,14 @@ export default class Client extends EventEmitter {
       this.emit('init');
     };
 
-    this.socket.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
-      this.processMessage(ev.data);
-    };
+    this.socket.onmessage = this.record
+      ? (ev: MessageEvent<ArrayBuffer>) => {
+          this.processMessage(ev.data);
+        }
+      : (ev: MessageEvent<ArrayBuffer>) => {
+          this.recordArray.push(ev.data);
+          this.processMessage(ev.data);
+        };
 
     // The 'error' event will only ever be emitted by the socket
     // prior to a 'close' event (https://stackoverflow.com/a/40084550/6277051).
@@ -120,11 +130,14 @@ export default class Client extends EventEmitter {
     this.socket?.send(this.codec.encodeScreenSpec(w, h));
   }
 
-  // Called to cleanup websocket when the connection is intentionally
-  // closed by the end user (customer). Causes 'disconnect' event to be emitted.
+  // Called to cleanup websocket when the connection is intentionally closed by the end user (customer).
+  // Causes 'disconnect' event to be emitted (handled by socket.onclose).
   disconnect() {
     this.userDisconnected = true;
     this.socket?.close();
+
+    // eslint-disable-next-line no-console
+    if (this.record) console.log(this.recordArray);
   }
 
   // Ensures full cleanup of this object.
