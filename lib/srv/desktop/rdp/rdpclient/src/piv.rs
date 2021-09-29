@@ -31,15 +31,17 @@ pub struct Card<const S: usize> {
 
 impl<const S: usize> Card<S> {
     pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8]) -> RdpResult<Self> {
+        let piv_auth_key = Rsa::private_key_from_der(key_der).or_else(|e| {
+            Err(invalid_data_error(&format!(
+                "failed to parse private key from DER: {:?}",
+                e
+            )))
+        })?;
+
         Ok(Self {
             chuid: Self::build_chuid(uuid),
             piv_auth_cert: Self::build_piv_auth_cert(cert_der),
-            piv_auth_key: Rsa::private_key_from_der(key_der).or_else(|e| {
-                Err(invalid_data_error(&format!(
-                    "failed to parse private key from DER: {:?}",
-                    e
-                )))
-            })?,
+            piv_auth_key,
             pending_command: None,
             pending_response: None,
         })
@@ -97,16 +99,16 @@ impl<const S: usize> Card<S> {
         // See https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf section
         // 3.1.1
         let resp = tlv(
-            0x61,
+            TLV_TAG_PIV_APPLICATION_PROPERTY_TEMPLATE,
             Value::Constructed(vec![
                 tlv(
-                    0x4F,
+                    TLV_TAG_AID,
                     Value::Primitive(vec![0x00, 0x00, 0x10, 0x00, 0x01, 0x00]),
                 )?,
                 tlv(
-                    0x79,
+                    TLV_TAG_COEXISTENT_TAG_ALLOCATION_AUTHORITY,
                     Value::Constructed(vec![tlv(
-                        0x4F,
+                        TLV_TAG_AID,
                         Value::Primitive(PIV_AID.truncated().to_vec()),
                     )?]),
                 )?,
@@ -150,17 +152,20 @@ impl<const S: usize> Card<S> {
     }
 
     fn handle_get_response(&mut self, _cmd: Command<S>) -> RdpResult<Response> {
+        // CHINK_SIZE is the max response data size in bytes, without resorting to "extended"
+        // messages.
+        const CHUNK_SIZE: usize = 256;
         match &mut self.pending_response {
             None => Ok(Response::new(Status::NotFound)),
             Some(cursor) => {
-                let mut chunk = [0; 256];
+                let mut chunk = [0; CHUNK_SIZE];
                 let n = cursor.read(&mut chunk)?;
                 let mut chunk = chunk.to_vec();
                 chunk.truncate(n);
                 let remaining = cursor.get_ref().len() as u64 - cursor.position();
                 let status = if remaining <= 0 {
                     Status::Success
-                } else if remaining < 256 {
+                } else if remaining < CHUNK_SIZE as u64 {
                     Status::MoreAvailable(remaining as u8)
                 } else {
                     Status::MoreAvailable(0)
@@ -194,7 +199,7 @@ impl<const S: usize> Card<S> {
 
         let request_tlv = Tlv::from_bytes(cmd.data())
             .or_else(|e| Err(invalid_data_error(&format!("TLV invalid: {:?}", e))))?;
-        if *request_tlv.tag() != tlv_tag(0x7C)? {
+        if *request_tlv.tag() != tlv_tag(TLV_TAG_DYNAMIC_AUTHENTICATION_TEMPLATE)? {
             return Err(invalid_data_error(&format!(
                 "general authenticate command TLV invalid: {:?}",
                 request_tlv
@@ -213,7 +218,7 @@ impl<const S: usize> Card<S> {
         };
         let mut challenge = None;
         for data in request_tlvs {
-            if *data.tag() != tlv_tag(0x81)? {
+            if *data.tag() != tlv_tag(TLV_TAG_CHALLENGE)? {
                 continue;
             }
             challenge = match data.value() {
@@ -257,8 +262,11 @@ impl<const S: usize> Card<S> {
 
         // Return signed challenge.
         let resp = tlv(
-            0x7C,
-            Value::Constructed(vec![tlv(0x82, Value::Primitive(signed_challenge))?]),
+            TLV_TAG_DYNAMIC_AUTHENTICATION_TEMPLATE,
+            Value::Constructed(vec![tlv(
+                TLV_TAG_RESPONSE,
+                Value::Primitive(signed_challenge),
+            )?]),
         )?
         .to_vec();
         self.pending_response = Some(Cursor::new(resp));
@@ -277,9 +285,9 @@ impl<const S: usize> Card<S> {
         // table 9 has the explanation of fields.
         //
         // Start with a top-level BER-TLV tag and length:
-        let mut resp = vec![0x53, 0x3B];
+        let mut resp = vec![TLV_TAG_DATA_FIELD, 0x3B];
         // TLV tag and length for FASC-N.
-        resp.extend_from_slice(&[0x30, 0x19]);
+        resp.extend_from_slice(&[TLV_TAG_FASC_N, 0x19]);
         // FASC-N value containing S9999F9999F999999F0F1F0000000000300001E, with a
         // weird encoding from section 6 of:
         // https://www.idmanagement.gov/docs/pacs-tig-scepacs.pdf
@@ -288,16 +296,16 @@ impl<const S: usize> Card<S> {
             0x21, 0x08, 0x42, 0x10, 0x84, 0x21, 0xc8, 0x42, 0x10, 0xc3, 0xeb,
         ]);
         // TLV for user UUID.
-        resp.extend_from_slice(&[0x34, 0x10]);
+        resp.extend_from_slice(&[TLV_TAG_GUID, 0x10]);
         resp.extend_from_slice(uuid.as_bytes());
         // TLV for expiration date (YYYYMMDD).
-        resp.extend_from_slice(&[0x35, 0x08]);
+        resp.extend_from_slice(&[TLV_TAG_EXPIRATION_DATE, 0x08]);
         // TODO(awly): generate this from current time.
         resp.extend_from_slice("20300101".as_bytes());
         // TLV for signature (empty).
-        resp.extend_from_slice(&[0x3E, 0x00]);
+        resp.extend_from_slice(&[TLV_TAG_ISSUER_ASYMMETRIC_SIGNATURE, 0x00]);
         // TLV for error detection code.
-        resp.extend_from_slice(&[0xFE, 0x00]);
+        resp.extend_from_slice(&[TLV_TAG_ERROR_DETECTION_CODE, 0x00]);
         resp
     }
 
@@ -306,16 +314,16 @@ impl<const S: usize> Card<S> {
         // and existing libraries. Marshal by hand.
         //
         // Certificate TLV tag and length.
-        let mut resp = vec![0x70];
+        let mut resp = vec![TLV_TAG_CERTIFICATE];
         resp.extend_from_slice(&len_to_vec(cert_der.len()));
         resp.extend_from_slice(cert_der);
         // CertInfo TLV (0x00 indicates uncompressed cert).
-        resp.extend_from_slice(&[0x71, 0x01, 0x00]);
+        resp.extend_from_slice(&[TLV_TAG_CERTINFO, 0x01, 0x00]);
         // TLV for error detection code.
-        resp.extend_from_slice(&[0xFE, 0x00]);
+        resp.extend_from_slice(&[TLV_TAG_ERROR_DETECTION_CODE, 0x00]);
 
         // Wrap with top-level TLV tag and length.
-        let mut resp_outer = vec![0x53];
+        let mut resp_outer = vec![TLV_TAG_DATA_FIELD];
         resp_outer.extend_from_slice(&len_to_vec(resp.len()));
         resp_outer.extend_from_slice(&resp);
         resp_outer
@@ -349,6 +357,23 @@ impl Response {
         buf
     }
 }
+
+// SELECT command tags.
+const TLV_TAG_PIV_APPLICATION_PROPERTY_TEMPLATE: u8 = 0x61;
+const TLV_TAG_AID: u8 = 0x4F;
+const TLV_TAG_COEXISTENT_TAG_ALLOCATION_AUTHORITY: u8 = 0x79;
+const TLV_TAG_DATA_FIELD: u8 = 0x53;
+const TLV_TAG_FASC_N: u8 = 0x30;
+const TLV_TAG_GUID: u8 = 0x34;
+const TLV_TAG_EXPIRATION_DATE: u8 = 0x35;
+const TLV_TAG_ISSUER_ASYMMETRIC_SIGNATURE: u8 = 0x3E;
+const TLV_TAG_ERROR_DETECTION_CODE: u8 = 0xFE;
+const TLV_TAG_CERTIFICATE: u8 = 0x70;
+const TLV_TAG_CERTINFO: u8 = 0x71;
+// GENERAL AUTHENTICATE command tags.
+const TLV_TAG_DYNAMIC_AUTHENTICATION_TEMPLATE: u8 = 0x7C;
+const TLV_TAG_CHALLENGE: u8 = 0x81;
+const TLV_TAG_RESPONSE: u8 = 0x82;
 
 fn tlv(tag: u8, value: Value) -> RdpResult<Tlv> {
     Tlv::new(tlv_tag(tag)?, value).or_else(|e| {

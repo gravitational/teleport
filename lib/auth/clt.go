@@ -1628,9 +1628,9 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services
 	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
-// GetCertAuthorityCRL generates an empty CRL for a CA.
-func (c *Client) GetCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
-	resp, err := c.APIClient.GetCertAuthorityCRL(ctx, &proto.CertAuthorityRequest{Type: caType})
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	resp, err := c.APIClient.GenerateCertAuthorityCRL(ctx, &proto.CertAuthorityRequest{Type: caType})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1942,6 +1942,6 @@ type ClientI interface {
 	// GenerateWindowsDesktopCert generates client smartcard certificate used
 	// by an RDP client to authenticate with Windows.
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
-	// GetCertAuthorityCRL generates an empty CRL for a CA.
-	GetCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
+	// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
 }

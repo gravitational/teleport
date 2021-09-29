@@ -3437,13 +3437,13 @@ func (g *GRPCServer) CreateRegisterChallenge(ctx context.Context, req *proto.Cre
 	return res, nil
 }
 
-// GetCertAuthorityCRL returns a CRL for a CA.
-func (g *GRPCServer) GetCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
+// GenerateCertAuthorityCRL returns a CRL for a CA.
+func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	crl, err := auth.GetCertAuthorityCRL(ctx, req.Type)
+	crl, err := auth.GenerateCertAuthorityCRL(ctx, req.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -214,7 +214,7 @@ type AccessPoint interface {
 	DeleteTunnelConnection(clusterName, connName string) error
 
 	// GetCertAuthority returns an empty CRL for a CA.
-	GetCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
+	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -393,9 +393,10 @@ func (w *Wrapper) UpdateWindowsDesktop(ctx context.Context, d types.WindowsDeskt
 	return w.NoCache.UpdateWindowsDesktop(ctx, d)
 }
 
-// GetCertAuthorityCRL generates an empty CRL for a CA.
-func (w *Wrapper) GetCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
-	return w.NoCache.GetCertAuthorityCRL(ctx, caType)
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (w *Wrapper) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	crl, err := w.NoCache.GenerateCertAuthorityCRL(ctx, caType)
+	return crl, trace.Wrap(err)
 }
 
 // NewCachingAcessPoint returns new caching access point using

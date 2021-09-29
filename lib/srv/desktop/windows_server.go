@@ -115,11 +115,11 @@ func (cfg LDAPConfig) connect() (ldap.Client, error) {
 	}
 	// TODO(awly): should we get a CA cert for the LDAP cert validation?
 	if err := con.StartTLS(&tls.Config{InsecureSkipVerify: true}); err != nil {
-		defer con.Close()
+		con.Close()
 		return nil, trace.Wrap(err)
 	}
 	if err := con.Bind(cfg.Username, cfg.Password); err != nil {
-		defer con.Close()
+		con.Close()
 		return nil, trace.Wrap(err)
 	}
 	return con, nil
@@ -471,7 +471,7 @@ func (s *WindowsService) updateCRL(ctx context.Context) error {
 	// Publish the CRL for current cluster CA. For trusted clusters, their
 	// respective windows_desktop_services will publish CRLs of their CAs so we
 	// don't have to do it here.
-	crlDER, err := s.cfg.AccessPoint.GetCertAuthorityCRL(ctx, types.UserCA)
+	crlDER, err := s.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, types.UserCA)
 	if err != nil {
 		return trace.Wrap(err, "generating CRL: %v", err)
 	}
@@ -565,6 +565,13 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 	genResp, err := s.cfg.AuthClient.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
 		CSR: csrPEM,
 		// LDAP URI pointing at the CRL created with updateCRL.
+		//
+		// The full format is:
+		// ldap://domain_controller_addr/distinguished_name_and_parameters.
+		//
+		// Using ldap:///distinguished_name_and_parameters (with empty
+		// domain_controller_addr) will cause Windows to fetch the CRL from any
+		// of its current domain controllers.
 		CRLEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN),
 		TTL:         proto.Duration(5 * time.Minute),
 	})

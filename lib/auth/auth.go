@@ -2602,8 +2602,8 @@ func (a *Server) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys b
 	return a.GetCache().GetCertAuthorities(caType, loadSigningKeys, opts...)
 }
 
-// GetCertAuthorityCRL generates an empty CRL for the local CA of a given type.
-func (s *Server) GetCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+// GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
+func (s *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
 	clusterName, err := s.GetClusterName()
 	if err != nil {
@@ -2640,7 +2640,7 @@ func (s *Server) GetCertAuthorityCRL(ctx context.Context, caType types.CertAuthT
 	// Empty CRL valid for 1yr.
 	template := &x509.RevocationList{
 		Number:     big.NewInt(1),
-		ThisUpdate: time.Now(),
+		ThisUpdate: time.Now().Add(-1 * time.Minute), // 1 min in the past to account for clock skew.
 		NextUpdate: time.Now().Add(365 * 24 * time.Hour),
 	}
 	crl, err := x509.CreateRevocationList(rand.Reader, template, tlsAuthority.Cert, tlsAuthority.Signer)

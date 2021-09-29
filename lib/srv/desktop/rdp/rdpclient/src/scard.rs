@@ -229,7 +229,7 @@ impl Client {
     }
 }
 
-// TRANSMIT_DATA_LIMIT is the maximum size of transmit request/response short data.
+// TRANSMIT_DATA_LIMIT is the maximum size of transmit request/response short data, in bytes.
 const TRANSMIT_DATA_LIMIT: usize = 1024;
 
 #[derive(Debug, FromPrimitive, ToPrimitive)]

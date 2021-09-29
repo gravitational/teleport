@@ -32,11 +32,15 @@ type Config struct {
 	Addr string
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
+
+	// TODO(awly): replace these callbacks with a deskproto.Conn
+
 	// InputMessage is called to receive a message from the client for the RDP
 	// server. This function should block until there is a message.
 	InputMessage func() (deskproto.Message, error)
 	// OutputMessage is called to send a message from RDP server to the client.
 	OutputMessage func(deskproto.Message) error
+
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
 }

@@ -2173,8 +2173,8 @@ func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRe
 	return resp, trail.FromGRPC(err)
 }
 
-// GetCertAuthorityCRL generates an empty CRL for a CA.
-func (c *Client) GetCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
-	resp, err := c.grpc.GetCertAuthorityCRL(ctx, req)
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
+	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req)
 	return resp, trail.FromGRPC(err)
 }

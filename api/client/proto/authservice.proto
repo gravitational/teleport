@@ -1724,8 +1724,8 @@ service AuthService {
     // GenerateWindowsDesktopCert generates client smartcard certificate used
     // by an RDP client to authenticate with Windows.
     rpc GenerateWindowsDesktopCert(WindowsDesktopCertRequest) returns (WindowsDesktopCertResponse);
-    // GetCertAuthorityCRL creates an empty CRL for the specified CA.
-    rpc GetCertAuthorityCRL(CertAuthorityRequest) returns (CRL);
+    // GenerateCertAuthorityCRL creates an empty CRL for the specified CA.
+    rpc GenerateCertAuthorityCRL(CertAuthorityRequest) returns (CRL);
 
     // ChangeUserAuthentication allows a user to change their password and if enabled,
     // also adds a new MFA device. After successful invocation, a new web session is created as well
