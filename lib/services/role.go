@@ -1654,8 +1654,7 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchLabe
 	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
 	allLabels := r.GetAllLabels()
 
-	type roleLabelGetterFn func(types.Role, types.RoleConditionType) types.Labels
-	var getRoleLabels roleLabelGetterFn
+	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
 	if matchLabels {
 		switch r.GetKind() {
 		case types.KindDatabase:
