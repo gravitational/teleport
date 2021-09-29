@@ -254,9 +254,9 @@ provides an option to rewrite the hostname of the `Location` header on
 redirect responses to the application's public address:
 
 ```yaml
-- name: "jira"
+- name: "jenkins"
   uri: "https://localhost:8001"
-  public_addr: "jira.example.com"
+  public_addr: "jenkins.example.com"
   rewrite:
     # Rewrite the "Location" header on redirect responses replacing the
     # host with the public address of this application.
