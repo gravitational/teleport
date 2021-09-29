@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -26,11 +25,9 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -434,7 +431,7 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 
 func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
 	// Load DB cert and check if cert is still valid. Missing cert is treated as expired cert.
-	certExpired, err := isExpiredCert(profile.DatabaseCertPath(database.ServiceName))
+	certExpired, err := utils.IsExpiredCert(profile.DatabaseCertPath(database.ServiceName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return true, nil
@@ -605,23 +602,6 @@ func getMongoCommand(host string, port int, certPath, caPath, name string) *exec
 		args = append(args, name)
 	}
 	return exec.Command(mongoBin, args...)
-}
-
-func isExpiredCert(certPath string) (bool, error) {
-	pemByte, err := ioutil.ReadFile(certPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return true, trace.NotFound(err.Error())
-		}
-		return false, trace.ConvertSystemError(err)
-	}
-	cert, err := tlsutils.ParseCertificatePEM(pemByte)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	// If cert expiration time is less than 1s thread cert as expired.
-	return time.Until(cert.NotAfter) < time.Second, nil
 }
 
 const (
