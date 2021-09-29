@@ -54,7 +54,7 @@ const props: State = {
     fillGray(canvas);
   },
   onConnect: () => {},
-  onRender: (canvas: HTMLCanvasElement, data: RenderData) => {},
+  onRender: (ctx: CanvasRenderingContext2D, data: RenderData) => {},
   onDisconnect: () => {},
   onError: (err: Error) => {},
   onKeyDown: (cli: TdpClient, e: KeyboardEvent) => {},
