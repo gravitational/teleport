@@ -230,6 +230,13 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 		return nil, trace.Wrap(err)
 	}
 
+	// Finally, check against attestation settings, if any.
+	// This runs after web.CreateCredential so we can take advantage of the
+	// attestation format validation it performs.
+	if err := verifyAttestation(f.Webauthn, parsedResp.Response.AttestationObject); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	newDevice := types.NewMFADevice(deviceName, uuid.NewString() /* id */, time.Now() /* addedAt */)
 	newDevice.Device = &types.MFADevice_Webauthn{
 		Webauthn: &types.WebauthnDevice{
