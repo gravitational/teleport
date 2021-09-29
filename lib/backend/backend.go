@@ -335,7 +335,11 @@ const Separator = '/'
 // Key joins parts into path separated by Separator,
 // makes sure path always starts with Separator ("/")
 func Key(parts ...string) []byte {
-	return []byte(strings.Join(append([]string{""}, parts...), string(Separator)))
+	return internalKey("", parts...)
+}
+
+func internalKey(internalPrefix string, parts ...string) []byte {
+	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
 }
 
 // NoMigrations implements a nop Migrate method of Backend.

@@ -19,7 +19,6 @@ package backend
 import (
 	"bytes"
 	"context"
-	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,7 +26,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const locksPrefix = ".locks"
+const (
+	flagsPrefix = ".flags"
+	locksPrefix = ".locks"
+)
+
+func FlagKey(parts ...string) []byte {
+	return internalKey(flagsPrefix, parts...)
+}
+
+func lockKey(parts ...string) []byte {
+	return internalKey(locksPrefix, parts...)
+}
 
 type Lock struct {
 	key []byte
@@ -49,7 +59,7 @@ func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time
 	if lockName == "" {
 		return Lock{}, trace.BadParameter("missing parameter lock name")
 	}
-	key := []byte(filepath.Join(locksPrefix, lockName))
+	key := lockKey(lockName)
 	id, err := randomID()
 	if err != nil {
 		return Lock{}, trace.Wrap(err)
