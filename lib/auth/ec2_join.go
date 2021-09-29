@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
@@ -72,20 +73,15 @@ func NodeIDFromIID(iid *imds.InstanceIdentityDocument) string {
 func checkEC2AllowRules(ctx context.Context, iid *imds.InstanceIdentityDocument, token types.ProvisionToken) error {
 	allowRules := token.GetAllowRules()
 	for _, rule := range allowRules {
+		// If this rule specifies and AWS account, the IID must match
 		if len(rule.AWSAccount) > 0 {
 			if rule.AWSAccount != iid.AccountID {
 				continue
 			}
 		}
+		// If this rule specifies any AWS regions, the IID must match one of them
 		if len(rule.AWSRegions) > 0 {
-			matchingRegion := false
-			for _, region := range rule.AWSRegions {
-				if region == iid.Region {
-					matchingRegion = true
-					break
-				}
-			}
-			if !matchingRegion {
+			if !utils.SliceContainsStr(rule.AWSRegions, iid.Region) {
 				continue
 			}
 		}

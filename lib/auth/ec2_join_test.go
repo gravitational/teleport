@@ -241,6 +241,43 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
 		},
 		{
+			desc: "pass with multiple regions",
+			tokenRules: []*types.TokenRule{
+				&types.TokenRule{
+					AWSAccount: instance1.account,
+					AWSRegions: []string{"us-east-1", instance1.region, "us-east-2"},
+				},
+			},
+			ec2Client: ec2ClientRunning{},
+			request: RegisterUsingTokenRequest{
+				Token:               "test_token",
+				NodeName:            "node_name",
+				Role:                types.RoleNode,
+				HostID:              instance1.account + "-" + instance1.instanceID,
+				EC2IdentityDocument: instance1.iid,
+			},
+			expectError: false,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
+		},
+		{
+			desc: "pass with no regions",
+			tokenRules: []*types.TokenRule{
+				&types.TokenRule{
+					AWSAccount: instance1.account,
+				},
+			},
+			ec2Client: ec2ClientRunning{},
+			request: RegisterUsingTokenRequest{
+				Token:               "test_token",
+				NodeName:            "node_name",
+				Role:                types.RoleNode,
+				HostID:              instance1.account + "-" + instance1.instanceID,
+				EC2IdentityDocument: instance1.iid,
+			},
+			expectError: false,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
+		},
+		{
 			desc: "wrong account",
 			tokenRules: []*types.TokenRule{
 				&types.TokenRule{
