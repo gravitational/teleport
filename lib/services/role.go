@@ -1281,16 +1281,15 @@ func (set RoleSet) GetLoginsForTTL(ttl time.Duration) (logins []string, matchedT
 // CheckAccessToRemoteCluster checks if a role has access to remote cluster. Deny rules are
 // checked first then allow rules. Access to a cluster is determined by
 // namespaces, labels, and logins.
-//
-// Note, logging in this function only happens in debug mode, this is because
-// adding logging to this function (which is called on every server returned
-// by GetRemoteClusters) can slow down this function by 50x for large clusters!
 func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 	if len(set) == 0 {
 		return trace.AccessDenied("access to cluster denied")
 	}
 
-	var errs []error
+	// Note: logging in this function only happens in debug mode, this is because
+	// adding logging to this function (which is called on every server returned
+	// by GetRemoteClusters) can slow down this function by 50x for large clusters!
+	isDebugEnabled, debugf := rbacDebugLogger()
 
 	rcLabels := rc.GetMetadata().Labels
 
@@ -1305,17 +1304,14 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 	}
 
 	if usesLabels == false && len(rcLabels) == 0 {
-		if log.GetLevel() == log.DebugLevel {
-			log.WithFields(log.Fields{
-				trace.Component: teleport.ComponentRBAC,
-			}).Debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
-				rc.GetName(), set.RoleNames())
-		}
+		debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
+			rc.GetName(), set.RoleNames())
 		return nil
 	}
 
 	// Check deny rules first: a single matching label from
 	// the deny role set prohibits access.
+	var errs []error
 	for _, role := range set {
 		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(Deny), rcLabels)
 		if err != nil {
@@ -1323,12 +1319,8 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 		}
 		if matchLabels {
 			// This condition avoids formatting calls on large scale.
-			if log.GetLevel() == log.DebugLevel {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to cluster %v denied, deny rule in %v matched; match(label=%v)",
-					rc.GetName(), role.GetName(), labelsMessage)
-			}
+			debugf("Access to cluster %v denied, deny rule in %v matched; match(label=%v)",
+				rc.GetName(), role.GetName(), labelsMessage)
 			return trace.AccessDenied("access to cluster denied")
 		}
 	}
@@ -1336,9 +1328,7 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 	// Check allow rules: label has to match in any role in the role set to be granted access.
 	for _, role := range set {
 		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(Allow), rcLabels)
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
+		debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
 			role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, role.GetClusterLabels(Allow), rcLabels)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1346,18 +1336,14 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 		if matchLabels {
 			return nil
 		}
-		if log.GetLevel() == log.DebugLevel {
+		if isDebugEnabled {
 			deniedError := trace.AccessDenied("role=%v, match(label=%v)",
 				role.GetName(), labelsMessage)
 			errs = append(errs, deniedError)
 		}
 	}
 
-	if log.GetLevel() == log.DebugLevel {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
-	}
+	debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
 	return trace.AccessDenied("access to cluster denied")
 }
 
@@ -1644,6 +1630,16 @@ type AccessCheckable interface {
 	GetAllLabels() map[string]string
 }
 
+func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
+	isDebugEnabled := log.IsLevelEnabled(log.DebugLevel)
+	log := log.WithField(trace.Component, teleport.ComponentRBAC)
+	return isDebugEnabled, func(format string, args ...interface{}) {
+		if isDebugEnabled {
+			log.Debugf(format, args...)
+		}
+	}
+}
+
 // CheckAccess checks if this role set has access to a particular resource.
 //
 // It attempts to match labels if roleLabelsFn is not nil.
@@ -1651,17 +1647,11 @@ type AccessCheckable interface {
 //
 //     set.CheckAccess(db, AccessMFAParams{}, types.Role.GetDatabaseLabels)
 //
-// Note: logging in this function only happens in debug mode. This is because
-// adding logging to this function (which is called on every resource returned
-// by the backend) can slow down this function by 50x for large clusters!
 func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, roleLabelsFn RoleLabelGetterFn, matchers ...RoleMatcher) error {
-	isDebugEnabled := log.IsLevelEnabled(log.DebugLevel)
-	log := log.WithField(trace.Component, teleport.ComponentRBAC)
-	debugf := func(format string, args ...interface{}) {
-		if isDebugEnabled {
-			log.Debugf(format, args...)
-		}
-	}
+	// Note: logging in this function only happens in debug mode. This is because
+	// adding logging to this function (which is called on every resource returned
+	// by the backend) can slow down this function by 50x for large clusters!
+	isDebugEnabled, debugf := rbacDebugLogger()
 
 	if mfa.AlwaysRequired && !mfa.Verified {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
