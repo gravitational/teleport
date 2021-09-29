@@ -14,26 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { DesktopSession } from './DesktopSession';
+import useTdpClientCanvas from './useTdpClientCanvas';
 import { State } from './useDesktopSession';
 import TdpClient, { RenderData } from 'teleport/lib/tdp/client';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import arrayBuf2260x1130 from './fixtures';
 
 export default {
   title: 'Teleport/DesktopSession',
 };
 
-const client = new TdpClient('wss://socketAddr.gov', 'username');
-client.init = () => {
-  client.emit('init');
-};
-client.connect = () => {
-  client.emit('connect');
-};
-client.resize = (w: number, h: number) => {};
-client.disconnect = () => {
-  client.emit('disconnect');
+const fakeClient = () => {
+  const client = new TdpClient('wss://socketAddr.gov', 'username');
+  client.init = () => {
+    client.emit('init');
+  };
+  client.connect = () => {
+    client.emit('connect');
+  };
+  client.resize = (w: number, h: number) => {};
+  client.disconnect = () => {
+    client.emit('disconnect');
+  };
+  return client;
 };
 
 const fillGray = (canvas: HTMLCanvasElement) => {
@@ -48,7 +53,7 @@ const props: State = {
   connection: { status: 'processing' },
   clipboard: false,
   recording: false,
-  tdpClient: client,
+  tdpClient: fakeClient(),
   username: 'user',
   onInit: (cli: TdpClient, canvas: HTMLCanvasElement) => {
     fillGray(canvas);
@@ -135,3 +140,35 @@ export const ConnectionError = () => (
     connection={{ status: 'failed', statusText: 'some connection error' }}
   />
 );
+export const Performance = () => {
+  const client = fakeClient();
+
+  return (
+    <DesktopSession
+      {...props}
+      fetchAttempt={{ status: 'success' }}
+      connection={{ status: 'success' }}
+      tdpClient={client}
+      onInit={(cli: TdpClient, canvas: HTMLCanvasElement) => {
+        // Hardcoded to match fixture
+        const width = 2260;
+        const height = 1130;
+
+        // If it's resolution does not match change it
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+        cli.emit('connect');
+      }}
+      onConnect={() => {
+        for (let i = 0; i < arrayBuf2260x1130.length; i++) {
+          client.processMessage(arrayBuf2260x1130[i]);
+        }
+      }}
+      onRender={(ctx: CanvasRenderingContext2D, data: RenderData) =>
+        ctx.drawImage(data.image, data.left, data.top)
+      }
+    />
+  );
+};

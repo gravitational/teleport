@@ -36,7 +36,9 @@
     // Require format
     "module": "commonjs",
     // Import non-ES modules as default imports.
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    // Allow json imports.
+    "resolveJsonModule": true
   },
   "exclude": [
     "node_modules",

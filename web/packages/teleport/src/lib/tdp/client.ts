@@ -27,8 +27,8 @@ export default class Client extends EventEmitter {
 
   // Set record to true and each websocket message will be stored in recordArray,
   // which will be printed to the console on disconnect (used for dev/testing purposes only).
-  record = false;
-  recordArray: ArrayBuffer[] = [];
+  saveMessages = false;
+  messages: ArrayBuffer[] = [];
 
   constructor(socketAddr: string, username: string) {
     super();
@@ -47,12 +47,12 @@ export default class Client extends EventEmitter {
       this.emit('init');
     };
 
-    this.socket.onmessage = this.record
+    this.socket.onmessage = !this.saveMessages
       ? (ev: MessageEvent<ArrayBuffer>) => {
           this.processMessage(ev.data);
         }
       : (ev: MessageEvent<ArrayBuffer>) => {
-          this.recordArray.push(ev.data);
+          this.messages.push(ev.data);
           this.processMessage(ev.data);
         };
 
@@ -136,8 +136,16 @@ export default class Client extends EventEmitter {
     this.userDisconnected = true;
     this.socket?.close();
 
-    // eslint-disable-next-line no-console
-    if (this.record) console.log(this.recordArray);
+    // Convert all the saved ArrayBuffer messages to Uint8Array's so that their values will be logged
+    // (because logging and then copying an ArrayBuffer just results in "{}").
+    if (this.saveMessages) {
+      const uint8arrays: Uint8Array[] = [];
+      this.messages.forEach(arraybuffer => {
+        uint8arrays.push(new Uint8Array(arraybuffer));
+      });
+      // eslint-disable-next-line no-console
+      console.log(uint8arrays);
+    }
   }
 
   // Ensures full cleanup of this object.
