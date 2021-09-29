@@ -167,7 +167,7 @@ var (
 
 	certificateMismatchCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: teleport.MetricCertificateMistmatch,
+			Name: teleport.MetricCertificateMismatch,
 			Help: "Number of times there was a certificate mismatch",
 		},
 	)

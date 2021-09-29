@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"time"
@@ -81,10 +82,25 @@ var (
 			Help: "Number of times auth received a heartbeat connection",
 		},
 	)
+	watcherEventsEmitted = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    teleport.MetricWatcherEventsEmitted,
+			Help:    "Per resources size of events emitted",
+			Buckets: prometheus.LinearBuckets(0, 200, 5),
+		},
+		[]string{teleport.TagResource},
+	)
+	watcherEventSizes = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    teleport.MetricWatcherEventSizes,
+			Help:    "Overall size of events emitted",
+			Buckets: prometheus.LinearBuckets(0, 100, 20),
+		},
+	)
 )
 
 func init() {
-	prometheus.MustRegister(heartbeatConnectionsReceived)
+	prometheus.MustRegister(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes)
 }
 
 // EmitAuditEvent emits audit event
@@ -307,11 +323,29 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 			if err != nil {
 				return trail.ToGRPC(err)
 			}
+
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
+			watcherEventSizes.Observe(float64(out.Size()))
+
 			if err := stream.Send(out); err != nil {
 				return trail.ToGRPC(err)
 			}
 		}
 	}
+}
+
+// resourceLabel returns the label for the provided types.Event
+func resourceLabel(event types.Event) string {
+	if event.Resource == nil {
+		return event.Type.String()
+	}
+
+	sub := event.Resource.GetSubKind()
+	if sub == "" {
+		return fmt.Sprintf("/%s", event.Resource.GetKind())
+	}
+
+	return fmt.Sprintf("/%s/%s", event.Resource.GetKind(), sub)
 }
 
 // eventToGRPC converts a types.Event to an proto.Event
