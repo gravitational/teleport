@@ -70,8 +70,8 @@ func NodeIDFromIID(iid *imds.InstanceIdentityDocument) string {
 
 // checkEC2AllowRules checks that the iid matches at least one of the allow
 // rules of the given token.
-func checkEC2AllowRules(ctx context.Context, iid *imds.InstanceIdentityDocument, token types.ProvisionToken) error {
-	allowRules := token.GetAllowRules()
+func checkEC2AllowRules(ctx context.Context, iid *imds.InstanceIdentityDocument, provisionToken types.ProvisionToken) error {
+	allowRules := provisionToken.GetAllowRules()
 	for _, rule := range allowRules {
 		// If this rule specifies and AWS account, the IID must match
 		if len(rule.AWSAccount) > 0 {
@@ -310,7 +310,8 @@ func (a *Server) checkInstanceUnique(ctx context.Context, req RegisterUsingToken
 // normal token checking logic resumes.
 func (a *Server) CheckEC2Request(ctx context.Context, req RegisterUsingTokenRequest) error {
 	requestIncludesIID := req.EC2IdentityDocument != nil
-	token, err := a.GetCache().GetToken(ctx, req.Token)
+	tokenName := req.Token
+	provisionToken, err := a.GetCache().GetToken(ctx, tokenName)
 	if err != nil {
 		if trace.IsNotFound(err) && !requestIncludesIID {
 			// This is not a Simplified Node Joining request, pass on to the
@@ -319,7 +320,7 @@ func (a *Server) CheckEC2Request(ctx context.Context, req RegisterUsingTokenRequ
 		}
 		return trace.Wrap(err)
 	}
-	tokenRequiresIID := len(token.GetAllowRules()) > 0
+	tokenRequiresIID := len(provisionToken.GetAllowRules()) > 0
 
 	if !requestIncludesIID && !tokenRequiresIID {
 		// not a simplified node joining request, pass on to the regular token
@@ -348,7 +349,7 @@ func (a *Server) CheckEC2Request(ctx context.Context, req RegisterUsingTokenRequ
 		return trace.Wrap(err)
 	}
 
-	if err := checkEC2AllowRules(ctx, iid, token); err != nil {
+	if err := checkEC2AllowRules(ctx, iid, provisionToken); err != nil {
 		return trace.Wrap(err)
 	}
 
