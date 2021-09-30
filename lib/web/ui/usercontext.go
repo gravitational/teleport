@@ -115,8 +115,7 @@ func getLogins(roleSet services.RoleSet) []string {
 	denied = apiutils.Deduplicate(denied)
 	userLogins := []string{}
 	for _, login := range allowed {
-		loginMatch, _ := services.MatchLogin(denied, login)
-		if !loginMatch {
+		if isDenied := apiutils.SliceContainsStr(denied, login); !isDenied {
 			userLogins = append(userLogins, login)
 		}
 	}

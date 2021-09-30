@@ -138,8 +138,9 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	// on queries, we might be able to restrict db_names as well e.g. by
 	// detecting full-qualified table names like db.table, until then the
 	// proper way is to use MySQL grants system.
-	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams,
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Database.GetAllLabels()},
+	err = sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
+		mfaParams,
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)

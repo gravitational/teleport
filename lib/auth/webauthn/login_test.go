@@ -33,6 +33,66 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
+func TestWebauthnGlobalDisable(t *testing.T) {
+	ctx := context.Background()
+
+	const user = "llama"
+	cfg := &types.Webauthn{
+		RPID:     "localhost",
+		Disabled: true,
+	}
+	identity := newFakeIdentity(user)
+	loginFlow := &wanlib.LoginFlow{
+		Webauthn: cfg,
+		Identity: identity,
+	}
+	registrationFlow := &wanlib.RegistrationFlow{
+		Webauthn: cfg,
+		Identity: identity,
+	}
+
+	tests := []struct {
+		name string
+		fn   func() error
+	}{
+		{
+			name: "LoginFlow.Begin",
+			fn: func() error {
+				_, err := loginFlow.Begin(ctx, user)
+				return err
+			},
+		},
+		{
+			name: "LoginFlow.Finish",
+			fn: func() error {
+				_, err := loginFlow.Finish(ctx, user, &wanlib.CredentialAssertionResponse{})
+				return err
+			},
+		},
+		{
+			name: "RegistrationFlow.Begin",
+			fn: func() error {
+				_, err := registrationFlow.Begin(ctx, user)
+				return err
+			},
+		},
+		{
+			name: "RegistrationFlow.Finish",
+			fn: func() error {
+				_, err := registrationFlow.Finish(ctx, user, "devName", &wanlib.CredentialCreationResponse{})
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.fn()
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "webauthn disabled")
+		})
+	}
+}
+
 func TestLoginFlow_BeginFinish(t *testing.T) {
 	// Simulate a previously registered U2F device.
 	u2fKey, err := mocku2f.Create()
