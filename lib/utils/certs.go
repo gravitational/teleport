@@ -23,9 +23,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"math/big"
-	"os"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"

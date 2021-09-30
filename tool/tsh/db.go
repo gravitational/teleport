@@ -136,53 +136,6 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	return nil
 }
 
-// fetchDatabaseCreds is called as a part of tsh login to refresh database
-// access certificates for databases the current profile is logged into.
-func fetchDatabaseCreds(cf *CLIConf, tc *client.TeleportClient) error {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	if trace.IsNotFound(err) {
-		return nil // No currently logged in profiles.
-	}
-	proxy, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName, true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer cluster.Close()
-
-	for _, db := range profile.Databases {
-		mfaResp, err := cluster.IsMFARequired(cf.Context, &proto.IsMFARequiredRequest{
-			Target: &proto.IsMFARequiredRequest_Database{
-				Database: &proto.RouteToDatabase{
-					ServiceName: db.ServiceName,
-					Protocol:    db.Protocol,
-					Username:    cf.Username,
-					Database:    db.Database,
-				},
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if mfaResp.GetRequired() {
-			continue
-		}
-		if err := databaseLogin(cf, tc, db, true); err != nil {
-			log.WithError(err).Errorf("Failed to fetch database access certificate for %s.", db)
-			if err := databaseLogout(tc, db); err != nil {
-				log.WithError(err).Errorf("Failed to log out of database %s.", db)
-			}
-		}
-	}
-	return nil
-}
-
 // onDatabaseLogout implements "tsh db logout" command.
 func onDatabaseLogout(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
@@ -426,7 +379,7 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 
 func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
 	found := false
-	for _,v := range profile.Databases  {
+	for _, v := range profile.Databases {
 		if v.ServiceName == database.ServiceName {
 			found = true
 		}
