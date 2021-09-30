@@ -428,15 +428,8 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, 
 	switch h.Version {
 	case V2:
 		var s ServerV2
-
-		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &s); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
-		} else {
-			if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, bytes); err != nil {
-				return nil, trace.BadParameter(err.Error())
-			}
+		if err := utils.FastUnmarshal(bytes, &s); err != nil {
+			return nil, trace.BadParameter(err.Error())
 		}
 		s.Kind = kind
 		if err := s.CheckAndSetDefaults(); err != nil {
