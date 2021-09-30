@@ -210,10 +210,17 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 
 	// Get all items in the bucket.
 	startKey := backend.Key(nodesPrefix, namespace)
+	rangeStart := time.Now()
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rangeElapsed := time.Since(rangeStart)
+	if rangeElapsed > time.Second*2 {
+		s.log.Warnf("[node-debug] Node range lookup longer than expected (elapsed=%v).", rangeElapsed)
+	}
+
+	unmarshalStart := time.Now()
 	// Marshal values into a []services.Server slice.
 	servers := make([]services.Server, len(result.Items))
 	for i, item := range result.Items {
@@ -227,6 +234,11 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 			return nil, trace.Wrap(err)
 		}
 		servers[i] = server
+	}
+
+	unmarshalElapsed := time.Since(unmarshalStart)
+	if unmarshalElapsed > time.Second*2 {
+		s.log.Warnf("[node-debug] Node unmarshal took longer than expected (elapsed=%v).", unmarshalElapsed)
 	}
 
 	return servers, nil
