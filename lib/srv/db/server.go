@@ -653,6 +653,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	for _, db := range registeredDatabases {
 		if db.GetName() == identity.RouteToDatabase.ServiceName {
 			database = db
+			break
 		}
 	}
 	if database == nil {
