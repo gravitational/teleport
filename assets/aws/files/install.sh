@@ -32,7 +32,7 @@ rm -f /tmp/influxdb.rpm
 # Install certbot to rotate certificates
 # Certbot is a tool to request letsencrypt certificates,
 # remove it if you don't need letsencrypt.
-sudo yum -y install python3 python3-pip
+yum -y install python3 python3-pip
 # pip needs to be upgraded to work around issues with the 'cryptography' package
 pip3 install --upgrade pip
 # add new pip3 install location to PATH temporarily
