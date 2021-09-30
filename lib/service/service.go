@@ -3595,7 +3595,7 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 		bk, err = lite.New(ctx, bc.Params)
 	// Firestore backend:
 	case firestore.GetName():
-		bk, err = firestore.New(ctx, bc.Params)
+		bk, err = firestore.New(ctx, bc.Params, firestore.Options{})
 	// DynamoDB backend.
 	case dynamo.GetName():
 		bk, err = dynamo.New(ctx, bc.Params)
