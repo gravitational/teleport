@@ -52,15 +52,38 @@ func TestMarshal(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-var commonFirestoreParams = map[string]interface{}{
-	"collection_name":                   "tp-cluster-data-test",
-	"project_id":                        "tp-testproj",
-	"endpoint":                          "localhost:8618",
-	"purgeExpiredDocumentsPollInterval": time.Second,
+func firestoreParams() backend.Params {
+	// Creating the indices on - even an empty - live Firestore collection
+	// can take 5 minutes, so we re-use the same project and collection
+	// names for each test.
+
+	return map[string]interface{}{
+		"collection_name":                   "tp-cluster-data-test",
+		"project_id":                        "tp-testproj",
+		"endpoint":                          "localhost:8618",
+		"purgeExpiredDocumentsPollInterval": time.Second,
+	}
+}
+
+func ensureTestsEnabled(t *testing.T) {
+	const varName = "TELEPORT_FIRESTORE_TEST"
+	if os.Getenv(varName) == "" {
+		t.Skipf("Firestore tests are disabled. Enable by defining the %v environment variable", varName)
+	}
+}
+
+func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
+	con, err := net.Dial("tcp", cfg["endpoint"].(string))
+	if err != nil {
+		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
+	}
+	con.Close()
 }
 
 func TestFirestoreDB(t *testing.T) {
-	ensureEmulatorRunning(t)
+	cfg := firestoreParams()
+	ensureTestsEnabled(t)
+	ensureEmulatorRunning(t, cfg)
 
 	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 		testCfg, err := test.ApplyOptions(options)
@@ -77,42 +100,36 @@ func TestFirestoreDB(t *testing.T) {
 			return nil, nil, test.ErrConcurrentAccessNotSupported
 		}
 
-		uut, err := New(context.Background(), commonFirestoreParams)
+		clock := clockwork.NewFakeClock()
+
+		uut, err := New(context.Background(), cfg, Options{Clock: clock})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		clock := clockwork.NewFakeClock()
-		uut.clock = clock
+
 		return uut, clock, nil
 	}
 
 	test.RunBackendComplianceSuite(t, newBackend)
 }
 
-func ensureEmulatorRunning(t *testing.T) {
-	con, err := net.Dial("tcp", "localhost:8618")
-	if err != nil {
-		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
-	}
-	con.Close()
-}
-
 // newBackend creates a self-closing firestore backend
-func newBackend(t *testing.T) *Backend {
-	uut, err := New(context.Background(), commonFirestoreParams)
+func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
+	clock := clockwork.NewFakeClock()
+
+	uut, err := New(context.Background(), cfg, Options{Clock: clock})
 	require.NoError(t, err)
 	t.Cleanup(func() { uut.Close() })
-
-	clock := clockwork.NewFakeClock()
-	uut.clock = clock
 
 	return uut
 }
 
 func TestReadLegacyRecord(t *testing.T) {
-	ensureEmulatorRunning(t)
+	cfg := firestoreParams()
+	ensureTestsEnabled(t)
+	ensureEmulatorRunning(t, cfg)
 
-	uut := newBackend(t)
+	uut := newBackend(t, cfg)
 
 	item := backend.Item{
 		Key:     []byte("legacy-record"),
