@@ -1339,10 +1339,4 @@ const (
 	webauthnSessionData     = "webauthnsessiondata"
 	recoveryCodesPrefix     = "recoverycodes"
 	recoveryAttemptsPrefix  = "recoveryattempts"
-
-	// DELETE IN 7.0: these prefixes are migrated to mfaDevicePrefix in 6.0 on
-	// first startup.
-	totpPrefix                   = "totp"
-	u2fRegistrationPrefix        = "u2fregistration"
-	u2fRegistrationCounterPrefix = "u2fregistrationcounter"
 )
