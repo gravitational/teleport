@@ -1221,9 +1221,8 @@ func (process *TeleportProcess) initAuthService() error {
 			services:  authServer.Services,
 			setup:     cache.ForAuth,
 			cacheName: []string{teleport.ComponentAuth},
-			inMemory:  process.Config.CachePolicy.Type == memory.GetName(),
-			//inMemory:  true,
-			events: true,
+			inMemory:  true,
+			events:    true,
 		})
 		if err != nil {
 			return trace.Wrap(err)
