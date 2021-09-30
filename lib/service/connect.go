@@ -346,17 +346,13 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		token := process.Config.Token
-		if process.Config.AWSToken != "" {
-			token = process.Config.AWSToken
-		}
 		// Auth server is remote, so we need a provisioning token.
-		if token == "" {
+		if process.Config.Token == "" {
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
 
 		var ec2IdentityDocument []byte
-		if process.Config.AWSToken != "" {
+		if process.Config.JoinMethod == JoinMethodEC2 {
 			ec2IdentityDocument, err = getEC2IdentityDocument()
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -371,7 +367,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		}
 
 		identity, err = auth.Register(auth.RegisterParams{
-			Token:                token,
+			Token:                process.Config.Token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
 			AdditionalPrincipals: additionalPrincipals,

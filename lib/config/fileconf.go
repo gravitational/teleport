@@ -242,9 +242,10 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AWSToken configures the token for Simplified Node Joining.
-type AWSToken struct {
-	Name string `yaml:"name"`
+// JoinParams configures the parameters for Simplified Node Joining.
+type JoinParams struct {
+	TokenName string `yaml:"token_name"`
+	Method    string `yaml:"method"`
 }
 
 // ConnectionRate configures rate limiter
@@ -326,7 +327,7 @@ type Global struct {
 	DataDir     string           `yaml:"data_dir,omitempty"`
 	PIDFile     string           `yaml:"pid_file,omitempty"`
 	AuthToken   string           `yaml:"auth_token,omitempty"`
-	AWSToken    AWSToken         `yaml:"aws_token,omitempty"`
+	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`

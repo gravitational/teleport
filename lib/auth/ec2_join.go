@@ -333,6 +333,8 @@ func (a *Server) CheckEC2Request(ctx context.Context, req RegisterUsingTokenRequ
 		return trace.BadParameter("an EC2 Identity Document is included in a register request for a token which does not expect it")
 	}
 
+	log.Debugf("Received Simplified Node Joining request for host %q", req.HostID)
+
 	iid, err := parseAndVerifyIID(req.EC2IdentityDocument)
 	if err != nil {
 		return trace.Wrap(err)
