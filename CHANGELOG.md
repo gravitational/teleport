@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.2.15
+
+This release of Teleport contains a feature.
+
+* Added event/network emission metrics to `tctl top`. [#8338](https://github.com/gravitational/teleport/pull/8338)
+
 ## 6.2.14
 
 This release of Teleport contains multiple improvements.
