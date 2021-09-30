@@ -2094,6 +2094,7 @@ message KubernetesClusterV3 {
     KubernetesClusterSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
+// KubernetesClusterSpecV3 is a specification for a Kubernetes cluster.
 message KubernetesClusterSpecV3 {
     // DynamicLabels are the cluster's dynamic labels.
     map<string, CommandLabelV2> DynamicLabels = 1

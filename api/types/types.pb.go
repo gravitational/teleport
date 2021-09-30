@@ -5866,6 +5866,7 @@ func (m *KubernetesClusterV3) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_KubernetesClusterV3 proto.InternalMessageInfo
 
+// KubernetesClusterSpecV3 is a specification for a Kubernetes cluster.
 type KubernetesClusterSpecV3 struct {
 	// DynamicLabels are the cluster's dynamic labels.
 	DynamicLabels        map[string]CommandLabelV2 `protobuf:"bytes,1,rep,name=DynamicLabels,proto3" json:"dynamic_labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
