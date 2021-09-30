@@ -218,8 +218,8 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 		kubeUsers:  kubeUsers,
 		kubeGroups: kubeGroups,
 		impersonation: &rest.ImpersonationConfig{
-			UserName: role.GetKubeUsers(services.Allow)[0],
-			Groups:   role.GetKubeGroups(services.Allow),
+			UserName: role.GetKubeUsers(types.Allow)[0],
+			Groups:   role.GetKubeGroups(types.Allow),
 		},
 	})
 	require.NoError(t, err)
