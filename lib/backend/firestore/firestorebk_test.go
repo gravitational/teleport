@@ -102,7 +102,7 @@ func TestFirestoreDB(t *testing.T) {
 
 		clock := clockwork.NewFakeClock()
 
-		uut, err := New(context.Background(), cfg, WithClock(clock))
+		uut, err := New(context.Background(), cfg, Options{Clock: clock})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -115,12 +115,11 @@ func TestFirestoreDB(t *testing.T) {
 
 // newBackend creates a self-closing firestore backend
 func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
-	uut, err := New(context.Background(), cfg)
+	clock := clockwork.NewFakeClock()
+
+	uut, err := New(context.Background(), cfg, Options{Clock: clock})
 	require.NoError(t, err)
 	t.Cleanup(func() { uut.Close() })
-
-	clock := clockwork.NewFakeClock()
-	uut.clock = clock
 
 	return uut
 }

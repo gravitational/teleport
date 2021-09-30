@@ -235,20 +235,25 @@ func CreateFirestoreClients(ctx context.Context, projectID string, endPoint stri
 	return firestoreAdminClient, firestoreClient, nil
 }
 
-// Option supplies a non-config related option to a Backend during
-// construction
-type Option func(*Backend)
+// Options describes the set of parameters to the Firestore backend that are
+// not exposed to configuration files.
+type Options struct {
+	// Clock is the clock used to measure time for the backend, including
+	// record TTL, keep-alives, etc.
+	Clock clockwork.Clock
+}
 
-// WithClock provides a custom clock the firestore Backend
-func WithClock(clock clockwork.Clock) Option {
-	return func(b *Backend) {
-		b.clock = clock
+func (opts *Options) checkAndSetDefaults() error {
+	if opts.Clock == nil {
+		opts.Clock = clockwork.NewRealClock()
 	}
+
+	return nil
 }
 
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, params backend.Params, options ...Option) (*Backend, error) {
+func New(ctx context.Context, params backend.Params, options Options) (*Backend, error) {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
 	var cfg *backendConfig
 	err := apiutils.ObjectToStruct(params, &cfg)
@@ -260,6 +265,11 @@ func New(ctx context.Context, params backend.Params, options ...Option) (*Backen
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := options.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	closeCtx, cancel := context.WithCancel(ctx)
 	firestoreAdminClient, firestoreClient, err := CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.EndPoint, cfg.CredentialsPath)
 	if err != nil {
@@ -278,14 +288,10 @@ func New(ctx context.Context, params backend.Params, options ...Option) (*Backen
 		svc:           firestoreClient,
 		Entry:         l,
 		backendConfig: *cfg,
-		clock:         clockwork.NewRealClock(),
+		clock:         options.Clock,
 		buf:           buf,
 		clientContext: closeCtx,
 		clientCancel:  cancel,
-	}
-
-	for _, applyOption := range options {
-		applyOption(b)
 	}
 
 	if len(cfg.EndPoint) == 0 {
