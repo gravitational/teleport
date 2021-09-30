@@ -219,12 +219,13 @@ spec:
 teleport.yaml on the nodes should be configured so that they will use the new aws join token:
 ```yaml
 teleport:
-  # `aws_token` should be used on nodes which will join the cluster with the
+  # `join_params` should be used on nodes which will join the cluster with the
   # new aws join method, in place of `auth_token`. It is a dict rather than a 
   # scalar so that it can be extended in the future (e.g. to choose EC2 or IAM
   # method if we ever implement both)
-  aws_token:
-    name: "example_aws_token" # should match the name of the token on the auth server
+  join_params:
+    token_name: "example_aws_token" # should match the name of the token on the auth server
+    method: ec2
 ```
 
 ## Appendix I - Example Signed `sts:GetCallerIdentity` Request and Response
