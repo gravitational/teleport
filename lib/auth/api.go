@@ -213,7 +213,7 @@ type AccessPoint interface {
 	// DeleteTunnelConnection deletes tunnel connection
 	DeleteTunnelConnection(clusterName, connName string) error
 
-	// GetCertAuthority returns an empty CRL for a CA.
+	// GenerateCertAuthority returns an empty CRL for a CA.
 	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
 }
 
