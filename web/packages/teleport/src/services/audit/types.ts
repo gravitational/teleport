@@ -89,6 +89,7 @@ export const eventCodes = {
   SESSION_JOIN: 'T2001I',
   SESSION_LEAVE: 'T2003I',
   SESSION_NETWORK: 'T4002I',
+  SESSION_PROCESS_EXIT: 'T4003I',
   SESSION_REJECT: 'T1006W',
   SESSION_START: 'T2000I',
   SESSION_UPLOAD: 'T2005I',
@@ -211,6 +212,10 @@ export type RawEvents = {
 
   [eventCodes.SESSION_NETWORK]: RawEventNetwork<
     typeof eventCodes.SESSION_NETWORK
+  >;
+
+  [eventCodes.SESSION_PROCESS_EXIT]: RawEventProcessExit<
+    typeof eventCodes.SESSION_PROCESS_EXIT
   >;
 
   [eventCodes.SESSION_DATA]: RawEventData<typeof eventCodes.SESSION_DATA>;
@@ -493,6 +498,19 @@ type RawEventNetwork<T extends EventCode> = RawEvent<
     src_addr: string;
     dst_addr: string;
     dst_port: string;
+  }
+>;
+
+type RawEventProcessExit<T extends EventCode> = RawEvent<
+  T,
+  {
+    login: string;
+    namespace: string;
+    pid: number;
+    program: string;
+    exit_status: number;
+    server_id: string;
+    sid: string;
   }
 >;
 

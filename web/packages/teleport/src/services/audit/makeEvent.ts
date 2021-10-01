@@ -54,6 +54,12 @@ export const formatters: Formatters = {
     format: ({ sid, program, src_addr, dst_addr, dst_port }) =>
       `Program [${program}] opened a connection [${src_addr} <-> ${dst_addr}:${dst_port}] within a session [${sid}]`,
   },
+  [eventCodes.SESSION_PROCESS_EXIT]: {
+    type: 'session.process_exit',
+    desc: 'Session Process Exit',
+    format: ({ program, exit_status, sid }) =>
+      `Program [${program}] has exited with status ${exit_status}, within a session [${sid}]`,
+  },
   [eventCodes.SESSION_DATA]: {
     type: 'session.data',
     desc: 'Session Data',
