@@ -420,6 +420,16 @@ func TestAuthPreferenceV2_GetPreferredLocalMFA(t *testing.T) {
 			},
 			want: constants.SecondFactorWebauthn,
 		},
+		{
+			name: "sf=optional disabled WebAuthn favors U2F",
+			spec: types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				U2F:          u2fConfig,
+				Webauthn:     disabledWebConfig,
+			},
+			want: constants.SecondFactorU2F,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
