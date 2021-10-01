@@ -251,19 +251,35 @@ message DatabaseSpecV3 {
     GCPCloudSQL GCP = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
 }
 
-// AWS contains AWS specific settings such as region.
+// AWS contains AWS metadata about the database.
 message AWS {
     // Region is a AWS cloud region.
     string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
-    // Redshift contains Redshift specific settings.
+    // Redshift contains Redshift specific metadata.
     Redshift Redshift = 2
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "redshift,omitempty" ];
+    // RDS contains RDS specific metadata.
+    RDS RDS = 3 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rds,omitempty" ];
+    // AccountID is the AWS account ID this database belongs to.
+    string AccountID = 4 [ (gogoproto.jsontag) = "account_id,omitempty" ];
 }
 
-// Redshift contains AWS Redshift specific settings.
+// Redshift contains AWS Redshift specific database metadata.
 message Redshift {
     // ClusterID is the Redshift cluster identifier.
     string ClusterID = 1 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
+}
+
+// RDS contains AWS RDS specific database metadata.
+message RDS {
+    // InstanceID is the RDS instance identifier.
+    string InstanceID = 1 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
+    // ClusterID is the RDS cluster (Aurora) identifier.
+    string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
+    // ResourceID is the RDS instance resource identifier (db-xxx).
+    string ResourceID = 3 [ (gogoproto.jsontag) = "resource_id,omitempty" ];
+    // IAMAuth indicates whether database IAM authentication is enabled.
+    bool IAMAuth = 4 [ (gogoproto.jsontag) = "iam_auth" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.

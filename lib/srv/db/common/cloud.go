@@ -24,6 +24,13 @@ import (
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	"github.com/aws/aws-sdk-go/aws"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
@@ -35,6 +42,12 @@ import (
 type CloudClients interface {
 	// GetAWSSession returns AWS session for the specified region.
 	GetAWSSession(region string) (*awssession.Session, error)
+	// GetAWSRDSClient returns AWS RDS client for the specified region.
+	GetAWSRDSClient(region string) (rdsiface.RDSAPI, error)
+	// GetAWSIAMClient returns AWS IAM client for the specified region.
+	GetAWSIAMClient(region string) (iamiface.IAMAPI, error)
+	// GetAWSSTSClient returns AWS STS client for the specified region.
+	GetAWSSTSClient(region string) (stsiface.STSAPI, error)
 	// GetGCPIAMClient returns GCP IAM client.
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
@@ -70,6 +83,33 @@ func (c *cloudClients) GetAWSSession(region string) (*awssession.Session, error)
 	}
 	c.mtx.RUnlock()
 	return c.initAWSSession(region)
+}
+
+// GetAWSRDSClient returns AWS RDS client for the specified region.
+func (c *cloudClients) GetAWSRDSClient(region string) (rdsiface.RDSAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rds.New(session), nil
+}
+
+// GetAWSIAMClient returns AWS IAM client for the specified region.
+func (c *cloudClients) GetAWSIAMClient(region string) (iamiface.IAMAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return iam.New(session), nil
+}
+
+// GetAWSSTSClient returns AWS STS client for the specified region.
+func (c *cloudClients) GetAWSSTSClient(region string) (stsiface.STSAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sts.New(session), nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
@@ -156,11 +196,30 @@ func (c *cloudClients) initGCPSQLAdminClient(ctx context.Context) (*sqladmin.Ser
 }
 
 // TestCloudClients are used in tests.
-type TestCloudClients struct{}
+type TestCloudClients struct {
+	RDS rdsiface.RDSAPI
+	IAM iamiface.IAMAPI
+	STS stsiface.STSAPI
+}
 
 // GetAWSSession returns AWS session for the specified region.
 func (c *TestCloudClients) GetAWSSession(region string) (*awssession.Session, error) {
 	return nil, trace.NotImplemented("not implemented")
+}
+
+// GetAWSRDSClient returns AWS RDS client for the specified region.
+func (c *TestCloudClients) GetAWSRDSClient(region string) (rdsiface.RDSAPI, error) {
+	return c.RDS, nil
+}
+
+// GetAWSIAMClient returns AWS IAM client for the specified region.
+func (c *TestCloudClients) GetAWSIAMClient(region string) (iamiface.IAMAPI, error) {
+	return c.IAM, nil
+}
+
+// GetAWSSTSClient returns AWS STS client for the specified region.
+func (c *TestCloudClients) GetAWSSTSClient(region string) (stsiface.STSAPI, error) {
+	return c.STS, nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
