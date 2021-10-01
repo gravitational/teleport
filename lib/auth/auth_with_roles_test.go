@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
@@ -991,7 +990,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 				roleOpt.RequireSessionMFA = true
 				role.SetOptions(roleOpt)
 
-				role.SetDatabaseUsers(services.Allow, []string{types.Wildcard})
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, nil)
 			},
@@ -1015,7 +1014,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 				roleOpt.RequireSessionMFA = false
 				role.SetOptions(roleOpt)
 
-				role.SetDatabaseUsers(services.Allow, []string{types.Wildcard})
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, nil)
 			},
@@ -1039,7 +1038,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 				roleOpt.RequireSessionMFA = true
 				role.SetOptions(roleOpt)
 
-				role.SetDatabaseUsers(services.Allow, []string{types.Wildcard})
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, nil)
 			},
@@ -1063,7 +1062,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 				roleOpt.RequireSessionMFA = true
 				role.SetOptions(roleOpt)
 
-				role.SetDatabaseUsers(services.Allow, []string{types.Wildcard})
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, []string{"example"})
 			},
@@ -1089,22 +1088,22 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			err = srv.Auth().SetAuthPreference(ctx, authPref)
 			require.NoError(t, err)
 
-			database := &types.DatabaseServerV3{
-				Kind:    types.KindDatabaseServer,
-				Version: types.V3,
-				Metadata: types.Metadata{
+			database, err := types.NewDatabaseServerV3(
+				types.Metadata{
 					Name: databaseName,
 					Labels: map[string]string{
 						"env": "dev",
 					},
 				},
-				Spec: types.DatabaseServerSpecV3{
+				types.DatabaseServerSpecV3{
 					Protocol: tc.dbProtocol,
 					URI:      "example.com",
 					Hostname: "host",
 					HostID:   "hostID",
 				},
-			}
+			)
+			require.NoError(t, err)
+
 			_, err = srv.Auth().UpsertDatabaseServer(ctx, database)
 			require.NoError(t, err)
 
