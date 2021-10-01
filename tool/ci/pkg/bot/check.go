@@ -50,7 +50,7 @@ func (c *Bot) check(ctx context.Context) error {
 		return trace.BadParameter("pull request has no reviews")
 	}
 	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
-	err = approved(mostRecentReviews, c.Environment.GetReviewersForAuthor(pr.Author))
+	err = hasRequiredApprovals(mostRecentReviews, c.Environment.GetReviewersForAuthor(pr.Author))
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func (c *Bot) check(ctx context.Context) error {
 	return nil
 }
 
-func approved(mostRecentReviews []review, required []string) error {
+func hasRequiredApprovals(mostRecentReviews []review, required []string) error {
 	var waitingOnApprovalsFrom []string
 	for _, requiredReviewer := range required {
 		reviewer, ok := hasApproved(requiredReviewer, mostRecentReviews)
@@ -160,7 +160,7 @@ func mostRecent(currentReviews []review) []review {
 			}
 		}
 	}
-	reviews := []review{}
+	reviews := make([]review, 0, len(mostRecentReviews))
 	for _, v := range mostRecentReviews {
 		reviews = append(reviews, v)
 	}
@@ -197,7 +197,10 @@ func hasNewCommit(headSHA string, revs []review) bool {
 	return false
 }
 
-// verifyCommit verfies GitHub is the commit author and that the commit is empty
+// verifyCommit verfies GitHub is the commit author and that the commit is empty. 
+// Commits are checked for verification and emptiness specifically to determine if a 
+// pull request's reviews should be invalidated. If a commit is signed by Github and is empty 
+// there is no need to invalidate commits because the branch is just being updated. 
 func (c *Bot) verifyCommit(ctx context.Context) error {
 	pr := c.Environment.Metadata
 	comparison, _, err := c.Environment.Client.Repositories.CompareCommits(
@@ -235,7 +238,7 @@ func (c *Bot) verifyCommit(ctx context.Context) error {
 func (c *Bot) invalidateApprovals(ctx context.Context, msg string, reviews []review) error {
 	pr := c.Environment.Metadata
 	for _, v := range reviews {
-		if v.status == ci.Approved {
+		if v.status == ci.Approved && pr.HeadSHA != v.commitID {
 			_, _, err := c.Environment.Client.PullRequests.DismissReview(ctx,
 				pr.RepoOwner,
 				pr.RepoName,

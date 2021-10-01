@@ -58,7 +58,7 @@ func TestApproved(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			err := approved(test.currentReviews, test.required)
+			err := hasRequiredApprovals(test.currentReviews, test.required)
 			test.checkErr(t, err)
 		})
 	}

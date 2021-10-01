@@ -6,8 +6,6 @@ import (
 	"net/url"
 	"path"
 
-	"sort"
-
 	"github.com/gravitational/teleport/tool/ci"
 	"github.com/gravitational/teleport/tool/ci/pkg/environment"
 	"github.com/gravitational/trace"
@@ -62,11 +60,11 @@ func (c *Config) CheckAndSetDefaults() error {
 // DimissStaleWorkflowRunsForExternalContributors dismisses stale workflow runs for external contributors
 func (c *Bot) DimissStaleWorkflowRunsForExternalContributors(ctx context.Context, repoOwner, repoName string) error {
 	clt := c.GithubClient.Client
-	pulls, _, err := clt.PullRequests.List(ctx, repoOwner, repoName, &github.PullRequestListOptions{State: ci.Open})
+	pullReqs, _, err := clt.PullRequests.List(ctx, repoOwner, repoName, &github.PullRequestListOptions{State: ci.Open})
 	if err != nil {
 		return err
 	}
-	for _, pull := range pulls {
+	for _, pull := range pullReqs {
 		err := c.DismissStaleWorkflowRuns(ctx, *pull.Base.User.Login, *pull.Base.Repo.Name, *pull.Head.Ref)
 		if err != nil {
 			return trace.Wrap(err)
@@ -80,38 +78,55 @@ func (c *Bot) DimissStaleWorkflowRunsForExternalContributors(ctx context.Context
 // due to a new event triggering thus a change in state. The workflow running in the current context is the source of truth for
 // the state of checks.
 func (c *Bot) DismissStaleWorkflowRuns(ctx context.Context, owner, repoName, branch string) error {
-	var targetWorkflow *github.Workflow
-	var workflowRuns []*github.WorkflowRun
-	clt := c.GithubClient.Client
+	workflow, err := c.getTargetWorkflow(ctx, owner, repoName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	runs, err := c.findStaleWorkflowRuns(ctx, owner, repoName, branch, *workflow.ID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	workflows, _, err := clt.Actions.ListWorkflows(ctx, owner, repoName, &github.ListOptions{})
+	err = c.deleteRuns(ctx, owner, repoName, runs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, w := range workflows.Workflows {
-		if *w.Name == ci.CheckWorkflow {
-			targetWorkflow = w
-			break
-		}
-	}
-	list, _, err := clt.Actions.ListWorkflowRunsByID(ctx, owner, repoName, *targetWorkflow.ID, &github.ListWorkflowRunsOptions{Branch: branch})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	workflowRuns = list.WorkflowRuns
-	sort.Slice(workflowRuns, func(i, j int) bool {
-		time1, time2 := workflowRuns[i].CreatedAt, workflowRuns[j].CreatedAt
-		return time1.Time.Before(time2.Time)
-	})
+	return nil
+}
+
+func (c *Bot) deleteRuns(ctx context.Context, owner, repoName string, runs []*github.WorkflowRun) error {
 	// Deleting all runs except the most recent one.
-	for i := 0; i < len(workflowRuns)-1; i++ {
-		run := list.WorkflowRuns[i]
+	for i := 0; i < len(runs)-1; i++ {
+		run := runs[i]
 		err := c.deleteRun(ctx, owner, repoName, *run.ID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	return nil
+	return nil 
+}
+
+func (c *Bot) findStaleWorkflowRuns(ctx context.Context, owner, repoName, branchName string, workflowID int64) ([]*github.WorkflowRun, error) {
+	clt := c.GithubClient.Client
+	list, _, err := clt.Actions.ListWorkflowRunsByID(ctx, owner, repoName, workflowID, &github.ListWorkflowRunsOptions{Branch: branchName})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return list.WorkflowRuns, nil
+}
+
+func (c *Bot) getTargetWorkflow(ctx context.Context, owner, repoName string) (*github.Workflow, error) {
+	clt := c.GithubClient.Client
+	workflows, _, err := clt.Actions.ListWorkflows(ctx, owner, repoName, &github.ListOptions{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, w := range workflows.Workflows {
+		if *w.Name == ci.CheckWorkflow {
+			return w, nil
+		}
+	}
+	return nil, trace.NotFound("workflow %s not found", ci.CheckWorkflow)
 }
 
 const (
