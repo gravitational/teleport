@@ -2603,13 +2603,13 @@ func (a *Server) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys b
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
-func (s *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
-	clusterName, err := s.GetClusterName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := s.GetCertAuthority(types.CertAuthID{
+	ca, err := a.GetCertAuthority(types.CertAuthID{
 		Type:       caType,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -2621,14 +2621,14 @@ func (s *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 	// If there are multiple signers (multiple HSMs), we won't have the full CRL coverage.
 	// Generate a CRL per signer and return all of them separately.
 
-	cert, signer, err := s.keyStore.GetTLSCertAndSigner(ca)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
 	if trace.IsNotFound(err) {
 		// If there is no local TLS signer found in the host CA ActiveKeys, this
 		// auth server may have a newly configured HSM and has only populated
 		// local keys in the AdditionalTrustedKeys until the next CA rotation.
 		// This is the only case where we should be able to get a signer from
 		// AdditionalTrustedKeys but not ActiveKeys.
-		cert, signer, err = s.keyStore.GetAdditionalTrustedTLSCertAndSigner(ca)
+		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ca)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
