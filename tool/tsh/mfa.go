@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -157,11 +158,33 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 }
 
 func (c *mfaAddCommand) run(cf *CLIConf) error {
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ctx := cf.Context
+
+	deviceTypes := deviceTypes
 	if c.devType == "" {
-		// TODO(codingllama): Revisit CLI nomenclature, we only talk about U2F on
-		//  login.
-		var err error
-		c.devType, err = prompt.PickOne(cf.Context, os.Stdout, prompt.Stdin(), "Choose device type", deviceTypes)
+		// If we are prompting the user for the device type, then take a glimpse at
+		// server-side settings and adjust the options accordingly.
+		// This is undesirable to do during flag setup, but we can do it here.
+		pingResp, err := tc.Ping(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Debugf("Got server-side preferred local MFA: %v", pingResp.Auth.PreferredLocalMFA)
+		switch preferredMFA := pingResp.Auth.PreferredLocalMFA; preferredMFA {
+		case constants.SecondFactorOTP: // OTP only
+			deviceTypes = []string{totpDeviceType}
+		case constants.SecondFactorU2F: // OTP+U2F
+			deviceTypes = []string{totpDeviceType, u2fDeviceType}
+		case constants.SecondFactorWebauthn: // OTP+WebAuthn
+			deviceTypes = []string{totpDeviceType, webauthnDeviceType}
+		default: // Empty or unexpected server-side hint, keep the defaults.
+		}
+
+		c.devType, err = prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Choose device type", deviceTypes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -179,7 +202,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 
 	if c.devName == "" {
 		var err error
-		c.devName, err = prompt.Input(cf.Context, os.Stdout, prompt.Stdin(), "Enter device name")
+		c.devName, err = prompt.Input(ctx, os.Stdout, prompt.Stdin(), "Enter device name")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -189,7 +212,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("device name can not be empty")
 	}
 
-	dev, err := c.addDeviceRPC(cf, c.devName, devType)
+	dev, err := c.addDeviceRPC(ctx, tc, c.devName, devType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -198,20 +221,15 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.DeviceType) (*types.MFADevice, error) {
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportClient, devName string, devType proto.DeviceType) (*types.MFADevice, error) {
 	var dev *types.MFADevice
-	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		pc, err := tc.ConnectToProxy(cf.Context)
+	if err := client.RetryWithRelogin(ctx, tc, func() error {
+		pc, err := tc.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context, false)
+		aci, err := pc.ConnectToRootCluster(ctx, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -219,7 +237,7 @@ func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.
 
 		// TODO(awly): mfa: move this logic somewhere under /lib/auth/, closer
 		// to the server logic. The CLI layer should ideally be thin.
-		stream, err := aci.AddMFADevice(cf.Context)
+		stream, err := aci.AddMFADevice(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -242,7 +260,7 @@ func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_ExistingMFAChallenge", resp.Response)
 		}
-		authResp, err := client.PromptMFAChallenge(cf.Context, tc.Config.WebProxyAddr, authChallenge, "*registered* ")
+		authResp, err := client.PromptMFAChallenge(ctx, tc.Config.WebProxyAddr, authChallenge, "*registered* ")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -261,7 +279,7 @@ func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.
 		if regChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_NewMFARegisterChallenge", resp.Response)
 		}
-		regResp, err := promptRegisterChallenge(cf.Context, tc.Config.WebProxyAddr, regChallenge)
+		regResp, err := promptRegisterChallenge(ctx, tc.Config.WebProxyAddr, regChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}
