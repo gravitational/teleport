@@ -84,7 +84,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			log.WithError(err).Warnf("Failed to close listener.")
 		}
 	}()
-	lp, err := mkLocalProxy(cf.Context, client.WebProxyAddr, database.Protocol, listener)
+	lp, err := mkLocalProxy(cf.Context, client.WebProxyAddr, database.Protocol, listener, cf.InsecureSkipVerify)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -102,7 +102,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	return nil
 }
 
-func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, listener net.Listener) (*alpnproxy.LocalProxy, error) {
+func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, listener net.Listener, insecure bool) (*alpnproxy.LocalProxy, error) {
 	alpnProtocol, err := toALPNProtocol(protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -112,11 +112,12 @@ func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, 
 		return nil, trace.Wrap(err)
 	}
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr: remoteProxyAddr,
-		Protocol:        alpnProtocol,
-		Listener:        listener,
-		ParentContext:   ctx,
-		SNI:             address.Host(),
+		InsecureSkipVerify: insecure,
+		RemoteProxyAddr:    remoteProxyAddr,
+		Protocol:           alpnProtocol,
+		Listener:           listener,
+		ParentContext:      ctx,
+		SNI:                address.Host(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

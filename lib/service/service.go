@@ -3797,6 +3797,14 @@ func (process *TeleportProcess) singleProcessMode() (string, bool) {
 			return process.Config.Proxy.PublicAddrs[0].String(), true
 		}
 
+		// If WebAddress is unspecified "0.0.0.0" replace 0.0.0.0 with localhost since 0.0.0.0 is never a valid
+		// principal (auth server explicitly removes it when issuing host certs) and when WebPort is used
+		// in the single process mode to establish SSH reverse tunnel connection the host is validated against
+		// the valid principal list.
+		if process.Config.Proxy.WebAddr.IsHostUnspecified() {
+			port := process.Config.Proxy.WebAddr.Port(defaults.HTTPListenPort)
+			return net.JoinHostPort(string(teleport.PrincipalLocalhost), strconv.Itoa(port)), true
+		}
 		return process.Config.Proxy.WebAddr.String(), true
 	}
 
