@@ -163,14 +163,15 @@ func parseAndVerifyIID(iidBytes []byte) (*imds.InstanceIdentityDocument, error) 
 	return &iid, nil
 }
 
-func checkPendingTime(iid *imds.InstanceIdentityDocument, clock clockwork.Clock) error {
+func checkPendingTime(iid *imds.InstanceIdentityDocument, provisionToken types.ProvisionToken, clock clockwork.Clock) error {
 	timeSinceInstanceStart := clock.Since(iid.PendingTime)
 	// Sanity check IID is not from the future. Allow 1 minute of clock drift.
 	if timeSinceInstanceStart < -1*time.Minute {
 		return trace.AccessDenied("Instance Identity Document PendingTime appears to be in the future")
 	}
-	if timeSinceInstanceStart > 5*time.Minute {
-		return trace.AccessDenied("Instance Identity Document with PendingTime %v is older than 5 minute TTL", iid.PendingTime)
+	ttl := time.Duration(provisionToken.GetAWSIIDTTL())
+	if timeSinceInstanceStart > ttl {
+		return trace.AccessDenied("Instance Identity Document with PendingTime %v is older than configured TTL of %v", iid.PendingTime, ttl)
 	}
 	return nil
 }
@@ -341,7 +342,7 @@ func (a *Server) CheckEC2Request(ctx context.Context, req RegisterUsingTokenRequ
 		return trace.Wrap(err)
 	}
 
-	if err := checkPendingTime(iid, a.clock); err != nil {
+	if err := checkPendingTime(iid, provisionToken, a.clock); err != nil {
 		return trace.Wrap(err)
 	}
 

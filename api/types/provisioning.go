@@ -38,6 +38,8 @@ type ProvisionToken interface {
 	SetRoles(SystemRoles)
 	// GetAllowRules returns the list of allow rules
 	GetAllowRules() []*TokenRule
+	// GetAWSIIDTTL returns the TTL of EC2 IIDs
+	GetAWSIIDTTL() Duration
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
@@ -96,6 +98,10 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if p.Spec.AWSIIDTTL == 0 {
+		p.Spec.AWSIIDTTL = Duration(5 * time.Minute)
+	}
+
 	return nil
 }
 
@@ -119,6 +125,11 @@ func (p *ProvisionTokenV2) SetRoles(r SystemRoles) {
 // GetAllowRules returns the list of allow rules
 func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
 	return p.Spec.Allow
+}
+
+// GetAWSIIDTTL returns the TTL of EC2 IIDs
+func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
+	return p.Spec.AWSIIDTTL
 }
 
 // GetKind returns resource kind

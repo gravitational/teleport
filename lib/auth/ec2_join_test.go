@@ -198,6 +198,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 	testCases := []struct {
 		desc        string
 		tokenRules  []*types.TokenRule
+		tokenSpec   types.ProvisionTokenSpecV2
 		ec2Client   ec2Client
 		request     RegisterUsingTokenRequest
 		expectError func(error) bool
@@ -205,10 +206,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 	}{
 		{
 			desc: "basic passing case",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance1.account,
-					AWSRegions: []string{instance1.region},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
+					},
 				},
 			},
 			ec2Client: ec2ClientRunning{},
@@ -224,14 +228,17 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "pass with multiple rules",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance2.account,
-					AWSRegions: []string{instance2.region},
-				},
-				&types.TokenRule{
-					AWSAccount: instance1.account,
-					AWSRegions: []string{instance1.region},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance2.account,
+						AWSRegions: []string{instance2.region},
+					},
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
+					},
 				},
 			},
 			ec2Client: ec2ClientRunning{},
@@ -247,10 +254,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "pass with multiple regions",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance1.account,
-					AWSRegions: []string{"us-east-1", instance1.region, "us-east-2"},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{"us-east-1", instance1.region, "us-east-2"},
+					},
 				},
 			},
 			ec2Client: ec2ClientRunning{},
@@ -266,9 +276,12 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "pass with no regions",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance1.account,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+					},
 				},
 			},
 			ec2Client: ec2ClientRunning{},
@@ -284,10 +297,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "wrong account",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: "bad account",
-					AWSRegions: []string{instance1.region},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: "bad account",
+						AWSRegions: []string{instance1.region},
+					},
 				},
 			},
 			ec2Client: ec2ClientRunning{},
@@ -303,10 +319,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "wrong region",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance1.account,
-					AWSRegions: []string{"bad region"},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{"bad region"},
+					},
 				},
 			},
 			ec2Client: ec2ClientRunning{},
@@ -322,10 +341,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "bad HostID",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance1.account,
-					AWSRegions: []string{instance1.region},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
+					},
 				},
 			},
 			ec2Client: ec2ClientRunning{},
@@ -341,10 +363,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "bad identity document",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance1.account,
-					AWSRegions: []string{instance1.region},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
+					},
 				},
 			},
 			ec2Client: ec2ClientRunning{},
@@ -360,10 +385,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "instance already joined",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance2.account,
-					AWSRegions: []string{instance2.region},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance2.account,
+						AWSRegions: []string{instance2.region},
+					},
 				},
 			},
 			ec2Client: ec2ClientRunning{},
@@ -379,10 +407,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "instance already joined, fake ID",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance2.account,
-					AWSRegions: []string{instance2.region},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance2.account,
+						AWSRegions: []string{instance2.region},
+					},
 				},
 			},
 			ec2Client: ec2ClientRunning{},
@@ -398,10 +429,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "instance not running",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance1.account,
-					AWSRegions: []string{instance1.region},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
+					},
 				},
 			},
 			ec2Client: ec2ClientNotRunning{},
@@ -417,10 +451,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "instance not exists",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance1.account,
-					AWSRegions: []string{instance1.region},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
+					},
 				},
 			},
 			ec2Client: ec2ClientNoInstance{},
@@ -436,10 +473,13 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		},
 		{
 			desc: "TTL expired",
-			tokenRules: []*types.TokenRule{
-				&types.TokenRule{
-					AWSAccount: instance1.account,
-					AWSRegions: []string{instance1.region},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
+					},
 				},
 			},
 			ec2Client: ec2ClientRunning{},
@@ -453,6 +493,52 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 			expectError: trace.IsAccessDenied,
 			clock:       clockwork.NewFakeClockAt(instance1.pendingTime.Add(5*time.Minute + time.Second)),
 		},
+		{
+			desc: "custom TTL pass",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
+					},
+				},
+				AWSIIDTTL: types.Duration(10 * time.Minute),
+			},
+			ec2Client: ec2ClientRunning{},
+			request: RegisterUsingTokenRequest{
+				Token:               "test_token",
+				NodeName:            "node_name",
+				Role:                types.RoleNode,
+				HostID:              instance1.account + "-" + instance1.instanceID,
+				EC2IdentityDocument: instance1.iid,
+			},
+			expectError: isNil,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime.Add(9 * time.Minute)),
+		},
+		{
+			desc: "custom TTL fail",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
+					},
+				},
+				AWSIIDTTL: types.Duration(10 * time.Minute),
+			},
+			ec2Client: ec2ClientRunning{},
+			request: RegisterUsingTokenRequest{
+				Token:               "test_token",
+				NodeName:            "node_name",
+				Role:                types.RoleNode,
+				HostID:              instance1.account + "-" + instance1.instanceID,
+				EC2IdentityDocument: instance1.iid,
+			},
+			expectError: trace.IsAccessDenied,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime.Add(11 * time.Minute)),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -465,10 +551,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 			token, err := types.NewProvisionTokenFromSpec(
 				"test_token",
 				time.Now().Add(time.Minute),
-				types.ProvisionTokenSpecV2{
-					Roles: []types.SystemRole{types.RoleNode},
-					Allow: tc.tokenRules,
-				})
+				tc.tokenSpec)
 			require.NoError(t, err)
 
 			err = a.UpsertToken(context.Background(), token)
