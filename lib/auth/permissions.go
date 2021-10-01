@@ -75,7 +75,7 @@ type authorizer struct {
 	lockWatcher *services.LockWatcher
 }
 
-// AuthContext is authorization context
+// Context is authorization context
 type Context struct {
 	// User is the user name
 	User types.User
@@ -133,7 +133,9 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if lockErr := a.lockWatcher.CheckLockInForce(authContext.Checker.LockingMode(authPref.GetLockingMode()), authContext.LockTargets()...); lockErr != nil {
+	if lockErr := a.lockWatcher.CheckLockInForce(
+		authContext.Checker.LockingMode(authPref.GetLockingMode()),
+		authContext.LockTargets()...); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
 	}
 	return authContext, nil
