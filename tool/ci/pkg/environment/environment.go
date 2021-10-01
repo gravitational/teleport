@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
-	"net/http"
 	"os"
 
 	"github.com/gravitational/teleport/tool/ci"
@@ -153,8 +152,8 @@ func unmarshalReviewers(ctx context.Context, str string, client *github.Client) 
 
 // userExists checks if a user exists
 func userExists(ctx context.Context, userLogin string, client *github.Client) (*github.User, error) {
-	user, resp, err := client.Users.Get(ctx, userLogin)
-	if err != nil || resp.StatusCode != http.StatusOK {
+	user, _, err := client.Users.Get(ctx, userLogin)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return user, nil
@@ -196,7 +195,7 @@ func GetMetadata(path string) (*Metadata, error) {
 }
 
 func getMetadata(body []byte, action string) (*Metadata, error) {
-	var pr Metadata
+	var pr *Metadata
 
 	switch action {
 	case ci.Synchronize:
@@ -219,7 +218,7 @@ func getMetadata(body []byte, action string) (*Metadata, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	default:
+	case ci.Submitted, ci.Created:
 		var rev ReviewEvent
 		err := json.Unmarshal(body, &rev)
 		if err != nil {
@@ -229,11 +228,13 @@ func getMetadata(body []byte, action string) (*Metadata, error) {
 		if err != nil {
 			return nil, err
 		}
+	default: 
+		return nil, trace.BadParameter("unknown action %s", action)
 	}
-	return &pr, nil
+	return pr, nil
 }
 
-func (r ReviewEvent) toMetadata() (Metadata, error) {
+func (r *ReviewEvent) toMetadata() (*Metadata, error) {
 	pr, err := validateData(r.PullRequest.Number,
 		r.PullRequest.Author.Login,
 		r.Repository.Owner.Name,
@@ -243,16 +244,16 @@ func (r ReviewEvent) toMetadata() (Metadata, error) {
 		r.PullRequest.Head.BranchName,
 	)
 	if err != nil {
-		return Metadata{}, err
+		return &Metadata{}, err
 	}
 	if r.Review.User.Login == "" {
-		return Metadata{}, trace.BadParameter("missing reviewer username.")
+		return &Metadata{}, trace.BadParameter("missing reviewer username")
 	}
 	pr.Reviewer = r.Review.User.Login
 	return pr, nil
 }
 
-func (p PullRequestEvent) toMetadata() (Metadata, error) {
+func (p *PullRequestEvent) toMetadata() (*Metadata, error) {
 	return validateData(p.Number,
 		p.PullRequest.User.Login,
 		p.Repository.Owner.Name,
@@ -263,7 +264,7 @@ func (p PullRequestEvent) toMetadata() (Metadata, error) {
 	)
 }
 
-func (s PushEvent) toMetadata() (Metadata, error) {
+func (s *PushEvent) toMetadata() (*Metadata, error) {
 	return validateData(s.Number,
 		s.PullRequest.User.Login,
 		s.Repository.Owner.Name,
@@ -274,24 +275,24 @@ func (s PushEvent) toMetadata() (Metadata, error) {
 	)
 }
 
-func validateData(num int, login, owner, repoName, headSHA, baseSHA, branchName string) (Metadata, error) {
+func validateData(num int, login, owner, repoName, headSHA, baseSHA, branchName string) (*Metadata, error) {
 	switch {
 	case num == 0:
-		return Metadata{}, trace.BadParameter("missing pull request number")
+		return &Metadata{}, trace.BadParameter("missing pull request number")
 	case login == "":
-		return Metadata{}, trace.BadParameter("missing user login")
+		return &Metadata{}, trace.BadParameter("missing user login")
 	case owner == "":
-		return Metadata{}, trace.BadParameter("missing repository owner")
+		return &Metadata{}, trace.BadParameter("missing repository owner")
 	case repoName == "":
-		return Metadata{}, trace.BadParameter("missing repository name")
+		return &Metadata{}, trace.BadParameter("missing repository name")
 	case headSHA == "":
-		return Metadata{}, trace.BadParameter("missing head commit sha")
+		return &Metadata{}, trace.BadParameter("missing head commit sha")
 	case baseSHA == "":
-		return Metadata{}, trace.BadParameter("missing base commit sha")
+		return &Metadata{}, trace.BadParameter("missing base commit sha")
 	case branchName == "":
-		return Metadata{}, trace.BadParameter("missing branch name")
+		return &Metadata{}, trace.BadParameter("missing branch name")
 	}
-	return Metadata{Number: num,
+	return &Metadata{Number: num,
 		Author:     login,
 		RepoOwner:  owner,
 		RepoName:   repoName,
