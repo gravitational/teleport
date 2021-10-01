@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -109,6 +110,9 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 	}); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Sort by name before printing.
+	sort.Slice(devs, func(i, j int) bool { return devs[i].GetName() < devs[j].GetName() })
 
 	printMFADevices(devs, c.verbose)
 	return nil
