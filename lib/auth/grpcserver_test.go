@@ -2061,13 +2061,6 @@ func TestCustomRateLimiting(t *testing.T) {
 		fn   func(*Client) error
 	}{
 		{
-			name: "RPC ApproveAccountRecovery",
-			fn: func(clt *Client) error {
-				_, err := clt.ApproveAccountRecovery(context.Background(), &proto.ApproveAccountRecoveryRequest{})
-				return err
-			},
-		},
-		{
 			name: "RPC ChangeUserAuthentication",
 			fn: func(clt *Client) error {
 				_, err := clt.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{})
@@ -2085,6 +2078,13 @@ func TestCustomRateLimiting(t *testing.T) {
 			name: "RPC StartAccountRecovery",
 			fn: func(clt *Client) error {
 				_, err := clt.StartAccountRecovery(context.Background(), &proto.StartAccountRecoveryRequest{})
+				return err
+			},
+		},
+		{
+			name: "RPC VerifyAccountRecovery",
+			fn: func(clt *Client) error {
+				_, err := clt.VerifyAccountRecovery(context.Background(), &proto.VerifyAccountRecoveryRequest{})
 				return err
 			},
 		},

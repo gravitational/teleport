@@ -179,8 +179,9 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		Verified:       sessionCtx.Identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
-	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams,
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Database.GetAllLabels()},
+	err = sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
+		mfaParams,
 		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 		&services.DatabaseNameMatcher{Name: sessionCtx.DatabaseName})
 	if err != nil {

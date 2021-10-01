@@ -2062,6 +2062,8 @@ message RemoteClusterStatusV3 {
 }
 
 // KubernetesCluster is a named kubernetes API endpoint handled by a Server.
+//
+// TODO: deprecate and convert all usage to KubernetesClusterV3
 message KubernetesCluster {
     // Name is the name of this kubernetes cluster.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
@@ -2072,6 +2074,30 @@ message KubernetesCluster {
     // DynamicLabels is map of dynamic labels associated with this cluster.
     // Used for RBAC.
     map<string, CommandLabelV2> DynamicLabels = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
+}
+
+// KubernetesClusterV3 represents a named kubernetes API endpoint.
+message KubernetesClusterV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is the cluster resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the resource spec.
+    KubernetesClusterSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// KubernetesClusterSpecV3 is a specification for a Kubernetes cluster.
+message KubernetesClusterSpecV3 {
+    // DynamicLabels are the cluster's dynamic labels.
+    map<string, CommandLabelV2> DynamicLabels = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
 }
 
