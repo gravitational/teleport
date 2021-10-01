@@ -267,6 +267,10 @@
         {
           "title": "SOC2",
           "slug": "/enterprise/soc2/"
+        },
+        {
+          "title": "HSM",
+          "slug": "/enterprise/hsm/"
         }
       ]
     },

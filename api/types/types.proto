@@ -251,19 +251,35 @@ message DatabaseSpecV3 {
     GCPCloudSQL GCP = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
 }
 
-// AWS contains AWS specific settings such as region.
+// AWS contains AWS metadata about the database.
 message AWS {
     // Region is a AWS cloud region.
     string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
-    // Redshift contains Redshift specific settings.
+    // Redshift contains Redshift specific metadata.
     Redshift Redshift = 2
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "redshift,omitempty" ];
+    // RDS contains RDS specific metadata.
+    RDS RDS = 3 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rds,omitempty" ];
+    // AccountID is the AWS account ID this database belongs to.
+    string AccountID = 4 [ (gogoproto.jsontag) = "account_id,omitempty" ];
 }
 
-// Redshift contains AWS Redshift specific settings.
+// Redshift contains AWS Redshift specific database metadata.
 message Redshift {
     // ClusterID is the Redshift cluster identifier.
     string ClusterID = 1 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
+}
+
+// RDS contains AWS RDS specific database metadata.
+message RDS {
+    // InstanceID is the RDS instance identifier.
+    string InstanceID = 1 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
+    // ClusterID is the RDS cluster (Aurora) identifier.
+    string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
+    // ResourceID is the RDS instance resource identifier (db-xxx).
+    string ResourceID = 3 [ (gogoproto.jsontag) = "resource_id,omitempty" ];
+    // IAMAuth indicates whether database IAM authentication is enabled.
+    bool IAMAuth = 4 [ (gogoproto.jsontag) = "iam_auth" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -703,51 +719,6 @@ message ClusterNameSpecV2 {
     string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
 }
 
-// ClusterConfigV3 implements the ClusterConfig interface.
-// DELETE IN 8.0.0
-message ClusterConfigV3 {
-    option (gogoproto.goproto_stringer) = false;
-    option (gogoproto.stringer) = false;
-
-    // Kind is a resource kind
-    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
-    // SubKind is an optional resource sub kind, used in some resources
-    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
-    // Version is version
-    string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is resource metadata
-    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
-    // Spec is a cluster config V3 spec
-    ClusterConfigSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
-}
-
-// ClusterConfigSpecV3 is the actual data we care about for ClusterConfig.
-message ClusterConfigSpecV3 {
-    reserved 1, 3, 5 to 10;
-
-    // ClusterID is the unique cluster ID that is set once during the first auth
-    // server startup.
-    // DELETE IN 8.0.0
-    string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id" ];
-
-    // Audit is a section with audit config
-    // DELETE IN 8.0.0
-    ClusterAuditConfigSpecV2 Audit = 4
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "audit,omitempty" ];
-
-    // DELETE IN 8.0.0
-    ClusterNetworkingConfigSpecV2 NetworkingConfig = 11
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
-
-    // DELETE IN 8.0.0
-    LegacySessionRecordingConfigSpec SessionRecordingConfig = 12
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
-
-    // DELETE IN 8.0.0
-    LegacyClusterConfigAuthFields AuthFields = 13
-        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
-}
-
 // ClusterAuditConfigV2 represents audit log settings in the cluster.
 message ClusterAuditConfigV2 {
     // Kind is a resource kind
@@ -878,16 +849,6 @@ message SessionRecordingConfigSpecV2 {
     ];
 }
 
-// LegacySessionRecordingConfigSpec facilitates a backward compatible transition
-// from ClusterConfig to standalone SessionRecordingConfig.
-// SessionRecordingConfigSpecV2 itself is not usable for this purpose because
-// of different jsontags.
-// DELETE IN 8.0.0
-message LegacySessionRecordingConfigSpec {
-    string Mode = 1 [ (gogoproto.jsontag) = "session_recording" ];
-    string ProxyChecksHostKeys = 2 [ (gogoproto.jsontag) = "proxy_checks_host_keys" ];
-}
-
 // AuthPreferenceV2 implements the AuthPreference interface.
 message AuthPreferenceV2 {
     option (gogoproto.goproto_stringer) = false;
@@ -952,15 +913,6 @@ message AuthPreferenceSpecV2 {
 
     // Webauthn are the settings for server-side Web Authentication support.
     Webauthn Webauthn = 10 [ (gogoproto.jsontag) = "webauthn,omitempty" ];
-}
-
-// LegacyClusterConfigAuthFields facilitates a backward compatible transition
-// for the auth related fields moved from ClusterConfig into ClusterAuthPreference.
-// DELETE IN 8.0.0
-message LegacyClusterConfigAuthFields {
-    bool DisconnectExpiredCert = 1
-        [ (gogoproto.jsontag) = "disconnect_expired_cert", (gogoproto.casttype) = "Bool" ];
-    bool AllowLocalAuth = 2 [ (gogoproto.jsontag) = "local_auth", (gogoproto.casttype) = "Bool" ];
 }
 
 // U2F defines settings for U2F device.
@@ -2126,6 +2078,8 @@ message RemoteClusterStatusV3 {
 }
 
 // KubernetesCluster is a named kubernetes API endpoint handled by a Server.
+//
+// TODO: deprecate and convert all usage to KubernetesClusterV3
 message KubernetesCluster {
     // Name is the name of this kubernetes cluster.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
@@ -2136,6 +2090,30 @@ message KubernetesCluster {
     // DynamicLabels is map of dynamic labels associated with this cluster.
     // Used for RBAC.
     map<string, CommandLabelV2> DynamicLabels = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
+}
+
+// KubernetesClusterV3 represents a named kubernetes API endpoint.
+message KubernetesClusterV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is the cluster resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the resource spec.
+    KubernetesClusterSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// KubernetesClusterSpecV3 is a specification for a Kubernetes cluster.
+message KubernetesClusterSpecV3 {
+    // DynamicLabels are the cluster's dynamic labels.
+    map<string, CommandLabelV2> DynamicLabels = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
 }
 

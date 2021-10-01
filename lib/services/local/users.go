@@ -1194,7 +1194,7 @@ func (s *IdentityService) GetGithubAuthRequest(stateToken string) (*services.Git
 }
 
 // GetRecoveryCodes returns user's recovery codes.
-func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string) (*types.RecoveryCodesV1, error) {
+func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string, withSecrets bool) (*types.RecoveryCodesV1, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing parameter user")
 	}
@@ -1204,12 +1204,16 @@ func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string) (*t
 		return nil, trace.Wrap(err)
 	}
 
-	var tokens types.RecoveryCodesV1
-	if err := json.Unmarshal(item.Value, &tokens); err != nil {
+	var rc types.RecoveryCodesV1
+	if err := json.Unmarshal(item.Value, &rc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &tokens, nil
+	if !withSecrets {
+		rc.Spec.Codes = nil
+	}
+
+	return &rc, nil
 }
 
 // UpsertRecoveryCodes creates or updates user's account recovery codes.
