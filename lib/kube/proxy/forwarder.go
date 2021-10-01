@@ -66,6 +66,10 @@ import (
 	utilexec "k8s.io/client-go/util/exec"
 )
 
+func init() {
+	mathrand.Seed(time.Now().UnixNano())
+}
+
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
 type KubeServiceType int
 
@@ -309,9 +313,10 @@ type authContext struct {
 }
 
 type endpoint struct {
-	// targetAddr is a direct network address.
+	// addr is a direct network address.
 	addr string
-	// serverID is an address reachable over a reverse tunnel.
+	// serverID is the server:cluster ID of the endpoint,
+	// which is used to find its corresponding reverse tunnel.
 	serverID string
 }
 
@@ -1388,7 +1393,6 @@ func (s *clusterSession) DialWithEndpoints(network, addr string) (net.Conn, erro
 
 	// Shuffle endpoints to balance load
 	shuffledEndpoints := s.teleportClusterEndpoints
-	mathrand.Seed(time.Now().UnixNano())
 	mathrand.Shuffle(len(shuffledEndpoints), func(i, j int) {
 		shuffledEndpoints[i], shuffledEndpoints[j] = shuffledEndpoints[j], shuffledEndpoints[i]
 	})
@@ -1428,7 +1432,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 	}
 	// remote clusters use special hardcoded URL,
 	// and use a special dialer
-	sess.authContext.teleportCluster.targetAddr = reversetunnel.LocalKubernetes
+	sess.teleportCluster.targetAddr = reversetunnel.LocalKubernetes
 	transport := f.newTransport(sess.Dial, sess.tlsConfig)
 
 	sess.forwarder, err = forward.New(
@@ -1546,7 +1550,6 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []endpoin
 	}
 
 	transport := f.newTransport(sess.DialWithEndpoints, sess.tlsConfig)
-
 	sess.forwarder, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
