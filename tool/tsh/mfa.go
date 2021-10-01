@@ -419,9 +419,6 @@ func promptU2FRegisterChallenge(ctx context.Context, proxyAddr string, c *proto.
 }
 
 func promptWebauthnRegisterChallenge(ctx context.Context, proxyAddr string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
-	// TODO(codingllama): Make sure users get a reasonable error back when the
-	//  origin doesn't match the RPID. Webauthn isn't as flexible as U2F in this
-	//  regard.
 	origin := proxyAddr
 	if !strings.HasPrefix(proxyAddr, "https://") {
 		origin = "https://" + origin

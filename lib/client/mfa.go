@@ -99,15 +99,11 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
 	}
 
-	// TODO(codingllama): Make sure users get a reasonable error back when the
-	//  origin doesn't match the RPID. Webauthn isn't as flexible as U2F in this
-	//  regard.
+	// Fire Webauthn or U2F goroutine.
 	origin := proxyAddr
 	if !strings.HasPrefix(origin, "https://") {
 		origin = "https://" + origin
 	}
-
-	// Fire Webauthn or U2F goroutine.
 	switch {
 	case c.WebauthnChallenge != nil:
 		go func() {
