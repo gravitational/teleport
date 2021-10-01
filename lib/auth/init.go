@@ -876,7 +876,8 @@ func CertAuthorityInfo(ca types.CertAuthority) string {
 	return fmt.Sprintf("cert authority(state: %v, phase: %v, roots: %v)", ca.GetRotation().State, ca.GetRotation().Phase, strings.Join(out, ", "))
 }
 
-// HasTSLConfig returns true if this identity has TLS certificate and private key
+// HasTLSConfig returns true if this identity has TLS certificate and private
+// key.
 func (i *Identity) HasTLSConfig() bool {
 	return len(i.TLSCACertsBytes) != 0 && len(i.TLSCertBytes) != 0
 }
