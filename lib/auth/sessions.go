@@ -236,6 +236,10 @@ func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, pu
 
 // deleteWebSessions deletes all web sessions for the specified user.
 func (s *Server) deleteWebSessions(ctx context.Context, username string) error {
+	// TODO(kimlisa) improve performance
+	// Due to how we store the session in the backend key(web/sessions/<sessionID>)
+	// this method will return all web sessions. This could cause performance issues with
+	// huge number of users.
 	websessions, err := s.Identity.WebSessions().List(ctx)
 	if err != nil {
 		return trace.Wrap(err)
