@@ -245,6 +245,8 @@ ifeq ("$(DESKTOP_ACCESS)", "yes")
 .PHONY: rdpclient
 rdpclient:
 	cargo build --manifest-path=lib/srv/desktop/rdp/rdpclient/Cargo.toml --release
+	cargo install cbindgen
+	cbindgen --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
 rdpclient:
