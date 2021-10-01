@@ -113,9 +113,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		go func() {
 			log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
 			resp, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
-			// Technically it's kind="Webauthn", but we are not changing CLI
-			// nomenclature yet.
-			respC <- response{kind: "U2F", resp: resp, err: err}
+			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
 		}()
 	case len(c.U2F) > 0:
 		go func() {
@@ -145,7 +143,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		}
 	}
 	return nil, trace.BadParameter(
-		"failed to authenticate using all U2F and TOTP devices, rerun the command with '-d' to see error details for each device")
+		"failed to authenticate using all MFA and TOTP devices, rerun the command with '-d' to see error details for each device")
 }
 
 func promptU2FChallenges(ctx context.Context, origin string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
