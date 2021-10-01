@@ -929,11 +929,21 @@ type DatabaseAWS struct {
 	Region string `yaml:"region,omitempty"`
 	// Redshift contains Redshift specific settings.
 	Redshift DatabaseAWSRedshift `yaml:"redshift"`
+	// RDS contains RDS specific settings.
+	RDS DatabaseAWSRDS `yaml:"rds"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
+	ClusterID string `yaml:"cluster_id,omitempty"`
+}
+
+// DatabaseAWSRDS contains settings for RDS databases.
+type DatabaseAWSRDS struct {
+	// InstanceID is the RDS instance identifier.
+	InstanceID string `yaml:"instance_id,omitempty"`
+	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string `yaml:"cluster_id,omitempty"`
 }
 

@@ -130,7 +130,7 @@ Make sure that Teleport database agent's IAM policy is attached and has "rds-con
 permissions:
 
 %v
-`, err, GetRDSPolicy(sessionCtx.Database.GetAWS().Region))
+`, err, sessionCtx.Database.GetRDSPolicy())
 	}
 	return token, nil
 }
@@ -163,7 +163,7 @@ Make sure that Teleport database agent's IAM policy is attached and has permissi
 to generate Redshift credentials:
 
 %v
-`, err, GetRedshiftPolicy())
+`, err, sessionCtx.Database.GetRedshiftPolicy())
 	}
 	return *resp.DbUser, *resp.DbPassword, nil
 }
