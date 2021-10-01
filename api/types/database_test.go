@@ -34,6 +34,9 @@ func TestDatabaseRDSEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, AWS{
 		Region: "us-west-1",
+		RDS: RDS{
+			InstanceID: "aurora-instance-1",
+		},
 	}, database.GetAWS())
 }
 
