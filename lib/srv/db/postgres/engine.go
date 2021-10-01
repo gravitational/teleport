@@ -186,9 +186,12 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		defaults.ProtocolPostgres,
 		sessionCtx.DatabaseUser,
 		sessionCtx.DatabaseName,
-		sessionCtx.Database.GetAllLabels(),
 	)
-	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams, dbRoleMatchers...)
+	err = sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
+		mfaParams,
+		dbRoleMatchers...,
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)

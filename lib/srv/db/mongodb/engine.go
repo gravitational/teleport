@@ -162,9 +162,11 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 	// Only the username is checked upon initial connection. MongoDB sends
 	// database name with each protocol message (for query, update, etc.)
 	// so it is checked when we receive a message from client.
-	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams,
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Database.GetAllLabels()},
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
+	err = sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
+		mfaParams,
+		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
@@ -192,9 +194,9 @@ func (e *Engine) authorizeClientMessage(sessionCtx *common.Session, message prot
 		defaults.ProtocolMongoDB,
 		sessionCtx.DatabaseUser,
 		database,
-		sessionCtx.Database.GetAllLabels(),
 	)
-	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database,
+	err := sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
 		services.AccessMFAParams{Verified: true},
 		dbRoleMatchers...,
 	)

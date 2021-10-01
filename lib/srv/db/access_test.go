@@ -92,7 +92,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "no access to databases",
@@ -102,7 +102,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{types.Wildcard},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "no access to users",
@@ -112,7 +112,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "access allowed to specific user/database",
@@ -131,7 +131,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{"alice"},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 	}
 
@@ -196,7 +196,7 @@ func TestAccessMySQL(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{},
 			dbUser:       "root",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "access allowed to specific user",
@@ -211,7 +211,7 @@ func TestAccessMySQL(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
 			dbUser:       "root",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 	}
 
@@ -279,7 +279,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -290,7 +290,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{types.Wildcard},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -301,7 +301,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -324,7 +324,7 @@ func TestAccessMongoDB(t *testing.T) {
 			dbName:       "metrics",
 			dbUser:       "alice",
 			connectErr:   "",
-			queryErr:     "access to database denied",
+			queryErr:     "access to db denied",
 		},
 	}
 

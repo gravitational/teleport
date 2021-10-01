@@ -22,7 +22,7 @@ import (
 )
 
 // DatabaseRoleMatchers returns role matchers based on the database protocol.
-func DatabaseRoleMatchers(dbProtocol string, user, database string, labels map[string]string) services.RoleMatchers {
+func DatabaseRoleMatchers(dbProtocol string, user, database string) services.RoleMatchers {
 	switch dbProtocol {
 	case defaults.ProtocolMySQL:
 		// In MySQL, unlike Postgres, "database" and "schema" are the same thing
@@ -36,12 +36,10 @@ func DatabaseRoleMatchers(dbProtocol string, user, database string, labels map[s
 		// detecting full-qualified table names like db.table, until then the
 		// proper way is to use MySQL grants system.
 		return services.RoleMatchers{
-			&services.DatabaseLabelsMatcher{Labels: labels},
 			&services.DatabaseUserMatcher{User: user},
 		}
 	default:
 		return services.RoleMatchers{
-			&services.DatabaseLabelsMatcher{Labels: labels},
 			&services.DatabaseUserMatcher{User: user},
 			&services.DatabaseNameMatcher{Name: database},
 		}
