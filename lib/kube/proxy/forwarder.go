@@ -348,7 +348,8 @@ type teleportClusterClient struct {
 	dial       dialFunc
 	// targetAddr is a direct network address.
 	targetAddr string
-	//serverID is an address reachable over a reverse tunnel.
+	// serverID is the server:cluster ID of the endpoint,
+	// which is used to find its corresponding reverse tunnel.
 	serverID       string
 	isRemote       bool
 	isRemoteClosed func() bool
@@ -1379,7 +1380,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 }
 
 func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
-	return s.DialWithContext(context.Background(), network, addr)
+	return s.monitorConn(s.teleportCluster.DialWithContext(context.Background(), network, addr))
 }
 
 func (s *clusterSession) DialWithContext(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -1387,6 +1388,11 @@ func (s *clusterSession) DialWithContext(ctx context.Context, network, addr stri
 }
 
 func (s *clusterSession) DialWithEndpoints(network, addr string) (net.Conn, error) {
+	return s.monitorConn(s.dialWithEndpoints(context.Background(), network, addr))
+}
+
+// This is separated from DialWithEndpoints for testing without monitorConn.
+func (s *clusterSession) dialWithEndpoints(ctx context.Context, network, addr string) (net.Conn, error) {
 	if len(s.teleportClusterEndpoints) == 0 {
 		return nil, trace.BadParameter("No endpoints to dial")
 	}
@@ -1401,12 +1407,12 @@ func (s *clusterSession) DialWithEndpoints(network, addr string) (net.Conn, erro
 	for _, endpoint := range shuffledEndpoints {
 		s.teleportCluster.targetAddr = endpoint.addr
 		s.teleportCluster.serverID = endpoint.serverID
-		conn, err := s.Dial(network, addr)
+		conn, err := s.teleportCluster.DialWithContext(ctx, network, addr)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		return s.monitorConn(conn, nil)
+		return conn, nil
 	}
 	return nil, trace.NewAggregate(errs...)
 }
