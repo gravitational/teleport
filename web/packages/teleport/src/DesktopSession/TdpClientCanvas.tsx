@@ -40,6 +40,19 @@ export default function TdpClientCanvas(props: Props) {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
+    // Buffered rendering logic
+    var buffer: RenderData[] = [];
+    const renderBuffer = () => {
+      if (buffer.length) {
+        for (let i = 0; i < buffer.length; i++) {
+          onRender(ctx, buffer[i]);
+        }
+        buffer = [];
+      }
+      requestAnimationFrame(renderBuffer);
+    };
+    requestAnimationFrame(renderBuffer);
+
     // React's vdom apparently doesn't support
     // standard html document.activeElement semantics
     // so tracking here manually instead.
@@ -99,7 +112,7 @@ export default function TdpClientCanvas(props: Props) {
     });
 
     tdpClient.on('render', (data: RenderData) => {
-      onRender(ctx, data);
+      buffer.push(data);
     });
 
     tdpClient.on('disconnect', () => {

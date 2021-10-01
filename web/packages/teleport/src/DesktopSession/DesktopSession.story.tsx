@@ -142,6 +142,9 @@ export const ConnectionError = () => (
 );
 export const Performance = () => {
   const client = fakeClient();
+  var startTime,
+    endTime,
+    i = 0;
 
   return (
     <DesktopSession
@@ -166,9 +169,16 @@ export const Performance = () => {
           client.processMessage(arrayBuf2260x1130[i]);
         }
       }}
-      onRender={(ctx: CanvasRenderingContext2D, data: RenderData) =>
-        ctx.drawImage(data.image, data.left, data.top)
-      }
+      onRender={(ctx: CanvasRenderingContext2D, data: RenderData) => {
+        ctx.drawImage(data.image, data.left, data.top);
+        if (i === 0) {
+          startTime = performance.now();
+        } else if (i === arrayBuf2260x1130.length - 1) {
+          endTime = performance.now();
+          console.log(`Total time (ms): ${endTime - startTime}`);
+        }
+        i++;
+      }}
     />
   );
 };
