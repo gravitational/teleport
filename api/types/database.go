@@ -58,12 +58,18 @@ type Database interface {
 	GetCA() string
 	// SetCA sets the database CA certificate.
 	SetCA(string)
-	// GetAWS returns AWS information for RDS/Aurora databases.
+	// GetAWS returns the database AWS metadata.
 	GetAWS() AWS
+	// SetAWS sets the database AWS metadata.
+	SetAWS(AWS)
 	// GetGCP returns GCP information for Cloud SQL databases.
 	GetGCP() GCPCloudSQL
 	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
 	GetType() string
+	// GetRDSPolicy returns RDS IAM policy for the database.
+	GetRDSPolicy() string
+	// GetRedshiftPolicy returns Redshift IAM policy for the database.
+	GetRedshiftPolicy() string
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
 	// IsRedshift returns true if this is a Redshift database.
@@ -219,9 +225,14 @@ func (d *DatabaseV3) SetCA(bytes string) {
 	d.Spec.CACert = bytes
 }
 
-// GetAWS returns AWS information for RDS/Aurora/Redshift databases.
+// GetAWS returns the database AWS metadata.
 func (d *DatabaseV3) GetAWS() AWS {
 	return d.Spec.AWS
+}
+
+// SetAWS sets the database AWS metadata.
+func (d *DatabaseV3) SetAWS(aws AWS) {
+	d.Spec.AWS = aws
 }
 
 // GetGCP returns GCP information for Cloud SQL databases.
@@ -249,7 +260,7 @@ func (d *DatabaseV3) GetType() string {
 	if d.Spec.AWS.Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
 	}
-	if d.Spec.AWS.Region != "" {
+	if d.Spec.AWS.Region != "" || d.Spec.AWS.RDS.InstanceID != "" || d.Spec.AWS.RDS.ClusterID != "" {
 		return DatabaseTypeRDS
 	}
 	if d.Spec.GCP.ProjectID != "" {
@@ -296,9 +307,12 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
 	case strings.Contains(d.Spec.URI, rdsEndpointSuffix):
-		region, err := parseRDSEndpoint(d.Spec.URI)
+		instanceID, region, err := parseRDSEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		if d.Spec.AWS.RDS.InstanceID == "" {
+			d.Spec.AWS.RDS.InstanceID = instanceID
 		}
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
@@ -319,18 +333,18 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 }
 
 // parseRDSEndpoint extracts region from the provided RDS endpoint.
-func parseRDSEndpoint(endpoint string) (region string, err error) {
+func parseRDSEndpoint(endpoint string) (instanceID, region string, err error) {
 	host, _, err := net.SplitHostPort(endpoint)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 	// RDS/Aurora endpoint looks like this:
 	// aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
 	parts := strings.Split(host, ".")
 	if !strings.HasSuffix(host, rdsEndpointSuffix) || len(parts) != 6 {
-		return "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
+		return "", "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
 	}
-	return parts[2], nil
+	return parts[0], parts[2], nil
 }
 
 // parseRedshiftEndpoint extracts cluster ID and region from the provided Redshift endpoint.
@@ -346,6 +360,42 @@ func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
 	}
 	return parts[0], parts[2], nil
+}
+
+// GetRDSPolicy returns IAM policy document for this RDS database.
+func (d *DatabaseV3) GetRDSPolicy() string {
+	region := d.GetAWS().Region
+	if region == "" {
+		region = "<region>"
+	}
+	accountID := d.GetAWS().AccountID
+	if accountID == "" {
+		accountID = "<account_id>"
+	}
+	resourceID := d.GetAWS().RDS.ResourceID
+	if resourceID == "" {
+		resourceID = "<resource_id>"
+	}
+	return fmt.Sprintf(rdsPolicyTemplate,
+		region, accountID, resourceID)
+}
+
+// GetRedshiftPolicy returns IAM policy document for this Redshift database.
+func (d *DatabaseV3) GetRedshiftPolicy() string {
+	region := d.GetAWS().Region
+	if region == "" {
+		region = "<region>"
+	}
+	accountID := d.GetAWS().AccountID
+	if accountID == "" {
+		accountID = "<account_id>"
+	}
+	clusterID := d.GetAWS().Redshift.ClusterID
+	if clusterID == "" {
+		clusterID = "<cluster_id>"
+	}
+	return fmt.Sprintf(redshiftPolicyTemplate,
+		region, accountID, clusterID)
 }
 
 const (
@@ -416,4 +466,33 @@ const (
 	rdsEndpointSuffix = ".rds.amazonaws.com"
 	// redshiftEndpointSuffix is the Redshift endpoint suffix.
 	redshiftEndpointSuffix = ".redshift.amazonaws.com"
+)
+
+var (
+	// rdsPolicyTemplate is the IAM policy template for RDS databases access.
+	rdsPolicyTemplate = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "rds-db:connect",
+      "Resource": "arn:aws:rds-db:%v:%v:dbuser:%v/*"
+    }
+  ]
+}`
+	// redshiftPolicyTemplate is the IAM policy template for Redshift databases access.
+	redshiftPolicyTemplate = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "redshift:GetClusterCredentials",
+      "Resource": [
+        "arn:aws:redshift:%[0]v:%[1]v:dbuser:%[2]v/*",
+        "arn:aws:redshift:%[0]v:%[1]v:dbname:%[2]v/*",
+        "arn:aws:redshift:%[0]v:%[1]v:dbgroup:%[2]v/*"
+      ]
+    },
+  ]
+}`
 )

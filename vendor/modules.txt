@@ -117,6 +117,10 @@ github.com/aws/aws-sdk-go/service/applicationautoscaling
 github.com/aws/aws-sdk-go/service/dynamodb
 github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute
 github.com/aws/aws-sdk-go/service/dynamodbstreams
+github.com/aws/aws-sdk-go/service/iam
+github.com/aws/aws-sdk-go/service/iam/iamiface
+github.com/aws/aws-sdk-go/service/rds
+github.com/aws/aws-sdk-go/service/rds/rdsiface
 github.com/aws/aws-sdk-go/service/rds/rdsutils
 github.com/aws/aws-sdk-go/service/redshift
 github.com/aws/aws-sdk-go/service/s3
