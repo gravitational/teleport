@@ -199,7 +199,7 @@ type TOTPRegisterChallenge struct {
 	QRCode []byte `json:"qrCode"`
 }
 
-// MFAAuthenticateChallenge is an MFA register challenge sent on new MFA register.
+// MFARegisterChallenge is an MFA register challenge sent on new MFA register.
 type MFARegisterChallenge struct {
 	// U2F contains U2F register challenge.
 	U2F *u2f.RegisterChallenge `json:"u2f"`
