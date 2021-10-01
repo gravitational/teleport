@@ -72,5 +72,5 @@ type WebConfigAuthSettings struct {
 	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
 	// when various options are available.
 	// It is empty if there is nothing to suggest.
-	PreferredLocalMFA constants.SecondFactorType `json:"preferredLocalMFA,omitempty"`
+	PreferredLocalMFA constants.SecondFactorType `json:"preferredLocalMfa,omitempty"`
 }
