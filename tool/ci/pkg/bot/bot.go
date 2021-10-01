@@ -103,7 +103,7 @@ func (c *Bot) deleteRuns(ctx context.Context, owner, repoName string, runs []*gi
 			return trace.Wrap(err)
 		}
 	}
-	return nil 
+	return nil
 }
 
 func (c *Bot) findStaleWorkflowRuns(ctx context.Context, owner, repoName, branchName string, workflowID int64) ([]*github.WorkflowRun, error) {

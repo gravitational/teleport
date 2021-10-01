@@ -62,5 +62,4 @@ const (
 
 	// Created is an event type that is triggered when a pull request review is created.
 	Created = "created"
-
 )

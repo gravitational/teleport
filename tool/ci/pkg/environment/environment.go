@@ -228,7 +228,7 @@ func getMetadata(body []byte, action string) (*Metadata, error) {
 		if err != nil {
 			return nil, err
 		}
-	default: 
+	default:
 		return nil, trace.BadParameter("unknown action %s", action)
 	}
 	return pr, nil

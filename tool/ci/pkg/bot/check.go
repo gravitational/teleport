@@ -197,10 +197,10 @@ func hasNewCommit(headSHA string, revs []review) bool {
 	return false
 }
 
-// verifyCommit verfies GitHub is the commit author and that the commit is empty. 
-// Commits are checked for verification and emptiness specifically to determine if a 
-// pull request's reviews should be invalidated. If a commit is signed by Github and is empty 
-// there is no need to invalidate commits because the branch is just being updated. 
+// verifyCommit verfies GitHub is the commit author and that the commit is empty.
+// Commits are checked for verification and emptiness specifically to determine if a
+// pull request's reviews should be invalidated. If a commit is signed by Github and is empty
+// there is no need to invalidate commits because the branch is just being updated.
 func (c *Bot) verifyCommit(ctx context.Context) error {
 	pr := c.Environment.Metadata
 	comparison, _, err := c.Environment.Client.Repositories.CompareCommits(
