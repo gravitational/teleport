@@ -567,6 +567,53 @@ func TestChangeUserAuthentication(t *testing.T) {
 	}
 }
 
+func TestChangeUserAuthentication_DeletePreviousWebSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	username := "llama@goteleport.com"
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+
+	// Add some pre web sessions to check for deletion later.
+	sess, err := types.NewWebSession("web-session-id-1", types.KindWebSession, types.WebSessionSpecV2{
+		User: username,
+	})
+	require.NoError(t, err)
+	err = srv.Auth().Identity.WebSessions().Upsert(ctx, sess)
+	require.NoError(t, err)
+
+	sess2, err := types.NewWebSession("web-session-id-2", types.KindWebSession, types.WebSessionSpecV2{
+		User: username,
+	})
+	require.NoError(t, err)
+	err = srv.Auth().Identity.WebSessions().Upsert(ctx, sess2)
+	require.NoError(t, err)
+
+	// Check insertion.
+	ws, err := srv.Auth().Identity.WebSessions().List(ctx)
+	require.NoError(t, err)
+	require.Len(t, ws, 2)
+
+	token, err := srv.Auth().CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
+		Name: username,
+	})
+	require.NoError(t, err)
+
+	res, err := srv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     token.GetName(),
+		NewPassword: []byte("password1"),
+	})
+	require.NoError(t, err)
+
+	// Check previous web sessions are deleted.
+	ws, err = srv.Auth().Identity.WebSessions().List(ctx)
+	require.NoError(t, err)
+	require.Len(t, ws, 1)
+	require.Equal(t, res.GetWebSession().GetName(), ws[0].GetName())
+}
+
 func (s *PasswordSuite) TestChangeUserAuthenticationWithErrors(c *C) {
 	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{

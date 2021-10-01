@@ -233,3 +233,26 @@ func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, pu
 
 	return certs.SSH, certs.TLS, nil
 }
+
+// deleteWebSessions deletes all web sessions for the specified user.
+func (s *Server) deleteWebSessions(ctx context.Context, username string) error {
+	websessions, err := s.Identity.WebSessions().List(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range websessions {
+		if session.GetUser() != username {
+			continue
+		}
+
+		if err = s.Identity.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
+			User:      username,
+			SessionID: session.GetName(),
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}

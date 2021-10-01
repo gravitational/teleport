@@ -351,6 +351,11 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.BadParameter("expired token")
 	}
 
+	// Remove users exisitng web sessions before setting new credentials.
+	if err := s.deleteWebSessions(ctx, token.GetUser()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err = s.changeUserSecondFactor(ctx, req, token)
 	if err != nil {
 		return nil, trace.Wrap(err)

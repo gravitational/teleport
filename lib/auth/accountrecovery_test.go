@@ -626,6 +626,20 @@ func TestCompleteAccountRecovery(t *testing.T) {
 	// Test new password with lock that should not affect changing authn.
 	triggerLoginLock(t, srv.Auth(), u.username)
 
+	// Add webssion in backend to check for deletion later.
+	sess, err := types.NewWebSession("web-session-id-2", types.KindWebSession, types.WebSessionSpecV2{
+		User: u.username,
+	})
+	require.NoError(t, err)
+	err = srv.Auth().Identity.WebSessions().Upsert(ctx, sess)
+	require.NoError(t, err)
+
+	// Check ws been inserted.
+	ws, err := srv.Auth().Identity.WebSessions().List(ctx)
+	require.NoError(t, err)
+	// Call to createUserWithSecondFactors calls ChangeUserAuthentication that adds a web session.
+	require.Len(t, ws, 2)
+
 	// Acquire an approved token for recovering password.
 	approvedToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 	require.NoError(t, err)
@@ -647,6 +661,11 @@ func TestCompleteAccountRecovery(t *testing.T) {
 	attempts, err := srv.Auth().GetUserLoginAttempts(u.username)
 	require.NoError(t, err)
 	require.Len(t, attempts, 0)
+
+	// Test web sessions are removed.
+	ws, err = srv.Auth().Identity.WebSessions().List(ctx)
+	require.NoError(t, err)
+	require.Len(t, ws, 0)
 
 	// Test adding MFA devices.
 	approvedToken, err = srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)

@@ -392,6 +392,12 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		return trace.Wrap(err)
 	}
 
+	// Remove any existing web sessions before setting a new credential.
+	if err := s.deleteWebSessions(ctx, approvedToken.GetUser()); err != nil {
+		log.Error(trace.DebugReport(err))
+		return trace.AccessDenied(completeRecoveryGenericErrMsg)
+	}
+
 	// Check that the correct auth credential is being recovered before setting a new one.
 	switch req.GetNewAuthnCred().(type) {
 	case *proto.CompleteAccountRecoveryRequest_NewPassword:
