@@ -577,11 +577,11 @@ func TestChangeUserAuthentication_DeletePreviousWebSession(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add some pre web sessions to check for deletion later.
-	sess, err := types.NewWebSession("web-session-id-1", types.KindWebSession, types.WebSessionSpecV2{
+	sess1, err := types.NewWebSession("web-session-id-1", types.KindWebSession, types.WebSessionSpecV2{
 		User: username,
 	})
 	require.NoError(t, err)
-	err = srv.Auth().Identity.WebSessions().Upsert(ctx, sess)
+	err = srv.Auth().Identity.WebSessions().Upsert(ctx, sess1)
 	require.NoError(t, err)
 
 	sess2, err := types.NewWebSession("web-session-id-2", types.KindWebSession, types.WebSessionSpecV2{

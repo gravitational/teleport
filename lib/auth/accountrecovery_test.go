@@ -626,7 +626,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 	// Test new password with lock that should not affect changing authn.
 	triggerLoginLock(t, srv.Auth(), u.username)
 
-	// Add webssion in backend to check for deletion later.
+	// Add web session in backend to check for deletion later.
 	sess, err := types.NewWebSession("web-session-id-2", types.KindWebSession, types.WebSessionSpecV2{
 		User: u.username,
 	})
