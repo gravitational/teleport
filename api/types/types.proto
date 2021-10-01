@@ -199,6 +199,14 @@ message GCPCloudSQL {
     string InstanceID = 2 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
 }
 
+// NodeQuery encodes parameters for loading nodes.
+message NodeQuery {
+    // Namespace is the namespace of the nodes.
+    string Namespace = 1;
+    // Labels is a label-based filter if non-empty.
+    map<string, string> Labels = 2;
+}
+
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
 message ServerV2 {
     option (gogoproto.goproto_stringer) = false;

@@ -895,6 +895,11 @@ message ListNodesResponse {
     string NextKey = 2;
 }
 
+message QueryNodesResponse {
+    // Server is a server.
+    types.ServerV2 Server = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -907,6 +912,8 @@ service AuthService {
     rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
     // ListNodes retrieves a paginated list of nodes.
     rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
+    // QueryNodes streams all nodes.
+    rpc QueryNodes(types.NodeQuery) returns (stream QueryNodesResponse);
     // UpsertNode upserts a node in a backend.
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
     // DeleteNode deletes an existing node in a backend described by the given request.

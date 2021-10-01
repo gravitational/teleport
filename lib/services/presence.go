@@ -38,6 +38,9 @@ type Presence interface {
 	// skipped to improve performance.
 	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]Server, error)
 
+	// QueryNodes performs a streaming node query.
+	QueryNodes(ctx context.Context, query types.NodeQuery) (<-chan Server, <-chan error)
+
 	// ListNodes returns a paginated list of registered servers.
 	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
 
@@ -200,4 +203,38 @@ type Presence interface {
 
 	// DeleteAllKubeServices deletes all registered kubernetes services.
 	DeleteAllKubeServices(context.Context) error
+}
+
+// QueryNodesCompat is a helper for returning the result of a GetNodes call as if it were the result of
+// a streaming QueryNodes call (performs filtering internally).
+func QueryNodesCompat(ctx context.Context, query types.NodeQuery, nodes []Server, err error) (<-chan types.Server, <-chan error) {
+	ch := make(chan types.Server)
+	ec := make(chan error, 1)
+
+	closeChans := func() {
+		close(ec)
+		close(ch)
+	}
+
+	if err != nil {
+		ec <- err
+		closeChans()
+		return ch, ec
+	}
+
+	go func() {
+		defer closeChans()
+		for _, node := range nodes {
+			if !query.Match(node) {
+				continue
+			}
+			select {
+			case ch <- node:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return ch, ec
 }

@@ -2454,6 +2454,34 @@ func (g *GRPCServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest)
 	}, nil
 }
 
+func (g *GRPCServer) QueryNodes(req *types.NodeQuery, stream proto.AuthService_QueryNodesServer) error {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > time.Second*2 {
+			log.Warnf("[node-debug] Total QueryNodes service time longer than expected, elapsed=%v.", elapsed)
+		}
+	}()
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	ch, ec := auth.ServerWithRoles.QueryNodes(stream.Context(), *req)
+	for n := range ch {
+		node, ok := n.(*types.ServerV2)
+		if !ok {
+			return trail.ToGRPC(trace.Errorf("encountered unexpected node type: %T", n))
+		}
+		err = stream.Send(&proto.QueryNodesResponse{
+			Server: node,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return <-ec
+}
+
 // UpsertNode upserts a node.
 func (g *GRPCServer) UpsertNode(ctx context.Context, node *services.ServerV2) (*services.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)

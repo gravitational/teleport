@@ -270,6 +270,19 @@ func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
 	s.Spec.KubernetesClusters = clusters
 }
 
+// Match determines if a given server matches a query.
+func (q *NodeQuery) Match(s Server) bool {
+	if q.Namespace != "" && q.Namespace != s.GetNamespace() {
+		return false
+	}
+
+	if len(q.Labels) != 0 && !s.MatchAgainst(q.Labels) {
+		return false
+	}
+
+	return true
+}
+
 // MatchAgainst takes a map of labels and returns True if this server
 // has ALL of them
 //

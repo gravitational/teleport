@@ -540,23 +540,24 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 		return nil, trace.BadParameter(auth.MissingNamespaceError)
 	}
 	nodes := make([]services.Server, 0)
+	start := time.Now()
 	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	siteNodes, err := site.GetNodes(ctx, namespace, services.SkipValidation())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	ch, ec := site.QueryNodes(ctx, types.NodeQuery{
+		Namespace: namespace,
+		Labels:    labels,
+	})
+
+	for n := range ch {
+		nodes = append(nodes, n)
 	}
 
-	// look at every node on this site and see which ones match:
-	for _, node := range siteNodes {
-		if node.MatchAgainst(labels) {
-			nodes = append(nodes, node)
-		}
-	}
-	return nodes, nil
+	log.Infof("[node-debug] QueryNodes completed, elapsed=%v", time.Since(start))
+
+	return nodes, <-ec
 }
 
 // GetAppServers returns a list of application servers.

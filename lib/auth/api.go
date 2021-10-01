@@ -85,6 +85,9 @@ type ReadAccessPoint interface {
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 
+	// QueryNodes performs a streaming node query.
+	QueryNodes(ctx context.Context, query types.NodeQuery) (<-chan types.Server, <-chan error)
+
 	// ListNodes returns a paginated list of registered servers for this cluster.
 	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
 

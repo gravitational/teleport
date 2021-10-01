@@ -244,6 +244,11 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 	return servers, nil
 }
 
+func (s *PresenceService) QueryNodes(ctx context.Context, query types.NodeQuery) (<-chan services.Server, <-chan error) {
+	nodes, err := s.GetNodes(ctx, query.Namespace)
+	return services.QueryNodesCompat(ctx, query, nodes, err)
+}
+
 // ListNodes returns a paginated list of registered servers.
 // StartKey is a resource name, which is the suffix of its key.
 func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {

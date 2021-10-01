@@ -643,6 +643,11 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 	return filteredNodes, nil
 }
 
+func (a *ServerWithRoles) QueryNodes(ctx context.Context, query types.NodeQuery) (<-chan types.Server, <-chan error) {
+	nodes, err := a.GetNodes(ctx, query.Namespace, services.SkipValidation())
+	return services.QueryNodesCompat(ctx, query, nodes, err)
+}
+
 // ListNodes returns a paginated list of nodes filtered by user access.
 func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
 	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {

@@ -1125,6 +1125,11 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	return nodes, err
 }
 
+func (c *Cache) QueryNodes(ctx context.Context, query types.NodeQuery) (<-chan types.Server, <-chan error) {
+	nodes, err := c.GetNodes(ctx, query.Namespace, services.SkipValidation())
+	return services.QueryNodesCompat(ctx, query, nodes, err)
+}
+
 // ListNodes is a part of auth.AccessPoint implementation
 func (c *Cache) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
 	rg, err := c.read()

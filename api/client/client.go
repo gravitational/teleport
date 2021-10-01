@@ -1228,6 +1228,17 @@ func (c *Client) DeleteToken(ctx context.Context, name string) error {
 
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	var nodes []types.Server
+	ch, e := c.QueryNodes(ctx, types.NodeQuery{Namespace: namespace})
+	for node := range ch {
+		nodes = append(nodes, node)
+	}
+	return nodes, <-e
+}
+
+/*
+// GetNodes returns a complete list of nodes that the user has access to in the given namespace.
+func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
@@ -1259,6 +1270,7 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 		}
 	}
 }
+*/
 
 // ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
 // nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
@@ -1286,6 +1298,43 @@ func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, sta
 	}
 
 	return nodes, resp.NextKey, nil
+}
+
+func (c *Client) QueryNodes(ctx context.Context, query types.NodeQuery) (<-chan types.Server, <-chan error) {
+	ch := make(chan types.Server)
+	ec := make(chan error, 1)
+
+	closeChans := func() {
+		close(ec)
+		close(ch)
+	}
+
+	stream, err := c.grpc.QueryNodes(ctx, &query, c.callOpts...)
+	if err != nil {
+		ec <- trace.Wrap(err)
+		closeChans()
+		return ch, ec
+	}
+
+	go func() {
+		defer closeChans()
+		for {
+			rsp, err := stream.Recv()
+			if err != nil {
+				if err != io.EOF {
+					ec <- trace.Wrap(err)
+				}
+				return
+			}
+
+			select {
+			case ch <- rsp.Server:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return ch, ec
 }
 
 // UpsertNode is used by SSH servers to report their presence
