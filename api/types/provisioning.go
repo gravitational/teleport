@@ -255,6 +255,7 @@ func (p *ProvisionTokenV1) V2() *ProvisionTokenV2 {
 	if !p.Expires.IsZero() {
 		t.SetExpiry(p.Expires)
 	}
+	t.CheckAndSetDefaults()
 	return t
 }
 
