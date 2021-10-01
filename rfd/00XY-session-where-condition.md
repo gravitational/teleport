@@ -45,9 +45,9 @@ For list requests, the `where` condition cannot be evaluated as is since there i
 
 As it stands, the list of session recordings is obtained by searching (`SearchEvents`) for `session.end` events. This already makes it difficult to follow the principle of least privilege since the call [requires the ability to list all events](https://github.com/gravitational/teleport/blob/ab57eab5c059b323e4fb50cf02c1134745a19dd1/lib/auth/auth_with_roles.go#L2998), not only the session-related ones.
 
-The [method `SearchSessionEvents`](https://github.com/gravitational/teleport/blob/ab57eab5c059b323e4fb50cf02c1134745a19dd1/lib/events/api.go#L614-L622) appears to have been meant to address this privilege creep: it [checks privileges for `KindSession`](https://github.com/gravitational/teleport/blob/ab57eab5c059b323e4fb50cf02c1134745a19dd1/lib/auth/auth_with_roles.go#L3012) instead of `KindEvent`. The Proxy Web UI shall be updated to call `SearchSessionEvents` instead of `SearchEvents` when showing the list of session recordings.
+The [method `SearchSessionEvents`](https://github.com/gravitational/teleport/blob/ab57eab5c059b323e4fb50cf02c1134745a19dd1/lib/events/api.go#L614-L622) appears to have been meant to address this privilege creep: it [checks privileges for `KindSession`](https://github.com/gravitational/teleport/blob/ab57eab5c059b323e4fb50cf02c1134745a19dd1/lib/auth/auth_with_roles.go#L3012) instead of `KindEvent`. The Proxy Web UI shall be updated to call `SearchSessionEvents` instead of `SearchEvents` when building lists of session recordings.
 
-Moreover, `SearchSessionEvents` shall be modified to search only for `session.end` events (instead of both `session.start` and `session.end`) and also to accept an additional condition for the `where` subcondition described above.
+Moreover, `SearchSessionEvents` shall be modified to search only for `session.end` events (instead of both `session.start` and `session.end`) and to accept an additional parameter for the `where` subcondition described above.
 
 ### Backends
 
