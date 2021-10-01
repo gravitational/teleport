@@ -45,14 +45,17 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
+// tshDeviceType represents the device types that appear in the tsh CLI.
+type tshDeviceType = string
+
 const (
-	totpDeviceType     = "TOTP"
-	u2fDeviceType      = "U2F"
-	webauthnDeviceType = "WEBAUTHN"
+	totpDeviceType     tshDeviceType = "TOTP"
+	u2fDeviceType                    = "U2F"
+	webauthnDeviceType               = "WEBAUTHN"
 )
 
-// deviceTypes lists the supported device types for `tsh mfa add`.
-var deviceTypes = []string{totpDeviceType, u2fDeviceType, webauthnDeviceType}
+// defaultDeviceTypes lists the supported device types for `tsh mfa add`.
+var defaultDeviceTypes = []tshDeviceType{totpDeviceType, u2fDeviceType, webauthnDeviceType}
 
 type mfaCommands struct {
 	ls  *mfaLSCommand
@@ -156,7 +159,7 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 		CmdClause: parent.Command("add", "Add a new MFA device"),
 	}
 	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
-	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(deviceTypes, ", "))).
+	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
 		StringVar(&c.devType)
 	return c
 }
@@ -168,7 +171,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	}
 	ctx := cf.Context
 
-	deviceTypes := deviceTypes
+	deviceTypes := defaultDeviceTypes
 	if c.devType == "" {
 		// If we are prompting the user for the device type, then take a glimpse at
 		// server-side settings and adjust the options accordingly.
@@ -177,16 +180,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Debugf("Got server-side preferred local MFA: %v", pingResp.Auth.PreferredLocalMFA)
-		switch preferredMFA := pingResp.Auth.PreferredLocalMFA; preferredMFA {
-		case constants.SecondFactorOTP: // OTP only
-			deviceTypes = []string{totpDeviceType}
-		case constants.SecondFactorU2F: // OTP+U2F
-			deviceTypes = []string{totpDeviceType, u2fDeviceType}
-		case constants.SecondFactorWebauthn: // OTP+WebAuthn
-			deviceTypes = []string{totpDeviceType, webauthnDeviceType}
-		default: // Empty or unexpected server-side hint, keep the defaults.
-		}
+		deviceTypes = deviceTypesFromPreferredMFA(pingResp.Auth.PreferredLocalMFA)
 
 		c.devType, err = prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Choose device type", deviceTypes)
 		if err != nil {
@@ -223,6 +217,29 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 
 	fmt.Printf("MFA device %q added.\n", dev.Metadata.Name)
 	return nil
+}
+
+func deviceTypesFromPreferredMFA(preferredMFA constants.SecondFactorType) []tshDeviceType {
+	log.Debugf("Got server-side preferred local MFA: %v", preferredMFA)
+
+	m := map[constants.SecondFactorType]string{
+		constants.SecondFactorOTP:      totpDeviceType,
+		constants.SecondFactorU2F:      u2fDeviceType,
+		constants.SecondFactorWebauthn: webauthnDeviceType,
+	}
+
+	// Use preferredMFA as a way to choose between Webauthn and U2F, so both don't
+	// appear together in the interactive UI.
+	// We won't attempt to deal with all nuances of second factor configuration
+	// here, just make a sensible choice and let the backend deal with the rest.
+	switch preferredType, ok := m[preferredMFA]; {
+	case !ok: // Empty or unknown suggestion, fallback to defaults.
+		return defaultDeviceTypes
+	case preferredType == totpDeviceType: // OTP only
+		return []tshDeviceType{preferredType}
+	default: // OTP + Webauthn or U2F
+		return []tshDeviceType{totpDeviceType, preferredType}
+	}
 }
 
 func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportClient, devName string, devType proto.DeviceType) (*types.MFADevice, error) {
