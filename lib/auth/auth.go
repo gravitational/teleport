@@ -3000,7 +3000,11 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// Check RBAC against all matching nodes and return the first error.
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
-			err := checker.CheckAccessToServer(t.Node.Login, n, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
+			err := checker.CheckAccess(
+				n,
+				services.AccessMFAParams{},
+				services.NewLoginMatcher(t.Node.Login),
+			)
 
 			// Ignore other errors; they'll be caught on the real access attempt.
 			if err != nil && errors.Is(err, services.ErrSessionMFARequired) {
@@ -3020,19 +3024,25 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(err)
 		}
 		var cluster *types.KubernetesCluster
+		var server types.Server
 	outer:
 		for _, svc := range svcs {
 			for _, c := range svc.GetKubernetesClusters() {
 				if c.Name == t.KubernetesCluster {
+					server = svc
 					cluster = c
 					break outer
 				}
 			}
 		}
-		if cluster == nil {
+		if cluster == nil || server == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
-		noMFAAccessErr = checker.CheckAccessToKubernetes(apidefaults.Namespace, cluster, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
+		kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), cluster)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		noMFAAccessErr = checker.CheckAccess(kV3, services.AccessMFAParams{})
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
@@ -3053,7 +3063,10 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if db == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
-		noMFAAccessErr = checker.CheckAccessToDatabase(db, services.AccessMFAParams{AlwaysRequired: false, Verified: false})
+		noMFAAccessErr = checker.CheckAccess(
+			db,
+			services.AccessMFAParams{},
+		)
 
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)
