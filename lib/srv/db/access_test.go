@@ -474,11 +474,6 @@ func TestCompatibilityWithOldAgents(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      net.JoinHostPort("localhost", postgresServer.Port()),
-<<<<<<< HEAD
-=======
-		HostID:   testCtx.hostID,
-		Hostname: constants.APIDomain,
->>>>>>> fdca25f02... Revert changes to db srv tests.
 	})
 	require.NoError(t, err)
 	databaseServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
@@ -815,16 +810,8 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 
 	// Create database service agent.
 	if len(databases) > 0 {
-<<<<<<< HEAD
 		testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
 			Databases: databases,
-=======
-		resource, err := types.NewDatabaseServerV3(types.Metadata{
-			Name: testCtx.hostID,
-		}, types.DatabaseServerSpecV3{
-			HostID:   testCtx.hostID,
-			Hostname: constants.APIDomain,
->>>>>>> fdca25f02... Revert changes to db srv tests.
 		})
 	}
 

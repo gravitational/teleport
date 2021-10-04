@@ -22,7 +22,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -58,11 +57,6 @@ func TestHA(t *testing.T) {
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: types.Databases{offlineDB},
 		HostID:    offlineHostID,
-<<<<<<< HEAD
-=======
-		Hostname:  constants.APIDomain,
-		Databases: []*types.DatabaseV3{offlineDB},
->>>>>>> fdca25f02... Revert changes to db srv tests.
 	})
 	testCtx.fakeRemoteSite.OfflineTunnels = map[string]struct{}{
 		fmt.Sprintf("%v.%v", offlineHostID, testCtx.clusterName): {},
@@ -80,11 +74,6 @@ func TestHA(t *testing.T) {
 	onlineServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: types.Databases{onlineDB},
 		HostID:    onlineHostID,
-<<<<<<< HEAD
-=======
-		Hostname:  constants.APIDomain,
-		Databases: []*types.DatabaseV3{onlineDB},
->>>>>>> fdca25f02... Revert changes to db srv tests.
 	})
 	go func() {
 		for conn := range testCtx.proxyConn {
