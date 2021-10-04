@@ -654,7 +654,7 @@ func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, max
 	return nil, nil
 }
 
-// Returns all events that happen during a session sorted by time
+// GetSessionEvents Returns all events that happen during a session sorted by time
 // (oldest first).
 //
 // after tells to use only return events after a specified cursor Id
