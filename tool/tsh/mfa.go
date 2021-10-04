@@ -45,17 +45,14 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
-// tshDeviceType represents the device types that appear in the tsh CLI.
-type tshDeviceType = string
-
 const (
-	totpDeviceType     tshDeviceType = "TOTP"
-	u2fDeviceType      tshDeviceType = "U2F"
-	webauthnDeviceType tshDeviceType = "WEBAUTHN"
+	totpDeviceType     = "TOTP"
+	u2fDeviceType      = "U2F"
+	webauthnDeviceType = "WEBAUTHN"
 )
 
 // defaultDeviceTypes lists the supported device types for `tsh mfa add`.
-var defaultDeviceTypes = []tshDeviceType{totpDeviceType, u2fDeviceType, webauthnDeviceType}
+var defaultDeviceTypes = []string{totpDeviceType, u2fDeviceType, webauthnDeviceType}
 
 type mfaCommands struct {
 	ls  *mfaLSCommand
@@ -219,7 +216,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-func deviceTypesFromPreferredMFA(preferredMFA constants.SecondFactorType) []tshDeviceType {
+func deviceTypesFromPreferredMFA(preferredMFA constants.SecondFactorType) []string {
 	log.Debugf("Got server-side preferred local MFA: %v", preferredMFA)
 
 	m := map[constants.SecondFactorType]string{
@@ -236,9 +233,9 @@ func deviceTypesFromPreferredMFA(preferredMFA constants.SecondFactorType) []tshD
 	case !ok: // Empty or unknown suggestion, fallback to defaults.
 		return defaultDeviceTypes
 	case preferredType == totpDeviceType: // OTP only
-		return []tshDeviceType{preferredType}
+		return []string{preferredType}
 	default: // OTP + Webauthn or U2F
-		return []tshDeviceType{totpDeviceType, preferredType}
+		return []string{totpDeviceType, preferredType}
 	}
 }
 
