@@ -3802,8 +3802,7 @@ func (process *TeleportProcess) singleProcessMode() (string, bool) {
 		// in the single process mode to establish SSH reverse tunnel connection the host is validated against
 		// the valid principal list.
 		if process.Config.Proxy.WebAddr.IsHostUnspecified() {
-			port := process.Config.Proxy.WebAddr.Port(defaults.HTTPListenPort)
-			return net.JoinHostPort(string(teleport.PrincipalLocalhost), strconv.Itoa(port)), true
+			return utils.ReplaceUnspecifiedHost(&process.Config.Proxy.WebAddr, defaults.HTTPListenPort), true
 		}
 		return process.Config.Proxy.WebAddr.String(), true
 	}

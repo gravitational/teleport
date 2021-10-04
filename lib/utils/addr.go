@@ -23,9 +23,10 @@ import (
 	"strconv"
 	"strings"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 // NetAddr is network address that includes network, optional path and
@@ -341,4 +342,13 @@ func guessHostIP(addrs []net.Addr) (ip net.IP) {
 		ip = net.IPv4(127, 0, 0, 1)
 	}
 	return ip
+}
+
+// ReplaceUnspecifiedHost  replaces unspecified "0.0.0.0" host localhost since 0.0.0.0 is never a valid
+// principal (auth server explicitly removes it when issuing host certs) and when a reverse tunnel client used
+// establishes SSH reverse tunnel connection the host is validated against
+// the valid principal list.
+func ReplaceUnspecifiedHost(addr *NetAddr, defaultPort int) string {
+	port := addr.Port(defaultPort)
+	return net.JoinHostPort("localhost", strconv.Itoa(port))
 }

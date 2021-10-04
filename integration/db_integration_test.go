@@ -319,6 +319,42 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 	})
 }
 
+// TestDatabaseAccessUnspecifiedHostname tests DB agent reverse tunnel connection in case where host address is
+// unspecified thus is not present in the valid principal list. The DB agent should replace unspecified address (0.0.0.0)
+// with localhost and successfully establish reverse tunnel connection.
+func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
+	pack := setupDatabaseTest(t,
+		withNodeName("0.0.0.0"),
+	)
+
+	// Connect to the database service in root cluster.
+	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.postgresService.Name,
+			Protocol:    pack.root.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
+	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+	// Disconnect.
+	err = client.Close(context.Background())
+	require.NoError(t, err)
+}
+
 func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
 	max := time.Second
 	timeout := time.After(max)
@@ -380,6 +416,7 @@ type databaseClusterPack struct {
 type testOptions struct {
 	clock             clockwork.Clock
 	instancePortsFunc func() *InstancePorts
+	nodeName          string
 }
 
 type testOptionFunc func(*testOptions)
@@ -391,11 +428,20 @@ func (o *testOptions) setDefaultIfNotSet() {
 	if o.instancePortsFunc == nil {
 		o.instancePortsFunc = standardPortSetup
 	}
+	if o.nodeName == "" {
+		o.nodeName = Host
+	}
 }
 
 func withClock(clock clockwork.Clock) testOptionFunc {
 	return func(o *testOptions) {
 		o.clock = clock
+	}
+}
+
+func withNodeName(nodeName string) testOptionFunc {
+	return func(o *testOptions) {
+		o.nodeName = nodeName
 	}
 }
 
@@ -441,7 +487,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p.root.cluster = NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New(),
-		NodeName:    Host,
+		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
@@ -452,7 +498,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p.leaf.cluster = NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New(),
-		NodeName:    Host,
+		NodeName:    opts.nodeName,
 		Ports:       opts.instancePortsFunc(),
 		Priv:        privateKey,
 		Pub:         publicKey,
