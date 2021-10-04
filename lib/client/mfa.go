@@ -139,7 +139,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		}
 	}
 	return nil, trace.BadParameter(
-		"failed to authenticate using all MFA and TOTP devices, rerun the command with '-d' to see error details for each device")
+		"failed to authenticate using all MFA devices, rerun the command with '-d' to see error details for each device")
 }
 
 func promptU2FChallenges(ctx context.Context, origin string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
