@@ -1342,6 +1342,29 @@ func (l *Log) convertFieldsToDynamoMapFormat(ctx context.Context) error {
 	return trace.Wrap(l.migrateMatchingEvents(ctx, filterExpr, transformEvent))
 }
 
+func minInt64(x, y int64) int64 {
+	if x > y {
+		return y
+	}
+	return x
+}
+
+func (l *Log) approximateOptimalMigrationWorkers() (int64, error) {
+	req := dynamodb.DescribeTableInput{TableName: aws.String(l.Tablename)}
+	table, err := l.svc.DescribeTable(&req)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	// calculate the throughput, accounting for r/w bottlenecks
+	provisioned := table.Table.ProvisionedThroughput
+	throughput := minInt64(*provisioned.ReadCapacityUnits, *provisioned.WriteCapacityUnits)
+
+	// divide throughput by batch size rounding upwards and then take 75% of that
+	optimalWorkers := (throughput + (DynamoBatchSize - 1)) / DynamoBatchSize / 4 * 3
+	return optimalWorkers, nil
+}
+
 // migrateMatchingEvents walks existing events that match the given filter
 // expression and transforms them using the provided transform function.
 //
@@ -1358,7 +1381,12 @@ func (l *Log) migrateMatchingEvents(ctx context.Context, filterExpr string, tran
 	var startKey map[string]*dynamodb.AttributeValue
 	workerCounter := atomic.NewInt32(0)
 	totalProcessed := atomic.NewInt32(0)
-	workerErrors := make(chan error, maxMigrationWorkers)
+	migrationWorkers, err := l.approximateOptimalMigrationWorkers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	workerErrors := make(chan error, migrationWorkers)
 	workerBarrier := sync.WaitGroup{}
 
 	for {
@@ -1377,7 +1405,7 @@ func (l *Log) migrateMatchingEvents(ctx context.Context, filterExpr string, tran
 			// for any missed events after an appropriate grace period which is far worse.
 			ConsistentRead: aws.Bool(true),
 			// `DynamoBatchSize*maxMigrationWorkers` is the maximum concurrent event uploads.
-			Limit:            aws.Int64(DynamoBatchSize * maxMigrationWorkers),
+			Limit:            aws.Int64(DynamoBatchSize * migrationWorkers),
 			TableName:        aws.String(l.Tablename),
 			FilterExpression: aws.String(filterExpr),
 		}
@@ -1390,7 +1418,7 @@ func (l *Log) migrateMatchingEvents(ctx context.Context, filterExpr string, tran
 			return trace.Wrap(convertError(err))
 		}
 
-		writeRequests := make([]*dynamodb.WriteRequest, 0, DynamoBatchSize*maxMigrationWorkers)
+		writeRequests := make([]*dynamodb.WriteRequest, 0, DynamoBatchSize * migrationWorkers)
 
 		// For every item processed by this scan iteration we generate a write request.
 		for _, item := range scanOut.Items {
@@ -1420,7 +1448,7 @@ func (l *Log) migrateMatchingEvents(ctx context.Context, filterExpr string, tran
 			writeRequests = writeRequests[top:]
 
 			// Don't exceed maximum workers.
-			for workerCounter.Load() >= maxMigrationWorkers {
+			for workerCounter.Load() >= int32(migrationWorkers) {
 				select {
 				case <-time.After(time.Millisecond * 50):
 				case <-ctx.Done():
