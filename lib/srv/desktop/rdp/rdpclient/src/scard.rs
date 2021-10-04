@@ -1,26 +1,40 @@
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use crate::piv;
 use crate::Payload;
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use iso7816::command::Command as CardCommand;
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::model::data::Message;
 use rdp::model::error::*;
 use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::{Read, Write};
+use uuid::Uuid;
 
 // Client implements the smartcard emulator, forwarded over an RDP virtual channel.
 // Spec: https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPESC/%5bMS-RDPESC%5d.pdf
 //
 // This emulator always reports a single card reader with a single active card called "Teleport".
-pub struct Client {}
+pub struct Client {
+    contexts: Contexts,
+    uuid: Uuid,
+    cert_der: Vec<u8>,
+    key_der: Vec<u8>,
+}
 
 impl Client {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>) -> Self {
+        Self {
+            contexts: Contexts::new(),
+            uuid: Uuid::new_v4(),
+            cert_der,
+            key_der,
+        }
     }
 
-    pub fn ioctl(&self, code: u32, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
+    pub fn ioctl(&mut self, code: u32, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
         let code = IoctlCode::from_u32(code).ok_or_else(|| {
             invalid_data_error(&format!("invalid I/O control code value {:#010x}", code))
         })?;
@@ -71,18 +85,19 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_establish_context(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_establish_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = EstablishContext_Call::decode(input)?;
         debug!("got {:?}", req);
-        // TODO(awly): consider generating unique context IDs instead of always using 1.
-        let resp = EstablishContext_Return::new(ReturnCode::SCARD_S_SUCCESS, Context::new(1));
+        let ctx = self.contexts.establish();
+        let resp = EstablishContext_Return::new(ReturnCode::SCARD_S_SUCCESS, ctx);
         debug!("sending {:?}", resp);
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_release_context(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_release_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
+        self.contexts.release(req.context.value);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
         Ok(Some(resp.encode()?))
@@ -126,21 +141,30 @@ impl Client {
         }
     }
 
-    fn handle_connect(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_connect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
-        // TODO(awly): consider generating unique context IDs instead of always using 1.
-        let resp = Connect_Return::new(
-            ReturnCode::SCARD_S_SUCCESS,
-            Handle::new(req.common.context, 1),
-        );
+
+        let ctx = self
+            .contexts
+            .get(req.common.context.value)
+            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+        let handle = ctx.connect(req.common.context, self.uuid, &self.cert_der, &self.key_der)?;
+
+        let resp = Connect_Return::new(ReturnCode::SCARD_S_SUCCESS, handle);
         debug!("sending {:?}", resp);
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_disconnect(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_disconnect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
+
+        self.contexts
+            .get(req.handle.context.value)
+            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .disconnect(req.handle.value);
+
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
         Ok(Some(resp.encode()?))
@@ -178,21 +202,35 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_transmit(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_transmit(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = Transmit_Call::decode(input)?;
         debug!("got {:?}", req);
-        // TODO(awly): handle smartcard commands and return a real response.
-        let resp = Transmit_Return::new(ReturnCode::SCARD_S_SUCCESS, vec![]);
+
+        let cmd =
+            CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&req.send_buffer).or_else(|err| {
+                Err(invalid_data_error(&format!(
+                    "failed to parse smartcard command {:?}: {:?}",
+                    &req.send_buffer, err
+                )))
+            })?;
+
+        let card = self
+            .contexts
+            .get(req.handle.context.value)
+            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get(req.handle.value)
+            .ok_or_else(|| invalid_data_error("unknown handle ID"))?;
+
+        let resp = card.handle(cmd)?;
+
+        let resp = Transmit_Return::new(ReturnCode::SCARD_S_SUCCESS, resp.encode());
         debug!("sending {:?}", resp);
         Ok(Some(resp.encode()?))
     }
 }
 
-impl Default for Client {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// TRANSMIT_DATA_LIMIT is the maximum size of transmit request/response short data, in bytes.
+const TRANSMIT_DATA_LIMIT: usize = 1024;
 
 #[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
@@ -881,9 +919,16 @@ bitflags! {
 
 // ATR value taken from
 // http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
-// (dummy smartcard from vsmartcard project).
-const STATIC_ATR: [u8; 12] = [
-    0x3B, 0x68, 0x00, 0xFF, 0x38, 0x2B, 0x41, 0x52, 0x44, 0x6E, 0x73, 0x73,
+// (from vsmartcard project).
+//
+// The data encoded in here seems mostly unimportant, but it's used to identify specific smartcard
+// devices. Windows matches cards to specific minidriver DLLs based on the ATR value, which changes
+// how Windows interacts with the card entirely.
+//
+// This ATR will match us against the default smartcard minidriver:
+// https://docs.microsoft.com/en-us/windows-hardware/drivers/smartcard/windows-inbox-smart-card-minidriver
+const STATIC_ATR: [u8; 11] = [
+    0x3B, 0x95, 0x13, 0x81, 0x01, 0x80, 0x73, 0xFF, 0x01, 0x00, 0x0B,
 ];
 
 fn padded_atr(size: usize) -> (u32, Vec<u8>) {
@@ -1328,9 +1373,80 @@ impl Transmit_Return {
 
         let mut index = 0;
         encode_ptr(self.recv_buffer.len() as u32, &mut index, &mut w)?;
+        w.write_u32::<LittleEndian>(self.recv_buffer.len() as u32)?;
         w.extend_from_slice(&self.recv_buffer);
 
         Ok(w)
+    }
+}
+
+#[derive(Debug)]
+struct Contexts {
+    contexts: HashMap<u32, Handles>,
+    next_id: u32,
+}
+
+impl Contexts {
+    fn new() -> Self {
+        Self {
+            next_id: 1,
+            contexts: HashMap::new(),
+        }
+    }
+
+    fn establish(&mut self) -> Context {
+        let handles = Handles::new();
+        let id = self.next_id;
+        self.next_id += 1;
+        let ctx = Context::new(id);
+        self.contexts.insert(id, handles);
+        ctx
+    }
+
+    fn get(&mut self, id: u32) -> Option<&mut Handles> {
+        self.contexts.get_mut(&id)
+    }
+
+    fn release(&mut self, id: u32) {
+        self.contexts.remove(&id);
+    }
+}
+
+#[derive(Debug)]
+struct Handles {
+    handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
+    next_id: u32,
+}
+
+impl Handles {
+    fn new() -> Self {
+        Self {
+            next_id: 1,
+            handles: HashMap::new(),
+        }
+    }
+
+    fn connect(
+        &mut self,
+        ctx: Context,
+        uuid: Uuid,
+        cert_der: &[u8],
+        key_der: &[u8],
+    ) -> RdpResult<Handle> {
+        let card = piv::Card::new(uuid, cert_der, key_der)?;
+        let id = self.next_id;
+        self.next_id += 1;
+        let handle = Handle::new(ctx, id);
+        self.handles.insert(id, card);
+        Ok(handle)
+    }
+
+    fn get(&mut self, id: u32) -> Option<&mut piv::Card<TRANSMIT_DATA_LIMIT>> {
+        self.handles.get_mut(&id)
+    }
+
+    fn disconnect(&mut self, id: u32) {
+        self.handles.remove(&id);
     }
 }
 
