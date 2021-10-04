@@ -30,12 +30,10 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -461,38 +459,5 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req a
 		return nil, trace.Wrap(err)
 	}
 
-	// Pre v8 clusters will return packedKeys rather than proto.Certs.
-	// Unmarshal as packedKeys and restructure these into proto.Certs.
-	// DELETE IN 9.0.0 (Joerger/zmb3)
-	isPreV8, err := isPreV8Cluster(ctx, proxyAddr, insecure)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	} else if isPreV8 {
-		return auth.UnmarshalLegacyCerts(resp.Bytes())
-	}
-
-	var certs *proto.Certs
-	err = json.Unmarshal(resp.Bytes(), &certs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return certs, nil
-}
-
-// isPreV8Cluster checks if the cluster is older than 8.0.0.
-func isPreV8Cluster(ctx context.Context, proxyAddr string, insecure bool) (bool, error) {
-	resp, err := webclient.Find(ctx, proxyAddr, insecure, nil)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	err = utils.CheckVersion(resp.ServerVersion, utils.VersionBeforeAlpha("8.0.0"))
-	if trace.IsBadParameter(err) {
-		return true, nil
-	} else if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	return false, nil
+	return auth.UnmarshalLegacyCerts(resp.Bytes())
 }
