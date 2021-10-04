@@ -66,10 +66,6 @@ import (
 	utilexec "k8s.io/client-go/util/exec"
 )
 
-func init() {
-	mathrand.Seed(time.Now().UnixNano())
-}
-
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
 type KubeServiceType int
 
@@ -1394,7 +1390,7 @@ func (s *clusterSession) DialWithEndpoints(network, addr string) (net.Conn, erro
 // This is separated from DialWithEndpoints for testing without monitorConn.
 func (s *clusterSession) dialWithEndpoints(ctx context.Context, network, addr string) (net.Conn, error) {
 	if len(s.teleportClusterEndpoints) == 0 {
-		return nil, trace.BadParameter("No endpoints to dial")
+		return nil, trace.BadParameter("no endpoints to dial")
 	}
 
 	// Shuffle endpoints to balance load
