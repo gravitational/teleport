@@ -29,7 +29,7 @@ import (
 // NewStaticFileSystem returns the initialized implementation of http.FileSystem
 // interface which can be used to serve Teleport Proxy Web UI
 func NewStaticFileSystem() (http.FileSystem, error) {
-	wfs, err := fs.Sub(teleport.EmbedFS(), teleport.WebAssetsBuildDir)
+	wfs, err := fs.Sub(teleport.EmbedFS(), teleport.WebAssetsDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
