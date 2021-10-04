@@ -50,8 +50,8 @@ type tshDeviceType = string
 
 const (
 	totpDeviceType     tshDeviceType = "TOTP"
-	u2fDeviceType                    = "U2F"
-	webauthnDeviceType               = "WEBAUTHN"
+	u2fDeviceType      tshDeviceType = "U2F"
+	webauthnDeviceType tshDeviceType = "WEBAUTHN"
 )
 
 // defaultDeviceTypes lists the supported device types for `tsh mfa add`.
