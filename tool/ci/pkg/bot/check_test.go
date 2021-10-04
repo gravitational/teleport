@@ -71,15 +71,15 @@ func TestContainsApprovalReview(t *testing.T) {
 		{name: "baz", status: "APPROVED", commitID: "ba0d35", id: 1},
 	}
 	// Has a review but no approval
-	_, ok := hasApproved("bar", reviews)
+	ok := hasApproved("bar", reviews)
 	require.Equal(t, false, ok)
 
 	// Does not have revire from reviewer
-	_, ok = hasApproved("car", reviews)
+	ok = hasApproved("car", reviews)
 	require.Equal(t, false, ok)
 
 	// Has review and is approved
-	_, ok = hasApproved("foo", reviews)
+	ok = hasApproved("foo", reviews)
 	require.Equal(t, true, ok)
 }
 
@@ -89,21 +89,34 @@ func TestHasNewCommit(t *testing.T) {
 		{name: "bar", status: "Commented", commitID: "fe324c", id: 2},
 		{name: "baz", status: "APPROVED", commitID: "ba0d35", id: 3},
 	}
-	ok := hasNewCommit("fe324e", reviews)
-	require.Equal(t, true, ok)
+	revs := getReviewsAtHead("fe324c", reviews)
+	require.Equal(t, 1, len(revs))
 
 	reviews = []review{
 		{name: "foo", status: "APPROVED", commitID: "fe324c", id: 1},
 		{name: "bar", status: "Commented", commitID: "fe324c", id: 2},
 		{name: "baz", status: "APPROVED", commitID: "fe324c", id: 3},
 	}
-	ok = hasNewCommit("fe324c", reviews)
-	require.Equal(t, false, ok)
+	revs = getReviewsAtHead("fe324c", reviews)
+	require.Equal(t, 3, len(revs))
+}
+
+func TestHasRequiredApprovals(t *testing.T) {
+	reviews := []review{
+		{name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
+		{name: "bar", status: "APPROVED", commitID: "ba0d35", id: 3},
+	}
+	required := []string{"foo", "bar"}
+	err := hasRequiredApprovals(reviews, required)
+	require.NoError(t, err)
+
 	reviews = []review{
 		{name: "foo", status: "APPROVED", commitID: "fe324c", id: 1},
-		{name: "bar", status: "APPROVED", commitID: "fe324c", id: 2},
+		{name: "bar", status: "Commented", commitID: "fe324c", id: 2},
 		{name: "baz", status: "APPROVED", commitID: "fe324c", id: 3},
 	}
-	ok = hasNewCommit("fe324d", reviews)
-	require.Equal(t, true, ok)
+	required = []string{"foo", "reviewer"}
+	err = hasRequiredApprovals(reviews, required)
+	require.Error(t, err)
+
 }
