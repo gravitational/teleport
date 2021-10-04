@@ -83,8 +83,10 @@ func (s *WindowsDesktopServiceV3) GetTeleportVersion() string {
 type WindowsDesktop interface {
 	// Resource provides common resource methods.
 	Resource
-	// GetAddr returns the network address of this service.
+	// GetAddr returns the network address of this host.
 	GetAddr() string
+	// GetDomain returns the ActiveDirectory domain of this host.
+	GetDomain() string
 }
 
 var _ WindowsDesktop = &WindowsDesktopV3{}
@@ -127,4 +129,9 @@ func (d *WindowsDesktopV3) CheckAndSetDefaults() error {
 // GetAddr returns the network address of this host.
 func (d *WindowsDesktopV3) GetAddr() string {
 	return d.Spec.Addr
+}
+
+// GetAddr returns the ActiveDirectory domain of this host.
+func (d *WindowsDesktopV3) GetDomain() string {
+	return d.Spec.Domain
 }
