@@ -14,7 +14,10 @@ kubeClusterName: ""
 ##################################################
 # Values that you may need to change.
 ##################################################
-
+#Authentication type
+authentication:
+  type: local
+  second_factor: otp
 # Version of teleport image, if different from chart version in Chart.yaml.
 teleportVersionOverride: ""
 

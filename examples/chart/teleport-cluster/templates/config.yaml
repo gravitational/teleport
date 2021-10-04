@@ -35,6 +35,11 @@ data:
     auth_service:
       enabled: true
       cluster_name: {{ required "clusterName is required in chart values" .Values.clusterName }}
+      {{- if .Values.authentication }}
+      authentication:
+        type:  {{ required "authentication type is required in chart values" .Values.authentication.type }}
+        second_factor:  {{ required "second factor auth type is required in chart values" .Values.authentication.second_factor }}
+      {{- end }}
   {{- if .Values.enterprise }}
       license_file: '/var/lib/license/license.pem'
   {{- end }}
