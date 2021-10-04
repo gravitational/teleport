@@ -1099,7 +1099,7 @@ func (s *APIServer) generateHostCerts(auth ClientI, w http.ResponseWriter, r *ht
 	// Pass along the remote address the request came from to the registration function.
 	req.RemoteAddr = r.RemoteAddr
 
-	keys, err := auth.GenerateHostCerts(r.Context(), &proto.HostCertsRequest{
+	certs, err := auth.GenerateHostCerts(r.Context(), &proto.HostCertsRequest{
 		HostID:               req.HostID,
 		NodeName:             req.NodeName,
 		Role:                 req.Roles[0],
@@ -1114,7 +1114,7 @@ func (s *APIServer) generateHostCerts(auth ClientI, w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	return keys, nil
+	return LegacyCertsFromProto(certs), nil
 }
 
 func (s *APIServer) rotateCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

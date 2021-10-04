@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"encoding/json"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -413,4 +414,46 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	}
 
 	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
+}
+
+// LegacyCerts is equivalent to proto.Certs, but
+// uses JSON keys expected by old (7.x and earlier) clients
+// DELETE in 9.0.0 (Joerger/zmb3)
+type LegacyCerts struct {
+	SSHCert    []byte   `json:"cert"`
+	TLSCert    []byte   `json:"tls_cert"`
+	TLSCACerts [][]byte `json:"tls_ca_certs"`
+	SSHCACerts [][]byte `json:"ssh_ca_certs"`
+}
+
+// LegacyCertsFromProto converts LegacyCerts to proto.Certs.
+// DELETE in 9.0.0 (Joerger/zmb3)
+func (c *LegacyCerts) ToProto() *proto.Certs {
+	return &proto.Certs{
+		SSH:        c.SSHCert,
+		TLS:        c.TLSCert,
+		TLSCACerts: c.TLSCACerts,
+		SSHCACerts: c.SSHCACerts,
+	}
+}
+
+// LegacyCertsFromProto converts proto.Certs to LegacyCerts.
+// DELETE in 9.0.0 (Joerger/zmb3)
+func LegacyCertsFromProto(c *proto.Certs) *LegacyCerts {
+	return &LegacyCerts{
+		SSHCert:    c.SSH,
+		TLSCert:    c.TLS,
+		SSHCACerts: c.SSHCACerts,
+		TLSCACerts: c.TLSCACerts,
+	}
+}
+
+// UnmarshalLegacyCerts unmarshals the a legacy certs response as proto.Certs.
+// DELETE in 9.0.0 (Joerger/zmb3)
+func UnmarshalLegacyCerts(bytes []byte) (*proto.Certs, error) {
+	var certs LegacyCerts
+	if err := json.Unmarshal(bytes, &certs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certs.ToProto(), nil
 }
