@@ -1195,6 +1195,24 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		})
 	}
 
+	for _, rule := range fc.WindowsDesktop.HostLabels {
+		r, err := regexp.Compile(rule.Match)
+		if err != nil {
+			return trace.BadParameter("WindowsDesktopService specifies invalid regexp %q", rule.Match)
+		}
+
+		for k := range rule.Labels {
+			if !types.IsValidLabelKey(k) {
+				return trace.BadParameter("WindowsDesktopService specifies invalid label %v", k)
+			}
+		}
+
+		cfg.WindowsDesktop.HostLabels = append(cfg.WindowsDesktop.HostLabels, service.HostLabelRule{
+			Regexp: r,
+			Labels: rule.Labels,
+		})
+	}
+
 	return nil
 }
 
