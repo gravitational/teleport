@@ -1,0 +1,87 @@
+---
+title: Setup WebAuthn for Teleport Cloud
+description: Setup WebAuthn for local users in Teleport Cloud
+---
+
+This guide will walk you through setting up second factor authentication for
+local accounts.
+
+## Step 1/3. Install client libraries
+
+Install client libraries:
+
+<Tabs>
+  <TabItem label="Linux">
+    ```code
+    $ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    # verify signature 
+    $ echo "$(curl  https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256)" | sha256sum --check 
+    $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    $ cd teleport-ent
+    $ sudo ./install
+    ```
+  </TabItem>
+</Tabs>
+
+Login with a teleport user with editor privileges:
+
+```code
+# tsh logs you in and receives short-lived certificates
+$ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
+# try out the connection
+$ tctl get nodes
+```
+
+## Step 2/3. Configure auth
+
+Create a YAML file `cap.yaml`:
+
+Replace `example.teleport.sh` with the name of your Teleport cloud cluster:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  # on will support both TOTP and WebAuthn. You can set it to 'webauthn' to allow only WebAuthn second factor.
+  second_factor: 'on'
+  type: local
+  webauthn:
+    rp_id: 'example.teleport.sh'
+version: v2
+```
+
+Create a resource:
+
+```code
+$ tctl create -f cap.yaml
+```
+
+Refer to the [WebAuthn access control guide](
+../../access-controls/guides/webauthn/#enable-webauthn) for additional
+configuration settings.
+
+## Step 3/3. Add WebAuthn device
+
+Try out the WebAuthn integration using CLI:
+
+```code
+$ tsh mfa ls
+# Name            Type     Added at                      Last used
+# --------------- -------- ----------------------------- -----------------------------
+# android OTP     TOTP     Mon, 04 Aug 2021 18:25:27 UTC Fri, 01 Oct 2021 17:41:59 UTC
+# desktop yubikey WebAuthn Mon, 04 Oct 2021 22:02:09 UTC Mon, 04 Oct 2021 22:02:09 UTC
+```
+
+Add WebAuthn device:
+
+```code
+$ tsh mfa add
+# Choose device type [TOTP, WEBAUTHN]: webauthn
+# Enter device name: keychain yubikey
+# Tap any *registered* security key or enter a code from a *registered* OTP device:
+# Tap your *new* security key
+# MFA device "keychain yubikey" added.
+```
+
+You can now login with Web UI or CLI using WebAuthn.
