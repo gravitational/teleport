@@ -1428,7 +1428,7 @@ func (l *Log) migrateMatchingEvents(ctx context.Context, filterExpr string, tran
 			return trace.Wrap(convertError(err))
 		}
 
-		writeRequests := make([]*dynamodb.WriteRequest, 0, DynamoBatchSize * migrationWorkers)
+		writeRequests := make([]*dynamodb.WriteRequest, 0, DynamoBatchSize*migrationWorkers)
 
 		// For every item processed by this scan iteration we generate a write request.
 		for _, item := range scanOut.Items {
