@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -1142,6 +1143,24 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	for _, rule := range fc.WindowsDesktop.HostLabels {
+		r, err := regexp.Compile(rule.Match)
+		if err != nil {
+			return trace.BadParameter("WindowsDesktopService specifies invalid regexp %q", rule.Match)
+		}
+
+		for k := range rule.Labels {
+			if !types.IsValidLabelKey(k) {
+				return trace.BadParameter("WindowsDesktopService specifies invalid label %v", k)
+			}
+		}
+
+		cfg.WindowsDesktop.HostLabels = append(cfg.WindowsDesktop.HostLabels, service.HostLabelRule{
+			Regexp: r,
+			Labels: rule.Labels,
+		})
 	}
 
 	return nil

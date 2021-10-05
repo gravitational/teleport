@@ -3406,7 +3406,11 @@ func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context) ([]types.Windo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return hosts, nil
+	filtered, err := a.filterWindowsDesktops(hosts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return filtered, nil
 }
 
 // GetWindowsDesktop returns a registered windows desktop host.
@@ -3418,6 +3422,11 @@ func (a *ServerWithRoles) GetWindowsDesktop(ctx context.Context, name string) (t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if filtered, err := a.filterWindowsDesktops([]types.WindowsDesktop{host}); err != nil {
+		return nil, trace.Wrap(err)
+	} else if len(filtered) == 0 {
+		return nil, trace.NotFound("not found")
+	}
 	return host, nil
 }
 
@@ -3426,12 +3435,31 @@ func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.Wind
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	// TODO(zmb3): support dynamic desktop registration
+	if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return trace.AccessDenied("access denied")
+	}
 	return a.authServer.CreateWindowsDesktop(ctx, s)
 }
 
 // UpdateWindowsDesktop updates an existing windows desktop host.
 func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return nil
+	}
+
+	existing, err := a.authServer.GetWindowsDesktop(ctx, s.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToWindowsDesktop(existing); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToWindowsDesktop(s); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpdateWindowsDesktop(ctx, s)
@@ -3442,6 +3470,13 @@ func (a *ServerWithRoles) DeleteWindowsDesktop(ctx context.Context, name string)
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+	desktop, err := a.authServer.GetWindowsDesktop(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToWindowsDesktop(desktop); err != nil {
+		return trace.Wrap(err)
+	}
 	return a.authServer.DeleteWindowsDesktop(ctx, name)
 }
 
@@ -3450,7 +3485,69 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteAllWindowsDesktops(ctx)
+	// Only delete the desktops the user has access to.
+	desktops, err := a.authServer.GetWindowsDesktops(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, desktop := range desktops {
+		if err := a.checkAccessToWindowsDesktop(desktop); err == nil {
+			if err := a.authServer.DeleteWindowsDesktop(ctx, desktop.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}
+
+func (a *ServerWithRoles) filterWindowsDesktops(desktops []types.WindowsDesktop) ([]types.WindowsDesktop, error) {
+	// For certain built-in roles allow full access
+	if a.hasBuiltinRole(string(types.RoleAdmin)) ||
+		a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return desktops, nil
+	}
+
+	roleset, err := services.FetchRoles(a.context.User.GetRoles(), a.authServer, a.context.User.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract all unique allowed logins across all roles.
+	allowedLogins := make(map[string]bool)
+	for _, role := range roleset {
+		for _, login := range role.GetWindowsLogins(services.Allow) {
+			allowedLogins[login] = true
+		}
+	}
+
+	filtered := make([]types.WindowsDesktop, 0, len(desktops))
+	// MFA is not required to list the nodes, but will be required to connect
+	mfaParams := services.AccessMFAParams{Verified: true}
+NextDesktop:
+	for _, desktop := range desktops {
+		for login := range allowedLogins {
+			err := roleset.CheckAccess(
+				desktop,
+				mfaParams,
+				services.NewWindowsLoginMatcher(login))
+			if err == nil {
+				filtered = append(filtered, desktop)
+				continue NextDesktop
+			}
+		}
+	}
+
+	return filtered, nil
+}
+
+func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) error {
+	return a.context.Checker.CheckAccess(w,
+		// MFA is not required for operations on desktop resources
+		// TODO(zmb3): per-session MFA for desktops will be added after general availability
+		services.AccessMFAParams{Verified: true},
+		// Note: we don't use the Windows login matcher here, as we won't know what OS user
+		// the user is trying to log in as until they initiate the connection.
+	)
 }
 
 // StartAccountRecovery is implemented by AuthService.StartAccountRecovery.

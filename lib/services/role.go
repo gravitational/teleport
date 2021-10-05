@@ -1621,6 +1621,27 @@ func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool
 	return false, nil
 }
 
+type windowsLoginMatcher struct {
+	login string
+}
+
+// NewWindowsLoginMatcher creates a RoleMatcher that checks whether the role's
+// Windows desktop logins match the specified condition.
+func NewWindowsLoginMatcher(login string) RoleMatcher {
+	return &windowsLoginMatcher{login: login}
+}
+
+// Match matches a Windows Desktop login against a role.
+func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	logins := role.GetWindowsLogins(typ)
+	for _, login := range logins {
+		if l.login == login {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
 type AccessCheckable interface {
 	GetKind() string
@@ -1664,6 +1685,8 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		getRoleLabels = types.Role.GetNodeLabels
 	case types.KindKubernetesCluster:
 		getRoleLabels = types.Role.GetKubernetesLabels
+	case types.KindWindowsDesktop:
+		getRoleLabels = types.Role.GetWindowsDesktopLabels
 	default:
 		return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
 	}

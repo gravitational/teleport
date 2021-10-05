@@ -1,4 +1,5 @@
-//+build desktop_access_beta
+//go:build desktop_access_beta
+// +build desktop_access_beta
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -53,7 +54,7 @@ package rdpclient
 /*
 // Flags to include the static Rust library.
 #cgo linux LDFLAGS: -L${SRCDIR}/target/debug -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/debug -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/debug -L/opt/homebrew/opt/openssl@3/lib -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
 #include <librdprs.h>
 */
 import "C"
@@ -63,6 +64,7 @@ import (
 	"image"
 	"os"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/gravitational/trace"
@@ -84,6 +86,8 @@ type Config struct {
 	InputMessage func() (deskproto.Message, error)
 	// OutputMessage is called to send a message from RDP server to the client.
 	OutputMessage func(deskproto.Message) error
+	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
+	AuthorizeFn func(login string) error
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
 }
@@ -97,6 +101,9 @@ func (c *Config) checkAndSetDefaults() error {
 	}
 	if c.OutputMessage == nil {
 		return trace.BadParameter("missing OutputMessage in rdpclient.Config")
+	}
+	if c.AuthorizeFn == nil {
+		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")
 	}
 	if c.Log == nil {
 		c.Log = logrus.New()
@@ -114,6 +121,9 @@ type Client struct {
 	rustClient                *C.Client
 	wg                        sync.WaitGroup
 	closeOnce                 sync.Once
+
+	clientActivityMu sync.RWMutex
+	clientLastActive time.Time
 }
 
 // New creates and connects a new Client based on cfg.
@@ -124,6 +134,9 @@ func New(cfg Config) (*Client, error) {
 	c := &Client{cfg: cfg}
 
 	if err := c.readClientUsername(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := cfg.AuthorizeFn(c.username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := c.readClientSize(); err != nil {
@@ -206,7 +219,7 @@ func (c *Client) start() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		defer c.closeConn()
+		defer c.Close()
 		defer c.cfg.Log.Info("RDP output streaming finished")
 
 		clientRef := registerClient(c)
@@ -221,7 +234,7 @@ func (c *Client) start() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		defer c.closeConn()
+		defer c.Close()
 		defer c.cfg.Log.Info("RDP input streaming finished")
 		var mouseX, mouseY uint32
 		for {
@@ -230,6 +243,7 @@ func (c *Client) start() {
 				c.cfg.Log.Warningf("Failed reading RDP input message: %v", err)
 				return
 			}
+			c.UpdateClientActivity()
 			switch m := msg.(type) {
 			case deskproto.MouseMove:
 				mouseX, mouseY = m.X, m.Y
@@ -321,12 +335,32 @@ func (c *Client) Wait() error {
 	return nil
 }
 
-func (c *Client) closeConn() {
+// Close shuts down the client and closes any existing connections.
+// It is safe to call multiple times, from multiple goroutines.
+// Calls other than the first one are no-ops.
+func (c *Client) Close() error {
 	c.closeOnce.Do(func() {
 		if err := cgoError(C.close_rdp(c.rustClient)); err != nil {
 			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
 		}
 	})
+	return nil
+}
+
+// GetClientLastActive returns the time of the last recorded activity.
+// For RDP, "activity" is defined as user-input messages
+// (mouse move, button press, etc.)
+func (c *Client) GetClientLastActive() time.Time {
+	c.clientActivityMu.RLock()
+	defer c.clientActivityMu.RUnlock()
+	return c.clientLastActive
+}
+
+// UpdateClientActivity updates the client activity timestamp.
+func (c *Client) UpdateClientActivity() {
+	c.clientActivityMu.Lock()
+	c.clientLastActive = time.Now().UTC()
+	c.clientActivityMu.Unlock()
 }
 
 func cgoError(s C.CGOError) error {
@@ -345,6 +379,7 @@ func free_go_string(s *C.char) {
 
 // Global registry of active clients. This allows Rust to reference a specific
 // client without sending actual objects around.
+// TODO(zmb3) replace this with cgo.Handle when we move to Go 1.17
 var (
 	clientsMu    = &sync.RWMutex{}
 	clients      = make(map[int64]*Client)

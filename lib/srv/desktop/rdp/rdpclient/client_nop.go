@@ -1,4 +1,5 @@
-//+build !desktop_access_beta
+//go:build !desktop_access_beta
+// +build !desktop_access_beta
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -24,6 +25,7 @@ package rdpclient
 
 import (
 	"errors"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -39,6 +41,8 @@ type Config struct {
 	InputMessage func() (deskproto.Message, error)
 	// OutputMessage is called to send a message from RDP server to the client.
 	OutputMessage func(deskproto.Message) error
+	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
+	AuthorizeFn func(login string) error
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
 }
@@ -56,3 +60,16 @@ func New(cfg Config) (*Client, error) {
 func (c *Client) Wait() error {
 	return errors.New("the real rdpclient.Client implementation was not included in this build")
 }
+
+// Close shuts down the client and closes any existing connections.
+func (c *Client) Close() error {
+	return nil
+}
+
+// GetClientLastActive returns the time of the last recorded activity.
+func (c *Client) GetClientLastActive() time.Time {
+	return time.Now().UTC()
+}
+
+// UpdateClientActivity updates the client activity timestamp.
+func (c *Client) UpdateClientActivity() {}

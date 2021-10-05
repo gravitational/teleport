@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -145,6 +146,24 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		log.Info("Started reverse tunnel client.")
 	}
 
+	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentWindowsDesktop,
+			Log:       log,
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+
+	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	tlsConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
@@ -186,13 +205,17 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	}
 
 	srv, err := desktop.NewWindowsService(desktop.WindowsServiceConfig{
-		Log:         log,
-		Clock:       process.Clock,
-		TLS:         tlsConfig,
-		AccessPoint: accessPoint,
-		ConnLimiter: connLimiter,
+		Log:          log,
+		Clock:        process.Clock,
+		Authorizer:   authorizer,
+		Emitter:      conn.Client,
+		TLS:          tlsConfig,
+		AccessPoint:  accessPoint,
+		ConnLimiter:  connLimiter,
+		LockWatcher:  lockWatcher,
+		HostLabelsFn: cfg.WindowsDesktop.HostLabels.LabelsForHost,
 		Heartbeat: desktop.HeartbeatConfig{
-			HostUUID:    process.Config.HostUUID,
+			HostUUID:    cfg.HostUUID,
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.Hosts,
 			OnHeartbeat: func(err error) {

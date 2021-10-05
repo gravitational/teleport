@@ -31,9 +31,11 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
@@ -60,6 +62,12 @@ type WindowsServiceConfig struct {
 	Log logrus.FieldLogger
 	// Clock provides current time.
 	Clock clockwork.Clock
+	// Authorizer is used to authorize requests.
+	Authorizer auth.Authorizer
+	// LockWatcher is used to monitor for new locks.
+	LockWatcher *services.LockWatcher
+	// Emitter emits audit log events.
+	Emitter events.Emitter
 	// TLS is the TLS server configuration.
 	TLS *tls.Config
 	// AccessPoint is the Auth API client (with caching).
@@ -68,6 +76,8 @@ type WindowsServiceConfig struct {
 	ConnLimiter *limiter.ConnectionsLimiter
 	// Heartbeat contains configuration for service heartbeats.
 	Heartbeat HeartbeatConfig
+	// HostLabelsFn gets labels that should be applied to a Windows host.
+	HostLabelsFn func(host string) map[string]string
 }
 
 // HeartbeatConfig contains the configuration for service heartbeats.
@@ -89,6 +99,15 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.Authorizer == nil {
+		return trace.BadParameter("WindowsServiceConfig is missing Authorizer")
+	}
+	if cfg.LockWatcher == nil {
+		return trace.BadParameter("WindowsServiceConfig is missing LockWatcher")
+	}
+	if cfg.Emitter == nil {
+		return trace.BadParameter("WindowsServiceConfig is missing Emitter")
 	}
 	if cfg.TLS == nil {
 		return trace.BadParameter("WindowsServiceConfig is missing TLS")
@@ -126,6 +145,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	ctx, close := context.WithCancel(context.Background())
 	s := &WindowsService{
 		cfg: cfg,
@@ -138,7 +158,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	}
 
 	// TODO(awly): session recording.
-	// TODO(awly): user locking.
+	// TODO(zmb3): LDAP host discovery
 
 	if err := s.startServiceHeartbeat(); err != nil {
 		return nil, trace.Wrap(err)
@@ -188,7 +208,7 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 			Component:       teleport.ComponentWindowsDesktop,
 			Mode:            srv.HeartbeatModeWindowsDesktop,
 			Announcer:       s.cfg.AccessPoint,
-			GetServerInfo:   s.getHostHeartbeatInfo(host),
+			GetServerInfo:   s.getHostHeartbeatInfo(host, s.cfg.HostLabelsFn),
 			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
 			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 			CheckPeriod:     defaults.HeartbeatCheckPeriod,
@@ -268,36 +288,89 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	}
 	log.Debug("Authenticated Windows desktop connection")
 
+	authContext, err := s.cfg.Authorizer.Authorize(ctx)
+	if err != nil {
+		log.WithError(err).Warning("authorization failed for Windows desktop connection")
+		return
+	}
+
 	desktopUUID := strings.TrimSuffix(tlsCon.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-uuid", desktopUUID)
+
 	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopUUID)
 	if err != nil {
 		log.WithError(err).Warning("Failed to fetch desktop by UUID")
 		return
 	}
+
 	log = log.WithField("desktop-addr", desktop.GetAddr())
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	// TODO(awly): authorization
-
-	if err := s.connectRDP(log, tlsCon, desktop); err != nil {
+	if err := s.connectRDP(ctx, log, tlsCon, desktop, authContext); err != nil {
 		log.WithError(err).Error("RDP connection failed")
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(log logrus.FieldLogger, con net.Conn, desktop types.WindowsDesktop) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, con net.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+	identity := authCtx.Identity.GetIdentity()
+	roleset, err := services.FetchRoles(identity.Groups, s.cfg.AccessPoint, identity.Traits)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(context.TODO())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authPref, err := s.cfg.AccessPoint.GetAuthPreference(context.TODO())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authorize := func(login string) error {
+		return roleset.CheckAccess(
+			desktop,
+			services.AccessMFAParams{Verified: true},
+			services.NewWindowsLoginMatcher(login))
+	}
+
 	dpc := deskproto.NewConn(con)
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log:           log,
 		Addr:          desktop.GetAddr(),
 		InputMessage:  dpc.InputMessage,
 		OutputMessage: dpc.OutputMessage,
+		AuthorizeFn:   authorize,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	monitorCfg := srv.MonitorConfig{
+		Context:           ctx,
+		Conn:              con,
+		Clock:             s.cfg.Clock,
+		ClientIdleTimeout: roleset.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		Entry:             log,
+		Emitter:           s.cfg.Emitter,
+		LockWatcher:       s.cfg.LockWatcher,
+		LockTargets:       services.LockTargetsFromTLSIdentity(identity),
+		Tracker:           rdpc,
+		TeleportUser:      authCtx.Identity.GetIdentity().Username,
+		ServerID:          desktop.GetName(),
+	}
+	shouldDisconnectExpiredCert := roleset.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
+	if shouldDisconnectExpiredCert && !identity.Expires.IsZero() {
+		monitorCfg.DisconnectExpiredCert = identity.Expires
+	}
+
+	if err := srv.StartMonitor(monitorCfg); err != nil {
+		rdpc.Close()
+	}
+
 	return trace.Wrap(rdpc.Wait())
 }
 
@@ -315,7 +388,8 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 	return srv, nil
 }
 
-func (s *WindowsService) getHostHeartbeatInfo(netAddr utils.NetAddr) func() (types.Resource, error) {
+func (s *WindowsService) getHostHeartbeatInfo(netAddr utils.NetAddr,
+	getHostLabels func(string) map[string]string) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
 		addr := netAddr.String()
 		name, err := s.nameForStaticHost(addr)
@@ -324,7 +398,7 @@ func (s *WindowsService) getHostHeartbeatInfo(netAddr utils.NetAddr) func() (typ
 		}
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
-			nil, // TODO(awly): set RBAC labels.
+			getHostLabels(name), // TODO(zmb3): include teleport.dev/origin (see #8519)
 			types.WindowsDesktopSpecV3{
 				Addr: addr,
 			})
