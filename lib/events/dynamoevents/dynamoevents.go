@@ -1356,7 +1356,7 @@ func maxInt64(x, y int64) int64 {
 	return y
 }
 
-func (l *Log) approximateOptimalMigrationWorkers() (int64, error) {
+func (l *Log) approximateOptimalMigrationWorkers() (int32, error) {
 	req := dynamodb.DescribeTableInput{TableName: aws.String(l.Tablename)}
 	table, err := l.svc.DescribeTable(&req)
 	if err != nil {
@@ -1372,7 +1372,8 @@ func (l *Log) approximateOptimalMigrationWorkers() (int64, error) {
 
 	// divide throughput by batch size rounding upwards and then take 75% of that
 	optimalWorkers := (throughput + (DynamoBatchSize - 1)) / DynamoBatchSize * 3 / 4
-	return minInt64(maxInt64(optimalWorkers, 1), maxMigrationWorkers), nil
+	clamped := minInt64(maxInt64(optimalWorkers, 1), maxMigrationWorkers)
+	return int32(clamped), nil
 }
 
 // migrateMatchingEvents walks existing events that match the given filter
@@ -1415,7 +1416,7 @@ func (l *Log) migrateMatchingEvents(ctx context.Context, filterExpr string, tran
 			// for any missed events after an appropriate grace period which is far worse.
 			ConsistentRead: aws.Bool(true),
 			// `DynamoBatchSize*maxMigrationWorkers` is the maximum concurrent event uploads.
-			Limit:            aws.Int64(DynamoBatchSize * migrationWorkers),
+			Limit:            aws.Int64(DynamoBatchSize * int64(migrationWorkers)),
 			TableName:        aws.String(l.Tablename),
 			FilterExpression: aws.String(filterExpr),
 		}
