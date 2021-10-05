@@ -509,9 +509,6 @@ type AuthConfig struct {
 	// the auth server.
 	Preference types.AuthPreference
 
-	// ClusterConfig stores cluster level configuration.
-	ClusterConfig types.ClusterConfig
-
 	// AuditConfig stores cluster audit configuration.
 	AuditConfig types.ClusterAuditConfig
 
@@ -633,11 +630,21 @@ type DatabaseAWS struct {
 	Region string
 	// Redshift contains Redshift specific settings.
 	Redshift DatabaseAWSRedshift
+	// RDS contains RDS specific settings.
+	RDS DatabaseAWSRDS
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
+	ClusterID string
+}
+
+// DatabaseAWSRDS contains AWS RDS specific settings.
+type DatabaseAWSRDS struct {
+	// InstanceID is the RDS instance identifier.
+	InstanceID string
+	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string
 }
 
@@ -829,11 +836,25 @@ type WindowsDesktopConfig struct {
 	ListenAddr utils.NetAddr
 	// PublicAddrs is a list of advertised public addresses of the service.
 	PublicAddrs []utils.NetAddr
+	// LDAP is the LDAP connection parameters.
+	LDAP LDAPConfig
 	// Hosts is an optional list of static Windows hosts to expose through this
 	// service.
 	Hosts []utils.NetAddr
 	// ConnLimiter limits the connection and request rates.
 	ConnLimiter limiter.Config
+}
+
+// LDAPConfig is the LDAP connection parameters.
+type LDAPConfig struct {
+	// Addr is the address:port of the LDAP server (typically port 389).
+	Addr string
+	// Domain is the ActiveDirectory domain name.
+	Domain string
+	// Username for LDAP authentication.
+	Username string
+	// Password for LDAP authentication.
+	Password string
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -934,7 +955,6 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
-	cfg.Auth.ClusterConfig = types.DefaultClusterConfig()
 	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()

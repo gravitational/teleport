@@ -18,13 +18,20 @@ package auth
 
 import (
 	"context"
+	"encoding/base32"
+	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
@@ -231,7 +238,15 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 	token, err := srv.Auth().CreateResetPasswordToken(ctx, req)
 	require.NoError(t, err)
 
-	secrets, err := srv.Auth().RotateUserTokenSecrets(context.TODO(), token.GetName())
+	_, err = srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:    token.GetName(),
+		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+	})
+	require.NoError(t, err)
+
+	secrets, err := srv.Auth().Identity.GetUserTokenSecrets(ctx, token.GetName())
+	require.NoError(t, err)
+
 	require.NoError(t, err)
 	require.Equal(t, secrets.GetName(), token.GetName())
 	require.Equal(t, token.GetMetadata().Expires, secrets.GetMetadata().Expires)
@@ -330,6 +345,163 @@ func TestBackwardsCompForUserTokenWithLegacyPrefix(t *testing.T) {
 
 	_, err = srv.Auth().GetUserTokenSecrets(ctx, legacySecrets.GetName())
 	require.True(t, trace.IsNotFound(err))
+}
+
+func TestCreatePrivilegeToken(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	fakeClock := srv.Clock().(clockwork.FakeClock)
+	mockEmitter := &events.MockEmitter{}
+	srv.Auth().emitter = mockEmitter
+	ctx := context.Background()
+
+	// Create a user and client with identity.
+	username := "joe@example.com"
+	_, _, err := CreateUserAndRoleWithoutRoles(srv.Auth(), username, []string{username})
+	require.NoError(t, err)
+	clt, err := srv.NewClient(TestUser(username))
+	require.NoError(t, err)
+
+	// Test a failure when second factor isn't enabled.
+	_, err = clt.CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOTP,
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		tokenType string
+		getReq    func() *proto.CreatePrivilegeTokenRequest
+	}{
+		{
+			name:      "privilege exception token",
+			tokenType: UserTokenTypePrivilegeException,
+			getReq: func() *proto.CreatePrivilegeTokenRequest {
+				return &proto.CreatePrivilegeTokenRequest{}
+			},
+		},
+		{
+			name:      "privilege token",
+			tokenType: UserTokenTypePrivilege,
+			getReq: func() *proto.CreatePrivilegeTokenRequest {
+				// Upsert a TOTP device to authn with.
+				otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
+				dev, err := services.NewTOTPDevice("otp", otpSecret, fakeClock.Now())
+				require.NoError(t, err)
+
+				err = srv.Auth().UpsertMFADevice(ctx, username, dev)
+				require.NoError(t, err)
+
+				totpCode, err := totp.GenerateCode(otpSecret, srv.Clock().Now())
+				require.NoError(t, err)
+
+				return &proto.CreatePrivilegeTokenRequest{
+					ExistingMFAResponse: &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
+						TOTP: &proto.TOTPResponse{Code: totpCode},
+					}},
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			token, err := clt.CreatePrivilegeToken(ctx, tc.getReq())
+			require.NoError(t, err)
+			require.Equal(t, tc.tokenType, token.GetSubKind())
+			require.Equal(t, username, token.GetUser())
+
+			// Test events emitted.
+			event := mockEmitter.LastEvent()
+			require.Equal(t, event.GetType(), events.PrivilegeTokenCreateEvent)
+			require.Equal(t, event.GetCode(), events.PrivilegeTokenCreateCode)
+			require.Equal(t, event.(*apievents.UserTokenCreate).Name, username)
+			require.Equal(t, event.(*apievents.UserTokenCreate).User, username)
+
+			// Test token expires after designated time.
+			fakeClock.Advance(defaults.PrivilegeTokenTTL)
+			_, err = srv.Auth().GetUserToken(context.Background(), token.GetName())
+			require.True(t, trace.IsNotFound(err))
+		})
+	}
+}
+
+func TestCreatePrivilegeToken_WithLock(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name   string
+		getReq func() *proto.CreatePrivilegeTokenRequest
+	}{
+		{
+			name: "locked from totp attempts",
+			getReq: func() *proto.CreatePrivilegeTokenRequest {
+				return &proto.CreatePrivilegeTokenRequest{
+					ExistingMFAResponse: &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
+						TOTP: &proto.TOTPResponse{Code: "wrong-otp-token-value"},
+					}},
+				}
+			},
+		},
+		{
+			name: "locked from u2f attempts",
+			getReq: func() *proto.CreatePrivilegeTokenRequest {
+				return &proto.CreatePrivilegeTokenRequest{
+					ExistingMFAResponse: &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{
+						U2F: &proto.U2FResponse{},
+					}},
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a user and client with identity.
+			username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
+			_, _, err := CreateUserAndRoleWithoutRoles(srv.Auth(), username, []string{username})
+			require.NoError(t, err)
+			clt, err := srv.NewClient(TestUser(username))
+			require.NoError(t, err)
+
+			// Test lock from max failed auth attempts.
+			for i := 0; i < defaults.MaxLoginAttempts; i++ {
+				_, err := clt.CreatePrivilegeToken(ctx, tc.getReq())
+				require.True(t, trace.IsAccessDenied(err))
+			}
+
+			// Test user is locked.
+			user, err := srv.Auth().GetUser(username, false)
+			require.NoError(t, err)
+			require.True(t, user.GetStatus().IsLocked)
+			require.False(t, user.GetStatus().LockExpires.IsZero())
+		})
+	}
 }
 
 type debugAuth struct {

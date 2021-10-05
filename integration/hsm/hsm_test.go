@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -315,6 +316,8 @@ func TestHSMRotation(t *testing.T) {
 		t.Skip("Skipping test as SOFTHSM2_PATH is not set")
 	}
 
+	modules.SetModules(keystore.TestModules{})
+
 	// pick a conservative timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	t.Cleanup(cancel)
@@ -388,6 +391,8 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
 		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
 	}
+
+	modules.SetModules(keystore.TestModules{})
 
 	// pick a conservative timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
@@ -691,6 +696,8 @@ func TestHSMMigrate(t *testing.T) {
 	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
 		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
 	}
+
+	modules.SetModules(keystore.TestModules{})
 
 	// pick a conservative timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)

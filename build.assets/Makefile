@@ -103,7 +103,7 @@ build-binaries-fips: buildbox-fips
 buildbox:
 	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
 		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
-		docker build \
+		docker build --platform=linux/amd64 \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg RUNTIME=$(RUNTIME) \
@@ -178,7 +178,7 @@ buildbox-arm-fips: buildbox-fips
 # grpc generates GRPC stubs from service definitions
 .PHONY: grpc
 grpc: buildbox
-	docker run \
+	docker run --platform=linux/amd64 \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
 
