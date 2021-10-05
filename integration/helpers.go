@@ -263,7 +263,7 @@ func (s *InstanceSecrets) GetRoles(t *testing.T) []types.Role {
 			continue
 		}
 		role := services.RoleForCertAuthority(ca)
-		role.SetLogins(services.Allow, s.AllowedLogins())
+		role.SetLogins(types.Allow, s.AllowedLogins())
 		roles = append(roles, role)
 	}
 	return roles
@@ -415,7 +415,7 @@ func SetupUser(process *service.TeleportProcess, username string, roles []types.
 	}
 	if len(roles) == 0 {
 		role := services.RoleForUser(teleUser)
-		role.SetLogins(services.Allow, []string{username})
+		role.SetLogins(types.Allow, []string{username})
 
 		// allow tests to forward agent, still needs to be passed in client
 		roleOptions := role.GetOptions()
@@ -639,7 +639,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 		teleUser.SetTraits(map[string][]string{"testing": {"integration"}})
 		if len(user.Roles) == 0 {
 			role := services.RoleForUser(teleUser)
-			role.SetLogins(services.Allow, user.AllowedLogins)
+			role.SetLogins(types.Allow, user.AllowedLogins)
 
 			// allow tests to forward agent, still needs to be passed in client
 			roleOptions := role.GetOptions()
