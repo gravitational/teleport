@@ -88,17 +88,21 @@ func TestHasNewCommit(t *testing.T) {
 		{name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
 		{name: "bar", status: "Commented", commitID: "fe324c", id: 2},
 		{name: "baz", status: "APPROVED", commitID: "ba0d35", id: 3},
+		{name: "foo", status: "APPROVED", commitID: "fe324c", id: 4},
+		{name: "bar", status: "Commented", commitID: "fe324c", id: 5},
 	}
-	revs := getReviewsAtHead("fe324c", reviews)
-	require.Equal(t, 1, len(revs))
-
-	reviews = []review{
-		{name: "foo", status: "APPROVED", commitID: "fe324c", id: 1},
+	valid, obs := splitReviews("fe324c", reviews)
+	expectedValid := []review{
 		{name: "bar", status: "Commented", commitID: "fe324c", id: 2},
-		{name: "baz", status: "APPROVED", commitID: "fe324c", id: 3},
+		{name: "foo", status: "APPROVED", commitID: "fe324c", id: 4},
+		{name: "bar", status: "Commented", commitID: "fe324c", id: 5},
 	}
-	revs = getReviewsAtHead("fe324c", reviews)
-	require.Equal(t, 3, len(revs))
+	expectedObsolete := []review{
+		{name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
+		{name: "baz", status: "APPROVED", commitID: "ba0d35", id: 3},
+	}
+	require.Equal(t, expectedValid, valid)
+	require.Equal(t, expectedObsolete, obs)
 }
 
 func TestHasRequiredApprovals(t *testing.T) {

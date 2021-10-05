@@ -73,7 +73,7 @@ type Metadata struct {
 
 type unmarshalReviewersFn func(ctx context.Context, str string, client *github.Client) (map[string][]string, error)
 
-// CheckAndSetDefaults verifies configuration and sets defaults
+// CheckAndSetDefaults verifies configuration and sets defaults.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Context == nil {
 		c.Context = context.Background()
@@ -115,7 +115,7 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	}, nil
 }
 
-// unmarshalReviewers converts the passed in string representing json object into a map
+// unmarshalReviewers converts the passed in string representing json object into a map.
 func unmarshalReviewers(ctx context.Context, str string, client *github.Client) (map[string][]string, error) {
 	var hasDefaultReviewers bool
 	if str == "" {
@@ -150,7 +150,7 @@ func unmarshalReviewers(ctx context.Context, str string, client *github.Client) 
 
 }
 
-// userExists checks if a user exists
+// userExists checks if a user exists.
 func userExists(ctx context.Context, userLogin string, client *github.Client) (*github.User, error) {
 	user, _, err := client.Users.Get(ctx, userLogin)
 	if err != nil {
@@ -162,7 +162,7 @@ func userExists(ctx context.Context, userLogin string, client *github.Client) (*
 // GetReviewersForAuthor gets the required reviewers for the current user.
 func (e *PullRequestEnvironment) GetReviewersForAuthor(user string) []string {
 	value, ok := e.reviewers[user]
-	// author is external or does not have set reviewers
+	// Author is external or does not have set reviewers
 	if !ok {
 		return e.defaultReviewers
 	}

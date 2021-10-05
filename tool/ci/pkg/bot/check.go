@@ -41,55 +41,59 @@ func (c *Bot) Check(ctx context.Context) error {
 // check checks to see if all the required reviewers have approved and invalidates
 // approvals for external contributors if a new commit is pushed
 func (c *Bot) check(ctx context.Context) error {
+	var obsoleteReviews []review
+	var validReviews []review
+
 	pr := c.Environment.Metadata
 	mostRecentReviews, err := c.getMostRecentReviews(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(mostRecentReviews) == 0 {
-		return trace.BadParameter("pull request has no reviews")
-	}
-
 	if !c.Environment.IsInternal(pr.Author) {
 		// External contributions require tighter scrutiny than team
 		// contributions. As such reviews from previous pushes must
 		// not carry over to when new changes are added. Github does
 		// not do this automatically, so we must dismiss the reviews
 		// manually.
-		ok, err := c.isGithubCommit(ctx)
+		_, err := c.isGithubCommit(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if !ok {
-			mostRecentReviews = getReviewsAtHead(pr.HeadSHA, mostRecentReviews)
-			msg := dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author))
-			err = c.invalidateApprovals(ctx, msg, mostRecentReviews)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+
+		validReviews, obsoleteReviews = splitReviews(pr.HeadSHA, mostRecentReviews)
+		msg := dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author))
+		err = c.invalidateApprovals(ctx, msg, obsoleteReviews)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
-
 	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
-	err = hasRequiredApprovals(mostRecentReviews, c.Environment.GetReviewersForAuthor(pr.Author))
+	err = hasRequiredApprovals(validReviews, c.Environment.GetReviewersForAuthor(pr.Author))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// getReviewsAtHead gets the reviews that were submitted at the
-// current head of the PR.
-func getReviewsAtHead(headSHA string, revs []review) (valid []review) {
-	for _, review := range revs {
-		if review.commitID == headSHA {
-			valid = append(valid, review)
+// splitReviews splits a list of reviews into two lists: `valid` (those reviews that refer to
+// the current PR head revision) and `obsolete` (those that do not)
+func splitReviews(headSHA string, reviews []review) (valid, obsolete []review) {
+	for _, r := range reviews {
+		if r.commitID == headSHA {
+			valid = append(valid, r)
+		} else {
+			obsolete = append(obsolete, r)
 		}
 	}
 	return
 }
 
+// hasRequiredApprovals determines if all required reviewers have approved.
 func hasRequiredApprovals(mostRecentReviews []review, required []string) error {
+	if len(mostRecentReviews) == 0 {
+		return trace.BadParameter("pull request has no approvals")
+	}
+
 	var waitingOnApprovalsFrom []string
 	for _, requiredReviewer := range required {
 		ok := hasApproved(requiredReviewer, mostRecentReviews)
@@ -188,6 +192,8 @@ func mostRecent(currentReviews []review) []review {
 	return reviews
 }
 
+// hasApproved determines if the reviewer has submitted an approval
+// for the pull request.
 func hasApproved(reviewer string, reviews []review) bool {
 	for _, rev := range reviews {
 		if rev.name == reviewer && rev.status == ci.Approved {

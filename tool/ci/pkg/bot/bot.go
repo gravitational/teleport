@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"sort"
 
 	"github.com/gravitational/teleport/tool/ci"
 	"github.com/gravitational/teleport/tool/ci/pkg/environment"
@@ -57,7 +58,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// DimissStaleWorkflowRunsForExternalContributors dismisses stale workflow runs for external contributors
+// DimissStaleWorkflowRunsForExternalContributors dismisses stale workflow runs for external contributors.
+// Dismissing stale workflows for external contributors is done on a cron job and checks the whole repo for
+// stale runs on PRs.
 func (c *Bot) DimissStaleWorkflowRunsForExternalContributors(ctx context.Context, repoOwner, repoName string) error {
 	clt := c.GithubClient.Client
 	pullReqs, _, err := clt.PullRequests.List(ctx, repoOwner, repoName, &github.PullRequestListOptions{State: ci.Open})
@@ -78,7 +81,10 @@ func (c *Bot) DimissStaleWorkflowRunsForExternalContributors(ctx context.Context
 // due to a new event triggering thus a change in state. The workflow running in the current context is the source of truth for
 // the state of checks.
 func (c *Bot) DismissStaleWorkflowRuns(ctx context.Context, owner, repoName, branch string) error {
-	workflow, err := c.getTargetWorkflow(ctx, owner, repoName)
+	// Get the target workflow to know get runs triggered by the `Check` workflow.
+	// The `Check` workflow is being targeted because it is the only workflow
+	// that runs multiple times per PR.
+	workflow, err := c.getCheckWorkflow(ctx, owner, repoName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -94,7 +100,14 @@ func (c *Bot) DismissStaleWorkflowRuns(ctx context.Context, owner, repoName, bra
 	return nil
 }
 
+// deleteRuns deletes all workflow runs except the most recent one because that is
+// the run in the current context.
 func (c *Bot) deleteRuns(ctx context.Context, owner, repoName string, runs []*github.WorkflowRun) error {
+	// Sorting runs by time from oldest to newest.
+	sort.Slice(runs, func(i, j int) bool {
+		time1, time2 := runs[i].CreatedAt, runs[j].CreatedAt
+		return time1.Time.Before(time2.Time)
+	})
 	// Deleting all runs except the most recent one.
 	for i := 0; i < len(runs)-1; i++ {
 		run := runs[i]
@@ -115,7 +128,8 @@ func (c *Bot) findStaleWorkflowRuns(ctx context.Context, owner, repoName, branch
 	return list.WorkflowRuns, nil
 }
 
-func (c *Bot) getTargetWorkflow(ctx context.Context, owner, repoName string) (*github.Workflow, error) {
+// getCheckWorkflow gets the workflow named 'Check'.
+func (c *Bot) getCheckWorkflow(ctx context.Context, owner, repoName string) (*github.Workflow, error) {
 	clt := c.GithubClient.Client
 	workflows, _, err := clt.Actions.ListWorkflows(ctx, owner, repoName, &github.ListOptions{})
 	if err != nil {
