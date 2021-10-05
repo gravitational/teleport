@@ -3482,7 +3482,6 @@ func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.Wind
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return a.authServer.CreateWindowsDesktop(ctx, s)
 }
 
