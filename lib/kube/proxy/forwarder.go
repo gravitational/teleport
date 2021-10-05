@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2020 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -1186,7 +1186,7 @@ func setupImpersonationHeaders(log log.FieldLogger, ctx authContext, headers htt
 			}
 		default:
 			return trace.AccessDenied(
-				"please select a user to impersonate, refusing to select a user due to several kuberenetes_users set up for this user")
+				"please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user")
 		}
 	}
 

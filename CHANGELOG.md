@@ -1,5 +1,14 @@
 # Changelog
 
+## 7.2.0
+
+This release of Teleport contains bug fixes and multiple features.
+
+* Added support for Hardware Security Modules (HSMs). [#7981](https://github.com/gravitational/teleport/pull/7981)
+* Added `tsh ssh` support for Windows. [#8306](https://github.com/gravitational/teleport/pull/8306) [#8221](https://github.com/gravitational/teleport/pull/8221) [#8295](https://github.com/gravitational/teleport/pull/8295)
+* Fixed regressions in graceful restart behavior of Teleport. [#8083](https://github.com/gravitational/teleport/pull/8083)
+* Fixed an issue with forwarding requests to EventSource apps via application access. [#8385](https://github.com/gravitational/teleport/pull/8385)
+
 ## 7.1.3
 
 This release of Teleport contains bug fixes, improvements, and multiple features.
