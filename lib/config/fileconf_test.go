@@ -262,10 +262,37 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				},
 			},
+		}, {
+			desc: "Local auth with disabled Webauthn",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "on",
+					"u2f": cfgMap{
+						"app_id": "https://example.com",
+						"facets": []interface{}{
+							"https://example.com",
+						},
+					},
+					"webauthn": cfgMap{
+						"disabled": true,
+					},
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "on",
+				U2F: &UniversalSecondFactor{
+					AppID:  "https://example.com",
+					Facets: []string{"https://example.com"},
+				},
+				Webauthn: &Webauthn{
+					Disabled: true,
+				},
+			},
 		},
 	}
-
-	// run tests
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			text := bytes.NewBuffer(editConfig(t, tt.mutate))

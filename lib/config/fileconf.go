@@ -704,6 +704,7 @@ type Webauthn struct {
 	RPID                  string   `yaml:"rp_id,omitempty"`
 	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
+	Disabled              bool     `yaml:"disabled,omitempty"`
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
@@ -721,6 +722,7 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 		RPID:                  w.RPID,
 		AttestationAllowedCAs: allowedCAs,
 		AttestationDeniedCAs:  deniedCAs,
+		Disabled:              w.Disabled,
 	}, nil
 }
 
