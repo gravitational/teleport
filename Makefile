@@ -679,7 +679,7 @@ enter:
 # grpc generates GRPC stubs from service definitions
 .PHONY: grpc
 grpc:
-	make -C build.assets grpc
+	$(MAKE) -C build.assets grpc
 
 # buildbox-grpc generates GRPC stubs inside buildbox
 .PHONY: buildbox-grpc
@@ -873,6 +873,7 @@ init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
 
+# Update go.mod and vendor files.
 .PHONY: update-vendor
 update-vendor:
 	# update modules in api/
@@ -880,10 +881,17 @@ update-vendor:
 	# update modules in root directory
 	go mod tidy
 	go mod vendor
-	# delete the vendored api package. In its place
-	# create a symlink to the the original api package
-	rm -r vendor/github.com/gravitational/teleport/api
-	cd vendor/github.com/gravitational/teleport && ln -s ../../../../api api
+	$(MAKE) vendor-api
+
+# When teleport vendors its dependencies, Go also vendors the local api sub module. To get
+# around this issue, we replace the vendored api package with a symlink to the
+# local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
+.PHONY: vendor-api
+vendor-api:
+	$(eval MOD_PATH=$(shell head -1 api/go.mod | awk '{print $$2;}'))
+	rm -rf vendor/github.com/gravitational/teleport/api
+	mkdir -p vendor/$(shell dirname $(MOD_PATH))
+	ln -rs $(shell readlink -f api) vendor/$(MOD_PATH)
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
