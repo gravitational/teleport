@@ -603,11 +603,13 @@ func TestCheckAccessToServer(t *testing.T) {
 		login     string
 	}
 	serverNoLabels := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name: "a",
 		},
 	}
 	serverWorker := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name:      "b",
 			Namespace: apidefaults.Namespace,
@@ -616,6 +618,7 @@ func TestCheckAccessToServer(t *testing.T) {
 	}
 	namespaceC := "namespace-c"
 	serverDB := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name:      "c",
 			Namespace: namespaceC,
@@ -623,6 +626,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 	}
 	serverDBWithSuffix := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name:      "c2",
 			Namespace: namespaceC,
@@ -857,21 +861,25 @@ func TestCheckAccessToServer(t *testing.T) {
 			},
 		},
 	}
-	for i, tc := range testCases {
-
-		var set RoleSet
-		for i := range tc.roles {
-			set = append(set, &tc.roles[i])
-		}
-		for j, check := range tc.checks {
-			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToServer(check.login, check.server, tc.mfaParams)
-			if check.hasAccess {
-				require.NoError(t, result, comment)
-			} else {
-				require.True(t, trace.IsAccessDenied(result), comment)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var set RoleSet
+			for i := range tc.roles {
+				set = append(set, &tc.roles[i])
 			}
-		}
+			for j, check := range tc.checks {
+				comment := fmt.Sprintf("check %v: user: %v, server: %v, should access: %v", j, check.login, check.server.GetName(), check.hasAccess)
+				err := set.CheckAccess(
+					check.server,
+					tc.mfaParams,
+					NewLoginMatcher(check.login))
+				if check.hasAccess {
+					require.NoError(t, err, comment)
+				} else {
+					require.True(t, trace.IsAccessDenied(err), comment)
+				}
+			}
+		})
 	}
 }
 
@@ -2347,8 +2355,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.CheckAccessToDatabase(access.server, tc.mfaParams,
-					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()},
+				err := tc.roles.CheckAccess(access.server, tc.mfaParams,
 					&DatabaseUserMatcher{User: access.dbUser},
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -2434,9 +2441,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.CheckAccessToDatabase(access.server, AccessMFAParams{},
-					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()},
-					&DatabaseUserMatcher{User: access.dbUser})
+				err := tc.roles.CheckAccess(access.server, AccessMFAParams{}, &DatabaseUserMatcher{User: access.dbUser})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2657,8 +2662,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.CheckAccessToDatabase(access.server, AccessMFAParams{},
-					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()})
+				err := tc.roles.CheckAccess(access.server, AccessMFAParams{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2764,7 +2768,9 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for _, access := range test.access {
-				err := test.roles.CheckAccessToApp(defaults.Namespace, app, AccessMFAParams{},
+				err := test.roles.CheckAccess(
+					app,
+					AccessMFAParams{},
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
 				if access.hasAccess {
 					require.NoError(t, err)
@@ -2947,7 +2953,10 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			for _, r := range tc.roles {
 				set = append(set, r)
 			}
-			err := set.CheckAccessToKubernetes(apidefaults.Namespace, tc.cluster, tc.mfaParams)
+			kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(apidefaults.Namespace, tc.cluster)
+			require.NoError(t, err)
+
+			err = set.CheckAccess(kV3, tc.mfaParams)
 			if tc.hasAccess {
 				require.NoError(t, err)
 			} else {
@@ -2959,7 +2968,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 }
 
 // BenchmarkCheckAccessToServer tests how long it takes to run
-// CheckAccessToServer across 4,000 nodes for 5 roles each with 5 logins each.
+// CheckAccess for servers across 4,000 nodes for 5 roles each with 5 logins each.
 //
 // To run benchmark:
 //
@@ -3000,7 +3009,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	}
 
 	// Create RoleSet with five roles: one admin role and four generic roles
-	// that have five logins each and only have access to the foo:bar label.
+	// that have five logins each and only have access to the a:b label.
 	var set RoleSet
 	set = append(set, NewAdminRole())
 	for i := 0; i < 4; i++ {
@@ -3035,9 +3044,13 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < 4000; i++ {
 			for login := range allowLogins {
-				if err := set.CheckAccessToServer(login, servers[i], AccessMFAParams{}); err != nil {
-					b.Error(err)
-				}
+				// note: we don't check the error here because this benchmark
+				// is testing the performance of failed RBAC checks
+				_ = set.CheckAccess(
+					servers[i],
+					AccessMFAParams{},
+					NewLoginMatcher(login),
+				)
 			}
 		}
 	}

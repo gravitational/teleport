@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -287,7 +287,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	pack.waitForLeaf(t)
 
 	t.Run("mysql", func(t *testing.T) {
-		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpnproxy.ProtocolMySQL)
+		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpncommon.ProtocolMySQL)
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := mysql.MakeTestClient(common.TestClientConfig{
 				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -340,7 +340,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	})
 
 	t.Run("postgres", func(t *testing.T) {
-		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpnproxy.ProtocolPostgres)
+		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpncommon.ProtocolPostgres)
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -380,7 +380,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	})
 
 	t.Run("mongo", func(t *testing.T) {
-		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpnproxy.ProtocolMongoDB)
+		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpncommon.ProtocolMongoDB)
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),

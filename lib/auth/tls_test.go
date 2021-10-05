@@ -925,16 +925,6 @@ func (s *TLSSuite) TestAuthPreference(c *check.C) {
 	suite.AuthPreference(c)
 }
 
-func (s *TLSSuite) TestClusterConfig(c *check.C) {
-	clt, err := s.server.NewClient(TestAdmin())
-	c.Assert(err, check.IsNil)
-
-	testSuite := &suite.ServicesTestSuite{
-		ConfigS: clt,
-	}
-	testSuite.ClusterConfig(c, suite.SkipDelete())
-}
-
 func (s *TLSSuite) TestTunnelConnectionsCRUD(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
@@ -2577,10 +2567,13 @@ func (s *TLSSuite) TestChangeUserAuthentication(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	secrets, err := s.server.Auth().RotateUserTokenSecrets(ctx, token.GetName())
+	res, err := s.server.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:    token.GetName(),
+		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	c.Assert(err, check.IsNil)
 
-	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.server.Clock().Now())
+	otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), s.server.Clock().Now())
 	c.Assert(err, check.IsNil)
 
 	_, err = s.server.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
@@ -3064,9 +3057,13 @@ func (s *TLSSuite) TestEventsPermissions(c *check.C) {
 			watches:  []types.WatchKind{{Kind: types.KindCertAuthority, LoadSecrets: false}},
 		},
 		{
-			name:     "nop role is not authorized to watch cluster config",
+			name:     "nop role is not authorized to watch cluster config resources",
 			identity: TestBuiltin(types.RoleNop),
-			watches:  []types.WatchKind{{Kind: types.KindClusterConfig, LoadSecrets: false}},
+			watches: []types.WatchKind{
+				{Kind: types.KindClusterAuthPreference},
+				{Kind: types.KindClusterNetworkingConfig},
+				{Kind: types.KindSessionRecordingConfig},
+			},
 		},
 	}
 
@@ -3130,7 +3127,7 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindStaticTokens},
 		{Kind: types.KindToken},
-		{Kind: types.KindClusterConfig},
+		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterName},
 	}})
 	c.Assert(err, check.IsNil)
@@ -3213,9 +3210,9 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	err = s.server.Auth().SetClusterAuditConfig(ctx, auditConfig)
 	c.Assert(err, check.IsNil)
 
-	clusterConfig, err := s.server.Auth().GetClusterConfig()
+	auditConfigResource, err := s.server.Auth().GetClusterAuditConfig(ctx)
 	c.Assert(err, check.IsNil)
-	suite.ExpectResource(c, w, 3*time.Second, clusterConfig)
+	suite.ExpectResource(c, w, 3*time.Second, auditConfigResource)
 
 	// update cluster name resource metadata
 	clusterNameResource, err := s.server.Auth().GetClusterName()

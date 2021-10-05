@@ -97,11 +97,12 @@ func WithConcurrentBackend(target backend.Backend) ConstructionOption {
 }
 
 // Constructor describes a function for constructing new instances of a
-// backend, with various options as required by a given test.
+// backend, with various options as required by a given test. Note that
+// it's the caller's responsibility to close it when the test is finished.
 type Constructor func(options ...ConstructionOption) (backend.Backend, clockwork.FakeClock, error)
 
-// RunBackendComplianceSuite runs the entiore backend compliance suite,
-// createing a collection of named subtests under the context provided
+// RunBackendComplianceSuite runs the entire backend compliance suite,
+// creating a collection of named subtests under the context provided
 // by `t`.
 //
 // As each test requires a new backend instance it will invoke the supplied
@@ -431,26 +432,35 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uut.Close()) }()
 
 	prefix := MakePrefix()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// When I create a new watcher...
 	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, watcher.Close()) }()
 
+	// ...expect that the event channel contains the original `init` message
+	// sent when the Firestore client was set up.
 	init := collectEvents(ctx, t, watcher, 1)
 	requireEvents(t, init, []backend.Event{
 		{Type: types.OpInit, Item: backend.Item{}},
 	})
 
+	// When I create an item that expires in 2 seconds and add it to the DB
 	expiresAt := addSeconds(clock.Now(), 2)
 	item, lease := AddItem(ctx, t, uut, prefix("key"), "val1", expiresAt)
 
+	events := collectEvents(ctx, t, watcher, 1)
+	requireEvents(t, events, []backend.Event{
+		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
+	})
+
+	// move the current slightly forward, but still *before* the item's
+	// expiry time
 	clock.Advance(1 * time.Second)
 
-	// Move the expiration further in the future to avoid processing
-	// skew and ensure the item is available when we delete it.
-	// It does not affect the running time of the test
+	// Move the item's expiration further in the future using a KeepAlive
 	updatedAt := addSeconds(clock.Now(), 60)
 	err = uut.KeepAlive(ctx, lease, updatedAt)
 	require.NoError(t, err)
@@ -458,9 +468,8 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	// Since the backend translates absolute expiration timestamp to a TTL
 	// and collecting events takes arbitrary time, the expiration timestamps
 	// on the collected events might have a slight skew
-	events := collectEvents(ctx, t, watcher, 2)
+	events = collectEvents(ctx, t, watcher, 1)
 	requireEvents(t, events, []backend.Event{
-		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
 		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
 	})
 
@@ -578,7 +587,7 @@ func requireEvent(t *testing.T, watcher backend.Watcher, eventType types.OpType,
 		require.FailNow(t, "Watcher has unexpectedly closed.")
 
 	case <-time.After(timeout):
-		require.FailNow(t, "Timed out after %v waiting for event %v", timeout, eventType.String())
+		require.FailNowf(t, "Timed out", "Timed out after %v waiting for event %v", timeout.String(), eventType.String())
 	}
 
 	return backend.Event{}
@@ -947,6 +956,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 }
 
 func AddItem(ctx context.Context, t *testing.T, uut backend.Backend, key []byte, value string, expires time.Time) (backend.Item, backend.Lease) {
+	t.Helper()
 	item := backend.Item{
 		Key:     key,
 		Value:   []byte(value),
