@@ -23,6 +23,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
+	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
@@ -154,4 +156,77 @@ func (m *IAMMock) DeleteUserPolicyWithContext(ctx aws.Context, input *iam.Delete
 		}
 	}
 	return &iam.DeleteUserPolicyOutput{}, nil
+}
+
+// RedshiftMock mocks AWS Redshift API.
+type RedshiftMock struct {
+	redshiftiface.RedshiftAPI
+	clusters []*redshift.Cluster
+}
+
+func (m *RedshiftMock) DescribeClustersWithContext(ctx aws.Context, input *redshift.DescribeClustersInput, options ...request.Option) (*redshift.DescribeClustersOutput, error) {
+	if aws.StringValue(input.ClusterIdentifier) == "" {
+		return &redshift.DescribeClustersOutput{
+			Clusters: m.clusters,
+		}, nil
+	}
+	for _, cluster := range m.clusters {
+		if aws.StringValue(cluster.ClusterIdentifier) == aws.StringValue(input.ClusterIdentifier) {
+			return &redshift.DescribeClustersOutput{
+				Clusters: []*redshift.Cluster{cluster},
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.ClusterIdentifier))
+}
+
+// rdsMockUnath is a mock RDS client that returns access denied to each call.
+type RDSMockUnauth struct {
+	rdsiface.RDSAPI
+}
+
+func (m *RDSMockUnauth) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
+func (m *RDSMockUnauth) DescribeDBClustersWithContext(ctx aws.Context, input *rds.DescribeDBClustersInput, options ...request.Option) (*rds.DescribeDBClustersOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
+func (m *RDSMockUnauth) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.ModifyDBInstanceInput, options ...request.Option) (*rds.ModifyDBInstanceOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
+func (m *RDSMockUnauth) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
+// RedshiftMockUnauth is a mock Redshift client that returns access denied to each call.
+type RedshiftMockUnauth struct {
+	redshiftiface.RedshiftAPI
+}
+
+func (m *RedshiftMockUnauth) DescribeClustersWithContext(ctx aws.Context, input *redshift.DescribeClustersInput, options ...request.Option) (*redshift.DescribeClustersOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
+// IAMMockUnauth is a mock IAM client that returns access denied to each call.
+type IAMMockUnauth struct {
+	iamiface.IAMAPI
+}
+
+func (m *IAMMockUnauth) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
+func (m *IAMMockUnauth) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
+func (m *IAMMockUnauth) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.DeleteRolePolicyInput, options ...request.Option) (*iam.DeleteRolePolicyOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
+func (m *IAMMockUnauth) DeleteUserPolicyWithContext(ctx aws.Context, input *iam.DeleteUserPolicyInput, options ...request.Option) (*iam.DeleteUserPolicyOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
 }

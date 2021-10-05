@@ -2229,7 +2229,6 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			clt:  authnClt,
 			ep:   []string{"webapi", "u2f", "password", "changerequest"},
 			reqBody: client.MFAChallengeRequest{
-				User: authPack.user,
 				Pass: authPack.password,
 			},
 		},
