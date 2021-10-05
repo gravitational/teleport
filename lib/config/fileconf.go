@@ -711,6 +711,7 @@ type Webauthn struct {
 	RPID                  string   `yaml:"rp_id,omitempty"`
 	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
+	Disabled              bool     `yaml:"disabled,omitempty"`
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
@@ -728,6 +729,7 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 		RPID:                  w.RPID,
 		AttestationAllowedCAs: allowedCAs,
 		AttestationDeniedCAs:  deniedCAs,
+		Disabled:              w.Disabled,
 	}, nil
 }
 
@@ -1283,7 +1285,24 @@ type WindowsDesktopService struct {
 	Service `yaml:",inline"`
 	// PublicAddr is a list of advertised public addresses of this service.
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
+	// LDAP is the LDAP connection parameters.
+	LDAP LDAPConfig `yaml:"ldap"`
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`
+}
+
+// LDAPConfig is the LDAP connection parameters.
+//
+// TODO(awly): these credentials are very sensitive. Add support for loading
+// from a file.
+type LDAPConfig struct {
+	// Addr is the address:port of the LDAP server (typically port 389).
+	Addr string `yaml:"addr"`
+	// Domain is the ActiveDirectory domain name.
+	Domain string `yaml:"domain"`
+	// Username for LDAP authentication.
+	Username string `yaml:"username"`
+	// Password for LDAP authentication.
+	Password string `yaml:"password"`
 }
