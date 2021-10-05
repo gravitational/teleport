@@ -380,6 +380,23 @@ func (c *Client) Close() {
 			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
 		}
 	})
+	return nil
+}
+
+// GetClientLastActive returns the time of the last recorded activity.
+// For RDP, "activity" is defined as user-input messages
+// (mouse move, button press, etc.)
+func (c *Client) GetClientLastActive() time.Time {
+	c.clientActivityMu.RLock()
+	defer c.clientActivityMu.RUnlock()
+	return c.clientLastActive
+}
+
+// UpdateClientActivity updates the client activity timestamp.
+func (c *Client) UpdateClientActivity() {
+	c.clientActivityMu.Lock()
+	c.clientLastActive = time.Now().UTC()
+	c.clientActivityMu.Unlock()
 }
 
 // GetClientLastActive returns the time of the last recorded activity.
