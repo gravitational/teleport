@@ -255,8 +255,8 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	err = s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 	// Give the role some k8s principals too.
-	role.SetKubeUsers(services.Allow, []string{user})
-	role.SetKubeGroups(services.Allow, []string{"system:masters"})
+	role.SetKubeUsers(types.Allow, []string{user})
+	role.SetKubeGroups(types.Allow, []string{"system:masters"})
 	err = s.a.UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 
@@ -1551,7 +1551,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				require.Error(t, err)
 				// Check it hasn't been deleted.
 				res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
-					RecoveryApprovedTokenID: token.GetName(),
+					TokenID: token.GetName(),
 				})
 				require.NoError(t, err)
 				require.Len(t, res.GetDevices(), 1)
@@ -1608,8 +1608,8 @@ func TestAddMFADeviceSync(t *testing.T) {
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
-					PrivilegeTokenID: token.GetName(),
-					NewDeviceName:    deviceName,
+					TokenID:       token.GetName(),
+					NewDeviceName: deviceName,
 				}
 			},
 		},
@@ -1632,9 +1632,9 @@ func TestAddMFADeviceSync(t *testing.T) {
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
-					PrivilegeTokenID: privelegeToken.GetName(),
-					NewDeviceName:    deviceName,
-					NewMFAResponse:   totpRegRes,
+					TokenID:        privelegeToken.GetName(),
+					NewDeviceName:  deviceName,
+					NewMFAResponse: totpRegRes,
 				}
 			},
 		},
@@ -1651,8 +1651,8 @@ func TestAddMFADeviceSync(t *testing.T) {
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
-					PrivilegeTokenID: privExToken.GetName(),
-					NewDeviceName:    deviceName,
+					TokenID:       privExToken.GetName(),
+					NewDeviceName: deviceName,
 					NewMFAResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
 						U2F: u2fRegRes,
 					}},
@@ -1670,9 +1670,9 @@ func TestAddMFADeviceSync(t *testing.T) {
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
-					PrivilegeTokenID: privExToken.GetName(),
-					NewDeviceName:    deviceName,
-					NewMFAResponse:   webauthnRes,
+					TokenID:        privExToken.GetName(),
+					NewDeviceName:  deviceName,
+					NewMFAResponse: webauthnRes,
 				}
 			},
 		},
@@ -1783,7 +1783,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 			}
 
 			res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
-				RecoveryApprovedTokenID: tokenID,
+				TokenID: tokenID,
 			})
 
 			switch {

@@ -121,6 +121,9 @@ const (
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
 
+	// KindKubernetesCluster is a Kubernetes cluster.
+	KindKubernetesCluster = "kube_cluster"
+
 	// KindToken is a provisioning token resource
 	KindToken = "token"
 

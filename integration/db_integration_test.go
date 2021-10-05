@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -669,16 +668,16 @@ func (p *databasePack) setupUsersAndRoles(t *testing.T) {
 	p.root.user, p.root.role, err = auth.CreateUserAndRole(p.root.cluster.Process.GetAuthServer(), "root-user", nil)
 	require.NoError(t, err)
 
-	p.root.role.SetDatabaseUsers(services.Allow, []string{types.Wildcard})
-	p.root.role.SetDatabaseNames(services.Allow, []string{types.Wildcard})
+	p.root.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+	p.root.role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
 	err = p.root.cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.root.role)
 	require.NoError(t, err)
 
 	p.leaf.user, p.leaf.role, err = auth.CreateUserAndRole(p.root.cluster.Process.GetAuthServer(), "leaf-user", nil)
 	require.NoError(t, err)
 
-	p.leaf.role.SetDatabaseUsers(services.Allow, []string{types.Wildcard})
-	p.leaf.role.SetDatabaseNames(services.Allow, []string{types.Wildcard})
+	p.leaf.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+	p.leaf.role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
 	err = p.leaf.cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.leaf.role)
 	require.NoError(t, err)
 }
