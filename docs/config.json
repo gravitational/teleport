@@ -226,7 +226,7 @@
           "entries": [
             { "title": "Role Templates", "slug": "/access-controls/guides/role-templates/" },
             { "title": "Session Locking", "slug": "/access-controls/guides/locking/" },
-            { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
+            { "title": "Second Factor - WebAuthn", "slug": "/access-controls/guides/webauthn/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
             { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }

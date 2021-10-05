@@ -5,6 +5,12 @@ description: Configuring U2F support in Teleport clusters.
 
 #  U2F ( Hardware Tokens) 
 
+<Admonition type="tip">
+  Consider updating your cluster to use [WebAuthn](./webauthn.mdx) as the second
+  factor protocol. WebAuthn is a modern U2F replacement that allows for a wider
+  range of devices to be used as second factor authenticators.
+</Admonition>
+
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
 hardware keys as a second authentication factor. U2F can be used for logging
 into Teleport (`tsh login` or the login page on the Web UI) and for logging
