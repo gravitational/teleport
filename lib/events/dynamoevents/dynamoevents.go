@@ -1365,13 +1365,13 @@ func (l *Log) approximateOptimalMigrationWorkers() (int64, error) {
 
 	// calculate the throughput, accounting for r/w bottlenecks
 	provisioned := table.Table.ProvisionedThroughput
-	if provisioned == nil {
+	if provisioned == nil || provisioned.ReadCapacityUnits == nil || provisioned.WriteCapacityUnits == nil {
 		return maxMigrationWorkers, nil
 	}
 	throughput := minInt64(*provisioned.ReadCapacityUnits, *provisioned.WriteCapacityUnits)
 
 	// divide throughput by batch size rounding upwards and then take 75% of that
-	optimalWorkers := (throughput + (DynamoBatchSize - 1)) / DynamoBatchSize / 4 * 3
+	optimalWorkers := (throughput + (DynamoBatchSize - 1)) / DynamoBatchSize * 3 / 4
 	return minInt64(maxInt64(optimalWorkers, 1), maxMigrationWorkers), nil
 }
 
