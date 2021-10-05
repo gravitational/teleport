@@ -215,7 +215,7 @@ func (s *server) register1(w http.ResponseWriter, r *http.Request) {
 		Request: &proto.AddMFADeviceRequest_Init{
 			Init: &proto.AddMFADeviceRequestInit{
 				DeviceName: req.DevName,
-				Type:       proto.AddMFADeviceRequestInit_Webauthn,
+				DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 			},
 		},
 	}); err != nil {

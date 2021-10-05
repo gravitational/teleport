@@ -600,6 +600,13 @@ type CertificateRequest struct {
 	NotAfter time.Time
 	// DNSNames is a list of DNS names to add to certificate
 	DNSNames []string
+	// Optional. ExtraExtensions to populate.
+	// Note: ExtraExtensions can override ExtKeyUsage and SANs (like DNSNames).
+	ExtraExtensions []pkix.Extension
+	// Optional. KeyUsage for the certificate.
+	KeyUsage x509.KeyUsage
+	// Optional. CRL endpoints.
+	CRLDistributionPoints []string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -615,6 +622,9 @@ func (c *CertificateRequest) CheckAndSetDefaults() error {
 	}
 	if c.NotAfter.IsZero() {
 		return trace.BadParameter("missing parameter NotAfter")
+	}
+	if c.KeyUsage == 0 {
+		c.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	}
 	return nil
 }
@@ -646,11 +656,13 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		// time skewed clusters.
 		NotBefore:   req.Clock.Now().UTC().Add(-1 * time.Minute),
 		NotAfter:    req.NotAfter,
-		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		KeyUsage:    req.KeyUsage,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		// BasicConstraintsValid is true to not allow any intermediate certs.
 		BasicConstraintsValid: true,
 		IsCA:                  false,
+		ExtraExtensions:       req.ExtraExtensions,
+		CRLDistributionPoints: req.CRLDistributionPoints,
 	}
 
 	// sort out principals into DNS names and IP addresses

@@ -75,7 +75,7 @@ type authorizer struct {
 	lockWatcher *services.LockWatcher
 }
 
-// AuthContext is authorization context
+// Context is authorization context
 type Context struct {
 	// User is the user name
 	User types.User
@@ -133,7 +133,9 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if lockErr := a.lockWatcher.CheckLockInForce(authContext.Checker.LockingMode(authPref.GetLockingMode()), authContext.LockTargets()...); lockErr != nil {
+	if lockErr := a.lockWatcher.CheckLockInForce(
+		authContext.Checker.LockingMode(authPref.GetLockingMode()),
+		authContext.LockTargets()...); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
 	}
 	return authContext, nil
@@ -293,10 +295,10 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindReverseTunnel, services.RO()),
 					types.NewRule(types.KindTunnelConnection, services.RO()),
 					types.NewRule(types.KindClusterName, services.RO()),
-					types.NewRule(types.KindClusterConfig, services.RO()),
 					types.NewRule(types.KindClusterAuditConfig, services.RO()),
 					types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 					types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+					types.NewRule(types.KindClusterAuthPreference, services.RO()),
 					types.NewRule(types.KindKubeService, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
@@ -363,7 +365,6 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindReverseTunnel, services.RW()),
 						types.NewRule(types.KindTunnelConnection, services.RO()),
 						types.NewRule(types.KindClusterName, services.RO()),
-						types.NewRule(types.KindClusterConfig, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
@@ -391,7 +392,6 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindReverseTunnel, services.RW()),
 						types.NewRule(types.KindTunnelConnection, services.RO()),
 						types.NewRule(types.KindClusterName, services.RO()),
-						types.NewRule(types.KindClusterConfig, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
@@ -422,7 +422,6 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindReverseTunnel, services.RW()),
 						types.NewRule(types.KindTunnelConnection, services.RO()),
 						types.NewRule(types.KindClusterName, services.RO()),
-						types.NewRule(types.KindClusterConfig, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
@@ -464,7 +463,6 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 							types.NewRule(types.KindRole, services.RO()),
 							types.NewRule(types.KindClusterAuthPreference, services.RO()),
 							types.NewRule(types.KindClusterName, services.RO()),
-							types.NewRule(types.KindClusterConfig, services.RO()),
 							types.NewRule(types.KindClusterAuditConfig, services.RO()),
 							types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 							types.NewRule(types.KindSessionRecordingConfig, services.RO()),
@@ -528,7 +526,6 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindClusterName, services.RO()),
-						types.NewRule(types.KindClusterConfig, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
@@ -613,7 +610,6 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
-						types.NewRule(types.KindClusterConfig, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
@@ -635,7 +631,6 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
-						types.NewRule(types.KindClusterConfig, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
