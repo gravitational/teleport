@@ -101,9 +101,9 @@ func NewPresetAccessRole() types.Role {
 			},
 		},
 	}
-	role.SetLogins(Allow, []string{teleport.TraitInternalLoginsVariable})
-	role.SetKubeUsers(Allow, []string{teleport.TraitInternalKubeUsersVariable})
-	role.SetKubeGroups(Allow, []string{teleport.TraitInternalKubeGroupsVariable})
+	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
+	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
+	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	return role
 }
 
@@ -140,6 +140,6 @@ func NewPresetAuditorRole() types.Role {
 			},
 		},
 	}
-	role.SetLogins(Allow, []string{"no-login-" + uuid.New()})
+	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New()})
 	return role
 }

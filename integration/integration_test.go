@@ -2010,7 +2010,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// Otherwise, to preserve backwards-compatibility
 	// roles with no labels will grant access to clusters with no labels.
 	if test.useLabels {
-		devsRole.SetClusterLabels(services.Allow, types.Labels{"access": []string{"prod"}})
+		devsRole.SetClusterLabels(types.Allow, types.Labels{"access": []string{"prod"}})
 	}
 	require.NoError(t, err)
 
@@ -5557,9 +5557,9 @@ func TestTraitsPropagation(t *testing.T) {
 
 	role := services.NewAdminRole()
 	role.SetName("test")
-	role.SetLogins(services.Allow, []string{me.Username})
+	role.SetLogins(types.Allow, []string{me.Username})
 	// Users created by CreateEx have "testing: integration" trait.
-	role.SetNodeLabels(services.Allow, map[string]apiutils.Strings{"env": []string{"{{external.testing}}"}})
+	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"env": []string{"{{external.testing}}"}})
 
 	rc.AddUserWithRole(me.Username, role)
 	lc.AddUserWithRole(me.Username, role)
