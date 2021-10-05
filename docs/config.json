@@ -298,7 +298,7 @@
           "title": "Guides",
           "slug": "/cloud/guides/",
           "entries": [
-            { "title": "U2f", "slug": "/cloud/guides/u2f/" }
+            { "title": "WebAuthn", "slug": "/cloud/guides/webauthn/" }
           ]
         },
         { "title": "Architecture", "slug": "/cloud/architecture/" },
