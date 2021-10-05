@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -632,125 +631,6 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	return re, nil
 }
 
-// GetAuthPreference gets cluster auth preference.
-func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	authPref, err := c.APIClient.GetAuthPreference(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-		out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		authPref, err = services.UnmarshalAuthPreference(out.Bytes())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	resp, err := c.Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// AuthPreference was updated in 7.0.0 to hold legacy cluster config fields. If the
-	// server version is < 7.0.0, we must update the AuthPreference with the legacy fields.
-	if err := utils.CheckVersion(resp.ServerVersion, utils.VersionBeforeAlpha("7.0.0")); err != nil {
-		if !trace.IsBadParameter(err) {
-			return nil, trace.Wrap(err)
-		}
-		legacyConfig, err := c.GetClusterConfig()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := services.UpdateAuthPreferenceWithLegacyClusterConfig(legacyConfig, authPref); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return authPref, nil
-}
-
-// SetAuthPreference sets cluster auth preference.
-func (c *Client) SetAuthPreference(ctx context.Context, cap types.AuthPreference) error {
-	if err := c.APIClient.SetAuthPreference(ctx, cap); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-	data, err := services.MarshalAuthPreference(cap)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(c.Endpoint("authentication", "preference"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// GetClusterAuditConfig gets cluster audit configuration.
-func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
-	auditConfig, err := c.APIClient.GetClusterAuditConfig(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return auditConfig, nil
-	}
-
-	cfg, err := c.GetClusterConfig(opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cfg.GetClusterAuditConfig()
-}
-
-// GetClusterNetworkingConfig gets cluster networking configuration.
-func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
-	netConfig, err := c.APIClient.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return netConfig, nil
-	}
-
-	cfg, err := c.GetClusterConfig(opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cfg.GetClusterNetworkingConfig()
-}
-
-// GetSessionRecordingConfig gets session recording configuration.
-func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
-	recConfig, err := c.APIClient.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return recConfig, nil
-	}
-
-	cfg, err := c.GetClusterConfig(opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cfg.GetSessionRecordingConfig()
-}
-
 // DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
 //
 // ChangeUserAuthentication changes user password with a user reset token and starts a web session.
@@ -878,4 +758,52 @@ func (c *Client) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 	}
 
 	return protoChal, nil
+}
+
+// DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
+//
+// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+func (c *Client) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	switch resp, err := c.APIClient.CreateRegisterChallenge(ctx, req); {
+	case err == nil:
+		return resp, nil
+	case !trace.IsNotImplemented(err):
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback for auth version <7.x
+	// Does not handle webauthn since this feature will not exist <7.x.
+	switch req.DeviceType {
+	case proto.DeviceType_DEVICE_TYPE_TOTP:
+		resp, err := c.APIClient.RotateUserTokenSecrets(ctx, req.GetTokenID())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Only the QRCode is returned b/c that was the only value the caller was using/needed.
+		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_TOTP{
+			TOTP: &proto.TOTPRegisterChallenge{QRCode: resp.GetQRCode()},
+		}}, nil
+
+	case proto.DeviceType_DEVICE_TYPE_U2F:
+		out, err := c.Get(c.Endpoint("u2f", "signuptokens", req.GetTokenID()), url.Values{})
+		if err != nil {
+			return nil, err
+		}
+		var u2fRegReq u2f.RegisterChallenge
+		if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
+			return nil, err
+		}
+
+		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_U2F{
+			U2F: &proto.U2FRegisterChallenge{
+				Challenge: u2fRegReq.Challenge,
+				AppID:     u2fRegReq.AppID,
+				Version:   u2fRegReq.Version,
+			},
+		}}, nil
+
+	default:
+		return nil, trace.BadParameter("MFA device type %v unsupported", req.GetDeviceType().String())
+	}
 }

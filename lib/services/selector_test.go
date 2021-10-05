@@ -26,8 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMatchDatabase tests matching databases against a selector.
-func TestMatchDatabase(t *testing.T) {
+// TestMatchResourceLabels tests matching a resource against a selector.
+func TestMatchResourceLabels(t *testing.T) {
 	tests := []struct {
 		description    string
 		selectors      []Selector
@@ -129,7 +129,7 @@ func TestMatchDatabase(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			require.Equal(t, test.match, MatchDatabase(test.selectors, database))
+			require.Equal(t, test.match, MatchResourceLabels(test.selectors, database))
 		})
 	}
 }

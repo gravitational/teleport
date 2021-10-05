@@ -167,6 +167,9 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string) (*CredentialC
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(codingllama): Send U2F App ID back in creation requests too. Useful to
+	//  detect duplicate devices.
+
 	sessionDataPB, err := sessionToPB(sessionData)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -224,6 +227,13 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 	}
 	credential, err := web.CreateCredential(u, *sessionData, parsedResp)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Finally, check against attestation settings, if any.
+	// This runs after web.CreateCredential so we can take advantage of the
+	// attestation format validation it performs.
+	if err := verifyAttestation(f.Webauthn, parsedResp.Response.AttestationObject); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

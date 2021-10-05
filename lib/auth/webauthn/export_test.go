@@ -18,3 +18,6 @@ package webauthn
 
 // ValidateOrigin lets tests access the validateOrigin method.
 var ValidateOrigin = validateOrigin
+
+// VerifyAttestation lets tests access the verifyAttestation method.
+var VerifyAttestation = verifyAttestation

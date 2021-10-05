@@ -82,6 +82,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindKubeService, RO()),
 	types.NewRule(types.KindDatabaseServer, RO()),
 	types.NewRule(types.KindDatabase, RO()),
+	types.NewRule(types.KindApp, RO()),
 	types.NewRule(types.KindWindowsDesktopService, RO()),
 	types.NewRule(types.KindWindowsDesktop, RO()),
 }
@@ -193,6 +194,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindClusterAuthPreference, RW()),
 				types.NewRule(types.KindClusterNetworkingConfig, RW()),
 				types.NewRule(types.KindSessionRecordingConfig, RW()),
+				types.NewRule(types.KindApp, RW()),
 				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
 			},
@@ -711,8 +713,8 @@ type AccessChecker interface {
 	// RoleNames returns a list of role names
 	RoleNames() []string
 
-	// CheckAccessToServer checks access to server.
-	CheckAccessToServer(login string, server types.Server, mfa AccessMFAParams) error
+	// CheckAccess checks access to the specified resource.
+	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
@@ -771,19 +773,9 @@ type AccessChecker interface {
 	// for enhanced session recording.
 	EnhancedRecordingSet() map[string]bool
 
-	// CheckAccessToApp checks access to an application.
-	CheckAccessToApp(namespace string, app types.Application, mfa AccessMFAParams, matchers ...RoleMatcher) error
-
-	// CheckAccessToKubernetes checks access to a kubernetes cluster.
-	CheckAccessToKubernetes(namespace string, app *types.KubernetesCluster, mfa AccessMFAParams) error
-
 	// CheckDatabaseNamesAndUsers returns database names and users this role
 	// is allowed to use.
 	CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) (names []string, users []string, err error)
-
-	// CheckAccessToDatabase checks whether a user has access to the provided
-	// database server.
-	CheckAccessToDatabase(server types.Database, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckImpersonate checks whether current user is allowed to impersonate
 	// users and roles
@@ -973,16 +965,6 @@ func MatchNamespace(selectors []string, namespace string) (bool, string) {
 		}
 	}
 	return false, fmt.Sprintf("no match, role selectors %v, server namespace: %v", selectors, namespace)
-}
-
-// MatchLogin returns true if attempted login matches any of the logins.
-func MatchLogin(selectors []string, login string) (bool, string) {
-	for _, l := range selectors {
-		if l == login {
-			return true, "matched"
-		}
-	}
-	return false, fmt.Sprintf("no match, role selectors %v, login: %v", selectors, login)
 }
 
 // MatchAWSRoleARN returns true if provided role ARN matches selectors.
@@ -1297,16 +1279,15 @@ func (set RoleSet) GetLoginsForTTL(ttl time.Duration) (logins []string, matchedT
 // CheckAccessToRemoteCluster checks if a role has access to remote cluster. Deny rules are
 // checked first then allow rules. Access to a cluster is determined by
 // namespaces, labels, and logins.
-//
-// Note, logging in this function only happens in debug mode, this is because
-// adding logging to this function (which is called on every server returned
-// by GetRemoteClusters) can slow down this function by 50x for large clusters!
 func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 	if len(set) == 0 {
 		return trace.AccessDenied("access to cluster denied")
 	}
 
-	var errs []error
+	// Note: logging in this function only happens in debug mode, this is because
+	// adding logging to this function (which is called on every server returned
+	// by GetRemoteClusters) can slow down this function by 50x for large clusters!
+	isDebugEnabled, debugf := rbacDebugLogger()
 
 	rcLabels := rc.GetMetadata().Labels
 
@@ -1321,17 +1302,14 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 	}
 
 	if usesLabels == false && len(rcLabels) == 0 {
-		if log.GetLevel() == log.DebugLevel {
-			log.WithFields(log.Fields{
-				trace.Component: teleport.ComponentRBAC,
-			}).Debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
-				rc.GetName(), set.RoleNames())
-		}
+		debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
+			rc.GetName(), set.RoleNames())
 		return nil
 	}
 
 	// Check deny rules first: a single matching label from
 	// the deny role set prohibits access.
+	var errs []error
 	for _, role := range set {
 		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(Deny), rcLabels)
 		if err != nil {
@@ -1339,12 +1317,8 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 		}
 		if matchLabels {
 			// This condition avoids formatting calls on large scale.
-			if log.GetLevel() == log.DebugLevel {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to cluster %v denied, deny rule in %v matched; match(label=%v)",
-					rc.GetName(), role.GetName(), labelsMessage)
-			}
+			debugf("Access to cluster %v denied, deny rule in %v matched; match(label=%v)",
+				rc.GetName(), role.GetName(), labelsMessage)
 			return trace.AccessDenied("access to cluster denied")
 		}
 	}
@@ -1352,9 +1326,7 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 	// Check allow rules: label has to match in any role in the role set to be granted access.
 	for _, role := range set {
 		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(Allow), rcLabels)
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
+		debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
 			role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, role.GetClusterLabels(Allow), rcLabels)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1362,18 +1334,14 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 		if matchLabels {
 			return nil
 		}
-		if log.GetLevel() == log.DebugLevel {
+		if isDebugEnabled {
 			deniedError := trace.AccessDenied("role=%v, match(label=%v)",
 				role.GetName(), labelsMessage)
 			errs = append(errs, deniedError)
 		}
 	}
 
-	if log.GetLevel() == log.DebugLevel {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
-	}
+	debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
 	return trace.AccessDenied("access to cluster denied")
 }
 
@@ -1387,87 +1355,6 @@ func (set RoleSet) hasPossibleLogins() bool {
 		}
 	}
 	return false
-}
-
-// CheckAccessToServer checks if a role has access to a node. Deny rules are
-// checked first then allow rules. Access to a node is determined by
-// namespaces, labels, and logins.
-//
-// Note, logging in this function only happens in debug mode, this is because
-// adding logging to this function (which is called on every server returned
-// by GetNodes) can slow down this function by 50x for large clusters!
-func (set RoleSet) CheckAccessToServer(login string, s types.Server, mfa AccessMFAParams) error {
-	if mfa.AlwaysRequired && !mfa.Verified {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to node %q denied, cluster requires per-session MFA", s.GetHostname())
-		return ErrSessionMFARequired
-	}
-	var errs []error
-
-	// Check deny rules first: a single matching namespace, label, or login from
-	// the deny role set prohibits access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), s.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		matchLogin, loginMessage := MatchLogin(role.GetLogins(Deny), login)
-		if matchNamespace && (matchLabels || matchLogin) {
-			if log.GetLevel() == log.DebugLevel {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to node %v denied, deny rule in %v matched; match(namespace=%v, label=%v, login=%v)",
-					s.GetHostname(), role.GetName(), namespaceMessage, labelsMessage, loginMessage)
-			}
-			return trace.AccessDenied("access to server denied")
-		}
-	}
-
-	allowed := false
-	// Check allow rules: namespace, label, and login have to all match in
-	// one role in the role set to be granted access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), s.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetNodeLabels(Allow), s.GetAllLabels())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		matchLogin, loginMessage := MatchLogin(role.GetLogins(Allow), login)
-		if matchNamespace && matchLabels && matchLogin {
-			if mfa.Verified {
-				return nil
-			}
-			if role.GetOptions().RequireSessionMFA {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to node %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v, login=%v)",
-					s.GetHostname(), role.GetName(), namespaceMessage, labelsMessage, loginMessage)
-				return ErrSessionMFARequired
-			}
-			// Check all remaining roles, even if we found a match.
-			// RequireSessionMFA should be enforced when at least one role has
-			// it.
-			allowed = true
-			continue
-		}
-		if log.GetLevel() == log.DebugLevel {
-			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v, login=%v)",
-				role.GetName(), namespaceMessage, labelsMessage, loginMessage)
-			errs = append(errs, deniedError)
-		}
-	}
-	if allowed {
-		return nil
-	}
-
-	if log.GetLevel() == log.DebugLevel {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to node %v denied, no allow rule matched; %v", s.GetHostname(), errs)
-	}
-	return trace.AccessDenied("access to server denied")
 }
 
 // AWSRoleARNMatcher matches a role against AWS role ARN.
@@ -1484,162 +1371,6 @@ func (m *AWSRoleARNMatcher) Match(role types.Role, condition types.RoleCondition
 // String returns the matcher's string representation.
 func (m *AWSRoleARNMatcher) String() string {
 	return fmt.Sprintf("AWSRoleARNMatcher(RoleARN=%v)", m.RoleARN)
-}
-
-// CheckAccessToApp checks if a role has access to an application. Deny rules
-// are checked first, then allow rules. Access to an application is determined by
-// namespaces and labels.
-func (set RoleSet) CheckAccessToApp(namespace string, app types.Application, mfa AccessMFAParams, matchers ...RoleMatcher) error {
-	if mfa.AlwaysRequired && !mfa.Verified {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to app %q denied, cluster requires per-session MFA", app.GetName())
-		return ErrSessionMFARequired
-	}
-	var errs []error
-
-	// Check deny rules: a matching namespace and label in the deny section
-	// prohibits access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), app.GetAllLabels())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		matchMatchers, _, err := RoleMatchers(matchers).MatchAny(role, Deny)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchNamespace && (matchLabels || matchMatchers) {
-			if log.GetLevel() == log.DebugLevel {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to app %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
-					app.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-			}
-			return trace.AccessDenied("access to app denied")
-		}
-	}
-
-	allowed := false
-	// Check allow rules: namespace and label both have to match to be granted access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), app.GetAllLabels())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, Allow)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchNamespace && matchLabels && matchMatchers {
-			if mfa.Verified {
-				return nil
-			}
-			if role.GetOptions().RequireSessionMFA {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to app %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
-					app.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-				return ErrSessionMFARequired
-			}
-			// Check all remaining roles, even if we found a match.
-			// RequireSessionMFA should be enforced when at least one role has
-			// it.
-			allowed = true
-			continue
-		}
-		if log.GetLevel() == log.DebugLevel {
-			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
-				role.GetName(), namespaceMessage, labelsMessage)
-			errs = append(errs, deniedError)
-		}
-	}
-	if allowed {
-		return nil
-	}
-
-	if log.GetLevel() == log.DebugLevel {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to app %v denied, no allow rule matched; %v", app.GetName(), errs)
-	}
-	return trace.AccessDenied("access to app denied")
-}
-
-// CheckAccessToKubernetes checks if a role has access to a kubernetes cluster.
-// Deny rules are checked first, then allow rules. Access to a kubernetes
-// cluster is determined by namespaces and labels.
-func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *types.KubernetesCluster, mfa AccessMFAParams) error {
-	if mfa.AlwaysRequired && !mfa.Verified {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to kubernetes cluster %q denied, cluster requires per-session MFA", kube.Name)
-		return ErrSessionMFARequired
-	}
-	var errs []error
-
-	// Check deny rules: a matching namespace and label in the deny section
-	// prohibits access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetKubernetesLabels(Deny), types.CombineLabels(kube.StaticLabels, kube.DynamicLabels))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchNamespace && matchLabels {
-			if log.GetLevel() == log.DebugLevel {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to kubernetes cluster %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
-					kube.Name, role.GetName(), namespaceMessage, labelsMessage)
-			}
-			return trace.AccessDenied("access to kubernetes cluster denied")
-		}
-	}
-
-	allowed := false
-	// Check allow rules: namespace and label both have to match to be granted access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetKubernetesLabels(Allow), types.CombineLabels(kube.StaticLabels, kube.DynamicLabels))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchNamespace && matchLabels {
-			if mfa.Verified {
-				return nil
-			}
-			if role.GetOptions().RequireSessionMFA {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to kubernetes cluster %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
-					kube.Name, role.GetName(), namespaceMessage, labelsMessage)
-				return ErrSessionMFARequired
-			}
-			// Check all remaining roles, even if we found a match.
-			// RequireSessionMFA should be enforced when at least one role has
-			// it.
-			allowed = true
-			continue
-		}
-		if log.GetLevel() == log.DebugLevel {
-			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
-				role.GetName(), namespaceMessage, labelsMessage)
-			errs = append(errs, deniedError)
-		}
-	}
-	if allowed {
-		return nil
-	}
-
-	if log.GetLevel() == log.DebugLevel {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to kubernetes cluster %v denied, no allow rule matched; %v", kube.Name, errs)
-	}
-	return trace.AccessDenied("access to kubernetes cluster denied")
 }
 
 // CanImpersonateSomeone returns true if this checker has any impersonation rules
@@ -1837,22 +1568,6 @@ func (m RoleMatchers) MatchAny(role types.Role, condition types.RoleConditionTyp
 	return false, nil, nil
 }
 
-// DatabaseLabelsMatcher matches a role against a list of database server labels.
-type DatabaseLabelsMatcher struct {
-	Labels map[string]string
-}
-
-// Match matches database server labels against provided role and condition.
-func (m *DatabaseLabelsMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	match, _, err := MatchLabels(role.GetDatabaseLabels(condition), m.Labels)
-	return match, trace.Wrap(err)
-}
-
-// String returns the matcher's string representation.
-func (m *DatabaseLabelsMatcher) String() string {
-	return fmt.Sprintf("DatabaseLabelsMatcher(Labels=%v)", m.Labels)
-}
-
 // DatabaseUserMatcher matches a role against database account name.
 type DatabaseUserMatcher struct {
 	User string
@@ -1885,69 +1600,169 @@ func (m *DatabaseNameMatcher) String() string {
 	return fmt.Sprintf("DatabaseNameMatcher(Name=%v)", m.Name)
 }
 
-// CheckAccessToDatabase checks if this role set has access to a particular database.
-//
-// The checker always checks the server namespace, other matchers are supplied
-// by the caller.
-func (set RoleSet) CheckAccessToDatabase(server types.Database, mfa AccessMFAParams, matchers ...RoleMatcher) error {
-	log := log.WithField(trace.Component, teleport.ComponentRBAC)
-	if mfa.AlwaysRequired && !mfa.Verified {
-		log.Debugf("Access to database %q denied, cluster requires per-session MFA", server.GetName())
-		return ErrSessionMFARequired
-	}
-	// Check deny rules.
-	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Deny), server.GetNamespace())
-		// Deny rules are greedy on purpose. They will always match if
-		// at least one of the matchers returns true.
-		if matchNamespace {
-			match, matcher, err := RoleMatchers(matchers).MatchAny(role, Deny)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if match {
-				log.Debugf("Access to database %q denied, deny rule in role %q matched; %s.",
-					server.GetName(), role.GetName(), matcher)
-				return trace.AccessDenied("access to database denied")
-			}
+type loginMatcher struct {
+	login string
+}
+
+// NewLoginMatcher creates a RoleMatcher that checks whether the role's logins
+// match the specified condition.
+func NewLoginMatcher(login string) RoleMatcher {
+	return &loginMatcher{login: login}
+}
+
+// Match matches a login against a role.
+func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	logins := role.GetLogins(typ)
+	for _, login := range logins {
+		if l.login == login {
+			return true, nil
 		}
 	}
+	return false, nil
+}
+
+// AccessCheckable is the subset of types.Resource required for the RBAC checks.
+type AccessCheckable interface {
+	GetKind() string
+	GetName() string
+	GetMetadata() types.Metadata
+	GetAllLabels() map[string]string
+}
+
+// rbacDebugLogger creates a debug logger for Teleport's RBAC component.
+// It also returns a flag indicating whether debug logging is enabled,
+// allowing the RBAC system to generate more verbose errors in debug mode.
+func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
+	isDebugEnabled := log.IsLevelEnabled(log.DebugLevel)
+	log := log.WithField(trace.Component, teleport.ComponentRBAC)
+	return isDebugEnabled, log.Debugf
+}
+
+// CheckAccess checks if this role set has access to a particular resource,
+// optionally matching the resource's labels.
+func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+	// Note: logging in this function only happens in debug mode. This is because
+	// adding logging to this function (which is called on every resource returned
+	// by the backend) can slow down this function by 50x for large clusters!
+	isDebugEnabled, debugf := rbacDebugLogger()
+
+	if mfa.AlwaysRequired && !mfa.Verified {
+		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
+		return ErrSessionMFARequired
+	}
+
+	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
+	allLabels := r.GetAllLabels()
+
+	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
+	switch r.GetKind() {
+	case types.KindDatabase:
+		getRoleLabels = types.Role.GetDatabaseLabels
+	case types.KindApp:
+		getRoleLabels = types.Role.GetAppLabels
+	case types.KindNode:
+		getRoleLabels = types.Role.GetNodeLabels
+	case types.KindKubernetesCluster:
+		getRoleLabels = types.Role.GetKubernetesLabels
+	default:
+		return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
+	}
+
+	// Check deny rules.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
+		if !matchNamespace {
+			continue
+		}
+
+		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, Deny), allLabels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchLabels {
+			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, label=%v)",
+				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
+			return trace.AccessDenied("access to %v denied", r.GetKind())
+		}
+
+		// Deny rules are greedy on purpose. They will always match if
+		// at least one of the matchers returns true.
+		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, Deny)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchMatchers {
+			debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
+				r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
+			return trace.AccessDenied("access to %v denied", r.GetKind())
+		}
+	}
+
+	var errs []error
 	allowed := false
 	// Check allow rules.
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Allow), server.GetNamespace())
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
+		if !matchNamespace {
+			if isDebugEnabled {
+				errs = append(errs, trace.AccessDenied("role=%v, match(namespace=%v)",
+					role.GetName(), namespaceMessage))
+			}
+			continue
+		}
+
+		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, Allow), allLabels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !matchLabels {
+			if isDebugEnabled {
+				errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
+					role.GetName(), labelsMessage))
+			}
+			continue
+		}
+
 		// Allow rules are not greedy. They will match only if all of the
 		// matchers return true.
-		if matchNamespace {
-			match, err := RoleMatchers(matchers).MatchAll(role, Allow)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if match {
-				if mfa.Verified {
-					return nil
-				}
-				if role.GetOptions().RequireSessionMFA {
-					log.Debugf("Access to database %q denied, role %q requires per-session MFA", server.GetName(), role.GetName())
-					return ErrSessionMFARequired
-				}
-				// Check all remaining roles, even if we found a match.
-				// RequireSessionMFA should be enforced when at least one role has
-				// it.
-				allowed = true
-				log.Debugf("Access to database %q granted, allow rule in role %q matched.",
-					server.GetName(), role.GetName())
-				continue
-			}
+		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, Allow)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+		if !matchMatchers {
+			if isDebugEnabled {
+				errs = append(errs, fmt.Errorf("role=%v, match(matchers=%v)",
+					role.GetName(), err))
+			}
+			continue
+		}
+
+		// if we've reached this point, namespace, labels, and matchers all match.
+		// if MFA is verified, we're done.
+		if mfa.Verified {
+			return nil
+		}
+		// if MFA is not verified and we require session MFA, deny access
+		if role.GetOptions().RequireSessionMFA {
+			debugf("Access to %v %q denied, role %q requires per-session MFA",
+				r.GetKind(), r.GetName(), role.GetName())
+			return ErrSessionMFARequired
+		}
+
+		// Check all remaining roles, even if we found a match.
+		// RequireSessionMFA should be enforced when at least one role has
+		// it.
+		allowed = true
+		debugf("Access to %v %q granted, allow rule in role %q matched.",
+			r.GetKind(), r.GetName(), role.GetName())
 	}
+
 	if allowed {
 		return nil
 	}
 
-	log.Debugf("Access to database %q denied, no allow rule matched.",
-		server.GetName())
-	return trace.AccessDenied("access to database denied")
+	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
+	return trace.AccessDenied("access to %v denied", r.GetKind())
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.
@@ -2133,7 +1948,7 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 	return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
 }
 
-// AccessMFAParams contains MFA-related parameters for CheckAccessTo* methods.
+// AccessMFAParams contains MFA-related parameters for methods that check access.
 type AccessMFAParams struct {
 	// AlwaysRequired is set when MFA is required for all sessions, regardless
 	// of per-role options.

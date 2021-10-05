@@ -51,6 +51,8 @@ type Features struct {
 	AdvancedAccessWorkflows bool
 	// Cloud enables some cloud-related features
 	Cloud bool
+	// HSM enables PKCS#11 HSM support
+	HSM bool
 }
 
 // ToProto converts Features into proto.Features
@@ -64,6 +66,7 @@ func (f Features) ToProto() *proto.Features {
 		AccessControls:          f.AccessControls,
 		AdvancedAccessWorkflows: f.AdvancedAccessWorkflows,
 		Cloud:                   f.Cloud,
+		HSM:                     f.HSM,
 	}
 }
 

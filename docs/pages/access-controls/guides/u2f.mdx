@@ -29,7 +29,7 @@ auth_service:
     # to enable U2F support, set this field to 'u2f', 'on' or 'optional'
     second_factor: u2f
     u2f:
-       app_id: https://example.com:443
+       app_id: https://example.com
        facets:
        - https://example.com:443
        - https://example.com
@@ -42,7 +42,12 @@ auth_service:
 The fields in the above snippet are:
 
 - `app_id` - public address of the Teleport proxy, *including* the `https://`
-  prefix and port number.
+  prefix. If you use a port number other than 443, include it as well.
+
+  Examples:
+
+  - `https://example.com` (uses default port 443)
+  - `https://example.com:3080` (uses non-default port 3080)
 
 <Admonition
   type="warning"
@@ -62,8 +67,9 @@ The fields in the above snippet are:
 
   For compatibility with multiple browsers, it's recommended to write down the
   proxy address in several formats. For example, if your `app_id` is
-  `https://example.com:443`, your `facets` should include
-  `https://example.com:443`, `https://example.com` and `example.com:443`.
+  `https://example.com`, your `facets` should include
+  `https://example.com:443`, `https://example.com`, `example.com:443` and
+  `example.com`.
 
 - `device_attestation_cas` - optional list of certificate authorities (as local
   file paths or in-line PEM certificate string) for U2F [device
@@ -116,7 +122,7 @@ $ tsh login --proxy=example.com
 
 <Admonition type="note">
 U2F for logging into Teleport is only required for [local
-users](../../admin-guide.mdx#local-connector). SSO users should configure
+users](../../setup/reference/authentication.mdx#local). SSO users should configure
 multi-factor authentication in their SSO provider.
 </Admonition>
 

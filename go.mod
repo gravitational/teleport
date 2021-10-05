@@ -32,6 +32,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
+	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
 	github.com/golang/protobuf v1.4.3

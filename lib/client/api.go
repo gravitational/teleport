@@ -63,7 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -2109,7 +2109,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 
 func makeProxySSHClientWithTLSWrapper(cfg Config, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
 	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, &tls.Config{
-		NextProtos:         []string{string(alpnproxy.ProtocolProxySSH)},
+		NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 	})
 	if err != nil {

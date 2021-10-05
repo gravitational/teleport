@@ -75,6 +75,10 @@ func convertAWSRequestFailureError(err awserr.RequestFailure) error {
 	switch err.StatusCode() {
 	case http.StatusForbidden:
 		return trace.AccessDenied(err.Error())
+	case http.StatusConflict:
+		return trace.AlreadyExists(err.Error())
+	case http.StatusNotFound:
+		return trace.NotFound(err.Error())
 	}
 	return err // Return unmodified.
 }

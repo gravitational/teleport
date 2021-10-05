@@ -45,6 +45,9 @@ type Key struct {
 	KeyHandle  []byte
 	PrivateKey *ecdsa.PrivateKey
 
+	// Cert is the Key attestation certificate.
+	Cert []byte
+
 	// PreferRPID instructs the Key to use favor using the RPID for Webauthn
 	// ceremonies, even if the U2F App ID extension is present.
 	PreferRPID bool
@@ -54,7 +57,6 @@ type Key struct {
 	// credentials.
 	IgnoreAllowedCredentials bool
 
-	cert    []byte
 	counter uint32
 }
 
@@ -122,7 +124,7 @@ func CreateWithKeyHandle(keyHandle []byte) (*Key, error) {
 	return &Key{
 		KeyHandle:  keyHandle,
 		PrivateKey: privatekey,
-		cert:       cert,
+		Cert:       cert,
 		counter:    1,
 	}, nil
 }
@@ -150,6 +152,16 @@ func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterRespons
 		RegistrationData: encodeBase64(res.RawResp),
 		ClientData:       encodeBase64(clientDataJSON),
 	}, nil
+}
+
+// RegisterRaw signs low-level U2F registration data.
+// Most callers should use either RegisterResponse or SignCredentialCreation.
+func (muk *Key) RegisterRaw(appHash, challengeHash []byte) ([]byte, error) {
+	res, err := muk.signRegister(appHash, challengeHash)
+	if err != nil {
+		return nil, err
+	}
+	return res.RawResp, nil
 }
 
 type signRegisterResult struct {
@@ -180,7 +192,7 @@ func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterRes
 	regData = append(regData, pubKey[:]...)
 	regData = append(regData, byte(len(muk.KeyHandle)))
 	regData = append(regData, muk.KeyHandle[:]...)
-	regData = append(regData, muk.cert[:]...)
+	regData = append(regData, muk.Cert[:]...)
 	regData = append(regData, sig[:]...)
 
 	return &signRegisterResult{
@@ -220,6 +232,16 @@ func (muk *Key) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, error) {
 		SignatureData: encodeBase64(res.SignData),
 		ClientData:    encodeBase64(clientDataJSON),
 	}, nil
+}
+
+// AuthenticateRaw signs low-level U2F authentication data.
+// Most callers should use either SignResponse or SignAssertion.
+func (muk *Key) AuthenticateRaw(appHash, challengeHash []byte) ([]byte, error) {
+	res, err := muk.signAuthn(appHash, challengeHash)
+	if err != nil {
+		return nil, err
+	}
+	return res.SignData, nil
 }
 
 type signAuthnResult struct {

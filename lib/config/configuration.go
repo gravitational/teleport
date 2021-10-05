@@ -128,6 +128,10 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
+	// DatabaseAWSRDSClusterID is RDS instance identifier.
+	DatabaseAWSRDSInstanceID string
+	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
+	DatabaseAWSRDSClusterID string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -973,6 +977,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
+				RDS: service.DatabaseAWSRDS{
+					InstanceID: database.AWS.RDS.InstanceID,
+					ClusterID:  database.AWS.RDS.ClusterID,
+				},
 			},
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
@@ -994,6 +1002,14 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Enable debugging application if requested.
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
+
+	// Configure resource watcher selectors if present.
+	for _, selector := range fc.Apps.Selectors {
+		cfg.Apps.Selectors = append(cfg.Apps.Selectors,
+			services.Selector{
+				MatchLabels: selector.MatchLabels,
+			})
+	}
 
 	// Loop over all apps and load app configuration.
 	for _, application := range fc.Apps.Apps {
@@ -1036,7 +1052,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 				Headers:  headers,
 			}
 		}
-		if err := app.Check(); err != nil {
+		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
@@ -1135,6 +1151,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	cfg.WindowsDesktop.LDAP = service.LDAPConfig(fc.WindowsDesktop.LDAP)
 
 	return nil
 }
@@ -1408,7 +1425,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			StaticLabels:  static,
 			DynamicLabels: dynamic,
 		}
-		if err := app.Check(); err != nil {
+		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
@@ -1440,6 +1457,10 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				Region: clf.DatabaseAWSRegion,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
+				},
+				RDS: service.DatabaseAWSRDS{
+					InstanceID: clf.DatabaseAWSRDSInstanceID,
+					ClusterID:  clf.DatabaseAWSRDSClusterID,
 				},
 			},
 			GCP: service.DatabaseGCP{

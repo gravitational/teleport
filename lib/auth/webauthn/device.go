@@ -87,7 +87,6 @@ func u2fDERKeyToCBOR(der []byte) ([]byte, error) {
 
 // U2FKeyToCBOR transforms a DER-encoded U2F into its CBOR counterpart.
 func U2FKeyToCBOR(pubKey *ecdsa.PublicKey) ([]byte, error) {
-
 	// X and Y coordinates must be exactly 32 bytes.
 	xBytes := make([]byte, 32)
 	yBytes := make([]byte, 32)
