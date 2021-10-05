@@ -899,9 +899,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
 		CloudClients: &common.TestCloudClients{
-			STS: &cloud.STSMock{},
-			RDS: &cloud.RDSMock{},
-			IAM: &cloud.IAMMock{},
+			STS:      &cloud.STSMock{},
+			RDS:      &cloud.RDSMock{},
+			Redshift: &cloud.RedshiftMock{},
+			IAM:      &cloud.IAMMock{},
 		},
 	})
 	require.NoError(t, err)

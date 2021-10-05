@@ -16,7 +16,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package rdpclient implements an RDP client.
 package rdpclient
 
 // Some implementation details that don't belong in the public godoc:
@@ -52,57 +51,26 @@ package rdpclient
 
 /*
 // Flags to include the static Rust library.
-#cgo linux LDFLAGS: -L${SRCDIR}/target/debug -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
+#cgo linux LDFLAGS: -L${SRCDIR}/target/release -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/debug -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
 #include <librdprs.h>
 */
 import "C"
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
-	"os"
 	"sync"
 	"unsafe"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
 )
 
 func init() {
 	C.init()
-}
-
-// Config for creating a new Client.
-type Config struct {
-	// Addr is the network address of the RDP server, in the form host:port.
-	Addr string
-	// InputMessage is called to receive a message from the client for the RDP
-	// server. This function should block until there is a message.
-	InputMessage func() (deskproto.Message, error)
-	// OutputMessage is called to send a message from RDP server to the client.
-	OutputMessage func(deskproto.Message) error
-	// Log is the logger for status messages.
-	Log logrus.FieldLogger
-}
-
-func (c *Config) checkAndSetDefaults() error {
-	if c.Addr == "" {
-		return trace.BadParameter("missing Addr in rdpclient.Config")
-	}
-	if c.InputMessage == nil {
-		return trace.BadParameter("missing InputMessage in rdpclient.Config")
-	}
-	if c.OutputMessage == nil {
-		return trace.BadParameter("missing OutputMessage in rdpclient.Config")
-	}
-	if c.Log == nil {
-		c.Log = logrus.New()
-	}
-	c.Log = c.Log.WithField("rdp-addr", c.Addr)
-	return nil
 }
 
 // Client is the RDP client.
@@ -117,7 +85,7 @@ type Client struct {
 }
 
 // New creates and connects a new Client based on cfg.
-func New(cfg Config) (*Client, error) {
+func New(ctx context.Context, cfg Config) (*Client, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
@@ -129,7 +97,7 @@ func New(cfg Config) (*Client, error) {
 	if err := c.readClientSize(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := c.connect(); err != nil {
+	if err := c.connect(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	c.start()
@@ -171,26 +139,24 @@ func (c *Client) readClientSize() error {
 	}
 }
 
-func (c *Client) connect() error {
+func (c *Client) connect(ctx context.Context) error {
+	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 
-	// *Temporary* hack for injecting passwords until we implement cert-based
-	// authentication.
-	// TODO(awly): remove this after certificates are implemented.
-	passwordStr := os.Getenv("TELEPORT_DEV_RDP_PASSWORD")
-	if passwordStr == "" {
-		return trace.BadParameter("missing TELEPORT_DEV_RDP_PASSWORD env var and certificate authentication is not implemented yet")
-	}
-	password := C.CString(passwordStr)
-	defer C.free(unsafe.Pointer(password))
-
 	res := C.connect_rdp(
 		addr,
 		username,
-		password,
+		C.uint32_t(len(userCertDER)),
+		(*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
+		C.uint32_t(len(userKeyDER)),
+		(*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
 		C.uint16_t(c.clientWidth),
 		C.uint16_t(c.clientHeight),
 	)
