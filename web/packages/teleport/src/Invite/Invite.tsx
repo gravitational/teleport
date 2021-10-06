@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { useParams } from 'react-router';
-import InviteForm, { Expired } from 'shared/components/FormInvite';
+import InviteForm, { Expired } from 'teleport/components/FormInvite';
 import LogoHero from 'teleport/components/LogoHero';
 import useInvite, { State } from './useInvite';
 

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import LoginForm from 'shared/components/FormLogin';
+import LoginForm from 'teleport/components/FormLogin';
 import Logo from 'teleport/components/LogoHero';
 import useLogin, { State } from './useLogin';
 

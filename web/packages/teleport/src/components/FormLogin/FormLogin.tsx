@@ -20,11 +20,14 @@ import { Card, Text, Flex, ButtonLink, ButtonPrimary, Box } from 'design';
 import * as Alerts from 'design/Alert';
 import { AuthProvider, Auth2faType } from 'shared/services';
 import { useAttempt } from 'shared/hooks';
+import Validation, { Validator } from 'shared/components/Validation';
+import FieldInput from 'shared/components/FieldInput';
+import FieldSelect from 'shared/components/FieldSelect';
+import {
+  requiredToken,
+  requiredField,
+} from 'shared/components/Validation/rules';
 import { getMfaOptions, MfaOption } from 'teleport/services/mfa/utils';
-import Validation, { Validator } from '../Validation';
-import FieldInput from '../FieldInput';
-import FieldSelect from '../FieldSelect';
-import { requiredToken, requiredField } from '../Validation/rules';
 import SSOButtonList from './SsoButtons';
 
 export default function LoginForm(props: Props) {

@@ -15,20 +15,20 @@ limitations under the License.
 */
 
 import React, { useState, useMemo } from 'react';
-import { Attempt } from 'shared/hooks/useAttemptNext';
 import { Text, Card, ButtonPrimary, Flex, Box, Link } from 'design';
 import * as Alerts from 'design/Alert';
 import { Auth2faType } from 'shared/services';
-import { getMfaOptions, MfaOption } from 'teleport/services/mfa/utils';
-import FieldSelect from '../FieldSelect';
-import FieldInput from '../FieldInput';
-import Validation, { Validator } from '../Validation';
-import TwoFAData from './TwoFaInfo';
+import { Attempt } from 'shared/hooks/useAttemptNext';
+import FieldSelect from 'shared/components/FieldSelect';
+import FieldInput from 'shared/components/FieldInput';
+import Validation, { Validator } from 'shared/components/Validation';
 import {
   requiredToken,
   requiredPassword,
   requiredConfirmedPassword,
-} from '../Validation/rules';
+} from 'shared/components/Validation/rules';
+import { getMfaOptions, MfaOption } from 'teleport/services/mfa/utils';
+import TwoFAData from './TwoFaInfo';
 
 const U2F_ERROR_CODES_URL =
   'https://developers.yubico.com/U2F/Libraries/Client_error_codes.html';
