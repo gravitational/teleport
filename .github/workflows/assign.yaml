@@ -11,6 +11,11 @@ name: Assign
 on: 
   pull_request_target:
     types: [assigned, opened, reopened, ready_for_review]
+# Only grant write permissions to pull requests for the Github token. 
+# The default is write permissions to many resources, but it's best 
+# practice to keep the scope as small as possible. 
+permissions:  
+  pull-requests: write
 jobs:
   auto-request-review:
     name: Auto Request Review
@@ -24,4 +29,4 @@ jobs:
         uses: actions/setup-go@v2
       # Run "assign-reviewers" subcommand on bot.
       - name: Assigning reviewers 
-        run: cd tool/ci && go run cmd/main.go --token=${{ secrets.GITHUB_TOKEN }} --reviewers=${{ secrets.reviewers }} assign-reviewers
+        run: cd .github/workflows && go run cmd/main.go --token=${{ secrets.GITHUB_TOKEN }} --reviewers=${{ secrets.reviewers }} assign-reviewers
