@@ -3179,11 +3179,19 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	// Fetch configurations. The IsSecondFactor*Allowed calls above already
 	// include the necessary checks of config empty, disabled, etc.
 	var u2fPref *types.U2F
-	if val, err := apref.GetU2F(); err == nil {
+	switch val, err := apref.GetU2F(); {
+	case trace.IsNotFound(err): // OK, may happen.
+	case err != nil: // NOK, unexpected.
+		return nil, trace.Wrap(err)
+	default:
 		u2fPref = val
 	}
 	var webConfig *types.Webauthn
-	if val, err := apref.GetWebauthn(); err == nil {
+	switch val, err := apref.GetWebauthn(); {
+	case trace.IsNotFound(err): // OK, may happen.
+	case err != nil: // NOK, unexpected.
+		return nil, trace.Wrap(err)
+	default:
 		webConfig = val
 	}
 

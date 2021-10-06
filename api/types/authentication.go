@@ -272,7 +272,11 @@ func (c *AuthPreferenceV2) IsSecondFactorTOTPAllowed() bool {
 // IsSecondFactorU2FAllowed checks if users are allowed to register U2F devices.
 func (c *AuthPreferenceV2) IsSecondFactorU2FAllowed() bool {
 	// Is U2F configured?
-	if _, err := c.GetU2F(); err != nil {
+	switch _, err := c.GetU2F(); {
+	case trace.IsNotFound(err): // OK, expected to happen in some cases.
+		return false
+	case err != nil:
+		log.WithError(err).Warnf("Got unexpected error when reading U2F config")
 		return false
 	}
 
@@ -286,7 +290,13 @@ func (c *AuthPreferenceV2) IsSecondFactorU2FAllowed() bool {
 // Webauthn devices.
 func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
 	// Is Webauthn configured and enabled?
-	if webConfig, err := c.GetWebauthn(); err != nil || webConfig.Disabled {
+	switch webConfig, err := c.GetWebauthn(); {
+	case trace.IsNotFound(err): // OK, expected to happen in some cases.
+		return false
+	case err != nil:
+		log.WithError(err).Warnf("Got unexpected error when reading Webauthn config")
+		return false
+	case webConfig.Disabled: // OK, fallback to U2F in use.
 		return false
 	}
 
