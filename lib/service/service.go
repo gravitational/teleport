@@ -3801,10 +3801,7 @@ func (process *TeleportProcess) singleProcessMode() (string, bool) {
 		// principal (auth server explicitly removes it when issuing host certs) and when WebPort is used
 		// in the single process mode to establish SSH reverse tunnel connection the host is validated against
 		// the valid principal list.
-		if process.Config.Proxy.WebAddr.IsHostUnspecified() {
-			return utils.ReplaceUnspecifiedHost(&process.Config.Proxy.WebAddr, defaults.HTTPListenPort), true
-		}
-		return process.Config.Proxy.WebAddr.String(), true
+		return utils.ReplaceUnspecifiedHost(&process.Config.Proxy.WebAddr, defaults.HTTPListenPort), true
 	}
 
 	if len(process.Config.Proxy.TunnelPublicAddrs) == 0 {

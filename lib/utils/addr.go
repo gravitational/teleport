@@ -349,6 +349,9 @@ func guessHostIP(addrs []net.Addr) (ip net.IP) {
 // establishes SSH reverse tunnel connection the host is validated against
 // the valid principal list.
 func ReplaceUnspecifiedHost(addr *NetAddr, defaultPort int) string {
+	if !addr.IsHostUnspecified() {
+		return addr.String()
+	}
 	port := addr.Port(defaultPort)
 	return net.JoinHostPort("localhost", strconv.Itoa(port))
 }

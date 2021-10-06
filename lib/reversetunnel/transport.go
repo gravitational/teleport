@@ -70,9 +70,7 @@ func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if parsedAddr.IsHostUnspecified() {
-		c.ProxyAddr = utils.ReplaceUnspecifiedHost(parsedAddr, defaults.HTTPListenPort)
-	}
+	c.ProxyAddr = utils.ReplaceUnspecifiedHost(parsedAddr, defaults.HTTPListenPort)
 	return nil
 }
 
