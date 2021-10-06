@@ -30,7 +30,7 @@ export const Cards = () => (
     <CardError.Failed message={message} />
     <CardError.LoginFailed message={message} loginUrl="https://localhost" />
     <CardError.Offline
-      title={'This cluster is not available from Gravity.'}
+      title={'This cluster is not available from Teleport.'}
       message={'To access this cluster, please use its local endpoint'}
     />
   </>

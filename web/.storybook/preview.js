@@ -35,7 +35,7 @@ addParameters({
     isToolshown: true,
     storySort: {
       method: 'alphabetical',
-      order: ['Teleport', 'TeleportE', 'Design', 'Shared', 'Gravity'],
+      order: ['Teleport', 'TeleportE', 'Design', 'Shared'],
     },
   },
 });

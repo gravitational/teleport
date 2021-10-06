@@ -5,15 +5,15 @@ a stand-alone web application or library referenced by other packages.
 
 ## Description
 
-|Package   | Description  |
-|---|---|
-|`teleport`| Open-source version of Gravitational Teleport Web UI |
-|`gravity`|  Open-source version of Gravitational Gravity Web UI   |
-|`build`| Collection of webpack and build scripts used to build Gravitational packages |
-|`design`| Gravitational Design-System  |
-|`shared`| Shared code |
+| Package    | Description                                                                  |
+| ---------- | ---------------------------------------------------------------------------- |
+| `teleport` | Open-source version of Gravitational Teleport Web UI                         |
+| `build`    | Collection of webpack and build scripts used to build Gravitational packages |
+| `design`   | Gravitational Design-System                                                  |
+| `shared`   | Shared code                                                                  |
 
 ## Working with the packages
+
 The packages are managed by yarn via yarn workspaces.
 
 To learn more about workspaces, check these links:
@@ -40,4 +40,3 @@ yarn workspace web-project remove some-package
 ```
 
 The example above would remove `some-package` from `packages/web-project/package.json`.
-

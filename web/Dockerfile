@@ -9,12 +9,10 @@ COPY packages/build/ web-apps/packages/build/
 
 # copy only package.json files
 COPY packages/design/package.json web-apps/packages/design/
-COPY packages/gravity/package.json web-apps/packages/gravity/
 COPY packages/shared/package.json web-apps/packages/shared/
 COPY packages/teleport/package.json web-apps/packages/teleport/
 
 # copy enterprise package.json files if present
-COPY README.md packages/webapps.e/gravit[y]/package.json web-apps/packages/webapps.e/gravity/
 COPY README.md packages/webapps.e/telepor[t]/package.json web-apps/packages/webapps.e/teleport/
 
 # download and install npm dependencies

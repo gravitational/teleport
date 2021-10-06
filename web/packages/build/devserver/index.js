@@ -58,7 +58,7 @@ function getTargetOptions() {
 
 const server = new WebpackDevServer(compiler.webpackCompiler, {
   proxy: {
-    // gravity and teleport APIs
+    // teleport APIs
     '/web/grafana/*': getTargetOptions(),
     '/web/config.*': getTargetOptions(),
     '/pack/v1/*': getTargetOptions(),

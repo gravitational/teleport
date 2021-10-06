@@ -1,7 +1,0 @@
-kind: logforwarder
-version: v2
-metadata:
-   name: new_log_forwarder
-spec:
-   address: 192.168.100.1:514
-   protocol: udp

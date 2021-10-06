@@ -19,17 +19,9 @@ build:
 test:
 	$(MAKE) docker-build NPM_CMD=test
 
-.PHONY: build-gravity-oss
-build-gravity-oss:
-	$(MAKE) docker-build NPM_CMD=build-gravity-oss FROM=dist/gravity/ TO=dist/gravity
-
 .PHONY: build-teleport-oss
 build-teleport-oss:
 	$(MAKE) docker-build NPM_CMD=build-teleport-oss FROM=dist/teleport/ TO=dist/teleport
-
-.PHONY: build-gravity-e
-build-gravity-e:
-	$(MAKE) docker-build NPM_CMD=build-gravity-e FROM=dist/e/gravity/ TO=dist/e/gravity;
 
 .PHONY: build-teleport-e
 build-teleport-e:

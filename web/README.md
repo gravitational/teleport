@@ -2,7 +2,6 @@
 
 This mono-repository contains the source code for the web UIs of the following projects:
 [Teleport](https://github.com/gravitational/teleport)
-[Gravity](https://github.com/gravitational/gravity)
 
 The code is organized in terms of independent yarn packages which reside in
 the [packages directory](https://github.com/gravitational/webapps/tree/master/packages).
@@ -28,12 +27,6 @@ To build the Teleport open source version
 $ yarn build-teleport-oss
 ```
 
-To build the Gravity community version
-
-```
-$ yarn build-gravity-oss
-```
-
 The resulting output will be in the `/packages/{package-name}/dist/` folders respectively.
 
 ### Docker Build
@@ -44,15 +37,9 @@ To build the Teleport community version
 $ make build-teleport-oss
 ```
 
-To build the Gravity comminuty version
-
-```
-$ make build-gravity-oss
-```
-
 ## Development
 
-To avoid having to install a dedicated Teleport or Gravity cluster,
+To avoid having to install a dedicated Teleport cluster,
 you can use a local development server which can proxy network requests
 to an existing cluster.
 
@@ -62,12 +49,6 @@ To start your local Teleport development server
 
 ```
 $ yarn start-teleport --target=https://example.com:3080/web
-```
-
-To start your local Gravity development server
-
-```
-$ yarn start-gravity --target=https://example.com:3080/web
 ```
 
 This service will serve your local javascript files and proxy network

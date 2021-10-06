@@ -66,7 +66,6 @@ we introduced a few hardcoded aliases to shorten the package names in `imports`.
 
 ```
 import '@gravitational/teleport/..' -> import 'teleport/...'
-import '@gravitational/gravity/..' -> import 'gravity/...'
 import '@gravitational/design/..' -> import 'design/...'
 import '@gravitational/shared/..' -> import 'shared/...'
 ```
