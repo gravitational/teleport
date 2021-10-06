@@ -459,11 +459,5 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req a
 		return nil, trace.Wrap(err)
 	}
 
-	var certs *proto.Certs
-	err = json.Unmarshal(resp.Bytes(), &certs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return certs, nil
+	return auth.UnmarshalLegacyCerts(resp.Bytes())
 }
