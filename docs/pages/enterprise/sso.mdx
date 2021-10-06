@@ -150,7 +150,8 @@ values to match your identity provider:
   the [OIDC guide](./sso/oidc.mdx#optional-acr-values) for details.
 - `ping` (SAML): Required for compatibility with Ping Identity (including
   PingOne and PingFederate) when "Enforced Signed Authn Requests" is enabled in
-  the application settings.
+  the application settings. (OIDC): Required for compatibility with Ping Identity (including
+  PingOne and PingFederate) to use client secret authentication method to avoid duplicate client ids.
 
 At this time, the `spec.provider` field should not be set for any other identity providers.
 
