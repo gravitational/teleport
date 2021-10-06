@@ -48,6 +48,10 @@ type AuthPreference interface {
 	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
 	SetSecondFactor(constants.SecondFactorType)
+	// GetPreferredLocalMFA returns a server-side hint for clients to pick an MFA
+	// method when various options are available.
+	// It is empty if there is nothing to suggest.
+	GetPreferredLocalMFA() constants.SecondFactorType
 	// IsSecondFactorEnforced checks if second factor is enforced
 	// (not disabled or set to optional).
 	IsSecondFactorEnforced() bool
@@ -223,6 +227,34 @@ func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
 // SetSecondFactor sets the type of second factor.
 func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
+}
+
+func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
+	switch sf := c.GetSecondFactor(); sf {
+	case constants.SecondFactorOff:
+		return "" // Nothing to suggest.
+	case constants.SecondFactorOTP, constants.SecondFactorU2F, constants.SecondFactorWebauthn:
+		return sf // If using a single method, then that is what it should be.
+	case constants.SecondFactorOn, constants.SecondFactorOptional:
+		// In order of preference:
+		// 1. WebAuthn (public-key based)
+		// 2. U2F (public-key based, deprecated by WebAuthn)
+		// 3. OTP
+		//
+		// Presently, some configurations here are impossible to reach (U2F is
+		// always required and WebAuthn always exists as a consequence).
+		// Nevertheless, we make an effort to gracefully handle those situations.
+		if w, err := c.GetWebauthn(); err == nil && !w.Disabled {
+			return constants.SecondFactorWebauthn
+		}
+		if _, err := c.GetU2F(); err == nil {
+			return constants.SecondFactorU2F
+		}
+		return constants.SecondFactorOTP
+	default:
+		log.Warnf("Unexpected second_factor setting: %v", sf)
+		return "" // Unsure, say nothing.
+	}
 }
 
 // IsSecondFactorEnforced checks if second factor is enforced (not disabled or set to optional).

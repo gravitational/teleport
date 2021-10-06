@@ -49,7 +49,10 @@ void init(void);
 
 struct ClientOrError connect_rdp(char *go_addr,
                                  char *go_username,
-                                 char *go_password,
+                                 uint32_t cert_der_len,
+                                 uint8_t *cert_der,
+                                 uint32_t key_der_len,
+                                 uint8_t *key_der,
                                  uint16_t screen_width,
                                  uint16_t screen_height);
 
