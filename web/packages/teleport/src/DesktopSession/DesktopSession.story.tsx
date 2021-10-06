@@ -50,7 +50,7 @@ const fillGray = (canvas: HTMLCanvasElement) => {
 const props: State = {
   hostname: 'host.com',
   fetchAttempt: { status: 'processing' },
-  connection: { status: 'processing' },
+  connectionAttempt: { status: 'processing' },
   clipboard: false,
   recording: false,
   tdpClient: fakeClient(),
@@ -74,7 +74,7 @@ export const Processing = () => (
   <DesktopSession
     {...props}
     fetchAttempt={{ status: 'processing' }}
-    connection={{ status: 'processing' }}
+    connectionAttempt={{ status: 'processing' }}
   />
 );
 
@@ -97,7 +97,7 @@ export const ProcessingToConnectingToDisplay = () => {
     <DesktopSession
       {...props}
       fetchAttempt={fetchAttempt}
-      connection={connection}
+      connectionAttempt={connection}
     />
   );
 };
@@ -105,7 +105,7 @@ export const ConnectedSettingsFalse = () => (
   <DesktopSession
     {...props}
     fetchAttempt={{ status: 'success' }}
-    connection={{ status: 'success' }}
+    connectionAttempt={{ status: 'success' }}
     clipboard={false}
     recording={false}
   />
@@ -114,7 +114,7 @@ export const ConnectedSettingsTrue = () => (
   <DesktopSession
     {...props}
     fetchAttempt={{ status: 'success' }}
-    connection={{ status: 'success' }}
+    connectionAttempt={{ status: 'success' }}
     clipboard={true}
     recording={true}
   />
@@ -123,21 +123,24 @@ export const Disconnected = () => (
   <DesktopSession
     {...props}
     fetchAttempt={{ status: 'success' }}
-    connection={{ status: '' }}
+    connectionAttempt={{ status: '' }}
   />
 );
 export const FetchError = () => (
   <DesktopSession
     {...props}
     fetchAttempt={{ status: 'failed', statusText: 'some fetch  error' }}
-    connection={{ status: 'success' }}
+    connectionAttempt={{ status: 'success' }}
   />
 );
 export const ConnectionError = () => (
   <DesktopSession
     {...props}
     fetchAttempt={{ status: 'success' }}
-    connection={{ status: 'failed', statusText: 'some connection error' }}
+    connectionAttempt={{
+      status: 'failed',
+      statusText: 'some connection error',
+    }}
   />
 );
 export const Performance = () => {
@@ -150,7 +153,7 @@ export const Performance = () => {
     <DesktopSession
       {...props}
       fetchAttempt={{ status: 'success' }}
-      connection={{ status: 'success' }}
+      connectionAttempt={{ status: 'success' }}
       tdpClient={client}
       onInit={(cli: TdpClient, canvas: HTMLCanvasElement) => {
         // Hardcoded to match fixture

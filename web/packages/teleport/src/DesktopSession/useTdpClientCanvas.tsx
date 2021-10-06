@@ -26,9 +26,10 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 export default function useTdpClientCanvas() {
   const { clusterId, username, desktopId } = useParams<UrlDesktopParams>();
   // status === '' means disconnected
-  const { attempt: connection, setAttempt: setConnection } = useAttempt(
-    'processing'
-  );
+  const {
+    attempt: connectionAttempt,
+    setAttempt: setConnectionAttempt,
+  } = useAttempt('processing');
 
   // Build a client based on url parameters.
   const tdpClient = useMemo(() => {
@@ -56,13 +57,13 @@ export default function useTdpClientCanvas() {
   };
 
   const onInit = (cli: TdpClient, canvas: HTMLCanvasElement) => {
-    setConnection({ status: 'processing' });
+    setConnectionAttempt({ status: 'processing' });
     syncCanvasSizeToClientSize(canvas);
     cli.connect(canvas.width, canvas.height);
   };
 
   const onConnect = () => {
-    setConnection({ status: 'success' });
+    setConnectionAttempt({ status: 'success' });
   };
 
   const onRender = (ctx: CanvasRenderingContext2D, data: RenderData) => {
@@ -70,13 +71,13 @@ export default function useTdpClientCanvas() {
   };
 
   const onDisconnect = () => {
-    setConnection({
+    setConnectionAttempt({
       status: '',
     });
   };
 
   const onError = (err: Error) => {
-    setConnection({ status: 'failed', statusText: err.message });
+    setConnectionAttempt({ status: 'failed', statusText: err.message });
   };
 
   const onKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
@@ -117,7 +118,7 @@ export default function useTdpClientCanvas() {
 
   return {
     tdpClient,
-    connection,
+    connectionAttempt,
     username,
     onInit,
     onConnect,

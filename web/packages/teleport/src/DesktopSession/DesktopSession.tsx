@@ -35,7 +35,7 @@ export function DesktopSession(props: State) {
     recording,
     tdpClient,
     fetchAttempt,
-    connection,
+    connectionAttempt,
     username,
     onInit,
     onConnect,
@@ -56,24 +56,24 @@ export function DesktopSession(props: State) {
   useEffect(() => {
     if (fetchAttempt.status === 'failed') {
       setAttempt(fetchAttempt);
-    } else if (connection.status === 'failed') {
-      setAttempt(connection);
-    } else if (connection.status === '') {
-      setAttempt(connection);
+    } else if (connectionAttempt.status === 'failed') {
+      setAttempt(connectionAttempt);
+    } else if (connectionAttempt.status === '') {
+      setAttempt(connectionAttempt);
     } else if (
       fetchAttempt.status === 'processing' ||
-      connection.status === 'processing'
+      connectionAttempt.status === 'processing'
     ) {
       setAttempt({ status: 'processing' });
     } else if (
       fetchAttempt.status === 'success' &&
-      connection.status === 'success'
+      connectionAttempt.status === 'success'
     ) {
-      setAttempt(connection);
+      setAttempt(connectionAttempt);
     } else {
       setAttempt({ status: 'failed', statusText: 'unknown error' });
     }
-  }, [fetchAttempt, connection]);
+  }, [fetchAttempt, connectionAttempt]);
 
   return (
     <Flex flexDirection="column">
@@ -115,7 +115,7 @@ export function DesktopSession(props: State) {
           flex: 1,
         }}
         tdpClient={tdpClient}
-        connection={connection}
+        connectionAttempt={connectionAttempt}
         username={username}
         onInit={onInit}
         onConnect={onConnect}
