@@ -18,6 +18,7 @@ limitations under the License.
 package s3sessions
 
 import (
+	"context"
 	"fmt"
 	"net/http/httptest"
 	"testing"
@@ -41,7 +42,7 @@ func TestThirdpartyStreams(t *testing.T) {
 	faker := gofakes3.New(backend, gofakes3.WithLogger(gofakes3.GlobalLog()))
 	server := httptest.NewServer(faker.Server())
 
-	handler, err := NewHandler(Config{
+	handler, err := NewHandler(context.Background(), Config{
 		Credentials:                 credentials.NewStaticCredentials("YOUR-ACCESSKEYID", "YOUR-SECRETACCESSKEY", ""),
 		Region:                      "us-west-1",
 		Path:                        "/test/",
@@ -52,7 +53,7 @@ func TestThirdpartyStreams(t *testing.T) {
 	require.Nil(t, err)
 
 	defer func() {
-		if err := handler.deleteBucket(); err != nil {
+		if err := handler.deleteBucket(context.Background()); err != nil {
 			t.Fatalf("Failed to delete bucket: %#v", trace.DebugReport(err))
 		}
 	}()
