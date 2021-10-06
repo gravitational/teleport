@@ -903,11 +903,16 @@ update-vendor:
 # around this issue, we replace the vendored api package with a symlink to the
 # local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
 .PHONY: vendor-api
-vendor-api: MOD_PATH := $(shell head -1 api/go.mod | awk '{print $$2;}')
+vendor-api: API_VENDOR_PATH := vendor/$(shell head -1 api/go.mod | awk '{print $$2;}')
 vendor-api:
 	rm -rf vendor/github.com/gravitational/teleport/api
-	mkdir -p vendor/$(shell dirname $(MOD_PATH))
-	ln -rs ./api vendor/$(MOD_PATH)
+	mkdir -p $(shell dirname $(API_VENDOR_PATH))
+	# make a relative link to the true api dir (without using `ln -r` for non-linux OS compatibility)
+	if [ -d $(shell dirname $(API_VENDOR_PATH))/../../../../../api/ ]; then \
+		ln -s ../../../../../api $(API_VENDOR_PATH); \
+	else \
+		ln -s ../../../../api $(API_VENDOR_PATH); \
+	fi;
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
