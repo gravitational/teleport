@@ -42,8 +42,8 @@ export default class Client extends EventEmitter {
       this.emit('init');
     };
 
-    this.socket.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
-      this.processMessage(ev.data);
+    this.socket.onmessage = (ev: MessageEvent) => {
+      this.processMessage(ev.data as ArrayBuffer);
     };
 
     // The 'error' event will only ever be emitted by the socket

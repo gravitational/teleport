@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // The objects loaded from json below are the results of websocket onmessage calls handled by a TdpClient (packages/teleport/src/lib/tdp/client.ts).
-// The messages are each represented by a Uint8Array, and were saved by setting the saveMessages parameter of the TdpClient object (packages/teleport/src/lib/tdp/client.ts)
-// to true, allowing messages to be passed per normal operation of the client, and then saving the object printed in the console upon
+// The messages are each represented by a Uint8Array, and were saved by setting the saveMessages parameter (now deprecated, see commit ece61f56462b94e44d3a2231acb1738e17e10c6a)
+// of the TdpClient object (packages/teleport/src/lib/tdp/client.ts) to true, allowing messages to be passed per normal operation of the client, and then saving the object printed in the console upon
 // calling "disconnect". Here, they are converted from their json Uint8Array[] back into an ArrayBuffer[], which can then be used to simulate a realistic
 // sequence of onmessage calls for development/performance-testing purposes.
 //
