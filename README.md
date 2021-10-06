@@ -74,14 +74,12 @@ implementation. It is _fully compatible with OpenSSH_,
 |---|----
 | [Teleport Website](https://goteleport.com/teleport) | The official website of the project. |
 | [Documentation](https://goteleport.com/teleport/docs/quickstart/) | Admin guide, user manual and more. |
-| [Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM) | 5-minute video overview of the UI. |
+| [Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM) | 4-minute video overview of the UI. |
 | [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback, or idea on our forum. |
 | [Slack](https://goteleport.com/slack) | Need help with your setup? Ping us in our Slack channel. |
 | [Cloud-hosted](https://goteleport.com/pricing) | We offer Teleport Pro and Enteprise with a Cloud-hosted option. For teams that require easy and secure access to their computing environments. |
 
-
-[Teleport 6.0 - 4:00m Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM)
 
 ## Installing and Running
 
