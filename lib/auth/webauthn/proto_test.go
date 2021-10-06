@@ -17,6 +17,8 @@ package webauthn_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
@@ -143,7 +145,7 @@ func TestConversionFromProto_nils(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Absence of panics is good enough for us.
-			test.fn()
+			require.NotPanics(t, test.fn)
 		})
 	}
 }
