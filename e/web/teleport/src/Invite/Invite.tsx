@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams } from 'react-router';
-import InviteForm, { Expired } from 'shared/components/FormInvite';
+import InviteForm, { Expired } from 'teleport/components/FormInvite';
 import LogoHero from 'teleport/components/LogoHero';
 import RecoveryCodes from 'e-teleport/components/RecoveryCodes';
 import useInvite, { State } from './useInvite';
