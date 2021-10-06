@@ -70,7 +70,7 @@ jobs:
         uses: actions/setup-go@v2
       # Running "assign-reviewers" subcommand on bot.
       - name: Assigning reviewers 
-        run: cd tool/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} --reviewers=${{ secrets.reviewers }} assign-reviewers
+        run: cd .github/workflows/ci && go run cmd/main.go --token=${{ secrets.GITHUB_TOKEN }} --reviewers=${{ secrets.reviewers }} assign-reviewers
 
 ```
 
@@ -97,7 +97,7 @@ jobs:
         uses: actions/setup-go@v2
         # Running "check-reviewers" subcommand on bot.
       - name: Checking reviewers
-        run: cd tool/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} --reviewers=${{ secrets.reviewers }} check-reviewers
+        run: cd .github/workflows/ci && go run cmd/main.go --token=${{ secrets.GITHUB_TOKEN }} --reviewers=${{ secrets.reviewers }} check-reviewers
 
 ```
 
@@ -122,5 +122,5 @@ jobs:
         uses: actions/setup-go@v2
         # Run "dismiss-runs" subcommand on bot.
       - name: Dismiss
-        run: cd tool/ci && go run cmd/bot.go --token=${{ secrets.GITHUB_TOKEN }} dismiss-runs
+        run: cd .github/workflows/ci && go run cmd/main.go --token=${{ secrets.GITHUB_TOKEN }} dismiss-runs
 ```
