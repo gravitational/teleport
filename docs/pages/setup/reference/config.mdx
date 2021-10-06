@@ -32,8 +32,12 @@ teleport:
     # PID file for Teleport process
     #pid_file: /var/run/teleport.pid
 
-    # Invitation token or file containing used to join a cluster. it is not used on
-    # subsequent starts
+    # Invitation token or file path containing token used to join a cluster. it is not used on
+    # subsequent starts.  
+    # 
+    # File path example:
+    # auth_token: /var/lib/teleport/tokenjoin
+    
     auth_token: xxxx-token-xxxx
 
     # Optional CA pin of the auth server. This enables more secure way of adding new
