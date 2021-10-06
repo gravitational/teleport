@@ -1394,7 +1394,8 @@ func (s *clusterSession) dialWithEndpoints(ctx context.Context, network, addr st
 	}
 
 	// Shuffle endpoints to balance load
-	shuffledEndpoints := s.teleportClusterEndpoints
+	shuffledEndpoints := make([]endpoint, len(s.teleportClusterEndpoints))
+	copy(shuffledEndpoints, s.teleportClusterEndpoints)
 	mathrand.Shuffle(len(shuffledEndpoints), func(i, j int) {
 		shuffledEndpoints[i], shuffledEndpoints[j] = shuffledEndpoints[j], shuffledEndpoints[i]
 	})
