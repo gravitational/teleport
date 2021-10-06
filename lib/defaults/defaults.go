@@ -751,3 +751,8 @@ func Transport() (*http.Transport, error) {
 
 	return tr, nil
 }
+
+const (
+	TeleportConfigVersionV1 string = "v1"
+	TeleportConfigVersionV2        = "v2"
+)

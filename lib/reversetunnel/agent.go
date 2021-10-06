@@ -279,6 +279,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 
 	var opts []proxy.DialerOptionFunc
 	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.ALPNSNIListenerEnabled {
+		a.log.Info("--->Connecting with ALPN Dialer")
 		opts = append(opts, proxy.WithALPNDialer())
 	}
 

@@ -61,11 +61,12 @@ var validCASigAlgos = []string{
 //
 // Use config.ReadFromFile() to read the parsed FileConfig from a YAML file.
 type FileConfig struct {
-	Global `yaml:"teleport,omitempty"`
-	Auth   Auth  `yaml:"auth_service,omitempty"`
-	SSH    SSH   `yaml:"ssh_service,omitempty"`
-	Proxy  Proxy `yaml:"proxy_service,omitempty"`
-	Kube   Kube  `yaml:"kubernetes_service,omitempty"`
+	Version string `yaml:"version,omitempty"`
+	Global  `yaml:"teleport,omitempty"`
+	Auth    Auth  `yaml:"auth_service,omitempty"`
+	SSH     SSH   `yaml:"ssh_service,omitempty"`
+	Proxy   Proxy `yaml:"proxy_service,omitempty"`
+	Kube    Kube  `yaml:"kubernetes_service,omitempty"`
 
 	// Apps is the "app_service" section in Teleport file configuration which
 	// defines application access configuration.
@@ -134,6 +135,8 @@ type SampleFlags struct {
 	ACMEEmail string
 	// ACMEEnabled turns on ACME
 	ACMEEnabled bool
+	// Version is the Teleport Configuration version.
+	Version string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -177,6 +180,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		a.LicenseFile = flags.LicensePath
 	}
 
+	if flags.Version == defaults.TeleportConfigVersionV2 {
+		a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
+	}
+
 	// sample proxy config:
 	var p Proxy
 	p.EnabledFlag = "yes"
@@ -191,10 +198,11 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	}
 
 	fc = &FileConfig{
-		Global: g,
-		Proxy:  p,
-		SSH:    s,
-		Auth:   a,
+		Version: flags.Version,
+		Global:  g,
+		Proxy:   p,
+		SSH:     s,
+		Auth:    a,
 	}
 	return fc, nil
 }
@@ -216,6 +224,9 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	conf.Proxy.defaultEnabled = true
 	conf.SSH.defaultEnabled = true
 	conf.Kube.defaultEnabled = false
+	if conf.Version == "" {
+		conf.Version = defaults.TeleportConfigVersionV1
+	}
 
 	var sc ssh.Config
 	sc.SetDefaults()
@@ -539,6 +550,9 @@ type Auth struct {
 
 	// CAKeyParams configures how CA private keys will be created and stored.
 	CAKeyParams *CAKeyParams `yaml:"ca_key_params,omitempty"`
+
+	// ProxyListenerMode is a listener mode user by the proxy.
+	ProxyListenerMode types.ProxyListenerMode `yaml:"proxy_listener_mode,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -1018,7 +1032,7 @@ type Proxy struct {
 	Service `yaml:",inline"`
 	// WebAddr is a web UI listen address
 	WebAddr string `yaml:"web_listen_addr,omitempty"`
-	// TunAddr is a reverse tunnel address
+	// TunAddr ois a reverse tunnel address
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`

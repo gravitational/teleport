@@ -287,6 +287,12 @@ func TestALPNSNIProxyKube(t *testing.T) {
 func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	pack := setupDatabaseTest(t,
 		withPortSetupDatabaseTest(singleProxyPortSetup),
+		withLeafConfig(func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withRootConfig(func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
 	)
 	pack.waitForLeaf(t)
 
@@ -439,6 +445,12 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	pack := setupWithOptions(t, appTestOptions{
 		rootClusterPorts: singleProxyPortSetup(),
 		leafClusterPorts: singleProxyPortSetup(),
+		rootConfig: func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		},
+		leafConfig: func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		},
 	})
 
 	sess := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)

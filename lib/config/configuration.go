@@ -359,6 +359,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	if err := applyConfigVersion(fc, cfg); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Apply configuration for "auth_service", "proxy_service", "ssh_service",
 	// and "app_service" if they are enabled.
 	if fc.Auth.Enabled() {
@@ -562,6 +566,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
+		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -748,7 +753,9 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	case legacyKube && newKube:
 		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
-		// Nothing enabled, this is just for completeness.
+		// Enabled proxy kubernetes service event if the fc.Proxy.KubeAddr address is empty.
+		// Proxy kubernetes listener will be multiplexed by ALPN SNI listener.
+		cfg.Proxy.Kube.Enabled = true
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
 		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
@@ -806,7 +813,19 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
+	if cfg.Version == defaults.TeleportConfigVersionV2 {
+		applyV2Config(fc, cfg)
+	}
+
 	return nil
+}
+
+func applyV2Config(fc *FileConfig, cfg *service.Config) {
+	// Reset default value of listeners to clean up the proxy configuration.
+	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{}
+	cfg.Proxy.SSHAddr = utils.NetAddr{}
+	cfg.Proxy.MySQLAddr = utils.NetAddr{}
+	cfg.Proxy.Kube.ListenAddr = utils.NetAddr{}
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
@@ -1353,6 +1372,16 @@ func applyString(src string, target *string) bool {
 		return true
 	}
 	return false
+}
+
+// applyConfigVersion applies config version from parsed file. If config version is not
+// present the v1 version will be used as default.
+func applyConfigVersion(fc *FileConfig, cfg *service.Config) error {
+	cfg.Version = defaults.TeleportConfigVersionV1
+	if fc.Version != "" {
+		cfg.Version = fc.Version
+	}
+	return nil
 }
 
 // Configure merges command line arguments with what's in a configuration file

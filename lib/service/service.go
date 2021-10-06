@@ -2473,6 +2473,28 @@ func (l *proxyListeners) Close() {
 
 // setupProxyListeners sets up web proxy listeners based on the configuration
 func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
+	switch process.Config.Version {
+	case defaults.TeleportConfigVersionV2:
+		return process.setupProxyV2Listeners()
+	default:
+		return process.setupProxyV1Listeners()
+	}
+}
+
+func (process *TeleportProcess) setupProxyV2Listeners() (*proxyListeners, error) {
+	cfg := process.Config
+	process.log.Debugf("Setup Proxy on a single port address %v ", cfg.Proxy.WebAddr.Addr)
+	var listeners proxyListeners
+	listener, err := process.importOrCreateListener(listenerProxyTunnelAndWeb, cfg.Proxy.WebAddr.Addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	listeners.web = listener
+	return &listeners, nil
+}
+
+// setupProxyListeners sets up web proxy listeners based on the configuration
+func (process *TeleportProcess) setupProxyV1Listeners() (*proxyListeners, error) {
 	cfg := process.Config
 	process.log.Debugf("Setup Proxy: Web Proxy Address: %v, Reverse Tunnel Proxy Address: %v", cfg.Proxy.WebAddr.Addr, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 	var err error
@@ -2768,25 +2790,24 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:            tsrv,
-				AuthServers:      cfg.AuthServers[0],
-				DomainName:       cfg.Hostname,
-				ProxyClient:      conn.Client,
-				ProxySSHAddr:     proxySSHAddr,
-				ProxyWebAddr:     cfg.Proxy.WebAddr,
-				ProxyPublicAddrs: cfg.Proxy.PublicAddrs,
-				ProxySettings:    proxySettingsFromConfig(cfg, proxySSHAddr),
-				CipherSuites:     cfg.CipherSuites,
-				FIPS:             cfg.FIPS,
-				AccessPoint:      accessPoint,
-				Emitter:          streamEmitter,
-				PluginRegistry:   process.PluginRegistry,
-				HostUUID:         process.Config.HostUUID,
-				Context:          process.ExitContext(),
-				StaticFS:         fs,
-				ClusterFeatures:  process.getClusterFeatures(),
-				// TODO(smallinsky) Get dynamically based on the cluster networking config - proxy listener mode.
-				ALPNSNIListenerEnabled: !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener,
+				Proxy:                tsrv,
+				AuthServers:          cfg.AuthServers[0],
+				DomainName:           cfg.Hostname,
+				ProxyClient:          conn.Client,
+				ProxySSHAddr:         proxySSHAddr,
+				ProxyWebAddr:         cfg.Proxy.WebAddr,
+				ProxyPublicAddrs:     cfg.Proxy.PublicAddrs,
+				ProxySettings:        proxySettingsFromConfig(cfg, proxySSHAddr, accessPoint),
+				CipherSuites:         cfg.CipherSuites,
+				FIPS:                 cfg.FIPS,
+				AccessPoint:          accessPoint,
+				Emitter:              streamEmitter,
+				PluginRegistry:       process.PluginRegistry,
+				HostUUID:             process.Config.HostUUID,
+				Context:              process.ExitContext(),
+				StaticFS:             fs,
+				ClusterFeatures:      process.getClusterFeatures(),
+				GetProxySettingsFunc: proxySettingsFromConfigFunc(cfg, proxySSHAddr, accessPoint),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3262,9 +3283,146 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 	return router
 }
 
-func proxySettingsFromConfig(cfg *Config, proxySSHAddr utils.NetAddr) webclient.ProxySettings {
+func proxySettingsFromConfigFunc(cfg *Config, proxySSHAddr utils.NetAddr, accessPoint auth.AccessPoint) func(ctx context.Context) (*webclient.ProxySettings, error) {
+	return func(ctx context.Context) (*webclient.ProxySettings, error) {
+		resp, err := accessPoint.GetClusterNetworkingConfig(context.Background())
+		if err != nil {
+			cfg.Log.WithError(err).Error("Failed to get cluster networking config.")
+		}
+		alpnListenerEnabled := resp.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex && !cfg.Proxy.DisableALPNSNIListener
+
+		if cfg.Version == defaults.TeleportConfigVersionV2 {
+			multiplexAddr := cfg.Proxy.WebAddr.String()
+			proxySettings := webclient.ProxySettings{
+				ALPNSNIListenerEnabled: alpnListenerEnabled,
+				Kube: webclient.KubeProxySettings{
+					Enabled: cfg.Proxy.Kube.Enabled,
+				},
+				SSH: webclient.SSHProxySettings{
+					ListenAddr:       multiplexAddr,
+					TunnelListenAddr: multiplexAddr,
+				},
+			}
+			if len(cfg.Proxy.PublicAddrs) > 0 {
+				proxySettings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
+			}
+
+			if len(cfg.Proxy.SSHPublicAddrs) > 0 {
+				proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
+			}
+			if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
+				proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
+			}
+			if cfg.Proxy.Kube.Enabled {
+				proxySettings.Kube.ListenAddr = multiplexAddr
+			}
+			if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
+				proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
+			}
+			if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
+				proxySettings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
+			}
+			if !cfg.Proxy.MySQLAddr.IsEmpty() {
+				proxySettings.DB.MySQLListenAddr = multiplexAddr
+			}
+			if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
+				proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
+			}
+
+			return &proxySettings, nil
+		}
+
+		proxySettings := webclient.ProxySettings{
+			ALPNSNIListenerEnabled: alpnListenerEnabled,
+			Kube: webclient.KubeProxySettings{
+				Enabled: cfg.Proxy.Kube.Enabled,
+			},
+			SSH: webclient.SSHProxySettings{
+				ListenAddr:       proxySSHAddr.String(),
+				TunnelListenAddr: cfg.Proxy.ReverseTunnelListenAddr.String(),
+			},
+		}
+		if len(cfg.Proxy.PublicAddrs) > 0 {
+			proxySettings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
+		}
+		if len(cfg.Proxy.SSHPublicAddrs) > 0 {
+			proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
+		}
+		if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
+			proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
+		}
+		if cfg.Proxy.Kube.Enabled {
+			proxySettings.Kube.ListenAddr = getProxyKubeAddress(cfg)
+		}
+		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
+			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
+		}
+		if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
+			proxySettings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
+		}
+		if !cfg.Proxy.MySQLAddr.IsEmpty() {
+			proxySettings.DB.MySQLListenAddr = cfg.Proxy.MySQLAddr.String()
+		}
+		if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
+			proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
+		}
+
+		if !cfg.Proxy.WebAddr.IsEmpty() || !cfg.Proxy.DisableTLS {
+			if proxySettings.SSH.ListenAddr == "" {
+				proxySettings.SSH.TunnelListenAddr = cfg.Proxy.WebAddr.String()
+			}
+		}
+		return &proxySettings, nil
+	}
+}
+
+func proxySettingsFromConfig(cfg *Config, proxySSHAddr utils.NetAddr, accessPoint auth.AccessPoint) webclient.ProxySettings {
+	resp, err := accessPoint.GetClusterNetworkingConfig(context.Background())
+	if err != nil {
+		cfg.Log.WithError(err).Error("Failed to get cluster networking config.")
+	}
+	alpnListenerEnabled := resp.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex && !cfg.Proxy.DisableALPNSNIListener
+
+	if cfg.Version == defaults.TeleportConfigVersionV2 {
+		multiplexAddr := cfg.Proxy.WebAddr.String()
+		proxySettings := webclient.ProxySettings{
+			ALPNSNIListenerEnabled: alpnListenerEnabled,
+			Kube: webclient.KubeProxySettings{
+				Enabled: cfg.Proxy.Kube.Enabled,
+			},
+			SSH: webclient.SSHProxySettings{
+				ListenAddr:       multiplexAddr,
+				TunnelListenAddr: multiplexAddr,
+			},
+		}
+
+		if len(cfg.Proxy.SSHPublicAddrs) > 0 {
+			proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
+		}
+		if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
+			proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
+		}
+		if cfg.Proxy.Kube.Enabled {
+			proxySettings.Kube.ListenAddr = multiplexAddr
+		}
+		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
+			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
+		}
+		if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
+			proxySettings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
+		}
+		if !cfg.Proxy.MySQLAddr.IsEmpty() {
+			proxySettings.DB.MySQLListenAddr = multiplexAddr
+		}
+		if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
+			proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
+		}
+
+		return proxySettings
+	}
+
 	proxySettings := webclient.ProxySettings{
-		ALPNSNIListenerEnabled: !cfg.Proxy.DisableALPNSNIListener && !cfg.Proxy.DisableTLS,
+		ALPNSNIListenerEnabled: alpnListenerEnabled,
 		Kube: webclient.KubeProxySettings{
 			Enabled: cfg.Proxy.Kube.Enabled,
 		},
@@ -3382,6 +3540,16 @@ func (process *TeleportProcess) initApps() {
 		if !ok {
 			return trace.BadParameter("unsupported event payload type %q", event.Payload)
 		}
+		// Create a caching client to the Auth Server. It is to reduce load on
+		// the Auth Server.
+		accessPoint, err := process.newLocalCache(conn.Client, cache.ForApps, []string{component})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		resp, err := accessPoint.GetClusterNetworkingConfig(context.Background())
+		if err != nil {
+			panic(err)
+		}
 
 		// If this process connected through the web proxy, it will discover the
 		// reverse tunnel address correctly and store it in the connector.
@@ -3393,20 +3561,13 @@ func (process *TeleportProcess) initApps() {
 		if conn.TunnelProxy() != "" {
 			tunnelAddr = conn.TunnelProxy()
 		} else {
-			if tunnelAddr, ok = process.singleProcessMode(); !ok {
+			if tunnelAddr, ok = process.singleProcessMode(resp.GetProxyListenerMode()); !ok {
 				return trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
 			}
 
 			// Block and wait for all dependencies to start before starting.
 			log.Debugf("Waiting for application service dependencies to start.")
 			process.waitForAppDepend()
-		}
-
-		// Create a caching client to the Auth Server. It is to reduce load on
-		// the Auth Server.
-		accessPoint, err := process.newLocalCache(conn.Client, cache.ForApps, []string{component})
-		if err != nil {
-			return trace.Wrap(err)
 		}
 
 		// Start uploader that will scan a path on disk and upload completed
@@ -3791,7 +3952,7 @@ func (process *TeleportProcess) initDebugApp() {
 
 // singleProcessMode returns true when running all components needed within
 // the same process. It's used for development and demo purposes.
-func (process *TeleportProcess) singleProcessMode() (string, bool) {
+func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) (string, bool) {
 	if !process.Config.Proxy.Enabled || !process.Config.Auth.Enabled {
 		return "", false
 	}
@@ -3799,11 +3960,10 @@ func (process *TeleportProcess) singleProcessMode() (string, bool) {
 		return "", false
 	}
 
-	if !process.Config.Proxy.DisableTLS && !process.Config.Proxy.DisableALPNSNIListener {
+	if !process.Config.Proxy.DisableTLS && !process.Config.Proxy.DisableALPNSNIListener && mode == types.ProxyListenerMode_Multiplex {
 		if len(process.Config.Proxy.PublicAddrs) != 0 {
 			return process.Config.Proxy.PublicAddrs[0].String(), true
 		}
-
 		return process.Config.Proxy.WebAddr.String(), true
 	}
 

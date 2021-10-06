@@ -176,10 +176,6 @@ type TerminalHandler struct {
 	buffer []byte
 
 	closeOnce sync.Once
-
-	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
-	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
-	ALPNSNIListenerEnabled bool
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -254,7 +250,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient, error) {
-	clientConfig, err := makeTeleportClientConfig(t.ctx, t.ALPNSNIListenerEnabled)
+	clientConfig, err := makeTeleportClientConfig(ws.Request().Context(), t.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

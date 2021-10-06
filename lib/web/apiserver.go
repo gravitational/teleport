@@ -171,9 +171,7 @@ type Config struct {
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
 
-	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
-	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
-	ALPNSNIListenerEnabled bool
+	GetProxySettingsFunc func(ctx context.Context) (*webclient.ProxySettings, error)
 }
 
 type RewritingHandler struct {
@@ -483,6 +481,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	}
 
+	resp, err := h.cfg.GetProxySettingsFunc(cfg.Context)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create application specific handler. This handler handles sessions and
 	// forwarding for application access.
 	appHandler, err := app.NewHandler(cfg.Context, &app.HandlerConfig{
@@ -491,7 +494,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		AccessPoint:   cfg.AccessPoint,
 		ProxyClient:   cfg.Proxy,
 		CipherSuites:  cfg.CipherSuites,
-		WebPublicAddr: cfg.ProxySettings.SSH.PublicAddr,
+		WebPublicAddr: resp.SSH.PublicAddr,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -725,17 +728,26 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
+	proxyConfig, err := h.cfg.GetProxySettingsFunc(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return webclient.PingResponse{
 		Auth:             defaultSettings,
-		Proxy:            h.cfg.ProxySettings,
+		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 	}, nil
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	proxyConfig, err := h.cfg.GetProxySettingsFunc(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return webclient.PingResponse{
-		Proxy:            h.cfg.ProxySettings,
+		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 	}, nil
@@ -750,8 +762,12 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
+	proxyConfig, err := h.cfg.GetProxySettingsFunc(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	response := &webclient.PingResponse{
-		Proxy:         h.cfg.ProxySettings,
+		Proxy:         *proxyConfig,
 		ServerVersion: teleport.Version,
 	}
 
@@ -2542,8 +2558,8 @@ func makeResponse(items interface{}) (interface{}, error) {
 
 // makeTeleportClientConfig creates default teleport client configuration
 // that is used to initiate an SSH terminal session or SCP file transfer
-func makeTeleportClientConfig(ctx *SessionContext, ALPNListenerEnabled bool) (*client.Config, error) {
-	agent, cert, err := ctx.GetAgent()
+func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*client.Config, error) {
+	agent, cert, err := sesCtx.GetAgent()
 	if err != nil {
 		return nil, trace.BadParameter("failed to get user credentials: %v", err)
 	}
@@ -2553,28 +2569,33 @@ func makeTeleportClientConfig(ctx *SessionContext, ALPNListenerEnabled bool) (*c
 		return nil, trace.BadParameter("failed to get user credentials: %v", err)
 	}
 
-	tlsConfig, err := ctx.ClientTLSConfig()
+	tlsConfig, err := sesCtx.ClientTLSConfig()
 	if err != nil {
 		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
 	}
 
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
-			GetHostCheckers: ctx.getCheckers,
+			GetHostCheckers: sesCtx.getCheckers,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	listenerMode, err := sesCtx.GetProxyListenerMode(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config := &client.Config{
-		Username:               ctx.user,
+		Username:               sesCtx.user,
 		Agent:                  agent,
 		SkipLocalAuth:          true,
 		TLS:                    tlsConfig,
 		AuthMethods:            []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		DefaultPrincipal:       cert.ValidPrincipals[0],
 		HostKeyCallback:        callback,
-		ALPNSNIListenerEnabled: ALPNListenerEnabled,
+		ALPNSNIListenerEnabled: listenerMode == types.ProxyListenerMode_Multiplex,
 	}
 
 	return config, nil
