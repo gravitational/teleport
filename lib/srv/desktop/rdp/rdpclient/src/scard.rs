@@ -1476,6 +1476,11 @@ struct GetDeviceTypeId_Return {
 
 impl GetDeviceTypeId_Return {
     fn new(return_code: ReturnCode) -> Self {
+        // Reader type describes the type of the physical connection to the smartcard reader (e.g.
+        // USB/serial/TPM). Type "vendor" means a proprietary vendor bus.
+        //
+        // See "ReaderType" in
+        // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilities
         const SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
         Self {
             return_code,
@@ -1688,6 +1693,7 @@ impl GetReaderIcon_Return {
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
         // Encode empty data field, reader icon not implemented.
+        // TODO: send Teleport/Pam logo.
         let mut index = 0;
         encode_ptr(0, &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(0)?;

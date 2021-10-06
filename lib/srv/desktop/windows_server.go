@@ -511,8 +511,10 @@ func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, con *ldapCli
 		return trace.Wrap(err, "fetching existing CAs: %v", err)
 	}
 	if len(entries) != 1 {
-		return trace.BadParameter("expected exactly 1 CA store at %q, but found %d", ntauthPath, len(entries))
+		return trace.BadParameter("expected exactly 1 NTAuthCertificates CA store at %q, but found %d", ntauthPath, len(entries))
 	}
+	// TODO(zmb3): during CA rotation, find the old CA in NTAuthStore and remove it.
+	// Right now we just append the active CA and let the old ones hang around.
 	existingCAs := entries[0].GetRawAttributeValues("cACertificate")
 	for _, existingCADER := range existingCAs {
 		// CA already present.

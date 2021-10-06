@@ -89,7 +89,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authExport.Flag("keys", "if set, will print private keys").BoolVar(&a.exportPrivateKeys)
 	a.authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&a.exportAuthorityFingerprint)
 	a.authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&a.compatVersion)
-	a.authExport.Flag("type", "certificate type: 'user', 'host', 'tls-host', 'tls-user', 'tls-user-der' or 'windows'").StringVar(&a.authType)
+	a.authExport.Flag("type", "export certificate type").EnumVar(&a.authType, allowedCertificateTypes...)
 
 	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair").Hidden()
 	a.authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&a.genPubPath)
@@ -149,6 +149,8 @@ func (a *AuthCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 	}
 	return true, trace.Wrap(err)
 }
+
+var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "tls-user-der", "windows"}
 
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
@@ -287,10 +289,11 @@ func (a *AuthCommand) exportTLSAuthority(client auth.ClientI, typ types.CertAuth
 		return nil
 	}
 	if a.exportPrivateKeys {
-		print(keyPair.Key)
+		if err := print(keyPair.Key); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	print(keyPair.Cert)
-	return nil
+	return trace.Wrap(print(keyPair.Cert))
 }
 
 // GenerateKeys generates a new keypair
