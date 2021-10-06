@@ -402,7 +402,11 @@ func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
 // generateDatabaseKeysForKey signs the provided unsigned key with Teleport CA
 // for database access.
 func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *client.Key) error {
-	subject := pkix.Name{CommonName: a.genHost}
+	principals := strings.Split(a.genHost, ",")
+	if len(principals) == 0 {
+		return trace.BadParameter("at least one hostname must be specified via --host flag")
+	}
+	subject := pkix.Name{CommonName: principals[0]}
 	if a.outputFormat == identityfile.FormatMongo {
 		// Include Organization attribute in MongoDB certificates as well.
 		//
@@ -429,10 +433,12 @@ func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *c
 	resp, err := clusterAPI.GenerateDatabaseCert(context.TODO(),
 		&proto.DatabaseCertRequest{
 			CSR: csr,
-			// Important to include server name as SAN since CommonName has
-			// been deprecated since Go 1.15:
+			// Important to include SANs since CommonName has been deprecated
+			// since Go 1.15:
 			//   https://golang.org/doc/go1.15#commonname
-			ServerName: a.genHost,
+			ServerNames: principals,
+			// Include legacy ServerName for compatibility.
+			ServerName: principals[0],
 			TTL:        proto.Duration(a.genTTL),
 		})
 	if err != nil {
