@@ -26,13 +26,16 @@ package auth
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
+	"math/big"
+	insecurerand "math/rand"
 	"net"
 	"net/url"
 	"strings"
@@ -373,7 +376,7 @@ func (a *Server) runPeriodicOperations() {
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
 	// to update the same resources.
-	r := rand.New(rand.NewSource(a.GetClock().Now().UnixNano()))
+	r := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
 	a.lock.RLock()
@@ -2598,6 +2601,55 @@ func (a *Server) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opt
 // loadSigningKeys controls whether signing keys should be loaded or not
 func (a *Server) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	return a.GetCache().GetCertAuthorities(caType, loadSigningKeys, opts...)
+}
+
+// GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
+func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	// Generate a CRL for the current cluster CA.
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := a.GetCertAuthority(types.CertAuthID{
+		Type:       caType,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(awly): this will only create a CRL for an active signer.
+	// If there are multiple signers (multiple HSMs), we won't have the full CRL coverage.
+	// Generate a CRL per signer and return all of them separately.
+
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	if trace.IsNotFound(err) {
+		// If there is no local TLS signer found in the host CA ActiveKeys, this
+		// auth server may have a newly configured HSM and has only populated
+		// local keys in the AdditionalTrustedKeys until the next CA rotation.
+		// This is the only case where we should be able to get a signer from
+		// AdditionalTrustedKeys but not ActiveKeys.
+		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ca)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsAuthority, err := tlsca.FromCertAndSigner(cert, signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Empty CRL valid for 1yr.
+	template := &x509.RevocationList{
+		Number:     big.NewInt(1),
+		ThisUpdate: time.Now().Add(-1 * time.Minute), // 1 min in the past to account for clock skew.
+		NextUpdate: time.Now().Add(365 * 24 * time.Hour),
+	}
+	crl, err := x509.CreateRevocationList(rand.Reader, template, tlsAuthority.Cert, tlsAuthority.Signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return crl, nil
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
