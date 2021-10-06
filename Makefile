@@ -611,11 +611,11 @@ $(VERSRC): Makefile
 	$(MAKE) update-api-module-path || true
 
 # This rule updates the api module path to be in sync with the current api release version.
-# e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
+# e.g. github.com/gravitational/teleport/api/vgsX -> github.com/gravitational/teleport/api/vY
 #
 # It will immediately fail if:
-#  1. A suffix is present in the version - e.g. "-alpha"
-#  2. The version suffix hasn't changed - e.g. 7.0.0 -> 7.1.0
+#  1. A suffix is present in the version - e.g. "v7.0.0-alpha"
+#  2. The major version suffix hasn't changed - e.g. 7.0.0 -> 7.1.0 or v0.0.0 -> 1.0.0 (no suffix)
 #
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
 .PHONY: update-api-module-path
@@ -903,11 +903,11 @@ update-vendor:
 # around this issue, we replace the vendored api package with a symlink to the
 # local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
 .PHONY: vendor-api
+vendor-api: MOD_PATH := $(shell head -1 api/go.mod | awk '{print $$2;}')
 vendor-api:
-	$(eval MOD_PATH=$(shell head -1 api/go.mod | awk '{print $$2;}'))
 	rm -rf vendor/github.com/gravitational/teleport/api
 	mkdir -p vendor/$(shell dirname $(MOD_PATH))
-	ln -rs $(shell readlink -f api) vendor/$(MOD_PATH)
+	ln -rs ./api vendor/$(MOD_PATH)
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
