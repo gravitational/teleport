@@ -32,7 +32,7 @@ teleport:
     # PID file for Teleport process
     #pid_file: /var/run/teleport.pid
 
-    # Invitation token used to join a cluster. it is not used on
+    # Invitation token or file containing used to join a cluster. it is not used on
     # subsequent starts
     auth_token: xxxx-token-xxxx
 
@@ -46,6 +46,11 @@ teleport:
     #
     # This value can be specified as FQDN e.g. host.example.com
     advertise_ip: 10.1.0.5
+    
+    
+    # Teleport provides HTTP endpoints for monitoring purposes. They are disabled by default, but you can enable them using the 
+    # diagnosis address. See the Teleport Metrics of the Reference Manual (https://goteleport.com/docs/setup/reference/metrics/)
+    diag_addr: "127.0.0.1:3000"
 
     # Auth Server address and port to connect to. If you configure teleport auth to run in High
     # Availability configuration the address should point to a Load Balancer.
@@ -297,6 +302,9 @@ auth_service:
     # inactivity. The empty string indicates that no message will be sent.
     # (Currently only supported for SSH connections)
     client_idle_timeout_message: ""
+    
+    # Sets a web idle timeout for browser users.  If not specified will default to 10m
+    web_idle_timeout: 10m
 
     # Determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active SSH session. (default is 'no')
