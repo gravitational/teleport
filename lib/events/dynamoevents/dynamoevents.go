@@ -1342,20 +1342,6 @@ func (l *Log) convertFieldsToDynamoMapFormat(ctx context.Context) error {
 	return trace.Wrap(l.migrateMatchingEvents(ctx, filterExpr, transformEvent))
 }
 
-func minInt64(x, y int64) int64 {
-	if x > y {
-		return y
-	}
-	return x
-}
-
-func maxInt64(x, y int64) int64 {
-	if x > y {
-		return x
-	}
-	return y
-}
-
 func (l *Log) approximateOptimalMigrationWorkers() (int32, error) {
 	req := dynamodb.DescribeTableInput{TableName: aws.String(l.Tablename)}
 	table, err := l.svc.DescribeTable(&req)
@@ -1368,11 +1354,11 @@ func (l *Log) approximateOptimalMigrationWorkers() (int32, error) {
 	if provisioned == nil || provisioned.ReadCapacityUnits == nil || provisioned.WriteCapacityUnits == nil {
 		return maxMigrationWorkers, nil
 	}
-	throughput := minInt64(*provisioned.ReadCapacityUnits, *provisioned.WriteCapacityUnits)
+	throughput := utils.MinInt64(*provisioned.ReadCapacityUnits, *provisioned.WriteCapacityUnits)
 
 	// divide throughput by batch size rounding upwards and then take 75% of that
 	optimalWorkers := (throughput + (DynamoBatchSize - 1)) / DynamoBatchSize * 3 / 4
-	clamped := minInt64(maxInt64(optimalWorkers, 1), maxMigrationWorkers)
+	clamped := utils.MinInt64(utils.MaxInt64(optimalWorkers, 1), maxMigrationWorkers)
 	return int32(clamped), nil
 }
 
@@ -1459,7 +1445,7 @@ func (l *Log) migrateMatchingEvents(ctx context.Context, filterExpr string, tran
 			writeRequests = writeRequests[top:]
 
 			// Don't exceed maximum workers.
-			for workerCounter.Load() >= int32(migrationWorkers) {
+			for workerCounter.Load() >= migrationWorkers {
 				select {
 				case <-time.After(time.Millisecond * 50):
 				case <-ctx.Done():
