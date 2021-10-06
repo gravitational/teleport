@@ -447,7 +447,7 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	teleUser, err := types.NewUser(user)
 	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
-	role.SetLogins(services.Allow, []string{login})
+	role.SetLogins(types.Allow, []string{login})
 	options := role.GetOptions()
 	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
@@ -498,7 +498,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	role.SetLogins(services.Allow, []string{s.user})
+	role.SetLogins(types.Allow, []string{s.user})
 	err = s.server.Auth().UpsertRole(s.ctx, role)
 	c.Assert(err, IsNil)
 
@@ -2229,7 +2229,6 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			clt:  authnClt,
 			ep:   []string{"webapi", "u2f", "password", "changerequest"},
 			reqBody: client.MFAChallengeRequest{
-				User: authPack.user,
 				Pass: authPack.password,
 			},
 		},
@@ -3315,7 +3314,7 @@ func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass,
 	require.NoError(t, err)
 
 	role := services.RoleForUser(teleUser)
-	role.SetLogins(services.Allow, []string{login})
+	role.SetLogins(types.Allow, []string{login})
 	options := role.GetOptions()
 	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)

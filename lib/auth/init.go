@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -34,7 +33,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -390,7 +388,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// Migrate any legacy resources to new format.
-	err = migrateLegacyResources(ctx, cfg, asrv)
+	err = migrateLegacyResources(ctx, asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -496,7 +494,7 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 	return false, nil
 }
 
-func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) error {
+func migrateLegacyResources(ctx context.Context, asrv *Server) error {
 	err := migrateOSS(ctx, asrv)
 	if err != nil {
 		return trace.Wrap(err)
@@ -512,14 +510,9 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 		return trace.Wrap(err)
 	}
 
-	if err := migrateMFADevices(ctx, asrv); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := migrateCertAuthorities(ctx, asrv); err != nil {
 		return trace.Wrap(err, "fail to migrate certificate authorities to the v7 storage format: %v; please report this at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md including the *redacted* output of 'tctl get cert_authority'", err)
 	}
-
 	return nil
 }
 
@@ -883,7 +876,8 @@ func CertAuthorityInfo(ca types.CertAuthority) string {
 	return fmt.Sprintf("cert authority(state: %v, phase: %v, roots: %v)", ca.GetRotation().State, ca.GetRotation().Phase, strings.Join(out, ", "))
 }
 
-// HasTSLConfig returns true if this identity has TLS certificate and private key
+// HasTLSConfig returns true if this identity has TLS certificate and private
+// key.
 func (i *Identity) HasTLSConfig() bool {
 	return len(i.TLSCACertsBytes) != 0 && len(i.TLSCertBytes) != 0
 }
@@ -1219,71 +1213,6 @@ func migrateRoleOptions(ctx context.Context, asrv *Server) error {
 		role.SetOptions(options)
 		err := asrv.UpsertRole(ctx, role)
 		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-// DELETE IN: 7.0.0
-// migrateMFADevices migrates registered MFA devices to the new storage format.
-func migrateMFADevices(ctx context.Context, asrv *Server) error {
-	users, err := asrv.GetUsers(true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, user := range users {
-		la := user.GetLocalAuth()
-		if la == nil {
-			continue
-		}
-		if len(la.MFA) > 0 {
-			// User already migrated.
-			continue
-		}
-
-		if len(la.TOTPKey) > 0 {
-			d, err := services.NewTOTPDevice("totp", la.TOTPKey, asrv.clock.Now())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			la.MFA = append(la.MFA, d)
-
-			la.TOTPKey = ""
-		}
-		if la.U2FRegistration != nil {
-			pubKeyI, err := x509.ParsePKIXPublicKey(la.U2FRegistration.PubKey)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			pubKey, ok := pubKeyI.(*ecdsa.PublicKey)
-			if !ok {
-				return trace.BadParameter("expected *ecdsa.PublicKey, got %T", pubKeyI)
-			}
-			d, err := u2f.NewDevice("u2f", &u2f.Registration{
-				KeyHandle: la.U2FRegistration.KeyHandle,
-				PubKey:    *pubKey,
-			}, asrv.clock.Now())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			d.GetU2F().Counter = la.U2FCounter
-			la.MFA = append(la.MFA, d)
-
-			la.U2FRegistration = nil
-			la.U2FCounter = 0
-		}
-
-		if len(la.MFA) == 0 {
-			// No MFA devices to migrate.
-			continue
-		}
-
-		log.Debugf("Migrating MFA devices in LocalAuth for user %q", user.GetName())
-		user.SetLocalAuth(la)
-		if err := asrv.UpsertUser(user); err != nil {
 			return trace.Wrap(err)
 		}
 	}

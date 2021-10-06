@@ -63,8 +63,8 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 
 // Setup sets up cloud IAM policies for the provided database.
 func (c *IAM) Setup(ctx context.Context, database types.Database) error {
-	if database.IsRDS() {
-		rds, err := c.getRDSConfigurator(ctx, database)
+	if database.IsRDS() || database.IsRedshift() {
+		rds, err := c.getAWSConfigurator(ctx, database)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -75,8 +75,8 @@ func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 
 // Teardown tears down cloud IAM policies for the provided database.
 func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
-	if database.IsRDS() {
-		rds, err := c.getRDSConfigurator(ctx, database)
+	if database.IsRDS() || database.IsRedshift() {
+		rds, err := c.getAWSConfigurator(ctx, database)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -85,13 +85,13 @@ func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
 	return nil
 }
 
-// getRDSConfigurator returns configurator instance for the provided database.
-func (c *IAM) getRDSConfigurator(ctx context.Context, database types.Database) (*rdsClient, error) {
+// getAWSConfigurator returns configurator instance for the provided database.
+func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (*awsClient, error) {
 	identity, err := c.getAWSIdentity(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newRDS(ctx, rdsConfig{
+	return newAWS(ctx, awsConfig{
 		clients:  c.cfg.Clients,
 		identity: identity,
 		database: database,
