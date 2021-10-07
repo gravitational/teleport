@@ -19,7 +19,6 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -201,7 +200,7 @@ func proxySession(ctx context.Context, sess *ssh.Session) error {
 		case <-ctx.Done():
 			return nil
 		case err := <-errC:
-			if err != nil && !errors.Is(err, io.EOF) {
+			if err != nil && !utils.IsOKNetworkError(err) {
 				errs = append(errs, err)
 			}
 		}
@@ -228,6 +227,9 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 		}
 		go func() {
 			if err := l.handleDownstreamConnection(ctx, conn, l.cfg.SNI); err != nil {
+				if utils.IsOKNetworkError(err) {
+					return
+				}
 				log.WithError(err).Errorf("Failed to handle connection.")
 			}
 		}()
@@ -273,7 +275,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		case <-ctx.Done():
 			return trace.NewAggregate(append(errs, ctx.Err())...)
 		case err := <-errC:
-			if err != nil && !errors.Is(err, io.EOF) {
+			if err != nil && !utils.IsOKNetworkError(err) {
 				errs = append(errs, err)
 			}
 		}

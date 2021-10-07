@@ -262,10 +262,12 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			// service handler returned will break service logic.
 			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
 			if err := p.handleConn(ctx, clientConn); err != nil {
-				if err := clientConn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-					p.log.WithError(err).Warnf("Failed to close client connection.")
+				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
+					p.log.WithError(cerr).Warnf("Failed to close client connection.")
 				}
-				p.log.WithError(err).Warnf("Failed to handle client connection.")
+				if !utils.IsOKNetworkError(err) {
+					p.log.WithError(err).Warnf("Failed to handle client connection.")
+				}
 			}
 		}()
 	}
