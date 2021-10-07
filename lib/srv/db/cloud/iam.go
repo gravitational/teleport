@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/gravitational/trace"
@@ -51,7 +51,7 @@ func (c *IAMConfig) Check() error {
 type IAM struct {
 	cfg         IAMConfig
 	log         logrus.FieldLogger
-	awsIdentity cloud.AWSIdentity
+	awsIdentity aws.Identity
 	mu          sync.RWMutex
 }
 
@@ -105,7 +105,7 @@ func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (
 }
 
 // getAWSIdentity returns this process' AWS identity.
-func (c *IAM) getAWSIdentity(ctx context.Context) (cloud.AWSIdentity, error) {
+func (c *IAM) getAWSIdentity(ctx context.Context) (aws.Identity, error) {
 	c.mu.RLock()
 	if c.awsIdentity != nil {
 		defer c.mu.RUnlock()
@@ -116,7 +116,7 @@ func (c *IAM) getAWSIdentity(ctx context.Context) (cloud.AWSIdentity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	awsIdentity, err := cloud.GetAWSIdentityWithClient(ctx, sts)
+	awsIdentity, err := aws.GetIdentityWithClient(ctx, sts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
