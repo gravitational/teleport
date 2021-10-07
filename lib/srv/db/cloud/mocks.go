@@ -126,48 +126,76 @@ func (m *RDSMock) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyD
 // IAMMock mocks AWS IAM API.
 type IAMMock struct {
 	iamiface.IAMAPI
-	attachedRolePolicies map[string][]string
-	attachedUserPolicies map[string][]string
+	// attachedRolePolicies maps roleName -> policyName -> policyDocument
+	attachedRolePolicies map[string]map[string]string
+	// attachedUserPolicies maps userName -> policyName -> policyDocument
+	attachedUserPolicies map[string]map[string]string
+}
+
+func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
+	policy, ok := m.attachedRolePolicies[*input.RoleName]
+	if !ok {
+		return nil, trace.NotFound("policy not found")
+	}
+	policyDocument, ok := policy[*input.PolicyName]
+	if !ok {
+		return nil, trace.NotFound("policy not found")
+	}
+	return &iam.GetRolePolicyOutput{
+		PolicyDocument: &policyDocument,
+		PolicyName:     input.PolicyName,
+		RoleName:       input.RoleName,
+	}, nil
 }
 
 func (m *IAMMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
 	if m.attachedRolePolicies == nil {
-		m.attachedRolePolicies = make(map[string][]string)
+		m.attachedRolePolicies = make(map[string]map[string]string)
 	}
-	m.attachedRolePolicies[aws.StringValue(input.RoleName)] = append(
-		m.attachedRolePolicies[aws.StringValue(input.RoleName)],
-		aws.StringValue(input.PolicyName))
+	if m.attachedRolePolicies[*input.RoleName] == nil {
+		m.attachedRolePolicies[*input.RoleName] = make(map[string]string)
+	}
+	m.attachedRolePolicies[*input.RoleName][*input.PolicyName] = *input.PolicyDocument
 	return &iam.PutRolePolicyOutput{}, nil
 }
 
-func (m *IAMMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
-	if m.attachedUserPolicies == nil {
-		m.attachedUserPolicies = make(map[string][]string)
-	}
-	m.attachedUserPolicies[aws.StringValue(input.UserName)] = append(
-		m.attachedUserPolicies[aws.StringValue(input.UserName)],
-		aws.StringValue(input.PolicyName))
-	return &iam.PutUserPolicyOutput{}, nil
-}
-
 func (m *IAMMock) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.DeleteRolePolicyInput, options ...request.Option) (*iam.DeleteRolePolicyOutput, error) {
-	for i, policy := range m.attachedRolePolicies[aws.StringValue(input.RoleName)] {
-		if policy == aws.StringValue(input.PolicyName) {
-			m.attachedRolePolicies[aws.StringValue(input.RoleName)] = append(
-				m.attachedRolePolicies[aws.StringValue(input.RoleName)][:i],
-				m.attachedRolePolicies[aws.StringValue(input.RoleName)][i+1:]...)
-		}
+	if _, ok := m.attachedRolePolicies[*input.RoleName]; ok {
+		delete(m.attachedRolePolicies[*input.RoleName], *input.PolicyName)
 	}
 	return &iam.DeleteRolePolicyOutput{}, nil
 }
 
+func (m *IAMMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
+	policy, ok := m.attachedUserPolicies[*input.UserName]
+	if !ok {
+		return nil, trace.NotFound("policy not found")
+	}
+	policyDocument, ok := policy[*input.PolicyName]
+	if !ok {
+		return nil, trace.NotFound("policy not found")
+	}
+	return &iam.GetUserPolicyOutput{
+		PolicyDocument: &policyDocument,
+		PolicyName:     input.PolicyName,
+		UserName:       input.UserName,
+	}, nil
+}
+
+func (m *IAMMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
+	if m.attachedUserPolicies == nil {
+		m.attachedUserPolicies = make(map[string]map[string]string)
+	}
+	if m.attachedUserPolicies[*input.UserName] == nil {
+		m.attachedUserPolicies[*input.UserName] = make(map[string]string)
+	}
+	m.attachedUserPolicies[*input.UserName][*input.PolicyName] = *input.PolicyDocument
+	return &iam.PutUserPolicyOutput{}, nil
+}
+
 func (m *IAMMock) DeleteUserPolicyWithContext(ctx aws.Context, input *iam.DeleteUserPolicyInput, options ...request.Option) (*iam.DeleteUserPolicyOutput, error) {
-	for i, policy := range m.attachedUserPolicies[aws.StringValue(input.UserName)] {
-		if policy == aws.StringValue(input.PolicyName) {
-			m.attachedUserPolicies[aws.StringValue(input.UserName)] = append(
-				m.attachedUserPolicies[aws.StringValue(input.UserName)][:i],
-				m.attachedUserPolicies[aws.StringValue(input.UserName)][i+1:]...)
-		}
+	if _, ok := m.attachedUserPolicies[*input.UserName]; ok {
+		delete(m.attachedUserPolicies[*input.UserName], *input.PolicyName)
 	}
 	return &iam.DeleteUserPolicyOutput{}, nil
 }
@@ -229,18 +257,18 @@ type IAMMockUnauth struct {
 	iamiface.IAMAPI
 }
 
+func (m *IAMMockUnauth) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
 func (m *IAMMockUnauth) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
 	return nil, trace.AccessDenied("unauthorized")
 }
 
+func (m *IAMMockUnauth) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
 func (m *IAMMockUnauth) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
-	return nil, trace.AccessDenied("unauthorized")
-}
-
-func (m *IAMMockUnauth) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.DeleteRolePolicyInput, options ...request.Option) (*iam.DeleteRolePolicyOutput, error) {
-	return nil, trace.AccessDenied("unauthorized")
-}
-
-func (m *IAMMockUnauth) DeleteUserPolicyWithContext(ctx aws.Context, input *iam.DeleteUserPolicyInput, options ...request.Option) (*iam.DeleteUserPolicyOutput, error) {
 	return nil, trace.AccessDenied("unauthorized")
 }
