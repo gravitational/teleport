@@ -8,11 +8,20 @@ name: Assign
 on: 
   pull_request_target:
     types: [assigned, opened, reopened, ready_for_review]
-# Only grant write permissions to pull requests for the Github token. 
+# Only grant write access to pull requests for the Github token. 
 # The default is write permissions to many resources, but it's best 
 # practice to keep the scope as small as possible. 
 permissions:  
-  pull-requests: write
+    pull-requests: write
+    actions: none
+    checks: none
+    contents: none
+    deployments: none
+    issues: none
+    packages: none
+    repository-projects: none
+    security-events: none
+    statuses: none
 jobs:
   auto-request-review:
     name: Auto Request Review

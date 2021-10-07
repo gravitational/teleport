@@ -12,10 +12,17 @@ on:
   schedule:
     # Runs every 30 minutes
     - cron:  '0,30 * * * *' 
-
 permissions: 
   actions: write 
   pull-requests: read
+  checks: none
+  contents: none
+  deployments: none
+  issues: none
+  packages: none
+  repository-projects: none
+  security-events: none
+  statuses: none
 jobs: 
   dismiss-stale-runs:
     name: Dismiss Stale Workflow Runs
