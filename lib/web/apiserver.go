@@ -170,6 +170,10 @@ type Config struct {
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
+
+	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	ALPNSNIListenerEnabled bool
 }
 
 type RewritingHandler struct {
@@ -2538,7 +2542,7 @@ func makeResponse(items interface{}) (interface{}, error) {
 
 // makeTeleportClientConfig creates default teleport client configuration
 // that is used to initiate an SSH terminal session or SCP file transfer
-func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
+func makeTeleportClientConfig(ctx *SessionContext, ALPNListenerEnabled bool) (*client.Config, error) {
 	agent, cert, err := ctx.GetAgent()
 	if err != nil {
 		return nil, trace.BadParameter("failed to get user credentials: %v", err)
@@ -2563,13 +2567,14 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 	}
 
 	config := &client.Config{
-		Username:         ctx.user,
-		Agent:            agent,
-		SkipLocalAuth:    true,
-		TLS:              tlsConfig,
-		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-		DefaultPrincipal: cert.ValidPrincipals[0],
-		HostKeyCallback:  callback,
+		Username:               ctx.user,
+		Agent:                  agent,
+		SkipLocalAuth:          true,
+		TLS:                    tlsConfig,
+		AuthMethods:            []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		DefaultPrincipal:       cert.ValidPrincipals[0],
+		HostKeyCallback:        callback,
+		ALPNSNIListenerEnabled: ALPNListenerEnabled,
 	}
 
 	return config, nil

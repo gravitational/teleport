@@ -2093,7 +2093,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}
 	log.Infof("Connecting proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 
-	sshClient, err := makeProxySSHClient(tc.Config, sshConfig)
+	sshClient, err := makeProxySSHClient(tc, sshConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2112,11 +2112,17 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}, nil
 }
 
-func makeProxySSHClientWithTLSWrapper(cfg Config, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, &tls.Config{
-		NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
-	})
+func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	cfg := tc.Config
+	clientTLSConf, err := tc.loadTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clientTLSConf.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
+	clientTLSConf.InsecureSkipVerify = cfg.InsecureSkipVerify
+
+	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, clientTLSConf)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to dial tls %v", cfg.WebProxyAddr)
 	}
@@ -2128,13 +2134,13 @@ func makeProxySSHClientWithTLSWrapper(cfg Config, sshConfig *ssh.ClientConfig) (
 	return ssh.NewClient(c, chans, reqs), nil
 }
 
-func makeProxySSHClient(cfg Config, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	if cfg.ALPNSNIListenerEnabled {
-		return makeProxySSHClientWithTLSWrapper(cfg, sshConfig)
+func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	if tc.Config.ALPNSNIListenerEnabled {
+		return makeProxySSHClientWithTLSWrapper(tc, sshConfig)
 	}
-	client, err := ssh.Dial("tcp", cfg.SSHProxyAddr, sshConfig)
+	client, err := ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.SSHProxyAddr)
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
 	}
 	return client, nil
 }
@@ -2947,6 +2953,22 @@ func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, erro
 	case <-time.After(500 * time.Millisecond):
 		return "", trace.NotFound("timed out waiting for server response")
 	}
+}
+
+func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
+	if tc.SkipLocalAuth {
+		return tc.TLS.Clone(), nil
+	}
+
+	tlsKey, err := tc.localAgent.GetCoreKey()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
+	}
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate client TLS config")
+	}
+	return tlsConfig, nil
 }
 
 // passwordFromConsoleFn allows tests to replace the passwordFromConsole

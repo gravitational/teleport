@@ -2689,7 +2689,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	alpnRouter := setupALPNRouter(listeners, cfg)
+	serverTLSConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	alpnRouter := setupALPNRouter(listeners, serverTLSConfig, cfg)
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
@@ -2781,6 +2785,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Context:          process.ExitContext(),
 				StaticFS:         fs,
 				ClusterFeatures:  process.getClusterFeatures(),
+				// TODO(smallinksy) Get dynamically based on the cluster networking config - proxy listener mode.
+				ALPNSNIListenerEnabled: !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3203,7 +3209,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 	return tlsConfig, nil
 }
 
-func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
+func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *Config) *alpnproxy.Router {
 	if listeners.web == nil || cfg.Proxy.DisableTLS || cfg.Proxy.DisableALPNSNIListener {
 		return nil
 	}
@@ -3217,7 +3223,6 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 		router.AddKubeHandler(kubeListener.HandleConnection)
 		listeners.kube = kubeListener
 	}
-
 	if !cfg.Proxy.DisableReverseTunnel {
 		reverseTunnel := alpnproxy.NewMuxListenerWrapper(listeners.reverseTunnel, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
@@ -3241,10 +3246,12 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 		})
 		listeners.web = webWrapper
 	}
+
 	sshProxyListener := alpnproxy.NewMuxListenerWrapper(listeners.ssh, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
 		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxySSH),
 		Handler:   sshProxyListener.HandleConnection,
+		TLSConfig: serverTLSConf,
 	})
 	listeners.ssh = sshProxyListener
 

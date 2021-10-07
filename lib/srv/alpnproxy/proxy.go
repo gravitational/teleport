@@ -156,6 +156,10 @@ type HandlerDecs struct {
 	// If is evaluated to true the current HandleDesc will be used
 	// for connection handling.
 	MatchFunc MatchFunc
+	// TLSConfig is TLS configuration that allows switching TLS settings for the handle.
+	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connection
+	// but if HandleDesc.TLSConfig is preset it will take precedence over ProxyConfig TLS configuration.
+	TLSConfig *tls.Config
 }
 
 func (h *HandlerDecs) CheckAndSetDefaults() error {
@@ -164,6 +168,10 @@ func (h *HandlerDecs) CheckAndSetDefaults() error {
 	}
 	if h.MatchFunc == nil {
 		return trace.BadParameter("missing param MatchFunc")
+	}
+
+	if h.ForwardTLS && h.TLSConfig != nil {
+		return trace.BadParameter("the ForwardTLS flag and TLSConfig can't be used at the same time")
 	}
 	return nil
 }
@@ -313,7 +321,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
 	}
 
-	tlsConn := tls.Server(conn, p.cfg.WebTLSConfig)
+	tlsConn := tls.Server(conn, p.getTLSConfig(handlerDesc))
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -332,6 +340,15 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, connInfo))
 	}
 	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
+}
+
+// getTLSConfig returns HandlerDecs.TLSConfig if custom TLS configuration was set for the handler
+// otherwise the ProxyConfig.WebTLSConfig is used.
+func (p *Proxy) getTLSConfig(desc *HandlerDecs) *tls.Config {
+	if desc.TLSConfig != nil {
+		return desc.TLSConfig
+	}
+	return p.cfg.WebTLSConfig
 }
 
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
