@@ -57,6 +57,9 @@ on:
   pull_request_target:
     types: [assigned, opened, reopened, ready_for_review]
 
+permissions: 
+  pull-requests: write
+
 jobs:
   auto-request-review:
     name: Auto Request Review
@@ -83,6 +86,8 @@ on:
     type: [submitted, edited, dismissed]
   pull_request_target: 
     types: [assigned, opened, reopened, ready_for_review, synchronize]
+
+permissions: read-all
 
 jobs: 
   check-reviews:
