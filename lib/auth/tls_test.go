@@ -1208,7 +1208,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	out, err := clt.GetSessions(apidefaults.Namespace)
+	out, err := clt.GetSessions(apidefaults.Namespace, nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.DeepEquals, []session.Session{})
 
@@ -1223,7 +1223,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	}
 	c.Assert(clt.CreateSession(sess), check.IsNil)
 
-	out, err = clt.GetSessions(apidefaults.Namespace)
+	out, err = clt.GetSessions(apidefaults.Namespace, nil)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(out, check.DeepEquals, []session.Session{sess})
