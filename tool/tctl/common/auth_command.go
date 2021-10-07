@@ -17,6 +17,7 @@ package common
 import (
 	"context"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -88,7 +89,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authExport.Flag("keys", "if set, will print private keys").BoolVar(&a.exportPrivateKeys)
 	a.authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&a.exportAuthorityFingerprint)
 	a.authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&a.compatVersion)
-	a.authExport.Flag("type", "certificate type: 'user', 'host', 'tls-host' or 'tls-user'").StringVar(&a.authType)
+	a.authExport.Flag("type", "export certificate type").EnumVar(&a.authType, allowedCertificateTypes...)
 
 	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair").Hidden()
 	a.authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&a.genPubPath)
@@ -149,6 +150,8 @@ func (a *AuthCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 	return true, trace.Wrap(err)
 }
 
+var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "tls-user-der", "windows"}
+
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
@@ -161,9 +164,11 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 	// "tls-host" and "tls-user" were added later to allow export of the user
 	// TLS CA.
 	case "tls", "tls-host":
-		return a.exportTLSAuthority(client, types.HostCA)
+		return a.exportTLSAuthority(client, types.HostCA, false)
 	case "tls-user":
-		return a.exportTLSAuthority(client, types.UserCA)
+		return a.exportTLSAuthority(client, types.UserCA, false)
+	case "tls-user-der", "windows":
+		return a.exportTLSAuthority(client, types.UserCA, true)
 	}
 
 	// if no --type flag is given, export all types
@@ -254,7 +259,7 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 	return nil
 }
 
-func (a *AuthCommand) exportTLSAuthority(client auth.ClientI, typ types.CertAuthType) error {
+func (a *AuthCommand) exportTLSAuthority(client auth.ClientI, typ types.CertAuthType, unpackPEM bool) error {
 	clusterName, err := client.GetDomainName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -270,11 +275,25 @@ func (a *AuthCommand) exportTLSAuthority(client auth.ClientI, typ types.CertAuth
 		return trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
 	}
 	keyPair := certAuthority.GetActiveKeys().TLS[0]
-	if a.exportPrivateKeys {
-		fmt.Println(string(keyPair.Key))
+
+	print := func(data []byte) error {
+		if !unpackPEM {
+			fmt.Println(string(data))
+			return nil
+		}
+		b, _ := pem.Decode(data)
+		if b == nil {
+			return trace.BadParameter("no PEM data in CA data: %q", data)
+		}
+		fmt.Println(string(b.Bytes))
+		return nil
 	}
-	fmt.Println(string(keyPair.Cert))
-	return nil
+	if a.exportPrivateKeys {
+		if err := print(keyPair.Key); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return trace.Wrap(print(keyPair.Cert))
 }
 
 // GenerateKeys generates a new keypair
