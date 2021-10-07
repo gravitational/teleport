@@ -71,7 +71,7 @@ proxy_service:
   public_addr: "teleport.example.com:443"
   acme:
     enabled: "yes"
-    email: "alice@example.com"
+    email: alice@example.com
 ```
 
 <Admonition
@@ -254,9 +254,9 @@ provides an option to rewrite the hostname of the `Location` header on
 redirect responses to the application's public address:
 
 ```yaml
-- name: "jira"
-  uri: "https://localhost:8001"
-  public_addr: "jira.example.com"
+- name: "jenkins"
+  uri: "https://localhost:8081"
+  public_addr: "jenkins.example.com"
   rewrite:
     # Rewrite the "Location" header on redirect responses replacing the
     # host with the public address of this application.
