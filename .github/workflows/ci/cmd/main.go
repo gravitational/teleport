@@ -38,7 +38,7 @@ func main() {
 	client := makeGithubClient(ctx, *token)
 	switch subcommand {
 	case ci.AssignSubcommand:
-		log.Println("Assigning reviewers")
+		log.Println("Assigning reviewers.")
 		bot, err := constructBot(ctx, client, *reviewers)
 		if err != nil {
 			log.Fatal(err)
