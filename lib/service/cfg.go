@@ -334,13 +334,13 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	// DisableTLS is enabled if we don't want self signed certs
+	// DisableTLS is enabled if we don't want self-signed certs
 	DisableTLS bool
 
-	// DisableWebInterface allows to turn off serving the Web UI interface
+	// DisableWebInterface allows turning off serving the Web UI interface
 	DisableWebInterface bool
 
-	// DisableWebService turnes off serving web service completely, including web UI
+	// DisableWebService turns off serving web service completely, including web UI
 	DisableWebService bool
 
 	// DisableReverseTunnel disables reverse tunnel on the proxy
@@ -397,6 +397,9 @@ type ProxyConfig struct {
 
 	// ACME is ACME protocol support config
 	ACME ACME
+
+	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
+	DisableALPNSNIListener bool
 }
 
 // ACME configures ACME automatic certificate renewal
@@ -505,9 +508,6 @@ type AuthConfig struct {
 	// Preference defines the authentication preference (type and second factor) for
 	// the auth server.
 	Preference types.AuthPreference
-
-	// ClusterConfig stores cluster level configuration.
-	ClusterConfig types.ClusterConfig
 
 	// AuditConfig stores cluster audit configuration.
 	AuditConfig types.ClusterAuditConfig
@@ -630,11 +630,21 @@ type DatabaseAWS struct {
 	Region string
 	// Redshift contains Redshift specific settings.
 	Redshift DatabaseAWSRedshift
+	// RDS contains RDS specific settings.
+	RDS DatabaseAWSRDS
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
+	ClusterID string
+}
+
+// DatabaseAWSRDS contains AWS RDS specific settings.
+type DatabaseAWSRDS struct {
+	// InstanceID is the RDS instance identifier.
+	InstanceID string
+	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string
 }
 
@@ -713,6 +723,9 @@ type AppsConfig struct {
 
 	// Apps is the list of applications that are being proxied.
 	Apps []App
+
+	// Selectors is a list of resource monitor selectors.
+	Selectors []services.Selector
 }
 
 // App is the specific application that will be proxied by the application
@@ -745,8 +758,8 @@ type App struct {
 	Rewrite *Rewrite
 }
 
-// Check validates an application.
-func (a App) Check() error {
+// CheckAndSetDefaults validates an application.
+func (a *App) CheckAndSetDefaults() error {
 	if a.Name == "" {
 		return trace.BadParameter("missing application name")
 	}
@@ -773,6 +786,11 @@ func (a App) Check() error {
 			return trace.BadParameter("application %q public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.Name, a.PublicAddr)
 		}
 	}
+	// Mark the app as coming from the static configuration.
+	if a.StaticLabels == nil {
+		a.StaticLabels = make(map[string]string)
+	}
+	a.StaticLabels[types.OriginLabel] = types.OriginConfigFile
 	// Make sure there are no reserved headers in the rewrite configuration.
 	// They wouldn't be rewritten even if we allowed them here but catch it
 	// early and let the user know.
@@ -818,11 +836,25 @@ type WindowsDesktopConfig struct {
 	ListenAddr utils.NetAddr
 	// PublicAddrs is a list of advertised public addresses of the service.
 	PublicAddrs []utils.NetAddr
+	// LDAP is the LDAP connection parameters.
+	LDAP LDAPConfig
 	// Hosts is an optional list of static Windows hosts to expose through this
 	// service.
 	Hosts []utils.NetAddr
 	// ConnLimiter limits the connection and request rates.
 	ConnLimiter limiter.Config
+}
+
+// LDAPConfig is the LDAP connection parameters.
+type LDAPConfig struct {
+	// Addr is the address:port of the LDAP server (typically port 389).
+	Addr string
+	// Domain is the ActiveDirectory domain name.
+	Domain string
+	// Username for LDAP authentication.
+	Username string
+	// Password for LDAP authentication.
+	Password string
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -923,7 +955,6 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
-	cfg.Auth.ClusterConfig = types.DefaultClusterConfig()
 	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()

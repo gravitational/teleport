@@ -252,7 +252,11 @@ func wait(c *check.C, srv *Server) {
 func pass(need string) PasswordFunc {
 	return func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 		if string(password) == need {
-			return nil, nil
+			return &ssh.Permissions{
+				Extensions: map[string]string{
+					utils.ExtIntCertType: utils.ExtIntCertTypeUser,
+				},
+			}, nil
 		}
 		return nil, fmt.Errorf("passwords don't match")
 	}

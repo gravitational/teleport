@@ -53,8 +53,11 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindOIDC, RW()),
 					types.NewRule(types.KindSAML, RW()),
 					types.NewRule(types.KindGithub, RW()),
+					types.NewRule(types.KindClusterAuditConfig, RW()),
 					types.NewRule(types.KindClusterAuthPreference, RW()),
-					types.NewRule(types.KindClusterConfig, RW()),
+					types.NewRule(types.KindClusterName, RW()),
+					types.NewRule(types.KindClusterNetworkingConfig, RW()),
+					types.NewRule(types.KindSessionRecordingConfig, RW()),
 					types.NewRule(types.KindTrustedCluster, RW()),
 					types.NewRule(types.KindRemoteCluster, RW()),
 					types.NewRule(types.KindToken, RW()),
@@ -98,9 +101,9 @@ func NewPresetAccessRole() types.Role {
 			},
 		},
 	}
-	role.SetLogins(Allow, []string{teleport.TraitInternalLoginsVariable})
-	role.SetKubeUsers(Allow, []string{teleport.TraitInternalKubeUsersVariable})
-	role.SetKubeGroups(Allow, []string{teleport.TraitInternalKubeGroupsVariable})
+	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
+	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
+	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	return role
 }
 
@@ -137,6 +140,6 @@ func NewPresetAuditorRole() types.Role {
 			},
 		},
 	}
-	role.SetLogins(Allow, []string{"no-login-" + uuid.New()})
+	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New()})
 	return role
 }

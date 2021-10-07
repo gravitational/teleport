@@ -18,7 +18,6 @@ package local
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -55,67 +54,6 @@ func (s *ClusterConfigurationSuite) TestAuthPreference(c *check.C) {
 		ConfigS: clusterConfig,
 	}
 	suite.AuthPreference(c)
-}
-
-// DELETE IN 8.0.0: Remove ClusterConfig and related tests
-// and test only the individual resources.
-func (s *ClusterConfigurationSuite) TestClusterConfig(c *check.C) {
-	ctx := context.Background()
-
-	clusterConfig, err := NewClusterConfigurationService(s.bk)
-	c.Assert(err, check.IsNil)
-
-	// DELETE IN 8.0.0
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: "example.com",
-	})
-	c.Assert(err, check.IsNil)
-	err = clusterConfig.SetClusterName(clusterName)
-	c.Assert(err, check.IsNil)
-
-	// DELETE IN 8.0.0
-	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-		Region:           "us-west-1",
-		Type:             "dynamodb",
-		AuditSessionsURI: "file:///home/log",
-		AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/log"},
-	})
-	c.Assert(err, check.IsNil)
-	err = clusterConfig.SetClusterAuditConfig(context.TODO(), auditConfig)
-	c.Assert(err, check.IsNil)
-
-	// DELETE IN 8.0.0
-	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout: types.NewDuration(17 * time.Second),
-	})
-	c.Assert(err, check.IsNil)
-	err = clusterConfig.SetClusterNetworkingConfig(ctx, netConfig)
-	c.Assert(err, check.IsNil)
-
-	// DELETE IN 8.0.0
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtProxy,
-	})
-	c.Assert(err, check.IsNil)
-	err = clusterConfig.SetSessionRecordingConfig(ctx, recConfig)
-	c.Assert(err, check.IsNil)
-
-	// DELETE IN 8.0.0
-	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		DisconnectExpiredCert: types.NewBoolOption(true),
-	})
-	c.Assert(err, check.IsNil)
-	err = clusterConfig.SetAuthPreference(ctx, authPref)
-	c.Assert(err, check.IsNil)
-
-	// DELETE IN 8.0.0
-	err = clusterConfig.SetClusterAuditConfig(context.TODO(), types.DefaultClusterAuditConfig())
-	c.Assert(err, check.IsNil)
-
-	suite := &suite.ServicesTestSuite{
-		ConfigS: clusterConfig,
-	}
-	suite.ClusterConfig(c)
 }
 
 func (s *ClusterConfigurationSuite) TestClusterName(c *check.C) {

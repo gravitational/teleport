@@ -27,9 +27,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -278,11 +280,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetClusterConfig(types.DefaultClusterConfig())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{},
@@ -375,7 +372,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return certs.ssh, nil
+	return certs.SSH, nil
 }
 
 // PrivateKeyToPublicKeyTLS gets the TLS public key from a raw private key.
@@ -431,33 +428,33 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return certs.tls, priv, nil
+		return certs.TLS, priv, nil
 	case BuiltinRole:
-		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
-			HostID:       id.Username,
-			NodeName:     id.Username,
-			Roles:        types.SystemRoles{id.Role},
-			PublicTLSKey: tlsPublicKey,
-			PublicSSHKey: pub,
-		})
-		keys.Key = priv
+		certs, err := authServer.GenerateHostCerts(context.Background(),
+			&proto.HostCertsRequest{
+				HostID:       id.Username,
+				NodeName:     id.Username,
+				Role:         id.Role,
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: pub,
+			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return keys.TLSCert, keys.Key, nil
+		return certs.TLS, priv, nil
 	case RemoteBuiltinRole:
-		keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
-			HostID:       id.Username,
-			NodeName:     id.Username,
-			Roles:        types.SystemRoles{id.Role},
-			PublicTLSKey: tlsPublicKey,
-			PublicSSHKey: pub,
-		})
+		certs, err := authServer.GenerateHostCerts(context.Background(),
+			&proto.HostCertsRequest{
+				HostID:       id.Username,
+				NodeName:     id.Username,
+				Role:         id.Role,
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: pub,
+			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		keys.Key = priv
-		return keys.TLSCert, keys.Key, nil
+		return certs.TLS, priv, nil
 	default:
 		return nil, nil, trace.BadParameter("identity of unknown type %T is unsupported", identity)
 	}
@@ -539,7 +536,7 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 	}
 	tlsConfig.Certificates = []tls.Certificate{*cert}
 	tlsConfig.RootCAs = pool
-	tlsConfig.ServerName = EncodeClusterName(a.ClusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(a.ClusterName)
 	tlsConfig.Time = a.AuthServer.clock.Now
 
 	return NewClient(client.Config{
@@ -878,18 +875,19 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 		return nil, trace.Wrap(err)
 	}
 
-	keys, err := clt.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:       hostID,
-		NodeName:     hostID,
-		Roles:        types.SystemRoles{types.RoleAuth},
-		PublicTLSKey: publicTLS,
-		PublicSSHKey: pub,
-	})
+	certs, err := clt.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     hostID,
+			Role:         types.RoleAuth,
+			PublicTLSKey: publicTLS,
+			PublicSSHKey: pub,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = priv
-	return ReadIdentityFromKeyPair(keys)
+
+	return ReadIdentityFromKeyPair(priv, certs)
 }
 
 // clt limits required interface to the necessary methods
@@ -908,10 +906,10 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (ty
 		return nil, trace.Wrap(err)
 	}
 	baseRole := services.RoleForUser(user)
-	baseRole.SetAccessRequestConditions(services.Allow, types.AccessRequestConditions{
+	baseRole.SetAccessRequestConditions(types.Allow, types.AccessRequestConditions{
 		Roles: []string{rolename},
 	})
-	baseRole.SetLogins(services.Allow, nil)
+	baseRole.SetLogins(types.Allow, nil)
 	err = clt.UpsertRole(ctx, baseRole)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -923,7 +921,7 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (ty
 	}
 	requestableRole := services.RoleForUser(user)
 	requestableRole.SetName(rolename)
-	requestableRole.SetLogins(services.Allow, []string{rolename})
+	requestableRole.SetLogins(types.Allow, []string{rolename})
 	err = clt.UpsertRole(ctx, requestableRole)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -993,7 +991,7 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string) (types.
 		return nil, nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
-	role.SetLogins(services.Allow, []string{user.GetName()})
+	role.SetLogins(types.Allow, []string{user.GetName()})
 	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1015,10 +1013,10 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	role := services.RoleForUser(user)
-	set := services.MakeRuleSet(role.GetRules(services.Allow))
+	set := services.MakeRuleSet(role.GetRules(types.Allow))
 	delete(set, types.KindRole)
-	role.SetRules(services.Allow, set.Slice())
-	role.SetLogins(services.Allow, []string{user.GetName()})
+	role.SetRules(types.Allow, set.Slice())
+	role.SetLogins(types.Allow, []string{user.GetName()})
 	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

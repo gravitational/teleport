@@ -245,6 +245,9 @@ type CLIConf struct {
 	// HomePath is where tsh stores profiles
 	HomePath string
 
+	// LocalProxyPort is a port used by local proxy listener.
+	LocalProxyPort string
+
 	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
 	ConfigProxyTarget string
 }
@@ -375,6 +378,15 @@ func Run(args []string, opts ...cliOption) error {
 	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL)).StringVar(&cf.Format)
+
+	// Local TLS proxy.
+	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
+	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode")
+	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	proxySSH.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
+	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode")
+	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
+	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -520,10 +532,6 @@ func Run(args []string, opts ...cliOption) error {
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
-		ssh.Hidden()
-		join.Hidden()
-		play.Hidden()
-		scp.Hidden()
 		bench.Hidden()
 	}
 
@@ -618,6 +626,12 @@ func Run(args []string, opts ...cliOption) error {
 		err = kube.ls.run(&cf)
 	case kube.login.FullCommand():
 		err = kube.login.run(&cf)
+
+	case proxySSH.FullCommand():
+		err = onProxyCommandSSH(&cf)
+	case proxyDB.FullCommand():
+		err = onProxyCommandDB(&cf)
+
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
 	case dbLogin.FullCommand():
@@ -920,12 +934,6 @@ func onLogin(cf *CLIConf) error {
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
 
-	// If the profile is already logged into any database services,
-	// refresh the creds.
-	if err := fetchDatabaseCreds(cf, tc); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Print status to show information of the logged in user.
 	return trace.Wrap(onStatus(cf))
 }
@@ -994,7 +1002,10 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 			},
 		}
 		err := checker.CheckHostKey(hostname, remote, hostKey)
-		if err != nil && oldHostKeyCallback != nil {
+		if err != nil {
+			if oldHostKeyCallback == nil {
+				return trace.Wrap(err)
+			}
 			errOld := oldHostKeyCallback(hostname, remote, hostKey)
 			if errOld != nil {
 				return trace.NewAggregate(err, errOld)
@@ -1295,45 +1306,50 @@ func printNodesAsText(nodes []types.Server, verbose bool) {
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showApps(servers []types.Server, active []tlsca.RouteToApp, verbose bool) {
+func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool) {
 	// In verbose mode, print everything on a single line and include host UUID.
 	// In normal mode, chunk the labels, print two per line and allow multiple
 	// lines per node.
 	if verbose {
-		t := asciitable.MakeTable([]string{"Application", "Description", "Host", "Public Address", "URI", "Labels"})
-		for _, server := range servers {
-			for _, app := range server.GetApps() {
-				name := app.Name
+		t := asciitable.MakeTable([]string{"Application", "Description", "Public Address", "URI", "Labels"})
+		for _, app := range apps {
+			name := app.GetName()
+			for _, a := range active {
+				if name == a.Name {
+					name = fmt.Sprintf("> %v", name)
+				}
+			}
+			t.AddRow([]string{
+				name,
+				app.GetDescription(),
+				app.GetPublicAddr(),
+				app.GetURI(),
+				app.LabelsString(),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		t := asciitable.MakeTable([]string{"Application", "Description", "Public Address", "Labels"})
+		for _, app := range apps {
+			labelChunks := chunkLabels(app.GetAllLabels(), 2)
+			for i, v := range labelChunks {
+				var name string
+				var addr string
+				if i == 0 {
+					name = app.GetName()
+					addr = app.GetPublicAddr()
+				}
 				for _, a := range active {
 					if name == a.Name {
 						name = fmt.Sprintf("> %v", name)
 					}
 				}
 				t.AddRow([]string{
-					name, app.Description, server.GetName(), app.PublicAddr, app.URI, types.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+					name,
+					app.GetDescription(),
+					addr,
+					strings.Join(v, ", "),
 				})
-			}
-		}
-		fmt.Println(t.AsBuffer().String())
-	} else {
-		t := asciitable.MakeTable([]string{"Application", "Description", "Public Address", "Labels"})
-		for _, server := range servers {
-			for _, app := range server.GetApps() {
-				labelChunks := chunkLabels(types.CombineLabels(app.StaticLabels, app.DynamicLabels), 2)
-				for i, v := range labelChunks {
-					var name string
-					var addr string
-					if i == 0 {
-						name = app.Name
-						addr = app.PublicAddr
-					}
-					for _, a := range active {
-						if name == a.Name {
-							name = fmt.Sprintf("> %v", name)
-						}
-					}
-					t.AddRow([]string{name, app.Description, addr, strings.Join(v, ", ")})
-				}
 			}
 		}
 		fmt.Println(t.AsBuffer().String())
@@ -1703,7 +1719,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		hostAuthFunc, err := key.HostKeyCallback()
+		hostAuthFunc, err := key.HostKeyCallback(cf.InsecureSkipVerify)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2226,9 +2242,9 @@ func onApps(cf *CLIConf) error {
 	}
 
 	// Get a list of all applications.
-	var servers []types.Server
+	var apps []types.Application
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		servers, err = tc.ListAppServers(cf.Context)
+		apps, err = tc.ListApps(cf.Context)
 		return err
 	})
 	if err != nil {
@@ -2241,12 +2257,12 @@ func onApps(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Sort by server host name.
-	sort.Slice(servers, func(i, j int) bool {
-		return servers[i].GetName() < servers[j].GetName()
+	// Sort by app name.
+	sort.Slice(apps, func(i, j int) bool {
+		return apps[i].GetName() < apps[j].GetName()
 	})
 
-	showApps(servers, profile.Apps, cf.Verbose)
+	showApps(apps, profile.Apps, cf.Verbose)
 	return nil
 }
 

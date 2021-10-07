@@ -22,7 +22,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -227,6 +229,48 @@ func TestAuthPreferenceV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "webauthn denied CAs",
 		},
 		{
+			name: "webauthn_invalid_disabled",
+			prefs: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         "local",
+					SecondFactor: "webauthn",
+					Webauthn: &types.Webauthn{
+						RPID:     "example.com",
+						Disabled: true, // Cannot disable when second_factor=webauthn
+					},
+				},
+			},
+			wantErr: "webauthn cannot be disabled",
+		},
+		{
+			name: "webauthn_valid_disabledSecondFactorOn",
+			prefs: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         "local",
+					SecondFactor: "on",
+					U2F:          validU2FPref.Spec.U2F,
+					Webauthn: &types.Webauthn{
+						RPID:     "example.com",
+						Disabled: true, // OK, fallback to U2F
+					},
+				},
+			},
+		},
+		{
+			name: "webauthn_valid_disabledSecondFactorOptional",
+			prefs: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         "local",
+					SecondFactor: "optional",
+					U2F:          validU2FPref.Spec.U2F,
+					Webauthn: &types.Webauthn{
+						RPID:     "example.com",
+						Disabled: true, // OK, fallback to U2F
+					},
+				},
+			},
+		},
+		{
 			name: "on_valid",
 			prefs: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
@@ -286,6 +330,112 @@ func TestAuthPreferenceV2_CheckAndSetDefaults(t *testing.T) {
 			if err := test.wantCmp(test.prefs); err != nil {
 				t.Fatal(err)
 			}
+		})
+	}
+}
+
+func TestAuthPreferenceV2_GetPreferredLocalMFA(t *testing.T) {
+	u2fConfig := &types.U2F{
+		AppID: "https://example.com",
+		Facets: []string{
+			"https://example.com:443",
+			"https://example.com",
+			"example.com:443",
+			"example.com",
+		},
+	}
+	webConfig := &types.Webauthn{
+		RPID: "example.com",
+	}
+	disabledWebConfig := &types.Webauthn{
+		RPID:     "example.com",
+		Disabled: true,
+	}
+
+	tests := []struct {
+		name string
+		spec types.AuthPreferenceSpecV2
+		want constants.SecondFactorType
+	}{
+		{
+			name: "sf=off",
+			spec: types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOff,
+			},
+		},
+		{
+			name: "sf=otp",
+			spec: types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOTP,
+			},
+			want: constants.SecondFactorOTP,
+		},
+		{
+			name: "sf=u2f",
+			spec: types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorU2F,
+				U2F:          u2fConfig,
+			},
+			want: constants.SecondFactorU2F,
+		},
+		{
+			name: "sf=webauthn",
+			spec: types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorWebauthn,
+				Webauthn:     webConfig,
+			},
+			want: constants.SecondFactorWebauthn,
+		},
+		{
+			name: "sf=on favors WebAuthn",
+			spec: types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				U2F:          u2fConfig,
+				Webauthn:     webConfig,
+			},
+			want: constants.SecondFactorWebauthn,
+		},
+		{
+			name: "sf=on disabled WebAuthn favors U2F",
+			spec: types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				U2F:          u2fConfig,
+				Webauthn:     disabledWebConfig,
+			},
+			want: constants.SecondFactorU2F,
+		},
+		{
+			name: "sf=optional favors WebAuthn",
+			spec: types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				U2F:          u2fConfig,
+				Webauthn:     webConfig,
+			},
+			want: constants.SecondFactorWebauthn,
+		},
+		{
+			name: "sf=optional disabled WebAuthn favors U2F",
+			spec: types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				U2F:          u2fConfig,
+				Webauthn:     disabledWebConfig,
+			},
+			want: constants.SecondFactorU2F,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cap, err := types.NewAuthPreference(test.spec)
+			require.NoError(t, err, "invalid auth preference spec")
+			require.Equal(t, string(test.want), string(cap.GetPreferredLocalMFA()), "unexpected preferred local MFA")
 		})
 	}
 }

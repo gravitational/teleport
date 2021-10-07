@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -78,7 +79,7 @@ func (cfg *backendConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("firestore: project_id is not specified")
 	}
 	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferSize
+		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.PurgeExpiredDocumentsPollInterval == 0 {
 		cfg.PurgeExpiredDocumentsPollInterval = defaultPurgeInterval
@@ -104,10 +105,6 @@ type Backend struct {
 	clientContext context.Context
 	// clientCancel firestore context cancel funcs
 	clientCancel context.CancelFunc
-	// watchStarted context tracking once firestore watchers mechanisms are up
-	watchStarted context.Context
-	// signalWatchStart signal function which indicates watcher mechanisms are up
-	signalWatchStart context.CancelFunc
 }
 
 type record struct {
@@ -238,9 +235,25 @@ func CreateFirestoreClients(ctx context.Context, projectID string, endPoint stri
 	return firestoreAdminClient, firestoreClient, nil
 }
 
+// Options describes the set of parameters to the Firestore backend that are
+// not exposed to configuration files.
+type Options struct {
+	// Clock is the clock used to measure time for the backend, including
+	// record TTL, keep-alives, etc.
+	Clock clockwork.Clock
+}
+
+func (opts *Options) checkAndSetDefaults() error {
+	if opts.Clock == nil {
+		opts.Clock = clockwork.NewRealClock()
+	}
+
+	return nil
+}
+
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, params backend.Params) (*Backend, error) {
+func New(ctx context.Context, params backend.Params, options Options) (*Backend, error) {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
 	var cfg *backendConfig
 	err := apiutils.ObjectToStruct(params, &cfg)
@@ -248,10 +261,15 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.BadParameter("firestore: configuration is invalid: %v", err)
 	}
 	l.Info("Initializing backend.")
-	defer l.Info("Backend created.")
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := options.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	closeCtx, cancel := context.WithCancel(ctx)
 	firestoreAdminClient, firestoreClient, err := CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.EndPoint, cfg.CredentialsPath)
 	if err != nil {
@@ -262,23 +280,20 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	// It won't be needed after New returns.
 	defer firestoreAdminClient.Close()
 
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-	watchStarted, signalWatchStart := context.WithCancel(ctx)
+	buf := backend.NewCircularBuffer(
+		backend.BufferCapacity(cfg.BufferSize),
+	)
+
 	b := &Backend{
-		svc:              firestoreClient,
-		Entry:            l,
-		backendConfig:    *cfg,
-		clock:            clockwork.NewRealClock(),
-		buf:              buf,
-		clientContext:    closeCtx,
-		clientCancel:     cancel,
-		watchStarted:     watchStarted,
-		signalWatchStart: signalWatchStart,
+		svc:           firestoreClient,
+		Entry:         l,
+		backendConfig: *cfg,
+		clock:         options.Clock,
+		buf:           buf,
+		clientContext: closeCtx,
+		clientCancel:  cancel,
 	}
+
 	if len(cfg.EndPoint) == 0 {
 		err = b.ensureIndexes(firestoreAdminClient)
 		if err != nil {
@@ -295,6 +310,8 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	if !cfg.DisableExpiredDocumentPurge {
 		go RetryingAsyncFunctionRunner(b.clientContext, linearConfig, b.Logger, b.purgeExpiredDocuments, "purgeExpiredDocuments")
 	}
+
+	l.Info("Backend created.")
 	return b, nil
 }
 
@@ -574,31 +591,40 @@ func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig utils.LinearCo
 		logger.WithError(err).Error("Bad retry parameters, returning and not running.")
 		return
 	}
+
+	defer logger.Debugf("Returning from %v loop.", taskName)
+
 	for {
 		err := task()
-		if err != nil && !isCanceled(err) {
+
+		if isCanceled(err) {
+			return
+		} else if err != nil {
 			logger.WithError(err).Errorf("Task %v has returned with error.", taskName)
 		}
+
 		logger.Debugf("Reloading %v for %s.", retry, taskName)
 		select {
 		case <-retry.After():
 			retry.Inc()
+
 		case <-ctx.Done():
-			logger.Debugf("Returning from %v loop.", taskName)
 			return
 		}
 	}
 }
 
 func isCanceled(err error) bool {
-	err = trace.Unwrap(err)
 	switch {
 	case err == nil:
 		return false
-	case err == context.Canceled:
+
+	case errors.Is(err, context.Canceled):
 		return true
-	case status.Convert(err).Code() == codes.Canceled:
+
+	case status.Code(err) == codes.Canceled:
 		return true
+
 	default:
 		return false
 	}
@@ -631,9 +657,8 @@ func (b *Backend) watchCollection() error {
 
 	b.buf.SetInit()
 	defer b.buf.Reset()
-
-	b.signalWatchStart()
 	defer snaps.Stop()
+
 	for {
 		querySnap, err := snaps.Next()
 		if err == context.Canceled {
@@ -673,7 +698,7 @@ func (b *Backend) purgeExpiredDocuments() error {
 	for {
 		select {
 		case <-b.clientContext.Done():
-			return nil
+			return b.clientContext.Err()
 		case <-t.C:
 			expiryTime := b.clock.Now().UTC().Unix()
 			numDeleted := 0
@@ -698,7 +723,11 @@ func ConvertGRPCError(err error, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
-	switch status.Convert(err).Code() {
+	switch status.Code(err) {
+	case codes.Canceled:
+		return context.Canceled
+	case codes.DeadlineExceeded:
+		return context.DeadlineExceeded
 	case codes.FailedPrecondition:
 		return trace.BadParameter(err.Error(), args...)
 	case codes.NotFound:
@@ -718,15 +747,22 @@ func (b *Backend) getIndexParent() string {
 
 func (b *Backend) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	tuples := []*IndexTuple{{
-		FirstField:  keyDocProperty,
-		SecondField: expiresDocProperty,
+		FirstField:       keyDocProperty,
+		SecondField:      expiresDocProperty,
+		SecondFieldOrder: adminpb.Index_IndexField_ASCENDING,
 	}}
 	return EnsureIndexes(b.clientContext, adminSvc, tuples, b.getIndexParent())
 }
 
 type IndexTuple struct {
-	FirstField  string
-	SecondField string
+	FirstField       string
+	SecondField      string
+	SecondFieldOrder adminpb.Index_IndexField_Order
+}
+
+type indexTask struct {
+	operation *apiv1.CreateIndexOperation
+	tuple     *IndexTuple
 }
 
 // EnsureIndexes is a function used by Firestore events and backend to generate indexes and will block until
@@ -738,9 +774,14 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 		Order: adminpb.Index_IndexField_ASCENDING,
 	}
 
-	tuplesToIndexNames := make(map[*IndexTuple]string)
+	var tasks []indexTask
+
 	// create the indexes
 	for _, tuple := range tuples {
+		secondFieldOrder := &adminpb.Index_IndexField_Order_{
+			Order: tuple.SecondFieldOrder,
+		}
+
 		fields := []*adminpb.Index_IndexField{
 			{
 				FieldPath: tuple.FirstField,
@@ -748,9 +789,10 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 			},
 			{
 				FieldPath: tuple.SecondField,
-				ValueMode: ascendingFieldOrder,
+				ValueMode: secondFieldOrder,
 			},
 		}
+		l.Infof("%v", fields)
 		operation, err := adminSvc.CreateIndex(ctx, &adminpb.CreateIndexRequest{
 			Parent: indexParent,
 			Index: &adminpb.Index{
@@ -763,36 +805,52 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 		}
 		// operation can be nil if error code is codes.AlreadyExists.
 		if operation != nil {
-			meta, err := operation.Metadata()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			tuplesToIndexNames[tuple] = meta.Index
+			tasks = append(tasks, indexTask{operation, tuple})
 		}
 	}
 
-	// Instead of polling the Index state, we should wait for the Operation to
-	// finish. Also, there should ideally be a timeout on index creation.
-
-	// check for statuses and block
-	for len(tuplesToIndexNames) != 0 {
-		select {
-		case <-time.After(timeInBetweenIndexCreationStatusChecks):
-		case <-ctx.Done():
-			return trace.ConnectionProblem(ctx.Err(), "context timed out or canceled")
+	stop := periodIndexUpdate(l)
+	for _, task := range tasks {
+		err := waitOnIndexCreation(ctx, l, task)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+	}
+	stop <- struct{}{}
 
-		for tuple, name := range tuplesToIndexNames {
-			index, err := adminSvc.GetIndex(ctx, &adminpb.GetIndexRequest{Name: name})
-			if err != nil {
-				l.WithError(err).Warningf("Failed to fetch index %q.", name)
-				continue
-			}
-			l.Infof("Index for tuple %s-%s, %s, state is %s.", tuple.FirstField, tuple.SecondField, index.Name, index.State)
-			if index.State == adminpb.Index_READY {
-				delete(tuplesToIndexNames, tuple)
+	return nil
+}
+
+func periodIndexUpdate(l *log.Entry) chan struct{} {
+	ticker := time.NewTicker(timeInBetweenIndexCreationStatusChecks)
+	quit := make(chan struct{})
+	start := time.Now()
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				elapsed := time.Since(start)
+				l.Infof("Still creating indexes, %v elapsed", elapsed)
+			case <-quit:
+				l.Info("Finished creating indexes")
+				ticker.Stop()
+				return
 			}
 		}
+	}()
+	return quit
+}
+
+func waitOnIndexCreation(ctx context.Context, l *log.Entry, task indexTask) error {
+	meta, err := task.operation.Metadata()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	l.Infof("Creating index for tuple %s-%s with name %s.", task.tuple.FirstField, task.tuple.SecondField, meta.Index)
+
+	_, err = task.operation.Wait(ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

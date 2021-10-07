@@ -29,16 +29,15 @@ import (
 // startWatcher starts watching changes to database resources and registers /
 // unregisters the proxied databases accordingly.
 func (s *Server) startWatcher(ctx context.Context) (*services.DatabaseWatcher, error) {
-	log := s.log.WithField("selector", s.cfg.Selectors)
 	if len(s.cfg.Selectors) == 0 {
-		log.Debug("Not initializing database resource watcher.")
+		s.log.Debug("Not initializing database resource watcher.")
 		return nil, nil
 	}
-	log.Debug("Initializing database resource watcher.")
+	s.log.Debug("Initializing database resource watcher.")
 	watcher, err := services.NewDatabaseWatcher(ctx, services.DatabaseWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
-			Log:       log,
+			Log:       s.log,
 			Client:    s.cfg.AccessPoint,
 		},
 	})
@@ -50,13 +49,13 @@ func (s *Server) startWatcher(ctx context.Context) (*services.DatabaseWatcher, e
 		for {
 			select {
 			case databases := <-watcher.DatabasesC:
-				if err := s.reconcileResources(ctx, databases); err != nil {
-					log.WithError(err).Errorf("Failed to reconcile %v.", databases)
+				if err := s.reconciler.Reconcile(ctx, databases.AsResources()); err != nil {
+					s.log.WithError(err).Errorf("Failed to reconcile %v.", databases)
 				} else if s.cfg.OnReconcile != nil {
 					s.cfg.OnReconcile(s.getDatabases())
 				}
 			case <-ctx.Done():
-				log.Debug("Database resource watcher done.")
+				s.log.Debug("Database resource watcher done.")
 				return
 			}
 		}
@@ -64,57 +63,41 @@ func (s *Server) startWatcher(ctx context.Context) (*services.DatabaseWatcher, e
 	return watcher, nil
 }
 
-// reconcileResources reconciles the database resources this server is currently
-// proxying with the provided up-to-date list of cluster databases.
-func (s *Server) reconcileResources(ctx context.Context, newResources types.Databases) error {
-	s.log.Debugf("Reconciling with %v database resources.", len(newResources))
-	var errs []error
-	// First remove databases that aren't present in the resource list anymore.
-	for _, current := range s.getDatabases() {
-		// Skip databases from static configuration. For backwards compatibility
-		// also consider empty "origin" value.
-		if current.Origin() == types.OriginConfigFile || current.Origin() == "" {
-			continue
-		}
-		if new := newResources.Find(current.GetName()); new == nil {
-			s.log.Infof("%v removed, unregistering.", current)
-			if err := s.unregisterDatabase(ctx, current.GetName()); err != nil {
-				errs = append(errs, trace.Wrap(err, "failed to unregister %v", current))
-			}
-		}
+func (s *Server) getReconciler() (*services.Reconciler, error) {
+	return services.NewReconciler(services.ReconcilerConfig{
+		Selectors:    s.cfg.Selectors,
+		GetResources: s.getResources,
+		OnCreate:     s.onCreate,
+		OnUpdate:     s.onUpdate,
+		OnDelete:     s.onDelete,
+		Log:          s.log,
+	})
+}
+
+func (s *Server) getResources() (resources types.ResourcesWithLabels) {
+	return s.getDatabases().AsResources()
+}
+
+func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels) error {
+	database, ok := resource.(types.Database)
+	if !ok {
+		return trace.BadParameter("expected types.Database, got %T", resource)
 	}
-	// Then add new databases if there are any or refresh those that were updated.
-	for _, new := range newResources {
-		if db := s.getDatabases().Find(new.GetName()); db == nil {
-			// Database with this name isn't registered yet, see if it matches.
-			if services.MatchDatabase(s.cfg.Selectors, new) {
-				s.log.Infof("%v matches, registering.", new)
-				if err := s.registerDatabase(ctx, new); err != nil {
-					errs = append(errs, trace.Wrap(err, "failed to register %v", new))
-				}
-			} else {
-				s.log.Debugf("%v doesn't match, not registering.", new)
-			}
-		} else if db.Origin() == types.OriginConfigFile || db.Origin() == "" {
-			// Do not overwrite databases from static configuration.
-			s.log.Infof("%v is part of static configuration, not registering %v.", db, new)
-			continue
-		} else if new.GetResourceID() != db.GetResourceID() {
-			// If labels were updated, the database may no longer match.
-			if services.MatchDatabase(s.cfg.Selectors, new) {
-				s.log.Infof("%v updated, re-registering.", new)
-				if err := s.reRegisterDatabase(ctx, new); err != nil {
-					errs = append(errs, trace.Wrap(err, "failed to re-register %v", new))
-				}
-			} else {
-				s.log.Infof("%v updated and no longer matches, unregistering.", new)
-				if err := s.unregisterDatabase(ctx, new.GetName()); err != nil {
-					errs = append(errs, trace.Wrap(err, "failed to unregister %v", new))
-				}
-			}
-		} else {
-			s.log.Debugf("%v is already registered.", new)
-		}
+	return s.registerDatabase(ctx, database)
+}
+
+func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
+	database, ok := resource.(types.Database)
+	if !ok {
+		return trace.BadParameter("expected types.Database, got %T", resource)
 	}
-	return trace.NewAggregate(errs...)
+	return s.updateDatabase(ctx, database)
+}
+
+func (s *Server) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
+	database, ok := resource.(types.Database)
+	if !ok {
+		return trace.BadParameter("expected types.Database, got %T", resource)
+	}
+	return s.unregisterDatabase(ctx, database)
 }

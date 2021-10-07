@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go v0.60.0
 	cloud.google.com/go/firestore v1.2.0
 	cloud.google.com/go/storage v1.10.0
+	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78
 	github.com/HdrHistogram/hdrhistogram-go v1.0.1
 	github.com/Microsoft/go-winio v0.4.16
 	github.com/ThalesIgnite/crypto11 v1.2.4
@@ -25,12 +26,13 @@ require (
 	github.com/docker/spdystream v0.0.0-20170912183627-bc6354cbbc29 // indirect
 	github.com/duo-labs/webauthn v0.0.0-20210727191636-9f1b88ef44cc
 	github.com/dustin/go-humanize v1.0.0
-	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a // indirect
+	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
 	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
 	github.com/fsouza/fake-gcs-server v1.19.5
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
+	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
 	github.com/golang/protobuf v1.4.3
@@ -94,22 +96,19 @@ require (
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5 // indirect
 	github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4
 	github.com/vulcand/predicate v1.1.0
-	github.com/xeipuuv/gojsonpointer v0.0.0-20151027082146-e0fe6f683076 // indirect
-	github.com/xeipuuv/gojsonreference v0.0.0-20150808065054-e02fc20de94c // indirect
-	github.com/xeipuuv/gojsonschema v0.0.0-20151204154511-3988ac14d6f6 // indirect
+	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20201125193152-8a03d2e9614b
 	go.mongodb.org/mongo-driver v1.5.3
 	go.opencensus.io v0.22.5 // indirect
 	go.uber.org/atomic v1.7.0
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
-	golang.org/x/mod v0.4.1 // indirect
-	golang.org/x/net v0.0.0-20210222171744-9060382bd457
+	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sys v0.0.0-20210514084401-e8d321eab015
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 	golang.org/x/text v0.3.5
-	golang.org/x/tools v0.1.0 // indirect
+	golang.org/x/tools v0.1.5 // indirect
 	google.golang.org/api v0.29.0
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20210223151946-22b48be4551b
@@ -129,7 +128,7 @@ require (
 )
 
 replace (
-	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.4
+	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.5
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
 	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77

@@ -90,6 +90,8 @@ type AgentPoolConfig struct {
 	ProxyAddr string
 	// Cluster is a cluster name of the proxy.
 	Cluster string
+	// FIPS indicates if Teleport was started in FIPS mode.
+	FIPS bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -255,23 +257,35 @@ func (m *AgentPool) pollAndSyncAgents() {
 	}
 }
 
+// getReverseTunnelDetails gets the cached ReverseTunnelDetails obtained during the oldest cached agent.connect call.
+// This function should be called under a lock.
+func (m *AgentPool) getReverseTunnelDetails(addr utils.NetAddr) *reverseTunnelDetails {
+	agents, ok := m.agents[addr]
+	if !ok || len(agents) == 0 {
+		return nil
+	}
+	return agents[0].reverseTunnelDetails
+}
+
 func (m *AgentPool) addAgent(lease track.Lease) error {
 	addr := lease.Key().(utils.NetAddr)
 	agent, err := NewAgent(AgentConfig{
-		Addr:                addr,
-		ClusterName:         m.cfg.Cluster,
-		Username:            m.cfg.HostUUID,
-		Signer:              m.cfg.HostSigner,
-		Client:              m.cfg.Client,
-		AccessPoint:         m.cfg.AccessPoint,
-		Context:             m.ctx,
-		KubeDialAddr:        m.cfg.KubeDialAddr,
-		Server:              m.cfg.Server,
-		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
-		LocalClusterName:    m.cfg.LocalCluster,
-		Component:           m.cfg.Component,
-		Tracker:             m.proxyTracker,
-		Lease:               lease,
+		Addr:                 addr,
+		ClusterName:          m.cfg.Cluster,
+		Username:             m.cfg.HostUUID,
+		Signer:               m.cfg.HostSigner,
+		Client:               m.cfg.Client,
+		AccessPoint:          m.cfg.AccessPoint,
+		Context:              m.ctx,
+		KubeDialAddr:         m.cfg.KubeDialAddr,
+		Server:               m.cfg.Server,
+		ReverseTunnelServer:  m.cfg.ReverseTunnelServer,
+		LocalClusterName:     m.cfg.LocalCluster,
+		Component:            m.cfg.Component,
+		Tracker:              m.proxyTracker,
+		Lease:                lease,
+		FIPS:                 m.cfg.FIPS,
+		reverseTunnelDetails: m.getReverseTunnelDetails(addr),
 	})
 	if err != nil {
 		// ensure that lease has been released; OK to call multiple times.

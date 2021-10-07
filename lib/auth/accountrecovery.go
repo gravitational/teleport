@@ -47,24 +47,24 @@ const (
 	startRecoveryBadAuthnErrMsg          = "invalid username or recovery code"
 	startRecoveryMaxFailedAttemptsErrMsg = "too many incorrect attempts, please try again later"
 
-	approveRecoveryGenericErrMsg  = "unable to approve account recovery, please contact your system administrator"
-	approveRecoveryBadAuthnErrMsg = "invalid username, password, or second factor"
+	verifyRecoveryGenericErrMsg  = "unable to verify account recovery, please contact your system administrator"
+	verifyRecoveryBadAuthnErrMsg = "invalid username, password, or second factor"
 
 	completeRecoveryGenericErrMsg = "unable to recover your account, please contact your system administrator"
+
+	// MaxFailedAttemptsFromStartRecoveryErrMsg is a user friendly error message to try again later.
+	// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
+	MaxFailedAttemptsFromStartRecoveryErrMsg = "you have reached max attempts, please try again later"
+
+	// MaxFailedAttemptsFromVerifyRecoveryErrMsg is a user friendly error message to start over.
+	// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
+	MaxFailedAttemptsFromVerifyRecoveryErrMsg = "too many incorrect attempts, please start over with a new recovery code"
 )
 
 // fakeRecoveryCodeHash is bcrypt hash for "fake-barbaz x 8".
 // This is a fake hash used to mitigate timing attacks against invalid usernames or if user does
 // exist but does not have recovery codes.
 var fakeRecoveryCodeHash = []byte(`$2a$10$c2.h4pF9AA25lbrWo6U0D.ZmnYpFDaNzN3weNNYNC3jAkYEX9kpzu`)
-
-// ErrMaxFailedAttemptsFromStartRecovery is a user friendly error message to try again later.
-// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
-var ErrMaxFailedAttemptsFromStartRecovery = trace.AccessDenied(startRecoveryMaxFailedAttemptsErrMsg)
-
-// ErrMaxFailedAttemptsFromApproveRecovery is a user friendly error message to start over.
-// This error is defined in a variable so that the root caller can determine if an email needs to be sent.
-var ErrMaxFailedAttemptsFromApproveRecovery = trace.AccessDenied("too many incorrect attempts, please start over with a new recovery code")
 
 // StartAccountRecovery implements AuthService.StartAccountRecovery.
 func (s *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
@@ -143,11 +143,11 @@ func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string
 		return trace.Wrap(verifyCodeErr)
 	}
 
-	return trace.Wrap(ErrMaxFailedAttemptsFromStartRecovery)
+	return trace.AccessDenied(MaxFailedAttemptsFromStartRecoveryErrMsg)
 }
 
 func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode []byte) error {
-	recovery, err := s.GetRecoveryCodes(ctx, user)
+	recovery, err := s.GetRecoveryCodes(ctx, user, true /* withSecrets */)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -221,8 +221,8 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 	return nil
 }
 
-// ApproveAccountRecovery implements AuthService.ApproveAccountRecovery.
-func (s *Server) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error) {
+// VerifyAccountRecovery implements AuthService.VerifyAccountRecovery.
+func (s *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAccountRecoveryRequest) (types.UserToken, error) {
 	if err := s.isAccountRecoveryAllowed(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -230,9 +230,9 @@ func (s *Server) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveA
 	startToken, err := s.GetUserToken(ctx, req.GetRecoveryStartTokenID())
 	switch {
 	case err != nil:
-		return nil, trace.AccessDenied(approveRecoveryGenericErrMsg)
+		return nil, trace.AccessDenied(verifyRecoveryGenericErrMsg)
 	case startToken.GetUser() != req.Username:
-		return nil, trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
+		return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 	}
 
 	if err := s.verifyUserToken(startToken, UserTokenTypeRecoveryStart); err != nil {
@@ -241,10 +241,10 @@ func (s *Server) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveA
 
 	// Check that correct authentication method is provided before verifying.
 	switch req.GetAuthnCred().(type) {
-	case *proto.ApproveAccountRecoveryRequest_Password:
+	case *proto.VerifyAccountRecoveryRequest_Password:
 		if startToken.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD {
-			log.Debugf("Failed to approve account recovery, expected mfa authn response, but received password.")
-			return nil, trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
+			log.Debugf("Failed to verify account recovery, expected mfa authn response, but received password.")
+			return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 		}
 
 		if err := s.verifyAuthnWithRecoveryLock(ctx, startToken, func() error {
@@ -253,10 +253,10 @@ func (s *Server) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveA
 			return nil, trace.Wrap(err)
 		}
 
-	case *proto.ApproveAccountRecoveryRequest_MFAAuthenticateResponse:
+	case *proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse:
 		if startToken.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_MFA {
-			log.Debugf("Failed to approve account recovery, expected password, but received a mfa authn response.")
-			return nil, trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
+			log.Debugf("Failed to verify account recovery, expected password, but received a mfa authn response.")
+			return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 		}
 
 		if err := s.verifyAuthnWithRecoveryLock(ctx, startToken, func() error {
@@ -272,7 +272,7 @@ func (s *Server) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveA
 
 	approvedToken, err := s.createRecoveryToken(ctx, startToken.GetUser(), UserTokenTypeRecoveryApproved, startToken.GetUsage())
 	if err != nil {
-		return nil, trace.AccessDenied(approveRecoveryGenericErrMsg)
+		return nil, trace.AccessDenied(verifyRecoveryGenericErrMsg)
 	}
 
 	// Delete start token to invalidate the recovery link sent to users.
@@ -292,7 +292,7 @@ func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken typ
 	user, err := s.Identity.GetUser(startToken.GetUser(), false)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
-		return trace.AccessDenied(approveRecoveryGenericErrMsg)
+		return trace.AccessDenied(verifyRecoveryGenericErrMsg)
 	}
 
 	// The error returned from authenticateFn does not guarantee sensitive info is not leaked.
@@ -301,7 +301,7 @@ func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken typ
 	switch {
 	case trace.IsConnectionProblem(verifyAuthnErr):
 		log.Error(trace.DebugReport(verifyAuthnErr))
-		return trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
+		return trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 
 	case verifyAuthnErr == nil:
 		// Reset attempt counter.
@@ -318,31 +318,31 @@ func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken typ
 	switch {
 	case err != nil:
 		log.Error(trace.DebugReport(err))
-		return trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
+		return trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 	case !maxedAttempts:
-		return trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
+		return trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 	}
 
 	// Delete all tokens related to this user, to force user to restart the recovery flow.
 	if err := s.deleteUserTokens(ctx, startToken.GetUser()); err != nil {
 		log.Error(trace.DebugReport(err))
-		return trace.AccessDenied(approveRecoveryGenericErrMsg)
+		return trace.AccessDenied(verifyRecoveryGenericErrMsg)
 	}
 
 	// Restart the attempt counter, to not block users from trying again with another recovery code.
 	if err := s.DeleteUserRecoveryAttempts(ctx, startToken.GetUser()); err != nil {
 		log.Error(trace.DebugReport(err))
-		return trace.AccessDenied(approveRecoveryGenericErrMsg)
+		return trace.AccessDenied(verifyRecoveryGenericErrMsg)
 	}
 
 	// Lock the user from logging in.
 	user.SetLocked(lockedUntil, accountLockedMsg)
 	if err := s.Identity.UpsertUser(user); err != nil {
 		log.Error(trace.DebugReport(err))
-		return trace.AccessDenied(approveRecoveryBadAuthnErrMsg)
+		return trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 	}
 
-	return trace.Wrap(ErrMaxFailedAttemptsFromApproveRecovery)
+	return trace.AccessDenied(MaxFailedAttemptsFromVerifyRecoveryErrMsg)
 }
 
 // recordFailedRecoveryAttempt creates and inserts a recovery attempt and if user has reached max failed attempts,
@@ -449,6 +449,77 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	}
 
 	return nil
+}
+
+// CreateAccountRecoveryCodes implements AuthService.CreateAccountRecoveryCodes.
+func (s *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
+	const unableToCreateCodesMsg = "unable to create new recovery codes, please contact your system administrator"
+
+	if err := s.isAccountRecoveryAllowed(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := s.GetUserToken(ctx, req.GetTokenID())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+	}
+
+	if _, err := mail.ParseAddress(token.GetUser()); err != nil {
+		log.Debugf("Failed to create new recovery codes, username %q is not a valid email: %v.", token.GetUser(), err)
+		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+	}
+
+	if err := s.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	codes, err := s.generateAndUpsertRecoveryCodes(ctx, token.GetUser())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+	}
+
+	// If used as part of the recovery flow, getting new recovery codes marks the end of the flow in the UI.
+	if token.GetSubKind() == UserTokenTypeRecoveryApproved {
+		if err := s.deleteUserTokens(ctx, token.GetUser()); err != nil {
+			log.Error(trace.DebugReport(err))
+		}
+	}
+
+	return &proto.CreateAccountRecoveryCodesResponse{
+		RecoveryCodes: codes,
+	}, nil
+}
+
+// GetAccountRecoveryToken implements AuthService.GetAccountRecoveryToken.
+func (s *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error) {
+	token, err := s.GetUserToken(ctx, req.GetRecoveryTokenID())
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	if err := s.verifyUserToken(token, UserTokenTypeRecoveryStart, UserTokenTypeRecoveryApproved); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return token, nil
+}
+
+// GetAccountRecoveryCodes implements AuthService.GetAccountRecoveryCodes.
+func (s *Server) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	username, err := GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rc, err := s.GetRecoveryCodes(ctx, username, false /* without secrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rc, nil
 }
 
 func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username string) ([]string, error) {

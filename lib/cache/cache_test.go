@@ -79,6 +79,7 @@ type testPack struct {
 	presenceS       services.Presence
 	appSessionS     services.AppSession
 	restrictions    services.Restrictions
+	apps            services.Apps
 	databases       services.Databases
 	webSessionS     types.WebSessionInterface
 	webTokenS       types.WebTokenInterface
@@ -104,10 +105,6 @@ func (s *CacheSuite) newPackForAuth(c *check.C) *testPack {
 
 func (s *CacheSuite) newPackForProxy(c *check.C) *testPack {
 	return s.newPack(c, ForProxy)
-}
-
-func (s *CacheSuite) newPackForOldRemoteProxy(c *check.C) *testPack {
-	return s.newPack(c, ForOldRemoteProxy)
 }
 
 func (s *CacheSuite) newPackForNode(c *check.C) *testPack {
@@ -160,7 +157,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
-	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend, p.clusterConfigS.GetClusterConfig)}
+	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend)}
 	p.presenceS = local.NewPresenceService(p.backend)
 	p.usersS = local.NewIdentityService(p.backend)
 	p.accessS = local.NewAccessService(p.backend)
@@ -169,6 +166,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
+	p.apps = local.NewAppService(p.backend)
 	p.databases = local.NewDatabasesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
 
@@ -198,6 +196,7 @@ func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -273,6 +272,7 @@ func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -493,6 +493,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 			WebSession:      p.webSessionS,
 			WebToken:        p.webTokenS,
 			Restrictions:    p.restrictions,
+			Apps:            p.apps,
 			Databases:       p.databases,
 			WindowsDesktops: p.windowsDesktops,
 			RetryPeriod:     200 * time.Millisecond,
@@ -553,6 +554,7 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -618,6 +620,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -655,6 +658,7 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -704,6 +708,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 		WebSession:      p.webSessionS,
 		WebToken:        p.webTokenS,
 		Restrictions:    p.restrictions,
+		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
@@ -1019,81 +1024,6 @@ func (s *CacheSuite) TestClusterName(c *check.C) {
 	fixtures.DeepCompare(c, outName, clusterName)
 }
 
-// TestClusterConfig tests cluster configuration
-// DELETE IN 8.0.0
-func (s *CacheSuite) TestClusterConfig(c *check.C) {
-	ctx := context.Background()
-	p := s.newPackForOldRemoteProxy(c)
-	defer p.Close()
-
-	// Since changes to configuration-related resources trigger ClusterConfig events
-	// for backward compatibility reasons, ignore these additional events while waiting
-	// for expected resource updates to propagate.
-	waitForEventIgnoreClusterConfig := func(resourceKind string) {
-		timeC := time.After(5 * time.Second)
-		for {
-			select {
-			case event := <-p.eventsC:
-				c.Assert(event.Type, check.Equals, EventProcessed)
-				if event.Event.Resource.GetKind() == types.KindClusterConfig {
-					continue
-				}
-				c.Assert(event.Event.Resource.GetKind(), check.Equals, resourceKind)
-				return
-			case <-timeC:
-				c.Fatalf("Timeout waiting for update to resource %v", resourceKind)
-			}
-		}
-	}
-
-	err := p.clusterConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterNetworkingConfig)
-
-	err = p.clusterConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterAuthPreference)
-
-	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindSessionRecordingConfig)
-
-	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
-	})
-	c.Assert(err, check.IsNil)
-	err = p.clusterConfigS.SetClusterAuditConfig(ctx, auditConfig)
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterAuditConfig)
-
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: "example.com",
-	})
-	c.Assert(err, check.IsNil)
-	err = p.clusterConfigS.SetClusterName(clusterName)
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterName)
-
-	err = p.clusterConfigS.SetClusterConfig(types.DefaultClusterConfig())
-	c.Assert(err, check.IsNil)
-
-	clusterConfig, err := p.clusterConfigS.GetClusterConfig()
-	c.Assert(err, check.IsNil)
-
-	select {
-	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
-		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterConfig)
-	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetClusterConfig()
-	c.Assert(err, check.IsNil)
-	clusterConfig.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, clusterConfig, out)
-}
-
 // TestNamespaces tests caching of namespaces
 func (s *CacheSuite) TestNamespaces(c *check.C) {
 	p := s.newPackForProxy(c)
@@ -1250,7 +1180,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	fixtures.DeepCompare(c, role, out)
 
 	// update role
-	role.SetLogins(services.Allow, []string{"admin"})
+	role.SetLogins(types.Allow, []string{"admin"})
 	c.Assert(err, check.IsNil)
 	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
@@ -1802,6 +1732,172 @@ func (s *CacheSuite) TestAppServers(c *check.C) {
 	out, err = p.cache.GetAppServers(context.Background(), apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
+}
+
+// TestApplicationServers tests that CRUD operations on app servers are
+// replicated from the backend to the cache.
+func TestApplicationServers(t *testing.T) {
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	// Upsert app server into backend.
+	app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "localhost"})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	require.NoError(t, err)
+
+	_, err = p.presenceS.UpsertApplicationServer(ctx, server)
+	require.NoError(t, err)
+
+	// Check that the app server is now in the backend.
+	out, err := p.presenceS.GetApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single app server in it.
+	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update the server and upsert it into the backend again.
+	server.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	_, err = p.presenceS.UpsertApplicationServer(context.Background(), server)
+	require.NoError(t, err)
+
+	// Check that the server is in the backend and only one exists (so an
+	// update occurred).
+	out, err = p.presenceS.GetApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single server in it.
+	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Remove all servers from the backend.
+	err = p.presenceS.DeleteAllApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+}
+
+// TestApps tests that CRUD operations on application resources are
+// replicated from the backend to the cache.
+func TestApps(t *testing.T) {
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	// Create an app.
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "foo",
+	}, types.AppSpecV3{
+		URI: "localhost",
+	})
+	require.NoError(t, err)
+
+	err = p.apps.CreateApp(ctx, app)
+	require.NoError(t, err)
+
+	// Check that the app is now in the backend.
+	out, err := p.apps.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single app in it.
+	out, err = p.apps.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update the app and upsert it into the backend again.
+	app.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	err = p.apps.UpdateApp(ctx, app)
+	require.NoError(t, err)
+
+	// Check that the app is in the backend and only one exists (so an
+	// update occurred).
+	out, err = p.apps.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single app in it.
+	out, err = p.cache.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Remove all apps from the backend.
+	err = p.apps.DeleteAllApps(ctx)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, err = p.apps.GetApps(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
 }
 
 // TestDatabaseServers tests that CRUD operations on database servers are

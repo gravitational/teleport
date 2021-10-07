@@ -22,7 +22,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
 
@@ -159,6 +162,58 @@ func deleteUser(r *http.Request, params httprouter.Params, m userAPIGetter, user
 	}
 
 	return nil
+}
+
+type privilegeTokenRequest struct {
+	// SecondFactorToken is the totp code.
+	SecondFactorToken string `json:"secondFactorToken"`
+	// U2FSignResponse is u2f sign response for a u2f challenge.
+	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2fSignResponse"`
+	// WebauthnResponse is the response from authenticators.
+	WebauthnResponse *wanlib.CredentialAssertionResponse
+}
+
+// createPrivilegeTokenHandle creates and returns a privilege token.
+func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req privilegeTokenRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	protoReq := &proto.CreatePrivilegeTokenRequest{}
+
+	switch {
+	case req.SecondFactorToken != "":
+		protoReq.ExistingMFAResponse = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{Code: req.SecondFactorToken},
+		}}
+	case req.U2FSignResponse != nil:
+		protoReq.ExistingMFAResponse = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{
+			U2F: &proto.U2FResponse{
+				KeyHandle:  req.U2FSignResponse.KeyHandle,
+				ClientData: req.U2FSignResponse.ClientData,
+				Signature:  req.U2FSignResponse.SignatureData,
+			},
+		}}
+	case req.WebauthnResponse != nil:
+		protoReq.ExistingMFAResponse = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wanlib.CredentialAssertionResponseToProto(req.WebauthnResponse),
+		}}
+	default:
+		// Can be empty, which means user did not have a second factor registered.
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := clt.CreatePrivilegeToken(r.Context(), protoReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return token.GetName(), nil
 }
 
 type userAPIGetter interface {

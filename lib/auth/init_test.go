@@ -18,35 +18,31 @@ package auth
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/proxy"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -69,7 +65,7 @@ func TestReadIdentity(t *testing.T) {
 		HostID:        "id1",
 		NodeName:      "node-name",
 		ClusterName:   "example.com",
-		Roles:         types.SystemRoles{types.RoleNode},
+		Role:          types.RoleNode,
 		TTL:           0,
 	})
 	require.NoError(t, err)
@@ -91,7 +87,7 @@ func TestReadIdentity(t *testing.T) {
 		HostID:        "id1",
 		NodeName:      "node-name",
 		ClusterName:   "example.com",
-		Roles:         types.SystemRoles{types.RoleNode},
+		Role:          types.RoleNode,
 		TTL:           ttl,
 	})
 	require.NoError(t, err)
@@ -119,7 +115,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:        "id2",
 		NodeName:      "",
 		ClusterName:   "",
-		Roles:         types.SystemRoles{types.RoleNode},
+		Role:          types.RoleNode,
 		TTL:           0,
 	})
 	require.NoError(t, err)
@@ -135,7 +131,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:        "example.com",
 		NodeName:      "",
 		ClusterName:   "",
-		Roles:         types.SystemRoles{types.RoleNode},
+		Role:          types.RoleNode,
 		TTL:           0,
 	})
 	require.NoError(t, err)
@@ -151,7 +147,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:        "example.com",
 		NodeName:      "",
 		ClusterName:   "id1",
-		Roles:         types.SystemRoles{types.SystemRole("bad role")},
+		Role:          "bad role",
 		TTL:           0,
 	})
 	require.NoError(t, err)
@@ -494,102 +490,6 @@ func TestCASigningAlg(t *testing.T) {
 	verifyCAs(auth, ssh.SigAlgoRSA)
 }
 
-func TestMigrateMFADevices(t *testing.T) {
-	ctx := context.Background()
-	as := newTestAuthServer(ctx, t)
-	clock := clockwork.NewFakeClock()
-	as.SetClock(clock)
-
-	// Fake credentials and MFA secrets for migration.
-	fakePasswordHash := []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
-	totpKey := "totp-key"
-	u2fPrivKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	u2fPubKey := u2fPrivKey.PublicKey
-	u2fPubKeyBin, err := x509.MarshalPKIXPublicKey(&u2fPubKey)
-	require.NoError(t, err)
-	u2fKeyHandle := []byte("dummy handle")
-
-	// Create un-migrated users.
-	for name, localAuth := range map[string]*backend.Item{
-		"no-mfa-user": nil,
-		// Insert MFA data in the legacy format by manually writing to the
-		// backend. All the code for writing these in lib/services/local was
-		// removed.
-		"totp-user": {
-			Key:   []byte("/web/users/totp-user/totp"),
-			Value: []byte(totpKey),
-		},
-		"u2f-user": {
-			Key: []byte("/web/users/u2f-user/u2fregistration"),
-			Value: []byte(fmt.Sprintf(`{"keyhandle":%q,"marshalled_pubkey":%q}`,
-				base64.StdEncoding.EncodeToString(u2fKeyHandle),
-				base64.StdEncoding.EncodeToString(u2fPubKeyBin),
-			)),
-		},
-	} {
-		u, err := types.NewUser(name)
-		require.NoError(t, err)
-		// Set a fake but valid bcrypt password hash.
-		u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: fakePasswordHash})
-		err = as.CreateUser(ctx, u)
-		require.NoError(t, err)
-
-		if localAuth != nil {
-			_, err = as.bk.Put(ctx, *localAuth)
-			require.NoError(t, err)
-		}
-	}
-
-	// Run the migration.
-	err = migrateMFADevices(ctx, as)
-	require.NoError(t, err)
-
-	// Generate expected users with migrated MFA.
-	requireNewDevice := func(d *types.MFADevice, err error) []*types.MFADevice {
-		require.NoError(t, err)
-		return []*types.MFADevice{d}
-	}
-	wantUsers := []types.User{
-		newUserWithAuth(t, "no-mfa-user", &types.LocalAuthSecrets{PasswordHash: fakePasswordHash}),
-		newUserWithAuth(t, "totp-user", &types.LocalAuthSecrets{
-			PasswordHash: fakePasswordHash,
-			TOTPKey:      totpKey,
-			MFA:          requireNewDevice(services.NewTOTPDevice("totp", totpKey, clock.Now())),
-		}),
-		newUserWithAuth(t, "u2f-user", &types.LocalAuthSecrets{
-			PasswordHash: fakePasswordHash,
-			U2FRegistration: &types.U2FRegistrationData{
-				KeyHandle: u2fKeyHandle,
-				PubKey:    u2fPubKeyBin,
-			},
-			MFA: requireNewDevice(u2f.NewDevice("u2f", &u2f.Registration{
-				KeyHandle: u2fKeyHandle,
-				PubKey:    u2fPubKey,
-			}, clock.Now())),
-		}),
-	}
-	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
-		cmpopts.IgnoreFields(types.MFADevice{}, "Id"),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		cmpopts.SortSlices(func(a, b types.User) bool { return a.GetName() < b.GetName() }),
-	}
-
-	// Check the actual users from the backend.
-	users, err := as.GetUsers(true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(users, wantUsers, cmpOpts...))
-
-	// A second migration should be a noop.
-	err = migrateMFADevices(ctx, as)
-	require.NoError(t, err)
-
-	users, err = as.GetUsers(true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(users, wantUsers, cmpOpts...))
-}
-
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
@@ -829,37 +729,6 @@ func TestMigrateOSS(t *testing.T) {
 	})
 }
 
-func TestMigrateClusterID(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	as := newTestAuthServer(ctx, t)
-
-	const legacyClusterID = "legacy-cluster-id"
-	clusterConfig, err := types.NewClusterConfig(types.ClusterConfigSpecV3{
-		ClusterID: legacyClusterID,
-	})
-	require.NoError(t, err)
-	err = as.ClusterConfiguration.(*local.ClusterConfigurationService).ForceSetClusterConfig(clusterConfig)
-	require.NoError(t, err)
-
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterName: "localhost",
-	})
-	require.NoError(t, err)
-	require.Error(t, as.SetClusterName(clusterName))
-	require.NoError(t, as.ClusterConfiguration.(*local.ClusterConfigurationService).ForceSetClusterName(clusterName))
-
-	clusterName, err = as.GetClusterName()
-	require.NoError(t, err)
-	require.Empty(t, clusterName.GetClusterID())
-
-	require.NoError(t, migrateClusterID(ctx, as))
-
-	clusterName, err = as.GetClusterName()
-	require.NoError(t, err)
-	require.Equal(t, legacyClusterID, clusterName.GetClusterID())
-}
-
 func setupConfig(t *testing.T) InitConfig {
 	tempDir := t.TempDir()
 
@@ -878,7 +747,6 @@ func setupConfig(t *testing.T) InitConfig {
 		Backend:                 bk,
 		Authority:               testauthority.New(),
 		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
-		ClusterConfig:           types.DefaultClusterConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
 		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
 		ClusterName:             clusterName,
@@ -886,13 +754,6 @@ func setupConfig(t *testing.T) InitConfig {
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
 	}
-}
-
-func newUserWithAuth(t *testing.T, name string, auth *types.LocalAuthSecrets) types.User {
-	u, err := types.NewUser(name)
-	require.NoError(t, err)
-	u.SetLocalAuth(auth)
-	return u
 }
 
 func newU2FAuthPreferenceFromConfigFile(t *testing.T) types.AuthPreference {
@@ -1159,4 +1020,100 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 		cmpopts.EquateEmpty())
+}
+
+// TestIdentityChecker verifies auth identity properly validates host
+// certificates when connecting to an SSH server.
+func TestIdentityChecker(t *testing.T) {
+	ctx := context.Background()
+
+	conf := setupConfig(t)
+	authServer, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() { authServer.Close() })
+
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentAuth,
+			Client:    authServer,
+		},
+	})
+	require.NoError(t, err)
+	authServer.SetLockWatcher(lockWatcher)
+
+	clusterName, err := authServer.GetDomainName()
+	require.NoError(t, err)
+
+	ca, err := authServer.GetCertAuthority(types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName,
+	}, true)
+	require.NoError(t, err)
+
+	signers, err := sshutils.GetSigners(ca)
+	require.NoError(t, err)
+	require.Len(t, signers, 1)
+
+	realCert, err := apisshutils.MakeRealHostCert(signers[0])
+	require.NoError(t, err)
+
+	spoofedCert, err := apisshutils.MakeSpoofedHostCert(signers[0])
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc string
+		cert ssh.Signer
+		err  bool
+	}{
+		{
+			desc: "should be able to connect with real cert",
+			cert: realCert,
+			err:  false,
+		},
+		{
+			desc: "should not be able to connect with spoofed cert",
+			cert: spoofedCert,
+			err:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			handler := sshutils.NewChanHandlerFunc(func(_ context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
+				ch, _, err := nch.Accept()
+				require.NoError(t, err)
+				require.NoError(t, ch.Close())
+			})
+			sshServer, err := sshutils.NewServer(
+				"test",
+				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+				handler,
+				[]ssh.Signer{test.cert},
+				sshutils.AuthMethods{NoClient: true},
+				sshutils.SetInsecureSkipHostValidation(),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { sshServer.Close() })
+			require.NoError(t, sshServer.Start())
+
+			identity, err := GenerateIdentity(authServer, IdentityID{
+				Role:     types.RoleNode,
+				HostUUID: uuid.New(),
+				NodeName: "node-1",
+			}, nil, nil)
+			require.NoError(t, err)
+
+			sshClientConfig, err := identity.SSHClientConfig(false)
+			require.NoError(t, err)
+
+			dialer := proxy.DialerFromEnvironment(sshServer.Addr())
+			sconn, err := dialer.Dial("tcp", sshServer.Addr(), sshClientConfig)
+			if test.err {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NoError(t, sconn.Close())
+			}
+		})
+	}
 }

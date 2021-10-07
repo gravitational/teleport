@@ -23,8 +23,10 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
@@ -179,10 +181,17 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		Verified:       sessionCtx.Identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
-	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams,
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Database.GetAllLabels()},
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
-		&services.DatabaseNameMatcher{Name: sessionCtx.DatabaseName})
+
+	dbRoleMatchers := role.DatabaseRoleMatchers(
+		defaults.ProtocolPostgres,
+		sessionCtx.DatabaseUser,
+		sessionCtx.DatabaseName,
+	)
+	err = sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
+		mfaParams,
+		dbRoleMatchers...,
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
@@ -213,7 +222,7 @@ Make sure that Postgres user %q has "rds_iam" role and Teleport database
 agent's IAM policy has "rds-connect" permissions:
 
 %v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Database.GetAWS().Region))
+`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
 		}
 		return nil, nil, trace.Wrap(err)
 	}
@@ -368,11 +377,12 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// The driver requires the config to be built by parsing the connection
 	// string so parse the basic template and then fill in the rest of
 	// parameters such as TLS configuration.
-	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s@%s/?database=%s",
-		sessionCtx.DatabaseUser, sessionCtx.Database.GetURI(), sessionCtx.DatabaseName))
+	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s", sessionCtx.Database.GetURI()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	config.User = sessionCtx.DatabaseUser
+	config.Database = sessionCtx.DatabaseName
 	// Pgconn adds fallbacks to retry connection without TLS if the TLS
 	// attempt fails. Reset the fallbacks to avoid retries, otherwise
 	// it's impossible to debug TLS connection errors.

@@ -18,22 +18,21 @@ package auth
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -124,6 +123,9 @@ type InitConfig struct {
 	// Restrictions is a service to access network restrictions, etc
 	Restrictions services.Restrictions
 
+	// Apps is a service that manages application resources.
+	Apps services.Apps
+
 	// Databases is a service that manages database resources.
 	Databases services.Databases
 
@@ -140,9 +142,6 @@ type InitConfig struct {
 
 	// AuditLog is used for emitting events to audit log.
 	AuditLog events.IAuditLog
-
-	// ClusterConfig holds cluster level configuration.
-	ClusterConfig types.ClusterConfig
 
 	// ClusterAuditConfig holds cluster audit configuration.
 	ClusterAuditConfig types.ClusterAuditConfig
@@ -389,7 +388,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// Migrate any legacy resources to new format.
-	err = migrateLegacyResources(ctx, cfg, asrv)
+	err = migrateLegacyResources(ctx, asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -495,7 +494,7 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 	return false, nil
 }
 
-func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) error {
+func migrateLegacyResources(ctx context.Context, asrv *Server) error {
 	err := migrateOSS(ctx, asrv)
 	if err != nil {
 		return trace.Wrap(err)
@@ -511,18 +510,9 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) e
 		return trace.Wrap(err)
 	}
 
-	if err := migrateMFADevices(ctx, asrv); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := migrateCertAuthorities(ctx, asrv); err != nil {
 		return trace.Wrap(err, "fail to migrate certificate authorities to the v7 storage format: %v; please report this at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md including the *redacted* output of 'tctl get cert_authority'", err)
 	}
-
-	if err := migrateClusterID(ctx, asrv); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
@@ -800,20 +790,20 @@ func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames [
 		return nil, trace.Wrap(err)
 	}
 
-	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               id.HostUUID,
-		NodeName:             id.NodeName,
-		Roles:                types.SystemRoles{id.Role},
-		AdditionalPrincipals: additionalPrincipals,
-		DNSNames:             dnsNames,
-		PublicSSHKey:         pub,
-		PublicTLSKey:         tlsPub,
-	})
+	certs, err := a.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               id.HostUUID,
+			NodeName:             id.NodeName,
+			Role:                 id.Role,
+			AdditionalPrincipals: additionalPrincipals,
+			DNSNames:             dnsNames,
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = priv
-	return ReadIdentityFromKeyPair(keys)
+	return ReadIdentityFromKeyPair(priv, certs)
 }
 
 // Identity is collection of certificates and signers that represent server identity
@@ -886,7 +876,8 @@ func CertAuthorityInfo(ca types.CertAuthority) string {
 	return fmt.Sprintf("cert authority(state: %v, phase: %v, roots: %v)", ca.GetRotation().State, ca.GetRotation().Phase, strings.Join(out, ", "))
 }
 
-// HasTSLConfig returns true if this identity has TLS certificate and private key
+// HasTLSConfig returns true if this identity has TLS certificate and private
+// key.
 func (i *Identity) HasTLSConfig() bool {
 	return len(i.TLSCACertsBytes) != 0 && len(i.TLSCertBytes) != 0
 }
@@ -938,43 +929,35 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ClientCAs = certPool
-	tlsConfig.ServerName = EncodeClusterName(i.ClusterName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(i.ClusterName)
 	return tlsConfig, nil
+}
+
+func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
+	checkers, err := apisshutils.ParseAuthorizedKeys(i.SSHCACertBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return checkers, nil
 }
 
 // SSHClientConfig returns a ssh.ClientConfig used by nodes to connect to
 // the reverse tunnel server.
-func (i *Identity) SSHClientConfig() *ssh.ClientConfig {
+func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: i.getSSHCheckers,
+			FIPS:            fips,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &ssh.ClientConfig{
-		User: i.ID.HostUUID,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(i.KeySigner),
-		},
-		HostKeyCallback: i.hostKeyCallback,
+		User:            i.ID.HostUUID,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
+		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultDialTimeout,
-	}
-}
-
-// hostKeyCallback checks if the host certificate was signed by any of the
-// known CAs.
-func (i *Identity) hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return trace.BadParameter("only host certificates supported")
-	}
-
-	// Loop over all CAs and see if any of them signed the certificate.
-	for _, k := range i.SSHCACertBytes {
-		pubkey, _, _, _, err := ssh.ParseAuthorizedKey(k)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if apisshutils.KeysEqual(cert.SignatureKey, pubkey) {
-			return nil
-		}
-	}
-
-	return trace.BadParameter("no matching keys found")
+	}, nil
 }
 
 // IdentityID is a combination of role, host UUID, and node name.
@@ -1004,25 +987,25 @@ func (id *IdentityID) String() string {
 }
 
 // ReadIdentityFromKeyPair reads SSH and TLS identity from key pair.
-func ReadIdentityFromKeyPair(keys *PackedKeys) (*Identity, error) {
-	identity, err := ReadSSHIdentityFromKeyPair(keys.Key, keys.Cert)
+func ReadIdentityFromKeyPair(privateKey []byte, certs *proto.Certs) (*Identity, error) {
+	identity, err := ReadSSHIdentityFromKeyPair(privateKey, certs.SSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(keys.SSHCACerts) != 0 {
-		identity.SSHCACertBytes = keys.SSHCACerts
+	if len(certs.SSHCACerts) != 0 {
+		identity.SSHCACertBytes = certs.SSHCACerts
 	}
 
-	if len(keys.TLSCACerts) != 0 {
+	if len(certs.TLSCACerts) != 0 {
 		// Parse the key pair to verify that identity parses properly for future use.
-		i, err := ReadTLSIdentityFromKeyPair(keys.Key, keys.TLSCert, keys.TLSCACerts)
+		i, err := ReadTLSIdentityFromKeyPair(privateKey, certs.TLS, certs.TLSCACerts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		identity.XCert = i.XCert
-		identity.TLSCertBytes = keys.TLSCert
-		identity.TLSCACertsBytes = keys.TLSCACerts
+		identity.TLSCertBytes = certs.TLS
+		identity.TLSCACertsBytes = certs.TLSCACerts
 	}
 
 	return identity, nil
@@ -1237,71 +1220,6 @@ func migrateRoleOptions(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
-// DELETE IN: 7.0.0
-// migrateMFADevices migrates registered MFA devices to the new storage format.
-func migrateMFADevices(ctx context.Context, asrv *Server) error {
-	users, err := asrv.GetUsers(true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, user := range users {
-		la := user.GetLocalAuth()
-		if la == nil {
-			continue
-		}
-		if len(la.MFA) > 0 {
-			// User already migrated.
-			continue
-		}
-
-		if len(la.TOTPKey) > 0 {
-			d, err := services.NewTOTPDevice("totp", la.TOTPKey, asrv.clock.Now())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			la.MFA = append(la.MFA, d)
-
-			la.TOTPKey = ""
-		}
-		if la.U2FRegistration != nil {
-			pubKeyI, err := x509.ParsePKIXPublicKey(la.U2FRegistration.PubKey)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			pubKey, ok := pubKeyI.(*ecdsa.PublicKey)
-			if !ok {
-				return trace.BadParameter("expected *ecdsa.PublicKey, got %T", pubKeyI)
-			}
-			d, err := u2f.NewDevice("u2f", &u2f.Registration{
-				KeyHandle: la.U2FRegistration.KeyHandle,
-				PubKey:    *pubKey,
-			}, asrv.clock.Now())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			d.GetU2F().Counter = la.U2FCounter
-			la.MFA = append(la.MFA, d)
-
-			la.U2FRegistration = nil
-			la.U2FCounter = 0
-		}
-
-		if len(la.MFA) == 0 {
-			// No MFA devices to migrate.
-			continue
-		}
-
-		log.Debugf("Migrating MFA devices in LocalAuth for user %q", user.GetName())
-		user.SetLocalAuth(la)
-		if err := asrv.UpsertUser(user); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
 // DELETE IN: 8.0.0
 // migrateCertAuthorities migrates the keypair storage format in cert
 // authorities to the new format.
@@ -1355,34 +1273,5 @@ func migrateCertAuthority(ctx context.Context, asrv *Server, ca types.CertAuthor
 		return trace.Wrap(err, "failed storing the migrated CA: %v", err)
 	}
 	log.Infof("Successfully migrated %v to 7.0 storage format.", ca)
-	return nil
-}
-
-// DELETE IN: 8.0.0
-// migrateClusterID moves the cluster ID information
-// from ClusterConfig to ClusterName.
-func migrateClusterID(ctx context.Context, asrv *Server) error {
-	clusterConfig, err := asrv.ClusterConfiguration.GetClusterConfig()
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-
-	clusterName, err := asrv.ClusterConfiguration.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if clusterName.GetClusterID() == clusterConfig.GetLegacyClusterID() {
-		return nil
-	}
-
-	log.Infof("Migrating cluster ID %q from legacy ClusterConfig to ClusterName.", clusterConfig.GetLegacyClusterID())
-
-	clusterName.SetClusterID(clusterConfig.GetLegacyClusterID())
-	if err := asrv.ClusterConfiguration.UpsertClusterName(clusterName); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }

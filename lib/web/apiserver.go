@@ -42,8 +42,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -88,8 +90,8 @@ type Handler struct {
 	// from configuration
 	sshPort string
 
-	// clusterFeatures contain flags for supported and unsupported features.
-	clusterFeatures proto.Features
+	// ClusterFeatures contain flags for supported and unsupported features.
+	ClusterFeatures proto.Features
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -208,7 +210,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		cfg:             cfg,
 		log:             newPackageLogger(),
 		clock:           clockwork.NewRealClock(),
-		clusterFeatures: cfg.ClusterFeatures,
+		ClusterFeatures: cfg.ClusterFeatures,
 	}
 
 	for _, o := range opts {
@@ -280,6 +282,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthentication))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
+	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -345,11 +348,19 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.mfaLoginFinishSession))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.mfaLoginFinish))
 
-	// MFA related endpoints
+	// MFA public endpoints.
 	h.POST("/webapi/mfa/login/begin", httplib.MakeHandler(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
-	h.GET("/webapi/mfa", h.WithAuth(h.getMFADevicesHandle))
+	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
+	h.GET("/webapi/mfa/token/:token/devices", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
+	h.POST("/webapi/mfa/token/:token/authenticatechallenge", httplib.MakeHandler(h.createAuthenticateChallengeWithTokenHandle))
+	h.POST("/webapi/mfa/token/:token/registerchallenge", httplib.MakeHandler(h.createRegisterChallengeWithTokenHandle))
+
+	// MFA private endpoints.
+	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
+	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
+	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
@@ -535,7 +546,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext, err := ui.NewUserContext(user, roleset, h.clusterFeatures)
+	userContext, err := ui.NewUserContext(user, roleset, h.ClusterFeatures)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -561,22 +572,30 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	return userContext, nil
 }
 
-func localSettings(authClient auth.ClientI, cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
+func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
-		Type:         constants.Local,
-		SecondFactor: cap.GetSecondFactor(),
+		Type:              constants.Local,
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 
-	// Add U2F settings, if available.
-	u2fs, err := cap.GetU2F()
-	if trace.IsNotFound(err) {
-		// No U2F settings.
-		return as, nil
+	// U2F settings.
+	switch u2f, err := cap.GetU2F(); {
+	case err == nil:
+		as.U2F = &webclient.U2FSettings{AppID: u2f.AppID}
+	case !trace.IsNotFound(err):
+		log.WithError(err).Warnf("Error reading U2F settings")
 	}
-	if err != nil {
-		return webclient.AuthenticationSettings{}, trace.Wrap(err)
+
+	// Webauthn settings.
+	switch webConfig, err := cap.GetWebauthn(); {
+	case err == nil:
+		as.Webauthn = &webclient.Webauthn{
+			RPID: webConfig.RPID,
+		}
+	case !trace.IsNotFound(err):
+		log.WithError(err).Warnf("Error reading WebAuthn settings")
 	}
-	as.U2F = &webclient.U2FSettings{AppID: u2fs.AppID}
 
 	return as, nil
 }
@@ -626,7 +645,7 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 
 	switch cap.GetType() {
 	case constants.Local:
-		as, err = localSettings(authClient, cap)
+		as, err = localSettings(cap)
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
@@ -733,7 +752,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	if connectorName == constants.Local {
-		as, err := localSettings(h.cfg.ProxyClient, cap)
+		as, err := localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -836,16 +855,17 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	authSettings := ui.WebConfigAuthSettings{
-		Providers:        authProviders,
-		SecondFactor:     secondFactor,
-		LocalAuthEnabled: localAuth,
-		AuthType:         authType,
+		Providers:         authProviders,
+		SecondFactor:      secondFactor,
+		LocalAuthEnabled:  localAuth,
+		AuthType:          authType,
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 
 	webCfg := ui.WebConfig{
 		Auth:            authSettings,
 		CanJoinSessions: canJoinSessions,
-		IsCloud:         h.clusterFeatures.GetCloud(),
+		IsCloud:         h.ClusterFeatures.GetCloud(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -1442,7 +1462,8 @@ type changeUserAuthenticationRequest struct {
 	Password []byte `json:"password"`
 	// U2FRegisterResponse is U2F registration challenge response.
 	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
-	// TODO webauthn
+	// WebauthnRegisterResponse is the signed credential creation response.
+	WebauthnRegisterResponse *wanlib.CredentialCreationResponse `json:"webauthn_register_response"`
 }
 
 func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1455,19 +1476,23 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		TokenID:     req.TokenID,
 		NewPassword: req.Password,
 	}
-
-	if req.SecondFactorToken != "" {
-		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
-		}}
-	}
-
-	if req.U2FRegisterResponse != nil {
+	switch {
+	case req.WebauthnRegisterResponse != nil:
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wanlib.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
+			},
+		}
+	case req.U2FRegisterResponse != nil:
 		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
 			U2F: &proto.U2FRegisterResponse{
 				RegistrationData: req.U2FRegisterResponse.RegistrationData,
 				ClientData:       req.U2FRegisterResponse.ClientData,
 			},
+		}}
+	case req.SecondFactorToken != "":
+		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
 		}}
 	}
 
@@ -1540,12 +1565,15 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 		return nil, trace.Wrap(err)
 	}
 
-	// RotateUserTokenSecrets rotates secrets for a given tokenID.
-	// It gets called every time a user fetches 2nd-factor secrets during registration attempt.
+	// CreateRegisterChallenge rotates TOTP secrets for a given tokenID.
+	// It is required to get called every time a user fetches 2nd-factor secrets during registration attempt.
 	// This ensures that an attacker that gains the ResetPasswordToken link can not view it,
 	// extract the OTP key from the QR code, then allow the user to signup with
 	// the same OTP token.
-	secrets, err := h.auth.proxyClient.RotateUserTokenSecrets(ctx, tokenID)
+	res, err := h.auth.proxyClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:    tokenID,
+		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1553,7 +1581,7 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 	return ui.ResetPasswordToken{
 		TokenID: token.GetName(),
 		User:    token.GetUser(),
-		QRCode:  secrets.GetQRCode(),
+		QRCode:  res.GetTOTP().GetQRCode(),
 	}, nil
 }
 
@@ -1566,13 +1594,16 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 // {"version":"U2F_V2","challenge":"randombase64string","appId":"https://mycorp.com:3080"}
 //
 func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	token := p.ByName("token")
-	u2fRegisterRequest, err := h.auth.GetUserInviteU2FRegisterRequest(token)
+	res, err := h.auth.proxyClient.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
+		TokenID:    p.ByName("token"),
+		DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return u2fRegisterRequest, nil
+	chal := client.MakeRegisterChallenge(res)
+	return chal.U2F, nil
 }
 
 // mfaLoginBegin is the first step in the MFA authentication ceremony, which
@@ -1591,11 +1622,17 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	mfaChallenge, err := h.auth.GetMFAAuthenticateChallenge(req.User, req.Pass)
+
+	mfaChallenge, err := h.auth.proxyClient.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+			Username: req.User,
+			Password: []byte(req.Pass),
+		}},
+	})
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
-	return mfaChallenge, nil
+	return client.MakeAuthenticateChallenge(mfaChallenge), nil
 }
 
 // mfaLoginFinish completes the MFA login ceremony, returning a new SSH
@@ -2244,12 +2281,12 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	authClient := h.cfg.ProxyClient
-	packedKeys, err := authClient.RegisterUsingToken(req)
+	certs, err := authClient.RegisterUsingToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return packedKeys, nil
+	return auth.LegacyCertsFromProto(certs), nil
 }
 
 // createSSHCert is a web call that generates new SSH certificate based
@@ -2510,6 +2547,20 @@ func (h *Handler) ProxyWithRoles(ctx *SessionContext) (reversetunnel.Tunnel, err
 // ProxyHostPort returns the address of the proxy server using --proxy
 // notation, i.e. "localhost:8030,8023"
 func (h *Handler) ProxyHostPort() string {
+	// Proxy web address can be set in the config with unspecified host, like
+	// 0.0.0.0:3080 or :443.
+	//
+	// In this case, the dial will succeed (dialing 0.0.0.0 is same a dialing
+	// localhost in Go) but the SSH host certificate will not validate since
+	// 0.0.0.0 is never a valid principal (auth server explicitly removes it
+	// when issuing host certs).
+	//
+	// As such, replace 0.0.0.0 with localhost in this case: proxy listens on
+	// all interfaces and localhost is always included in the valid principal
+	// set.
+	if h.cfg.ProxyWebAddr.IsHostUnspecified() {
+		return fmt.Sprintf("localhost:%v,%s", h.cfg.ProxyWebAddr.Port(defaults.HTTPListenPort), h.sshPort)
+	}
 	return fmt.Sprintf("%s,%s", h.cfg.ProxyWebAddr.String(), h.sshPort)
 }
 
@@ -2548,6 +2599,14 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
 	}
 
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: ctx.getCheckers,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config := &client.Config{
 		Username:         ctx.user,
 		Agent:            agent,
@@ -2555,7 +2614,7 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		TLS:              tlsConfig,
 		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		DefaultPrincipal: cert.ValidPrincipals[0],
-		HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
+		HostKeyCallback:  callback,
 	}
 
 	return config, nil

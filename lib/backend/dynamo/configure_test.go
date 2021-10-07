@@ -44,7 +44,7 @@ func TestContinuousBackups(t *testing.T) {
 
 	// Remove table after tests are done.
 	t.Cleanup(func() {
-		deleteTable(context.Background(), b.svc, b.Config.TableName)
+		require.NoError(t, deleteTable(context.Background(), b.svc, b.Config.TableName))
 	})
 
 	// Check status of continuous backups.
@@ -70,7 +70,7 @@ func TestAutoScaling(t *testing.T) {
 
 	// Remove table after tests are done.
 	t.Cleanup(func() {
-		deleteTable(context.Background(), b.svc, b.Config.TableName)
+		require.NoError(t, deleteTable(context.Background(), b.svc, b.Config.TableName))
 	})
 
 	// Check auto scaling values match.
@@ -163,3 +163,9 @@ func deleteTable(ctx context.Context, svc *dynamodb.DynamoDB, tableName string) 
 	}
 	return nil
 }
+
+const (
+	readScalingPolicySuffix  = "read-target-tracking-scaling-policy"
+	writeScalingPolicySuffix = "write-target-tracking-scaling-policy"
+	resourcePrefix           = "table"
+)
