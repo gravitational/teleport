@@ -595,7 +595,7 @@ func (a *ServerWithRoles) filterNodes(nodes []types.Server) ([]types.Server, err
 	// Extract all unique allowed logins across all roles.
 	allowedLogins := make(map[string]bool)
 	for _, role := range roleset {
-		for _, login := range role.GetLogins(services.Allow) {
+		for _, login := range role.GetLogins(types.Allow) {
 			allowedLogins[login] = true
 		}
 	}
