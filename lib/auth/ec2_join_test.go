@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"testing"
 	"time"
 
@@ -715,7 +714,6 @@ func TestHostUniqueCheck(t *testing.T) {
 
 			// request should fail
 			err = a.CheckEC2Request(ctx, request)
-			fmt.Printf("%v\n", err)
 			require.Error(t, err)
 		})
 	}
