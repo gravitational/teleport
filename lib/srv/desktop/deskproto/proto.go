@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package deskproto implements the desktop protocol encoder/decoder.
+// Package deskproto implements the Teleport desktop protocol (TDP)
+// encoder/decoder.
 // See https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
 //
-// TODO(awly): complete the implementation of all messages, even if we don't
+// TODO(zmb3): complete the implementation of all messages, even if we don't
 // use them yet.
+// TODO(zmb3): rename this package to "tdp".
 package deskproto
 
 import (
@@ -60,6 +62,8 @@ func Decode(buf []byte) (Message, error) {
 	return decode(bytes.NewReader(buf))
 }
 
+// peekReader is an io.Reader which lets us peek at the first byte
+// (MessageType) for decoding.
 type peekReader interface {
 	io.Reader
 	ReadByte() (byte, error)
@@ -67,6 +71,7 @@ type peekReader interface {
 }
 
 func decode(in peekReader) (Message, error) {
+	// Peek at the first byte to figure out message type.
 	t, err := in.ReadByte()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -117,6 +122,9 @@ func (f PNGFrame) Encode() ([]byte, error) {
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Note: this uses the default png.Encoder parameters.
+	// You can tweak compression level and reduce memory allocations by using a
+	// custom png.Encoder, if this happens to be a bottleneck.
 	if err := png.Encode(buf, f.Img); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -346,6 +354,9 @@ func decodeMouseWheel(in peekReader) (MouseWheel, error) {
 	err = binary.Read(in, binary.BigEndian, &w)
 	return w, trace.Wrap(err)
 }
+
+// Strings are encoded as UTF-8 with a 32-bit length prefix:
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#field-types
 
 func encodeString(w io.Writer, s string) error {
 	if err := binary.Write(w, binary.BigEndian, uint32(len(s))); err != nil {

@@ -70,6 +70,11 @@ import (
 )
 
 func init() {
+	// Call the init function in Rust, initializes their logger.
+	//
+	// TODO(zmb3): the Rust logger won't work unless RUST_LOG env var is set.
+	// Consider setting it here explicitly if not set, matching the logging
+	// level of Teleport.
 	C.init()
 }
 
@@ -77,11 +82,17 @@ func init() {
 type Client struct {
 	cfg Config
 
+	// Parameters read from the TDP stream.
 	clientWidth, clientHeight uint16
 	username                  string
-	rustClient                *C.Client
-	wg                        sync.WaitGroup
-	closeOnce                 sync.Once
+	// RDP client on the Rust side.
+	rustClient *C.Client
+	// Synchronization point to prevent input messages from being forwarded
+	// until the connection is established.
+	readyForInput chan struct{}
+
+	wg        sync.WaitGroup
+	closeOnce sync.Once
 }
 
 // New creates and connects a new Client based on cfg.
@@ -89,7 +100,10 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
-	c := &Client{cfg: cfg}
+	c := &Client{
+		cfg:           cfg,
+		readyForInput: make(chan struct{}),
+	}
 
 	if err := c.readClientUsername(); err != nil {
 		return nil, trace.Wrap(err)
@@ -145,6 +159,8 @@ func (c *Client) connect(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	// Addr and username strings only need to be valid for the duration of
+	// C.connect_rdp. They are copied on the Rust side and can be freed here.
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 	username := C.CString(c.username)
@@ -153,10 +169,13 @@ func (c *Client) connect(ctx context.Context) error {
 	res := C.connect_rdp(
 		addr,
 		username,
+		// cert length and bytes.
 		C.uint32_t(len(userCertDER)),
 		(*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
+		// key length and bytes.
 		C.uint32_t(len(userKeyDER)),
 		(*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
+		// screen size.
 		C.uint16_t(c.clientWidth),
 		C.uint16_t(c.clientHeight),
 	)
@@ -167,6 +186,8 @@ func (c *Client) connect(ctx context.Context) error {
 	return nil
 }
 
+// start kicks off goroutines for input/output streaming and returns right
+// away. Use Wait to wait for them to finish.
 func (c *Client) start() {
 	// Video output streaming worker goroutine.
 	c.wg.Add(1)
@@ -178,6 +199,8 @@ func (c *Client) start() {
 		clientRef := registerClient(c)
 		defer unregisterClient(clientRef)
 
+		// C.read_rdp_output blocks for the duration of the RDP connection and
+		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if err := cgoError(C.read_rdp_output(c.rustClient, C.int64_t(clientRef))); err != nil {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
 		}
@@ -189,6 +212,7 @@ func (c *Client) start() {
 		defer c.wg.Done()
 		defer c.closeConn()
 		defer c.cfg.Log.Info("RDP input streaming finished")
+		// Remember mouse coordinates to sent them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
 			msg, err := c.cfg.InputMessage()
@@ -196,6 +220,15 @@ func (c *Client) start() {
 				c.cfg.Log.Warningf("Failed reading RDP input message: %v", err)
 				return
 			}
+
+			select {
+			case <-c.readyForInput:
+				// Input allowed.
+			default:
+				// Input not allowed yet, drop the message.
+				continue
+			}
+
 			switch m := msg.(type) {
 			case deskproto.MouseMove:
 				mouseX, mouseY = m.X, m.Y
@@ -212,6 +245,7 @@ func (c *Client) start() {
 					return
 				}
 			case deskproto.MouseButton:
+				// Map the button to a C enum value.
 				var button C.CGOPointerButton
 				switch m.Button {
 				case deskproto.LeftMouseButton:
@@ -289,6 +323,16 @@ func handle_bitmap(ci C.int64_t, cb C.CGOBitmap) C.CGOError {
 }
 
 func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
+	// Notify the input forwarding goroutine that we're ready for input.
+	// Input can only be sent after connection was established, which we infer
+	// from the fact that a bitmap was sent.
+	select {
+	case <-c.readyForInput:
+		// already closed
+	default:
+		close(c.readyForInput)
+	}
+
 	data := C.GoBytes(unsafe.Pointer(cb.data_ptr), C.int(cb.data_len))
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
@@ -314,6 +358,7 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 // Wait blocks until the client disconnects and runs the cleanup.
 func (c *Client) Wait() error {
 	c.wg.Wait()
+	// Let the Rust side free its data.
 	C.free_rdp(c.rustClient)
 	return nil
 }
@@ -326,6 +371,8 @@ func (c *Client) closeConn() {
 	})
 }
 
+// cgoError converts from a CGO-originated error to a Go error, copying the
+// error string and releasing the CGO data.
 func cgoError(s C.CGOError) error {
 	if s == nil {
 		return nil
