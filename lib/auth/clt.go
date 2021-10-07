@@ -543,17 +543,8 @@ func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var response registerUsingTokenResponseJSON
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	return &proto.Certs{
-		SSH:        response.SSHCert,
-		TLS:        response.TLSCert,
-		SSHCACerts: response.SSHCACerts,
-		TLSCACerts: response.TLSCACerts,
-	}, nil
+	return UnmarshalLegacyCerts(out.Bytes())
 }
 
 // RegisterNewAuthServer is used to register new auth server with token
