@@ -13,6 +13,9 @@ on:
     # Runs every 30 minutes
     - cron:  '0,30 * * * *' 
 
+permissions: 
+  actions: write 
+  pull-requests: read
 jobs: 
   dismiss-stale-runs:
     name: Dismiss Stale Workflow Runs

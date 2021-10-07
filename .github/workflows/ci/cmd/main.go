@@ -69,7 +69,7 @@ func main() {
 			log.Fatal(err)
 		}
 		// Constructing Bot without PullRequestEnvironment.
-		// Dismiss runs does not need PullRequestEnvironment because it
+		// Dismiss runs does not need PullRequestEnvironment because PullRequestEnvironment is only
 		// is used for pull request or PR adjacent (PR reviews, pushes to PRs, PR opening, reopening, etc.) events.
 		bot, err := bot.New(bots.Config{GithubClient: client})
 		if err != nil {
