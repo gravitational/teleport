@@ -94,7 +94,7 @@ func (s *sessionSuite) TestID(t *testing.T) {
 }
 
 func (s *sessionSuite) TestSessionsCRUD(t *testing.T) {
-	out, err := s.srv.GetSessions(apidefaults.Namespace)
+	out, err := s.srv.GetSessions(apidefaults.Namespace, nil)
 	require.NoError(t, err)
 	require.Empty(t, out)
 
@@ -110,7 +110,7 @@ func (s *sessionSuite) TestSessionsCRUD(t *testing.T) {
 	require.NoError(t, s.srv.CreateSession(sess))
 
 	// Make sure only one session exists.
-	out, err = s.srv.GetSessions(apidefaults.Namespace)
+	out, err = s.srv.GetSessions(apidefaults.Namespace, nil)
 	require.NoError(t, err)
 	require.Equal(t, out, []Session{sess})
 

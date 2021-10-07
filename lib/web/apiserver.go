@@ -1928,7 +1928,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 
-	sessions, err := clt.GetSessions(namespace)
+	sessions, err := clt.GetSessions(namespace, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

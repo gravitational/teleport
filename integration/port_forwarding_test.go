@@ -58,7 +58,7 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 			return nil, ctx.Err()
 
 		case <-ticker.C:
-			ss, err := site.GetSessions(namespace)
+			ss, err := site.GetSessions(namespace, nil)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

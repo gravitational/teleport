@@ -362,7 +362,7 @@ func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order
 	l.Debugf("SearchSessionEvents(%v, %v, order=%v, limit=%v, cond=%q)", fromUTC, toUTC, order, limit, cond)
 	filter := searchEventsFilter{eventTypes: []string{SessionEndEvent}}
 	if cond != nil {
-		condFn, err := ToEventFieldsCondition(cond)
+		condFn, err := utils.ToFieldsCondition(cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -374,7 +374,7 @@ func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order
 
 type searchEventsFilter struct {
 	eventTypes []string
-	condition  EventFieldsCondition
+	condition  utils.FieldsCondition
 }
 
 // Close closes the audit log, which inluces closing all file handles and releasing
@@ -621,7 +621,7 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 		}
 		// Check that the filter condition is satisfied.
 		if filter.condition != nil {
-			accepted = accepted && filter.condition(ef)
+			accepted = accepted && filter.condition(utils.Fields(ef))
 		}
 
 		if accepted {

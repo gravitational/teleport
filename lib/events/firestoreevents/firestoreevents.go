@@ -585,7 +585,7 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 		}
 		// Check that the filter condition is satisfied.
 		if filter.condition != nil {
-			accepted = accepted && filter.condition(fields)
+			accepted = accepted && filter.condition(utils.Fields(fields))
 		}
 
 		if accepted {
@@ -634,7 +634,7 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent}}
 	if cond != nil {
-		condFn, err := events.ToEventFieldsCondition(cond)
+		condFn, err := utils.ToFieldsCondition(cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -645,7 +645,7 @@ func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order typ
 
 type searchEventsFilter struct {
 	eventTypes []string
-	condition  events.EventFieldsCondition
+	condition  utils.FieldsCondition
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to

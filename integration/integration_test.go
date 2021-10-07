@@ -315,7 +315,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// should have no sessions:
-			sessions, err := site.GetSessions(apidefaults.Namespace)
+			sessions, err := site.GetSessions(apidefaults.Namespace, nil)
 			require.NoError(t, err)
 			require.Empty(t, sessions)
 
@@ -3190,7 +3190,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	require.NotNil(t, site)
 
 	// should have no sessions in it to start with
-	sessions, _ := site.GetSessions(apidefaults.Namespace)
+	sessions, _ := site.GetSessions(apidefaults.Namespace, nil)
 	require.Len(t, sessions, 0)
 
 	// create interactive session (this goroutine is this user's terminal time)
@@ -3238,7 +3238,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	// audit log should have the fact that the session occurred recorded in it
-	sessions, err = site.GetSessions(apidefaults.Namespace)
+	sessions, err = site.GetSessions(apidefaults.Namespace, nil)
 	require.NoError(t, err)
 	require.Len(t, sessions, 1)
 

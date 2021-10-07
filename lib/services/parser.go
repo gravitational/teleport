@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -178,6 +179,8 @@ type Context struct {
 	// Session is an optional session.end event. These events hold information
 	// about session recordings.
 	Session *events.SessionEnd
+	// SSHSession is an optional (active) SSH session.
+	SSHSession *session.Session
 }
 
 // String returns user friendly representation of this context
@@ -192,6 +195,8 @@ const (
 	ResourceIdentifier = "resource"
 	// SessionIdentifier refers to a session (recording) in the rules.
 	SessionIdentifier = "session"
+	// SSHSessionIdentifier refers to an (active) SSH session in the rules.
+	SSHSessionIdentifier = "ssh_session"
 	// ImpersonateRoleIdentifier is a role to impersonate
 	ImpersonateRoleIdentifier = "impersonate_role"
 	// ImpersonateUserIdentifier is a user to impersonate
@@ -232,6 +237,12 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 			session = ctx.Session
 		}
 		return predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
+	case SSHSessionIdentifier:
+		sshSession := &session.Session{}
+		if ctx.SSHSession != nil {
+			sshSession = ctx.SSHSession
+		}
+		return predicate.GetFieldByTag(sshSession, teleport.JSON, fields[1:])
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
 	}

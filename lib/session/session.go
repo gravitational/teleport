@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
@@ -106,6 +107,15 @@ type Session struct {
 	ServerAddr string `json:"server_addr"`
 	// ClusterName is the name of cluster that this session belongs to.
 	ClusterName string `json:"cluster_name"`
+}
+
+// Users returns a list of users involved in this session as parties.
+func (s *Session) Users() []string {
+	users := make([]string, 0, len(s.Parties))
+	for _, p := range s.Parties {
+		users = append(users, p.User)
+	}
+	return users
 }
 
 // RemoveParty helper allows to remove a party by it's ID from the
@@ -228,9 +238,9 @@ const MaxSessionSliceLength = 1000
 // Service is a realtime SSH session service that has information about
 // sessions that are in-flight in the cluster at the moment.
 type Service interface {
-	// GetSessions returns a list of currently active sessions with all parties
-	// involved.
-	GetSessions(namespace string) ([]Session, error)
+	// GetSessions returns a list of currently active sessions matching
+	// the given condition.
+	GetSessions(namespace string, cond *types.WhereExpr) ([]Session, error)
 
 	// GetSession returns a session with it's parties by ID.
 	GetSession(namespace string, id ID) (*Session, error)
@@ -276,9 +286,17 @@ func activeKey(namespace string, key string) []byte {
 
 // GetSessions returns a list of active sessions. Returns an empty slice
 // if no sessions are active
-func (s *server) GetSessions(namespace string) ([]Session, error) {
-	prefix := activePrefix(namespace)
+func (s *server) GetSessions(namespace string, cond *types.WhereExpr) ([]Session, error) {
+	var fieldsCond *utils.FieldsCondition
+	if cond != nil {
+		convertedCond, err := utils.ToFieldsCondition(cond)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		fieldsCond = &convertedCond
+	}
 
+	prefix := activePrefix(namespace)
 	result, err := s.bk.GetRange(context.TODO(), prefix, backend.RangeEnd(prefix), MaxSessionSliceLength)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -286,10 +304,25 @@ func (s *server) GetSessions(namespace string) ([]Session, error) {
 	out := make(Sessions, 0, len(result.Items))
 
 	for i := range result.Items {
+		val := result.Items[i].Value
 		var session Session
-		if err := json.Unmarshal(result.Items[i].Value, &session); err != nil {
+		if err := json.Unmarshal(val, &session); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if fieldsCond != nil {
+			var fields utils.Fields
+			if err := json.Unmarshal(val, &fields); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Replace the Party structs with names of the involved users.
+			fields["parties"] = session.Users()
+			// Omit this session if it does not satisfy the where condition.
+			if !(*fieldsCond)(fields) {
+				continue
+			}
+		}
+
 		out = append(out, session)
 	}
 	sort.Stable(out)
@@ -458,7 +491,7 @@ func NewDiscardSessionServer() Service {
 }
 
 // GetSessions returns an empty list of sessions.
-func (d *discardSessionServer) GetSessions(namespace string) ([]Session, error) {
+func (d *discardSessionServer) GetSessions(namespace string, cond *types.WhereExpr) ([]Session, error) {
 	return []Session{}, nil
 }
 

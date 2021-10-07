@@ -136,38 +136,60 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 	return nil
 }
 
-// sessionRecordingAction is a special checker that grants access to session
-// recordings. It allows access to specific recordings based on the `where`
-// section of the user's access rule.
-func (a *ServerWithRoles) sessionRecordingAction(namespace string, sid session.ID, verb string) error {
+// actionWithConditionForList extracts a restrictive filter condition to be
+// appended to a listing query after a simple resource check fails.
+func (a *ServerWithRoles) actionWithConditionForList(namespace, resource, identifier string) (*types.WhereExpr, error) {
+	origErr := a.withOptions(quietAction(true)).action(namespace, resource, types.VerbList)
+	if origErr == nil || !trace.IsAccessDenied(origErr) {
+		return nil, trace.Wrap(origErr)
+	}
+	cond, err := a.context.Checker.ExtractConditionForIdentifier(&services.Context{User: a.context.User}, namespace, resource, types.VerbList, identifier)
+	if trace.IsAccessDenied(err) {
+		log.WithError(err).Infof("Access to %v %v in namespace %v denied to %v.", types.VerbList, resource, namespace, a.context.Checker)
+		// Return the original AccessDenied to avoid leaking information.
+		return nil, trace.Wrap(origErr)
+	}
+	return cond, trace.Wrap(err)
+}
+
+// actionWithExtendedContext performs an additional RBAC check with extended
+// rule context after a simple resource check fails.
+func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string, extendContext func(*services.Context) error) error {
 	ruleCtx := &services.Context{User: a.context.User}
-	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, types.KindSession, verb, true)
+	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb, true)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return trace.Wrap(origErr)
 	}
-	sessionEvents, err := a.alog.GetSessionEvents(namespace, sid, 0, false)
-	if err != nil {
-		log.WithError(err).Warnf("An error occurred while fetching session.end for session ID %q.", sid)
+	if err := extendContext(ruleCtx); err != nil {
+		log.WithError(err).Warning("Failed to extend context for second RBAC check.")
+		// Return the original AccessDenied to avoid leaking information.
 		return trace.Wrap(origErr)
 	}
-	for _, ef := range sessionEvents {
-		if ef.GetType() == events.SessionEndEvent {
-			event, err := events.FromEventFields(ef)
-			if err != nil {
-				log.WithError(err).Warnf("An error occurred while extracting session.end for session ID %q.", sid)
-				return trace.Wrap(origErr)
-			}
-			session, ok := event.(*apievents.SessionEnd)
-			if !ok {
-				log.Warnf("Unexpected event type %T of session.end found for session ID %q.", event, sid)
-				return trace.Wrap(origErr)
-			}
-			ruleCtx.Session = session
-			return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, types.KindSession, verb, false))
-		}
+	return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb, false))
+}
+
+// actionForKindSession is a special checker that grants access to session
+// recordings.  It can allow access to a specific recording based on the
+// `where` section of the user's access rule for kind `session`.
+func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid session.ID) error {
+	extendContext := func(ctx *services.Context) error {
+		sessionEnd, err := a.findSessionEndEvent(namespace, sid)
+		ctx.Session = sessionEnd
+		return trace.Wrap(err)
 	}
-	log.Warnf("session.end event not found for session ID %q.", sid)
-	return trace.Wrap(origErr)
+	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, verb, extendContext))
+}
+
+// actionForKindSSHSession is a special checker that grants access to active
+// sessions.  It can allow access to a specific session based on the `where`
+// section of the user's access rule for kind `ssh_session`.
+func (a *ServerWithRoles) actionForKindSSHSession(namespace, verb string, sid session.ID) error {
+	extendContext := func(ctx *services.Context) error {
+		session, err := a.sessions.GetSession(namespace, sid)
+		ctx.SSHSession = session
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSSHSession, verb, extendContext))
 }
 
 // hasBuiltinRole checks the type of the role set returned and the name.
@@ -236,16 +258,22 @@ func (a *ServerWithRoles) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHL
 	return a.authServer.AuthenticateSSHUser(req)
 }
 
-func (a *ServerWithRoles) GetSessions(namespace string) ([]session.Session, error) {
-	if err := a.action(namespace, types.KindSSHSession, types.VerbList); err != nil {
+func (a *ServerWithRoles) GetSessions(namespace string, cond *types.WhereExpr) ([]session.Session, error) {
+	if cond != nil {
+		return nil, trace.BadParameter("cond is an internal parameter, should not be set by client")
+	}
+
+	var err error
+	cond, err = a.actionWithConditionForList(namespace, types.KindSSHSession, services.SSHSessionIdentifier)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.sessions.GetSessions(namespace)
+	return a.sessions.GetSessions(namespace, cond)
 }
 
 func (a *ServerWithRoles) GetSession(namespace string, id session.ID) (*session.Session, error) {
-	if err := a.action(namespace, types.KindSSHSession, types.VerbRead); err != nil {
+	if err := a.actionForKindSSHSession(namespace, types.VerbRead, id); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.sessions.GetSession(namespace, id)
@@ -259,7 +287,7 @@ func (a *ServerWithRoles) CreateSession(s session.Session) error {
 }
 
 func (a *ServerWithRoles) UpdateSession(req session.UpdateRequest) error {
-	if err := a.action(req.Namespace, types.KindSSHSession, types.VerbUpdate); err != nil {
+	if err := a.actionForKindSSHSession(req.Namespace, types.VerbUpdate, req.ID); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.sessions.UpdateSession(req)
@@ -267,7 +295,7 @@ func (a *ServerWithRoles) UpdateSession(req session.UpdateRequest) error {
 
 // DeleteSession removes an active session from the backend.
 func (a *ServerWithRoles) DeleteSession(namespace string, id session.ID) error {
-	if err := a.action(namespace, types.KindSSHSession, types.VerbDelete); err != nil {
+	if err := a.actionForKindSSHSession(namespace, types.VerbDelete, id); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.sessions.DeleteSession(namespace, id)
@@ -2029,7 +2057,7 @@ func (a *ServerWithRoles) UploadSessionRecording(r events.SessionRecording) erro
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if err := a.sessionRecordingAction(namespace, sid, types.VerbRead); err != nil {
+	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2037,11 +2065,30 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 }
 
 func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
-	if err := a.sessionRecordingAction(namespace, sid, types.VerbRead); err != nil {
+	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
+}
+
+func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (*apievents.SessionEnd, error) {
+	sessionEvents, err := a.alog.GetSessionEvents(namespace, sid, 0, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, ef := range sessionEvents {
+		if ef.GetType() == events.SessionEndEvent {
+			event, err := events.FromEventFields(ef)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if sessionEnd, ok := event.(*apievents.SessionEnd); ok {
+				return sessionEnd, nil
+			}
+		}
+	}
+	return nil, trace.NotFound("session.end event not found for session ID %q", sid)
 }
 
 // GetNamespaces returns a list of namespaces
@@ -3117,17 +3164,9 @@ func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit in
 		return nil, "", trace.BadParameter("cond is an internal parameter, should not be set by client")
 	}
 
-	if actionErr := a.action(apidefaults.Namespace, types.KindSession, types.VerbList); actionErr != nil {
-		if !trace.IsAccessDenied(actionErr) {
-			return nil, "", trace.Wrap(actionErr)
-		}
-		cond, err = a.context.Checker.ExtractConditionForIdentifier(&services.Context{User: a.context.User}, apidefaults.Namespace, types.KindSession, types.VerbList, services.SessionIdentifier)
-		if err != nil {
-			if !trace.IsAccessDenied(err) {
-				return nil, "", trace.Wrap(err)
-			}
-			return nil, "", trace.Wrap(actionErr)
-		}
+	cond, err = a.actionWithConditionForList(apidefaults.Namespace, types.KindSession, services.SessionIdentifier)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
 	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
@@ -3188,7 +3227,7 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // channel if one is encountered. Otherwise it is simply closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	if err := a.sessionRecordingAction(apidefaults.Namespace, sessionID, types.VerbList); err != nil {
+	if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
 		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 		e <- trace.Wrap(err)
 		return c, e

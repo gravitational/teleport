@@ -25,8 +25,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -661,7 +661,7 @@ type IAuditLog interface {
 }
 
 // EventFields instance is attached to every logged event
-type EventFields map[string]interface{}
+type EventFields utils.Fields
 
 // String returns a string representation of an event structure
 func (f EventFields) AsString() string {
@@ -670,6 +670,7 @@ func (f EventFields) AsString() string {
 		f.GetString(EventLogin),
 		f.GetInt(EventCursor),
 		f.GetInt(SessionPrintEventBytes))
+
 }
 
 // GetType returns the type (string) of the event
@@ -694,125 +695,25 @@ func (f EventFields) GetTimestamp() time.Time {
 
 // GetString returns a string representation of a logged field
 func (f EventFields) GetString(key string) string {
-	val, found := f[key]
-	if !found {
-		return ""
-	}
-	v, _ := val.(string)
-	return v
+	return utils.Fields(f).GetString(key)
 }
 
-// GetStrings returns a slice-of-strings representation of a logged field.
+// GetString returns a slice-of-strings representation of a logged field.
 func (f EventFields) GetStrings(key string) []string {
-	val, found := f[key]
-	if !found {
-		return nil
-	}
-	strings, ok := val.([]string)
-	if ok {
-		return strings
-	}
-	slice, _ := val.([]interface{})
-	res := make([]string, 0, len(slice))
-	for _, v := range slice {
-		s, ok := v.(string)
-		if ok {
-			res = append(res, s)
-		}
-	}
-	return res
+	return utils.Fields(f).GetStrings(key)
 }
 
 // GetInt returns an int representation of a logged field
 func (f EventFields) GetInt(key string) int {
-	val, found := f[key]
-	if !found {
-		return 0
-	}
-	v, ok := val.(int)
-	if !ok {
-		f, ok := val.(float64)
-		if ok {
-			v = int(f)
-		}
-	}
-	return v
+	return utils.Fields(f).GetInt(key)
 }
 
-// GetTime returns an int representation of a logged field
+// GetTime returns a time.Time representation of a logged field
 func (f EventFields) GetTime(key string) time.Time {
-	val, found := f[key]
-	if !found {
-		return time.Time{}
-	}
-	v, ok := val.(time.Time)
-	if !ok {
-		s := f.GetString(key)
-		v, _ = time.Parse(time.RFC3339, s)
-	}
-	return v
+	return utils.Fields(f).GetTime(key)
 }
 
 // HasField returns true if the field exists in the event.
 func (f EventFields) HasField(key string) bool {
-	_, ok := f[key]
-	return ok
-}
-
-// EventFieldsCondition is a boolean function on EventFields.
-type EventFieldsCondition func(EventFields) bool
-
-// ToEventFieldsCondition converts a WhereExpr into an executable
-// EventFieldsCondition.
-func ToEventFieldsCondition(cond *types.WhereExpr) (EventFieldsCondition, error) {
-	if cond == nil {
-		return nil, trace.BadParameter("cond is nil")
-	}
-
-	binOp := func(e types.WhereExpr2, op func(a, b bool) bool) (EventFieldsCondition, error) {
-		left, err := ToEventFieldsCondition(e.L)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		right, err := ToEventFieldsCondition(e.R)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return func(ef EventFields) bool { return op(left(ef), right(ef)) }, nil
-	}
-	if cond, err := binOp(cond.And, func(a, b bool) bool { return a && b }); err == nil {
-		return cond, nil
-	}
-	if cond, err := binOp(cond.Or, func(a, b bool) bool { return a || b }); err == nil {
-		return cond, nil
-	}
-	if inner, err := ToEventFieldsCondition(cond.Not); err == nil {
-		return func(ef EventFields) bool { return !inner(ef) }, nil
-	}
-
-	if cond.Equals.L != nil && cond.Equals.R != nil {
-		left, right := cond.Equals.L, cond.Equals.R
-		switch {
-		case left.Field != "" && right.Field != "":
-			return func(ef EventFields) bool { return ef[left.Field] == ef[right.Field] }, nil
-		case left.Literal != nil && right.Field != "":
-			return func(ef EventFields) bool { return left.Literal == ef[right.Field] }, nil
-		case left.Field != "" && right.Literal != nil:
-			return func(ef EventFields) bool { return ef[left.Field] == right.Literal }, nil
-		}
-	}
-	if cond.Contains.L != nil && cond.Contains.R != nil {
-		left, right := cond.Contains.L, cond.Contains.R
-		getRight := func(ef EventFields) string { return ef.GetString(right.Field) }
-		if rightLit, ok := right.Literal.(string); ok {
-			getRight = func(ef EventFields) string { return rightLit }
-		}
-		if slice, ok := left.Literal.([]string); ok {
-			return func(ef EventFields) bool { return apiutils.SliceContainsStr(slice, getRight(ef)) }, nil
-		}
-		if left.Field != "" {
-			return func(ef EventFields) bool { return apiutils.SliceContainsStr(ef.GetStrings(left.Field), getRight(ef)) }, nil
-		}
-	}
-	return nil, trace.BadParameter("failed to convert expression %q to EventFieldsCondition", cond)
+	return utils.Fields(f).HasField(key)
 }
