@@ -704,6 +704,7 @@ type Webauthn struct {
 	RPID                  string   `yaml:"rp_id,omitempty"`
 	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
+	Disabled              bool     `yaml:"disabled,omitempty"`
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
@@ -721,6 +722,7 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 		RPID:                  w.RPID,
 		AttestationAllowedCAs: allowedCAs,
 		AttestationDeniedCAs:  deniedCAs,
+		Disabled:              w.Disabled,
 	}, nil
 }
 
@@ -929,11 +931,21 @@ type DatabaseAWS struct {
 	Region string `yaml:"region,omitempty"`
 	// Redshift contains Redshift specific settings.
 	Redshift DatabaseAWSRedshift `yaml:"redshift"`
+	// RDS contains RDS specific settings.
+	RDS DatabaseAWSRDS `yaml:"rds"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
+	ClusterID string `yaml:"cluster_id,omitempty"`
+}
+
+// DatabaseAWSRDS contains settings for RDS databases.
+type DatabaseAWSRDS struct {
+	// InstanceID is the RDS instance identifier.
+	InstanceID string `yaml:"instance_id,omitempty"`
+	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string `yaml:"cluster_id,omitempty"`
 }
 
@@ -1267,6 +1279,8 @@ type WindowsDesktopService struct {
 	Service `yaml:",inline"`
 	// PublicAddr is a list of advertised public addresses of this service.
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
+	// LDAP is the LDAP connection parameters.
+	LDAP LDAPConfig `yaml:"ldap"`
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`
@@ -1284,4 +1298,19 @@ type WindowsHostLabelRule struct {
 	Match string `yaml:"match"`
 	// Labels is the set of labels to apply to hosts that match this rule.
 	Labels map[string]string `yaml:"labels"`
+}
+
+// LDAPConfig is the LDAP connection parameters.
+//
+// TODO(awly): these credentials are very sensitive. Add support for loading
+// from a file.
+type LDAPConfig struct {
+	// Addr is the address:port of the LDAP server (typically port 389).
+	Addr string `yaml:"addr"`
+	// Domain is the ActiveDirectory domain name.
+	Domain string `yaml:"domain"`
+	// Username for LDAP authentication.
+	Username string `yaml:"username"`
+	// Password for LDAP authentication.
+	Password string `yaml:"password"`
 }

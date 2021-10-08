@@ -704,12 +704,8 @@ func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var certs proto.Certs
-	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	return &certs, nil
+	return UnmarshalLegacyCerts(out.Bytes())
 }
 
 // DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go

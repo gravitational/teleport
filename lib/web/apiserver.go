@@ -574,20 +574,27 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
-		Type:         constants.Local,
-		SecondFactor: cap.GetSecondFactor(),
+		Type:              constants.Local,
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 
 	// U2F settings.
-	if u2f, _ := cap.GetU2F(); u2f != nil {
+	switch u2f, err := cap.GetU2F(); {
+	case err == nil:
 		as.U2F = &webclient.U2FSettings{AppID: u2f.AppID}
+	case !trace.IsNotFound(err):
+		log.WithError(err).Warnf("Error reading U2F settings")
 	}
 
 	// Webauthn settings.
-	if webConfig, _ := cap.GetWebauthn(); webConfig != nil {
+	switch webConfig, err := cap.GetWebauthn(); {
+	case err == nil:
 		as.Webauthn = &webclient.Webauthn{
 			RPID: webConfig.RPID,
 		}
+	case !trace.IsNotFound(err):
+		log.WithError(err).Warnf("Error reading WebAuthn settings")
 	}
 
 	return as, nil
@@ -848,10 +855,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	authSettings := ui.WebConfigAuthSettings{
-		Providers:        authProviders,
-		SecondFactor:     secondFactor,
-		LocalAuthEnabled: localAuth,
-		AuthType:         authType,
+		Providers:         authProviders,
+		SecondFactor:      secondFactor,
+		LocalAuthEnabled:  localAuth,
+		AuthType:          authType,
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 
 	webCfg := ui.WebConfig{
@@ -2273,12 +2281,12 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	authClient := h.cfg.ProxyClient
-	packedKeys, err := authClient.RegisterUsingToken(req)
+	certs, err := authClient.RegisterUsingToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return packedKeys, nil
+	return auth.LegacyCertsFromProto(certs), nil
 }
 
 // createSSHCert is a web call that generates new SSH certificate based

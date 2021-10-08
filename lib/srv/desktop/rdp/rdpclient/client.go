@@ -17,7 +17,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package rdpclient implements an RDP client.
 package rdpclient
 
 // Some implementation details that don't belong in the public godoc:
@@ -59,16 +58,15 @@ package rdpclient
 */
 import "C"
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
-	"os"
 	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
 )
@@ -127,7 +125,7 @@ type Client struct {
 }
 
 // New creates and connects a new Client based on cfg.
-func New(cfg Config) (*Client, error) {
+func New(ctx context.Context, cfg Config) (*Client, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
@@ -142,7 +140,7 @@ func New(cfg Config) (*Client, error) {
 	if err := c.readClientSize(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := c.connect(); err != nil {
+	if err := c.connect(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	c.start()
@@ -184,26 +182,24 @@ func (c *Client) readClientSize() error {
 	}
 }
 
-func (c *Client) connect() error {
+func (c *Client) connect(ctx context.Context) error {
+	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 
-	// *Temporary* hack for injecting passwords until we implement cert-based
-	// authentication.
-	// TODO(awly): remove this after certificates are implemented.
-	passwordStr := os.Getenv("TELEPORT_DEV_RDP_PASSWORD")
-	if passwordStr == "" {
-		return trace.BadParameter("missing TELEPORT_DEV_RDP_PASSWORD env var and certificate authentication is not implemented yet")
-	}
-	password := C.CString(passwordStr)
-	defer C.free(unsafe.Pointer(password))
-
 	res := C.connect_rdp(
 		addr,
 		username,
-		password,
+		C.uint32_t(len(userCertDER)),
+		(*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
+		C.uint32_t(len(userKeyDER)),
+		(*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
 		C.uint16_t(c.clientWidth),
 		C.uint16_t(c.clientHeight),
 	)
@@ -253,6 +249,7 @@ func (c *Client) start() {
 						x:      C.uint16_t(m.X),
 						y:      C.uint16_t(m.Y),
 						button: C.PointerButtonNone,
+						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
@@ -277,6 +274,36 @@ func (c *Client) start() {
 						y:      C.uint16_t(mouseY),
 						button: uint32(button),
 						down:   m.State == deskproto.ButtonPressed,
+						wheel:  C.PointerWheelNone,
+					},
+				)); err != nil {
+					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					return
+				}
+			case deskproto.MouseWheel:
+				var wheel C.CGOPointerWheel
+				switch m.Axis {
+				case deskproto.VerticalWheelAxis:
+					wheel = C.PointerWheelVertical
+				case deskproto.HorizontalWheelAxis:
+					wheel = C.PointerWheelHorizontal
+					// TDP positive scroll deltas move towards top-left.
+					// RDP positive scroll deltas move towards top-right.
+					//
+					// Fix the scroll direction to match TDP, it's inverted for
+					// horizontal scroll in RDP.
+					m.Delta = -m.Delta
+				default:
+					wheel = C.PointerWheelNone
+				}
+				if err := cgoError(C.write_rdp_pointer(
+					c.rustClient,
+					C.CGOPointer{
+						x:           C.uint16_t(mouseX),
+						y:           C.uint16_t(mouseY),
+						button:      C.PointerButtonNone,
+						wheel:       uint32(wheel),
+						wheel_delta: C.int16_t(m.Delta),
 					},
 				)); err != nil {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)

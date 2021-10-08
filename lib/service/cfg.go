@@ -631,11 +631,21 @@ type DatabaseAWS struct {
 	Region string
 	// Redshift contains Redshift specific settings.
 	Redshift DatabaseAWSRedshift
+	// RDS contains RDS specific settings.
+	RDS DatabaseAWSRDS
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
+	ClusterID string
+}
+
+// DatabaseAWSRDS contains AWS RDS specific settings.
+type DatabaseAWSRDS struct {
+	// InstanceID is the RDS instance identifier.
+	InstanceID string
+	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string
 }
 
@@ -827,6 +837,8 @@ type WindowsDesktopConfig struct {
 	ListenAddr utils.NetAddr
 	// PublicAddrs is a list of advertised public addresses of the service.
 	PublicAddrs []utils.NetAddr
+	// LDAP is the LDAP connection parameters.
+	LDAP LDAPConfig
 	// Hosts is an optional list of static Windows hosts to expose through this
 	// service.
 	Hosts []utils.NetAddr
@@ -861,6 +873,18 @@ func (h HostLabelRules) LabelsForHost(host string) map[string]string {
 type HostLabelRule struct {
 	Regexp *regexp.Regexp
 	Labels map[string]string
+}
+
+// LDAPConfig is the LDAP connection parameters.
+type LDAPConfig struct {
+	// Addr is the address:port of the LDAP server (typically port 389).
+	Addr string
+	// Domain is the ActiveDirectory domain name.
+	Domain string
+	// Username for LDAP authentication.
+	Username string
+	// Password for LDAP authentication.
+	Password string
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

@@ -26,6 +26,17 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	"github.com/pborman/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
@@ -36,15 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/status"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -230,6 +232,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 					Metadata: apievents.Metadata{
 						Type:        events.SessionUploadEvent,
 						Code:        events.SessionUploadCode,
+						ID:          uuid.New(),
 						Index:       events.SessionUploadIndex,
 						ClusterName: clusterName.GetClusterName(),
 					},
@@ -3273,6 +3276,20 @@ func (g *GRPCServer) DeleteAllWindowsDesktops(ctx context.Context, _ *empty.Empt
 	return &empty.Empty{}, nil
 }
 
+// GenerateWindowsDesktopCert generates client certificate for Windows RDP
+// authentication.
+func (g *GRPCServer) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.GenerateWindowsDesktopCert(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
 // ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
 func (g *GRPCServer) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -3420,6 +3437,19 @@ func (g *GRPCServer) CreateRegisterChallenge(ctx context.Context, req *proto.Cre
 	}
 
 	return res, nil
+}
+
+// GenerateCertAuthorityCRL returns a CRL for a CA.
+func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	crl, err := auth.GenerateCertAuthorityCRL(ctx, req.Type)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.CRL{CRL: crl}, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration

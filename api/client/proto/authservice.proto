@@ -687,9 +687,12 @@ message DatabaseCertRequest {
     // CSR is the request to sign.
     bytes CSR = 1 [ (gogoproto.jsontag) = "csr" ];
     // ServerName is the SAN to include in the certificate.
-    string ServerName = 2 [ (gogoproto.jsontag) = "server_name" ];
+    // DEPRECATED: Replaced by ServerNames.
+    string ServerName = 2 [ (gogoproto.jsontag) = "server_name", deprecated = true ];
     // TTL is the certificate validity period.
     int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+    // ServerNames are SANs to include in the certificate.
+    repeated string ServerNames = 4 [ (gogoproto.jsontag) = "server_names" ];
 }
 
 // DatabaseCertResponse contains the signed certificate.
@@ -1147,6 +1150,36 @@ message GetWindowsDesktopRequest {
 message DeleteWindowsDesktopRequest {
     // Name is the name of the Windows desktop host.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
+// WindowsDesktopCertRequest is a request to generate a client certificate used
+// for Windows RDP authentication.
+message WindowsDesktopCertRequest {
+    // CSR is the request to sign in PEM format.
+    bytes CSR = 1;
+    // CRLEndpoint is the address of the CRL for this certificate.
+    string CRLEndpoint = 2;
+    // TTL is the certificate validity period.
+    int64 TTL = 3 [ (gogoproto.casttype) = "Duration" ];
+}
+
+// WindowsDesktopCertResponse contains the signed Windows RDP certificate.
+message WindowsDesktopCertResponse {
+    // Cert is the signed certificate in PEM format.
+    bytes Cert = 1;
+}
+
+// CertAuthorityRequest is a request that identifies a Teleport CA.
+message CertAuthorityRequest {
+    // Type is either user or host certificate authority.
+    string Type = 1
+        [ (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.CertAuthType" ];
+}
+
+// CRL is the X.509 Certificate Revocation List.
+message CRL {
+    // CRL is the Certificate Revocation List in DER format.
+    bytes CRL = 1;
 }
 
 // ChangeUserAuthenticationRequest defines a request to change a password and if enabled
@@ -1691,6 +1724,11 @@ service AuthService {
     rpc DeleteWindowsDesktop(DeleteWindowsDesktopRequest) returns (google.protobuf.Empty);
     // DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
     rpc DeleteAllWindowsDesktops(google.protobuf.Empty) returns (google.protobuf.Empty);
+    // GenerateWindowsDesktopCert generates client smartcard certificate used
+    // by an RDP client to authenticate with Windows.
+    rpc GenerateWindowsDesktopCert(WindowsDesktopCertRequest) returns (WindowsDesktopCertResponse);
+    // GenerateCertAuthorityCRL creates an empty CRL for the specified CA.
+    rpc GenerateCertAuthorityCRL(CertAuthorityRequest) returns (CRL);
 
     // ChangeUserAuthentication allows a user to change their password and if enabled,
     // also adds a new MFA device. After successful invocation, a new web session is created as well

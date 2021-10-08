@@ -2009,8 +2009,8 @@ func TestApplyTraits(t *testing.T) {
 				condition types.RoleConditionType
 				spec      *rule
 			}{
-				{Allow, &tt.allow},
-				{Deny, &tt.deny},
+				{types.Allow, &tt.allow},
+				{types.Deny, &tt.deny},
 			}
 			for _, rule := range rules {
 				require.Equal(t, outRole.GetLogins(rule.condition), rule.spec.outLogins)
@@ -3180,7 +3180,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	// Build a map of all allowed logins.
 	allowLogins := map[string]bool{}
 	for _, role := range set {
-		for _, login := range role.GetLogins(Allow) {
+		for _, login := range role.GetLogins(types.Allow) {
 			allowLogins[login] = true
 		}
 	}

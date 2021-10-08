@@ -595,7 +595,7 @@ func (a *ServerWithRoles) filterNodes(nodes []types.Server) ([]types.Server, err
 	// Extract all unique allowed logins across all roles.
 	allowedLogins := make(map[string]bool)
 	for _, role := range roleset {
-		for _, login := range role.GetLogins(services.Allow) {
+		for _, login := range role.GetLogins(types.Allow) {
 			allowedLogins[login] = true
 		}
 	}
@@ -3515,7 +3515,7 @@ func (a *ServerWithRoles) filterWindowsDesktops(desktops []types.WindowsDesktop)
 	// Extract all unique allowed logins across all roles.
 	allowedLogins := make(map[string]bool)
 	for _, role := range roleset {
-		for _, login := range role.GetWindowsLogins(services.Allow) {
+		for _, login := range role.GetWindowsLogins(types.Allow) {
 			allowedLogins[login] = true
 		}
 	}
@@ -3548,6 +3548,16 @@ func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) er
 		// Note: we don't use the Windows login matcher here, as we won't know what OS user
 		// the user is trying to log in as until they initiate the connection.
 	)
+}
+
+// GenerateWindowsDesktopCert generates a certificate for Windows RDP
+// authentication.
+func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+	// Only windows_desktop_service should be requesting Windows certificates.
+	if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return nil, trace.AccessDenied("access denied")
+	}
+	return a.authServer.GenerateWindowsDesktopCert(ctx, req)
 }
 
 // StartAccountRecovery is implemented by AuthService.StartAccountRecovery.
@@ -3601,6 +3611,19 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
 	// User in context can retrieve their own recovery codes.
 	return a.authServer.GetAccountRecoveryCodes(ctx, req)
+}
+
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	// Only windows_desktop_service should be requesting CRLs
+	if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return nil, trace.AccessDenied("access denied")
+	}
+	crl, err := a.authServer.GenerateCertAuthorityCRL(ctx, caType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return crl, nil
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,
