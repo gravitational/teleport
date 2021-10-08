@@ -402,7 +402,10 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 		return
 	}
 
+<<<<<<< HEAD
 	// Fetch the target desktop info. UUID of the desktop is passed via SNI.
+=======
+>>>>>>> b18ae9e61 (Address review feedback)
 	desktopUUID := strings.TrimSuffix(tlsConn.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-uuid", desktopUUID)
 
@@ -580,6 +583,7 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	}
 	defer lc.close()
 
+<<<<<<< HEAD
 	// To make the CA trusted, we need 3 things:
 	// 1. put the CA cert into the Trusted Certification Authorities in the
 	//    Group Policy (done manually for now, see public docs)
@@ -587,6 +591,8 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	// 3. put the CRL of the CA into a dedicated LDAP entry
 	//
 	// Below we do #2 and #3.
+=======
+>>>>>>> b18ae9e61 (Address review feedback)
 	if err := s.updateCAInNTAuthStore(ctx, lc, caDER); err != nil {
 		return trace.Wrap(err, "updating NTAuth store over LDAP: %v", err)
 	}
