@@ -35,7 +35,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -74,16 +73,43 @@ func init() {
 	prometheus.MustRegister(serverRX)
 }
 
+//AccessPoint is the access point contract required by a Server
+type AccessPoint interface {
+	// Announcer adds methods used to announce presence
+	auth.Announcer
+
+	// Semaphores provides semaphore operations
+	types.Semaphores
+
+	// GetClusterName returns cluster name
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+}
+
 // Server is regular or forwarding SSH server.
 type Server interface {
-	// Emitter allows server to emit audit events and create
+	// StreamEmitter allows server to emit audit events and create
 	// event streams for recording sessions
 	events.StreamEmitter
 
 	// ID is the unique ID of the server.
 	ID() string
 
-	// HostUUID is the UUID of the underlying host. For the the forwarding
+	// HostUUID is the UUID of the underlying host. For the forwarding
 	// server this is the proxy the forwarding server is running in.
 	HostUUID() string
 
@@ -101,7 +127,7 @@ type Server interface {
 	PermitUserEnvironment() bool
 
 	// GetAccessPoint returns an auth.AccessPoint for this cluster.
-	GetAccessPoint() auth.AccessPoint
+	GetAccessPoint() AccessPoint
 
 	// GetSessionServer returns a session server.
 	GetSessionServer() rsession.Service
@@ -685,26 +711,8 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 // available proxy. if public_address is not set, fall back to the hostname
 // of the first proxy we get back.
 func (c *ServerContext) ProxyPublicAddress() string {
-	proxyHost := "<proxyhost>:3080"
-
-	if c.srv == nil {
-		return proxyHost
-	}
-
-	proxies, err := c.srv.GetAccessPoint().GetProxies()
-	if err != nil {
-		c.Errorf("Unable to retrieve proxy list: %v", err)
-	}
-
-	if len(proxies) > 0 {
-		proxyHost = proxies[0].GetPublicAddr()
-		if proxyHost == "" {
-			proxyHost = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-			c.Debugf("public_address not set for proxy, returning proxyHost: %q", proxyHost)
-		}
-	}
-
-	return proxyHost
+	//TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
+	return "<proxyhost>:3080"
 }
 
 func (c *ServerContext) String() string {
@@ -739,12 +747,10 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 	environment["TELEPORT_LOGIN"] = c.Identity.Login
 	environment["TELEPORT_ROLES"] = strings.Join(roleNames, " ")
 	if localPAMConfig.Environment != nil {
-		user, err := c.srv.GetAccessPoint().GetUser(c.Identity.TeleportUser, false)
+		traits, err := services.ExtractTraitsFromCert(c.Identity.Certificate)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		traits := user.GetTraits()
 
 		for key, value := range localPAMConfig.Environment {
 			expr, err := parse.NewExpression(value)

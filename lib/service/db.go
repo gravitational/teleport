@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -60,7 +59,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if !ok {
 		return trace.BadParameter("unsupported event payload type %q", event.Payload)
 	}
-	accessPoint, err := process.newLocalCache(conn.Client, cache.ForDatabases, []string{teleport.ComponentDatabase})
+	accessPoint, err := process.newLocalCacheForDatabase(conn.Client, []string{teleport.ComponentDatabase})
 	if err != nil {
 		return trace.Wrap(err)
 	}

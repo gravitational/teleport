@@ -184,7 +184,6 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		// Node only needs to "know" about default
 		// namespace events to avoid matching too much

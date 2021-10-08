@@ -78,7 +78,7 @@ type server struct {
 	localAuthClient auth.ClientI
 	// localAccessPoint provides access to a cached subset of the Auth
 	// Server API.
-	localAccessPoint auth.AccessPoint
+	localAccessPoint auth.ProxyAccessPoint
 
 	// srv is the "base class" i.e. the underlying SSH server
 	srv     *sshutils.Server
@@ -145,7 +145,7 @@ type Config struct {
 	// AccessPoint provides access to a subset of AuthClient of the cluster.
 	// AccessPoint caches values and can still return results during connection
 	// problems.
-	LocalAccessPoint auth.AccessPoint
+	LocalAccessPoint auth.ProxyAccessPoint
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
 	NewCachingAccessPoint auth.NewCachingAccessPoint

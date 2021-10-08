@@ -1598,14 +1598,28 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}))
 }
 
+// newLocalCacheForNode returns new instance of access point configured for a local proxy.
+func (process *TeleportProcess) newLocalCacheForNode(clt auth.ClientI, cacheName []string) (auth.NodeAccessPoint, error) {
+	return process.newLocalCache(clt, cache.ForNode, cacheName)
+}
+
+// newLocalCacheForKubernetes returns new instance of access point configured for a kubernetes service.
+func (process *TeleportProcess) newLocalCacheForKubernetes(clt auth.ClientI, cacheName []string) (auth.KubernetesAccessPoint, error) {
+	return process.newLocalCache(clt, cache.ForKubernetes, cacheName)
+}
+
+// newLocalCacheForDatabase returns new instance of access point configured for a database service.
+func (process *TeleportProcess) newLocalCacheForDatabase(clt auth.ClientI, cacheName []string) (auth.DatabaseAccessPoint, error) {
+	return process.newLocalCache(clt, cache.ForDatabases, cacheName)
+}
+
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
-func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.ProxyAccessPoint, error) {
 	return process.newLocalCache(clt, cache.ForProxy, cacheName)
 }
 
-// newLocalCacheForRemoteProxy returns new instance of access point configured
-// for a remote proxy.
-func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+// newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
+func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 	return process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
 }
 
@@ -1613,8 +1627,18 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, ca
 //
 // newLocalCacheForOldRemoteProxy returns new instance of access point
 // configured for an old remote proxy.
-func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 	return process.newLocalCache(clt, cache.ForOldRemoteProxy, cacheName)
+}
+
+// newLocalCacheForApps returns new instance of access point configured for a remote proxy.
+func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName []string) (auth.AppsAccessPoint, error) {
+	return process.newLocalCache(clt, cache.ForApps, cacheName)
+}
+
+// newLocalCacheForApps returns new instance of access point configured for a windows desktop service.
+func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
+	return process.newLocalCache(clt, cache.ForWindowsDesktop, cacheName)
 }
 
 // newLocalCache returns new instance of access point
@@ -1709,7 +1733,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		authClient, err := process.newLocalCache(conn.Client, cache.ForNode, []string{teleport.ComponentNode})
+		authClient, err := process.newLocalCacheForNode(conn.Client, []string{teleport.ComponentNode})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1976,7 +2000,7 @@ func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, ev
 	})
 }
 
-func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint, auditLog events.IAuditLog) error {
+func (process *TeleportProcess) initUploaderService(streamer events.Streamer, auditLog events.IAuditLog) error {
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentAuditLog, process.id),
 	})
@@ -2047,7 +2071,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	// Delete this comment once the uploader above is phased out.
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
 		ScanDir:  filepath.Join(streamingDir...),
-		Streamer: accessPoint,
+		Streamer: streamer,
 		AuditLog: auditLog,
 		EventsC:  process.Config.UploadEventsC,
 	})
@@ -2844,7 +2868,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		"",
 		process.proxyPublicAddr(),
 		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(tsrv),
+		regular.SetProxyMode(tsrv, accessPoint),
 		regular.SetSessionServer(conn.Client),
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
@@ -3139,7 +3163,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	return nil
 }
 
-func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.AccessPoint, clusterName string) (*tls.Config, error) {
+func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
 	cfg := process.Config
 	var tlsConfig *tls.Config
 	acmeCfg := process.Config.Proxy.ACME
@@ -3337,7 +3361,7 @@ func (process *TeleportProcess) initApps() {
 		}
 		// Create a caching client to the Auth Server. It is to reduce load on
 		// the Auth Server.
-		accessPoint, err := process.newLocalCache(conn.Client, cache.ForApps, []string{component})
+		accessPoint, err := process.newLocalCacheForApps(conn.Client, []string{component})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3796,7 +3820,7 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
+func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -3816,7 +3840,7 @@ func getPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
 }
 
 // findPublicAddr tries to resolve the public address of the proxy of this cluster.
-func findPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
+func findPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 	// If the application has a public address already set, use it.
 	if a.PublicAddr != "" {
 		return a.PublicAddr, nil

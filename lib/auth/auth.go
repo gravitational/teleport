@@ -3663,7 +3663,7 @@ func isHTTPS(u string) error {
 
 // WithClusterCAs returns a TLS hello callback that returns a copy of the provided
 // TLS config with client CAs pool of the specified cluster.
-func WithClusterCAs(tlsConfig *tls.Config, ap AccessPoint, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
