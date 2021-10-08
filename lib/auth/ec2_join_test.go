@@ -651,13 +651,13 @@ func TestHostUniqueCheck(t *testing.T) {
 			role: types.RoleDatabase,
 			upserter: func(name string) {
 				db, err := types.NewDatabaseServerV3(
-					types.Metadata{
-						Name:      name,
-						Namespace: defaults.Namespace,
-					},
+					name,
+					map[string]string{},
 					types.DatabaseServerSpecV3{
 						HostID:   name,
 						Hostname: "test-db",
+						Protocol: "postgres",
+						URI:      "db.localhost",
 					})
 				require.NoError(t, err)
 				_, err = a.UpsertDatabaseServer(context.Background(), db)
@@ -667,26 +667,15 @@ func TestHostUniqueCheck(t *testing.T) {
 		{
 			role: types.RoleApp,
 			upserter: func(name string) {
-				app, err := types.NewAppV3(
-					types.Metadata{
-						Name:      "test-app",
-						Namespace: defaults.Namespace,
-					},
-					types.AppSpecV3{
-						URI: "https://app.localhost",
-					})
-				require.NoError(t, err)
-				appServer, err := types.NewAppServerV3(
-					types.Metadata{
+				app := &types.ServerV2{
+					Kind:    types.KindAppServer,
+					Version: types.V2,
+					Metadata: types.Metadata{
 						Name:      name,
 						Namespace: defaults.Namespace,
 					},
-					types.AppServerSpecV3{
-						HostID: name,
-						App:    app,
-					})
-				require.NoError(t, err)
-				_, err = a.UpsertApplicationServer(context.Background(), appServer)
+				}
+				_, err := a.UpsertAppServer(context.Background(), app)
 				require.NoError(t, err)
 			},
 		},
