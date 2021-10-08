@@ -25,6 +25,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -35,6 +36,7 @@ import (
 
 // CreateUser inserts a new user entry in a backend.
 func (s *Server) CreateUser(ctx context.Context, user services.User) error {
+	fmt.Printf("--> CreateUser: %v.\n", user.GetName())
 	if user.GetCreatedBy().IsEmpty() {
 		user.SetCreatedBy(services.CreatedBy{
 			User: services.UserRef{Name: ClientUsername(ctx)},
@@ -56,6 +58,7 @@ func (s *Server) CreateUser(ctx context.Context, user services.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
+	fmt.Printf("--> CreateUser: Attempting to emit event for %v.\n", user.GetName())
 	if err := s.emitter.EmitAuditEvent(ctx, &events.UserCreate{
 		Metadata: events.Metadata{
 			Type: events.UserCreateEvent,
@@ -72,14 +75,17 @@ func (s *Server) CreateUser(ctx context.Context, user services.User) error {
 		Connector: connectorName,
 		Roles:     user.GetRoles(),
 	}); err != nil {
+		fmt.Printf("--> CreateUser: Failed to emit event for user %v: %v.\n", user.GetName(), err)
 		log.WithError(err).Warn("Failed to emit user create event.")
 	}
+	fmt.Printf("--> CreateUser: Successfully emitted event for user %v.\n", user.GetName())
 
 	return nil
 }
 
 // UpdateUser updates an existing user in a backend.
 func (s *Server) UpdateUser(ctx context.Context, user services.User) error {
+	fmt.Printf("--> UpsertUser: %v.\n", user.GetName())
 	if err := s.Identity.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
@@ -91,6 +97,7 @@ func (s *Server) UpdateUser(ctx context.Context, user services.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
+	fmt.Printf("--> UpsertUser: Attempting to emit audit event for %v.\n", user.GetName())
 	if err := s.emitter.EmitAuditEvent(ctx, &events.UserCreate{
 		Metadata: events.Metadata{
 			Type: events.UserUpdatedEvent,
@@ -108,7 +115,9 @@ func (s *Server) UpdateUser(ctx context.Context, user services.User) error {
 		Roles:     user.GetRoles(),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user update event.")
+		fmt.Printf("--> UpsertUser: Event emission failed for %v: %v.\n", user.GetName(), err)
 	}
+	fmt.Printf("--> UpsertUser: Event emission successful for %v.\n", user.GetName())
 
 	return nil
 }
