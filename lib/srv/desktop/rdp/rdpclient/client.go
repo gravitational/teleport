@@ -62,6 +62,7 @@ import (
 	"fmt"
 	"image"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/gravitational/trace"
@@ -89,7 +90,8 @@ type Client struct {
 	rustClient *C.Client
 	// Synchronization point to prevent input messages from being forwarded
 	// until the connection is established.
-	readyForInput chan struct{}
+	// Used with sync/atomic, 0 means false, 1 means true.
+	readyForInput uint32
 
 	wg        sync.WaitGroup
 	closeOnce sync.Once
@@ -102,7 +104,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	}
 	c := &Client{
 		cfg:           cfg,
-		readyForInput: make(chan struct{}),
+		readyForInput: 0,
 	}
 
 	if err := c.readClientUsername(); err != nil {
@@ -221,10 +223,7 @@ func (c *Client) start() {
 				return
 			}
 
-			select {
-			case <-c.readyForInput:
-				// Input allowed.
-			default:
+			if atomic.LoadUint32(&c.readyForInput) == 0 {
 				// Input not allowed yet, drop the message.
 				continue
 			}
@@ -326,12 +325,7 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
 	// from the fact that a bitmap was sent.
-	select {
-	case <-c.readyForInput:
-		// already closed
-	default:
-		close(c.readyForInput)
-	}
+	atomic.StoreUint32(&c.readyForInput, 1)
 
 	data := C.GoBytes(unsafe.Pointer(cb.data_ptr), C.int(cb.data_len))
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
