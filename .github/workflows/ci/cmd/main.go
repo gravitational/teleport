@@ -18,21 +18,27 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const usage = "The following subcommands are supported:\n" +
-	"\tassign-reviewers \n\t assigns reviewers to a pull request.\n" +
-	"\tcheck-reviewers \n\t checks pull request for required reviewers.\n" +
-	"\tdismiss-runs \n\t dismisses stale workflow runs for external contributors.\n"
+const (
+	usage = "The following subcommands are supported:\n" +
+		"\tassign-reviewers \n\t assigns reviewers to a pull request.\n" +
+		"\tcheck-reviewers \n\t checks pull request for required reviewers.\n" +
+		"\tdismiss-runs \n\t dismisses stale workflow runs for external contributors.\n"
+
+	workflowRunTimeout = time.Minute
+)
 
 func main() {
 	var token = flag.String("token", "", "token is the Github authentication token.")
-	var reviewers = flag.String("reviewers", "", "reviewers is a string representing a json object that maps authors to required reviewers for that author.")
+	var reviewers = flag.String("reviewers", "", `reviewers is a string representing a json object that maps authors to 
+	required reviewers for that author. example: "{\"author1\": [\"reviewer0\", \"reviewer1\"], \"author2\": 
+	[\"reviewer2\", \"reviewer3\"],\"*\": [\"default-reviewer0\", \"default-reviewer1\"]}"`)
 	flag.Parse()
 
 	if len(os.Args) < 2 {
 		log.Fatalf("Subcommand required. %s\n", usage)
 	}
 	subcommand := os.Args[len(os.Args)-1]
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
 	defer cancel()
 
 	client := makeGithubClient(ctx, *token)

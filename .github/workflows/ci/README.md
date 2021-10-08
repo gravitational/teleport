@@ -10,7 +10,7 @@ This bot automates the workflow of the pull request process. It does this by aut
 
 #### Reviewers
 
-Reviewers is a json object encoded as a string with authors mapped to their required reviewers. This map MUST contain an empty string key that maps to default reviewers. 
+Reviewers is a json object encoded as a string with authors mapped to their required reviewers. This map MUST contain a wildcard (*) that maps to default reviewers. 
 
 Example: 
 
@@ -18,7 +18,7 @@ Example:
     {
         "author1": ["reviewer0", "reviewer1"],
         "author2": ["reviewer2", "reviewer3", "reviewer4"],
-        "": ["defaultreviewer0", "defaultreviewer1"]
+        "*": ["defaultreviewer0", "defaultreviewer1"]
     }
 ```
 ### Set up workflow configuration files 
