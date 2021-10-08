@@ -44,6 +44,7 @@ const (
 	TypeKeyboardButton   = MessageType(5)
 	TypeClipboardData    = MessageType(6)
 	TypeClientUsername   = MessageType(7)
+	TypeMouseWheel       = MessageType(8)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -82,6 +83,8 @@ func decode(in peekReader) (Message, error) {
 		return decodeMouseMove(in)
 	case TypeMouseButton:
 		return decodeMouseButton(in)
+	case TypeMouseWheel:
+		return decodeMouseWheel(in)
 	case TypeKeyboardButton:
 		return decodeKeyboardButton(in)
 	case TypeClientUsername:
@@ -305,6 +308,43 @@ func decodeClientUsername(in peekReader) (ClientUsername, error) {
 		return ClientUsername{}, trace.Wrap(err)
 	}
 	return ClientUsername{Username: username}, nil
+}
+
+// MouseWheelAxis identifies a scroll axis on the mouse wheel.
+type MouseWheelAxis byte
+
+const (
+	VerticalWheelAxis   = MouseWheelAxis(0)
+	HorizontalWheelAxis = MouseWheelAxis(1)
+)
+
+// MouseWheel is the mouse wheel scroll message.
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#8---mouse-wheel
+type MouseWheel struct {
+	Delta int16
+	Axis  MouseWheelAxis
+}
+
+func (w MouseWheel) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeMouseWheel))
+	if err := binary.Write(buf, binary.BigEndian, w); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeMouseWheel(in peekReader) (MouseWheel, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return MouseWheel{}, trace.Wrap(err)
+	}
+	if t != byte(TypeMouseWheel) {
+		return MouseWheel{}, trace.BadParameter("got message type %v, expected TypeMouseWheel(%v)", t, TypeMouseWheel)
+	}
+	var w MouseWheel
+	err = binary.Read(in, binary.BigEndian, &w)
+	return w, trace.Wrap(err)
 }
 
 func encodeString(w io.Writer, s string) error {

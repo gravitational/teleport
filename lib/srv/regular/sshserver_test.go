@@ -1911,14 +1911,14 @@ func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string,
 		return nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
-	rules := role.GetRules(services.Allow)
+	rules := role.GetRules(types.Allow)
 	rules = append(rules, types.NewRule(types.Wildcard, services.RW()))
-	role.SetRules(services.Allow, rules)
+	role.SetRules(types.Allow, rules)
 	opts := role.GetOptions()
 	opts.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(opts)
-	role.SetLogins(services.Allow, allowedLogins)
-	role.SetNodeLabels(services.Allow, allowedLabels)
+	role.SetLogins(types.Allow, allowedLogins)
+	role.SetNodeLabels(types.Allow, allowedLabels)
 	err = auth.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)

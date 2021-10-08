@@ -23,8 +23,10 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
@@ -179,11 +181,17 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		Verified:       sessionCtx.Identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
+
+	dbRoleMatchers := role.DatabaseRoleMatchers(
+		defaults.ProtocolPostgres,
+		sessionCtx.DatabaseUser,
+		sessionCtx.DatabaseName,
+	)
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
 		mfaParams,
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
-		&services.DatabaseNameMatcher{Name: sessionCtx.DatabaseName})
+		dbRoleMatchers...,
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
@@ -214,7 +222,7 @@ Make sure that Postgres user %q has "rds_iam" role and Teleport database
 agent's IAM policy has "rds-connect" permissions:
 
 %v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Database.GetAWS().Region))
+`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
 		}
 		return nil, nil, trace.Wrap(err)
 	}

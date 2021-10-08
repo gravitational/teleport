@@ -190,6 +190,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		Clock:       process.Clock,
 		TLS:         tlsConfig,
 		AccessPoint: accessPoint,
+		AuthClient:  conn.Client,
 		ConnLimiter: connLimiter,
 		Heartbeat: desktop.HeartbeatConfig{
 			HostUUID:    process.Config.HostUUID,
@@ -203,6 +204,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				}
 			},
 		},
+		LDAPConfig: desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
 	})
 	if err != nil {
 		return trace.Wrap(err)
