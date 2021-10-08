@@ -404,6 +404,7 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 	}
 
 	existingUser, err := a.GetUser(p.username, false)
+	fmt.Printf("--> createGithubUser: existingUser: %v, err: %v.\n", err)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -413,6 +414,7 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 	if existingUser != nil {
 		ref := user.GetCreatedBy().Connector
 		if !ref.IsSameProvider(existingUser.GetCreatedBy().Connector) {
+			fmt.Printf("--> createGithubUser: Local user %q already exists and is not a Github user.", existingUser.GetName())
 			return nil, trace.AlreadyExists("local user %q already exists and is not a Github user",
 				existingUser.GetName())
 		}
@@ -426,6 +428,7 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 		}
 	}
 
+	fmt.Printf("--> createGithubUser: Returning %v.\n", user.GetName())
 	return user, nil
 }
 
