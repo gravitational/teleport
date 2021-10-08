@@ -3503,6 +3503,7 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 func (a *ServerWithRoles) filterWindowsDesktops(desktops []types.WindowsDesktop) ([]types.WindowsDesktop, error) {
 	// For certain built-in roles allow full access
 	if a.hasBuiltinRole(string(types.RoleAdmin)) ||
+		a.hasBuiltinRole(string(types.RoleProxy)) ||
 		a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
 		return desktops, nil
 	}

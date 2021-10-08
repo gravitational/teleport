@@ -75,41 +75,6 @@ func init() {
 	C.init()
 }
 
-// Config for creating a new Client.
-type Config struct {
-	// Addr is the network address of the RDP server, in the form host:port.
-	Addr string
-	// InputMessage is called to receive a message from the client for the RDP
-	// server. This function should block until there is a message.
-	InputMessage func() (deskproto.Message, error)
-	// OutputMessage is called to send a message from RDP server to the client.
-	OutputMessage func(deskproto.Message) error
-	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
-	AuthorizeFn func(login string) error
-	// Log is the logger for status messages.
-	Log logrus.FieldLogger
-}
-
-func (c *Config) checkAndSetDefaults() error {
-	if c.Addr == "" {
-		return trace.BadParameter("missing Addr in rdpclient.Config")
-	}
-	if c.InputMessage == nil {
-		return trace.BadParameter("missing InputMessage in rdpclient.Config")
-	}
-	if c.OutputMessage == nil {
-		return trace.BadParameter("missing OutputMessage in rdpclient.Config")
-	}
-	if c.AuthorizeFn == nil {
-		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")
-	}
-	if c.Log == nil {
-		c.Log = logrus.New()
-	}
-	c.Log = c.Log.WithField("rdp-addr", c.Addr)
-	return nil
-}
-
 // Client is the RDP client.
 type Client struct {
 	cfg Config

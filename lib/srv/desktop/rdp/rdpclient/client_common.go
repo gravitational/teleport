@@ -65,6 +65,9 @@ func (c *Config) checkAndSetDefaults() error {
 	if c.OutputMessage == nil {
 		return trace.BadParameter("missing OutputMessage in rdpclient.Config")
 	}
+	if c.AuthorizeFn == nil {
+		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")
+	}
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
