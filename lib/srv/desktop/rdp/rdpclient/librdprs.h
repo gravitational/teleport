@@ -14,6 +14,12 @@ typedef enum CGOPointerButton {
   PointerButtonMiddle,
 } CGOPointerButton;
 
+typedef enum CGOPointerWheel {
+  PointerWheelNone,
+  PointerWheelVertical,
+  PointerWheelHorizontal,
+} CGOPointerWheel;
+
 typedef struct Client Client;
 
 typedef char *CGOError;
@@ -28,6 +34,8 @@ typedef struct CGOPointer {
   uint16_t y;
   enum CGOPointerButton button;
   bool down;
+  enum CGOPointerWheel wheel;
+  int16_t wheel_delta;
 } CGOPointer;
 
 typedef struct CGOKey {

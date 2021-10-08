@@ -205,6 +205,7 @@ func (c *Client) start() {
 						x:      C.uint16_t(m.X),
 						y:      C.uint16_t(m.Y),
 						button: C.PointerButtonNone,
+						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
@@ -229,6 +230,36 @@ func (c *Client) start() {
 						y:      C.uint16_t(mouseY),
 						button: uint32(button),
 						down:   m.State == deskproto.ButtonPressed,
+						wheel:  C.PointerWheelNone,
+					},
+				)); err != nil {
+					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					return
+				}
+			case deskproto.MouseWheel:
+				var wheel C.CGOPointerWheel
+				switch m.Axis {
+				case deskproto.VerticalWheelAxis:
+					wheel = C.PointerWheelVertical
+				case deskproto.HorizontalWheelAxis:
+					wheel = C.PointerWheelHorizontal
+					// TDP positive scroll deltas move towards top-left.
+					// RDP positive scroll deltas move towards top-right.
+					//
+					// Fix the scroll direction to match TDP, it's inverted for
+					// horizontal scroll in RDP.
+					m.Delta = -m.Delta
+				default:
+					wheel = C.PointerWheelNone
+				}
+				if err := cgoError(C.write_rdp_pointer(
+					c.rustClient,
+					C.CGOPointer{
+						x:           C.uint16_t(mouseX),
+						y:           C.uint16_t(mouseY),
+						button:      C.PointerButtonNone,
+						wheel:       uint32(wheel),
+						wheel_delta: C.int16_t(m.Delta),
 					},
 				)); err != nil {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)

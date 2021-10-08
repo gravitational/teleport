@@ -180,3 +180,19 @@ When this message is sent from client to server, it's a "paste" action.
 
 This is the first message of the protocol and contains the username to login as
 on the remote desktop.
+
+#### 8 - mouse wheel scroll
+
+```
+| message type (8) | axis byte | delta int16 |
+```
+
+This message contains a mouse wheel update. Sent from client to server.
+
+`axis` identifies which axis the scroll happened on:
+- `0` is vertical scroll
+- `1` is horizontal scroll
+
+`delta` is the signed scroll distance in pixels.
+- on vertical axis, positive `delta` is up, negative `delta` is down
+- on horizontal axis, positive `delta` is left, negative `delta` is right
