@@ -63,7 +63,8 @@
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
             { "title": "Docker", "slug": "/setup/guides/docker/" },
             { "title": "Fluentd", "slug": "/setup/guides/fluentd/" },
-            { "title": "EC2 tags", "slug": "/setup/guides/ec2-tags/" }
+            { "title": "EC2 tags", "slug": "/setup/guides/ec2-tags/" },
+            { "title": "Joining Nodes in AWS", "slug": "/setup/guides/joining-nodes-aws/" }
           ]
         },
         {
