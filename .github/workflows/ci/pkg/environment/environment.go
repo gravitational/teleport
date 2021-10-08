@@ -110,7 +110,7 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	return &PullRequestEnvironment{
 		Client:           c.Client,
 		reviewers:        revs,
-		defaultReviewers: revs[""],
+		defaultReviewers: revs["*"],
 		Metadata:         pr,
 	}, nil
 }
@@ -134,7 +134,7 @@ func unmarshalReviewers(ctx context.Context, str string, client *github.Client) 
 				return nil, trace.Wrap(err)
 			}
 		}
-		if author == "" {
+		if author == "*" {
 			hasDefaultReviewers = true
 			continue
 		}
@@ -144,7 +144,7 @@ func unmarshalReviewers(ctx context.Context, str string, client *github.Client) 
 		}
 	}
 	if !hasDefaultReviewers {
-		return nil, trace.BadParameter("default reviewers are not set. set default reviewers with an empty string as a key")
+		return nil, trace.BadParameter("default reviewers are not set. set default reviewers with a wildcard (*) as a key")
 	}
 	return m, nil
 

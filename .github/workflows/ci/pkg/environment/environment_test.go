@@ -44,13 +44,13 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		{
 			cfg: Config{
 				Client:             github.NewClient(nil),
-				Reviewers:          `{"foo": ["bar", "baz"], "":["admin"]}`,
+				Reviewers:          `{"foo": ["bar", "baz"], "*":["admin"]}`,
 				unmarshalReviewers: UnmarshalReviewersTest,
 			},
 			checkErr: require.NoError,
 			desc:     "valid PullRequestEnvironment config",
 			expected: &PullRequestEnvironment{
-				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "": {"admin"}},
+				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "*": {"admin"}},
 				Client:           github.NewClient(nil),
 				Metadata:         pr,
 				defaultReviewers: []string{"admin"},
@@ -60,13 +60,13 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		{
 			cfg: Config{
 				Client:             github.NewClient(nil),
-				Reviewers:          `{"foo": ["bar", "baz"], "":["admin"]}`,
+				Reviewers:          `{"foo": ["bar", "baz"], "*":["admin"]}`,
 				unmarshalReviewers: UnmarshalReviewersTest,
 			},
 			checkErr: require.NoError,
 			desc:     "valid PullRequestEnvironment config",
 			expected: &PullRequestEnvironment{
-				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "": {"admin"}},
+				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "*": {"admin"}},
 				Client:           github.NewClient(nil),
 				Metadata:         pr,
 				defaultReviewers: []string{"admin"},
@@ -86,7 +86,7 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		},
 		{
 			cfg: Config{
-				Reviewers:          `{"foo": "baz", "":["admin"]}`,
+				Reviewers:          `{"foo": "baz", "*":["admin"]}`,
 				Client:             github.NewClient(nil),
 				unmarshalReviewers: UnmarshalReviewersTest,
 			},
@@ -226,7 +226,7 @@ func UnmarshalReviewersTest(ctx context.Context, str string, client *github.Clie
 		return nil, err
 	}
 	for k := range m {
-		if k == "" {
+		if k == "*" {
 			hasDefaultReviewers = true
 			continue
 		}
