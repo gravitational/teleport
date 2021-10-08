@@ -309,6 +309,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                               // search site events
+	h.GET("/webapi/sites/:site/sessions/search", h.WithClusterAuth(h.clusterSearchSessionEvents))                      // search site session events
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
 
@@ -2023,6 +2024,37 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
 
+	var eventTypes []string
+	if include := values.Get("include"); include != "" {
+		eventTypes = strings.Split(include, ",")
+	}
+
+	searchEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+		return clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, order, startKey)
+	}
+	return clusterEventsList(ctx, site, r.URL.Query(), searchEvents)
+}
+
+// clusterSearchSessionEvents returns session events matching the criteria.
+//
+// GET /v1/webapi/sites/:site/sessions/search
+//
+// Query parameters:
+//   "from"    : date range from, encoded as RFC3339
+//   "to"      : date range to, encoded as RFC3339
+//   "limit"   : optional maximum number of events to return on each fetch
+//   "startKey": resume events search from the last event received,
+//               empty string means start search from beginning
+//   "order":    optional ordering of events. Can be either "asc" or "desc"
+//               for ascending and descending respectively.
+//               If no order is provided it defaults to descending.
+func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	return clusterEventsList(ctx, site, r.URL.Query(), auth.ClientI.SearchSessionEvents)
+}
+
+// clusterEventsList returns a list of audit events obtained using the provided
+// searchEvents method.
+func clusterEventsList(ctx *SessionContext, site reversetunnel.RemoteSite, values url.Values, searchEvents func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (interface{}, error) {
 	from, err := queryTime(values, "from", time.Now().UTC().AddDate(0, -1, 0))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2043,18 +2075,14 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
+	startKey := values.Get("startKey")
+
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var eventTypes []string
-	if include := values.Get("include"); include != "" {
-		eventTypes = strings.Split(include, ",")
-	}
-
-	startKey := values.Get("startKey")
-	rawEvents, lastKey, err := clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, order, startKey)
+	rawEvents, lastKey, err := searchEvents(clt, from, to, limit, order, startKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
