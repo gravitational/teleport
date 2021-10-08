@@ -380,7 +380,6 @@ func (c *Client) Close() {
 			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
 		}
 	})
-	return nil
 }
 
 // GetClientLastActive returns the time of the last recorded activity.

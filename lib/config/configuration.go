@@ -1185,7 +1185,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 
 		for k := range rule.Labels {
 			if !types.IsValidLabelKey(k) {
-				return trace.BadParameter("WindowsDesktopService specifies invalid label %v", k)
+				return trace.BadParameter("WindowsDesktopService specifies invalid label %q", k)
 			}
 		}
 
