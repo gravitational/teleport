@@ -2096,6 +2096,15 @@ func (c *Client) DeleteAllWindowsDesktops(ctx context.Context) error {
 	return nil
 }
 
+// GenerateWindowsDesktopCert generates client certificate for Windows RDP authentication.
+func (c *Client) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+	resp, err := c.grpc.GenerateWindowsDesktopCert(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
 // ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
 // Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
 func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
@@ -2111,17 +2120,17 @@ func (c *Client) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 	return res, trail.FromGRPC(err)
 }
 
-// ApproveAccountRecovery creates a recovery approved token after successful verification of users password or second factor
+// VerifyAccountRecovery creates a recovery approved token after successful verification of users password or second factor
 // (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
 // Represents step 2 of the account recovery process after RPC StartAccountRecovery.
-func (c *Client) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error) {
-	res, err := c.grpc.ApproveAccountRecovery(ctx, req, c.callOpts...)
+func (c *Client) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAccountRecoveryRequest) (types.UserToken, error) {
+	res, err := c.grpc.VerifyAccountRecovery(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
 
 // CompleteAccountRecovery sets a new password or adds a new mfa device,
 // allowing user to regain access to their account using the new credentials.
-// Represents the last step in the account recovery process after RPC's StartAccountRecovery and ApproveAccountRecovery.
+// Represents the last step in the account recovery process after RPC's StartAccountRecovery and VerifyAccountRecovery.
 func (c *Client) CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error {
 	_, err := c.grpc.CompleteAccountRecovery(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
@@ -2161,5 +2170,11 @@ func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 // CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
 func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
 	resp, err := c.grpc.CreateRegisterChallenge(ctx, in, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
+	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req)
 	return resp, trail.FromGRPC(err)
 }

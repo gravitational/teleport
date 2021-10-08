@@ -19,12 +19,24 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	"github.com/pborman/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
@@ -35,15 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/status"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -51,11 +54,28 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
 )
 
-var heartbeatConnectionsReceived = prometheus.NewCounter(
-	prometheus.CounterOpts{
-		Name: teleport.MetricHeartbeatConnectionsReceived,
-		Help: "Number of times auth received a heartbeat connection",
-	},
+var (
+	heartbeatConnectionsReceived = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricHeartbeatConnectionsReceived,
+			Help: "Number of times auth received a heartbeat connection",
+		},
+	)
+	watcherEventsEmitted = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    teleport.MetricWatcherEventsEmitted,
+			Help:    "Per resources size of events emitted",
+			Buckets: prometheus.LinearBuckets(0, 200, 5),
+		},
+		[]string{teleport.TagResource},
+	)
+	watcherEventSizes = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    teleport.MetricWatcherEventSizes,
+			Help:    "Overall size of events emitted",
+			Buckets: prometheus.LinearBuckets(0, 100, 20),
+		},
+	)
 )
 
 // GRPCServer is GPRC Auth Server API
@@ -212,6 +232,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 					Metadata: apievents.Metadata{
 						Type:        events.SessionUploadEvent,
 						Code:        events.SessionUploadCode,
+						ID:          uuid.New(),
 						Index:       events.SessionUploadIndex,
 						ClusterName: clusterName.GetClusterName(),
 					},
@@ -302,11 +323,29 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 			if err != nil {
 				return trace.Wrap(err)
 			}
+
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
+			watcherEventSizes.Observe(float64(out.Size()))
+
 			if err := stream.Send(out); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	}
+}
+
+// resourceLabel returns the label for the provided types.Event
+func resourceLabel(event types.Event) string {
+	if event.Resource == nil {
+		return event.Type.String()
+	}
+
+	sub := event.Resource.GetSubKind()
+	if sub == "" {
+		return fmt.Sprintf("/%s", event.Resource.GetKind())
+	}
+
+	return fmt.Sprintf("/%s/%s", event.Resource.GetKind(), sub)
 }
 
 // eventToGRPC converts a types.Event to an proto.Event
@@ -3237,6 +3276,20 @@ func (g *GRPCServer) DeleteAllWindowsDesktops(ctx context.Context, _ *empty.Empt
 	return &empty.Empty{}, nil
 }
 
+// GenerateWindowsDesktopCert generates client certificate for Windows RDP
+// authentication.
+func (g *GRPCServer) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.GenerateWindowsDesktopCert(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
 // ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
 func (g *GRPCServer) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -3268,14 +3321,14 @@ func (g *GRPCServer) StartAccountRecovery(ctx context.Context, req *proto.StartA
 	return r, nil
 }
 
-// ApproveAccountRecovery is implemented by AuthService.ApproveAccountRecovery.
-func (g *GRPCServer) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (*types.UserTokenV3, error) {
+// VerifyAccountRecovery is implemented by AuthService.VerifyAccountRecovery.
+func (g *GRPCServer) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAccountRecoveryRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	approvedToken, err := auth.ServerWithRoles.ApproveAccountRecovery(ctx, req)
+	approvedToken, err := auth.ServerWithRoles.VerifyAccountRecovery(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3386,6 +3439,19 @@ func (g *GRPCServer) CreateRegisterChallenge(ctx context.Context, req *proto.Cre
 	return res, nil
 }
 
+// GenerateCertAuthorityCRL returns a CRL for a CA.
+func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	crl, err := auth.GenerateCertAuthorityCRL(ctx, req.Type)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.CRL{CRL: crl}, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
@@ -3416,7 +3482,7 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 
 // NewGRPCServer returns a new instance of GRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
-	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived)
+	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

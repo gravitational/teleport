@@ -905,7 +905,7 @@ func adminCreds() (*int, *int, error) {
 // initUploadHandler initializes upload handler based on the config settings,
 // currently the only upload handler supported is S3
 // the call can return trace.NotFound if no upload handler is setup
-func initUploadHandler(auditConfig types.ClusterAuditConfig, dataDir string) (events.MultipartHandler, error) {
+func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig, dataDir string) (events.MultipartHandler, error) {
 	if !auditConfig.ShouldUploadSessions() {
 		recordsDir := filepath.Join(dataDir, events.RecordsDir)
 		if err := os.MkdirAll(recordsDir, teleport.SharedDirMode); err != nil {
@@ -937,7 +937,7 @@ func initUploadHandler(auditConfig types.ClusterAuditConfig, dataDir string) (ev
 		if err := config.SetFromURL(uri); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		handler, err := gcssessions.DefaultNewHandler(config)
+		handler, err := gcssessions.DefaultNewHandler(ctx, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -947,7 +947,7 @@ func initUploadHandler(auditConfig types.ClusterAuditConfig, dataDir string) (ev
 		if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		handler, err := s3sessions.NewHandler(config)
+		handler, err := s3sessions.NewHandler(ctx, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1103,7 +1103,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 		auditConfig := cfg.Auth.AuditConfig
 		uploadHandler, err = initUploadHandler(
-			auditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
+			process.ExitContext(), auditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -3595,7 +3595,7 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 		bk, err = lite.New(ctx, bc.Params)
 	// Firestore backend:
 	case firestore.GetName():
-		bk, err = firestore.New(ctx, bc.Params)
+		bk, err = firestore.New(ctx, bc.Params, firestore.Options{})
 	// DynamoDB backend.
 	case dynamo.GetName():
 		bk, err = dynamo.New(ctx, bc.Params)

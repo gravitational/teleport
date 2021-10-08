@@ -18,11 +18,6 @@ package auth
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
@@ -33,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -153,7 +147,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:        "example.com",
 		NodeName:      "",
 		ClusterName:   "id1",
-		Role:          types.SystemRole("bad role"),
+		Role:          "bad role",
 		TTL:           0,
 	})
 	require.NoError(t, err)
@@ -496,102 +490,6 @@ func TestCASigningAlg(t *testing.T) {
 	verifyCAs(auth, ssh.SigAlgoRSA)
 }
 
-func TestMigrateMFADevices(t *testing.T) {
-	ctx := context.Background()
-	as := newTestAuthServer(ctx, t)
-	clock := clockwork.NewFakeClock()
-	as.SetClock(clock)
-
-	// Fake credentials and MFA secrets for migration.
-	fakePasswordHash := []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
-	totpKey := "totp-key"
-	u2fPrivKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	u2fPubKey := u2fPrivKey.PublicKey
-	u2fPubKeyBin, err := x509.MarshalPKIXPublicKey(&u2fPubKey)
-	require.NoError(t, err)
-	u2fKeyHandle := []byte("dummy handle")
-
-	// Create un-migrated users.
-	for name, localAuth := range map[string]*backend.Item{
-		"no-mfa-user": nil,
-		// Insert MFA data in the legacy format by manually writing to the
-		// backend. All the code for writing these in lib/services/local was
-		// removed.
-		"totp-user": {
-			Key:   []byte("/web/users/totp-user/totp"),
-			Value: []byte(totpKey),
-		},
-		"u2f-user": {
-			Key: []byte("/web/users/u2f-user/u2fregistration"),
-			Value: []byte(fmt.Sprintf(`{"keyhandle":%q,"marshalled_pubkey":%q}`,
-				base64.StdEncoding.EncodeToString(u2fKeyHandle),
-				base64.StdEncoding.EncodeToString(u2fPubKeyBin),
-			)),
-		},
-	} {
-		u, err := types.NewUser(name)
-		require.NoError(t, err)
-		// Set a fake but valid bcrypt password hash.
-		u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: fakePasswordHash})
-		err = as.CreateUser(ctx, u)
-		require.NoError(t, err)
-
-		if localAuth != nil {
-			_, err = as.bk.Put(ctx, *localAuth)
-			require.NoError(t, err)
-		}
-	}
-
-	// Run the migration.
-	err = migrateMFADevices(ctx, as)
-	require.NoError(t, err)
-
-	// Generate expected users with migrated MFA.
-	requireNewDevice := func(d *types.MFADevice, err error) []*types.MFADevice {
-		require.NoError(t, err)
-		return []*types.MFADevice{d}
-	}
-	wantUsers := []types.User{
-		newUserWithAuth(t, "no-mfa-user", &types.LocalAuthSecrets{PasswordHash: fakePasswordHash}),
-		newUserWithAuth(t, "totp-user", &types.LocalAuthSecrets{
-			PasswordHash: fakePasswordHash,
-			TOTPKey:      totpKey,
-			MFA:          requireNewDevice(services.NewTOTPDevice("totp", totpKey, clock.Now())),
-		}),
-		newUserWithAuth(t, "u2f-user", &types.LocalAuthSecrets{
-			PasswordHash: fakePasswordHash,
-			U2FRegistration: &types.U2FRegistrationData{
-				KeyHandle: u2fKeyHandle,
-				PubKey:    u2fPubKeyBin,
-			},
-			MFA: requireNewDevice(u2f.NewDevice("u2f", &u2f.Registration{
-				KeyHandle: u2fKeyHandle,
-				PubKey:    u2fPubKey,
-			}, clock.Now())),
-		}),
-	}
-	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
-		cmpopts.IgnoreFields(types.MFADevice{}, "Id"),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		cmpopts.SortSlices(func(a, b types.User) bool { return a.GetName() < b.GetName() }),
-	}
-
-	// Check the actual users from the backend.
-	users, err := as.GetUsers(true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(users, wantUsers, cmpOpts...))
-
-	// A second migration should be a noop.
-	err = migrateMFADevices(ctx, as)
-	require.NoError(t, err)
-
-	users, err = as.GetUsers(true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(users, wantUsers, cmpOpts...))
-}
-
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
@@ -856,13 +754,6 @@ func setupConfig(t *testing.T) InitConfig {
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
 	}
-}
-
-func newUserWithAuth(t *testing.T, name string, auth *types.LocalAuthSecrets) types.User {
-	u, err := types.NewUser(name)
-	require.NoError(t, err)
-	u.SetLocalAuth(auth)
-	return u
 }
 
 func newU2FAuthPreferenceFromConfigFile(t *testing.T) types.AuthPreference {

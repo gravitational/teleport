@@ -32,6 +32,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
+	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
 	github.com/golang/protobuf v1.4.3
@@ -127,7 +128,7 @@ require (
 )
 
 replace (
-	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.4
+	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.5
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
 	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77

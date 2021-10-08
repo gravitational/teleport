@@ -128,6 +128,10 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
+	// DatabaseAWSRDSClusterID is RDS instance identifier.
+	DatabaseAWSRDSInstanceID string
+	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
+	DatabaseAWSRDSClusterID string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -973,6 +977,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
+				RDS: service.DatabaseAWSRDS{
+					InstanceID: database.AWS.RDS.InstanceID,
+					ClusterID:  database.AWS.RDS.ClusterID,
+				},
 			},
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
@@ -1143,6 +1151,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	cfg.WindowsDesktop.LDAP = service.LDAPConfig(fc.WindowsDesktop.LDAP)
 
 	return nil
 }
@@ -1182,7 +1191,7 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(services.Allow, allowedLogins)
+	role.SetLogins(types.Allow, allowedLogins)
 	ca.AddRole(role.GetName())
 
 	return ca, role, nil
@@ -1227,7 +1236,7 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority,
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(services.Allow, apiutils.CopyStrings(allowedLogins))
+	role.SetLogins(types.Allow, apiutils.CopyStrings(allowedLogins))
 	ca.AddRole(role.GetName())
 
 	return ca, role, nil
@@ -1448,6 +1457,10 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				Region: clf.DatabaseAWSRegion,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
+				},
+				RDS: service.DatabaseAWSRDS{
+					InstanceID: clf.DatabaseAWSRDSInstanceID,
+					ClusterID:  clf.DatabaseAWSRDSClusterID,
 				},
 			},
 			GCP: service.DatabaseGCP{

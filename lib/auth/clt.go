@@ -543,17 +543,8 @@ func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var response registerUsingTokenResponseJSON
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	return &proto.Certs{
-		SSH:        response.SSHCert,
-		TLS:        response.TLSCert,
-		SSHCACerts: response.SSHCACerts,
-		TLSCACerts: response.TLSCACerts,
-	}, nil
+	return UnmarshalLegacyCerts(out.Bytes())
 }
 
 // RegisterNewAuthServer is used to register new auth server with token
@@ -1628,6 +1619,15 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services
 	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	resp, err := c.APIClient.GenerateCertAuthorityCRL(ctx, &proto.CertAuthorityRequest{Type: caType})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.CRL, nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -1792,13 +1792,13 @@ type IdentityService interface {
 	// This token is used as part of a URL that will be emailed to the user (not done in this request).
 	// Represents step 1 of the account recovery process.
 	StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error)
-	// ApproveAccountRecovery creates a recovery approved token after successful verification of users password or second factor
+	// VerifyAccountRecovery creates a recovery approved token after successful verification of users password or second factor
 	// (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
 	// Represents step 2 of the account recovery process after RPC StartAccountRecovery.
-	ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error)
+	VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAccountRecoveryRequest) (types.UserToken, error)
 	// CompleteAccountRecovery sets a new password or adds a new mfa device,
 	// allowing user to regain access to their account using the new credentials.
-	// Represents the last step in the account recovery process after RPC's StartAccountRecovery and ApproveAccountRecovery.
+	// Represents the last step in the account recovery process after RPC's StartAccountRecovery and VerifyAccountRecovery.
 	CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error
 
 	// CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
@@ -1929,4 +1929,10 @@ type ClientI interface {
 
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
 	ResetSessionRecordingConfig(ctx context.Context) error
+
+	// GenerateWindowsDesktopCert generates client smartcard certificate used
+	// by an RDP client to authenticate with Windows.
+	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
+	// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
 }
