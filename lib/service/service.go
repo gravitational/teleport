@@ -634,7 +634,17 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
 			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
 		} else {
-			cfg.HostUUID = uuid.New()
+			switch cfg.JoinMethod {
+			case JoinMethodToken:
+				cfg.HostUUID = uuid.New()
+			case JoinMethodEC2:
+				cfg.HostUUID, err = getEC2NodeID()
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			default:
+				return nil, trace.BadParameter("unknown join method %q", cfg.JoinMethod)
+			}
 			cfg.Log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
 		}
 		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
