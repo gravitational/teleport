@@ -246,7 +246,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			cfg.AuthServers = append(cfg.AuthServers, *addr)
 		}
 	}
-	if _, err := cfg.ApplyToken(fc.AuthToken); err != nil {
+
+	if err := applyTokenConfig(fc, cfg); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1760,4 +1761,24 @@ func validateRoles(roles string) error {
 // splitRoles splits in the format roles expects.
 func splitRoles(roles string) []string {
 	return strings.Split(roles, ",")
+}
+
+// applyTokenConfig applies the auth_token and join_params to the config
+func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
+	if fc.AuthToken != "" {
+		cfg.JoinMethod = service.JoinMethodToken
+		_, err := cfg.ApplyToken(fc.AuthToken)
+		return trace.Wrap(err)
+	}
+	if fc.JoinParams != (JoinParams{}) {
+		if cfg.Token != "" {
+			return trace.BadParameter("only one of auth_token or join_params should be set")
+		}
+		cfg.Token = fc.JoinParams.TokenName
+		if fc.JoinParams.Method != "ec2" {
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected "ec2"`, fc.JoinParams.Method)
+		}
+		cfg.JoinMethod = service.JoinMethodEC2
+	}
+	return nil
 }

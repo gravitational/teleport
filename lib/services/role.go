@@ -779,6 +779,10 @@ type AccessChecker interface {
 
 	// LockingMode returns the locking mode to apply with this checker.
 	LockingMode(defaultMode constants.LockingMode) constants.LockingMode
+
+	// ExtractConditionForIdentifier returns a restrictive filter expression
+	// for list queries based on the rules' `where` conditions.
+	ExtractConditionForIdentifier(ctx RuleContext, namespace, resource, verb, identifier string) (*types.WhereExpr, error)
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1913,7 +1917,7 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 					}).Infof("Access to %v %v in namespace %v denied to %v: deny rule matched.",
 						verb, resource, namespace, role.GetName())
 				}
-				return trace.AccessDenied("access denied to perform action '%s' on %s", verb, resource)
+				return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
 			}
 		}
 	}
@@ -1939,6 +1943,91 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 			verb, resource, namespace, set)
 	}
 	return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+}
+
+// ExtractConditionForIdentifier returns a restrictive filter expression
+// for list queries based on the rules' `where` conditions.
+func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, resource, verb, identifier string) (*types.WhereExpr, error) {
+	parser, err := newParserForIdentifierSubcondition(ctx, identifier)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	parseWhere := func(rule types.Rule) (types.WhereExpr, error) {
+		out, err := parser.Parse(rule.Where)
+		if err != nil {
+			return types.WhereExpr{}, trace.Wrap(err)
+		}
+		expr, ok := out.(types.WhereExpr)
+		if !ok {
+			return types.WhereExpr{}, trace.BadParameter("invalid type %T when extracting identifier subcondition from %q", out, rule.Where)
+		}
+		return expr, nil
+	}
+
+	// Gather identifier-related subconditions from the deny rules
+	// and concatenate their negations by AND.
+	var denyCond *types.WhereExpr
+	for _, role := range set {
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(namespace))
+		if !matchNamespace {
+			continue
+		}
+		rules := MakeRuleSet(role.GetRules(types.Deny))
+		for _, rule := range rules[resource] {
+			expr, err := parseWhere(rule)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if b, ok := expr.Literal.(bool); ok {
+				if b {
+					return nil, trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+				}
+				continue
+			}
+			negated := types.WhereExpr{Not: &expr}
+			if denyCond == nil {
+				denyCond = &negated
+			} else {
+				denyCond = &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: &negated}}
+			}
+		}
+	}
+
+	// Gather identifier-related subconditions from the allow rules
+	// and concatenate by OR.
+	var allowCond *types.WhereExpr
+	for _, role := range set {
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(namespace))
+		if !matchNamespace {
+			continue
+		}
+		rules := MakeRuleSet(role.GetRules(types.Allow))
+		for _, rule := range rules[resource] {
+			expr, err := parseWhere(rule)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if b, ok := expr.Literal.(bool); ok {
+				if b {
+					return nil, nil
+				}
+				continue
+			}
+			if allowCond == nil {
+				allowCond = &expr
+			} else {
+				allowCond = &types.WhereExpr{Or: types.WhereExpr2{L: allowCond, R: &expr}}
+			}
+		}
+	}
+
+	if denyCond == nil {
+		if allowCond == nil {
+			return nil, trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+		}
+		return allowCond, nil
+	}
+	return &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: allowCond}}, nil
 }
 
 // AccessMFAParams contains MFA-related parameters for methods that check access.

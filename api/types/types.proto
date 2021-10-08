@@ -667,6 +667,12 @@ message ProvisionTokenV2List {
     repeated ProvisionTokenV2 ProvisionTokens = 1;
 }
 
+message TokenRule {
+    string AWSAccount = 1 [ (gogoproto.jsontag) = "aws_account,omitempty" ];
+    repeated string AWSRegions = 2 [ (gogoproto.jsontag) = "aws_regions,omitempty" ];
+    string AWSRole = 3 [ (gogoproto.jsontag) = "aws_role,omitempty" ];
+}
+
 // ProvisionTokenSpecV2 is a specification for V2 token
 message ProvisionTokenSpecV2 {
     // Roles is a list of roles associated with the token,
@@ -674,6 +680,9 @@ message ProvisionTokenSpecV2 {
     // certificates issued to the user of the token
     repeated string Roles = 1
         [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
+    repeated TokenRule allow = 2 [ (gogoproto.jsontag) = "allow,omitempty" ];
+    int64 AWSIIDTTL = 3
+        [ (gogoproto.jsontag) = "aws_iid_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
