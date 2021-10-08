@@ -2281,12 +2281,12 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	authClient := h.cfg.ProxyClient
-	packedKeys, err := authClient.RegisterUsingToken(req)
+	certs, err := authClient.RegisterUsingToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return packedKeys, nil
+	return auth.LegacyCertsFromProto(certs), nil
 }
 
 // createSSHCert is a web call that generates new SSH certificate based

@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -3115,9 +3116,16 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if db == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
+
+		dbRoleMatchers := role.DatabaseRoleMatchers(
+			db.GetProtocol(),
+			t.Database.Username,
+			t.Database.GetDatabase(),
+		)
 		noMFAAccessErr = checker.CheckAccess(
 			db,
 			services.AccessMFAParams{},
+			dbRoleMatchers...,
 		)
 
 	default:

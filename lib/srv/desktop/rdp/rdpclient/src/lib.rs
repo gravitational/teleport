@@ -164,7 +164,7 @@ fn connect_rdp_inner(
         &username,
         &password,
         true,
-        Some(sec::InfoFlag::InfoPasswordIsScPin as u32),
+        Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
     )?;
     let global = global::Client::new(
         mcs.get_user_id(),
@@ -361,6 +361,8 @@ pub struct CGOPointer {
     pub y: u16,
     pub button: CGOPointerButton,
     pub down: bool,
+    pub wheel: CGOPointerWheel,
+    pub wheel_delta: i16,
 }
 
 #[repr(C)]
@@ -370,6 +372,14 @@ pub enum CGOPointerButton {
     PointerButtonLeft,
     PointerButtonRight,
     PointerButtonMiddle,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub enum CGOPointerWheel {
+    PointerWheelNone,
+    PointerWheelVertical,
+    PointerWheelHorizontal,
 }
 
 impl From<CGOPointer> for PointerEvent {
@@ -384,6 +394,12 @@ impl From<CGOPointer> for PointerEvent {
                 CGOPointerButton::PointerButtonMiddle => PointerButton::Middle,
             },
             down: p.down,
+            wheel: match p.wheel {
+                CGOPointerWheel::PointerWheelNone => PointerWheel::None,
+                CGOPointerWheel::PointerWheelVertical => PointerWheel::Vertical,
+                CGOPointerWheel::PointerWheelHorizontal => PointerWheel::Horizontal,
+            },
+            wheel_delta: p.wheel_delta,
         }
     }
 }
