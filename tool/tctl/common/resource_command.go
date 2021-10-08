@@ -95,6 +95,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
 		types.KindLock:                    rc.createLock,
 		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
+		types.KindToken:                   rc.createToken,
 	}
 	rc.config = config
 
@@ -533,6 +534,16 @@ func (rc *ResourceCommand) createNetworkRestrictions(client auth.ClientI, raw se
 	}
 	fmt.Printf("network restrictions have been updated\n")
 	return nil
+}
+
+func (rc *ResourceCommand) createToken(client auth.ClientI, raw services.UnknownResource) error {
+	token, err := services.UnmarshalProvisionToken(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = client.UpsertToken(context.Background(), token)
+	return trace.Wrap(err)
 }
 
 // Delete deletes resource by name
@@ -1013,6 +1024,19 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.Wrap(err)
 		}
 		return &netRestrictionsCollection{nr}, nil
+	case types.KindToken:
+		if rc.ref.Name == "" {
+			tokens, err := client.GetTokens(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &tokenCollection{tokens: tokens}, nil
+		}
+		token, err := client.GetToken(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

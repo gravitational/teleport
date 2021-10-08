@@ -630,3 +630,24 @@ func (c *lockCollection) writeText(w io.Writer) error {
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
+
+type tokenCollection struct {
+	tokens []types.ProvisionToken
+}
+
+func (c *tokenCollection) resources() (r []types.Resource) {
+	for _, resource := range c.tokens {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *tokenCollection) writeText(w io.Writer) error {
+	for _, token := range c.tokens {
+		_, err := w.Write([]byte(token.String()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
