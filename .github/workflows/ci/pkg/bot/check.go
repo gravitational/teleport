@@ -94,7 +94,6 @@ func hasRequiredApprovals(mostRecentReviews []review, required []string) error {
 	if len(mostRecentReviews) == 0 {
 		return trace.BadParameter("pull request has no approvals")
 	}
-
 	var waitingOnApprovalsFrom []string
 	for _, requiredReviewer := range required {
 		ok := hasApproved(requiredReviewer, mostRecentReviews)
@@ -102,18 +101,8 @@ func hasRequiredApprovals(mostRecentReviews []review, required []string) error {
 			waitingOnApprovalsFrom = append(waitingOnApprovalsFrom, requiredReviewer)
 		}
 	}
-	switch {
-	case len(waitingOnApprovalsFrom) == 1:
-		return trace.BadParameter(fmt.Sprintf("required reviewers have not yet approved, waiting on an approval from %s",
-			strings.Join(waitingOnApprovalsFrom, "")))
-	case len(waitingOnApprovalsFrom) == 2:
-		return trace.BadParameter(fmt.Sprintf("required reviewers have not yet approved, waiting for approvals from %s",
-			strings.Join(waitingOnApprovalsFrom, " and ")))
-	case len(waitingOnApprovalsFrom) > 2:
-		lastReviewer := waitingOnApprovalsFrom[len(waitingOnApprovalsFrom)-1]
-		waitingOnApprovalsFrom = waitingOnApprovalsFrom[:len(waitingOnApprovalsFrom)-1]
-		return trace.BadParameter(fmt.Sprintf("required reviewers have not yet approved, waiting for approvals from %s, and %s",
-			strings.Join(waitingOnApprovalsFrom, ", "), lastReviewer))
+	if len(waitingOnApprovalsFrom) > 0 {
+		return trace.BadParameter(fmt.Sprintf("required reviewers have not yet approved, waiting on approval(s) from %v", waitingOnApprovalsFrom))
 	}
 	return nil
 }
