@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
-func setRedirectPageHeaders(h http.Header, nonce string) {
+func SetRedirectPageHeaders(h http.Header, nonce string) {
 	httplib.SetIndexHTMLHeaders(h)
 	// Set content policy flags
 	var csp = strings.Join([]string{
