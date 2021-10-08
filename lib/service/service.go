@@ -3233,7 +3233,6 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 			MatchFunc: alpnproxy.MatchByProtocol(
 				alpncommon.ProtocolHTTP,
 				alpncommon.ProtocolHTTP2,
-				alpncommon.ProtocolDefault,
 				acme.ALPNProto,
 			),
 			Handler:    webWrapper.HandleConnection,
