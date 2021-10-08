@@ -53,7 +53,11 @@ package rdpclient
 /*
 // Flags to include the static Rust library.
 #cgo linux LDFLAGS: -L${SRCDIR}/target/release -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
+<<<<<<< HEAD
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/release -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
+=======
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/debug -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
+>>>>>>> b18ae9e61 (Address review feedback)
 #include <librdprs.h>
 */
 import "C"
@@ -380,7 +384,6 @@ func (c *Client) Close() {
 			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
 		}
 	})
-	return nil
 }
 
 // GetClientLastActive returns the time of the last recorded activity.
