@@ -24,7 +24,7 @@ import (
 )
 
 // Conn is a desktop protocol connection.
-// It converts a stream of bytes (io.ReadWriter) into a stream of TDP messages.
+// It converts between a stream of bytes (io.ReadWriter) and a stream of TDP messages.
 type Conn struct {
 	rw   io.ReadWriter
 	bufr *bufio.Reader
