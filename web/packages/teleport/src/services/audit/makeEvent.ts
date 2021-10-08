@@ -369,6 +369,24 @@ export const formatters: Formatters = {
         80
       )}] in database [${db_name}] on [${db_service}] failed`,
   },
+  [eventCodes.DATABASE_CREATED]: {
+    type: 'db.create',
+    desc: 'Database Created',
+    format: ({ user, name }) =>
+      `User [${user}] created database [${name}]`,
+  },
+  [eventCodes.DATABASE_UPDATED]: {
+    type: 'db.update',
+    desc: 'Database Updated',
+    format: ({ user, name }) =>
+      `User [${user}] updated database [${name}]`,
+  },
+  [eventCodes.DATABASE_DELETED]: {
+    type: 'db.delete',
+    desc: 'Database Deleted',
+    format: ({ user, name }) =>
+      `User [${user}] deleted database [${name}]`,
+  },
   [eventCodes.MFA_DEVICE_ADD]: {
     type: 'mfa.add',
     desc: 'MFA Device Added',

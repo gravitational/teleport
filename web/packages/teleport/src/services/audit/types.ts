@@ -56,6 +56,9 @@ export const eventCodes = {
   DATABASE_SESSION_QUERY_FAILURE: 'TDB02W',
   DATABASE_SESSION_STARTED_FAILURE: 'TDB00W',
   DATABASE_SESSION_STARTED: 'TDB00I',
+  DATABASE_CREATED: 'TDB03I',
+  DATABASE_UPDATED: 'TDB04I',
+  DATABASE_DELETED: 'TDB05I',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
@@ -387,6 +390,24 @@ export type RawEvents = {
       db_name: string;
       db_user: string;
       db_query: string;
+    }
+  >;
+  [eventCodes.DATABASE_CREATED]: RawEvent<
+    typeof eventCodes.DATABASE_CREATED,
+    {
+      name: string;
+    }
+  >;
+  [eventCodes.DATABASE_UPDATED]: RawEvent<
+    typeof eventCodes.DATABASE_UPDATED,
+    {
+      name: string;
+    }
+  >;
+  [eventCodes.DATABASE_DELETED]: RawEvent<
+    typeof eventCodes.DATABASE_DELETED,
+    {
+      name: string;
     }
   >;
   [eventCodes.MFA_DEVICE_ADD]: RawEvent<

@@ -680,12 +680,12 @@ exports[`loaded 1`] = `
           </strong>
            - 
           <strong>
-            47
+            50
           </strong>
            
           of 
           <strong>
-            47
+            50
           </strong>
         </div>
       </div>
@@ -744,6 +744,111 @@ exports[`loaded 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-database c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Database Deleted
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] deleted database [postgres-local]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-10-08 15:42:36
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-database c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Database Updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] updated database [postgres-local]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-10-08 15:42:24
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-database c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Database Created
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] created database [postgres-local]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-10-08 15:42:15
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
         <tr>
           <td>
             <div

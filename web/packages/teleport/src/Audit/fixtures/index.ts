@@ -605,6 +605,51 @@ export const events = [
     user: 'alice@example.com',
   },
   {
+    cluster_name: 'root',
+    code: 'TDB03I',
+    db_labels: {
+      'env': 'local',
+      'teleport.dev/origin': 'dynamic'
+    },
+    db_protocol: 'postgres',
+    db_uri: 'localhost:5432',
+    ei: 0,
+    event: 'db.create',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'postgres-local',
+    time: '2021-10-08T15:42:15.39Z',
+    uid: '9d37514f-aef5-426f-9fda-31fd35d070f5',
+    user: '05ff66c9-a948-42f4-af0e-a1b6ba62561e.root'
+  },
+  {
+    cluster_name: 'root',
+    code: 'TDB04I',
+    db_labels: {
+      'env': 'local',
+      'teleport.dev/origin': 'dynamic'
+    },
+    db_protocol: 'postgres',
+    db_uri: 'localhost:5432',
+    ei: 0,
+    event: 'db.update',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'postgres-local',
+    time: '2021-10-08T15:42:24.581Z',
+    uid: 'fe631a5a-6418-49d6-99e7-5280654663ec',
+    user: '05ff66c9-a948-42f4-af0e-a1b6ba62561e.root'
+  },
+  {
+    cluster_name: 'root',
+    code: 'TDB05I',
+    ei: 0,
+    event: 'db.delete',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'postgres-local',
+    time: '2021-10-08T15:42:36.005Z',
+    uid: '74f5e6b9-50c4-4195-bb26-d615641255bc',
+    user: '05ff66c9-a948-42f4-af0e-a1b6ba62561e.root'
+  },
+  {
     cluster_name: 'im-a-cluster-name',
     code: 'TLK00I',
     ei: 0,
