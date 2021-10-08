@@ -3435,10 +3435,7 @@ func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.Wind
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO(zmb3): support dynamic desktop registration
-	if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
-		return trace.AccessDenied("access denied")
-	}
+
 	return a.authServer.CreateWindowsDesktop(ctx, s)
 }
 
@@ -3446,10 +3443,6 @@ func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.Wind
 func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
-		return nil
 	}
 
 	existing, err := a.authServer.GetWindowsDesktop(ctx, s.GetName())
@@ -3508,33 +3501,10 @@ func (a *ServerWithRoles) filterWindowsDesktops(desktops []types.WindowsDesktop)
 		return desktops, nil
 	}
 
-	roleset, err := services.FetchRoles(a.context.User.GetRoles(), a.authServer, a.context.User.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Extract all unique allowed logins across all roles.
-	allowedLogins := make(map[string]bool)
-	for _, role := range roleset {
-		for _, login := range role.GetWindowsLogins(types.Allow) {
-			allowedLogins[login] = true
-		}
-	}
-
 	filtered := make([]types.WindowsDesktop, 0, len(desktops))
-	// MFA is not required to list the nodes, but will be required to connect
-	mfaParams := services.AccessMFAParams{Verified: true}
-NextDesktop:
 	for _, desktop := range desktops {
-		for login := range allowedLogins {
-			err := roleset.CheckAccess(
-				desktop,
-				mfaParams,
-				services.NewWindowsLoginMatcher(login))
-			if err == nil {
-				filtered = append(filtered, desktop)
-				continue NextDesktop
-			}
+		if err := a.checkAccessToWindowsDesktop(desktop); err == nil {
+			filtered = append(filtered, desktop)
 		}
 	}
 

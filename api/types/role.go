@@ -663,20 +663,16 @@ func (r *RoleV4) CheckAndSetDefaults() error {
 		}
 		return nil
 	}
-	if err := checkWildcardSelector(r.Spec.Allow.NodeLabels); err != nil {
-		return err
-	}
-	if err := checkWildcardSelector(r.Spec.Allow.AppLabels); err != nil {
-		return err
-	}
-	if err := checkWildcardSelector(r.Spec.Allow.KubernetesLabels); err != nil {
-		return err
-	}
-	if err := checkWildcardSelector(r.Spec.Allow.DatabaseLabels); err != nil {
-		return err
-	}
-	if err := checkWildcardSelector(r.Spec.Allow.WindowsDesktopLabels); err != nil {
-		return err
+	for _, labels := range []Labels{
+		r.Spec.Allow.NodeLabels,
+		r.Spec.Allow.AppLabels,
+		r.Spec.Allow.KubernetesLabels,
+		r.Spec.Allow.DatabaseLabels,
+		r.Spec.Allow.WindowsDesktopLabels,
+	} {
+		if err := checkWildcardSelector(labels); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	for i := range r.Spec.Allow.Rules {

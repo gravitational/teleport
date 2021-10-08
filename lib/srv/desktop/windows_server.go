@@ -344,7 +344,7 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 		default:
 		}
 
-		con, err := lis.Accept()
+		conn, err := lis.Accept()
 		if err != nil {
 			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
@@ -352,7 +352,7 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 			return trace.Wrap(err)
 		}
 
-		go s.handleConnection(con)
+		go s.handleConnection(conn)
 	}
 }
 
@@ -374,12 +374,12 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	defer s.cfg.ConnLimiter.ReleaseConnection(remoteAddr)
 
 	// Authenticate the client.
-	tlsCon, ok := con.(*tls.Conn)
+	tlsConn, ok := con.(*tls.Conn)
 	if !ok {
 		log.Errorf("Got %T from TLS listener, expected *tls.Conn", con)
 		return
 	}
-	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, tlsCon)
+	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, tlsConn)
 	if err != nil {
 		log.WithError(err).Warning("mTLS authentication failed for incoming connection")
 		return
@@ -392,7 +392,7 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 		return
 	}
 
-	desktopUUID := strings.TrimSuffix(tlsCon.ConnectionState().ServerName, SNISuffix)
+	desktopUUID := strings.TrimSuffix(tlsConn.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-uuid", desktopUUID)
 
 	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopUUID)
@@ -405,37 +405,33 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tlsCon, desktop, authContext); err != nil {
+	if err := s.connectRDP(ctx, log, tlsConn, desktop, authContext); err != nil {
 		log.WithError(err).Error("RDP connection failed")
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, con net.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, conn net.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
 	identity := authCtx.Identity.GetIdentity()
-	roleset, err := services.FetchRoles(identity.Groups, s.cfg.AccessPoint, identity.Traits)
+
+	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(context.TODO())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	authPref, err := s.cfg.AccessPoint.GetAuthPreference(context.TODO())
+	authPref, err := s.cfg.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	authorize := func(login string) error {
-		return roleset.CheckAccess(
+		return authCtx.Checker.CheckAccess(
 			desktop,
 			services.AccessMFAParams{Verified: true},
 			services.NewWindowsLoginMatcher(login))
 	}
 
-	dpc := deskproto.NewConn(con)
+	dpc := deskproto.NewConn(conn)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
@@ -452,9 +448,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	monitorCfg := srv.MonitorConfig{
 		Context:           ctx,
-		Conn:              con,
+		Conn:              conn,
 		Clock:             s.cfg.Clock,
-		ClientIdleTimeout: roleset.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		ClientIdleTimeout: authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		Entry:             log,
 		Emitter:           s.cfg.Emitter,
 		LockWatcher:       s.cfg.LockWatcher,
@@ -463,13 +459,17 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		TeleportUser:      authCtx.Identity.GetIdentity().Username,
 		ServerID:          desktop.GetName(),
 	}
-	shouldDisconnectExpiredCert := roleset.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
+	shouldDisconnectExpiredCert := authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
 	if shouldDisconnectExpiredCert && !identity.Expires.IsZero() {
 		monitorCfg.DisconnectExpiredCert = identity.Expires
 	}
 
 	if err := srv.StartMonitor(monitorCfg); err != nil {
+		// if we can't establish a connection monitor then we can't enforce RBAC.
+		// consider this a connection failure and return an error
+		// (in the happy path, rdpc remains open until Wait() completes)
 		rdpc.Close()
+		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(rdpc.Wait())
@@ -561,16 +561,16 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 		return trace.Wrap(err, "generating CRL: %v", err)
 	}
 
-	con, err := newLDAPClient(s.cfg.LDAPConfig)
+	lc, err := newLDAPClient(s.cfg.LDAPConfig)
 	if err != nil {
 		return trace.Wrap(err, "connecting to LDAP server: %v", err)
 	}
-	defer con.close()
+	defer lc.close()
 
-	if err := s.updateCAInNTAuthStore(ctx, con, caDER); err != nil {
+	if err := s.updateCAInNTAuthStore(ctx, lc, caDER); err != nil {
 		return trace.Wrap(err, "updating NTAuth store over LDAP: %v", err)
 	}
-	if err := s.updateCRL(ctx, con, crlDER); err != nil {
+	if err := s.updateCRL(ctx, lc, crlDER); err != nil {
 		return trace.Wrap(err, "updating CRL over LDAP: %v", err)
 	}
 	return nil

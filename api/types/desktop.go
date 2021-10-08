@@ -137,6 +137,7 @@ func (d *WindowsDesktopV3) GetAddr() string {
 
 // GetAllLabels returns combined static and dynamic labels.
 func (d *WindowsDesktopV3) GetAllLabels() map[string]string {
+	// TODO(zmb3): add dynamic labels when running in agent mode
 	return CombineLabels(d.Metadata.Labels, nil)
 }
 

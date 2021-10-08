@@ -44,8 +44,7 @@ func (c *Client) Wait() error {
 }
 
 // Close shuts down the client and closes any existing connections.
-func (c *Client) Close() error {
-	return nil
+func (c *Client) Close() {
 }
 
 // GetClientLastActive returns the time of the last recorded activity.

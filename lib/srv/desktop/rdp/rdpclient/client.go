@@ -52,8 +52,8 @@ package rdpclient
 
 /*
 // Flags to include the static Rust library.
-#cgo linux LDFLAGS: -L${SRCDIR}/target/debug -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/debug -L/opt/homebrew/opt/openssl@3/lib -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
+#cgo linux LDFLAGS: -L${SRCDIR}/target/release -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/debug -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
 #include <librdprs.h>
 */
 import "C"
@@ -330,13 +330,12 @@ func (c *Client) Wait() error {
 // Close shuts down the client and closes any existing connections.
 // It is safe to call multiple times, from multiple goroutines.
 // Calls other than the first one are no-ops.
-func (c *Client) Close() error {
+func (c *Client) Close() {
 	c.closeOnce.Do(func() {
 		if err := cgoError(C.close_rdp(c.rustClient)); err != nil {
 			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
 		}
 	})
-	return nil
 }
 
 // GetClientLastActive returns the time of the last recorded activity.

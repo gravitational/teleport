@@ -3046,19 +3046,6 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 			},
 		},
 		{
-			name: "role allow labels with empty list matches nothing",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
-					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
-					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"role": []string{}}
-				}),
-			},
-			checks: []check{
-				{desktop: desktopNoLabels, login: "admin", hasAccess: false},
-				{desktop: desktop2012, login: "admin", hasAccess: false},
-			},
-		},
-		{
 			name: "single role with deny labels",
 			roles: []types.RoleV4{
 				newRole(func(r *types.RoleV4) {
