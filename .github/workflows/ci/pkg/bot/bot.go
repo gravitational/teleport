@@ -65,10 +65,14 @@ func (c *Bot) DimissStaleWorkflowRunsForExternalContributors(ctx context.Context
 	clt := c.GithubClient.Client
 	pullReqs, _, err := clt.PullRequests.List(ctx, repoOwner, repoName, &github.PullRequestListOptions{State: ci.Open})
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	for _, pull := range pullReqs {
-		err := c.DismissStaleWorkflowRuns(ctx, *pull.Base.User.Login, *pull.Base.Repo.Name, *pull.Head.Ref)
+		err := validatePullRequestFields(pull)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = c.DismissStaleWorkflowRuns(ctx, *pull.Base.User.Login, *pull.Base.Repo.Name, *pull.Head.Ref)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -170,6 +174,20 @@ func (c *Bot) deleteRun(ctx context.Context, owner, repo string, runID int64) er
 	_, err = clt.Do(ctx, req, nil)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// validatePullRequestFields checks that pull request fields needed for
+// dismissing workflow runs are not nil.
+func validatePullRequestFields(pr *github.PullRequest) error {
+	switch {
+	case pr.Base.User.Login == nil:
+		return trace.BadParameter("missing repository owner")
+	case pr.Base.Repo.Name == nil:
+		return trace.BadParameter("missing repository name")
+	case pr.Head.Ref == nil:
+		return trace.BadParameter("missing branch name")
 	}
 	return nil
 }
