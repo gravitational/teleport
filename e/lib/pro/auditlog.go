@@ -123,8 +123,8 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 	return events, lastKey, trace.Wrap(err)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order apitypes.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := l.Inner.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
+func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order apitypes.EventOrder, startKey string, cond *apitypes.WhereExpr) ([]apievents.AuditEvent, string, error) {
+	events, lastKey, err := l.Inner.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
 	return events, lastKey, trace.Wrap(err)
 }
 
