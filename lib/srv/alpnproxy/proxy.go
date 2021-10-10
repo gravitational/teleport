@@ -158,7 +158,7 @@ type HandlerDecs struct {
 	MatchFunc MatchFunc
 	// TLSConfig is TLS configuration that allows switching TLS settings for the handle.
 	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connection
-	// but if HandleDesc.TLSConfig is preset it will take precedence over ProxyConfig TLS configuration.
+	// but if HandleDesc.TLSConfig is present it will take precedence over ProxyConfig TLS configuration.
 	TLSConfig *tls.Config
 }
 

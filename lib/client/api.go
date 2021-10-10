@@ -2955,7 +2955,10 @@ func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, erro
 	}
 }
 
+// loadTLS returns the user's TLS configuration for an external identity if the SkipLocalAuth flag was set
+// or teleport core TLS certificate for the local agent.
 func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
+	// if SkipLocalAuth flag is set use an external identity file instead of loading cert from the local agent.
 	if tc.SkipLocalAuth {
 		return tc.TLS.Clone(), nil
 	}

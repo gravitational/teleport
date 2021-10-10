@@ -2785,7 +2785,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Context:          process.ExitContext(),
 				StaticFS:         fs,
 				ClusterFeatures:  process.getClusterFeatures(),
-				// TODO(smallinksy) Get dynamically based on the cluster networking config - proxy listener mode.
+				// TODO(smallinsky) Get dynamically based on the cluster networking config - proxy listener mode.
 				ALPNSNIListenerEnabled: !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener,
 			})
 		if err != nil {
