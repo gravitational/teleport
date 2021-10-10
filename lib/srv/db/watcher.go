@@ -95,5 +95,9 @@ func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels
 }
 
 func (s *Server) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
-	return s.unregisterDatabase(ctx, resource.GetName())
+	database, ok := resource.(types.Database)
+	if !ok {
+		return trace.BadParameter("expected types.Database, got %T", resource)
+	}
+	return s.unregisterDatabase(ctx, database)
 }

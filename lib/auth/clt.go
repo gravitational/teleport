@@ -37,7 +37,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -544,17 +543,8 @@ func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var response registerUsingTokenResponseJSON
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	return &proto.Certs{
-		SSH:        response.SSHCert,
-		TLS:        response.TLSCert,
-		SSHCACerts: response.SSHCACerts,
-		TLSCACerts: response.TLSCACerts,
-	}, nil
+	return UnmarshalLegacyCerts(out.Bytes())
 }
 
 // RegisterNewAuthServer is used to register new auth server with token
@@ -1078,19 +1068,6 @@ func (c *Client) GenerateHostCert(
 	return []byte(cert), nil
 }
 
-// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
-func (c *Client) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
-	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
-	if err != nil {
-		return nil, err
-	}
-	var u2fRegReq u2f.RegisterChallenge
-	if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
-		return nil, err
-	}
-	return &u2fRegReq, nil
-}
-
 // CreateOIDCAuthRequest creates OIDCAuthRequest
 func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
 	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
@@ -1401,7 +1378,7 @@ func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventT
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (c *Client) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, order, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -1642,6 +1619,15 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services
 	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	resp, err := c.APIClient.GenerateCertAuthorityCRL(ctx, &proto.CertAuthorityRequest{Type: caType})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.CRL, nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -1716,9 +1702,6 @@ type IdentityService interface {
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
-	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
-	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
-
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)
 
@@ -1790,31 +1773,32 @@ type IdentityService interface {
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
 
-	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
-	RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
-
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
 	// AddMFADevice adds a new MFA device for the calling user.
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
+	// AddMFADeviceSync adds a new MFA device (nonstream).
+	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
 	DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error
 	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
 	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+	CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
 
 	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
 	// This token is used as part of a URL that will be emailed to the user (not done in this request).
 	// Represents step 1 of the account recovery process.
 	StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error)
-	// ApproveAccountRecovery creates a recovery approved token after successful verification of users password or second factor
+	// VerifyAccountRecovery creates a recovery approved token after successful verification of users password or second factor
 	// (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
 	// Represents step 2 of the account recovery process after RPC StartAccountRecovery.
-	ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error)
+	VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAccountRecoveryRequest) (types.UserToken, error)
 	// CompleteAccountRecovery sets a new password or adds a new mfa device,
 	// allowing user to regain access to their account using the new credentials.
-	// Represents the last step in the account recovery process after RPC's StartAccountRecovery and ApproveAccountRecovery.
+	// Represents the last step in the account recovery process after RPC's StartAccountRecovery and VerifyAccountRecovery.
 	CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error
 
 	// CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
@@ -1822,6 +1806,8 @@ type IdentityService interface {
 	// GetAccountRecoveryToken returns a user token resource after verifying the token in
 	// request is not expired and is of the correct recovery type.
 	GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error)
+	// GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
+	GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error)
 
 	// CreatePrivilegeToken creates a privilege token for the logged in user who has successfully re-authenticated with their second factor.
 	// A privilege token allows users to perform privileged action eg: add/delete their MFA device.
@@ -1943,4 +1929,10 @@ type ClientI interface {
 
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
 	ResetSessionRecordingConfig(ctx context.Context) error
+
+	// GenerateWindowsDesktopCert generates client smartcard certificate used
+	// by an RDP client to authenticate with Windows.
+	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
+	// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
 }

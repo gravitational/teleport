@@ -17,6 +17,7 @@ package common
 import (
 	"context"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -88,7 +89,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authExport.Flag("keys", "if set, will print private keys").BoolVar(&a.exportPrivateKeys)
 	a.authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&a.exportAuthorityFingerprint)
 	a.authExport.Flag("compat", "export cerfiticates compatible with specific version of Teleport").StringVar(&a.compatVersion)
-	a.authExport.Flag("type", "certificate type: 'user', 'host' or 'tls'").StringVar(&a.authType)
+	a.authExport.Flag("type", "export certificate type").EnumVar(&a.authType, allowedCertificateTypes...)
 
 	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair").Hidden()
 	a.authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&a.genPubPath)
@@ -149,6 +150,8 @@ func (a *AuthCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 	return true, trace.Wrap(err)
 }
 
+var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "tls-user-der", "windows"}
+
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
@@ -156,26 +159,16 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 	var typesToExport []types.CertAuthType
 
 	// this means to export TLS authority
-	if a.authType == "tls" {
-		clusterName, err := client.GetDomainName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		certAuthority, err := client.GetCertAuthority(
-			types.CertAuthID{Type: types.HostCA, DomainName: clusterName},
-			a.exportPrivateKeys)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(certAuthority.GetActiveKeys().TLS) != 1 {
-			return trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
-		}
-		keyPair := certAuthority.GetActiveKeys().TLS[0]
-		if a.exportPrivateKeys {
-			fmt.Println(string(keyPair.Key))
-		}
-		fmt.Println(string(keyPair.Cert))
-		return nil
+	switch a.authType {
+	// "tls" is supported for backwards compatibility.
+	// "tls-host" and "tls-user" were added later to allow export of the user
+	// TLS CA.
+	case "tls", "tls-host":
+		return a.exportTLSAuthority(client, types.HostCA, false)
+	case "tls-user":
+		return a.exportTLSAuthority(client, types.UserCA, false)
+	case "tls-user-der", "windows":
+		return a.exportTLSAuthority(client, types.UserCA, true)
 	}
 
 	// if no --type flag is given, export all types
@@ -264,6 +257,43 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 		}
 	}
 	return nil
+}
+
+func (a *AuthCommand) exportTLSAuthority(client auth.ClientI, typ types.CertAuthType, unpackPEM bool) error {
+	clusterName, err := client.GetDomainName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	certAuthority, err := client.GetCertAuthority(
+		types.CertAuthID{Type: typ, DomainName: clusterName},
+		a.exportPrivateKeys,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(certAuthority.GetActiveKeys().TLS) != 1 {
+		return trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
+	}
+	keyPair := certAuthority.GetActiveKeys().TLS[0]
+
+	print := func(data []byte) error {
+		if !unpackPEM {
+			fmt.Println(string(data))
+			return nil
+		}
+		b, _ := pem.Decode(data)
+		if b == nil {
+			return trace.BadParameter("no PEM data in CA data: %q", data)
+		}
+		fmt.Println(string(b.Bytes))
+		return nil
+	}
+	if a.exportPrivateKeys {
+		if err := print(keyPair.Key); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return trace.Wrap(print(keyPair.Cert))
 }
 
 // GenerateKeys generates a new keypair
@@ -391,7 +421,11 @@ func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
 // generateDatabaseKeysForKey signs the provided unsigned key with Teleport CA
 // for database access.
 func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *client.Key) error {
-	subject := pkix.Name{CommonName: a.genHost}
+	principals := strings.Split(a.genHost, ",")
+	if len(principals) == 0 {
+		return trace.BadParameter("at least one hostname must be specified via --host flag")
+	}
+	subject := pkix.Name{CommonName: principals[0]}
 	if a.outputFormat == identityfile.FormatMongo {
 		// Include Organization attribute in MongoDB certificates as well.
 		//
@@ -418,10 +452,12 @@ func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *c
 	resp, err := clusterAPI.GenerateDatabaseCert(context.TODO(),
 		&proto.DatabaseCertRequest{
 			CSR: csr,
-			// Important to include server name as SAN since CommonName has
-			// been deprecated since Go 1.15:
+			// Important to include SANs since CommonName has been deprecated
+			// since Go 1.15:
 			//   https://golang.org/doc/go1.15#commonname
-			ServerName: a.genHost,
+			ServerNames: principals,
+			// Include legacy ServerName for compatibility.
+			ServerName: principals[0],
 			TTL:        proto.Duration(a.genTTL),
 		})
 	if err != nil {

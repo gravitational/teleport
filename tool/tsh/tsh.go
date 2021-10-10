@@ -946,12 +946,6 @@ func onLogin(cf *CLIConf) error {
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
 
-	// If the profile is already logged into any database services,
-	// refresh the creds.
-	if err := fetchDatabaseCreds(cf, tc); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Print status to show information of the logged in user.
 	return trace.Wrap(onStatus(cf))
 }

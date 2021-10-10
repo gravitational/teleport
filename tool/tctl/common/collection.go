@@ -29,7 +29,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -60,9 +59,9 @@ func (r *roleCollection) writeText(w io.Writer) error {
 		}
 		t.AddRow([]string{
 			r.GetMetadata().Name,
-			strings.Join(r.GetLogins(services.Allow), ","),
-			printNodeLabels(r.GetNodeLabels(services.Allow)),
-			printActions(r.GetRules(services.Allow))})
+			strings.Join(r.GetLogins(types.Allow), ","),
+			printNodeLabels(r.GetNodeLabels(types.Allow)),
+			printActions(r.GetRules(types.Allow))})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -722,4 +721,25 @@ func (c *windowsDesktopCollection) writeText(w io.Writer) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+type tokenCollection struct {
+	tokens []types.ProvisionToken
+}
+
+func (c *tokenCollection) resources() (r []types.Resource) {
+	for _, resource := range c.tokens {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *tokenCollection) writeText(w io.Writer) error {
+	for _, token := range c.tokens {
+		_, err := w.Write([]byte(token.String()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }

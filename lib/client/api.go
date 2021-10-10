@@ -606,6 +606,11 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// If the cert expiration time is less than 5s consider cert as expired and don't add
+		// it to the user profile as an active database.
+		if time.Until(cert.NotAfter) < 5*time.Second {
+			continue
+		}
 		if tlsID.RouteToDatabase.ServiceName != "" {
 			databases = append(databases, tlsID.RouteToDatabase)
 		}

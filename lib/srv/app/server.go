@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // app package runs the application proxy process. It keeps dynamic labels
-// updated, heart beats it's presence, check access controls, and forwards
+// updated, heart beats its presence, checks access controls, and forwards
 // connections between the tunnel and the target host.
 package app
 
@@ -626,7 +626,10 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 		})
 	}
 
-	err = authContext.Checker.CheckAccessToApp(apidefaults.Namespace, app, mfaParams, matchers...)
+	err = authContext.Checker.CheckAccess(
+		app,
+		mfaParams,
+		matchers...)
 	if err != nil {
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}

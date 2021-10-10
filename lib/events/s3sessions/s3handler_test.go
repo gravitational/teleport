@@ -21,6 +21,7 @@ package s3sessions
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/events/test"

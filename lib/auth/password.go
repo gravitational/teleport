@@ -313,32 +313,6 @@ func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *type
 	return nil
 }
 
-// CreateSignupU2FRegisterRequest initiates registration for a new U2F token.
-// The returned challenge should be sent to the client to sign.
-func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (*u2f.RegisterChallenge, error) {
-	ctx := context.TODO()
-	cap, err := s.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	u2fConfig, err := cap.GetU2F()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = s.GetUserToken(context.TODO(), tokenID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return u2f.RegisterInit(u2f.RegisterInitParams{
-		StorageKey: tokenID,
-		AppConfig:  *u2fConfig,
-		Storage:    s.Identity,
-	})
-}
-
 // getOTPType returns the type of OTP token used, HOTP or TOTP.
 // Deprecated: Remove this method once HOTP support has been removed from Gravity.
 func (s *Server) getOTPType(user string) (teleport.OTPType, error) {
@@ -411,25 +385,20 @@ func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 		return trace.Wrap(err)
 	}
 
-	secondFactor := cap.GetSecondFactor()
-	if secondFactor == constants.SecondFactorOff {
+	switch sf := cap.GetSecondFactor(); {
+	case sf == constants.SecondFactorOff:
 		return nil
-	}
-
-	if req.GetNewMFARegisterResponse() == nil {
-		switch secondFactor {
-		case constants.SecondFactorOptional:
-			// Optional second factor does not enforce users to add a MFA device.
-			// No need to check if a user already has registered devices since we expect
-			// users to have no devices at this point.
-			//
-			// The ChangeUserAuthenticationRequest is made
-			// with a reset or invite token where a reset token would've reset the users MFA devices,
-			// and an invite token is a new user with no devices.
-			return nil
-		default:
-			return trace.BadParameter("no second factor sent during user %q password reset", username)
-		}
+	case req.GetNewMFARegisterResponse() == nil && sf == constants.SecondFactorOptional:
+		// Optional second factor does not enforce users to add a MFA device.
+		// No need to check if a user already has registered devices since we expect
+		// users to have no devices at this point.
+		//
+		// The ChangeUserAuthenticationRequest is made with a reset or invite token
+		// where a reset token would've reset the users' MFA devices, and an invite
+		// token is a new user with no devices.
+		return nil
+	case req.GetNewMFARegisterResponse() == nil:
+		return trace.BadParameter("no second factor sent during user %q password reset", username)
 	}
 
 	// Default device name still used as UI invite/reset

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -603,11 +604,13 @@ func TestCheckAccessToServer(t *testing.T) {
 		login     string
 	}
 	serverNoLabels := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name: "a",
 		},
 	}
 	serverWorker := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name:      "b",
 			Namespace: apidefaults.Namespace,
@@ -616,6 +619,7 @@ func TestCheckAccessToServer(t *testing.T) {
 	}
 	namespaceC := "namespace-c"
 	serverDB := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name:      "c",
 			Namespace: namespaceC,
@@ -623,6 +627,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 	}
 	serverDBWithSuffix := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name:      "c2",
 			Namespace: namespaceC,
@@ -857,21 +862,25 @@ func TestCheckAccessToServer(t *testing.T) {
 			},
 		},
 	}
-	for i, tc := range testCases {
-
-		var set RoleSet
-		for i := range tc.roles {
-			set = append(set, &tc.roles[i])
-		}
-		for j, check := range tc.checks {
-			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToServer(check.login, check.server, tc.mfaParams)
-			if check.hasAccess {
-				require.NoError(t, result, comment)
-			} else {
-				require.True(t, trace.IsAccessDenied(result), comment)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var set RoleSet
+			for i := range tc.roles {
+				set = append(set, &tc.roles[i])
 			}
-		}
+			for j, check := range tc.checks {
+				comment := fmt.Sprintf("check %v: user: %v, server: %v, should access: %v", j, check.login, check.server.GetName(), check.hasAccess)
+				err := set.CheckAccess(
+					check.server,
+					tc.mfaParams,
+					NewLoginMatcher(check.login))
+				if check.hasAccess {
+					require.NoError(t, err, comment)
+				} else {
+					require.True(t, trace.IsAccessDenied(err), comment)
+				}
+			}
+		})
 	}
 }
 
@@ -2000,8 +2009,8 @@ func TestApplyTraits(t *testing.T) {
 				condition types.RoleConditionType
 				spec      *rule
 			}{
-				{Allow, &tt.allow},
-				{Deny, &tt.deny},
+				{types.Allow, &tt.allow},
+				{types.Deny, &tt.deny},
 			}
 			for _, rule := range rules {
 				require.Equal(t, outRole.GetLogins(rule.condition), rule.spec.outLogins)
@@ -2347,8 +2356,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.CheckAccessToDatabase(access.server, tc.mfaParams,
-					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()},
+				err := tc.roles.CheckAccess(access.server, tc.mfaParams,
 					&DatabaseUserMatcher{User: access.dbUser},
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -2434,9 +2442,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.CheckAccessToDatabase(access.server, AccessMFAParams{},
-					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()},
-					&DatabaseUserMatcher{User: access.dbUser})
+				err := tc.roles.CheckAccess(access.server, AccessMFAParams{}, &DatabaseUserMatcher{User: access.dbUser})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2657,8 +2663,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.CheckAccessToDatabase(access.server, AccessMFAParams{},
-					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()})
+				err := tc.roles.CheckAccess(access.server, AccessMFAParams{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2764,7 +2769,9 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for _, access := range test.access {
-				err := test.roles.CheckAccessToApp(defaults.Namespace, app, AccessMFAParams{},
+				err := test.roles.CheckAccess(
+					app,
+					AccessMFAParams{},
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
 				if access.hasAccess {
 					require.NoError(t, err)
@@ -2947,7 +2954,10 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			for _, r := range tc.roles {
 				set = append(set, r)
 			}
-			err := set.CheckAccessToKubernetes(apidefaults.Namespace, tc.cluster, tc.mfaParams)
+			kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(apidefaults.Namespace, tc.cluster)
+			require.NoError(t, err)
+
+			err = set.CheckAccess(kV3, tc.mfaParams)
 			if tc.hasAccess {
 				require.NoError(t, err)
 			} else {
@@ -2959,7 +2969,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 }
 
 // BenchmarkCheckAccessToServer tests how long it takes to run
-// CheckAccessToServer across 4,000 nodes for 5 roles each with 5 logins each.
+// CheckAccess for servers across 4,000 nodes for 5 roles each with 5 logins each.
 //
 // To run benchmark:
 //
@@ -3000,7 +3010,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	}
 
 	// Create RoleSet with five roles: one admin role and four generic roles
-	// that have five logins each and only have access to the foo:bar label.
+	// that have five logins each and only have access to the a:b label.
 	var set RoleSet
 	set = append(set, NewAdminRole())
 	for i := 0; i < 4; i++ {
@@ -3026,7 +3036,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	// Build a map of all allowed logins.
 	allowLogins := map[string]bool{}
 	for _, role := range set {
-		for _, login := range role.GetLogins(Allow) {
+		for _, login := range role.GetLogins(types.Allow) {
 			allowLogins[login] = true
 		}
 	}
@@ -3035,9 +3045,13 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < 4000; i++ {
 			for login := range allowLogins {
-				if err := set.CheckAccessToServer(login, servers[i], AccessMFAParams{}); err != nil {
-					b.Error(err)
-				}
+				// note: we don't check the error here because this benchmark
+				// is testing the performance of failed RBAC checks
+				_ = set.CheckAccess(
+					servers[i],
+					AccessMFAParams{},
+					NewLoginMatcher(login),
+				)
 			}
 		}
 	}
@@ -3102,4 +3116,94 @@ func TestRoleSetLockingMode(t *testing.T) {
 			require.Equal(t, mode, set.LockingMode(mode))
 		}
 	})
+}
+
+func TestExtractConditionForIdentifier(t *testing.T) {
+	t.Parallel()
+	set := RoleSet{}
+	_, err := set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+
+	allowWhere := func(where string) types.Role {
+		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Allow: types.RoleConditions{
+			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
+		}})
+		require.NoError(t, err)
+		return role
+	}
+	denyWhere := func(where string) types.Role {
+		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Deny: types.RoleConditions{
+			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
+		}})
+		require.NoError(t, err)
+		return role
+	}
+
+	user, err := types.NewUser("test-user")
+	require.NoError(t, err)
+	user2, err := types.NewUser("test-user2")
+	require.NoError(t, err)
+	user2Meta := user2.GetMetadata()
+	user2Meta.Labels = map[string]string{"can-audit-guest": "yes"}
+	user2.SetMetadata(user2Meta)
+
+	// Add a role allowing access to guest session recordings if the user has a set label.
+	role := allowWhere(`contains(session.participants, "guest") && equals(user.metadata.labels["can-audit-guest"], "yes")`)
+	guestParticipantCond := &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: "guest"}}}
+	set = append(set, role)
+
+	_, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+	cond, err := set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, guestParticipantCond))
+
+	// Add a role allowing access to the user's own session recordings.
+	role = allowWhere(`contains(session.participants, user.metadata.name)`)
+	userParticipantCond := func(user types.User) *types.WhereExpr {
+		return &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: user.GetName()}}}
+	}
+	set = append(set, role)
+
+	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, userParticipantCond(emptyUser)))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, userParticipantCond(user)))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}))
+
+	// Add a role denying access to sessions with root login.
+	role = denyWhere(`equals(session.login, "root")`)
+	noRootLoginCond := &types.WhereExpr{Not: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}}}
+	set = append(set, role)
+
+	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}}}))
+
+	// Add a role denying access for user2.
+	role = denyWhere(fmt.Sprintf(`equals(user.metadata.name, "%s")`, user2.GetName()))
+	set = append(set, role)
+	fmt.Println(role)
+	fmt.Println(user.GetName())
+
+	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
 }

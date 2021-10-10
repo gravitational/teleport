@@ -52,11 +52,6 @@ func onListDatabases(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Refresh the creds in case user was logged into any databases.
-	err = fetchDatabaseCreds(cf, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	// Retrieve profile to be able to show which databases user is logged into.
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
@@ -75,26 +70,13 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var databases []types.Database
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		allDatabases, err := tc.ListDatabases(cf.Context)
-		for _, database := range allDatabases {
-			if database.GetName() == cf.DatabaseService {
-				databases = append(databases, database)
-			}
-		}
-		return trace.Wrap(err)
-	})
+	database, err := getDatabase(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(databases) == 0 {
-		return trace.NotFound(
-			"database %q not found, use 'tsh db ls' to see registered databases", cf.DatabaseService)
-	}
 	err = databaseLogin(cf, tc, tlsca.RouteToDatabase{
 		ServiceName: cf.DatabaseService,
-		Protocol:    databases[0].GetProtocol(),
+		Protocol:    database.GetProtocol(),
 		Username:    cf.DatabaseUser,
 		Database:    cf.DatabaseName,
 	}, false)
@@ -116,19 +98,27 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: tc.SiteName,
-		RouteToDatabase: proto.RouteToDatabase{
-			ServiceName: db.ServiceName,
-			Protocol:    db.Protocol,
-			Username:    db.Username,
-			Database:    db.Database,
-		},
-		AccessRequests: profile.ActiveRequests.AccessRequests,
-	})
-	if err != nil {
+
+	var key *client.Key
+	if err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+			RouteToCluster: tc.SiteName,
+			RouteToDatabase: proto.RouteToDatabase{
+				ServiceName: db.ServiceName,
+				Protocol:    db.Protocol,
+				Username:    db.Username,
+				Database:    db.Database,
+			},
+			AccessRequests: profile.ActiveRequests.AccessRequests,
+		})
+		return trace.Wrap(err)
+	}); err != nil {
 		return trace.Wrap(err)
 	}
+	if _, err = tc.LocalAgent().AddKey(key); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Refresh the profile.
 	profile, err = client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
@@ -142,27 +132,6 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	// Print after-connect message.
 	if !quiet {
 		return connectMessage.Execute(os.Stdout, db)
-	}
-	return nil
-}
-
-// fetchDatabaseCreds is called as a part of tsh login to refresh database
-// access certificates for databases the current profile is logged into.
-func fetchDatabaseCreds(cf *CLIConf, tc *client.TeleportClient) error {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	if trace.IsNotFound(err) {
-		return nil // No currently logged in profiles.
-	}
-	for _, db := range profile.Databases {
-		if err := databaseLogin(cf, tc, db, true); err != nil {
-			log.WithError(err).Errorf("Failed to fetch database access certificate for %s.", db)
-			if err := databaseLogout(tc, db); err != nil {
-				log.WithError(err).Errorf("Failed to log out of database %s.", db)
-			}
-		}
 	}
 	return nil
 }
@@ -296,7 +265,7 @@ func startLocalALPNSNIProxy(cf *CLIConf, tc *client.TeleportClient, databaseProt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lp, err := mkLocalProxy(cf.Context, tc.WebProxyAddr, databaseProtocol, listener)
+	lp, err := mkLocalProxy(cf, tc.WebProxyAddr, databaseProtocol, listener)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -321,9 +290,19 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	database, err := pickActiveDatabase(cf)
+	database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	// Check is cert is still valid or DB connection requires MFA. If yes trigger db login logic.
+	relogin, err := needRelogin(cf, tc, database, profile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if relogin {
+		if err := databaseLogin(cf, tc, *database, true); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	var opts []ConnectCommandFunc
 	if tc.ALPNSNIListenerEnabled {
@@ -353,6 +332,98 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// getDatabaseInfo fetches information about the database from tsh profile is DB is active in profile. Otherwise,
+// the ListDatabases endpoint is called.
+func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tlsca.RouteToDatabase, error) {
+	database, err := pickActiveDatabase(cf)
+	if err == nil {
+		return database, nil
+	}
+	if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	db, err := getDatabase(cf, tc, dbName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &tlsca.RouteToDatabase{
+		ServiceName: db.GetName(),
+		Protocol:    db.GetProtocol(),
+		Username:    cf.Username,
+		Database:    cf.DatabaseName,
+	}, nil
+}
+
+func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.Database, error) {
+	var databases []types.Database
+	err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		allDatabases, err := tc.ListDatabases(cf.Context)
+		for _, database := range allDatabases {
+			if database.GetName() == dbName {
+				databases = append(databases, database)
+			}
+		}
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(databases) == 0 {
+		return nil, trace.NotFound(
+			"database %q not found, use 'tsh db ls' to see registered databases", dbName)
+	}
+	return databases[0], nil
+}
+
+func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
+	found := false
+	for _, v := range profile.Databases {
+		if v.ServiceName == database.ServiceName {
+			found = true
+		}
+	}
+	// database not found in active list of databases.
+	if !found {
+		return true, nil
+	}
+	// Call API and check is a user needs to use MFA to connect to the database.
+	mfaRequired, err := isMFADatabaseAccessRequired(cf, tc, database)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return mfaRequired, nil
+}
+
+// isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
+// requires MFA.
+func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase) (bool, error) {
+	proxy, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName, true)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer cluster.Close()
+
+	dbParam := proto.RouteToDatabase{
+		ServiceName: database.ServiceName,
+		Protocol:    database.Protocol,
+		Username:    cf.Username,
+		Database:    database.Database,
+	}
+	mfaResp, err := cluster.IsMFARequired(cf.Context, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Database{
+			Database: &dbParam,
+		},
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return mfaResp.GetRequired(), nil
 }
 
 // pickActiveDatabase returns the database the current profile is logged into.

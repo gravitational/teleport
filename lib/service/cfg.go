@@ -74,6 +74,9 @@ type Config struct {
 	// Token is used to register this Teleport instance with the auth server
 	Token string
 
+	// JoinMethod is the method the instance will use to join the auth server
+	JoinMethod JoinMethod
+
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
 	// connect to. Yes, this is not just auth servers, the field name is
 	// misleading.
@@ -630,11 +633,21 @@ type DatabaseAWS struct {
 	Region string
 	// Redshift contains Redshift specific settings.
 	Redshift DatabaseAWSRedshift
+	// RDS contains RDS specific settings.
+	RDS DatabaseAWSRDS
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
+	ClusterID string
+}
+
+// DatabaseAWSRDS contains AWS RDS specific settings.
+type DatabaseAWSRDS struct {
+	// InstanceID is the RDS instance identifier.
+	InstanceID string
+	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string
 }
 
@@ -826,11 +839,25 @@ type WindowsDesktopConfig struct {
 	ListenAddr utils.NetAddr
 	// PublicAddrs is a list of advertised public addresses of the service.
 	PublicAddrs []utils.NetAddr
+	// LDAP is the LDAP connection parameters.
+	LDAP LDAPConfig
 	// Hosts is an optional list of static Windows hosts to expose through this
 	// service.
 	Hosts []utils.NetAddr
 	// ConnLimiter limits the connection and request rates.
 	ConnLimiter limiter.Config
+}
+
+// LDAPConfig is the LDAP connection parameters.
+type LDAPConfig struct {
+	// Addr is the address:port of the LDAP server (typically port 389).
+	Addr string
+	// Domain is the ActiveDirectory domain name.
+	Domain string
+	// Username for LDAP authentication.
+	Username string
+	// Password for LDAP authentication.
+	Password string
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -996,3 +1023,14 @@ func ApplyFIPSDefaults(cfg *Config) {
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }
+
+// JoinMethod is the method the instance will use to join the auth server.
+type JoinMethod int
+
+const (
+	// JoinMethodToken means the instance will use a basic token.
+	JoinMethodToken JoinMethod = iota
+	// JoinMethodEC2 means the instance will use Simplified Node Joining and send an
+	// EC2 Instance Identity Document.
+	JoinMethodEC2
+)

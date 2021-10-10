@@ -262,13 +262,18 @@ type DBProxySettings struct {
 	MySQLPublicAddr string `json:"mysql_public_addr,omitempty"`
 }
 
-// PingResponse contains the form of authentication the auth server supports.
+// AuthenticationSettings contains information about server authentication
+// settings.
 type AuthenticationSettings struct {
 	// Type is the type of authentication, can be either local or oidc.
 	Type string `json:"type"`
 	// SecondFactor is the type of second factor to use in authentication.
 	// Supported options are: off, otp, and u2f.
 	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
+	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
+	// when various options are available.
+	// It is empty if there is nothing to suggest.
+	PreferredLocalMFA constants.SecondFactorType `json:"preferred_local_mfa,omitempty"`
 	// Webauthn contains MFA settings for Web Authentication.
 	Webauthn *Webauthn `json:"webauthn,omitempty"`
 	// U2F contains the Universal Second Factor settings needed for authentication.

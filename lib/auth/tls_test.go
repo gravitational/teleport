@@ -1598,7 +1598,7 @@ func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	role := services.RoleForUser(user)
-	role.SetLogins(services.Allow, []string{user.GetName()})
+	role.SetLogins(types.Allow, []string{user.GetName()})
 	err = s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 
@@ -2567,10 +2567,13 @@ func (s *TLSSuite) TestChangeUserAuthentication(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	secrets, err := s.server.Auth().RotateUserTokenSecrets(ctx, token.GetName())
+	res, err := s.server.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:    token.GetName(),
+		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+	})
 	c.Assert(err, check.IsNil)
 
-	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.server.Clock().Now())
+	otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), s.server.Clock().Now())
 	c.Assert(err, check.IsNil)
 
 	_, err = s.server.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{

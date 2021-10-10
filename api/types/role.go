@@ -963,10 +963,50 @@ func (b *BoolOption) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// ProcessNamespace sets default namespace in case if namespace is empty
+// ProcessNamespace returns the default namespace in case the namespace is empty.
 func ProcessNamespace(namespace string) string {
 	if namespace == "" {
 		return defaults.Namespace
 	}
 	return namespace
+}
+
+// WhereExpr is a tree like structure representing a `where` (sub-)expression.
+type WhereExpr struct {
+	Field            string
+	Literal          interface{}
+	And, Or          WhereExpr2
+	Not              *WhereExpr
+	Equals, Contains WhereExpr2
+}
+
+// WhereExpr2 is a pair of `where` (sub-)expressions.
+type WhereExpr2 struct {
+	L, R *WhereExpr
+}
+
+// String returns a human readable representation of WhereExpr.
+func (e WhereExpr) String() string {
+	if e.Field != "" {
+		return e.Field
+	}
+	if e.Literal != nil {
+		return fmt.Sprintf("%q", e.Literal)
+	}
+	if e.And.L != nil && e.And.R != nil {
+		return fmt.Sprintf("(%s && %s)", e.And.L, e.And.R)
+	}
+	if e.Or.L != nil && e.Or.R != nil {
+		return fmt.Sprintf("(%s || %s)", e.Or.L, e.Or.R)
+	}
+	if e.Not != nil {
+		return fmt.Sprintf("!%s", e.Not)
+	}
+	if e.Equals.L != nil && e.Equals.R != nil {
+		return fmt.Sprintf("equals(%s, %s)", e.Equals.L, e.Equals.R)
+	}
+	if e.Contains.L != nil && e.Contains.R != nil {
+		return fmt.Sprintf("contains(%s, %s)", e.Contains.L, e.Contains.R)
+	}
+	return ""
 }

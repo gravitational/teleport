@@ -1024,15 +1024,6 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 	return token, nil
 }
 
-// registerUsingTokenResponseJSON is equivalent to proto.Certs, but
-// uses JSON keys expected by old (7.x and earlier) clients
-type registerUsingTokenResponseJSON struct {
-	SSHCert    []byte   `json:"cert"`
-	TLSCert    []byte   `json:"tls_cert"`
-	TLSCACerts [][]byte `json:"tls_ca_certs"`
-	SSHCACerts [][]byte `json:"ssh_ca_certs"`
-}
-
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -1046,12 +1037,8 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &registerUsingTokenResponseJSON{
-		SSHCert:    certs.SSH,
-		TLSCert:    certs.TLS,
-		SSHCACerts: certs.SSHCACerts,
-		TLSCACerts: certs.TLSCACerts,
-	}, nil
+
+	return LegacyCertsFromProto(certs), nil
 }
 
 type registerNewAuthServerReq struct {
@@ -1099,7 +1086,7 @@ func (s *APIServer) generateHostCerts(auth ClientI, w http.ResponseWriter, r *ht
 	// Pass along the remote address the request came from to the registration function.
 	req.RemoteAddr = r.RemoteAddr
 
-	keys, err := auth.GenerateHostCerts(r.Context(), &proto.HostCertsRequest{
+	certs, err := auth.GenerateHostCerts(r.Context(), &proto.HostCertsRequest{
 		HostID:               req.HostID,
 		NodeName:             req.NodeName,
 		Role:                 req.Roles[0],
@@ -1114,7 +1101,7 @@ func (s *APIServer) generateHostCerts(auth ClientI, w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	return keys, nil
+	return LegacyCertsFromProto(certs), nil
 }
 
 func (s *APIServer) rotateCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1369,13 +1356,22 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 	return se, nil
 }
 
+// DELETE IN 9.0.0 replaced by grpc CreateRegisterChallenge.
 func (s *APIServer) getSignupU2FRegisterRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	token := p.ByName("token")
-	u2fRegReq, err := auth.GetSignupU2FRegisterRequest(token)
+	res, err := auth.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
+		TokenID:    token,
+		DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return u2fRegReq, nil
+
+	return &u2f.RegisterChallenge{
+		Challenge: res.GetU2F().GetChallenge(),
+		AppID:     res.GetU2F().GetAppID(),
+		Version:   res.GetU2F().GetVersion(),
+	}, nil
 }
 
 type upsertOIDCConnectorRawReq struct {
@@ -1958,7 +1954,7 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "")
+	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "", nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
