@@ -14,14 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package appaws
+package aws
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
+	"net/textproto"
 	"strings"
+	"time"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/trace"
 )
 
@@ -70,7 +75,7 @@ type SigV4 struct {
 // Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024
 func ParseSigV4(header string) (*SigV4, error) {
 	if header == "" {
-		return nil, trace.BadParameter("empty header")
+		return nil, trace.BadParameter("empty AWS SigV4 header")
 	}
 	sectionParts := strings.Split(header, " ")
 
@@ -143,4 +148,63 @@ func drainBody(b io.ReadCloser) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return payload, nil
+}
+
+// VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
+// AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
+// the AWSCredentials LocalProxyConfig configuration.
+func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials) error {
+	sigV4, err := ParseSigV4(req.Header.Get("Authorization"))
+	if err != nil {
+		return trace.BadParameter(err.Error())
+	}
+	// Read the request body and replace the body ready with a new reader that will allow reading the body again
+	// by HTTP Transport.
+	payload, err := GetAndReplaceReqBody(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	reqCopy := req.Clone(context.Background())
+
+	// Remove all the headers that are not present in awsCred.SignedHeaders.
+	filterHeaders(reqCopy, sigV4.SignedHeaders)
+
+	// Get the date that was used to create the signature of the original request
+	// originated from AWS CLI and reuse it as a timestamp during request signing call.
+	t, err := time.Parse(AmzDateTimeFormat, reqCopy.Header.Get(AmzDateHeader))
+	if err != nil {
+		return trace.BadParameter(err.Error())
+	}
+
+	signer := v4.NewSigner(credentials)
+	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), sigV4.Service, sigV4.Region, t)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	localSigV4, err := ParseSigV4(reqCopy.Header.Get("Authorization"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Compare the origin request AWS SigV4 signature with the signature calculated in LocalProxy based on
+	// AWSCredentials taken from LocalProxyConfig.
+	if sigV4.Signature != localSigV4.Signature {
+		return trace.AccessDenied("signature verification failed")
+	}
+	return nil
+}
+
+// filterHeaders removes request headers that are not in the headers list.
+func filterHeaders(r *http.Request, headers []string) {
+	out := make(http.Header)
+	for _, v := range headers {
+		ck := textproto.CanonicalMIMEHeaderKey(v)
+		val, ok := r.Header[ck]
+		if ok {
+			out[ck] = val
+		}
+	}
+	r.Header = out
 }

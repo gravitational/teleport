@@ -17,7 +17,6 @@ limitations under the License.
 package alpnproxy
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -26,12 +25,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"net/textproto"
 	"os"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -335,7 +331,8 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 		Transport: tr,
 	}
 	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if err := l.verifyAWSSignature(req); err != nil {
+		if err := appaws.VerifyAWSSignature(req, l.cfg.AWSCredentials); err != nil {
+			log.WithError(err).Errorf("AWS signature verification failed.")
 			rw.WriteHeader(http.StatusForbidden)
 			return
 		}
@@ -345,63 +342,4 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// verifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
-// AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
-// the AWSCredentials LocalProxyConfig configuration.
-func (l *LocalProxy) verifyAWSSignature(req *http.Request) error {
-	sigV4, err := appaws.ParseSigV4(req.Header.Get("Authorization"))
-	if err != nil {
-		return trace.BadParameter(err.Error())
-	}
-	// Read the request body and replace the body ready with a new reader that will allow reading the body again
-	// by HTTP Transport.
-	payload, err := appaws.GetAndReplaceReqBody(req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	reqCopy := req.Clone(context.Background())
-
-	// Remove all the headers that are not present in awsCred.SignedHeaders.
-	filterSignedHeaders(reqCopy, sigV4.SignedHeaders)
-
-	// Get the date that was used to create the signature of the original request
-	// originated from AWS CLI and reuse it as a timestamp during request signing call.
-	t, err := time.Parse(appaws.AmzDateTimeFormat, reqCopy.Header.Get(appaws.AmzDateHeader))
-	if err != nil {
-		return trace.BadParameter(err.Error())
-	}
-
-	signer := v4.NewSigner(l.cfg.AWSCredentials)
-	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), sigV4.Service, sigV4.Region, t)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	localSigV4, err := appaws.ParseSigV4(reqCopy.Header.Get("Authorization"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Compare the origin request AWS SigV4 signature with the signature calculated in LocalProxy based on
-	// AWSCredentials taken from LocalProxyConfig.
-	if sigV4.Signature != localSigV4.Signature {
-		return trace.AccessDenied("signature verification failed")
-	}
-	return nil
-}
-
-// filterSignedHeaders removes request headers that are not in the signedHeaders list.
-func filterSignedHeaders(r *http.Request, signedHeaders []string) {
-	header := make(http.Header)
-	for _, v := range signedHeaders {
-		ck := textproto.CanonicalMIMEHeaderKey(v)
-		val, ok := r.Header[ck]
-		if ok {
-			header[ck] = val
-		}
-	}
-	r.Header = header
 }

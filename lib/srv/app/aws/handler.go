@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package appaws
+package aws
 
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws/client"
@@ -204,7 +205,8 @@ func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.Res
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	reqCopy, err := http.NewRequest(r.Method, re.URL+r.URL.Opaque, bytes.NewReader(payload))
+	url := fmt.Sprintf("%s%s", re.URL, r.URL.Opaque)
+	reqCopy, err := http.NewRequest(r.Method, url, bytes.NewReader(payload))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
