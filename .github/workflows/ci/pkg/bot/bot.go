@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"path"
 	"sort"
+	"strings"
 
 	"github.com/gravitational/teleport/.github/workflows/ci"
 	"github.com/gravitational/teleport/.github/workflows/ci/pkg/environment"
@@ -61,8 +63,15 @@ func (c *Config) CheckAndSetDefaults() error {
 // DimissStaleWorkflowRunsForExternalContributors dismisses stale workflow runs for external contributors.
 // Dismissing stale workflows for external contributors is done on a cron job and checks the whole repo for
 // stale runs on PRs.
-func (c *Bot) DimissStaleWorkflowRunsForExternalContributors(ctx context.Context, repoOwner, repoName string) error {
+func (c *Bot) DimissStaleWorkflowRunsForExternalContributors(ctx context.Context) error {
 	clt := c.GithubClient.Client
+	// Get the repository name and owner, on the Github Actions runner the
+	// GITHUB_REPOSITORY environment variable is in the format of
+	// repo-owner/repo-name.
+	repoOwner, repoName, err := getRepositoryMetadata()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	pullReqs, _, err := clt.PullRequests.List(ctx, repoOwner, repoName, &github.PullRequestListOptions{State: ci.Open})
 	if err != nil {
 		return trace.Wrap(err)
@@ -121,6 +130,18 @@ func (c *Bot) deleteRuns(ctx context.Context, owner, repoName string, runs []*gi
 		}
 	}
 	return nil
+}
+
+func getRepositoryMetadata() (repositoryOwner string, repositoryName string, err error) {
+	repository := os.Getenv(ci.GithubRepository)
+	if repository == "" {
+		return "", "", trace.BadParameter("environment variable GITHUB_REPOSITORY is not set")
+	}
+	metadata := strings.Split(repository, "/")
+	if len(metadata) != 2 {
+		return "", "", trace.BadParameter("environment variable GITHUB_REPOSITORY is not in the correct format,\n the valid format is '<repo owner>/<repo name>'")
+	}
+	return metadata[0], metadata[1], nil
 }
 
 func (c *Bot) findStaleWorkflowRuns(ctx context.Context, owner, repoName, branchName string, workflowID int64) ([]*github.WorkflowRun, error) {

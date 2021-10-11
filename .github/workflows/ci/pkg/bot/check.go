@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -17,19 +16,6 @@ import (
 
 // Check checks if all the reviewers have approved the pull request in the current context.
 func (c *Bot) Check(ctx context.Context) error {
-	pr := c.Environment.Metadata
-	// Remove any stale workflow runs. As only the current workflow run should
-	// be shown because it is the workflow that reflects the correct state of the pull.
-	//
-	// Note: This is run for all workflow runs triggered by an event from an internal contributor,
-	// but has to be run again in cron workflow because workflows triggered by external contributors do not
-	// grant the Github actions token the correct permissions to dismiss workflow runs.
-	if c.Environment.IsInternal(pr.Author) {
-		err := c.DismissStaleWorkflowRuns(ctx, pr.RepoOwner, pr.RepoName, pr.BranchName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	// Check if the assigned reviewers have approved this PR.
 	err := c.check(ctx)
 	if err != nil {
@@ -41,6 +27,38 @@ func (c *Bot) Check(ctx context.Context) error {
 // check checks to see if all the required reviewers have approved and invalidates
 // approvals for external contributors if a new commit is pushed
 func (c *Bot) check(ctx context.Context) error {
+	pr := c.Environment.Metadata
+	if c.Environment.IsInternal(pr.Author) {
+		return c.checkInternal(ctx)
+	}
+	return c.checkExternal(ctx)
+}
+
+func (c *Bot) checkInternal(ctx context.Context) error {
+	pr := c.Environment.Metadata
+	// Remove any stale workflow runs. As only the current workflow run should
+	// be shown because it is the workflow that reflects the correct state of the pull request.
+	//
+	// Note: This is run for all workflow runs triggered by an event from an internal contributor,
+	// but has to be run again in cron workflow because workflows triggered by external contributors do not
+	// grant the Github actions token the correct permissions to dismiss workflow runs.
+	err := c.DismissStaleWorkflowRuns(ctx, pr.RepoOwner, pr.RepoName, pr.BranchName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mostRecentReviews, err := c.getMostRecentReviews(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
+	err = hasRequiredApprovals(mostRecentReviews, c.Environment.GetReviewersForAuthor(pr.Author))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (c *Bot) checkExternal(ctx context.Context) error {
 	var obsoleteReviews []review
 	var validReviews []review
 
@@ -49,23 +67,17 @@ func (c *Bot) check(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !c.Environment.IsInternal(pr.Author) {
-		// External contributions require tighter scrutiny than team
-		// contributions. As such reviews from previous pushes must
-		// not carry over to when new changes are added. Github does
-		// not do this automatically, so we must dismiss the reviews
-		// manually.
-		if err = c.isGithubCommit(ctx); err == nil {
-			// New commit is a special Github-authored merge and
-			// we don't need to invalidate the reviews for that.
-			// No more work to be done here.
-		} else {
-			validReviews, obsoleteReviews = splitReviews(pr.HeadSHA, mostRecentReviews)
-			msg := dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author))
-			err = c.invalidateApprovals(ctx, msg, obsoleteReviews)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+	validReviews, obsoleteReviews = splitReviews(pr.HeadSHA, mostRecentReviews)
+	// External contributions require tighter scrutiny than team
+	// contributions. As such reviews from previous pushes must
+	// not carry over to when new changes are added. Github does
+	// not do this automatically, so we must dismiss the reviews
+	// manually.
+	if err = c.isGithubCommit(ctx); err != nil {
+		msg := dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author))
+		err = c.invalidateApprovals(ctx, msg, obsoleteReviews)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
 	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
@@ -102,7 +114,7 @@ func hasRequiredApprovals(mostRecentReviews []review, required []string) error {
 		}
 	}
 	if len(waitingOnApprovalsFrom) > 0 {
-		return trace.BadParameter(fmt.Sprintf("required reviewers have not yet approved, waiting on approval(s) from %v", waitingOnApprovalsFrom))
+		return trace.BadParameter("required reviewers have not yet approved, waiting on approval(s) from %v", waitingOnApprovalsFrom)
 	}
 	return nil
 }
@@ -195,12 +207,12 @@ func hasApproved(reviewer string, reviews []review) bool {
 
 // dimissMessage returns the dimiss message when a review is dismissed
 func dismissMessage(pr *environment.Metadata, required []string) string {
-	var buffer bytes.Buffer
-	buffer.WriteString("new commit pushed, please re-review ")
+	var sb strings.Builder
+	sb.WriteString("new commit pushed, please re-review ")
 	for _, reviewer := range required {
-		fmt.Fprintf(&buffer, "@%v", reviewer)
+		sb.WriteString(fmt.Sprintf("@%s", reviewer))
 	}
-	return buffer.String()
+	return sb.String()
 }
 
 // isGithubCommit verfies GitHub is the commit author and that the commit is empty.
