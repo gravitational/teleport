@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.2.1
+
+* Added network and resource utilization information to `tctl top`. [#8338](https://github.com/gravitational/teleport/pull/8338)
+* Fixed issue that prevented OIDC integration with Ping. [#8308](https://github.com/gravitational/teleport/pull/8308)
+* Added ability for agents to connect over HTTP with `--insecure` flag. [#7835](https://github.com/gravitational/teleport/pull/7835)
+* Updated CLI SSO login flow to use Javascript redirect instead of a 302 redirect to support users with high number of claims.  [#8293](https://github.com/gravitational/teleport/pull/8293)
+
 ## 7.2.0
 
 This release of Teleport contains bug fixes and multiple features.
