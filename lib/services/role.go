@@ -1977,6 +1977,9 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		}
 		rules := MakeRuleSet(role.GetRules(types.Deny))
 		for _, rule := range rules[resource] {
+			if !rule.HasVerb(verb) && !rule.HasVerb(types.Wildcard) {
+				continue
+			}
 			expr, err := parseWhere(rule)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -2006,6 +2009,9 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		}
 		rules := MakeRuleSet(role.GetRules(types.Allow))
 		for _, rule := range rules[resource] {
+			if !rule.HasVerb(verb) && !rule.HasVerb(types.Wildcard) {
+				continue
+			}
 			expr, err := parseWhere(rule)
 			if err != nil {
 				return nil, trace.Wrap(err)
