@@ -809,7 +809,8 @@ func (r BuiltinRole) IsServer() bool {
 		r.Role == types.RoleAuth ||
 		r.Role == types.RoleApp ||
 		r.Role == types.RoleKube ||
-		r.Role == types.RoleDatabase
+		r.Role == types.RoleDatabase ||
+		r.Role == types.RoleWindowsDesktop
 }
 
 // GetServerID extracts the identity from the full name. The username
