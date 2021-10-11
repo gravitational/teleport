@@ -22,7 +22,8 @@ Windows environment should be configured with Teleport CA in its trust store.
 
 All the wrapper code is in `client.go`. This wrapper calls into Rust to
 establish an RDP connection and provides it with credentials (key/cert). The
-wrapper then proxies input/output data, translating between TDP and RDP.
+wrapper then proxies input/output data, translating between Teleport Desktop
+Protocol (TDP) and RDP.
 
 ## Rust
 
@@ -71,7 +72,7 @@ into the "Teleport" reader above. This smartcard has a PIV applet "installed"
 and implements the protocol at:
 https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
 
-It basically has file storage for some used identifying info and an X.509
+It basically has file storage for some user-identifying info and an X.509
 certificate. It also has an RSA private key that it does challenge/response
 authentication with, to prove the ownership of that X.509 certificate.
 

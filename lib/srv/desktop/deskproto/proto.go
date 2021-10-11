@@ -354,15 +354,14 @@ func decodeMouseWheel(in peekReader) (MouseWheel, error) {
 	return w, trace.Wrap(err)
 }
 
-// Strings are encoded as UTF-8 with a 32-bit length prefix (in bytes):
+// encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
+// a 32-bit length prefix (in bytes):
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#field-types
-
 func encodeString(w io.Writer, s string) error {
-	sb := []byte(s)
-	if err := binary.Write(w, binary.BigEndian, uint32(len(sb))); err != nil {
+	if err := binary.Write(w, binary.BigEndian, uint32(len(s))); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := w.Write([]byte(sb)); err != nil {
+	if _, err := io.WriteString(w, s); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

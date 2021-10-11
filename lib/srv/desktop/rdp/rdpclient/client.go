@@ -1,4 +1,5 @@
-//+build desktop_access_beta
+//go:build desktop_access_beta
+// +build desktop_access_beta
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -93,6 +94,8 @@ type Client struct {
 	// Used with sync/atomic, 0 means false, 1 means true.
 	readyForInput uint32
 
+	// wg is used to wait for the input/output streaming
+	// goroutines to complete
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 }
