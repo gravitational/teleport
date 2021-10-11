@@ -445,20 +445,19 @@ export class FeatureDesktops {
   }
 
   route = {
-    title: 'Desktops',
+    title: 'Desktops (preview)',
     path: cfg.routes.desktops,
     exact: true,
     component: Desktops,
   };
 
   register(ctx: Ctx) {
-    // TODO
-    if (!ctx.getFeatureFlags().databases) {
+    if (!ctx.getFeatureFlags().desktops) {
       return;
     }
 
     ctx.storeNav.addSideItem({
-      title: 'Desktops',
+      title: 'Desktops (preview)',
       Icon: Icons.Desktop,
       exact: true,
       getLink(clusterId: string) {
