@@ -125,14 +125,15 @@ func NewAdminRole() types.Role {
 			BPF:               defaults.EnhancedEvents(),
 		},
 		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
-			DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-			Rules:            adminRules,
+			Namespaces:           []string{defaults.Namespace},
+			NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseNames:        []string{teleport.TraitInternalDBNamesVariable},
+			DatabaseUsers:        []string{teleport.TraitInternalDBUsersVariable},
+			Rules:                adminRules,
 		},
 	})
 	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable, teleport.Root})
