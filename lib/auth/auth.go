@@ -3172,44 +3172,27 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var enableTOTP, enableU2F, enableWebauthn bool
-	switch apref.GetSecondFactor() {
-	case constants.SecondFactorOTP:
-		enableTOTP = true
-	case constants.SecondFactorU2F:
-		enableU2F = true
-	case constants.SecondFactorWebauthn:
-		enableWebauthn = true
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		enableTOTP, enableU2F, enableWebauthn = true, true, true
-	case constants.SecondFactorOff: // All disabled.
+	enableTOTP := apref.IsSecondFactorTOTPAllowed()
+	enableU2F := apref.IsSecondFactorU2FAllowed()
+	enableWebauthn := apref.IsSecondFactorWebauthnAllowed()
+
+	// Fetch configurations. The IsSecondFactor*Allowed calls above already
+	// include the necessary checks of config empty, disabled, etc.
+	var u2fPref *types.U2F
+	switch val, err := apref.GetU2F(); {
+	case trace.IsNotFound(err): // OK, may happen.
+	case err != nil: // NOK, unexpected.
+		return nil, trace.Wrap(err)
 	default:
-		return nil, trace.BadParameter("unexpected second_factor value: %s", apref.GetSecondFactor())
+		u2fPref = val
 	}
-
-	// Read U2F configuration regardless, Webauthn uses it.
-	u2fPref, err := apref.GetU2F()
-	if err != nil && enableU2F {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		// If U2F parameters were not set in the auth server config, disable U2F
-		// challenges.
-		enableU2F = false
-	}
-
-	webConfig, err := apref.GetWebauthn()
-	switch {
-	case err == nil:
-		enableWebauthn = enableWebauthn && !webConfig.Disabled // Apply global disable
-	case err != nil && enableWebauthn:
-		if apref.GetSecondFactor() == constants.SecondFactorWebauthn {
-			// Fail explicitly for second_factor:"webauthn".
-			return nil, trace.BadParameter("second_factor set to %s, but webauthn config not present", constants.SecondFactorWebauthn)
-		}
-		// Fail silently for other modes.
-		log.WithError(err).Warningf("WebAuthn: failed to fetch configuration, disabling WebAuthn challenges")
-		enableWebauthn = false
+	var webConfig *types.Webauthn
+	switch val, err := apref.GetWebauthn(); {
+	case trace.IsNotFound(err): // OK, may happen.
+	case err != nil: // NOK, unexpected.
+		return nil, trace.Wrap(err)
+	default:
+		webConfig = val
 	}
 
 	devs, err := a.Identity.GetMFADevices(ctx, user, true)

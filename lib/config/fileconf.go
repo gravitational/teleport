@@ -661,7 +661,7 @@ type AuthenticationConfig struct {
 func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	var err error
 
-	var u types.U2F
+	var u *types.U2F
 	if a.U2F != nil {
 		u, err = a.U2F.Parse()
 		if err != nil {
@@ -681,7 +681,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
-		U2F:               &u,
+		U2F:               u,
 		Webauthn:          w,
 		RequireSessionMFA: a.RequireSessionMFA,
 		LockingMode:       a.LockingMode,
@@ -695,12 +695,12 @@ type UniversalSecondFactor struct {
 	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
 
-func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
+func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
 	attestationCAs, err := getAttestationPEMs(u.DeviceAttestationCAs)
 	if err != nil {
-		return types.U2F{}, trace.BadParameter("u2f.device_attestation_cas: %v", err)
+		return nil, trace.BadParameter("u2f.device_attestation_cas: %v", err)
 	}
-	return types.U2F{
+	return &types.U2F{
 		AppID:                u.AppID,
 		Facets:               u.Facets,
 		DeviceAttestationCAs: attestationCAs,

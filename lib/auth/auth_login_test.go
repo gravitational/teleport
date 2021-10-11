@@ -139,22 +139,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 		},
 		{
-			name: "OK second_factor:webauthn (derived from U2F)",
-			spec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorWebauthn,
-				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
-				},
-			},
-			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
-				require.Empty(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
-				require.NotEmpty(t, challenge.GetWebauthnChallenge())
-			},
-		},
-		{
 			name: "OK second_factor:optional",
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
