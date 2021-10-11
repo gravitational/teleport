@@ -79,7 +79,6 @@ After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
 
 ## Step 2/3. Configure Group Policy to allow Teleport connections
 
-{/* TODO: add screenshots */}
 {/* TODO: script this using PowerShell */}
 
 Next, we need to configure Active Directory to trust Teleport for user
@@ -105,6 +104,8 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Publi
 Right click on `Trusted Root Certification Authorities` and select `Import`.
 Click through the wizard, selecting your CA file.
 
+![Import Teleport CA](../../img/desktop-access/ca.png)
+
 ### Allow remote RDP connections
 
 Next, select:
@@ -116,18 +117,7 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
 Right click on `Allow users to connect remotely by using Remote Desktop
 Services` and select "Edit". Select "Enable" and "OK".
 
-{/*
-TODO: explain why we need to disable NLA.
-
-awly: I don't understand this very well. NLA handles authentication at the
-early stages of RDP connection (if not before it), before any bitmaps are even
-sent from the server (i.e. no login screen). NLA appears to only support
-passwords or Kerberos-based authn for members of the same domain as the target
-host.
-Smartcards do their magic after RDP connection was established and the login
-screen was rendered, in the background. I think they are just incompatible with
-NLA when you're not connecting from a Windows client.
-*/}
+![Import Teleport CA](../../img/desktop-access/rdp.png)
 
 Select:
 
@@ -149,6 +139,8 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Syste
 
 Double click on `Smart Card`, select `Define this policy setting` and switch to
 `Automatic`. Click "OK".
+
+![Import Teleport CA](../../img/desktop-access/smartcard.png)
 
 ### Step 2d. Open firewall to inbound RDP connections
 
