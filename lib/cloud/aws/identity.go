@@ -49,6 +49,15 @@ type User struct {
 // Role represents an AWS IAM role identity.
 type Role struct {
 	identityBase
+	name string
+}
+
+//
+func (r Role) GetName() string {
+	if r.name != "" {
+		return r.name
+	}
+	return r.identityBase.GetName()
 }
 
 // Unknown represents an unknown/unsupported AWS IAM identity.
@@ -101,6 +110,13 @@ func GetIdentityWithClient(ctx context.Context, stsClient stsiface.STSAPI) (Iden
 			identityBase: identityBase{
 				arn: parsedARN,
 			},
+		}, nil
+	case "assumed-role":
+		return Role{
+			identityBase: identityBase{
+				arn: parsedARN,
+			},
+			name: parts[1],
 		}, nil
 	case "user":
 		return User{

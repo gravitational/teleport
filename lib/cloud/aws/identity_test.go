@@ -47,6 +47,14 @@ func TestGetIdentity(t *testing.T) {
 			outPartition: "aws",
 		},
 		{
+			description:  "assumed role identity",
+			inARN:        "arn:aws:sts::1234567890:assumed-role/DatabaseAccess/i-1234567890",
+			outIdentity:  Role{},
+			outName:      "DatabaseAccess",
+			outAccountID: "1234567890",
+			outPartition: "aws",
+		},
+		{
 			description:  "user identity",
 			inARN:        "arn:aws-us-gov:iam::1234567890:user/custom/path/alice",
 			outIdentity:  User{},
