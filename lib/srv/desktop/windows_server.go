@@ -59,6 +59,8 @@ type WindowsService struct {
 	cfg        WindowsServiceConfig
 	middleware *auth.Middleware
 
+	// clusterName is the cached local cluster name, to avoid calling
+	// cfg.AccessPoint.GetClusterName multiple times.
 	clusterName string
 
 	closeCtx context.Context
@@ -88,9 +90,16 @@ type WindowsServiceConfig struct {
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
 type LDAPConfig struct {
-	Addr     string
-	Domain   string
+	// Addr is the LDAP server address in the form host:port.
+	// Standard port is 389.
+	Addr string
+	// Domain is an Active Directory domain name, like "example.com".
+	Domain string
+	// Username is an LDAP username, like "EXAMPLE\Administrator", where
+	// "EXAMPLE" is the NetBIOS version of Domain.
 	Username string
+	// Password is an LDAP password. Usually it's the same user password used
+	// for local logins on the Domain Controller.
 	Password string
 }
 
@@ -110,6 +119,7 @@ func (cfg LDAPConfig) check() error {
 	return nil
 }
 
+// ldapPath is a helper type representing a hierarchical path in LDAP.
 type ldapPath []string
 
 func (cfg LDAPConfig) dn(path ldapPath) string {
@@ -218,14 +228,14 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		close:       close,
 	}
 
-	// TODO(awly): session recording.
-	// TODO(awly): user locking.
+	// TODO(zmb3): session recording.
+	// TODO(zmb3): user locking.
 
 	if err := s.startServiceHeartbeat(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(awly): fetch registered hosts automatically.
+	// TODO(zmb3): fetch registered hosts automatically.
 	if err := s.startStaticHostHeartbeats(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -241,7 +251,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// https://docs.microsoft.com/en-us/previous-versions/windows/desktop/policy/registry-policy-file-format,
 	// but I'm leaving this for later.
 	//
-	// TODO(awly): do these periodically
+	// TODO(zmb3): do these periodically
 	if err := s.updateCA(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -367,6 +377,7 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	}
 	log.Debug("Authenticated Windows desktop connection")
 
+	// Fetch the target desktop info. UUID of the desktop is passed via SNI.
 	desktopUUID := strings.TrimSuffix(tlsCon.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-uuid", desktopUUID)
 	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopUUID)
@@ -378,7 +389,7 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	// TODO(awly): authorization
+	// TODO(zmb3): authorization
 
 	if err := s.connectRDP(ctx, log, tlsCon, desktop); err != nil {
 		log.WithError(err).Error("RDP connection failed")
@@ -426,7 +437,7 @@ func (s *WindowsService) getHostHeartbeatInfo(netAddr utils.NetAddr) func() (typ
 		}
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
-			nil, // TODO(awly): set RBAC labels.
+			nil, // TODO(zmb3): set RBAC labels.
 			types.WindowsDesktopSpecV3{
 				Addr:   addr,
 				Domain: s.cfg.Domain,
@@ -448,7 +459,7 @@ func (s *WindowsService) getHostHeartbeatInfo(netAddr utils.NetAddr) func() (typ
 // a very large number of desktops in the cluster, this may use up a lot of CPU
 // time.
 //
-// TODO(awly): think of an alternative way to not duplicate desktop objects
+// TODO(zmb3): think of an alternative way to not duplicate desktop objects
 // coming from different windows_desktop_services.
 func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
 	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(s.closeCtx)
@@ -468,7 +479,7 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	// respective windows_desktop_services will publish their CAs so we don't
 	// have to do it here.
 	//
-	// TODO(awly): support multiple CA certs per cluster.
+	// TODO(zmb3): support multiple CA certs per cluster (such as with HSMs).
 	ca, err := s.cfg.AccessPoint.GetCertAuthority(types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: s.clusterName,
@@ -476,6 +487,8 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "fetching Teleport CA: %v", err)
 	}
+	// LDAP stores certs and CRLs in binary DER format, so remove the outer PEM
+	// wrapper.
 	caPEM := ca.GetTrustedTLSKeyPairs()[0].Cert
 	caBlock, _ := pem.Decode(caPEM)
 	if caBlock == nil {
@@ -494,6 +507,13 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	}
 	defer con.close()
 
+	// To make the CA trusted, we need 3 things:
+	// 1. put the CA cert into the Trusted Certification Authorities in the
+	//    Group Policy (done manually for now, see public docs)
+	// 2. put the CA cert into NTAuth store in LDAP
+	// 3. put the CRL of the CA into a dedicated LDAP entry
+	//
+	// Below we do #2 and #3.
 	if err := s.updateCAInNTAuthStore(ctx, con, caDER); err != nil {
 		return trace.Wrap(err, "updating NTAuth store over LDAP: %v", err)
 	}
@@ -504,7 +524,8 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 }
 
 func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, con *ldapClient, caDER []byte) error {
-	// Check if our CA is already in the store.
+	// Check if our CA is already in the store. The LDAP entry for NTAuth store
+	// is constant and it should always exist.
 	ntauthPath := ldapPath{"Configuration", "Services", "Public Key Services", "NTAuthCertificates"}
 	entries, err := con.read(ntauthPath, "certificationAuthority", []string{"cACertificate"})
 	if err != nil {
@@ -524,7 +545,7 @@ func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, con *ldapCli
 		}
 	}
 
-	// CA is not in the store, add it.
+	// CA is not in the store, append it.
 	updatedCAs := make([]string, 0, len(existingCAs)+1)
 	for _, existingCADER := range existingCAs {
 		updatedCAs = append(updatedCAs, string(existingCADER))
@@ -544,6 +565,15 @@ func (s *WindowsService) updateCRL(ctx context.Context, con *ldapClient, crlDER 
 	// Publish the CRL for current cluster CA. For trusted clusters, their
 	// respective windows_desktop_services will publish CRLs of their CAs so we
 	// don't have to do it here.
+	//
+	// CRLs live under the CDP (CRL Distribution Point) LDAP container. There's
+	// another nested container with the CA name, I think, and then multiple
+	// separate CRL objects in that container.
+	//
+	// We name our parent container "Teleport" and the CRL object is named
+	// after the Teleport cluster name. For example, CRL for cluster "prod"
+	// will be placed at:
+	// ... > CDP > Teleport > prod
 	containerPath := ldapPath{"Configuration", "Services", "Public Key Services", "CDP", "Teleport"}
 	crlPath := append(containerPath, s.clusterName)
 
@@ -575,11 +605,20 @@ func (s *WindowsService) updateCRL(ctx context.Context, con *ldapClient, crlDER 
 	return nil
 }
 
+// generateCredentials generates a private key / certificate pair for the given
+// Windows username. The certificate has certain special fields different from
+// the regular Teleport user certificate, to meet the requirements of Active
+// Directory. See:
+// https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string) (certDER, keyDER []byte, err error) {
+	// Important: rdpclient currently only supports 2048-bit RSA keys.
+	// If you switch the key type here, update handle_general_authentication in
+	// rdp/rdpclient/src/piv.rs accordingly.
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	// Also important: rdpclient expects the private key to be in PKCS1 format.
 	keyDER = x509.MarshalPKCS1PrivateKey(rsaKey)
 
 	// Generate the Windows-compatible certificate, see
@@ -616,7 +655,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 	// published a CRL there.
 	//
 	// In other words, the domain var below may not be the same as
-	// s.cfg.LDAPConfig.Domain.
+	// s.cfg.LDAPConfig.Domain and that's expected.
 	crlPath := ldapPath{"Configuration", "Services", "Public Key Services", "CDP", "Teleport", s.clusterName}
 	crlDN := s.cfg.LDAPConfig.dn(crlPath)
 	genResp, err := s.cfg.AuthClient.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
@@ -667,7 +706,7 @@ func subjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 			OtherName: otherName{
 				OID: asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 3}, // UPN OID
 				Value: upn{
-					Value: fmt.Sprintf("%s@%s", user, domain), // TODO(awly): sanitize username to avoid domain spoofing
+					Value: fmt.Sprintf("%s@%s", user, domain), // TODO(zmb3): sanitize username to avoid domain spoofing
 				},
 			},
 		},
