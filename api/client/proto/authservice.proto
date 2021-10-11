@@ -885,6 +885,8 @@ message ListNodesRequest {
     // StartKey is used to start listing nodes from a specific spot. This should
     // be set to the previous NextKey value if using pagination, or left empty.
     string StartKey = 3;
+    // Labels is a label-based matcher if non-empty.
+    map<string, string> Labels = 4;
 }
 
 message ListNodesResponse {

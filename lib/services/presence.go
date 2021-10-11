@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -39,7 +40,7 @@ type Presence interface {
 	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]Server, error)
 
 	// ListNodes returns a paginated list of registered servers.
-	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
 
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error

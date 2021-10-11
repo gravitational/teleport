@@ -20,6 +20,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -86,7 +87,7 @@ type ReadAccessPoint interface {
 	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 
 	// ListNodes returns a paginated list of registered servers for this cluster.
-	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]services.Server, error)

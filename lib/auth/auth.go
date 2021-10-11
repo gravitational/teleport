@@ -2052,17 +2052,17 @@ func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...service
 }
 
 // ListNodes is a part of auth.AccessPoint implementation
-func (a *Server) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
-	return a.GetCache().ListNodes(ctx, namespace, limit, startKey)
+func (a *Server) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
+	return a.GetCache().ListNodes(ctx, req)
 }
 
 // NodePageFunc is a function to run on each page iterated over.
 type NodePageFunc func(next []types.Server) (stop bool, err error)
 
 // IterateNodePages can be used to iterate over pages of nodes.
-func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit int, startKey string, f NodePageFunc) (string, error) {
+func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesRequest, f NodePageFunc) (string, error) {
 	for {
-		nextPage, nextKey, err := a.ListNodes(ctx, namespace, limit, startKey)
+		nextPage, nextKey, err := a.ListNodes(ctx, req)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -2078,7 +2078,7 @@ func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit i
 			return nextKey, nil
 		}
 
-		startKey = nextKey
+		req.StartKey = nextKey
 	}
 }
 
