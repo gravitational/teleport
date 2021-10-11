@@ -72,6 +72,8 @@ type userACL struct {
 	DBServers access `json:"dbServers"`
 	// KubeServers defines access to kubernetes servers.
 	KubeServers access `json:"kubeServers"`
+	// DesktopServers defines access to desktop servers.
+	DesktopServers access `json:"desktopServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 	// AccessRequests defines access to access requests
@@ -185,6 +187,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
+	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 
 	var billingAccess access
 	if features.Cloud {
@@ -199,6 +202,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		AppServers:      appServerAccess,
 		DBServers:       dbServerAccess,
 		KubeServers:     kubeServerAccess,
+		DesktopServers:  desktopAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,
