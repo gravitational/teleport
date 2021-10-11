@@ -47,6 +47,7 @@ export interface Access {
 
 export interface Acl {
   logins: string[];
+  windowsLogins: string[];
   authConnectors: Access;
   trustedClusters: Access;
   roles: Access;

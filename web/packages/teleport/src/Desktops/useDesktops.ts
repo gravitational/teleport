@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -26,10 +26,16 @@ export default function useDesktops(ctx: Ctx) {
   const { attempt, run } = useAttempt('processing');
   const { clusterId } = useStickyClusterId();
   const username = ctx.storeUser.state.username;
+  const windowsLogins = ctx.storeUser.getWindowsLogins();
 
   const [searchValue, setSearchValue] = useState<string>('');
 
   const [desktops, setDesktops] = useState<Desktop[]>([]);
+
+  const getWindowsLoginOptions = useCallback(
+    (desktopId: string) => makeOptions(clusterId, desktopId, windowsLogins),
+    [windowsLogins]
+  );
 
   useEffect(() => {
     run(() => ctx.desktopService.fetchDesktops(clusterId).then(setDesktops));
@@ -52,8 +58,28 @@ export default function useDesktops(ctx: Ctx) {
     clusterId,
     searchValue,
     setSearchValue,
+    getWindowsLoginOptions,
     openRemoteDesktopWindow,
   };
+}
+
+function makeOptions(
+  clusterId: string,
+  desktopId = '',
+  logins = [] as string[]
+) {
+  return logins.map(login => {
+    const url = cfg.getDesktopRoute({
+      clusterId,
+      desktopId,
+      username: login,
+    });
+
+    return {
+      login,
+      url,
+    };
+  });
 }
 
 export type State = ReturnType<typeof useDesktops>;

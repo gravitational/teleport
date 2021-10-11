@@ -41,6 +41,7 @@ export function Desktops(props: State) {
     searchValue,
     setSearchValue,
     desktops,
+    getWindowsLoginOptions,
     openRemoteDesktopWindow,
   } = props;
 
@@ -70,6 +71,7 @@ export function Desktops(props: State) {
             username={username}
             clusterId={clusterId}
             searchValue={searchValue}
+            onLoginMenuOpen={getWindowsLoginOptions}
             openRemoteDesktopWindow={openRemoteDesktopWindow}
           />
         </>

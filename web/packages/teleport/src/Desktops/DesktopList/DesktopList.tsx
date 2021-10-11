@@ -34,6 +34,7 @@ function DesktopList(props: Props) {
     desktops = [],
     pageSize = 100,
     searchValue,
+    onLoginMenuOpen,
     openRemoteDesktopWindow,
   } = props;
 
@@ -100,7 +101,7 @@ function DesktopList(props: Props) {
       <Column header={<Cell>Labels</Cell>} cell={<LabelCell />} />
       <Column
         header={<Cell />}
-        cell={<LoginCell onOpen={() => []} onSelect={onDesktopSelect} />}
+        cell={<LoginCell onOpen={onLoginMenuOpen} onSelect={onDesktopSelect} />}
       />
     </StyledTable>
   );
@@ -206,6 +207,7 @@ type Props = {
   username: string;
   clusterId: string;
   searchValue: string;
+  onLoginMenuOpen: (desktopId: string) => { login: string; url: string }[];
   openRemoteDesktopWindow: (username: string, desktopId: string) => void;
 };
 
