@@ -85,7 +85,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Reviewers")
 	}
 	if c.EventPath == "" {
-		return trace.BadParameter("missing parameter EventPath")
+		c.EventPath = os.Getenv(ci.GithubEventPath)
 	}
 	if c.unmarshalReviewers == nil {
 		c.unmarshalReviewers = unmarshalReviewers
