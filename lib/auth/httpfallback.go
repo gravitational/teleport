@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
@@ -596,6 +598,37 @@ func (c *Client) DeleteNode(ctx context.Context, namespace string, name string) 
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+type nodeClient interface {
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+}
+
+// GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  This is essentially
+// a wrapper around client.GetNodesWithLabels that performs fallback on NotImplemented errors.
+func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
+	nodes, err := client.GetNodesWithLabels(ctx, clt, namespace, labels)
+	if err == nil || !trace.IsNotImplemented(err) {
+		return nodes, trace.Wrap(err)
+	}
+
+	nodes, err = clt.GetNodes(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var filtered []types.Server
+
+	// perform client-side filtering in case we're dealing with an older auth server which
+	// does not support server-side filtering.
+	for _, node := range nodes {
+		if node.MatchAgainst(labels) {
+			filtered = append(filtered, node)
+		}
+	}
+
+	return filtered, nil
 }
 
 // GetNodes returns the list of servers registered in the cluster.

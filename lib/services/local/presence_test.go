@@ -28,6 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -236,34 +238,52 @@ func TestNodeCRUD(t *testing.T) {
 		t.Run("List Nodes", func(t *testing.T) {
 			t.Parallel()
 			// list nodes one at a time, last page should be empty
-			nodes, nextKey, err := presence.ListNodes(ctx, defaults.Namespace, 1, "")
+			nodes, nextKey, err := presence.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+			})
 			require.NoError(t, err)
 			require.EqualValues(t, 1, len(nodes))
 			require.Empty(t, cmp.Diff([]types.Server{node1}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.EqualValues(t, backend.NextPaginationKey(node1), nextKey)
 
-			nodes, nextKey, err = presence.ListNodes(ctx, defaults.Namespace, 1, nextKey)
+			nodes, nextKey, err = presence.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+				StartKey:  nextKey,
+			})
 			require.NoError(t, err)
 			require.EqualValues(t, 1, len(nodes))
 			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.EqualValues(t, backend.NextPaginationKey(node2), nextKey)
 
-			nodes, nextKey, err = presence.ListNodes(ctx, defaults.Namespace, 1, nextKey)
+			nodes, nextKey, err = presence.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+				StartKey:  nextKey,
+			})
 			require.NoError(t, err)
 			require.EqualValues(t, 0, len(nodes))
 			require.EqualValues(t, "", nextKey)
 
 			// ListNodes should fail if namespace isn't provided
-			_, _, err = presence.ListNodes(ctx, "", 1, "")
+			_, _, err = presence.ListNodes(ctx, proto.ListNodesRequest{
+				Limit: 1,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
 			// ListNodes should fail if limit is nonpositive
-			_, _, err = presence.ListNodes(ctx, defaults.Namespace, 0, "")
+			_, _, err = presence.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
-			_, _, err = presence.ListNodes(ctx, defaults.Namespace, -1, "")
+			_, _, err = presence.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     -1,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 		})
 		t.Run("GetNodes", func(t *testing.T) {

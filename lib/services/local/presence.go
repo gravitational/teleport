@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -234,40 +235,49 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 
 // ListNodes returns a paginated list of registered servers.
 // StartKey is a resource name, which is the suffix of its key.
-func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
-	if namespace == "" {
+func (s *PresenceService) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
+	// NOTE: changes to the outward behavior of this method may require updating cache.Cache.ListNodes, since that method
+	// emulates this one but relies on a different implementation internally.
+	if req.Namespace == "" {
 		return nil, "", trace.BadParameter("missing namespace value")
 	}
+	limit := int(req.Limit)
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
 	}
 
 	// Get all items in the bucket within the given range.
-	rangeStart := backend.Key(nodesPrefix, namespace, startKey)
-	keyPrefix := backend.Key(nodesPrefix, namespace)
+	rangeStart := backend.Key(nodesPrefix, req.Namespace, req.StartKey)
+	keyPrefix := backend.Key(nodesPrefix, req.Namespace)
 	rangeEnd := backend.RangeEnd(keyPrefix)
-	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+
+	var servers []types.Server
+	err = backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, limit, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(servers) == limit {
+				break
+			}
+			server, err := services.UnmarshalServer(
+				item.Value,
+				types.KindNode,
+				services.WithResourceID(item.ID),
+				services.WithExpires(item.Expires),
+			)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if server.MatchAgainst(req.Labels) {
+				servers = append(servers, server)
+			}
+		}
+		return len(servers) == limit, nil
+	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	// Marshal values into a []services.Server slice.
-	servers := make([]types.Server, len(result.Items))
-	for i, item := range result.Items {
-		server, err := services.UnmarshalServer(
-			item.Value,
-			types.KindNode,
-			services.WithResourceID(item.ID),
-			services.WithExpires(item.Expires),
-		)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		servers[i] = server
-	}
-
 	// If a full page was filled, set nextKey using the last node.
-	if len(result.Items) == limit {
+	if len(servers) == limit {
 		nextKey = backend.NextPaginationKey(servers[len(servers)-1])
 	}
 

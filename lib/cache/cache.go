@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1120,13 +1122,13 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 }
 
 // ListNodes is a part of auth.AccessPoint implementation
-func (c *Cache) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
+func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.presence.ListNodes(ctx, namespace, limit, startKey)
+	return rg.presence.ListNodes(ctx, req)
 }
 
 // GetAuthServers returns a list of registered servers
