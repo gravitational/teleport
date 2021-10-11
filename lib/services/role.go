@@ -2018,7 +2018,7 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 			}
 			if b, ok := expr.Literal.(bool); ok {
 				if b {
-					return nil, nil
+					return denyCond, nil
 				}
 				continue
 			}
