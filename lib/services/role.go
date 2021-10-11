@@ -1953,6 +1953,9 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		return nil, trace.Wrap(err)
 	}
 	parseWhere := func(rule types.Rule) (types.WhereExpr, error) {
+		if rule.Where == "" {
+			return types.WhereExpr{Literal: true}, nil
+		}
 		out, err := parser.Parse(rule.Where)
 		if err != nil {
 			return types.WhereExpr{}, trace.Wrap(err)
