@@ -72,7 +72,7 @@
           "slug": "/setup/reference/",
           "entries": [
             { "title": "Config File", "slug": "/setup/reference/config/" },
-            { "title": "Config Resources", "slug": "/setup/reference/resources/" },            
+            { "title": "Config Resources", "slug": "/setup/reference/resources/" },
             { "title": "Command Line", "slug": "/setup/reference/cli/" },
             { "title": "Metrics", "slug": "/setup/reference/metrics/" },
             { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" },
@@ -202,6 +202,16 @@
       ]
     },
     {
+      "icon": "desktop",
+      "title": "Desktop Access",
+      "entries": [
+        { "title": "Introduction", "slug": "/desktop-access/introduction/" },
+        { "title": "Getting Started", "slug": "/desktop-access/getting-started/" },
+        { "title": "Reference", "slug": "/desktop-access/reference/" },
+        { "title": "Troubleshooting", "slug": "/desktop-access/troubleshooting/" }
+      ]
+    },
+    {
       "icon": "lock",
       "title": "Access Controls",
       "entries": [
@@ -231,7 +241,7 @@
         {"title": "Getting Started", "slug": "/api/getting-started/"},
         {"title": "Architecture", "slug": "/api/architecture/"}
       ]
-    },    
+    },
     {
       "icon": "wand",
       "title": "Preview",
@@ -287,7 +297,7 @@
           "entries": [
             { "title": "U2f", "slug": "/cloud/guides/u2f/" }
           ]
-        },        
+        },
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
       ]
@@ -403,7 +413,7 @@
       "source": "/reference/api/introduction/",
       "destination": "/api/introduction/",
       "permanent": true
-    },    
+    },
     {
       "source": "/metrics-logs-reference/",
       "destination": "/setup/reference/metrics/",
@@ -413,7 +423,7 @@
       "source": "/config-reference/",
       "destination": "/setup/reference/config/",
       "permanent": true
-    },    
+    },
     {
       "source": "/cli-docs/",
       "destination": "/setup/reference/cli/",
@@ -463,7 +473,7 @@
       "source": "/gcp-guide/",
       "destination": "/setup/deployments/gcp/",
       "permanent": true
-    },    
+    },
     {
       "source": "/ibm-cloud-guide/",
       "destination": "/setup/deployments/ibm/",
