@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -495,12 +494,7 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 }
 
 func migrateLegacyResources(ctx context.Context, asrv *Server) error {
-	err := migrateOSS(ctx, asrv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = migrateRemoteClusters(ctx, asrv)
+	err := migrateRemoteClusters(ctx, asrv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -532,186 +526,6 @@ func createPresets(ctx context.Context, asrv *Server) error {
 		}
 	}
 	return nil
-}
-
-const migrationAbortedMessage = "migration to RBAC has aborted because of the backend error, restart teleport to try again"
-
-// migrateOSS performs migration to enable role-based access controls
-// to open source users. It creates a less privileged role 'ossuser'
-// and migrates all users and trusted cluster mappings to it
-// this function can be called multiple times
-// DELETE IN(7.0)
-func migrateOSS(ctx context.Context, asrv *Server) error {
-	if modules.GetModules().BuildType() != modules.BuildOSS {
-		return nil
-	}
-	role := services.NewDowngradedOSSAdminRole()
-	existing, err := asrv.GetRole(ctx, role.GetName())
-	if err != nil {
-		return trace.Wrap(err, "expected to find built-in admin role")
-	}
-	_, ok := existing.GetMetadata().Labels[teleport.OSSMigratedV6]
-	if ok {
-		log.Debugf("Admin role is already migrated, skipping OSS migration.")
-		// Role is created, assume that migration has been completed.
-		// To re-run the migration, users can remove migrated label from the role
-		return nil
-	}
-	err = asrv.UpsertRole(ctx, role)
-	updatedRoles := 0
-	if err != nil {
-		return trace.Wrap(err, migrationAbortedMessage)
-	}
-	if err == nil {
-		updatedRoles++
-		log.Infof("Enabling RBAC in OSS Teleport. Migrating users, roles and trusted clusters.")
-	}
-	migratedUsers, err := migrateOSSUsers(ctx, role, asrv)
-	if err != nil {
-		return trace.Wrap(err, migrationAbortedMessage)
-	}
-
-	migratedTcs, err := migrateOSSTrustedClusters(ctx, role, asrv)
-	if err != nil {
-		return trace.Wrap(err, migrationAbortedMessage)
-	}
-
-	migratedConns, err := migrateOSSGithubConns(ctx, role, asrv)
-	if err != nil {
-		return trace.Wrap(err, migrationAbortedMessage)
-	}
-
-	if updatedRoles > 0 || migratedUsers > 0 || migratedTcs > 0 || migratedConns > 0 {
-		log.Infof("Migration completed. Created %v roles, updated %v users, %v trusted clusters and %v Github connectors.",
-			updatedRoles, migratedUsers, migratedTcs, migratedConns)
-	}
-
-	return nil
-}
-
-// migrateOSSTrustedClusters updates role mappings in trusted clusters
-// OSS Trusted clusters had no explicit mapping from remote roles, to local roles.
-// Maps admin roles to local OSS admin role.
-func migrateOSSTrustedClusters(ctx context.Context, role types.Role, asrv *Server) (int, error) {
-	migratedTcs := 0
-	tcs, err := asrv.GetTrustedClusters(ctx)
-	if err != nil {
-		return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
-	}
-
-	for _, tc := range tcs {
-		meta := tc.GetMetadata()
-		_, ok := meta.Labels[teleport.OSSMigratedV6]
-		if ok {
-			continue
-		}
-		setLabels(&meta.Labels, teleport.OSSMigratedV6, types.True)
-		roleMap := []types.RoleMapping{{Remote: role.GetName(), Local: []string{role.GetName()}}}
-		tc.SetRoleMap(roleMap)
-		tc.SetMetadata(meta)
-		if _, err := asrv.Presence.UpsertTrustedCluster(ctx, tc); err != nil {
-			return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
-		}
-		for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
-			ca, err := asrv.GetCertAuthority(types.CertAuthID{Type: catype, DomainName: tc.GetName()}, true)
-			if err != nil {
-				return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
-			}
-			meta := ca.GetMetadata()
-			_, ok := meta.Labels[teleport.OSSMigratedV6]
-			if ok {
-				continue
-			}
-			setLabels(&meta.Labels, teleport.OSSMigratedV6, types.True)
-			ca.SetRoleMap(roleMap)
-			ca.SetMetadata(meta)
-			err = asrv.UpsertCertAuthority(ca)
-			if err != nil {
-				return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
-			}
-		}
-		migratedTcs++
-	}
-	return migratedTcs, nil
-}
-
-// migrateOSSUsers assigns all OSS users to a less privileged role
-// All OSS users were using implicit admin role. Migrate all users to less privileged
-// role that is read only and only lets users use assigned logins.
-func migrateOSSUsers(ctx context.Context, role types.Role, asrv *Server) (int, error) {
-	migratedUsers := 0
-	users, err := asrv.GetUsers(true)
-	if err != nil {
-		return migratedUsers, trace.Wrap(err, migrationAbortedMessage)
-	}
-
-	for _, user := range users {
-		meta := user.GetMetadata()
-		_, ok := meta.Labels[teleport.OSSMigratedV6]
-		if ok {
-			continue
-		}
-		setLabels(&meta.Labels, teleport.OSSMigratedV6, types.True)
-		user.SetRoles([]string{role.GetName()})
-		user.SetMetadata(meta)
-		if err := asrv.UpsertUser(user); err != nil {
-			return migratedUsers, trace.Wrap(err, migrationAbortedMessage)
-		}
-		migratedUsers++
-	}
-
-	return migratedUsers, nil
-}
-
-func setLabels(v *map[string]string, key, val string) {
-	if *v == nil {
-		*v = map[string]string{
-			key: val,
-		}
-		return
-	}
-	(*v)[key] = val
-}
-
-func migrateOSSGithubConns(ctx context.Context, role types.Role, asrv *Server) (int, error) {
-	migratedConns := 0
-	// Migrate Github's OSS teams_to_logins to teams_to_roles.
-	// To do that, create a new role per connector's teams_to_logins entry
-	conns, err := asrv.GetGithubConnectors(ctx, true)
-	if err != nil {
-		return migratedConns, trace.Wrap(err)
-	}
-	for _, conn := range conns {
-		meta := conn.GetMetadata()
-		_, ok := meta.Labels[teleport.OSSMigratedV6]
-		if ok {
-			continue
-		}
-		setLabels(&meta.Labels, teleport.OSSMigratedV6, types.True)
-		conn.SetMetadata(meta)
-		// replace every team with a new role
-		teams := conn.GetTeamsToLogins()
-		newTeams := make([]types.TeamMapping, len(teams))
-		for i, team := range teams {
-			r := services.NewOSSGithubRole(team.Logins, team.KubeUsers, team.KubeGroups)
-			err := asrv.CreateRole(r)
-			if err != nil {
-				return migratedConns, trace.Wrap(err)
-			}
-			newTeams[i] = types.TeamMapping{
-				Organization: team.Organization,
-				Team:         team.Team,
-				Logins:       []string{r.GetName()},
-			}
-		}
-		conn.SetTeamsToLogins(newTeams)
-		if err := asrv.UpsertGithubConnector(ctx, conn); err != nil {
-			return migratedConns, trace.Wrap(err)
-		}
-		migratedConns++
-	}
-
-	return migratedConns, nil
 }
 
 // isFirstStart returns 'true' if the auth server is starting for the 1st time

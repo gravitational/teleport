@@ -568,9 +568,6 @@ const (
 	PresetAuditorRoleName = "auditor"
 )
 
-// OSSMigratedV6 is a label to mark migrated OSS users and resources
-const OSSMigratedV6 = "migrate-v6.0"
-
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
 
