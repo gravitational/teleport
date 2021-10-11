@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
@@ -435,7 +436,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		return trace.Wrap(err)
 	}
 
+	var windowsUser string
 	authorize := func(login string) error {
+		windowsUser = login // capture attempted login user
 		return authCtx.Checker.CheckAccess(
 			desktop,
 			services.AccessMFAParams{Verified: true},
@@ -475,15 +478,21 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		monitorCfg.DisconnectExpiredCert = identity.Expires
 	}
 
+	sessionID := session.NewID()
+
 	if err := srv.StartMonitor(monitorCfg); err != nil {
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
 		rdpc.Close()
+		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err == nil)
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(rdpc.Wait())
+	s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err == nil)
+	err = rdpc.Wait()
+	s.onSessionEnd(ctx, &identity, windowsUser, string(sessionID), desktop)
+	return trace.Wrap(err)
 }
 
 func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
