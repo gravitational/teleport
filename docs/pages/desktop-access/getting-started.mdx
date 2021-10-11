@@ -85,7 +85,12 @@ Next, we need to configure Active Directory to trust Teleport for user
 authentication and allow the certificate-based mechanism that Teleport uses under the hood
 (smart cards).
 
-Get the Teleport CA certificate using `tctl auth export --type=windows >user-ca.cer`.
+Get the Teleport user CA certificate:
+
+```
+$ tctl auth export --type=windows > user-ca.cer
+```
+
 Transfer the `user-ca.cer` file to your Domain Controller.
 
 Log into your Domain Controller open "Start" menu and run "Group Policy
@@ -104,7 +109,9 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Publi
 Right click on `Trusted Root Certification Authorities` and select `Import`.
 Click through the wizard, selecting your CA file.
 
-![Import Teleport CA](../../img/desktop-access/ca.png)
+<Figure align="left" bordered caption="Import Teleport CA">
+  ![Import Teleport CA](../../img/desktop-access/ca.png)
+</Figure>
 
 ### Allow remote RDP connections
 
@@ -117,7 +124,10 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
 Right click on `Allow users to connect remotely by using Remote Desktop
 Services` and select "Edit". Select "Enable" and "OK".
 
-![Import Teleport CA](../../img/desktop-access/rdp.png)
+<Figure align="left" bordered caption="Enable Remote Desktop Services">
+  ![Enable RDP](../../img/desktop-access/rdp.png)
+</Figure>
+
 
 Select:
 
@@ -140,9 +150,12 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Syste
 Double click on `Smart Card`, select `Define this policy setting` and switch to
 `Automatic`. Click "OK".
 
-![Import Teleport CA](../../img/desktop-access/smartcard.png)
+<Figure align="left" bordered caption="Enable the Smart Card Service">
+  ![Enable Smartcard(../../img/desktop-access/smartcard.png)
+</Figure>
 
-### Step 2d. Open firewall to inbound RDP connections
+
+### Open firewall to inbound RDP connections
 
 Finally, select:
 
