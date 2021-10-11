@@ -33,7 +33,7 @@ type Config struct {
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
 
-	// TODO(awly): replace these callbacks with a deskproto.Conn
+	// TODO(zmb3): replace these callbacks with a deskproto.Conn
 
 	// InputMessage is called to receive a message from the client for the RDP
 	// server. This function should block until there is a message.
