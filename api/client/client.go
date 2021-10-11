@@ -1453,18 +1453,29 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
-	}
+	return GetNodesWithLabels(ctx, c, namespace, nil)
+}
 
+type nodeClient interface {
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+}
+
+// GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  In addition to
+// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
 	// Retrieve the complete list of nodes in chunks.
 	var (
 		nodes     []types.Server
 		startKey  string
-		chunkSize = defaults.DefaultChunkSize
+		chunkSize = int32(defaults.DefaultChunkSize)
 	)
 	for {
-		resp, nextKey, err := c.ListNodes(ctx, namespace, chunkSize, startKey)
+		resp, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
+			Namespace: namespace,
+			Limit:     chunkSize,
+			StartKey:  startKey,
+			Labels:    labels,
+		})
 		if trace.IsLimitExceeded(err) {
 			// Cut chunkSize in half if gRPC max message size is exceeded.
 			chunkSize = chunkSize / 2
@@ -1477,7 +1488,14 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 			return nil, trail.FromGRPC(err)
 		}
 
-		nodes = append(nodes, resp...)
+		// perform client-side filtering in case we're dealing with an older auth server which
+		// does not support server-side filtering.
+		for _, node := range resp {
+			if node.MatchAgainst(labels) {
+				nodes = append(nodes, node)
+			}
+		}
+
 		startKey = nextKey
 		if startKey == "" {
 			return nodes, nil
@@ -1488,19 +1506,15 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 // ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
 // nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
 // ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
-func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error) {
-	if namespace == "" {
+func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
+	if req.Namespace == "" {
 		return nil, "", trace.BadParameter("missing parameter namespace")
 	}
-	if limit <= 0 {
+	if req.Limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive parameter limit")
 	}
 
-	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
-		Namespace: namespace,
-		Limit:     int32(limit),
-		StartKey:  startKey,
-	}, c.callOpts...)
+	resp, err := c.grpc.ListNodes(ctx, &req, c.callOpts...)
 	if err != nil {
 		return nil, "", trail.FromGRPC(err)
 	}
