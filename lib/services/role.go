@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -44,27 +43,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 )
-
-// getExtendedAdminUserRules provides access to the default set of rules assigned to
-// all users.
-func getExtendedAdminUserRules(features modules.Features) []types.Rule {
-	rules := []types.Rule{
-		types.NewRule(types.KindRole, RW()),
-		types.NewRule(types.KindAuthConnector, RW()),
-		types.NewRule(types.KindSession, RO()),
-		types.NewRule(types.KindTrustedCluster, RW()),
-		types.NewRule(types.KindEvent, RO()),
-		types.NewRule(types.KindUser, RW()),
-		types.NewRule(types.KindToken, RW()),
-		types.NewRule(types.KindLock, RW()),
-	}
-
-	if features.Cloud {
-		rules = append(rules, types.NewRule(types.KindBilling, RW()))
-	}
-
-	return rules
-}
 
 // DefaultImplicitRules provides access to the default set of implicit rules
 // assigned to all roles.
