@@ -22,4 +22,6 @@ export type Desktop = {
   name: string;
   // Addr is the network address the desktop can be reached at.
   addr: string;
+  // Labels.
+  tags: string[];
 };
