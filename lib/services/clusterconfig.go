@@ -104,6 +104,9 @@ const ClusterConfigSpecSchemaTemplate = `{
 	  "local_auth": {
 		"anyOf": [{"type": "string"}, { "type": "boolean"}]
 	  },
+	  "routing_strategy": {
+	  	"type": "string"
+	  },
 	  "audit": {
 		"type": "object",
 		"additionalProperties": false,
