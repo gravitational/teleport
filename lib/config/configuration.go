@@ -1165,45 +1165,6 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("WindowsDesktopService host regex %q has no labels", rule.Match)
 		}
 
-<<<<<<< HEAD
-		for k := range rule.Labels {
-			if !types.IsValidLabelKey(k) {
-				return trace.BadParameter("WindowsDesktopService specifies invalid label %q", k)
-			}
-		}
-
-		cfg.WindowsDesktop.HostLabels = append(cfg.WindowsDesktop.HostLabels, service.HostLabelRule{
-			Regexp: r,
-			Labels: rule.Labels,
-		})
-	}
-
-	for _, rule := range fc.WindowsDesktop.HostLabels {
-		r, err := regexp.Compile(rule.Match)
-		if err != nil {
-			return trace.BadParameter("WindowsDesktopService specifies invalid regexp %q", rule.Match)
-		}
-
-		for k := range rule.Labels {
-			if !types.IsValidLabelKey(k) {
-				return trace.BadParameter("WindowsDesktopService specifies invalid label %q", k)
-			}
-		}
-
-		cfg.WindowsDesktop.HostLabels = append(cfg.WindowsDesktop.HostLabels, service.HostLabelRule{
-			Regexp: r,
-			Labels: rule.Labels,
-		})
-	}
-
-	for _, rule := range fc.WindowsDesktop.HostLabels {
-		r, err := regexp.Compile(rule.Match)
-		if err != nil {
-			return trace.BadParameter("WindowsDesktopService specifies invalid regexp %q", rule.Match)
-		}
-
-=======
->>>>>>> b18ae9e61 (Address review feedback)
 		for k := range rule.Labels {
 			if !types.IsValidLabelKey(k) {
 				return trace.BadParameter("WindowsDesktopService specifies invalid label %q", k)

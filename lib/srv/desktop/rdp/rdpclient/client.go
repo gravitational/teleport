@@ -53,15 +53,7 @@ package rdpclient
 /*
 // Flags to include the static Rust library.
 #cgo linux LDFLAGS: -L${SRCDIR}/target/release -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
-<<<<<<< HEAD
-<<<<<<< HEAD
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/release -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
-=======
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/debug -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
->>>>>>> b18ae9e61 (Address review feedback)
-=======
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/release -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
->>>>>>> ada44f8fd (Link release build for Rust lib on darwin, too)
 #include <librdprs.h>
 */
 import "C"
@@ -388,22 +380,6 @@ func (c *Client) Close() {
 			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
 		}
 	})
-}
-
-// GetClientLastActive returns the time of the last recorded activity.
-// For RDP, "activity" is defined as user-input messages
-// (mouse move, button press, etc.)
-func (c *Client) GetClientLastActive() time.Time {
-	c.clientActivityMu.RLock()
-	defer c.clientActivityMu.RUnlock()
-	return c.clientLastActive
-}
-
-// UpdateClientActivity updates the client activity timestamp.
-func (c *Client) UpdateClientActivity() {
-	c.clientActivityMu.Lock()
-	c.clientLastActive = time.Now().UTC()
-	c.clientActivityMu.Unlock()
 }
 
 // GetClientLastActive returns the time of the last recorded activity.
