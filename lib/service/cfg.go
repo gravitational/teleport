@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -73,6 +74,9 @@ type Config struct {
 
 	// Token is used to register this Teleport instance with the auth server
 	Token string
+
+	// JoinMethod is the method the instance will use to join the auth server
+	JoinMethod JoinMethod
 
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
 	// connect to. Yes, this is not just auth servers, the field name is
@@ -843,6 +847,35 @@ type WindowsDesktopConfig struct {
 	Hosts []utils.NetAddr
 	// ConnLimiter limits the connection and request rates.
 	ConnLimiter limiter.Config
+	// HostLabels specifies rules that are used to apply labels to Windows hosts.
+	HostLabels HostLabelRules
+}
+
+// HostLabelRules is a collection of rules describing how to apply labels to hosts.
+type HostLabelRules []HostLabelRule
+
+// LabelsForHost returns the set of all labels that should be applied
+// to the specified host. If multiple rules match and specify the same
+// label keys, the value will be that of the last matching rule.
+func (h HostLabelRules) LabelsForHost(host string) map[string]string {
+	// TODO(zmb3): consider memoizing this call - the set of rules doesn't
+	// change, so it may be worth not matching regexps on each heartbeat.
+	result := make(map[string]string)
+	for _, rule := range h {
+		if rule.Regexp.MatchString(host) {
+			for k, v := range rule.Labels {
+				result[k] = v
+			}
+		}
+	}
+	return result
+}
+
+// HostLabelRule specifies a set of labels that should be applied to
+// hosts matching the provided regexp.
+type HostLabelRule struct {
+	Regexp *regexp.Regexp
+	Labels map[string]string
 }
 
 // LDAPConfig is the LDAP connection parameters.
@@ -1020,3 +1053,14 @@ func ApplyFIPSDefaults(cfg *Config) {
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }
+
+// JoinMethod is the method the instance will use to join the auth server.
+type JoinMethod int
+
+const (
+	// JoinMethodToken means the instance will use a basic token.
+	JoinMethodToken JoinMethod = iota
+	// JoinMethodEC2 means the instance will use Simplified Node Joining and send an
+	// EC2 Instance Identity Document.
+	JoinMethodEC2
+)

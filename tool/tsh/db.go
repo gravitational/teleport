@@ -266,7 +266,7 @@ func startLocalALPNSNIProxy(cf *CLIConf, tc *client.TeleportClient, databaseProt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lp, err := mkLocalProxy(cf.Context, tc.WebProxyAddr, databaseProtocol, listener)
+	lp, err := mkLocalProxy(cf, tc.WebProxyAddr, databaseProtocol, listener)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

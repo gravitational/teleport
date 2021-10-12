@@ -189,6 +189,19 @@ register:
   - LDAP library: https://pkg.go.dev/github.com/go-ldap/ldap/v3
 - local host, when running on a Windows machine in agent mode
 
+#### Automatic Host Labels
+
+Teleport will automatically apply the following host labels to hosts which are
+discovered from Active Directory.
+
+| Label | LDAP Attribute | Example |
+| ----- | -------------- | ------- |
+| `teleport.dev/computer_name` | `name` | `WIN-I5G06B8RT33`
+| `teleport.dev/dns_host_name` | [`dNSHostName`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-dnshostname) | `WIN-I5G06B8RT33.example.com`
+| `teleport.dev/os` | [`operatingSystem`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystem) | `Windows Server 2012`
+| `teleport.dev/os_version`| [`osVersion`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystemversion) | `4.0`
+| `teleport.dev/windows_domain`| Sourced from config | `example.com`
+
 ### Concurrent sessions
 
 RDP supports concurrent user sessions on the same host. It allocates a virtual
@@ -209,7 +222,7 @@ windows_desktop_service:
   enabled: yes # default false
   # listen_addr can share the port with the proxy web port using SNI.
   listen_addr: 0.0.0.0:3080
-  public_addrs: [rdp.example.com:3080]
+  public_addr: [rdp.example.com:3080]
   mode: "gateway" # or "agent"
   # (optional) ldap contains hostname and credentials for the LDAP server on
   # the Active Directory domain controller.
@@ -233,16 +246,19 @@ windows_desktop_service:
   # (optional) host_labels applies labels to windows hosts for RBAC.
   # Each entry maps to a subset of hosts by regexp and applies a group of labels.
   # A host can match multiple regexps and will get a union of all the labels.
+  # The regexp is matched against the host's DNS name, for example:
+  # WIN-I5G06B8RT33.example.com (where example.com is the domain name)
   host_labels:
   - match: ".*"
     labels:
-    - env: prod
+      env: prod
   - match: "^db.*"
     labels:
-    - type: database
+      type: database
+      kind: postgres
   - match: "^dc\.example\.com$"
     labels:
-    - type: domain_controller
+      type: domain_controller
 ```
 
 ### Security concerns
