@@ -54,10 +54,14 @@ package rdpclient
 // Flags to include the static Rust library.
 #cgo linux LDFLAGS: -L${SRCDIR}/target/release -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
 <<<<<<< HEAD
+<<<<<<< HEAD
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/release -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
 =======
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/debug -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
 >>>>>>> b18ae9e61 (Address review feedback)
+=======
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/release -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
+>>>>>>> ada44f8fd (Link release build for Rust lib on darwin, too)
 #include <librdprs.h>
 */
 import "C"
