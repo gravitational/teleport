@@ -197,13 +197,13 @@ register:
 Teleport will automatically apply the following host labels to hosts which are
 discovered from Active Directory.
 
-| Label                         | LDAP Attribute                                                                                  | Example                       |
-| ----------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------- |
-| `teleport.dev/computer_name`  | `name`                                                                                          | `WIN-I5G06B8RT33`             |
-| `teleport.dev/dns_host_name`  | [`dNSHostName`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-dnshostname)          | `WIN-I5G06B8RT33.example.com` |
-| `teleport.dev/os`             | [`operatingSystem`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystem)  | `Windows Server 2012`         |
-| `teleport.dev/os_version`     | [`osVersion`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystemversion) | `4.0`                         |
-| `teleport.dev/windows_domain` | Sourced from config                                                                             | `example.com`                 |
+| Label | LDAP Attribute | Example |
+| ----- | -------------- | ------- |
+| `teleport.dev/computer_name` | `name` | `WIN-I5G06B8RT33`
+| `teleport.dev/dns_host_name` | [`dNSHostName`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-dnshostname) | `WIN-I5G06B8RT33.example.com`
+| `teleport.dev/os` | [`operatingSystem`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystem) | `Windows Server 2012`
+| `teleport.dev/os_version`| [`osVersion`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystemversion) | `4.0`
+| `teleport.dev/windows_domain`| Sourced from config | `example.com`
 
 ### Concurrent sessions
 

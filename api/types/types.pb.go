@@ -14600,14 +14600,6 @@ func (m *LoginStatus) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i -= n116
 	i = encodeVarintTypes(dAtA, i, uint64(n116))
 	i--
-	dAtA[i] = 0x22
-	n113, err113 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LockedTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LockedTime):])
-	if err113 != nil {
-		return 0, err113
-	}
-	i -= n113
-	i = encodeVarintTypes(dAtA, i, uint64(n113))
-	i--
 	dAtA[i] = 0x1a
 	if len(m.LockedMessage) > 0 {
 		i -= len(m.LockedMessage)
@@ -14865,14 +14857,6 @@ func (m *MFADevice) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i -= n123
 	i = encodeVarintTypes(dAtA, i, uint64(n123))
-	i--
-	dAtA[i] = 0x3a
-	n120, err120 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.AddedAt, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.AddedAt):])
-	if err120 != nil {
-		return 0, err120
-	}
-	i -= n120
-	i = encodeVarintTypes(dAtA, i, uint64(n120))
 	i--
 	dAtA[i] = 0x32
 	if len(m.Id) > 0 {
@@ -15912,14 +15896,6 @@ func (m *WebSessionSpecV2) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i -= n142
 	i = encodeVarintTypes(dAtA, i, uint64(n142))
-	i--
-	dAtA[i] = 0x3a
-	n139, err139 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.BearerTokenExpires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.BearerTokenExpires):])
-	if err139 != nil {
-		return 0, err139
-	}
-	i -= n139
-	i = encodeVarintTypes(dAtA, i, uint64(n139))
 	i--
 	dAtA[i] = 0x32
 	if len(m.BearerToken) > 0 {
