@@ -550,6 +550,9 @@ const SCP = "scp"
 // Root is *nix system administrator account name.
 const Root = "root"
 
+// Administrator is the Windows system administrator account name.
+const Administrator = "Administrator"
+
 // AdminRoleName is the name of the default admin role for all local users if
 // another role is not explicitly assigned
 const AdminRoleName = "admin"

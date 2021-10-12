@@ -313,16 +313,6 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	log.Infof("Created namespace: %q.", apidefaults.Namespace)
 
-	// always create a default admin role
-	defaultRole := services.NewAdminRole()
-	err = asrv.CreateRole(defaultRole)
-	if err != nil && !trace.IsAlreadyExists(err) {
-		return nil, trace.Wrap(err)
-	}
-	if !trace.IsAlreadyExists(err) {
-		log.Infof("Created default admin role: %q.", defaultRole.GetName())
-	}
-
 	// generate certificate authorities if they don't exist
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
 		caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
@@ -521,7 +511,7 @@ func createPresets(ctx context.Context, asrv *Server) error {
 		err := asrv.CreateRole(role)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
-				return trace.Wrap(err, "failed to create preset role")
+				return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
 			}
 		}
 	}

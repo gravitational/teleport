@@ -112,36 +112,6 @@ func RoleNameForCertAuthority(name string) string {
 	return "ca:" + name
 }
 
-// NewAdminRole is the default admin role for all local users if another role
-// is not explicitly assigned (this role applies to all users in OSS version).
-func NewAdminRole() types.Role {
-	adminRules := getExtendedAdminUserRules(modules.GetModules().Features())
-	role, _ := types.NewRole(teleport.AdminRoleName, types.RoleSpecV4{
-		Options: types.RoleOptions{
-			CertificateFormat: constants.CertificateFormatStandard,
-			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
-			PortForwarding:    types.NewBoolOption(true),
-			ForwardAgent:      types.NewBool(true),
-			BPF:               defaults.EnhancedEvents(),
-		},
-		Allow: types.RoleConditions{
-			Namespaces:           []string{defaults.Namespace},
-			NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseNames:        []string{teleport.TraitInternalDBNamesVariable},
-			DatabaseUsers:        []string{teleport.TraitInternalDBUsersVariable},
-			Rules:                adminRules,
-		},
-	})
-	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable, teleport.Root})
-	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
-	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
-	return role
-}
-
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {

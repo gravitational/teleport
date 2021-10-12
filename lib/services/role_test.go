@@ -3141,10 +3141,9 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 		})
 	}
 
-	// Create RoleSet with five roles: one admin role and four generic roles
-	// that have five logins each and only have access to the a:b label.
+	// Create RoleSet with four generic roles that have five logins
+	// each and only have access to the a:b label.
 	var set RoleSet
-	set = append(set, NewAdminRole())
 	for i := 0; i < 4; i++ {
 		set = append(set, &types.RoleV4{
 			Kind:    types.KindRole,
