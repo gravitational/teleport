@@ -55,5 +55,6 @@ const props: State = {
   clusterId: 'im-a-cluster',
   searchValue: '',
   setSearchValue: () => {},
+  getWindowsLoginOptions: (desktopId: string) => [{ login: '', url: '' }],
   openRemoteDesktopWindow: (username: string, desktopId: string) => {},
 };

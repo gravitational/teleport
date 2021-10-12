@@ -124,7 +124,7 @@ const DesktopDomainCell = props => {
   return <Cell {...rest}>{addr}</Cell>;
 };
 
-// TODO: may be able to be abstracted out from here/NodeList.tsx
+// TODO(isaiah): may be able to be abstracted out from here/NodeList.tsx
 const LoginCell: React.FC<Required<{
   onSelect?: (
     e: React.SyntheticEvent,
@@ -207,8 +207,8 @@ type Props = {
   username: string;
   clusterId: string;
   searchValue: string;
-  onLoginMenuOpen: (desktopId: string) => { login: string; url: string }[];
-  openRemoteDesktopWindow: (username: string, desktopId: string) => void;
+  onLoginMenuOpen(desktopId: string): { login: string; url: string }[];
+  openRemoteDesktopWindow(username: string, desktopId: string): void;
 };
 
 export default DesktopList;

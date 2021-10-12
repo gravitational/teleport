@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -32,10 +32,8 @@ export default function useDesktops(ctx: Ctx) {
 
   const [desktops, setDesktops] = useState<Desktop[]>([]);
 
-  const getWindowsLoginOptions = useCallback(
-    (desktopId: string) => makeOptions(clusterId, desktopId, windowsLogins),
-    [windowsLogins]
-  );
+  const getWindowsLoginOptions = (desktopId: string) =>
+    makeOptions(clusterId, desktopId, windowsLogins);
 
   useEffect(() => {
     run(() => ctx.desktopService.fetchDesktops(clusterId).then(setDesktops));

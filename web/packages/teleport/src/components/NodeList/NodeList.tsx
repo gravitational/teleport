@@ -183,12 +183,8 @@ const StyledTable = styled(Table)`
 
 type Props = {
   nodes: Node[];
-  onLoginMenuOpen: (serverId: string) => { login: string; url: string }[];
-  onLoginSelect: (
-    e: React.SyntheticEvent,
-    login: string,
-    serverId: string
-  ) => void;
+  onLoginMenuOpen(serverId: string): { login: string; url: string }[];
+  onLoginSelect(e: React.SyntheticEvent, login: string, serverId: string): void;
   pageSize?: number;
   searchValue: string;
 };

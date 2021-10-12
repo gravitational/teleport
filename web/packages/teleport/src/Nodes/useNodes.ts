@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
 import { StickyCluster } from 'teleport/types';
@@ -35,10 +35,8 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     run(() => ctx.nodeService.fetchNodes(clusterId).then(setNodes));
   }, [clusterId]);
 
-  const getNodeLoginOptions = useCallback(
-    (serverId: string) => makeOptions(clusterId, serverId, logins),
-    [logins]
-  );
+  const getNodeLoginOptions = (serverId: string) =>
+    makeOptions(clusterId, serverId, logins);
 
   const startSshSession = (login: string, serverId: string) => {
     const url = cfg.getSshConnectRoute({
