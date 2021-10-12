@@ -52,10 +52,10 @@ windows_desktop_service:
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.
   host_labels:
-  - match: '.*\.dev\.example\.com$'
+  - match: '^.*\.dev\.example\.com$'
     labels:
       environment: dev
-  - match: '.*\.prod\.example\.com$'
+  - match: '^.*\.prod\.example\.com$'
     labels:
       environment: prod
 ```
