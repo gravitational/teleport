@@ -136,6 +136,40 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 	return nil
 }
 
+// sessionRecordingAction is a special checker that grants access to session
+// recordings. It allows access to specific recordings based on the `where`
+// section of the user's access rule.
+func (a *ServerWithRoles) sessionRecordingAction(namespace string, sid session.ID, verb string) error {
+	ruleCtx := &services.Context{User: a.context.User}
+	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, types.KindSession, verb, true)
+	if origErr == nil || !trace.IsAccessDenied(origErr) {
+		return trace.Wrap(origErr)
+	}
+	sessionEvents, err := a.alog.GetSessionEvents(namespace, sid, 0, false)
+	if err != nil {
+		log.WithError(err).Warnf("An error occurred while fetching session.end for session ID %q.", sid)
+		return trace.Wrap(origErr)
+	}
+	for _, ef := range sessionEvents {
+		if ef.GetType() == events.SessionEndEvent {
+			event, err := events.FromEventFields(ef)
+			if err != nil {
+				log.WithError(err).Warnf("An error occurred while extracting session.end for session ID %q.", sid)
+				return trace.Wrap(origErr)
+			}
+			session, ok := event.(*apievents.SessionEnd)
+			if !ok {
+				log.Warnf("Unexpected event type %T of session.end found for session ID %q.", event, sid)
+				return trace.Wrap(origErr)
+			}
+			ruleCtx.Session = session
+			return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, types.KindSession, verb, false))
+		}
+	}
+	log.Warnf("session.end event not found for session ID %q.", sid)
+	return trace.Wrap(origErr)
+}
+
 // hasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
 func (a *ServerWithRoles) hasBuiltinRole(name string) bool {
@@ -595,7 +629,7 @@ func (a *ServerWithRoles) filterNodes(nodes []types.Server) ([]types.Server, err
 	// Extract all unique allowed logins across all roles.
 	allowedLogins := make(map[string]bool)
 	for _, role := range roleset {
-		for _, login := range role.GetLogins(services.Allow) {
+		for _, login := range role.GetLogins(types.Allow) {
 			allowedLogins[login] = true
 		}
 	}
@@ -1995,7 +2029,7 @@ func (a *ServerWithRoles) UploadSessionRecording(r events.SessionRecording) erro
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if err := a.action(namespace, types.KindSession, types.VerbRead); err != nil {
+	if err := a.sessionRecordingAction(namespace, sid, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2003,7 +2037,7 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 }
 
 func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
-	if err := a.action(namespace, types.KindSession, types.VerbRead); err != nil {
+	if err := a.sessionRecordingAction(namespace, sid, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3078,12 +3112,25 @@ func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace strin
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.
-func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
-	if err := a.action(apidefaults.Namespace, types.KindSession, types.VerbList); err != nil {
-		return nil, "", trace.Wrap(err)
+func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) (events []apievents.AuditEvent, lastKey string, err error) {
+	if cond != nil {
+		return nil, "", trace.BadParameter("cond is an internal parameter, should not be set by client")
 	}
 
-	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
+	if actionErr := a.action(apidefaults.Namespace, types.KindSession, types.VerbList); actionErr != nil {
+		if !trace.IsAccessDenied(actionErr) {
+			return nil, "", trace.Wrap(actionErr)
+		}
+		cond, err = a.context.Checker.ExtractConditionForIdentifier(&services.Context{User: a.context.User}, apidefaults.Namespace, types.KindSession, types.VerbList, services.SessionIdentifier)
+		if err != nil {
+			if !trace.IsAccessDenied(err) {
+				return nil, "", trace.Wrap(err)
+			}
+			return nil, "", trace.Wrap(actionErr)
+		}
+	}
+
+	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3141,7 +3188,7 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // channel if one is encountered. Otherwise it is simply closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	if err := a.action(apidefaults.Namespace, types.KindSession, types.VerbList); err != nil {
+	if err := a.sessionRecordingAction(apidefaults.Namespace, sessionID, types.VerbList); err != nil {
 		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 		e <- trace.Wrap(err)
 		return c, e
