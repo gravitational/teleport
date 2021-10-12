@@ -554,6 +554,10 @@ message ClusterConfigSpecV3 {
     // server before it begins terminating controlled sessions.
     int64 SessionControlTimeout = 10
         [ (gogoproto.jsontag) = "session_control_timeout", (gogoproto.casttype) = "Duration" ];
+
+    // RouteToMostRecent overrides the default routing mechanism when duplicates are detected
+    // to use the most recent node.
+    bool RouteToMostRecent = 14 [ (gogoproto.jsontag) = "route_to_most_recent" ];
 }
 
 // AuditConfig represents audit log settings in the cluster
@@ -594,6 +598,7 @@ message AuditConfig {
     // WriteTargetValue is the ratio of consumed write to provisioned capacity.
     double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
 }
+
 
 // AuthPreferenceV2 implements the AuthPreference interface.
 message AuthPreferenceV2 {
