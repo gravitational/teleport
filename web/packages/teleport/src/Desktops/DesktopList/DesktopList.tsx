@@ -82,7 +82,7 @@ function DesktopList(props: Props) {
           <SortHeaderCell
             sortDir={sortDir.name}
             onSortChange={onSortChange}
-            title="Domain"
+            title="Hostname"
           />
         }
         cell={<DesktopDomainCell />}

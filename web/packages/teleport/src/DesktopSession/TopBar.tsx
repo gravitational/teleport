@@ -89,7 +89,7 @@ export default function TopBar(props: Props) {
   );
 }
 
-export const TopBarHeight = 56;
+export const TopBarHeight = 40;
 
 const RecordingIndicator = styled.div``;
 
