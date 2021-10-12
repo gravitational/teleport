@@ -467,7 +467,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		LockWatcher:       s.cfg.LockWatcher,
 		LockTargets:       services.LockTargetsFromTLSIdentity(identity),
 		Tracker:           rdpc,
-		TeleportUser:      authCtx.Identity.GetIdentity().Username,
+		TeleportUser:      identity.Username,
 		ServerID:          desktop.GetName(),
 	}
 	shouldDisconnectExpiredCert := authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
