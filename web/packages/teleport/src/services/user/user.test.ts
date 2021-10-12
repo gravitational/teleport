@@ -49,6 +49,7 @@ test('undefined values in context response gives proper default values', async (
     authType: 'local',
     acl: {
       logins: [],
+      windowsLogins: [],
       authConnectors: {
         list: true,
         read: true,
@@ -76,6 +77,13 @@ test('undefined values in context response gives proper default values', async (
         read: false,
         edit: false,
         create: false,
+        remove: false,
+      },
+      desktopServers: {
+        create: false,
+        edit: false,
+        list: false,
+        read: false,
         remove: false,
       },
       events: {
