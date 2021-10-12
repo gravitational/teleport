@@ -24,6 +24,10 @@ import (
 )
 
 // PolicyDocument represents a parsed AWS IAM policy document.
+//
+// Note that PolicyDocument and its Ensure/Delete methods are not currently
+// goroutine-safe. To create a policy using AWS IAM API, dump the object to
+// JSON format using json.Marshal.
 type PolicyDocument struct {
 	// Version is the policy version.
 	Version string `json:"Version"`
@@ -99,30 +103,36 @@ func (p *PolicyDocument) Ensure(effect, action, resource string) bool {
 
 // Delete deletes the specified resource action from the policy.
 func (p *PolicyDocument) Delete(effect, action, resource string) {
-	for i, s := range p.Statements {
+	var statements []*Statement
+	for _, s := range p.Statements {
 		if s.Effect != effect {
+			statements = append(statements, s)
 			continue
 		}
+		var resources []string
 		for _, a := range s.Actions {
-			if a != action {
-				continue
-			}
-			for i, r := range s.Resources {
-				if r == resource {
-					s.Resources = append(s.Resources[:i], s.Resources[i+1:]...)
+			for _, r := range s.Resources {
+				if a != action || r != resource {
+					resources = append(resources, r)
 				}
 			}
 		}
-		// If we removed last resource, remove the statement.
-		if len(s.Resources) == 0 {
-			p.Statements = append(p.Statements[:i], p.Statements[i+1:]...)
+		if len(resources) != 0 {
+			statements = append(statements, &Statement{
+				Effect:    s.Effect,
+				Actions:   s.Actions,
+				Resources: resources,
+			})
 		}
 	}
+	p.Statements = statements
 }
 
 const (
 	// PolicyVersion is default IAM policy version.
 	PolicyVersion = "2012-10-17"
-	// EffectAllow is the "allow" IAM policy effect.
+	// EffectAllow is the Allow IAM policy effect.
 	EffectAllow = "Allow"
+	// EffectDeny is the Deny IAM policy effect.
+	EffectDeny = "Deny"
 )

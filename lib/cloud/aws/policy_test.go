@@ -121,7 +121,60 @@ func TestIAMPolicy(t *testing.T) {
 	// Delete last resource action, policy should be empty.
 	policy.Delete(EffectAllow, "action-2", "resource-3")
 	require.Equal(t, &PolicyDocument{
-		Version:    PolicyVersion,
-		Statements: []*Statement{},
+		Version: PolicyVersion,
+	}, policy)
+
+	// Policy with duplicate statement.
+	policy = &PolicyDocument{
+		Version: PolicyVersion,
+		Statements: []*Statement{
+			{
+				Effect:    EffectAllow,
+				Actions:   []string{"action-1"},
+				Resources: []string{"resource-1"},
+			},
+			{
+				Effect:    EffectAllow,
+				Actions:   []string{"action-1"},
+				Resources: []string{"resource-1"},
+			},
+		},
+	}
+	policy.Delete(EffectAllow, "action-1", "resource-1")
+	require.Equal(t, &PolicyDocument{
+		Version: PolicyVersion,
+	}, policy)
+
+	// Policy with deny statement.
+	policy = &PolicyDocument{
+		Version: PolicyVersion,
+		Statements: []*Statement{
+			{
+				Effect:    EffectAllow,
+				Actions:   []string{"action-1"},
+				Resources: []string{"resource-1", "resource-2"},
+			},
+			{
+				Effect:    EffectDeny,
+				Actions:   []string{"action-1"},
+				Resources: []string{"resource-2"},
+			},
+		},
+	}
+	policy.Delete(EffectAllow, "action-1", "resource-2")
+	require.Equal(t, &PolicyDocument{
+		Version: PolicyVersion,
+		Statements: []*Statement{
+			{
+				Effect:    EffectAllow,
+				Actions:   []string{"action-1"},
+				Resources: []string{"resource-1"},
+			},
+			{
+				Effect:    EffectDeny,
+				Actions:   []string{"action-1"},
+				Resources: []string{"resource-2"},
+			},
+		},
 	}, policy)
 }
