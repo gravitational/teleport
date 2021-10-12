@@ -15,8 +15,6 @@ description: Teleport Desktop Access configuration and CLI reference.
 
 ## teleport.yaml
 
-{/* TODO: add RBAC labels */}
-
 `teleport.yaml` fields related to Desktop Access:
 
 ```yaml
@@ -50,15 +48,47 @@ windows_desktop_service:
     # LDAP password for authentication. This is usually the same password you
     # use to login to the Domain Controller.
     password: '$LDAP_PASSWORD'
+  # Rules for applying labels to Windows hosts based on regular expressions
+  # matched against the host name. If multiple rules match, the desktop will
+  # get the union of all matching labels.
+  host_labels:
+  - match: '.*\.dev\.example\.com$'
+    labels:
+      environment: dev
+  - match: '.*\.prod\.example\.com$'
+    labels:
+      environment: prod
 ```
 
-{/*
+This `host_labels` configuration would apply the `environment: dev` label to a
+Windows desktop named `test.dev.example.com`, and the `environment: prod` label
+to a desktop named `desktop.prod.example.com`.
 
 ## RBAC
 
-TODO: add RBAC role settings
+Teleport's Role-based access control (RBAC) allows administrators to set up
+granular access policies for Windows desktops connected to Teleport.
 
-*/}
+Teleport's "role" resource provides the following instruments for controlling
+desktop access:
+
+```yaml
+kind: role
+version: v4
+metadata:
+  name: developer
+spec:
+  allow:
+    # Label selectors for desktops this role has access to.
+    # See above for how labels are applied to desktops.
+    windows_desktop_labels:
+      environment: ["dev", "stage"]
+    
+    # Windows user accounts this role can connect as.
+    windows_logins: ["Administrator"]
+```
+
+It is possible to use wildcards to match any desktop labels.
 
 ## CLI
 
