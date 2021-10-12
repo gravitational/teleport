@@ -42,6 +42,10 @@ spec:
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}
       {{- end }}
+      {{- if .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml .Values.topologySpreadConstraints | nindent 8 }}
+      {{- end }}
 {{- if .Values.initContainers }}
       initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
   {{- if .Values.resources }}
@@ -81,6 +85,13 @@ spec:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
         - "--insecure"
+        {{- end }}
+        {{- if .Values.extraEnv }}
+        env:
+        {{- end }}
+        {{- range $env := .Values.extraEnv }}
+          - name: {{ $env.name }}
+            value: {{ $env.value | quote }}
         {{- end }}
         securityContext:
           allowPrivilegeEscalation: false

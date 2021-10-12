@@ -141,7 +141,13 @@ extraVolumes: []
 # Extra volume mounts corresponding to the volumes mounted above
 extraVolumeMounts: []
 #- name: myvolume
-#  path: /path/on/host
+#  mountPath: /path/on/host
+
+# extraEnv provides additional environment variables
+# extraEnv:
+#  - name: SSL_CERT_DIR
+#    value: /etc/teleport-tls:/etc/ssl/certs
+extraEnv: []
 
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent
@@ -163,3 +169,13 @@ resources: {}
 # Tolerations for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 tolerations: []
+
+# Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints
+# topologySpreadConstraints:
+#   - maxSkew: 1
+#     topologyKey: topology.kubernetes.io/zone
+#     whenUnsatisfiable: DoNotSchedule
+#     labelSelector:
+#       matchLabels:
+#         app: teleport
+topologySpreadConstraints: []
