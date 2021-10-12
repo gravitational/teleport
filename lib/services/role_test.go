@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -215,20 +214,20 @@ func TestRoleParse(t *testing.T) {
 				Version: types.V4,
 				Metadata: types.Metadata{
 					Name:      "defrole",
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 				},
 				Spec: types.RoleSpecV4{
 					Options: types.RoleOptions{
 						CertificateFormat: constants.CertificateFormatStandard,
-						MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 						PortForwarding:    types.NewBoolOption(true),
-						BPF:               defaults.EnhancedEvents(),
+						BPF:               apidefaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
-						Namespaces: []string{defaults.Namespace},
+						Namespaces: []string{apidefaults.Namespace},
 					},
 					Deny: types.RoleConditions{
-						Namespaces: []string{defaults.Namespace},
+						Namespaces: []string{apidefaults.Namespace},
 					},
 				},
 			},
@@ -483,7 +482,7 @@ func TestRoleParse(t *testing.T) {
 				}
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, role, &tc.role)
+				require.Equal(t, &tc.role, role)
 
 				err := ValidateRole(role)
 				require.NoError(t, err)
@@ -597,6 +596,27 @@ func TestLabelCompatibility(t *testing.T) {
 	require.Equal(t, map[string]string{"key": "val"}, out)
 }
 
+func newRole(mut func(*types.RoleV4)) types.RoleV4 {
+	r := types.RoleV4{
+		Metadata: types.Metadata{
+			Name:      "name",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV4{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(20 * time.Hour),
+			},
+			Allow: types.RoleConditions{
+				NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+				WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Namespaces:           []string{types.Wildcard},
+			},
+		},
+	}
+	mut(&r)
+	return r
+}
+
 func TestCheckAccessToServer(t *testing.T) {
 	type check struct {
 		server    types.Server
@@ -633,25 +653,6 @@ func TestCheckAccessToServer(t *testing.T) {
 			Namespace: namespaceC,
 			Labels:    map[string]string{"role": "db01", "status": "follower01"},
 		},
-	}
-	newRole := func(mut func(*types.RoleV4)) types.RoleV4 {
-		r := types.RoleV4{
-			Metadata: types.Metadata{
-				Name:      "name",
-				Namespace: apidefaults.Namespace,
-			},
-			Spec: types.RoleSpecV4{
-				Options: types.RoleOptions{
-					MaxSessionTTL: types.Duration(20 * time.Hour),
-				},
-				Allow: types.RoleConditions{
-					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					Namespaces: []string{types.Wildcard},
-				},
-			},
-		}
-		mut(&r)
-		return r
 	}
 	testCases := []struct {
 		name      string
@@ -741,7 +742,7 @@ func TestCheckAccessToServer(t *testing.T) {
 			roles: []types.RoleV4{
 				newRole(func(r *types.RoleV4) {
 					r.Spec.Allow.Logins = []string{"admin"}
-					r.Spec.Allow.Namespaces = []string{defaults.Namespace}
+					r.Spec.Allow.Namespaces = []string{apidefaults.Namespace}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
 				}),
 				newRole(func(r *types.RoleV4) {
@@ -935,7 +936,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
 							ClusterLabels: types.Labels{"role": []string{"worker2", "worker"}},
-							Namespaces:    []string{defaults.Namespace},
+							Namespaces:    []string{apidefaults.Namespace},
 						},
 					},
 				},
@@ -1178,7 +1179,7 @@ func TestCheckRuleAccess(t *testing.T) {
 			name:  "0 - empty role set has access to nothing",
 			roles: []types.RoleV4{},
 			checks: []check{
-				{rule: types.KindUser, verb: types.ActionWrite, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindUser, verb: types.ActionWrite, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -2215,17 +2216,17 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	})
 	require.NoError(t, err)
 	roleDevStage := &types.RoleV4{
-		Metadata: types.Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
 		Version:  types.V3,
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 				DatabaseNames:  []string{types.Wildcard},
 				DatabaseUsers:  []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
+				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseNames: []string{"supersecret"},
 			},
 		},
@@ -2388,15 +2389,15 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 	roleDevStage := &types.RoleV4{
-		Metadata: types.Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 				DatabaseUsers:  []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
+				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseUsers: []string{"superuser"},
 			},
 		},
@@ -2688,11 +2689,11 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	roleNoAccess := &types.RoleV4{
 		Metadata: types.Metadata{
 			Name:      "noaccess",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:  []string{defaults.Namespace},
+				Namespaces:  []string{apidefaults.Namespace},
 				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AWSRoleARNs: []string{},
 			},
@@ -2701,11 +2702,11 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	roleReadOnly := &types.RoleV4{
 		Metadata: types.Metadata{
 			Name:      "readonly",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:  []string{defaults.Namespace},
+				Namespaces:  []string{apidefaults.Namespace},
 				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AWSRoleARNs: []string{readOnlyARN},
 			},
@@ -2714,11 +2715,11 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	roleFullAccess := &types.RoleV4{
 		Metadata: types.Metadata{
 			Name:      "fullaccess",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:  []string{defaults.Namespace},
+				Namespaces:  []string{apidefaults.Namespace},
 				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AWSRoleARNs: []string{readOnlyARN, fullAccessARN},
 			},
@@ -2800,7 +2801,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		},
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
@@ -2968,6 +2969,137 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	}
 }
 
+func TestCheckAccessToWindowsDesktop(t *testing.T) {
+	desktopNoLabels := &types.WindowsDesktopV3{
+		ResourceHeader: types.ResourceHeader{
+			Kind:     types.KindWindowsDesktop,
+			Metadata: types.Metadata{Name: "no-labels"},
+		},
+	}
+	desktop2012 := &types.WindowsDesktopV3{
+		ResourceHeader: types.ResourceHeader{
+			Kind: types.KindWindowsDesktop,
+			Metadata: types.Metadata{
+				Name:   "win2012",
+				Labels: map[string]string{"win_version": "2012"},
+			},
+		},
+	}
+
+	type check struct {
+		desktop   *types.WindowsDesktopV3
+		login     string
+		hasAccess bool
+	}
+
+	for _, test := range []struct {
+		name      string
+		roles     []types.RoleV4
+		mfaParams AccessMFAParams
+		checks    []check
+	}{
+		{
+			name:  "no roles, no access",
+			roles: []types.RoleV4{},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: false},
+				{desktop: desktop2012, login: "admin", hasAccess: false},
+			},
+		},
+		{
+			name: "empty label, no access",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"role": []string{}}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: false},
+				{desktop: desktop2012, login: "admin", hasAccess: false},
+			},
+		},
+		{
+			name: "single role allows a single login",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: true},
+				{desktop: desktop2012, login: "admin", hasAccess: true},
+				{desktop: desktopNoLabels, login: "foo", hasAccess: false},
+				{desktop: desktop2012, login: "foo", hasAccess: false},
+			},
+		},
+		{
+			name: "single role with allowed labels",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"win_version": []string{"2012"}}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: false},
+				{desktop: desktop2012, login: "admin", hasAccess: true},
+			},
+		},
+		{
+			name: "single role with deny labels",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Deny.Namespaces = []string{apidefaults.Namespace}
+					r.Spec.Deny.WindowsDesktopLabels = types.Labels{"win_version": []string{"2012"}}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: true},
+				{desktop: desktop2012, login: "admin", hasAccess: false},
+			},
+		},
+		{
+			name: "one role more permissive than another",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = types.Labels{"win_version": []string{"2012"}}
+				}),
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"root", "admin"}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "root", hasAccess: true},
+				{desktop: desktopNoLabels, login: "admin", hasAccess: true},
+				{desktop: desktop2012, login: "root", hasAccess: true},
+				{desktop: desktop2012, login: "admin", hasAccess: true},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var set RoleSet
+			for _, r := range test.roles {
+				set = append(set, &r)
+			}
+
+			for i, check := range test.checks {
+				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
+					i, check.login, check.desktop.GetName(), check.hasAccess)
+				err := set.CheckAccess(check.desktop, test.mfaParams, NewWindowsLoginMatcher(check.login))
+				if check.hasAccess {
+					require.NoError(t, err, msg)
+				} else {
+					require.Error(t, err, msg)
+					require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+				}
+			}
+		})
+	}
+}
+
 // BenchmarkCheckAccessToServer tests how long it takes to run
 // CheckAccess for servers across 4,000 nodes for 5 roles each with 5 logins each.
 //
@@ -3009,10 +3141,9 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 		})
 	}
 
-	// Create RoleSet with five roles: one admin role and four generic roles
-	// that have five logins each and only have access to the a:b label.
+	// Create RoleSet with four generic roles that have five logins
+	// each and only have access to the a:b label.
 	var set RoleSet
-	set = append(set, NewAdminRole())
 	for i := 0; i < 4; i++ {
 		set = append(set, &types.RoleV4{
 			Kind:    types.KindRole,

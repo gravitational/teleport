@@ -550,6 +550,9 @@ const SCP = "scp"
 // Root is *nix system administrator account name.
 const Root = "root"
 
+// Administrator is the Windows system administrator account name.
+const Administrator = "Administrator"
+
 // AdminRoleName is the name of the default admin role for all local users if
 // another role is not explicitly assigned
 const AdminRoleName = "admin"
@@ -567,9 +570,6 @@ const (
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
 )
-
-// OSSMigratedV6 is a label to mark migrated OSS users and resources
-const OSSMigratedV6 = "migrate-v6.0"
 
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
