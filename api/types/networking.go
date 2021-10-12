@@ -75,6 +75,12 @@ type ClusterNetworkingConfig interface {
 
 	// Clone performs a deep copy.
 	Clone() ClusterNetworkingConfig
+
+	// GetRouteToMostRecent gets the route to most recent setting.
+	GetRouteToMostRecent() bool
+
+	// SetRouteToMostRecent sets the route to most recent setting.
+	SetRouteToMostRecent(bool)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -243,6 +249,16 @@ func (c *ClusterNetworkingConfigV2) setStaticFields() {
 	c.Kind = KindClusterNetworkingConfig
 	c.Version = V2
 	c.Metadata.Name = MetaNameClusterNetworkingConfig
+}
+
+// GetRouteToMostRecent gets the route to most recent setting.
+func (c *ClusterNetworkingConfigV2) GetRouteToMostRecent() bool {
+	return c.Spec.RouteToMostRecent
+}
+
+// SetRouteToMostRecent sets the route to most recent setting.
+func (c *ClusterNetworkingConfigV2) SetRouteToMostRecent(routeToMostRecent bool) {
+	c.Spec.RouteToMostRecent = routeToMostRecent
 }
 
 // CheckAndSetDefaults verifies the constraints for ClusterNetworkingConfig.
