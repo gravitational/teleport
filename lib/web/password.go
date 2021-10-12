@@ -74,8 +74,8 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 // createAuthenticateChallengeWithPassword verifies given password for the authenticated user
 // and on success returns MFA challenges for the users registered devices.
 func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req *client.MFAChallengeRequest
-	if err := httplib.ReadJSON(r, req); err != nil {
+	var req client.MFAChallengeRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
