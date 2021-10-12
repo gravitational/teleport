@@ -706,6 +706,24 @@ message ClusterNetworkingConfigSpecV2 {
     // timeouts.
     int64 WebIdleTimeout = 6
         [ (gogoproto.jsontag) = "web_idle_timeout", (gogoproto.casttype) = "Duration" ];
+
+    // ProxyListenerMode is proxy listener mode used by Teleport Proxies.
+    ProxyListenerMode ProxyListenerMode = 7
+        [ (gogoproto.jsontag) = "proxy_listener_mode,omitempty" ];
+}
+
+// ProxyListenerMode represents the cluster proxy listener mode.
+enum ProxyListenerMode {
+    // Separate is the proxy listener mode indicating that proxies are running
+    // in separate listener mode where Teleport Proxy services use different listeners.
+    Separate = 0;
+    // Multiplex is the proxy listener mode indicating the proxy should use multiplex mode
+    // where all proxy services are multiplexed on a single proxy port.
+    Multiplex = 1;
+
+    // RouteToMostRecent overrides the default routing mechanism when duplicates are detected
+    // to use the most recent node.
+    bool RouteToMostRecent = 8 [ (gogoproto.jsontag) = "route_to_most_recent" ];
 }
 
 // SessionRecordingConfigV2 contains session recording configuration.
