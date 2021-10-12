@@ -16,7 +16,18 @@ limitations under the License.
 
 export type AuthProviderType = 'oidc' | 'saml' | 'github';
 
-export type Auth2faType = 'u2f' | 'otp' | 'off' | 'optional' | 'on';
+export type Auth2faType =
+  | 'u2f'
+  | 'otp'
+  | 'off'
+  | 'optional'
+  | 'on'
+  | 'webauthn';
+
+// PreferredMfaType is used to determine which MFA option
+// is preferred when more than one option can be available
+// and only one should be preferred.
+export type PreferredMfaType = 'webauthn' | 'u2f' | '';
 
 export type AuthProvider = {
   displayName?: string;

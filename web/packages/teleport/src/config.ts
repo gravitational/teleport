@@ -16,7 +16,7 @@ limitations under the License.
 
 import { generatePath } from 'react-router';
 import { merge } from 'lodash';
-import { AuthProvider, Auth2faType } from 'shared/services';
+import { AuthProvider, Auth2faType, PreferredMfaType } from 'shared/services';
 
 const cfg = {
   isEnterprise: false,
@@ -29,6 +29,7 @@ const cfg = {
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
     authType: 'local',
+    preferredLocalMfa: '' as PreferredMfaType,
   },
 
   proxyCluster: 'localhost',
@@ -140,6 +141,10 @@ const cfg = {
     return cfg.auth ? cfg.auth.second_factor : null;
   },
 
+  getPreferredMfaType() {
+    return cfg.auth ? cfg.auth.preferredLocalMfa : null;
+  },
+
   getLocalAuthFlag() {
     return cfg.auth.localAuthEnabled;
   },
@@ -214,7 +219,7 @@ const cfg = {
     return generatePath(cfg.routes.consoleSession, { clusterId, sid });
   },
 
-  getPasswordTokenUrl(tokenId) {
+  getPasswordTokenUrl(tokenId?: string) {
     return generatePath(cfg.api.passwordTokenPath, { tokenId });
   },
 
