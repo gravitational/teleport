@@ -77,7 +77,6 @@ sessions and allows easier customer rollout without per-host agents.
 libraries implementing enough of the RDP spec for a basic desktop session.
 
 There are a few options, in order of preference:
-
 - use [rdp-rs Rust library](https://crates.io/crates/rdp-rs) via FFI from Go,
   assuming it supports smart cards
 - use [libfreerdp](https://www.freerdp.com/) via CGO, assuming it supports
@@ -146,7 +145,6 @@ credentials to the domain controller for validation. Teleport Desktop Access
 will support both modes.
 
 Windows generally exposes 3 authentication mechanisms:
-
 - smart cards
 - username/password
 - kerberos tickets
@@ -184,7 +182,6 @@ connect to. Internally, Teleport tracks known Windows hosts using
 
 There are 3 ways that `windows_desktop_service` discovers Windows hosts to
 register:
-
 - hardcoded list of standalone hosts provided in the config file (see
   [configuration](#configuration))
 - list of Active Directory-enrolled hosts obtained from AD via LDAPS (LDAP over
