@@ -35,22 +35,21 @@ export type Region = {
 // [2] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView
 // [3] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int32Array
 export default class Codec {
-  // TODO: make these cross-browser, some key codes depend on the browser.
-  // See https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code/code_values
+  // Maps from browser KeyboardEvent.code values to Windows hardware keycodes.
+  // Currently only supports Chrome keycodes: TODO(isaiah) -- add support for firefox/safari/edge.
+  // See https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code/code_values#code_values_on_windows
   private _keyScancodes = {
-    Unidentified: 0x0000,
-    '': 0x0000,
     Escape: 0x0001,
-    Digit0: 0x0002,
-    Digit1: 0x0003,
-    Digit2: 0x0004,
-    Digit3: 0x0005,
-    Digit4: 0x0006,
-    Digit5: 0x0007,
-    Digit6: 0x0008,
-    Digit7: 0x0009,
-    Digit8: 0x000a,
-    Digit9: 0x000b,
+    Digit1: 0x0002,
+    Digit2: 0x0003,
+    Digit3: 0x0004,
+    Digit4: 0x0005,
+    Digit5: 0x0006,
+    Digit6: 0x0007,
+    Digit7: 0x0008,
+    Digit8: 0x0009,
+    Digit9: 0x000a,
+    Digit0: 0x000b,
     Minus: 0x000c,
     Equal: 0x000d,
     Backspace: 0x000e,
@@ -123,7 +122,6 @@ export default class Codec {
     Numpad3: 0x0051,
     Numpad0: 0x0052,
     NumpadDecimal: 0x0053,
-    PrintScreen: 0x0054,
     IntlBackslash: 0x0056,
     F11: 0x0057,
     F12: 0x0058,
@@ -140,15 +138,19 @@ export default class Codec {
     F22: 0x006d,
     F23: 0x006e,
     KanaMode: 0x0070,
-    Lang2: 0x0071,
-    Lang1: 0x0072,
     IntlRo: 0x0073,
     F24: 0x0076,
+    Lang4: 0x0077,
+    Lang3: 0x0077,
     Convert: 0x0079,
     NonConvert: 0x007b,
     IntlYen: 0x007d,
     NumpadComma: 0x007e,
+    Undo: 0xe008,
+    Paste: 0xe00a,
     MediaTrackPrevious: 0xe010,
+    Cut: 0xe017,
+    Copy: 0xe018,
     MediaTrackNext: 0xe019,
     NumpadEnter: 0xe01c,
     ControlRight: 0xe01d,
@@ -160,6 +162,7 @@ export default class Codec {
     AudioVolumeUp: 0xe030,
     BrowserHome: 0xe032,
     NumpadDivide: 0xe035,
+    PrintScreen: 0xe037,
     AltRight: 0xe038,
     NumLock: 0xe045,
     Home: 0xe047,
@@ -184,7 +187,7 @@ export default class Codec {
     BrowserBack: 0xe06a,
     LaunchApp1: 0xe06b,
     LaunchMail: 0xe06c,
-    LaunchMediaPlayer: 0xe06d,
+    MediaSelect: 0xe06d,
   };
 
   // encodeScreenSpec encodes the client's screen spec.
