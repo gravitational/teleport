@@ -74,7 +74,7 @@ type userACL struct {
 	KubeServers access `json:"kubeServers"`
 	// Desktops defines access to desktops.
 	Desktops access `json:"desktops"`
-	// SSH defines access to servers.
+	// SSHLogins defines access to servers.
 	SSHLogins []string `json:"sshLogins"`
 	// WindowsLogins defines access to logins on windows desktop servers.
 	WindowsLogins []string `json:"windowsLogins"`
