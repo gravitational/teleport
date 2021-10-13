@@ -35,5 +35,9 @@ spec:
     port: 3024
     targetPort: 3024
     protocol: TCP
+  - name: mysql
+    port: 3036
+    targetPort: 3036
+    protocol: TCP
   selector:
     app: {{ .Release.Name }}

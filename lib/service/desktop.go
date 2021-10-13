@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"crypto/tls"
 	"net"
 	"net/http"
 	"strconv"
@@ -26,10 +27,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -126,6 +130,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				HostSigner:  conn.ServerIdentity.KeySigner,
 				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 				Server:      shtl,
+				FIPS:        process.Config.FIPS,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -141,10 +146,48 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		log.Info("Started reverse tunnel client.")
 	}
 
+	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentWindowsDesktop,
+			Log:       log,
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+
+	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	tlsConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	// Populate the correct CAs for the incoming client connection.
+	tlsConfig.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+		var clusterName string
+		var err error
+		if info.ServerName != "" {
+			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
+			if err != nil && !trace.IsNotFound(err) {
+				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
+			}
+		}
+		pool, err := auth.ClientCertPool(accessPoint, clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsCopy := tlsConfig.Clone()
+		tlsCopy.ClientCAs = pool
+		return tlsCopy, nil
+	}
+
 	connLimiter, err := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter)
 	if err != nil {
 		return trace.Wrap(err)
@@ -162,13 +205,18 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	}
 
 	srv, err := desktop.NewWindowsService(desktop.WindowsServiceConfig{
-		Log:         log,
-		Clock:       process.Clock,
-		TLS:         tlsConfig,
-		AccessPoint: accessPoint,
-		ConnLimiter: connLimiter,
+		Log:          log,
+		Clock:        process.Clock,
+		Authorizer:   authorizer,
+		Emitter:      conn.Client,
+		TLS:          tlsConfig,
+		AccessPoint:  accessPoint,
+		ConnLimiter:  connLimiter,
+		LockWatcher:  lockWatcher,
+		AuthClient:   conn.Client,
+		HostLabelsFn: cfg.WindowsDesktop.HostLabels.LabelsForHost,
 		Heartbeat: desktop.HeartbeatConfig{
-			HostUUID:    process.Config.HostUUID,
+			HostUUID:    cfg.HostUUID,
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.Hosts,
 			OnHeartbeat: func(err error) {
@@ -179,6 +227,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				}
 			},
 		},
+		LDAPConfig: desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
 	})
 	if err != nil {
 		return trace.Wrap(err)

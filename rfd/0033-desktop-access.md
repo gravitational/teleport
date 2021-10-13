@@ -108,6 +108,7 @@ backend services, described in their own RFDs (like RFD 34 for Windows).
 ### Authorization
 
 Role definitions for RBAC have a few new fields for Desktop Access:
+
 - `${OS}_desktop_logins` - list of desktop login names allowed/denied for
   desktop hosts with a given OS
 - `${OS}_desktop_labels` - list of labels to match the target desktop hosts
@@ -140,6 +141,13 @@ spec:
     windows_desktop_labels:
       'env': ['prod']
 ```
+
+Like with SSH access, the `windows_desktop_logins` field will support a couple
+special variables. An `{{internal.windows_logins}}` variable for local users
+will map to any logins that are supplied when the user is created with
+`tctl users add alice --windows-logins=Administrator,DBUser`. For SSO users, the
+`{{external.attribute}}` variable allows access to SAML assertions or OIDC
+claims.
 
 ### Storage schema
 

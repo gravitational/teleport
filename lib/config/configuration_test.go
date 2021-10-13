@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -46,7 +48,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 type testConfigFiles struct {
@@ -133,6 +134,8 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, "INFO", fc.Logger.Severity)
 		require.Equal(t, fc.Auth.ClusterName, ClusterName("cookie.localhost"))
 		require.Equal(t, fc.Auth.LicenseFile, "/tmp/license.pem")
+		require.Equal(t, fc.Proxy.PublicAddr, apiutils.Strings{"cookie.localhost:443"})
+		require.Equal(t, fc.Proxy.WebAddr, "0.0.0.0:443")
 
 		require.False(t, lib.IsInsecureDevMode())
 	})
@@ -265,7 +268,7 @@ func TestConfigReading(t *testing.T) {
 			KeyFile:  "/etc/teleport/proxy.key",
 			CertFile: "/etc/teleport/proxy.crt",
 			KeyPairs: []KeyPair{
-				KeyPair{
+				{
 					PrivateKey:  "/etc/teleport/proxy.key",
 					Certificate: "/etc/teleport/proxy.crt",
 				},
@@ -286,12 +289,19 @@ func TestConfigReading(t *testing.T) {
 				EnabledFlag: "yes",
 			},
 			Apps: []*App{
-				&App{
+				{
 					Name:          "foo",
 					URI:           "http://127.0.0.1:8080",
 					PublicAddr:    "foo.example.com",
 					StaticLabels:  Labels,
 					DynamicLabels: CommandLabels,
+				},
+			},
+			Selectors: []Selector{
+				{
+					MatchLabels: map[string]apiutils.Strings{
+						"*": {"*"},
+					},
 				},
 			},
 		},
@@ -308,6 +318,13 @@ func TestConfigReading(t *testing.T) {
 					DynamicLabels: CommandLabels,
 				},
 			},
+			Selectors: []Selector{
+				{
+					MatchLabels: map[string]apiutils.Strings{
+						"*": {"*"},
+					},
+				},
+			},
 		},
 		Metrics: Metrics{
 			Service: Service{
@@ -315,7 +332,7 @@ func TestConfigReading(t *testing.T) {
 				EnabledFlag:   "yes",
 			},
 			KeyPairs: []KeyPair{
-				KeyPair{
+				{
 					PrivateKey:  "/etc/teleport/proxy.key",
 					Certificate: "/etc/teleport/proxy.crt",
 				},
@@ -605,6 +622,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
 	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
 	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
+	require.Empty(t, cfg.CAPins)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -960,7 +978,7 @@ func makeConfigFixture() string {
 	conf.Proxy.KeyFile = "/etc/teleport/proxy.key"
 	conf.Proxy.CertFile = "/etc/teleport/proxy.crt"
 	conf.Proxy.KeyPairs = []KeyPair{
-		KeyPair{
+		{
 			PrivateKey:  "/etc/teleport/proxy.key",
 			Certificate: "/etc/teleport/proxy.crt",
 		},
@@ -982,12 +1000,17 @@ func makeConfigFixture() string {
 	// Application service.
 	conf.Apps.EnabledFlag = "yes"
 	conf.Apps.Apps = []*App{
-		&App{
+		{
 			Name:          "foo",
 			URI:           "http://127.0.0.1:8080",
 			PublicAddr:    "foo.example.com",
 			StaticLabels:  Labels,
 			DynamicLabels: CommandLabels,
+		},
+	}
+	conf.Apps.Selectors = []Selector{
+		{
+			MatchLabels: map[string]apiutils.Strings{"*": {"*"}},
 		},
 	}
 
@@ -1002,13 +1025,18 @@ func makeConfigFixture() string {
 			DynamicLabels: CommandLabels,
 		},
 	}
+	conf.Databases.Selectors = []Selector{
+		{
+			MatchLabels: map[string]apiutils.Strings{"*": {"*"}},
+		},
+	}
 
 	// Metrics service.
 	conf.Metrics.EnabledFlag = "yes"
 	conf.Metrics.ListenAddress = "tcp://metrics"
 	conf.Metrics.CACerts = []string{"/etc/teleport/ca.crt"}
 	conf.Metrics.KeyPairs = []KeyPair{
-		KeyPair{
+		{
 			PrivateKey:  "/etc/teleport/proxy.key",
 			Certificate: "/etc/teleport/proxy.crt",
 		},
@@ -1257,6 +1285,62 @@ func TestProxyKube(t *testing.T) {
 	}
 }
 
+func TestWindowsDesktopService(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		desc        string
+		mutate      func(fc *FileConfig)
+		expectError require.ErrorAssertionFunc
+	}{
+		{
+			desc:        "NOK - invalid static host addr",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{"badscheme://foo:1:2"}
+			},
+		},
+		{
+			desc:        "NOK - invalid host label key",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
+					{Match: ".*", Labels: map[string]string{"invalid label key": "value"}},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid host label regexp",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
+					{Match: "g(-z]+ invalid regex", Labels: map[string]string{"key": "value"}},
+				}
+			},
+		},
+		{
+			desc:        "OK - valid config",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.EnabledFlag = "yes"
+				fc.WindowsDesktop.ListenAddress = "0.0.0.0:3028"
+				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
+					{Match: ".*", Labels: map[string]string{"key": "value"}},
+				}
+			},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			fc := &FileConfig{}
+			test.mutate(fc)
+			cfg := &service.Config{}
+			err := applyWindowsDesktopConfig(fc, cfg)
+			test.expectError(t, err)
+		})
+	}
+}
+
 func TestApps(t *testing.T) {
 	tests := []struct {
 		inConfigString string
@@ -1272,6 +1356,9 @@ app_service:
       name: foo
       public_addr: "foo.example.com"
       uri: "http://127.0.0.1:8080"
+  selectors:
+  - match_labels:
+      '*': '*'
 `,
 			inComment: "config is valid",
 			outError:  false,
@@ -1407,6 +1494,9 @@ func TestDatabaseConfig(t *testing.T) {
 			inConfigString: `
 db_service:
   enabled: true
+  selectors:
+  - match_labels:
+      '*': '*'
   databases:
   - name: foo
     protocol: postgres
@@ -1504,10 +1594,11 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Labels:           "env=test,hostname=[1h:hostname]",
 			},
 			outDatabase: service.Database{
-				Name:         "foo",
-				Protocol:     defaults.ProtocolPostgres,
-				URI:          "localhost:5432",
-				StaticLabels: map[string]string{"env": "test"},
+				Name:     "foo",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				StaticLabels: map[string]string{"env": "test",
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{
 					"hostname": &types.CommandLabelV2{
 						Period:  types.Duration(time.Hour),
@@ -1557,7 +1648,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				AWS: service.DatabaseAWS{
 					Region: "us-east-1",
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -1580,7 +1672,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 						ClusterID: "redshift-cluster-1",
 					},
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -1603,7 +1696,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					ProjectID:  "gcp-project-1",
 					InstanceID: "gcp-instance-1",
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},

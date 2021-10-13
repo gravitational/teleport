@@ -19,6 +19,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"io"
@@ -163,14 +164,7 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	case p.RouteToDatabase.ServiceName != "":
 		// Database means a request for a TLS certificate for access to a
 		// specific database, as specified by RouteToDatabase.
-
-		// DELETE IN 7.0
-		// Database certs have to be requested with CertUsage All because
-		// pre-7.0 servers do not accept usage-restricted certificates.
-		//
-		// In 7.0 clients, we can expect the server to be 7.0+ and set this to
-		// proto.UserCertsRequest_Database again.
-		return proto.UserCertsRequest_All
+		return proto.UserCertsRequest_Database
 	case p.RouteToApp.Name != "":
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
@@ -572,13 +566,13 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 }
 
 // GetAppServers returns a list of application servers.
-func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]types.Server, error) {
+func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := authClient.GetAppServers(ctx, namespace)
+	servers, err := authClient.GetApplicationServers(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -689,12 +683,59 @@ func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context, quiet bool) 
 	return proxy.ConnectToCluster(ctx, clusterName, quiet)
 }
 
+func (proxy *ProxyClient) loadTLS() (*tls.Config, error) {
+	if proxy.teleportClient.SkipLocalAuth {
+		return proxy.teleportClient.TLS.Clone(), nil
+	}
+	tlsKey, err := proxy.localAgent().GetCoreKey()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
+	}
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate client TLS config")
+	}
+	return tlsConfig.Clone(), nil
+}
+
+// ConnectToAuthServiceThroughALPNSNIProxy uses ALPN proxy service to connect to remove/local auth
+// service and returns auth client. For routing purposes, TLS ServerName is set to destination auth service
+// cluster name with ALPN values set to teleport-auth protocol.
+func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Context, clusterName string) (auth.ClientI, error) {
+	tlsConfig, err := proxy.loadTLS()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
+	clt, err := auth.NewClient(client.Config{
+		Addrs: []string{proxy.teleportClient.WebProxyAddr},
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+		ALPNSNIAuthDialClusterName: clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clt, nil
+}
+
 // ConnectToCluster connects to the auth server of the given cluster via proxy.
 // It returns connected and authenticated auth server client
 //
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
+	// If proxy supports ALPN SNI listener dial root/leaf cluster auth service via ALPN Proxy
+	// directly without using SSH tunnels.
+	if proxy.teleportClient.ALPNSNIListenerEnabled {
+		clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	}
+
 	dialer := client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return proxy.dialAuthServer(ctx, clusterName)
 	})

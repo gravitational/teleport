@@ -187,7 +187,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		// ACME uses TLS-ALPN-01 challenge that requires port 443
 		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
 		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
-		p.WebAddr = fmt.Sprintf(":%d", teleport.StandardHTTPSPort)
+		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
 	}
 
 	fc = &FileConfig{
@@ -240,6 +240,12 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// JoinParams configures the parameters for Simplified Node Joining.
+type JoinParams struct {
+	TokenName string `yaml:"token_name"`
+	Method    string `yaml:"method"`
 }
 
 // ConnectionRate configures rate limiter
@@ -321,6 +327,7 @@ type Global struct {
 	DataDir     string           `yaml:"data_dir,omitempty"`
 	PIDFile     string           `yaml:"pid_file,omitempty"`
 	AuthToken   string           `yaml:"auth_token,omitempty"`
+	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
@@ -642,6 +649,7 @@ type AuthenticationConfig struct {
 	SecondFactor      constants.SecondFactorType `yaml:"second_factor,omitempty"`
 	ConnectorName     string                     `yaml:"connector_name,omitempty"`
 	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
+	Webauthn          *Webauthn                  `yaml:"webauthn,omitempty"`
 	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
 	LockingMode       constants.LockingMode      `yaml:"locking_mode,omitempty"`
 
@@ -653,9 +661,17 @@ type AuthenticationConfig struct {
 func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	var err error
 
-	var u types.U2F
+	var u *types.U2F
 	if a.U2F != nil {
 		u, err = a.U2F.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	var w *types.Webauthn
+	if a.Webauthn != nil {
+		w, err = a.Webauthn.Parse()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -665,7 +681,8 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
-		U2F:               &u,
+		U2F:               u,
+		Webauthn:          w,
 		RequireSessionMFA: a.RequireSessionMFA,
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
@@ -678,32 +695,74 @@ type UniversalSecondFactor struct {
 	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
 
-func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
-	res := types.U2F{
-		AppID:  u.AppID,
-		Facets: u.Facets,
+func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
+	attestationCAs, err := getAttestationPEMs(u.DeviceAttestationCAs)
+	if err != nil {
+		return nil, trace.BadParameter("u2f.device_attestation_cas: %v", err)
 	}
-	// DeviceAttestationCAs are either file paths or raw PEM blocks.
-	for _, ca := range u.DeviceAttestationCAs {
-		_, parseErr := tlsutils.ParseCertificatePEM([]byte(ca))
-		if parseErr == nil {
-			// Successfully parsed as a PEM block, add it.
-			res.DeviceAttestationCAs = append(res.DeviceAttestationCAs, ca)
-			continue
-		}
+	return &types.U2F{
+		AppID:                u.AppID,
+		Facets:               u.Facets,
+		DeviceAttestationCAs: attestationCAs,
+	}, nil
+}
 
-		// Try reading as a file and parsing that.
-		data, err := ioutil.ReadFile(ca)
+type Webauthn struct {
+	RPID                  string   `yaml:"rp_id,omitempty"`
+	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
+	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
+	Disabled              bool     `yaml:"disabled,omitempty"`
+}
+
+func (w *Webauthn) Parse() (*types.Webauthn, error) {
+	allowedCAs, err := getAttestationPEMs(w.AttestationAllowedCAs)
+	if err != nil {
+		return nil, trace.BadParameter("webauthn.attestation_allowed_cas: %v", err)
+	}
+	deniedCAs, err := getAttestationPEMs(w.AttestationDeniedCAs)
+	if err != nil {
+		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
+	}
+	return &types.Webauthn{
+		// Allow any RPID to go through, we rely on
+		// types.Webauthn.CheckAndSetDefaults to correct it.
+		RPID:                  w.RPID,
+		AttestationAllowedCAs: allowedCAs,
+		AttestationDeniedCAs:  deniedCAs,
+		Disabled:              w.Disabled,
+	}, nil
+}
+
+func getAttestationPEMs(certOrPaths []string) ([]string, error) {
+	res := make([]string, len(certOrPaths))
+	for i, certOrPath := range certOrPaths {
+		pem, err := getAttestationPEM(certOrPath)
 		if err != nil {
-			return res, trace.BadParameter("device_attestation_cas value %q is not a valid x509 certificate (%v) and can't be read as a file (%v)", ca, parseErr, err)
+			return nil, err
 		}
-
-		if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
-			return res, trace.BadParameter("device_attestation_cas file %q contains an invalid x509 certificate: %v", ca, err)
-		}
-		res.DeviceAttestationCAs = append(res.DeviceAttestationCAs, string(data))
+		res[i] = pem
 	}
 	return res, nil
+}
+
+func getAttestationPEM(certOrPath string) (string, error) {
+	_, parseErr := tlsutils.ParseCertificatePEM([]byte(certOrPath))
+	if parseErr == nil {
+		return certOrPath, nil // OK, valid inline PEM
+	}
+
+	// Try reading as a file and parsing that.
+	data, err := ioutil.ReadFile(certOrPath)
+	if err != nil {
+		// Don't use trace in order to keep a clean error message.
+		return "", fmt.Errorf("%q is not a valid x509 certificate (%v) and can't be read as a file (%v)", certOrPath, parseErr, err)
+	}
+	if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
+		// Don't use trace in order to keep a clean error message.
+		return "", fmt.Errorf("file %q contains an invalid x509 certificate: %v", certOrPath, err)
+	}
+
+	return string(data), nil // OK, valid PEM file
 }
 
 // SSH is 'ssh_service' section of the config file
@@ -841,6 +900,14 @@ type Databases struct {
 	Service `yaml:",inline"`
 	// Databases is a list of databases proxied by the service.
 	Databases []*Database `yaml:"databases"`
+	// Selectors defines resource monitor selectors.
+	Selectors []Selector `yaml:"selectors,omitempty"`
+}
+
+// Selector represents a single resource monitor selector.
+type Selector struct {
+	// MatchLabels represents a selector that matches labels.
+	MatchLabels map[string]apiutils.Strings `yaml:"match_labels,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
@@ -871,11 +938,21 @@ type DatabaseAWS struct {
 	Region string `yaml:"region,omitempty"`
 	// Redshift contains Redshift specific settings.
 	Redshift DatabaseAWSRedshift `yaml:"redshift"`
+	// RDS contains RDS specific settings.
+	RDS DatabaseAWSRDS `yaml:"rds"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
+	ClusterID string `yaml:"cluster_id,omitempty"`
+}
+
+// DatabaseAWSRDS contains settings for RDS databases.
+type DatabaseAWSRDS struct {
+	// InstanceID is the RDS instance identifier.
+	InstanceID string `yaml:"instance_id,omitempty"`
+	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string `yaml:"cluster_id,omitempty"`
 }
 
@@ -900,6 +977,9 @@ type Apps struct {
 
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`
+
+	// Selectors defines resource monitor selectors.
+	Selectors []Selector `yaml:"selectors,omitempty"`
 }
 
 // App is the specific application that will be proxied by the application
@@ -918,10 +998,11 @@ type App struct {
 	// the application at.
 	PublicAddr string `yaml:"public_addr"`
 
-	// Labels is a map of static labels to apply to this application.
+	// StaticLabels is a map of static labels to apply to this application.
 	StaticLabels map[string]string `yaml:"labels,omitempty"`
 
-	// Commands is a list of dynamic labels to apply to this application.
+	// DynamicLabels is a list of commands that generate dynamic labels
+	// to apply to this application.
 	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
 
 	// InsecureSkipVerify is used to skip validating the servers certificate.
@@ -1205,7 +1286,38 @@ type WindowsDesktopService struct {
 	Service `yaml:",inline"`
 	// PublicAddr is a list of advertised public addresses of this service.
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
+	// LDAP is the LDAP connection parameters.
+	LDAP LDAPConfig `yaml:"ldap"`
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`
+	// HostLabels optionally applies labels to Windows hosts for RBAC.
+	// A host can match multiple rules and will get a union of all
+	// the matched labels.
+	HostLabels []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
+}
+
+// WindowsHostLabelRule describes how a set of labels should be a applied to
+// a Windows host.
+type WindowsHostLabelRule struct {
+	// Match is a regexp that is checked against the Windows host's DNS name.
+	// If the regexp matches, this rule's labels will be applied to the host.
+	Match string `yaml:"match"`
+	// Labels is the set of labels to apply to hosts that match this rule.
+	Labels map[string]string `yaml:"labels"`
+}
+
+// LDAPConfig is the LDAP connection parameters.
+//
+// TODO(awly): these credentials are very sensitive. Add support for loading
+// from a file.
+type LDAPConfig struct {
+	// Addr is the address:port of the LDAP server (typically port 389).
+	Addr string `yaml:"addr"`
+	// Domain is the ActiveDirectory domain name.
+	Domain string `yaml:"domain"`
+	// Username for LDAP authentication.
+	Username string `yaml:"username"`
+	// Password for LDAP authentication.
+	Password string `yaml:"password"`
 }

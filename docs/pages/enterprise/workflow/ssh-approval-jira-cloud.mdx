@@ -27,7 +27,7 @@ new user and role that only has API access to the `access_request` API. The belo
 will create a yaml resource file for a new user and role.
 
 ```bash
-$ cat > rscs.yaml <<EOF
+cat > rscs.yaml <<EOF
 kind: user
 metadata:
   name: access-plugin-jira
@@ -46,7 +46,7 @@ spec:
     # teleport currently refuses to issue certs for a user with 0 logins,
     # this restriction may be lifted in future versions.
     logins: ['access-plugin-jira']
-version: v3
+version: v4
 EOF
 
 # ...
@@ -55,7 +55,7 @@ $ tctl create -f rscs.yaml
 
 #### Export access-plugin Certificate
 
-Teleport Plugin use the `access-plugin-jira` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign).
+Teleport Plugin use the `access-plugin-jira` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign).
 
 ```bash
 tctl auth sign --format=tls --user=access-plugin-jira --out=auth --ttl=2190h
@@ -68,7 +68,7 @@ The above sequence should result in three PEM encoded files being generated: aut
   type="note"
   title="Certificate Lifetime"
 >
-  By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+  By default, [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 </Admonition>
 
 ## Setting up your Jira Project
@@ -129,13 +129,13 @@ location as plugins have a low memory footprint, and will require both public in
 and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/jira).
 
-```bash
+```code
 $ wget https://get.gravitational.com/teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
 $ tar -xzf teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
 $ cd teleport-access-jira/
 $ ./install
 $ which teleport-jira
-/usr/local/bin/teleport-jira
+# /usr/local/bin/teleport-jira
 ```
 
 Run `./install` in from 'teleport-jira' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
@@ -145,7 +145,7 @@ Run `./install` in from 'teleport-jira' or place the executable in the appropria
 Teleport Jira Plugin uses a config file in TOML format. Generate a boilerplate config by
 running the following command:
 
-```bash
+```code
 $ teleport-jira configure > teleport-jira.toml
 $ sudo mv teleport-jira.toml /etc
 ```
@@ -174,16 +174,16 @@ setup on the same server as the Teleport Proxy, so you can use the same TLS cert
 
 You should be able to run the Teleport plugin now!
 
-```bash
-teleport-jira start
+```code
+$ teleport-jira start
 ```
 
 The log output should look familiar to what Teleport service logs. You should see that it connected to Teleport, and is listening for new Teleport requests and Jira webhooks.
 
 Go ahead and test it:
 
-```bash
-tsh login --request-roles=admin
+```code
+$ tsh login --request-roles=admin
 ```
 
 That should create a new permission request on Teleport (you can test if it did with `tctl request ls` ), and you should see a new task on your Jira project board.
@@ -193,7 +193,7 @@ That should create a new permission request on Teleport (you can test if it did 
 In production, we recommend starting teleport plugin daemon via an init system like systemd .
 Here's the recommended Teleport Plugin service unit file for systemd:
 
-```bash
+```txt
 (!examples/systemd/plugins/teleport-jira.service!)
 ```
 

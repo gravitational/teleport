@@ -83,8 +83,14 @@ func (s *WindowsDesktopServiceV3) GetTeleportVersion() string {
 type WindowsDesktop interface {
 	// Resource provides common resource methods.
 	Resource
-	// GetAddr returns the network address of this service.
+	// GetAddr returns the network address of this host.
 	GetAddr() string
+	// GetAllLabels returns combined static and dynamic labels.
+	GetAllLabels() map[string]string
+	// LabelsString returns all labels as a string.
+	LabelsString() string
+	// GetDomain returns the ActiveDirectory domain of this host.
+	GetDomain() string
 }
 
 var _ WindowsDesktop = &WindowsDesktopV3{}
@@ -127,4 +133,20 @@ func (d *WindowsDesktopV3) CheckAndSetDefaults() error {
 // GetAddr returns the network address of this host.
 func (d *WindowsDesktopV3) GetAddr() string {
 	return d.Spec.Addr
+}
+
+// GetAllLabels returns combined static and dynamic labels.
+func (d *WindowsDesktopV3) GetAllLabels() map[string]string {
+	// TODO(zmb3): add dynamic labels when running in agent mode
+	return CombineLabels(d.Metadata.Labels, nil)
+}
+
+// LabelsString returns all desktop labels as a string.
+func (d *WindowsDesktopV3) LabelsString() string {
+	return LabelsAsString(d.Metadata.Labels, nil)
+}
+
+// GetDomain returns the Active Directory domain of this host.
+func (d *WindowsDesktopV3) GetDomain() string {
+	return d.Spec.Domain
 }

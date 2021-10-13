@@ -106,7 +106,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
 	}
 	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferSize
+		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.PollStreamPeriod == 0 {
 		cfg.PollStreamPeriod = backend.DefaultPollStreamPeriod
@@ -212,10 +212,9 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	buf := backend.NewCircularBuffer(
+		backend.BufferCapacity(cfg.BufferSize),
+	)
 	closeCtx, cancel := context.WithCancel(ctx)
 	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	b := &Backend{
@@ -672,7 +671,7 @@ func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey st
 		KeySchema:             elems,
 		ProvisionedThroughput: &pThroughput,
 	}
-	_, err := b.svc.CreateTable(&c)
+	_, err := b.svc.CreateTableWithContext(ctx, &c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -722,7 +721,7 @@ func (b *Backend) getRecords(ctx context.Context, startKey, endKey string, limit
 	if limit > 0 {
 		input.Limit = aws.Int64(int64(limit))
 	}
-	out, err := b.svc.Query(&input)
+	out, err := b.svc.QueryWithContext(ctx, &input)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -852,7 +851,7 @@ func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 		TableName:      aws.String(b.TableName),
 		ConsistentRead: aws.Bool(true),
 	}
-	out, err := b.svc.GetItem(&input)
+	out, err := b.svc.GetItemWithContext(ctx, &input)
 	if err != nil || len(out.Item) == 0 {
 		return nil, trace.NotFound("%q is not found", string(key))
 	}

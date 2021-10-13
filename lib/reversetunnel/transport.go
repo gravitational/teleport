@@ -27,10 +27,13 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
@@ -39,18 +42,58 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TunnelAuthDialer connects to the Auth Server through the reverse tunnel.
-type TunnelAuthDialer struct {
+// NewTunnelAuthDialer creates a new instance of TunnelAuthDialer
+func NewTunnelAuthDialer(config TunnelAuthDialerConfig) (*TunnelAuthDialer, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &TunnelAuthDialer{
+		TunnelAuthDialerConfig: config,
+	}, nil
+}
+
+// TunnelAuthDialerConfig specifies TunnelAuthDialer configuration.
+type TunnelAuthDialerConfig struct {
 	// ProxyAddr is the address of the proxy
 	ProxyAddr string
 	// ClientConfig is SSH tunnel client config
 	ClientConfig *ssh.ClientConfig
+	// Log is used for logging.
+	Log logrus.FieldLogger
+}
+
+func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
+	if c.ProxyAddr == "" {
+		return trace.BadParameter("missing proxy address")
+	}
+	parsedAddr, err := utils.ParseAddr(c.ProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.ProxyAddr = utils.ReplaceUnspecifiedHost(parsedAddr, defaults.HTTPListenPort)
+	return nil
+}
+
+// TunnelAuthDialer connects to the Auth Server through the reverse tunnel.
+type TunnelAuthDialer struct {
+	// TunnelAuthDialerConfig is the TunnelAuthDialer configuration.
+	TunnelAuthDialerConfig
 }
 
 // DialContext dials auth server via SSH tunnel
 func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	// Connect to the reverse tunnel server.
-	dialer := proxy.DialerFromEnvironment(t.ProxyAddr)
+	var opts []proxy.DialerOptionFunc
+
+	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
+	resp, err := webclient.Find(ctx, t.ProxyAddr, lib.IsInsecureDevMode(), nil)
+	if err != nil {
+		t.Log.WithError(err).Errorf("Failed to ping web proxy %q addr.", t.ProxyAddr)
+	} else if resp.Proxy.ALPNSNIListenerEnabled {
+		opts = append(opts, proxy.WithALPNDialer())
+	}
+
+	dialer := proxy.DialerFromEnvironment(addr, opts...)
 	sconn, err := dialer.Dial("tcp", t.ProxyAddr, t.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

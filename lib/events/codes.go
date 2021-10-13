@@ -294,6 +294,14 @@ const (
 	MFADeviceAddEventCode = "T1006I"
 	// MFADeviceDeleteEventCode is an event code for users deleting MFA devices.
 	MFADeviceDeleteEventCode = "T1007I"
+	// RecoveryCodesGenerateCode is an event code for generation of recovery codes.
+	RecoveryCodesGenerateCode = "T1008I"
+	// RecoveryCodeUseSuccessCode is an event code for when a
+	// recovery code was used successfully.
+	RecoveryCodeUseSuccessCode = "T1009I"
+	// RecoveryCodeUseFailureCode is an event code for when a
+	// recovery code was not used successfully.
+	RecoveryCodeUseFailureCode = "T1009W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"
@@ -323,6 +331,13 @@ const (
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
 
+	// AppCreateCode is the app.create event code.
+	AppCreateCode = "TAP03I"
+	// AppUpdateCode is the app.update event code.
+	AppUpdateCode = "TAP04I"
+	// AppDeleteCode is the app.delete event code.
+	AppDeleteCode = "TAP05I"
+
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
 	// AppSessionChunkCode is the application session chunk create code.
@@ -340,6 +355,13 @@ const (
 	DatabaseSessionQueryCode = "TDB02I"
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
 	DatabaseSessionQueryFailedCode = "TDB02W"
+
+	// DatabaseCreateCode is the db.create event code.
+	DatabaseCreateCode = "TDB03I"
+	// DatabaseUpdateCode is the db.update event code.
+	DatabaseUpdateCode = "TDB04I"
+	// DatabaseDeleteCode is the db.delete event code.
+	DatabaseDeleteCode = "TDB05I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -391,6 +413,10 @@ const (
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
+	// RecoveryTokenCreateCode is the recovery token create event code.
+	RecoveryTokenCreateCode = "T6001I"
+	// PrivilegeTokenCreateCode is the recovery token create event code.
+	PrivilegeTokenCreateCode = "T6001I"
 
 	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
 	TrustedClusterCreateCode = "T7000I"

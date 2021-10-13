@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/google/go-cmp/cmp"
@@ -79,7 +80,7 @@ func TestServerKeyAuth(t *testing.T) {
 					HostID:        "host-id",
 					NodeName:      con.User(),
 					ClusterName:   "host-cluster-name",
-					Roles:         types.SystemRoles{types.RoleNode},
+					Role:          types.RoleNode,
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
@@ -87,10 +88,10 @@ func TestServerKeyAuth(t *testing.T) {
 				return key
 			}(),
 			wantExtensions: map[string]string{
-				extHost:      con.User(),
-				extCertType:  extCertTypeHost,
-				extCertRole:  string(types.RoleNode),
-				extAuthority: "host-cluster-name",
+				extHost:              con.User(),
+				utils.ExtIntCertType: utils.ExtIntCertTypeHost,
+				extCertRole:          string(types.RoleNode),
+				extAuthority:         "host-cluster-name",
 			},
 			wantErr: require.NoError,
 		},
@@ -114,10 +115,10 @@ func TestServerKeyAuth(t *testing.T) {
 				return key
 			}(),
 			wantExtensions: map[string]string{
-				extHost:      con.User(),
-				extCertType:  extCertTypeUser,
-				extCertRole:  "dev",
-				extAuthority: "user-cluster-name",
+				extHost:              con.User(),
+				utils.ExtIntCertType: utils.ExtIntCertTypeUser,
+				extCertRole:          "dev",
+				extAuthority:         "user-cluster-name",
 			},
 			wantErr: require.NoError,
 		},

@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -38,7 +37,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -48,7 +46,6 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 )
 
 const (
@@ -145,6 +142,9 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 	// it will attempt to upgrade to HTTP2 and at that point there is no way
 	// to distinguish between HTTP2/JSON or GPRC.
 	tls.NextProtos = []string{teleport.HTTPNextProtoTLS}
+	// Configure ALPN SNI direct dial TLS routing information used by ALPN SNI proxy in order to
+	// dial auth service without using SSH tunnels.
+	tls = client.ConfigureALPN(tls, cfg.ALPNSNIAuthDialClusterName)
 
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed
@@ -244,33 +244,6 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		},
 	}
 	return NewClient(c, params...)
-}
-
-// EncodeClusterName encodes cluster name in the SNI hostname
-func EncodeClusterName(clusterName string) string {
-	// hex is used to hide "." that will prevent wildcard *. entry to match
-	return fmt.Sprintf("%v.%v", hex.EncodeToString([]byte(clusterName)), constants.APIDomain)
-}
-
-// DecodeClusterName decodes cluster name, returns NotFound
-// if no cluster name is encoded (empty subdomain),
-// so servers can detect cases when no server name passed
-// returns BadParameter if encoding does not match
-func DecodeClusterName(serverName string) (string, error) {
-	if serverName == constants.APIDomain {
-		return "", trace.NotFound("no cluster name is encoded")
-	}
-	const suffix = "." + constants.APIDomain
-	if !strings.HasSuffix(serverName, suffix) {
-		return "", trace.NotFound("no cluster name is encoded")
-	}
-	clusterName := strings.TrimSuffix(serverName, suffix)
-
-	decoded, err := hex.DecodeString(clusterName)
-	if err != nil {
-		return "", trace.BadParameter("failed to decode cluster name: %v", err)
-	}
-	return string(decoded), nil
 }
 
 // ClientTimeout sets idle and dial timeouts of the HTTP transport
@@ -562,7 +535,7 @@ func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
-func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
+func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -570,29 +543,8 @@ func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var keys PackedKeys
-	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &keys, nil
-}
 
-// RenewCredentials returns a new set of credentials associated
-// with the server with the same privileges
-func (c *Client) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(c.Endpoint("server", "credentials"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var keys PackedKeys
-	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &keys, nil
+	return UnmarshalLegacyCerts(out.Bytes())
 }
 
 // RegisterNewAuthServer is used to register new auth server with token
@@ -1003,24 +955,6 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 	return trace.Wrap(err)
 }
 
-// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
-func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
-	out, err := c.PostJSON(
-		c.Endpoint("u2f", "users", user, "sign"),
-		signInReq{
-			Password: string(password),
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var signRequest *MFAAuthenticateChallenge
-	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
-		return nil, err
-	}
-	return signRequest, nil
-}
-
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
 func (c *Client) ExtendWebSession(req WebSessionReq) (types.WebSession, error) {
@@ -1110,7 +1044,7 @@ func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, roles types.SystemRoles, ttl time.Duration) ([]byte, error) {
+	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
 
 	out, err := c.PostJSON(c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
@@ -1119,7 +1053,7 @@ func (c *Client) GenerateHostCert(
 			NodeName:    nodeName,
 			Principals:  principals,
 			ClusterName: clusterName,
-			Roles:       roles,
+			Roles:       types.SystemRoles{role},
 			TTL:         ttl,
 		})
 	if err != nil {
@@ -1132,28 +1066,6 @@ func (c *Client) GenerateHostCert(
 	}
 
 	return []byte(cert), nil
-}
-
-// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
-func (c *Client) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
-	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
-	if err != nil {
-		return nil, err
-	}
-	var u2fRegReq u2f.RegisterChallenge
-	if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
-		return nil, err
-	}
-	return &u2fRegReq, nil
-}
-
-// ChangePasswordWithToken changes user password with ResetPasswordToken
-func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // CreateOIDCAuthRequest creates OIDCAuthRequest
@@ -1466,7 +1378,7 @@ func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventT
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (c *Client) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, order, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -1515,36 +1427,6 @@ func (c *Client) DeleteNamespace(name string) error {
 // CreateRole not implemented: can only be called locally.
 func (c *Client) CreateRole(role types.Role) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// GetClusterConfig returns cluster level configuration information.
-func (c *Client) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	out, err := c.Get(c.Endpoint("configuration"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cc, err := services.UnmarshalClusterConfig(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cc, err
-}
-
-// SetClusterConfig sets cluster level configuration information.
-func (c *Client) SetClusterConfig(cc types.ClusterConfig) error {
-	data, err := services.MarshalClusterConfig(cc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(c.Endpoint("configuration"), &setClusterConfigReq{ClusterConfig: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 // GetClusterName returns a cluster name
@@ -1624,11 +1506,6 @@ func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()
 }
 
-// DeleteClusterConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterConfig() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // DeleteClusterName not implemented: can only be called locally.
 func (c *Client) DeleteClusterName() error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -1700,22 +1577,12 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	resp, err := c.APIClient.GetAppServers(ctx, namespace)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return resp, nil
+	return c.APIClient.GetAppServers(ctx, namespace)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
-	resp, err := c.APIClient.GetDatabaseServers(ctx, namespace)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return resp, nil
+	return c.APIClient.GetDatabaseServers(ctx, namespace)
 }
 
 // UpsertAppSession not implemented: can only be called locally.
@@ -1737,19 +1604,28 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (apieven
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
 
-// GetNetworkRestrictions retrieves the network restrictions (allow/deny lists)
-func (c *Client) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
-	return c.APIClient.GetNetworkRestrictions(ctx)
+// GetClusterAuditConfig gets cluster audit configuration.
+func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	return c.APIClient.GetClusterAuditConfig(ctx)
 }
 
-// SetNetworkRestrictions updates the network restrictions (allow/deny lists)
-func (c *Client) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
-	return c.APIClient.SetNetworkRestrictions(ctx, nr)
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	return c.APIClient.GetClusterNetworkingConfig(ctx)
 }
 
-// DeleteNetworkRestrictions deletes the network restrictions (allow/deny lists)
-func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
-	return c.APIClient.DeleteNetworkRestrictions(ctx)
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	return c.APIClient.GetSessionRecordingConfig(ctx)
+}
+
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	resp, err := c.APIClient.GenerateCertAuthorityCRL(ctx, &proto.CertAuthorityRequest{Type: caType})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.CRL, nil
 }
 
 // WebService implements features used by Web UI clients
@@ -1826,12 +1702,6 @@ type IdentityService interface {
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
-	// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
-	GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error)
-
-	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
-	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
-
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)
 
@@ -1874,7 +1744,7 @@ type IdentityService interface {
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
 	// resulting certificate.
-	GenerateHostCert(key []byte, hostID, nodeName string, principals []string, clusterName string, roles types.SystemRoles, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
 
 	// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 	// text format, signs it using User Certificate Authority signing key and
@@ -1896,14 +1766,12 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
-	// ChangePasswordWithToken changes password with token
-	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error)
+	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
+	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
+	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
 
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
-
-	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
-	RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
@@ -1911,6 +1779,39 @@ type IdentityService interface {
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
+	// AddMFADeviceSync adds a new MFA device (nonstream).
+	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
+	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
+	DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error
+	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
+	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+	CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
+
+	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
+	// This token is used as part of a URL that will be emailed to the user (not done in this request).
+	// Represents step 1 of the account recovery process.
+	StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error)
+	// VerifyAccountRecovery creates a recovery approved token after successful verification of users password or second factor
+	// (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
+	// Represents step 2 of the account recovery process after RPC StartAccountRecovery.
+	VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAccountRecoveryRequest) (types.UserToken, error)
+	// CompleteAccountRecovery sets a new password or adds a new mfa device,
+	// allowing user to regain access to their account using the new credentials.
+	// Represents the last step in the account recovery process after RPC's StartAccountRecovery and VerifyAccountRecovery.
+	CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error
+
+	// CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
+	CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error)
+	// GetAccountRecoveryToken returns a user token resource after verifying the token in
+	// request is not expired and is of the correct recovery type.
+	GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error)
+	// GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
+	GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error)
+
+	// CreatePrivilegeToken creates a privilege token for the logged in user who has successfully re-authenticated with their second factor.
+	// A privilege token allows users to perform privileged action eg: add/delete their MFA device.
+	CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
 }
 
 // ProvisioningService is a service in control
@@ -1934,7 +1835,7 @@ type ProvisioningService interface {
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
-	RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error)
+	RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs, error)
 
 	// RegisterNewAuthServer is used to register new auth server with token
 	RegisterNewAuthServer(ctx context.Context, token string) error
@@ -1953,6 +1854,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
+	services.Apps
 	services.Databases
 	services.WindowsDesktops
 	WebService
@@ -1986,9 +1888,9 @@ type ClientI interface {
 	// If the cluster has multiple TLS certs, they will all be concatenated.
 	GetClusterCACert() (*LocalCAResponse, error)
 
-	// GenerateServerKeys generates new host private keys and certificates (signed
+	// GenerateHostCerts generates new host certificates (signed
 	// by the host certificate authority) for a node
-	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
+	GenerateHostCerts(context.Context, *proto.HostCertsRequest) (*proto.Certs, error)
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successful
 	AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error)
@@ -2027,4 +1929,10 @@ type ClientI interface {
 
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
 	ResetSessionRecordingConfig(ctx context.Context) error
+
+	// GenerateWindowsDesktopCert generates client smartcard certificate used
+	// by an RDP client to authenticate with Windows.
+	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
+	// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
 }

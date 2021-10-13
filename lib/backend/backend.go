@@ -183,6 +183,14 @@ type Item struct {
 	LeaseID int64
 }
 
+func (e Event) String() string {
+	val := string(e.Item.Value)
+	if len(val) > 20 {
+		val = val[:20] + "..."
+	}
+	return fmt.Sprintf("%v %s=%s", e.Type, e.Item.Key, val)
+}
+
 // Config is used for 'storage' config section. It's a combination of
 // values for various backends: 'boltdb', 'etcd', 'filesystem' and 'dynamodb'
 type Config struct {
@@ -242,6 +250,17 @@ func RangeEnd(key []byte) []byte {
 // NextPaginationKey returns the next pagination key.
 func NextPaginationKey(r types.Resource) string {
 	return string(nextKey([]byte(r.GetName())))
+}
+
+// MaskKeyName masks the given key name.
+// e.g "123456789" -> "******789"
+func MaskKeyName(keyName string) []byte {
+	maskedBytes := []byte(keyName)
+	hiddenBefore := int(0.75 * float64(len(keyName)))
+	for i := 0; i < hiddenBefore; i++ {
+		maskedBytes[i] = '*'
+	}
+	return maskedBytes
 }
 
 // Items is a sortable list of backend items
@@ -316,7 +335,11 @@ const Separator = '/'
 // Key joins parts into path separated by Separator,
 // makes sure path always starts with Separator ("/")
 func Key(parts ...string) []byte {
-	return []byte(strings.Join(append([]string{""}, parts...), string(Separator)))
+	return internalKey("", parts...)
+}
+
+func internalKey(internalPrefix string, parts ...string) []byte {
+	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
 }
 
 // NoMigrations implements a nop Migrate method of Backend.
