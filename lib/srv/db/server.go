@@ -644,7 +644,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 		return nil, trace.Wrap(err)
 	}
 	switch sessionCtx.Database.GetProtocol() {
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return &postgres.Engine{
 			Auth:    s.cfg.Auth,
 			Audit:   audit,

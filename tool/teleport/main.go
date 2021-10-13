@@ -17,10 +17,16 @@ limitations under the License.
 package main
 
 import (
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func main() {
 	common.Run(common.Options{

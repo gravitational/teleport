@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -214,20 +214,20 @@ func TestRoleParse(t *testing.T) {
 				Version: types.V4,
 				Metadata: types.Metadata{
 					Name:      "defrole",
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 				},
 				Spec: types.RoleSpecV4{
 					Options: types.RoleOptions{
 						CertificateFormat: constants.CertificateFormatStandard,
-						MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 						PortForwarding:    types.NewBoolOption(true),
-						BPF:               defaults.EnhancedEvents(),
+						BPF:               apidefaults.EnhancedEvents(),
 					},
 					Allow: types.RoleConditions{
-						Namespaces: []string{defaults.Namespace},
+						Namespaces: []string{apidefaults.Namespace},
 					},
 					Deny: types.RoleConditions{
-						Namespaces: []string{defaults.Namespace},
+						Namespaces: []string{apidefaults.Namespace},
 					},
 				},
 			},
@@ -482,7 +482,7 @@ func TestRoleParse(t *testing.T) {
 				}
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, role, &tc.role)
+				require.Equal(t, &tc.role, role)
 
 				err := ValidateRole(role)
 				require.NoError(t, err)
@@ -596,6 +596,27 @@ func TestLabelCompatibility(t *testing.T) {
 	require.Equal(t, map[string]string{"key": "val"}, out)
 }
 
+func newRole(mut func(*types.RoleV4)) types.RoleV4 {
+	r := types.RoleV4{
+		Metadata: types.Metadata{
+			Name:      "name",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV4{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(20 * time.Hour),
+			},
+			Allow: types.RoleConditions{
+				NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+				WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Namespaces:           []string{types.Wildcard},
+			},
+		},
+	}
+	mut(&r)
+	return r
+}
+
 func TestCheckAccessToServer(t *testing.T) {
 	type check struct {
 		server    types.Server
@@ -632,25 +653,6 @@ func TestCheckAccessToServer(t *testing.T) {
 			Namespace: namespaceC,
 			Labels:    map[string]string{"role": "db01", "status": "follower01"},
 		},
-	}
-	newRole := func(mut func(*types.RoleV4)) types.RoleV4 {
-		r := types.RoleV4{
-			Metadata: types.Metadata{
-				Name:      "name",
-				Namespace: apidefaults.Namespace,
-			},
-			Spec: types.RoleSpecV4{
-				Options: types.RoleOptions{
-					MaxSessionTTL: types.Duration(20 * time.Hour),
-				},
-				Allow: types.RoleConditions{
-					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					Namespaces: []string{types.Wildcard},
-				},
-			},
-		}
-		mut(&r)
-		return r
 	}
 	testCases := []struct {
 		name      string
@@ -740,7 +742,7 @@ func TestCheckAccessToServer(t *testing.T) {
 			roles: []types.RoleV4{
 				newRole(func(r *types.RoleV4) {
 					r.Spec.Allow.Logins = []string{"admin"}
-					r.Spec.Allow.Namespaces = []string{defaults.Namespace}
+					r.Spec.Allow.Namespaces = []string{apidefaults.Namespace}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
 				}),
 				newRole(func(r *types.RoleV4) {
@@ -934,7 +936,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
 							ClusterLabels: types.Labels{"role": []string{"worker2", "worker"}},
-							Namespaces:    []string{defaults.Namespace},
+							Namespaces:    []string{apidefaults.Namespace},
 						},
 					},
 				},
@@ -1177,7 +1179,7 @@ func TestCheckRuleAccess(t *testing.T) {
 			name:  "0 - empty role set has access to nothing",
 			roles: []types.RoleV4{},
 			checks: []check{
-				{rule: types.KindUser, verb: types.ActionWrite, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindUser, verb: types.ActionWrite, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -1551,28 +1553,30 @@ func TestCheckRuleSorting(t *testing.T) {
 
 func TestApplyTraits(t *testing.T) {
 	type rule struct {
-		inLogins       []string
-		outLogins      []string
-		inRoleARNs     []string
-		outRoleARNs    []string
-		inLabels       types.Labels
-		outLabels      types.Labels
-		inKubeLabels   types.Labels
-		outKubeLabels  types.Labels
-		inKubeGroups   []string
-		outKubeGroups  []string
-		inKubeUsers    []string
-		outKubeUsers   []string
-		inAppLabels    types.Labels
-		outAppLabels   types.Labels
-		inDBLabels     types.Labels
-		outDBLabels    types.Labels
-		inDBNames      []string
-		outDBNames     []string
-		inDBUsers      []string
-		outDBUsers     []string
-		inImpersonate  types.ImpersonateConditions
-		outImpersonate types.ImpersonateConditions
+		inLogins         []string
+		outLogins        []string
+		inWindowsLogins  []string
+		outWindowsLogins []string
+		inRoleARNs       []string
+		outRoleARNs      []string
+		inLabels         types.Labels
+		outLabels        types.Labels
+		inKubeLabels     types.Labels
+		outKubeLabels    types.Labels
+		inKubeGroups     []string
+		outKubeGroups    []string
+		inKubeUsers      []string
+		outKubeUsers     []string
+		inAppLabels      types.Labels
+		outAppLabels     types.Labels
+		inDBLabels       types.Labels
+		outDBLabels      types.Labels
+		inDBNames        []string
+		outDBNames       []string
+		inDBUsers        []string
+		outDBUsers       []string
+		inImpersonate    types.ImpersonateConditions
+		outImpersonate   types.ImpersonateConditions
 	}
 	var tests = []struct {
 		comment  string
@@ -1618,6 +1622,31 @@ func TestApplyTraits(t *testing.T) {
 			deny: rule{
 				inLogins:  []string{`{{external.foo}}`},
 				outLogins: []string{"bar"},
+			},
+		},
+		{
+			comment: "windows logins substitute",
+			inTraits: map[string][]string{
+				"windows_logins": {"user"},
+				"foo":            {"bar"},
+			},
+			allow: rule{
+				inWindowsLogins:  []string{"{{internal.windows_logins}}"},
+				outWindowsLogins: []string{"user"},
+			},
+			deny: rule{
+				inWindowsLogins:  []string{"{{external.foo}}"},
+				outWindowsLogins: []string{"bar"},
+			},
+		},
+		{
+			comment: "invalid windows login",
+			inTraits: map[string][]string{
+				"windows_logins": {"test;"},
+			},
+			allow: rule{
+				inWindowsLogins:  []string{"Administrator", "{{internal.windows_logins}}"},
+				outWindowsLogins: []string{"Administrator"},
 			},
 		},
 		{
@@ -1975,30 +2004,32 @@ func TestApplyTraits(t *testing.T) {
 				},
 				Spec: types.RoleSpecV4{
 					Allow: types.RoleConditions{
-						Logins:           tt.allow.inLogins,
-						NodeLabels:       tt.allow.inLabels,
-						ClusterLabels:    tt.allow.inLabels,
-						KubernetesLabels: tt.allow.inKubeLabels,
-						KubeGroups:       tt.allow.inKubeGroups,
-						KubeUsers:        tt.allow.inKubeUsers,
-						AppLabels:        tt.allow.inAppLabels,
-						DatabaseLabels:   tt.allow.inDBLabels,
-						DatabaseNames:    tt.allow.inDBNames,
-						DatabaseUsers:    tt.allow.inDBUsers,
-						Impersonate:      &tt.allow.inImpersonate,
+						Logins:               tt.allow.inLogins,
+						WindowsDesktopLogins: tt.allow.inWindowsLogins,
+						NodeLabels:           tt.allow.inLabels,
+						ClusterLabels:        tt.allow.inLabels,
+						KubernetesLabels:     tt.allow.inKubeLabels,
+						KubeGroups:           tt.allow.inKubeGroups,
+						KubeUsers:            tt.allow.inKubeUsers,
+						AppLabels:            tt.allow.inAppLabels,
+						DatabaseLabels:       tt.allow.inDBLabels,
+						DatabaseNames:        tt.allow.inDBNames,
+						DatabaseUsers:        tt.allow.inDBUsers,
+						Impersonate:          &tt.allow.inImpersonate,
 					},
 					Deny: types.RoleConditions{
-						Logins:           tt.deny.inLogins,
-						NodeLabels:       tt.deny.inLabels,
-						ClusterLabels:    tt.deny.inLabels,
-						KubernetesLabels: tt.deny.inKubeLabels,
-						KubeGroups:       tt.deny.inKubeGroups,
-						KubeUsers:        tt.deny.inKubeUsers,
-						AppLabels:        tt.deny.inAppLabels,
-						DatabaseLabels:   tt.deny.inDBLabels,
-						DatabaseNames:    tt.deny.inDBNames,
-						DatabaseUsers:    tt.deny.inDBUsers,
-						Impersonate:      &tt.deny.inImpersonate,
+						Logins:               tt.deny.inLogins,
+						WindowsDesktopLogins: tt.deny.inWindowsLogins,
+						NodeLabels:           tt.deny.inLabels,
+						ClusterLabels:        tt.deny.inLabels,
+						KubernetesLabels:     tt.deny.inKubeLabels,
+						KubeGroups:           tt.deny.inKubeGroups,
+						KubeUsers:            tt.deny.inKubeUsers,
+						AppLabels:            tt.deny.inAppLabels,
+						DatabaseLabels:       tt.deny.inDBLabels,
+						DatabaseNames:        tt.deny.inDBNames,
+						DatabaseUsers:        tt.deny.inDBUsers,
+						Impersonate:          &tt.deny.inImpersonate,
 					},
 				},
 			}
@@ -2012,17 +2043,18 @@ func TestApplyTraits(t *testing.T) {
 				{types.Deny, &tt.deny},
 			}
 			for _, rule := range rules {
-				require.Equal(t, outRole.GetLogins(rule.condition), rule.spec.outLogins)
-				require.Equal(t, outRole.GetNodeLabels(rule.condition), rule.spec.outLabels)
-				require.Equal(t, outRole.GetClusterLabels(rule.condition), rule.spec.outLabels)
-				require.Equal(t, outRole.GetKubernetesLabels(rule.condition), rule.spec.outKubeLabels)
-				require.Equal(t, outRole.GetKubeGroups(rule.condition), rule.spec.outKubeGroups)
-				require.Equal(t, outRole.GetKubeUsers(rule.condition), rule.spec.outKubeUsers)
-				require.Equal(t, outRole.GetAppLabels(rule.condition), rule.spec.outAppLabels)
-				require.Equal(t, outRole.GetDatabaseLabels(rule.condition), rule.spec.outDBLabels)
-				require.Equal(t, outRole.GetDatabaseNames(rule.condition), rule.spec.outDBNames)
-				require.Equal(t, outRole.GetDatabaseUsers(rule.condition), rule.spec.outDBUsers)
-				require.Equal(t, outRole.GetImpersonateConditions(rule.condition), rule.spec.outImpersonate)
+				require.Equal(t, rule.spec.outLogins, outRole.GetLogins(rule.condition))
+				require.Equal(t, rule.spec.outWindowsLogins, outRole.GetWindowsLogins(rule.condition))
+				require.Equal(t, rule.spec.outLabels, outRole.GetNodeLabels(rule.condition))
+				require.Equal(t, rule.spec.outLabels, outRole.GetClusterLabels(rule.condition))
+				require.Equal(t, rule.spec.outKubeLabels, outRole.GetKubernetesLabels(rule.condition))
+				require.Equal(t, rule.spec.outKubeGroups, outRole.GetKubeGroups(rule.condition))
+				require.Equal(t, rule.spec.outKubeUsers, outRole.GetKubeUsers(rule.condition))
+				require.Equal(t, rule.spec.outAppLabels, outRole.GetAppLabels(rule.condition))
+				require.Equal(t, rule.spec.outDBLabels, outRole.GetDatabaseLabels(rule.condition))
+				require.Equal(t, rule.spec.outDBNames, outRole.GetDatabaseNames(rule.condition))
+				require.Equal(t, rule.spec.outDBUsers, outRole.GetDatabaseUsers(rule.condition))
+				require.Equal(t, rule.spec.outImpersonate, outRole.GetImpersonateConditions(rule.condition))
 			}
 		})
 	}
@@ -2214,17 +2246,17 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	})
 	require.NoError(t, err)
 	roleDevStage := &types.RoleV4{
-		Metadata: types.Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
 		Version:  types.V3,
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 				DatabaseNames:  []string{types.Wildcard},
 				DatabaseUsers:  []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
+				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseNames: []string{"supersecret"},
 			},
 		},
@@ -2387,15 +2419,15 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 	roleDevStage := &types.RoleV4{
-		Metadata: types.Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 				DatabaseUsers:  []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
+				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseUsers: []string{"superuser"},
 			},
 		},
@@ -2687,11 +2719,11 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	roleNoAccess := &types.RoleV4{
 		Metadata: types.Metadata{
 			Name:      "noaccess",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:  []string{defaults.Namespace},
+				Namespaces:  []string{apidefaults.Namespace},
 				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AWSRoleARNs: []string{},
 			},
@@ -2700,11 +2732,11 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	roleReadOnly := &types.RoleV4{
 		Metadata: types.Metadata{
 			Name:      "readonly",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:  []string{defaults.Namespace},
+				Namespaces:  []string{apidefaults.Namespace},
 				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AWSRoleARNs: []string{readOnlyARN},
 			},
@@ -2713,11 +2745,11 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	roleFullAccess := &types.RoleV4{
 		Metadata: types.Metadata{
 			Name:      "fullaccess",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:  []string{defaults.Namespace},
+				Namespaces:  []string{apidefaults.Namespace},
 				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AWSRoleARNs: []string{readOnlyARN, fullAccessARN},
 			},
@@ -2799,7 +2831,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		},
 		Spec: types.RoleSpecV4{
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
@@ -2967,6 +2999,137 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	}
 }
 
+func TestCheckAccessToWindowsDesktop(t *testing.T) {
+	desktopNoLabels := &types.WindowsDesktopV3{
+		ResourceHeader: types.ResourceHeader{
+			Kind:     types.KindWindowsDesktop,
+			Metadata: types.Metadata{Name: "no-labels"},
+		},
+	}
+	desktop2012 := &types.WindowsDesktopV3{
+		ResourceHeader: types.ResourceHeader{
+			Kind: types.KindWindowsDesktop,
+			Metadata: types.Metadata{
+				Name:   "win2012",
+				Labels: map[string]string{"win_version": "2012"},
+			},
+		},
+	}
+
+	type check struct {
+		desktop   *types.WindowsDesktopV3
+		login     string
+		hasAccess bool
+	}
+
+	for _, test := range []struct {
+		name      string
+		roles     []types.RoleV4
+		mfaParams AccessMFAParams
+		checks    []check
+	}{
+		{
+			name:  "no roles, no access",
+			roles: []types.RoleV4{},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: false},
+				{desktop: desktop2012, login: "admin", hasAccess: false},
+			},
+		},
+		{
+			name: "empty label, no access",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"role": []string{}}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: false},
+				{desktop: desktop2012, login: "admin", hasAccess: false},
+			},
+		},
+		{
+			name: "single role allows a single login",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: true},
+				{desktop: desktop2012, login: "admin", hasAccess: true},
+				{desktop: desktopNoLabels, login: "foo", hasAccess: false},
+				{desktop: desktop2012, login: "foo", hasAccess: false},
+			},
+		},
+		{
+			name: "single role with allowed labels",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"win_version": []string{"2012"}}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: false},
+				{desktop: desktop2012, login: "admin", hasAccess: true},
+			},
+		},
+		{
+			name: "single role with deny labels",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Deny.Namespaces = []string{apidefaults.Namespace}
+					r.Spec.Deny.WindowsDesktopLabels = types.Labels{"win_version": []string{"2012"}}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: true},
+				{desktop: desktop2012, login: "admin", hasAccess: false},
+			},
+		},
+		{
+			name: "one role more permissive than another",
+			roles: []types.RoleV4{
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = types.Labels{"win_version": []string{"2012"}}
+				}),
+				newRole(func(r *types.RoleV4) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"root", "admin"}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "root", hasAccess: true},
+				{desktop: desktopNoLabels, login: "admin", hasAccess: true},
+				{desktop: desktop2012, login: "root", hasAccess: true},
+				{desktop: desktop2012, login: "admin", hasAccess: true},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var set RoleSet
+			for _, r := range test.roles {
+				set = append(set, &r)
+			}
+
+			for i, check := range test.checks {
+				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
+					i, check.login, check.desktop.GetName(), check.hasAccess)
+				err := set.CheckAccess(check.desktop, test.mfaParams, NewWindowsLoginMatcher(check.login))
+				if check.hasAccess {
+					require.NoError(t, err, msg)
+				} else {
+					require.Error(t, err, msg)
+					require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+				}
+			}
+		})
+	}
+}
+
 // BenchmarkCheckAccessToServer tests how long it takes to run
 // CheckAccess for servers across 4,000 nodes for 5 roles each with 5 logins each.
 //
@@ -3008,10 +3171,9 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 		})
 	}
 
-	// Create RoleSet with five roles: one admin role and four generic roles
-	// that have five logins each and only have access to the a:b label.
+	// Create RoleSet with four generic roles that have five logins
+	// each and only have access to the a:b label.
 	var set RoleSet
-	set = append(set, NewAdminRole())
 	for i := 0; i < 4; i++ {
 		set = append(set, &types.RoleV4{
 			Kind:    types.KindRole,
@@ -3115,4 +3277,94 @@ func TestRoleSetLockingMode(t *testing.T) {
 			require.Equal(t, mode, set.LockingMode(mode))
 		}
 	})
+}
+
+func TestExtractConditionForIdentifier(t *testing.T) {
+	t.Parallel()
+	set := RoleSet{}
+	_, err := set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+
+	allowWhere := func(where string) types.Role {
+		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Allow: types.RoleConditions{
+			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
+		}})
+		require.NoError(t, err)
+		return role
+	}
+	denyWhere := func(where string) types.Role {
+		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Deny: types.RoleConditions{
+			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
+		}})
+		require.NoError(t, err)
+		return role
+	}
+
+	user, err := types.NewUser("test-user")
+	require.NoError(t, err)
+	user2, err := types.NewUser("test-user2")
+	require.NoError(t, err)
+	user2Meta := user2.GetMetadata()
+	user2Meta.Labels = map[string]string{"can-audit-guest": "yes"}
+	user2.SetMetadata(user2Meta)
+
+	// Add a role allowing access to guest session recordings if the user has a set label.
+	role := allowWhere(`contains(session.participants, "guest") && equals(user.metadata.labels["can-audit-guest"], "yes")`)
+	guestParticipantCond := &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: "guest"}}}
+	set = append(set, role)
+
+	_, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+	cond, err := set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, guestParticipantCond))
+
+	// Add a role allowing access to the user's own session recordings.
+	role = allowWhere(`contains(session.participants, user.metadata.name)`)
+	userParticipantCond := func(user types.User) *types.WhereExpr {
+		return &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: user.GetName()}}}
+	}
+	set = append(set, role)
+
+	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, userParticipantCond(emptyUser)))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, userParticipantCond(user)))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}))
+
+	// Add a role denying access to sessions with root login.
+	role = denyWhere(`equals(session.login, "root")`)
+	noRootLoginCond := &types.WhereExpr{Not: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}}}
+	set = append(set, role)
+
+	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}}}))
+
+	// Add a role denying access for user2.
+	role = denyWhere(fmt.Sprintf(`equals(user.metadata.name, "%s")`, user2.GetName()))
+	set = append(set, role)
+	fmt.Println(role)
+	fmt.Println(user.GetName())
+
+	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
 }
