@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"strings"
@@ -8,17 +9,18 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/api/cloud"
+	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport/e/api/cloud"
-	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
+	"github.com/julienschmidt/httprouter"
 )
 
 // getAccountRecoveryTokenHandle retrieves a recovery token.
@@ -125,6 +127,8 @@ type verifyAccountRecoveryRequest struct {
 	SecondFactorToken string `json:"secondFactorToken"`
 	// U2FSignResponse is u2f sign response for a u2f challenge.
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2fSignResponse"`
+	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
+	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // verifyAccountRecoveryHandle is the second step in recovery process which obtains a recovery approved token
@@ -155,6 +159,10 @@ func (p *Plugin) verifyAccountRecoveryHandle(w http.ResponseWriter, r *http.Requ
 				ClientData: req.U2FSignResponse.ClientData,
 				Signature:  req.U2FSignResponse.SignatureData,
 			}},
+		}}
+	case req.WebauthnAssertionResponse != nil:
+		protoReq.AuthnCred = &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{Webauthn: wanlib.CredentialAssertionResponseToProto(req.WebauthnAssertionResponse)},
 		}}
 	default:
 		return nil, trace.BadParameter("at least one auth credential is required")
@@ -187,6 +195,8 @@ type completeAccountRecoveryRequest struct {
 	Password string `json:"password"`
 	// U2FRegisterResponse is U2F registration challenge response.
 	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2fRegisterResponse"`
+	// WebauthnCreationResponse is the signed credential creation response.
+	WebauthnCreationResponse *wanlib.CredentialCreationResponse `json:"webauthnCreationResponse"`
 	// DeviceName is the name of the second factor device.
 	DeviceName string `json:"deviceName"`
 }
@@ -210,6 +220,12 @@ func (p *Plugin) completeAccountRecoveryHandle(w http.ResponseWriter, r *http.Re
 	case req.SecondFactorToken != "":
 		protoReq.NewAuthnCred = &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
 			Response: &proto.MFARegisterResponse_TOTP{TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken}},
+		}}
+	case req.WebauthnCreationResponse != nil:
+		protoReq.NewAuthnCred = &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wanlib.CredentialCreationResponseToProto(req.WebauthnCreationResponse),
+			},
 		}}
 	case req.U2FRegisterResponse != nil:
 		protoReq.NewAuthnCred = &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
@@ -293,4 +309,32 @@ func getIPAddress(r *http.Request) (string, error) {
 	}
 
 	return originatingIPAddr, nil
+}
+
+func (p *Plugin) getAccountRecoveryCodesMetadataHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return getAccountRecoveryCodesMetadata(r.Context(), clt)
+}
+
+func getAccountRecoveryCodesMetadata(ctx context.Context, clt accountRecoveryAPIGetter) (*ui.AccountRecoveryCodesMetadata, error) {
+	response, err := clt.GetAccountRecoveryCodes(ctx, &proto.GetAccountRecoveryCodesRequest{})
+	switch {
+	case trace.IsNotFound(err):
+		return &ui.AccountRecoveryCodesMetadata{}, nil
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	return &ui.AccountRecoveryCodesMetadata{
+		Created: &response.Spec.Created,
+	}, nil
+}
+
+type accountRecoveryAPIGetter interface {
+	// GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
+	GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error)
 }
