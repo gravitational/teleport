@@ -11,10 +11,20 @@ on:
   pull_request_target: 
     types: [assigned, opened, reopened, ready_for_review, synchronize]
 
-# Only grant read access to all resources for the Github token. 
+# Only grant read permissions to PRs and write to actions for the Github token. 
 # The default is write permissions to many resources, but it's best 
 # practice to keep the scope as small as possible. 
-permissions: read-all
+permissions:  
+    actions: write
+    pull-requests: write
+    checks: none
+    contents: none
+    deployments: none
+    issues: none
+    packages: none
+    repository-projects: none
+    security-events: none
+    statuses: none
 
 jobs: 
   check-reviews:
