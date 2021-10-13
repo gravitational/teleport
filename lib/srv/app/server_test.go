@@ -131,8 +131,8 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 
 	// Grant the user's role access to the application label "bar: baz".
-	s.role.SetAppLabels(services.Allow, types.Labels{"bar": []string{"baz"}})
-	s.role.SetAWSRoleARNs(services.Allow, []string{"readonly"})
+	s.role.SetAppLabels(types.Allow, types.Labels{"bar": []string{"baz"}})
+	s.role.SetAWSRoleARNs(types.Allow, []string{"readonly"})
 	err = s.tlsServer.Auth().UpsertRole(context.Background(), s.role)
 	require.NoError(t, err)
 

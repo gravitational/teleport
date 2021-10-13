@@ -75,7 +75,7 @@ type authorizer struct {
 	lockWatcher *services.LockWatcher
 }
 
-// AuthContext is authorization context
+// Context is authorization context
 type Context struct {
 	// User is the user name
 	User types.User
@@ -133,7 +133,9 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if lockErr := a.lockWatcher.CheckLockInForce(authContext.Checker.LockingMode(authPref.GetLockingMode()), authContext.LockTargets()...); lockErr != nil {
+	if lockErr := a.lockWatcher.CheckLockInForce(
+		authContext.Checker.LockingMode(authPref.GetLockingMode()),
+		authContext.LockTargets()...); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
 	}
 	return authContext, nil
@@ -624,7 +626,8 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			role.String(),
 			types.RoleSpecV4{
 				Allow: types.RoleConditions{
-					Namespaces: []string{types.Wildcard},
+					Namespaces:           []string{types.Wildcard},
+					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
@@ -806,7 +809,8 @@ func (r BuiltinRole) IsServer() bool {
 		r.Role == types.RoleAuth ||
 		r.Role == types.RoleApp ||
 		r.Role == types.RoleKube ||
-		r.Role == types.RoleDatabase
+		r.Role == types.RoleDatabase ||
+		r.Role == types.RoleWindowsDesktop
 }
 
 // GetServerID extracts the identity from the full name. The username

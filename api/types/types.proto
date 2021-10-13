@@ -232,6 +232,8 @@ message DatabaseV3 {
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is the database spec.
     DatabaseSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    // Status is the database runtime information.
+    DatabaseStatusV3 Status = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "status" ];
 }
 
 // DatabaseSpecV3 is the database spec.
@@ -251,19 +253,43 @@ message DatabaseSpecV3 {
     GCPCloudSQL GCP = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
 }
 
-// AWS contains AWS specific settings such as region.
+// DatabaseStatusV3 contains runtime information about the database.
+message DatabaseStatusV3 {
+    // CACert is the auto-downloaded cloud database CA certificate.
+    string CACert = 1 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
+    // AWS is the auto-discovered AWS cloud database metadata.
+    AWS AWS = 2 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws" ];
+}
+
+// AWS contains AWS metadata about the database.
 message AWS {
     // Region is a AWS cloud region.
     string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
-    // Redshift contains Redshift specific settings.
+    // Redshift contains Redshift specific metadata.
     Redshift Redshift = 2
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "redshift,omitempty" ];
+    // RDS contains RDS specific metadata.
+    RDS RDS = 3 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rds,omitempty" ];
+    // AccountID is the AWS account ID this database belongs to.
+    string AccountID = 4 [ (gogoproto.jsontag) = "account_id,omitempty" ];
 }
 
-// Redshift contains AWS Redshift specific settings.
+// Redshift contains AWS Redshift specific database metadata.
 message Redshift {
     // ClusterID is the Redshift cluster identifier.
     string ClusterID = 1 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
+}
+
+// RDS contains AWS RDS specific database metadata.
+message RDS {
+    // InstanceID is the RDS instance identifier.
+    string InstanceID = 1 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
+    // ClusterID is the RDS cluster (Aurora) identifier.
+    string ClusterID = 2 [ (gogoproto.jsontag) = "cluster_id,omitempty" ];
+    // ResourceID is the RDS instance resource identifier (db-xxx).
+    string ResourceID = 3 [ (gogoproto.jsontag) = "resource_id,omitempty" ];
+    // IAMAuth indicates whether database IAM authentication is enabled.
+    bool IAMAuth = 4 [ (gogoproto.jsontag) = "iam_auth" ];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -641,6 +667,12 @@ message ProvisionTokenV2List {
     repeated ProvisionTokenV2 ProvisionTokens = 1;
 }
 
+message TokenRule {
+    string AWSAccount = 1 [ (gogoproto.jsontag) = "aws_account,omitempty" ];
+    repeated string AWSRegions = 2 [ (gogoproto.jsontag) = "aws_regions,omitempty" ];
+    string AWSRole = 3 [ (gogoproto.jsontag) = "aws_role,omitempty" ];
+}
+
 // ProvisionTokenSpecV2 is a specification for V2 token
 message ProvisionTokenSpecV2 {
     // Roles is a list of roles associated with the token,
@@ -648,6 +680,9 @@ message ProvisionTokenSpecV2 {
     // certificates issued to the user of the token
     repeated string Roles = 1
         [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
+    repeated TokenRule allow = 2 [ (gogoproto.jsontag) = "allow,omitempty" ];
+    int64 AWSIIDTTL = 3
+        [ (gogoproto.jsontag) = "aws_iid_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -1501,6 +1536,17 @@ message RoleConditions {
 
     // AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
     repeated string AWSRoleARNs = 16 [ (gogoproto.jsontag) = "aws_role_arns,omitempty" ];
+
+    // WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
+    repeated string WindowsDesktopLogins = 17
+        [ (gogoproto.jsontag) = "windows_desktop_logins,omitempty" ];
+
+    // WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.
+    wrappers.LabelValues WindowsDesktopLabels = 18 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "windows_desktop_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
@@ -2062,6 +2108,8 @@ message RemoteClusterStatusV3 {
 }
 
 // KubernetesCluster is a named kubernetes API endpoint handled by a Server.
+//
+// TODO: deprecate and convert all usage to KubernetesClusterV3
 message KubernetesCluster {
     // Name is the name of this kubernetes cluster.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
@@ -2072,6 +2120,30 @@ message KubernetesCluster {
     // DynamicLabels is map of dynamic labels associated with this cluster.
     // Used for RBAC.
     map<string, CommandLabelV2> DynamicLabels = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
+}
+
+// KubernetesClusterV3 represents a named kubernetes API endpoint.
+message KubernetesClusterV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is the cluster resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the resource spec.
+    KubernetesClusterSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// KubernetesClusterSpecV3 is a specification for a Kubernetes cluster.
+message KubernetesClusterSpecV3 {
+    // DynamicLabels are the cluster's dynamic labels.
+    map<string, CommandLabelV2> DynamicLabels = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
 }
 
@@ -2514,6 +2586,8 @@ message WindowsDesktopV3 {
 message WindowsDesktopSpecV3 {
     // Addr is the address that this host can be reached at.
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
+    // Domain is the ActiveDirectory domain that this host belongs to.
+    string Domain = 2 [ (gogoproto.jsontag) = "domain" ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain

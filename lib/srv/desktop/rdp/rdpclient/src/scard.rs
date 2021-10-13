@@ -1,26 +1,45 @@
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use crate::piv;
 use crate::Payload;
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use iso7816::command::Command as CardCommand;
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::model::data::Message;
 use rdp::model::error::*;
 use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::{Read, Write};
+use uuid::Uuid;
 
 // Client implements the smartcard emulator, forwarded over an RDP virtual channel.
 // Spec: https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPESC/%5bMS-RDPESC%5d.pdf
 //
 // This emulator always reports a single card reader with a single active card called "Teleport".
-pub struct Client {}
+pub struct Client {
+    // contexts holds all the active contexts for the server, established using
+    // SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
+    //
+    // contexts also holds a cache and connected smartcard handles for each context.
+    contexts: Contexts,
+    uuid: Uuid,
+    cert_der: Vec<u8>,
+    key_der: Vec<u8>,
+}
 
 impl Client {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>) -> Self {
+        Self {
+            contexts: Contexts::new(),
+            uuid: Uuid::new_v4(),
+            cert_der,
+            key_der,
+        }
     }
 
-    pub fn ioctl(&self, code: u32, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
+    // ioctl handles messages coming from the RDP server over the RDPDR channel.
+    pub fn ioctl(&mut self, code: u32, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
         let code = IoctlCode::from_u32(code).ok_or_else(|| {
             invalid_data_error(&format!("invalid I/O control code value {:#010x}", code))
         })?;
@@ -47,7 +66,16 @@ impl Client {
             IoctlCode::SCARD_IOCTL_ENDTRANSACTION => self.handle_end_transaction(input),
             IoctlCode::SCARD_IOCTL_STATUSA => self.handle_status(input, StringEncoding::Ascii),
             IoctlCode::SCARD_IOCTL_STATUSW => self.handle_status(input, StringEncoding::Unicode),
+            // Transmit is where communication with the actual smartcard (and the PIV application
+            // on it) happens. All other messages are managing the smartcard reader and
+            // establishing a connection to the smartcard.
             IoctlCode::SCARD_IOCTL_TRANSMIT => self.handle_transmit(input),
+            IoctlCode::SCARD_IOCTL_GETDEVICETYPEID => self.handle_get_device_type_id(input),
+            // Note: we keep an in-memory hashmap as a cache to implement these commands. Windows
+            // doesn't seem to like a smartcard without a functioning cache.
+            IoctlCode::SCARD_IOCTL_READCACHEW => self.handle_read_cache(input),
+            IoctlCode::SCARD_IOCTL_WRITECACHEW => self.handle_write_cache(input),
+            IoctlCode::SCARD_IOCTL_GETREADERICON => self.handle_get_reader_icon(input),
             _ => {
                 warn!("unimplemented IOCTL: {:?}", code);
                 let resp = Long_Return::new(ReturnCode::SCARD_F_INTERNAL_ERROR);
@@ -71,18 +99,19 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_establish_context(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_establish_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = EstablishContext_Call::decode(input)?;
         debug!("got {:?}", req);
-        // TODO(awly): consider generating unique context IDs instead of always using 1.
-        let resp = EstablishContext_Return::new(ReturnCode::SCARD_S_SUCCESS, Context::new(1));
+        let ctx = self.contexts.establish();
+        let resp = EstablishContext_Return::new(ReturnCode::SCARD_S_SUCCESS, ctx);
         debug!("sending {:?}", resp);
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_release_context(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_release_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
+        self.contexts.release(req.context.value);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
         Ok(Some(resp.encode()?))
@@ -126,21 +155,30 @@ impl Client {
         }
     }
 
-    fn handle_connect(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_connect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
-        // TODO(awly): consider generating unique context IDs instead of always using 1.
-        let resp = Connect_Return::new(
-            ReturnCode::SCARD_S_SUCCESS,
-            Handle::new(req.common.context, 1),
-        );
+
+        let ctx = self
+            .contexts
+            .get(req.common.context.value)
+            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+        let handle = ctx.connect(req.common.context, self.uuid, &self.cert_der, &self.key_der)?;
+
+        let resp = Connect_Return::new(ReturnCode::SCARD_S_SUCCESS, handle);
         debug!("sending {:?}", resp);
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_disconnect(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_disconnect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
+
+        self.contexts
+            .get(req.handle.context.value)
+            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .disconnect(req.handle.value);
+
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
         Ok(Some(resp.encode()?))
@@ -178,21 +216,94 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_transmit(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_transmit(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = Transmit_Call::decode(input)?;
         debug!("got {:?}", req);
-        // TODO(awly): handle smartcard commands and return a real response.
-        let resp = Transmit_Return::new(ReturnCode::SCARD_S_SUCCESS, vec![]);
+
+        // Decode the card command before sending it to piv.rs.
+        // In retrospect, piv.rs should probably handle this decoding.
+        let cmd =
+            CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&req.send_buffer).or_else(|err| {
+                Err(invalid_data_error(&format!(
+                    "failed to parse smartcard command {:?}: {:?}",
+                    &req.send_buffer, err
+                )))
+            })?;
+
+        let card = self
+            .contexts
+            .get(req.handle.context.value)
+            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get(req.handle.value)
+            .ok_or_else(|| invalid_data_error("unknown handle ID"))?;
+
+        let resp = card.handle(cmd)?;
+
+        let resp = Transmit_Return::new(ReturnCode::SCARD_S_SUCCESS, resp.encode());
+        debug!("sending {:?}", resp);
+        Ok(Some(resp.encode()?))
+    }
+
+    fn handle_get_device_type_id(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+        let req = GetDeviceTypeId_Call::decode(input)?;
+        debug!("got {:?}", req);
+
+        let _ctx = self
+            .contexts
+            .get(req.context.value)
+            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+
+        let resp = GetDeviceTypeId_Return::new(ReturnCode::SCARD_S_SUCCESS);
+        debug!("sending {:?}", resp);
+        Ok(Some(resp.encode()?))
+    }
+
+    fn handle_read_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+        let req = ReadCache_Call::decode(input)?;
+        debug!("got {:?}", req);
+
+        let val = self
+            .contexts
+            .get(req.common.context.value)
+            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .cache_read(&req.lookup_name);
+
+        let resp = ReadCache_Return::new(val);
+        debug!("sending {:?}", resp);
+        Ok(Some(resp.encode()?))
+    }
+
+    fn handle_write_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+        let req = WriteCache_Call::decode(input)?;
+        debug!("got {:?}", req);
+
+        self.contexts
+            .get(req.common.context.value)
+            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .cache_write(req.lookup_name, req.common.data);
+
+        let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
+        debug!("sending {:?}", resp);
+        Ok(Some(resp.encode()?))
+    }
+
+    fn handle_get_reader_icon(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+        let req = GetReaderIcon_Call::decode(input)?;
+        debug!("got {:?}", req);
+
+        let _ctx = self
+            .contexts
+            .get(req.context.value)
+            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+
+        let resp = GetReaderIcon_Return::new(ReturnCode::SCARD_E_UNSUPPORTED_FEATURE);
         debug!("sending {:?}", resp);
         Ok(Some(resp.encode()?))
     }
 }
 
-impl Default for Client {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// TRANSMIT_DATA_LIMIT is the maximum size of transmit request/response short data, in bytes.
+const TRANSMIT_DATA_LIMIT: usize = 1024;
 
 #[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
@@ -301,6 +412,8 @@ impl RPCEStreamHeader {
     fn new() -> Self {
         Self {
             version: 1,
+            // We assume little endian for all messages, incoming and outgoing. If there's a weird
+            // Windows machine out there that sends us big endian data, decoding will just fail.
             endianness: RPCEEndianness::LittleEndian,
             common_header_length: 8,
             filler: 0xcccccccc,
@@ -322,7 +435,7 @@ impl RPCEStreamHeader {
             common_header_length: payload.read_u16::<LittleEndian>()?,
             filler: payload.read_u32::<LittleEndian>()?,
         };
-        // TODO(awly): implement big endian parsing support
+        // TODO(zmb3): implement big endian parsing support
         if let RPCEEndianness::LittleEndian = header.endianness {
             Ok(header)
         } else {
@@ -479,7 +592,7 @@ impl Long_Return {
     }
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
-        w.write_i32::<LittleEndian>(self.return_code.to_i32().unwrap())?;
+        w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         Ok(w)
     }
 }
@@ -527,7 +640,7 @@ impl EstablishContext_Return {
     }
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
-        w.write_i32::<LittleEndian>(self.return_code.to_i32().unwrap())?;
+        w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
         self.context.encode_ptr(&mut index, &mut w)?;
         self.context.encode_value(&mut w)?;
@@ -576,6 +689,8 @@ impl Context {
     }
 }
 
+// encode_ptr/decode_ptr and various encode_value/decode_value functions implement the strange NDR
+// protocol. See the big comment above with encoding notes.
 fn encode_ptr(length: u32, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
     w.write_u32::<LittleEndian>(length)?;
     w.write_u32::<LittleEndian>(0x00020000 + *index * 4)?;
@@ -667,7 +782,7 @@ impl ListReaders_Return {
     }
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
-        w.write_i32::<LittleEndian>(self.return_code.to_i32().unwrap())?;
+        w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let readers = encode_multistring_unicode(&self.readers)?;
         let mut index = 0;
         encode_ptr(readers.length() as u32, &mut index, &mut w)?;
@@ -679,10 +794,14 @@ impl ListReaders_Return {
     }
 }
 
+// Unicode multistring is a list of null-terminated UTF-16 strings. At the end, the list is
+// terminated with another null byte (so, two null bytes if you want to find the end in a binary
+// dump).
 fn decode_multistring_unicode(payload: &mut Payload) -> RdpResult<(u32, Vec<String>)> {
     let len = payload.read_u32::<LittleEndian>()?;
     let mut items = vec![];
     let mut buf = vec![];
+    // Each utf-16 character is 2 bytes. So there are len/2 characters.
     for _i in 0..(len / 2) {
         let c = payload.read_u16::<LittleEndian>()?;
         if c == 0 {
@@ -702,7 +821,8 @@ fn decode_multistring_unicode(payload: &mut Payload) -> RdpResult<(u32, Vec<Stri
 }
 
 fn decode_string_unicode(payload: &mut Payload) -> RdpResult<String> {
-    // These length/offset fields seem to be unnecessary since the strings are null-terminated.
+    // These length/offset fields seem to be unnecessary since the strings are null-terminated. But
+    // they are present in the encoded form anyway.
     let _len = payload.read_u32::<LittleEndian>()?;
     let _offset = payload.read_u32::<LittleEndian>()?;
     let _len2 = payload.read_u32::<LittleEndian>()?;
@@ -739,6 +859,7 @@ fn encode_multistring_unicode(items: &[String]) -> RdpResult<Vec<u8>> {
     Ok(buf)
 }
 
+// ASCII multistring is the same as a unicode one, except all characters are 1 byte.
 fn encode_multistring_ascii(items: &[String]) -> RdpResult<Vec<u8>> {
     let mut buf = vec![];
     for s in items.iter() {
@@ -881,9 +1002,16 @@ bitflags! {
 
 // ATR value taken from
 // http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
-// (dummy smartcard from vsmartcard project).
-const STATIC_ATR: [u8; 12] = [
-    0x3B, 0x68, 0x00, 0xFF, 0x38, 0x2B, 0x41, 0x52, 0x44, 0x6E, 0x73, 0x73,
+// (from vsmartcard project).
+//
+// The data encoded in here seems mostly unimportant, but it's used to identify specific smartcard
+// devices. Windows matches cards to specific minidriver DLLs based on the ATR value, which changes
+// how Windows interacts with the card entirely.
+//
+// This ATR will match us against the default smartcard minidriver:
+// https://docs.microsoft.com/en-us/windows-hardware/drivers/smartcard/windows-inbox-smart-card-minidriver
+const STATIC_ATR: [u8; 11] = [
+    0x3B, 0x95, 0x13, 0x81, 0x01, 0x80, 0x73, 0xFF, 0x01, 0x00, 0x0B,
 ];
 
 fn padded_atr(size: usize) -> (u32, Vec<u8>) {
@@ -903,6 +1031,8 @@ impl GetStatusChange_Return {
         let mut reader_states = vec![];
         for state in req.states {
             match state.reader.as_str() {
+                // I think PnP is Plug-and-Play. This special reader "name" is used to monitor for
+                // new readers being plugged in.
                 "\\\\?PnP?\\Notification" => {
                     reader_states.push(ReaderState_Common_Call {
                         current_state: state.common.current_state,
@@ -911,6 +1041,8 @@ impl GetStatusChange_Return {
                         atr: state.common.atr,
                     });
                 }
+                // This is our actual emulated smartcard reader. We always advertise its state as
+                // "present".
                 "Teleport" => {
                     let (atr_length, atr) = padded_atr(36);
                     reader_states.push(ReaderState_Common_Call {
@@ -921,6 +1053,7 @@ impl GetStatusChange_Return {
                         atr: atr.try_into().unwrap(),
                     });
                 }
+                // All other reader names are unknown and unexpected.
                 _ => {
                     reader_states.push(ReaderState_Common_Call {
                         current_state: state.common.current_state,
@@ -940,7 +1073,7 @@ impl GetStatusChange_Return {
     }
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
-        w.write_i32::<LittleEndian>(self.return_code.to_i32().unwrap())?;
+        w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
         encode_ptr(self.reader_states.len() as u32, &mut index, &mut w)?;
 
@@ -1041,7 +1174,7 @@ impl Connect_Return {
     }
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
-        w.write_i32::<LittleEndian>(self.return_code.to_i32().unwrap())?;
+        w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
         self.handle.encode_ptr(&mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.active_protocol.bits())?;
@@ -1054,7 +1187,7 @@ impl Connect_Return {
 struct Handle {
     context: Context,
     length: u32,
-    // Shortcut: we always create 4-byte context values.
+    // Shortcut: we always create 4-byte handle values.
     // The spec allows this field to have variable length.
     value: u32,
 }
@@ -1192,6 +1325,9 @@ impl Status_Return {
         Self {
             return_code,
             reader_names,
+            // SPECIFICMODE state means that the card is ready to handle commands in a specific
+            // mode, no other negotiation is necessary. Real smartcards would probably negotiate
+            // some mode first.
             state: State::SCARD_SPECIFICMODE,
             protocol: CardProtocol::SCARD_PROTOCOL_T1,
             atr: atr.try_into().unwrap(),
@@ -1201,7 +1337,7 @@ impl Status_Return {
     }
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
-        w.write_i32::<LittleEndian>(self.return_code.to_i32().unwrap())?;
+        w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
         let reader_names = match &self.encoding {
             StringEncoding::Unicode => encode_multistring_unicode(&self.reader_names)?,
@@ -1320,7 +1456,7 @@ impl Transmit_Return {
     }
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
-        w.write_i32::<LittleEndian>(self.return_code.to_i32().unwrap())?;
+        w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
         // There is a recv_pci (SCardIO_Request) field before recv_buffer, but it's always null in
         // our case.
@@ -1328,9 +1464,349 @@ impl Transmit_Return {
 
         let mut index = 0;
         encode_ptr(self.recv_buffer.len() as u32, &mut index, &mut w)?;
+        w.write_u32::<LittleEndian>(self.recv_buffer.len() as u32)?;
         w.extend_from_slice(&self.recv_buffer);
 
         Ok(w)
+    }
+}
+
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+struct GetDeviceTypeId_Call {
+    context: Context,
+    reader_name: String,
+}
+
+impl GetDeviceTypeId_Call {
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        let _header = RPCEStreamHeader::decode(payload)?;
+        let _header = RPCETypeHeader::decode(payload)?;
+
+        let mut index = 0;
+        let mut context = Context::decode_ptr(payload, &mut index)?;
+
+        let _reader_ptr = decode_ptr(payload, &mut index)?;
+
+        context.decode_value(payload)?;
+        let reader_name = decode_string_unicode(payload)?;
+        Ok(Self {
+            context,
+            reader_name,
+        })
+    }
+}
+
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+struct GetDeviceTypeId_Return {
+    return_code: ReturnCode,
+    device_type_id: u32,
+}
+
+impl GetDeviceTypeId_Return {
+    fn new(return_code: ReturnCode) -> Self {
+        // Reader type describes the type of the physical connection to the smartcard reader (e.g.
+        // USB/serial/TPM). Type "vendor" means a proprietary vendor bus.
+        //
+        // See "ReaderType" in
+        // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilities
+        const SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
+        Self {
+            return_code,
+            device_type_id: SCARD_READER_TYPE_VENDOR,
+        }
+    }
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
+        w.write_u32::<LittleEndian>(self.device_type_id)?;
+        Ok(w)
+    }
+}
+
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+struct ReadCache_Call {
+    lookup_name: String,
+    common: ReadCache_Common,
+}
+
+impl ReadCache_Call {
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        let _header = RPCEStreamHeader::decode(payload)?;
+        let _header = RPCETypeHeader::decode(payload)?;
+
+        let mut index = 0;
+        let _lookup_name_ptr = decode_ptr(payload, &mut index)?;
+        let mut common = ReadCache_Common::decode_ptr(payload, &mut index)?;
+
+        let lookup_name = decode_string_unicode(payload)?;
+        common.decode_value(payload)?;
+        Ok(Self {
+            lookup_name,
+            common,
+        })
+    }
+}
+
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+struct ReadCache_Common {
+    context: Context,
+    card_uuid: Vec<u8>,
+    freshness_counter: u32,
+    data_is_null: bool,
+    data_len: u32,
+}
+
+impl ReadCache_Common {
+    fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
+        let context = Context::decode_ptr(payload, index)?;
+        let _card_uuid_ptr = decode_ptr(payload, index)?;
+
+        let freshness_counter = payload.read_u32::<LittleEndian>()?;
+        let data_is_null = payload.read_i32::<LittleEndian>()? == 1;
+        let data_len = payload.read_u32::<LittleEndian>()?;
+
+        Ok(Self {
+            context,
+            card_uuid: vec![],
+            freshness_counter,
+            data_is_null,
+            data_len,
+        })
+    }
+
+    fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
+        self.context.decode_value(payload)?;
+        self.card_uuid.resize(16, 0); // 16 bytes for UUID.
+        payload.read_exact(&mut self.card_uuid)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+struct ReadCache_Return {
+    return_code: ReturnCode,
+    data: Vec<u8>,
+}
+
+impl ReadCache_Return {
+    fn new(val: Option<Vec<u8>>) -> Self {
+        match val {
+            None => Self {
+                return_code: ReturnCode::SCARD_W_CACHE_ITEM_NOT_FOUND,
+                data: vec![],
+            },
+            Some(data) => Self {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                data,
+            },
+        }
+    }
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
+
+        let mut index = 0;
+        encode_ptr(self.data.length() as u32, &mut index, &mut w)?;
+        w.write_u32::<LittleEndian>(self.data.length() as u32)?;
+        w.extend_from_slice(&self.data);
+        Ok(w)
+    }
+}
+
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+struct WriteCache_Call {
+    lookup_name: String,
+    common: WriteCache_Common,
+}
+
+impl WriteCache_Call {
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        let _header = RPCEStreamHeader::decode(payload)?;
+        let _header = RPCETypeHeader::decode(payload)?;
+
+        let mut index = 0;
+        let _lookup_name_ptr = decode_ptr(payload, &mut index)?;
+        let mut common = WriteCache_Common::decode_ptr(payload, &mut index)?;
+
+        let lookup_name = decode_string_unicode(payload)?;
+        common.decode_value(payload)?;
+        Ok(Self {
+            lookup_name,
+            common,
+        })
+    }
+}
+
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+struct WriteCache_Common {
+    context: Context,
+    card_uuid: Vec<u8>,
+    freshness_counter: u32,
+    data: Vec<u8>,
+}
+
+impl WriteCache_Common {
+    fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
+        let context = Context::decode_ptr(payload, index)?;
+        let _card_uuid_ptr = decode_ptr(payload, index)?;
+        let freshness_counter = payload.read_u32::<LittleEndian>()?;
+        let _data_len = payload.read_u32::<LittleEndian>()?;
+        let _data_ptr = decode_ptr(payload, index)?;
+
+        Ok(Self {
+            context,
+            card_uuid: vec![],
+            freshness_counter,
+            data: vec![],
+        })
+    }
+
+    fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
+        self.context.decode_value(payload)?;
+        self.card_uuid.resize(16, 0); // 16 bytes for UUID.
+        payload.read_exact(&mut self.card_uuid)?;
+
+        let data_len = payload.read_u32::<LittleEndian>()?;
+        self.data.resize(data_len as usize, 0);
+        payload.read_exact(&mut self.data)?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+struct GetReaderIcon_Call {
+    context: Context,
+    reader_name: String,
+}
+
+impl GetReaderIcon_Call {
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        let _header = RPCEStreamHeader::decode(payload)?;
+        let _header = RPCETypeHeader::decode(payload)?;
+
+        let mut index = 0;
+        let mut context = Context::decode_ptr(payload, &mut index)?;
+
+        let _reader_ptr = decode_ptr(payload, &mut index)?;
+
+        context.decode_value(payload)?;
+        let reader_name = decode_string_unicode(payload)?;
+        Ok(Self {
+            context,
+            reader_name,
+        })
+    }
+}
+
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+struct GetReaderIcon_Return {
+    return_code: ReturnCode,
+}
+
+impl GetReaderIcon_Return {
+    fn new(return_code: ReturnCode) -> Self {
+        Self { return_code }
+    }
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
+
+        // Encode empty data field, reader icon not implemented.
+        // TODO: send Teleport/Pam logo.
+        let mut index = 0;
+        encode_ptr(0, &mut index, &mut w)?;
+        w.write_u32::<LittleEndian>(0)?;
+        Ok(w)
+    }
+}
+
+#[derive(Debug)]
+struct Contexts {
+    contexts: HashMap<u32, ContextInternal>,
+    next_id: u32,
+}
+
+impl Contexts {
+    fn new() -> Self {
+        Self {
+            next_id: 1,
+            contexts: HashMap::new(),
+        }
+    }
+
+    fn establish(&mut self) -> Context {
+        let ctx_internal = ContextInternal::new();
+        let id = self.next_id;
+        self.next_id += 1;
+        let ctx = Context::new(id);
+        self.contexts.insert(id, ctx_internal);
+        ctx
+    }
+
+    fn get(&mut self, id: u32) -> Option<&mut ContextInternal> {
+        self.contexts.get_mut(&id)
+    }
+
+    fn release(&mut self, id: u32) {
+        self.contexts.remove(&id);
+    }
+}
+
+#[derive(Debug)]
+struct ContextInternal {
+    handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
+    next_id: u32,
+    cache: HashMap<String, Vec<u8>>,
+}
+
+impl ContextInternal {
+    fn new() -> Self {
+        Self {
+            next_id: 1,
+            handles: HashMap::new(),
+            cache: HashMap::new(),
+        }
+    }
+
+    fn connect(
+        &mut self,
+        ctx: Context,
+        uuid: Uuid,
+        cert_der: &[u8],
+        key_der: &[u8],
+    ) -> RdpResult<Handle> {
+        let card = piv::Card::new(uuid, cert_der, key_der)?;
+        let id = self.next_id;
+        self.next_id += 1;
+        let handle = Handle::new(ctx, id);
+        self.handles.insert(id, card);
+        Ok(handle)
+    }
+
+    fn get(&mut self, id: u32) -> Option<&mut piv::Card<TRANSMIT_DATA_LIMIT>> {
+        self.handles.get_mut(&id)
+    }
+
+    fn disconnect(&mut self, id: u32) {
+        self.handles.remove(&id);
+    }
+
+    fn cache_read(&self, key: &str) -> Option<Vec<u8>> {
+        self.cache.get(key).cloned()
+    }
+
+    fn cache_write(&mut self, key: String, val: Vec<u8>) {
+        self.cache.insert(key, val);
     }
 }
 

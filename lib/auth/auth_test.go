@@ -255,8 +255,8 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	err = s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 	// Give the role some k8s principals too.
-	role.SetKubeUsers(services.Allow, []string{user})
-	role.SetKubeGroups(services.Allow, []string{"system:masters"})
+	role.SetKubeUsers(types.Allow, []string{user})
+	role.SetKubeGroups(types.Allow, []string{"system:masters"})
 	err = s.a.UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 
