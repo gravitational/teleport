@@ -218,6 +218,7 @@ func TestConfigReading(t *testing.T) {
 	conf, err = ReadFromFile(testConfigs.configFile)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(conf, &FileConfig{
+		Version: defaults.TeleportConfigVersionV1,
 		Global: Global{
 			NodeName:    NodeName,
 			AuthServers: []string{"auth0.server.example.org:3024", "auth1.server.example.org:3024"},
@@ -749,11 +750,11 @@ func TestBackendDefaults(t *testing.T) {
 	require.Equal(t, cfg.Auth.StorageConfig.Type, lite.GetName())
 	require.Equal(t, cfg.Auth.StorageConfig.Params[defaults.BackendPath], "/var/lib/teleport/mybackend")
 
-	// Kubernetes proxy is disabled by default.
+	// Kubernetes proxy is enabled by default.
 	cfg = read(`teleport:
      data_dir: /var/lib/teleport
 `)
-	require.False(t, cfg.Proxy.Kube.Enabled)
+	require.True(t, cfg.Proxy.Kube.Enabled)
 }
 
 // TestParseKey ensures that keys are parsed correctly if they are in
@@ -1205,9 +1206,13 @@ func TestProxyKube(t *testing.T) {
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
-			desc:     "not configured",
-			cfg:      Proxy{},
-			want:     service.KubeProxyConfig{},
+			// Kubernetes proxy should be enabled by default to support case when kubernetes proxy service
+			// is multiplexed by ALPN SNI proxy on the WebPort.
+			desc: "new and legacy k8 settings not configured - k8 should be enabled by default",
+			cfg:  Proxy{},
+			want: service.KubeProxyConfig{
+				Enabled: true,
+			},
 			checkErr: require.NoError,
 		},
 		{
