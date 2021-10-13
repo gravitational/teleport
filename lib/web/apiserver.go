@@ -140,9 +140,6 @@ type Config struct {
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
 
-	// ProxySettings is a settings communicated to proxy
-	ProxySettings webclient.ProxySettings
-
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
@@ -171,7 +168,8 @@ type Config struct {
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
 
-	GetProxySettingsFunc func(ctx context.Context) (*webclient.ProxySettings, error)
+	// GetProxySettings fetches current proxy settings.
+	GetProxySettings func(ctx context.Context) (*webclient.ProxySettings, error)
 }
 
 type RewritingHandler struct {
@@ -481,7 +479,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	}
 
-	resp, err := h.cfg.GetProxySettingsFunc(cfg.Context)
+	resp, err := h.cfg.GetProxySettings(cfg.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -728,7 +726,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
-	proxyConfig, err := h.cfg.GetProxySettingsFunc(r.Context())
+	proxyConfig, err := h.cfg.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -742,7 +740,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	proxyConfig, err := h.cfg.GetProxySettingsFunc(r.Context())
+	proxyConfig, err := h.cfg.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -762,7 +760,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	proxyConfig, err := h.cfg.GetProxySettingsFunc(r.Context())
+	proxyConfig, err := h.cfg.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

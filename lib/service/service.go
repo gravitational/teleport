@@ -2796,18 +2796,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ProxyClient:          conn.Client,
 				ProxySSHAddr:         proxySSHAddr,
 				ProxyWebAddr:         cfg.Proxy.WebAddr,
-				ProxyPublicAddrs:     cfg.Proxy.PublicAddrs,
-				ProxySettings:        proxySettingsFromConfig(cfg, proxySSHAddr, accessPoint),
-				CipherSuites:         cfg.CipherSuites,
-				FIPS:                 cfg.FIPS,
-				AccessPoint:          accessPoint,
-				Emitter:              streamEmitter,
-				PluginRegistry:       process.PluginRegistry,
-				HostUUID:             process.Config.HostUUID,
-				Context:              process.ExitContext(),
-				StaticFS:             fs,
-				ClusterFeatures:      process.getClusterFeatures(),
-				GetProxySettingsFunc: proxySettingsFromConfigFunc(cfg, proxySSHAddr, accessPoint),
+				ProxyPublicAddrs: cfg.Proxy.PublicAddrs,
+				CipherSuites:     cfg.CipherSuites,
+				FIPS:             cfg.FIPS,
+				AccessPoint:      accessPoint,
+				Emitter:          streamEmitter,
+				PluginRegistry:   process.PluginRegistry,
+				HostUUID:         process.Config.HostUUID,
+				Context:          process.ExitContext(),
+				StaticFS:         fs,
+				ClusterFeatures:  process.getClusterFeatures(),
+				GetProxySettings: getProxySettingsFunc(cfg, proxySSHAddr, accessPoint),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3283,145 +3282,9 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 	return router
 }
 
-func proxySettingsFromConfigFunc(cfg *Config, proxySSHAddr utils.NetAddr, accessPoint auth.AccessPoint) func(ctx context.Context) (*webclient.ProxySettings, error) {
-	return func(ctx context.Context) (*webclient.ProxySettings, error) {
-		resp, err := accessPoint.GetClusterNetworkingConfig(context.Background())
-		if err != nil {
-			cfg.Log.WithError(err).Error("Failed to get cluster networking config.")
-		}
-
-		if cfg.Version == defaults.TeleportConfigVersionV2 {
-			multiplexAddr := cfg.Proxy.WebAddr.String()
-			proxySettings := webclient.ProxySettings{
-				ProxyListenerMode: resp.GetProxyListenerMode(),
-				Kube: webclient.KubeProxySettings{
-					Enabled: cfg.Proxy.Kube.Enabled,
-				},
-				SSH: webclient.SSHProxySettings{
-					ListenAddr:       multiplexAddr,
-					TunnelListenAddr: multiplexAddr,
-				},
-			}
-			if len(cfg.Proxy.PublicAddrs) > 0 {
-				proxySettings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
-			}
-
-			if len(cfg.Proxy.SSHPublicAddrs) > 0 {
-				proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
-			}
-			if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
-				proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
-			}
-			if cfg.Proxy.Kube.Enabled {
-				proxySettings.Kube.ListenAddr = multiplexAddr
-			}
-			if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
-				proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
-			}
-			if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
-				proxySettings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
-			}
-			if !cfg.Proxy.MySQLAddr.IsEmpty() {
-				proxySettings.DB.MySQLListenAddr = multiplexAddr
-			}
-			if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
-				proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
-			}
-
-			return &proxySettings, nil
-		}
-
-		proxySettings := webclient.ProxySettings{
-			ProxyListenerMode: resp.GetProxyListenerMode(),
-			Kube: webclient.KubeProxySettings{
-				Enabled: cfg.Proxy.Kube.Enabled,
-			},
-			SSH: webclient.SSHProxySettings{
-				ListenAddr:       proxySSHAddr.String(),
-				TunnelListenAddr: cfg.Proxy.ReverseTunnelListenAddr.String(),
-			},
-		}
-		if len(cfg.Proxy.PublicAddrs) > 0 {
-			proxySettings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
-		}
-		if len(cfg.Proxy.SSHPublicAddrs) > 0 {
-			proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
-		}
-		if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
-			proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
-		}
-		if cfg.Proxy.Kube.Enabled {
-			proxySettings.Kube.ListenAddr = getProxyKubeAddress(cfg)
-		}
-		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
-			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
-		}
-		if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
-			proxySettings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
-		}
-		if !cfg.Proxy.MySQLAddr.IsEmpty() {
-			proxySettings.DB.MySQLListenAddr = cfg.Proxy.MySQLAddr.String()
-		}
-		if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
-			proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
-		}
-
-		if !cfg.Proxy.WebAddr.IsEmpty() || !cfg.Proxy.DisableTLS {
-			if proxySettings.SSH.ListenAddr == "" {
-				proxySettings.SSH.TunnelListenAddr = cfg.Proxy.WebAddr.String()
-			}
-		}
-		return &proxySettings, nil
-	}
-}
-
-func proxySettingsFromConfig(cfg *Config, proxySSHAddr utils.NetAddr, accessPoint auth.AccessPoint) webclient.ProxySettings {
-	resp, err := accessPoint.GetClusterNetworkingConfig(context.Background())
-	if err != nil {
-		cfg.Log.WithError(err).Error("Failed to get cluster networking config.")
-	}
-	//alpnListenerEnabled := resp.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex && !cfg.Proxy.DisableALPNSNIListener
-
-	if cfg.Version == defaults.TeleportConfigVersionV2 {
-		multiplexAddr := cfg.Proxy.WebAddr.String()
-		proxySettings := webclient.ProxySettings{
-			ProxyListenerMode: resp.GetProxyListenerMode(),
-			Kube: webclient.KubeProxySettings{
-				Enabled: cfg.Proxy.Kube.Enabled,
-			},
-			SSH: webclient.SSHProxySettings{
-				ListenAddr:       multiplexAddr,
-				TunnelListenAddr: multiplexAddr,
-			},
-		}
-
-		if len(cfg.Proxy.SSHPublicAddrs) > 0 {
-			proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
-		}
-		if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
-			proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
-		}
-		if cfg.Proxy.Kube.Enabled {
-			proxySettings.Kube.ListenAddr = multiplexAddr
-		}
-		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
-			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
-		}
-		if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
-			proxySettings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
-		}
-		if !cfg.Proxy.MySQLAddr.IsEmpty() {
-			proxySettings.DB.MySQLListenAddr = multiplexAddr
-		}
-		if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
-			proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
-		}
-
-		return proxySettings
-	}
-
+func buildProxySettingsV1(cfg *Config, proxySSHAddr utils.NetAddr, proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
 	proxySettings := webclient.ProxySettings{
-		ProxyListenerMode: resp.GetProxyListenerMode(),
+		ProxyListenerMode: proxyListenerMode,
 		Kube: webclient.KubeProxySettings{
 			Enabled: cfg.Proxy.Kube.Enabled,
 		},
@@ -3460,7 +3323,63 @@ func proxySettingsFromConfig(cfg *Config, proxySSHAddr utils.NetAddr, accessPoin
 			proxySettings.SSH.TunnelListenAddr = cfg.Proxy.WebAddr.String()
 		}
 	}
-	return proxySettings
+	return &proxySettings
+}
+
+func buildProxySettingsV2(cfg *Config, proxySSHAddr utils.NetAddr, proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
+	multiplexAddr := cfg.Proxy.WebAddr.String()
+	proxySettings := webclient.ProxySettings{
+		ProxyListenerMode: proxyListenerMode,
+		Kube: webclient.KubeProxySettings{
+			Enabled: cfg.Proxy.Kube.Enabled,
+		},
+		SSH: webclient.SSHProxySettings{
+			ListenAddr:       multiplexAddr,
+			TunnelListenAddr: multiplexAddr,
+		},
+	}
+	if len(cfg.Proxy.PublicAddrs) > 0 {
+		proxySettings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
+	}
+
+	if len(cfg.Proxy.SSHPublicAddrs) > 0 {
+		proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
+	}
+	if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
+		proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
+	}
+	if cfg.Proxy.Kube.Enabled {
+		proxySettings.Kube.ListenAddr = multiplexAddr
+	}
+	if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
+		proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
+	}
+	if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
+		proxySettings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
+	}
+	if !cfg.Proxy.MySQLAddr.IsEmpty() {
+		proxySettings.DB.MySQLListenAddr = multiplexAddr
+	}
+	if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
+		proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
+	}
+	return &proxySettings
+}
+
+func getProxySettingsFunc(cfg *Config, proxySSHAddr utils.NetAddr, accessPoint auth.AccessPoint) func(ctx context.Context) (*webclient.ProxySettings, error) {
+	return func(ctx context.Context) (*webclient.ProxySettings, error) {
+		resp, err := accessPoint.GetClusterNetworkingConfig(context.Background())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		switch cfg.Version {
+		case defaults.TeleportConfigVersionV2:
+			return buildProxySettingsV2(cfg, proxySSHAddr, resp.GetProxyListenerMode()), nil
+		default:
+			return buildProxySettingsV1(cfg, proxySSHAddr, resp.GetProxyListenerMode()), nil
+		}
+	}
 }
 
 func getProxyKubeAddress(cfg *Config) string {
