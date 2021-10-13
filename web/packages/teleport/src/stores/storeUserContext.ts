@@ -90,6 +90,6 @@ export default class StoreUserContext extends Store<UserContext> {
   }
 
   getDesktopAccess() {
-    return this.state.acl.desktopServers;
+    return this.state.acl.desktops;
   }
 }

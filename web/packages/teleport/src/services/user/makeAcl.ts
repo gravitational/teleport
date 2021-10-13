@@ -33,7 +33,7 @@ export default function makeAcl(json): Acl {
   const accessRequests = json.accessRequests || defaultAccess;
   const billing = json.billing || defaultAccess;
   const dbServers = json.dbServers || defaultAccess;
-  const desktopServers = json.desktopServers || defaultAccess;
+  const desktops = json.desktops || defaultAccess;
 
   return {
     logins,
@@ -50,7 +50,7 @@ export default function makeAcl(json): Acl {
     accessRequests,
     billing,
     dbServers,
-    desktopServers,
+    desktops,
   };
 }
 
