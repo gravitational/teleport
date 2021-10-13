@@ -516,6 +516,10 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 			_, err := s.validateMFAAuthResponse(ctx, username, req.GetExistingMFAResponse(), s.Identity)
 			return err
 		}); err != nil {
+			if err.(trace.Error).GetFields()[ErrFieldKeyUserMaxedAttempts] != nil {
+				return nil, trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			}
+
 			return nil, trace.Wrap(err)
 		}
 	}
