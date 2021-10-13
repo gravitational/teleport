@@ -1083,7 +1083,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	}
 	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
 	message := fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
-		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(lockUntil))
 	log.Debug(message)
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	err = a.Identity.UpsertUser(user)
