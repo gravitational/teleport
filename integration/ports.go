@@ -21,7 +21,6 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -62,7 +61,7 @@ func singleProxyPortSetup() *InstancePorts {
 		MySQL:             v,
 		SSH:               newInstancePort(),
 		Auth:              newInstancePort(),
-		ProxyListenerMode: types.ProxyListenerMode_Multiplex,
+		isSinglePortSetup: true,
 	}
 }
 func standardPortSetup() *InstancePorts {
@@ -99,7 +98,7 @@ type InstancePorts struct {
 	ReverseTunnel *InstancePort
 	MySQL         *InstancePort
 
-	ProxyListenerMode types.ProxyListenerMode
+	isSinglePortSetup bool
 }
 
 func (i *InstancePorts) GetPortSSHInt() int           { return int(*i.SSH) }

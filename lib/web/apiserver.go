@@ -2586,14 +2586,14 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 	}
 
 	config := &client.Config{
-		Username:          sesCtx.user,
-		Agent:             agent,
-		SkipLocalAuth:     true,
-		TLS:               tlsConfig,
-		AuthMethods:       []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-		DefaultPrincipal:  cert.ValidPrincipals[0],
-		HostKeyCallback:   callback,
-		ProxyListenerMode: proxyListenerMode,
+		Username:                     sesCtx.user,
+		Agent:                        agent,
+		SkipLocalAuth:                true,
+		TLS:                          tlsConfig,
+		AuthMethods:                  []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		DefaultPrincipal:             cert.ValidPrincipals[0],
+		HostKeyCallback:              callback,
+		MultiplexListenerModeEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 	}
 
 	return config, nil

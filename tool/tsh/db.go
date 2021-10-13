@@ -305,7 +305,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		}
 	}
 	var opts []ConnectCommandFunc
-	if tc.ProxyListenerMode == types.ProxyListenerMode_Multiplex {
+	if tc.MultiplexListenerModeEnabled {
 		lp, err := startLocalALPNSNIProxy(cf, tc, database.Protocol)
 		if err != nil {
 			return trace.Wrap(err)

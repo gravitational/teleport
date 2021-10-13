@@ -726,9 +726,9 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
-	// If proxy supports ALPN SNI listener dial root/leaf cluster auth service via ALPN Proxy
+	// If proxy supports multiplex listener mode dial root/leaf cluster auth service via ALPN Proxy
 	// directly without using SSH tunnels.
-	if proxy.teleportClient.ProxyListenerMode == types.ProxyListenerMode_Multiplex {
+	if proxy.teleportClient.MultiplexListenerModeEnabled {
 		clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)

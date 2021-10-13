@@ -574,7 +574,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		},
 	}
 
-	if i.ProxyListenerMode == types.ProxyListenerMode_Multiplex {
+	if i.isSinglePortSetup {
 		tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
 		// Reset other addresses to ensure that teleport instance will expose only web port listener.
 		tconf.Proxy.ReverseTunnelListenAddr = utils.NetAddr{}
@@ -1182,19 +1182,19 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	cconf := &client.Config{
-		Username:           cfg.Login,
-		Host:               cfg.Host,
-		HostPort:           cfg.Port,
-		HostLogin:          cfg.Login,
-		InsecureSkipVerify: true,
-		KeysDir:            keyDir,
-		SiteName:           cfg.Cluster,
-		ForwardAgent:       fwdAgentMode,
-		Labels:             cfg.Labels,
-		WebProxyAddr:       webProxyAddr,
-		SSHProxyAddr:       sshProxyAddr,
-		Interactive:        cfg.Interactive,
-		ProxyListenerMode:  i.ProxyListenerMode,
+		Username:                     cfg.Login,
+		Host:                         cfg.Host,
+		HostPort:                     cfg.Port,
+		HostLogin:                    cfg.Login,
+		InsecureSkipVerify:           true,
+		KeysDir:                      keyDir,
+		SiteName:                     cfg.Cluster,
+		ForwardAgent:                 fwdAgentMode,
+		Labels:                       cfg.Labels,
+		WebProxyAddr:                 webProxyAddr,
+		SSHProxyAddr:                 sshProxyAddr,
+		Interactive:                  cfg.Interactive,
+		MultiplexListenerModeEnabled: i.isSinglePortSetup,
 	}
 
 	// JumpHost turns on jump host mode

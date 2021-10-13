@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
@@ -85,11 +84,9 @@ type Profile struct {
 	// Dir is the directory of this profile.
 	Dir string
 
-	// ProxyListenerMode is a current lister mode of the proxy.
-	// Multiplex mode indicates that proxy supports ALPN SNI server where
+	// MultiplexListenerModeEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
-	// where Separate listener mode designates that the proxy uses several listeners.
-	ProxyListenerMode types.ProxyListenerMode `yaml:"proxy_listener_mode,omitempty"`
+	MultiplexListenerModeEnabled bool `yaml:"multiplex_listener_mode_enabled,omitempty"`
 }
 
 // Name returns the name of the profile.

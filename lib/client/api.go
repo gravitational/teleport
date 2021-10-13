@@ -325,11 +325,9 @@ type Config struct {
 	// HomePath is where tsh stores profiles
 	HomePath string
 
-	// ProxyListenerMode is a current lister mode of the proxy.
-	// Multiplex mode indicates that proxy supports ALPN SNI server where
+	// MultiplexListenerModeEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
-	// where Separate listener mode designates that the proxy uses several listeners.
-	ProxyListenerMode types.ProxyListenerMode
+	MultiplexListenerModeEnabled bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -783,7 +781,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.SSHProxyAddr = cp.SSHProxyAddr
 	c.PostgresProxyAddr = cp.PostgresProxyAddr
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
-	c.ProxyListenerMode = cp.ProxyListenerMode
+	c.MultiplexListenerModeEnabled = cp.MultiplexListenerModeEnabled
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -816,7 +814,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.MySQLProxyAddr = c.MySQLProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
-	cp.ProxyListenerMode = c.ProxyListenerMode
+	cp.MultiplexListenerModeEnabled = c.MultiplexListenerModeEnabled
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
@@ -2137,7 +2135,7 @@ func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientC
 }
 
 func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	if tc.Config.ProxyListenerMode == types.ProxyListenerMode_Multiplex {
+	if tc.Config.MultiplexListenerModeEnabled {
 		return makeProxySSHClientWithTLSWrapper(tc, sshConfig)
 	}
 	client, err := ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
@@ -2656,7 +2654,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 		tc.MySQLProxyAddr = net.JoinHostPort(tc.WebProxyHost(), strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
 	}
 
-	tc.ProxyListenerMode = proxySettings.ProxyListenerMode
+	tc.MultiplexListenerModeEnabled = proxySettings.MultiplexListenerModeEnabled
 
 	return nil
 }

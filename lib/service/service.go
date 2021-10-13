@@ -3284,7 +3284,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 
 func buildProxySettingsV1(cfg *Config, proxySSHAddr utils.NetAddr, proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
 	proxySettings := webclient.ProxySettings{
-		ProxyListenerMode: proxyListenerMode,
+		MultiplexListenerModeEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 		Kube: webclient.KubeProxySettings{
 			Enabled: cfg.Proxy.Kube.Enabled,
 		},
@@ -3317,7 +3317,6 @@ func buildProxySettingsV1(cfg *Config, proxySSHAddr utils.NetAddr, proxyListener
 	if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
 		proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
 	}
-
 	if !cfg.Proxy.WebAddr.IsEmpty() || !cfg.Proxy.DisableTLS {
 		if proxySettings.SSH.ListenAddr == "" {
 			proxySettings.SSH.TunnelListenAddr = cfg.Proxy.WebAddr.String()
@@ -3329,7 +3328,7 @@ func buildProxySettingsV1(cfg *Config, proxySSHAddr utils.NetAddr, proxyListener
 func buildProxySettingsV2(cfg *Config, proxySSHAddr utils.NetAddr, proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
 	multiplexAddr := cfg.Proxy.WebAddr.String()
 	proxySettings := webclient.ProxySettings{
-		ProxyListenerMode: proxyListenerMode,
+		MultiplexListenerModeEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 		Kube: webclient.KubeProxySettings{
 			Enabled: cfg.Proxy.Kube.Enabled,
 		},
@@ -3341,7 +3340,6 @@ func buildProxySettingsV2(cfg *Config, proxySSHAddr utils.NetAddr, proxyListener
 	if len(cfg.Proxy.PublicAddrs) > 0 {
 		proxySettings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
 	}
-
 	if len(cfg.Proxy.SSHPublicAddrs) > 0 {
 		proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
 	}
