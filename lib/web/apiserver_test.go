@@ -318,6 +318,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Emitter:                         s.proxyClient,
 		StaticFS:                        fs,
 		cachedSessionLingeringThreshold: &sessionLingeringThreshold,
+		GetProxySettings: func(ctx context.Context) (*webclient.ProxySettings, error) {
+			return &webclient.ProxySettings{}, nil
+		},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	c.Assert(err, IsNil)
 
