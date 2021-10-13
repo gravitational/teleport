@@ -95,7 +95,7 @@ func constructBot(ctx context.Context, clt *github.Client, reviewers string) (*b
 		return nil, trace.Wrap(err)
 	}
 
-	bot, err := bots.New(bots.Config{Environment: env})
+	bot, err := bots.New(bots.Config{Environment: env,  GithubClient: clt})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
