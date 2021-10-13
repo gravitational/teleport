@@ -90,14 +90,6 @@ func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter,
 			Password: []byte(req.Pass),
 		}},
 	})
-	if err != nil && trace.IsAccessDenied(err) {
-		// logout in case of access denied
-		logoutErr := h.logout(w, ctx)
-		if logoutErr != nil {
-			return nil, trace.Wrap(logoutErr)
-		}
-	}
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
