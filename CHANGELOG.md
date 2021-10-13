@@ -1,8 +1,24 @@
 # Changelog
 
+## 7.3.0
+
+This release of Teleport contains a feature and a fix.
+
+* Added ability for nodes to join cluster without needing to share secret tokens on AWS. See [Node Joining in AWS](https://goteleport.com/docs/setup/guides/joining-nodes-aws/) guide for more details. [#8250](https://github.com/gravitational/teleport/pull/8250) [#7292](https://github.com/gravitational/teleport/pull/7292)
+* Fixed an issue that could cause intermittent connectivity issues for Kubernetes Access. [#8362](https://github.com/gravitational/teleport/pull/8362)
+
+## 7.2.1
+
+This release of Teleport contains bug fixes, features, and improvements.
+
+* Added network and resource utilization information to `tctl top`. [#8338](https://github.com/gravitational/teleport/pull/8338)
+* Fixed issue that prevented OIDC integration with Ping. [#8308](https://github.com/gravitational/teleport/pull/8308)
+* Added ability for agents to connect over HTTP with `--insecure` flag. [#7835](https://github.com/gravitational/teleport/pull/7835)
+* Updated CLI SSO login flow to use Javascript redirect instead of a 302 redirect to support users with high number of claims.  [#8293](https://github.com/gravitational/teleport/pull/8293)
+
 ## 7.2.0
 
-This release of Teleport contains bug fixes and multiple features.
+This release of Teleport contains bug fixes and features.
 
 * Added support for Hardware Security Modules (HSMs). [#7981](https://github.com/gravitational/teleport/pull/7981)
 * Added `tsh ssh` support for Windows. [#8306](https://github.com/gravitational/teleport/pull/8306) [#8221](https://github.com/gravitational/teleport/pull/8221) [#8295](https://github.com/gravitational/teleport/pull/8295)
