@@ -1728,7 +1728,6 @@ As an extra precaution, you might want to backup your application before upgradi
 >
   Teleport 4.0+ switched to GRPC and HTTP/2 as an API protocol. The HTTP/2 spec bans
   two previously recommended ciphers. `tls-rsa-with-aes-128-gcm-sha256` & `tls-rsa-with-aes-256-gcm-sha384`, make sure these are removed from `teleport.yaml`
-  [Visit our community for more details](https://community.gravitational.com/t/drop-ciphersuites-blacklisted-by-http-2-spec/446)
 
   If upgrading you might want to consider rotating CA to SHA-256 or SHA-512 for RSA
   SSH certificate signatures. The previous default was SHA-1, which is now considered weak against brute-force attacks. SHA-1 certificate signatures are also no longer accepted by OpenSSH versions 8.2 and above. All new Teleport clusters will default
@@ -1941,7 +1940,7 @@ Now you can see the monitoring information by visiting several endpoints:
 
 ## Getting help
 
-If you need help, please ask on our [community forum](https://community.gravitational.com/). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
+If you need help, please open an [issue on Github](https://github.com/gravitational/teleport/issues).
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
 
