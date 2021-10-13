@@ -3,7 +3,10 @@ package bot
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -220,36 +223,89 @@ func dismissMessage(pr *environment.Metadata, required []string) string {
 // pull request's reviews should be invalidated. If a commit is signed by Github and is empty
 // there is no need to invalidate commits because the branch is just being updated.
 func (c *Bot) isGithubCommit(ctx context.Context) error {
+	commit, err := c.getValidCommit(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	signature := *commit.Commit.Verification.Signature
+	payloadData := *commit.Commit.Verification.Payload
+
+	signatureFileName, err := createAndWriteTempFile(ci.Signature, signature)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer os.Remove(signatureFileName)
+
+	payloadFileName, err := createAndWriteTempFile(ci.Payload, payloadData)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer os.Remove(payloadFileName)
+
+	// GPG verification command requires the signature as the first argument
+	// Runner must have gpg (GnuPG) installed.
+	cmd := exec.Command("gpg", "--verify", signatureFileName, payloadFileName)
+	if err := cmd.Run(); err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			return trace.BadParameter("commit is not verified and/or is not signed by GitHub")
+		}
+	}
+	return c.hasFileChange(ctx)
+}
+
+// hasFileChange compares all of the files that have changes in the PR to the one at the current commit.
+// This is used for comparing files when Github makes a auto update branch commit to ensure the merge
+// didn't result in changes to the files already in the PR.
+func (c *Bot) hasFileChange(ctx context.Context) error {
 	pr := c.Environment.Metadata
-	comparison, _, err := c.Environment.Client.Repositories.CompareCommits(
-		ctx,
-		pr.RepoOwner,
-		pr.RepoName,
-		pr.BaseSHA,
-		pr.HeadSHA,
-	)
+	clt := c.Environment.Client
+	prFiles, _, err := clt.PullRequests.ListFiles(ctx, pr.RepoOwner, pr.RepoName, pr.Number, &github.ListOptions{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(comparison.Files) != 0 {
-		return trace.BadParameter("detected file change")
-	}
-	commit, _, err := c.Environment.Client.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, pr.HeadSHA)
+	headCommit, _, err := clt.Repositories.GetCommit(context.TODO(), pr.RepoOwner, pr.RepoName, pr.HeadSHA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	verification := commit.Commit.Verification
-	if verification != nil {
-		if verification.Payload != nil && verification.Verified != nil {
-			payload := *verification.Payload
-			// If commit is empty (no file changes) and the commit is signed by Github,
-			// there is no need to invalidate the commit.
-			if strings.Contains(payload, ci.GithubCommit) && *verification.Verified {
-				return nil
+	for _, headFile := range headCommit.Files {
+		for _, prFile := range prFiles {
+			if *headFile.Filename == *prFile.Filename {
+				return trace.BadParameter("detected file change")
 			}
 		}
 	}
-	return trace.BadParameter("commit is not verified and/or is not signed by GitHub")
+	return nil
+}
+
+// getValidCommit returns a valid repository commit to perform GPG signature verification on.
+// A valid commit is one that has a signature and a payload.
+func (c *Bot) getValidCommit(ctx context.Context) (*github.RepositoryCommit, error) {
+	pr := c.Environment.Metadata
+	commit, _, err := c.Environment.Client.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, pr.HeadSHA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if commit.Commit.Verification.Signature == nil || commit.Commit.Verification.Payload == nil {
+		return nil, trace.BadParameter("commit is not signed")
+	}
+	return commit, nil
+}
+
+// createAndWriteTempFile creates a temp file and write data to it.
+// This function returns the file name (string) and error.
+func createAndWriteTempFile(prefix, data string) (string, error) {
+	file, err := ioutil.TempFile(os.TempDir(), prefix)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	contents := []byte(data)
+	if _, err = file.Write(contents); err != nil {
+		return "", trace.Wrap(err)
+	}
+	if err := file.Close(); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return file.Name(), nil
 }
 
 // invalidateApprovals dismisses all approved reviews on a pull request.

@@ -62,4 +62,10 @@ const (
 
 	// Created is an event type that is triggered when a pull request review is created.
 	Created = "created"
+
+	// Signature is a prefix used for a file name
+	Signature = "signature"
+
+	// Payload is a prefix used for a file name
+	Payload = "payload"
 )
