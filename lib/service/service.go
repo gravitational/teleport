@@ -2790,12 +2790,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		webHandler, err = web.NewHandler(
 			web.Config{
-				Proxy:                tsrv,
-				AuthServers:          cfg.AuthServers[0],
-				DomainName:           cfg.Hostname,
-				ProxyClient:          conn.Client,
-				ProxySSHAddr:         proxySSHAddr,
-				ProxyWebAddr:         cfg.Proxy.WebAddr,
+				Proxy:            tsrv,
+				AuthServers:      cfg.AuthServers[0],
+				DomainName:       cfg.Hostname,
+				ProxyClient:      conn.Client,
+				ProxySSHAddr:     proxySSHAddr,
+				ProxyWebAddr:     cfg.Proxy.WebAddr,
 				ProxyPublicAddrs: cfg.Proxy.PublicAddrs,
 				CipherSuites:     cfg.CipherSuites,
 				FIPS:             cfg.FIPS,
