@@ -27,6 +27,7 @@ import (
 	"github.com/tstranex/u2f"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
@@ -374,6 +375,32 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 				require.NotEmpty(t, res.GetWebauthnChallenge())
 			}
 		})
+	}
+}
+
+func TestCreateAuthenticateChallenge_WithUserCredentials_WithLock(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
+		_, err = srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+				Username: u.username,
+				Password: []byte("invalid-password"),
+			}},
+		})
+		require.True(t, trace.IsAccessDenied(err))
+
+		// Test last attempt returns locked error.
+		if i == defaults.MaxLoginAttempts {
+			require.Equal(t, err.Error(), MaxFailedAttemptsErrMsg)
+		} else {
+			require.NotEqual(t, err.Error(), MaxFailedAttemptsErrMsg)
+		}
 	}
 }
 

@@ -79,6 +79,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
+const (
+	ErrFieldKeyUserMaxedAttempts = "maxed-attempts"
+
+	// MaxFailedAttemptsErrMsg is a user friendly error message that tells a user that they are locked.
+	// This error is defined in a variable so that the root caller can determine that the user is locked.
+	MaxFailedAttemptsErrMsg = "too many incorrect attempts, please try again later"
+)
+
 // ServerOption allows setting options as functional arguments to Server
 type ServerOption func(*Server)
 
@@ -1027,12 +1035,20 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	status := user.GetStatus()
 	if status.IsLocked {
 		if status.RecoveryAttemptLockExpires.After(a.clock.Now().UTC()) {
-			return trace.AccessDenied("%v exceeds %v failed account recovery attempts, locked until %v",
+			err := trace.AccessDenied("%v exceeds %v failed account recovery attempts, locked until %v",
 				user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
+
+			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
+
+			return err
 		}
 		if status.LockExpires.After(a.clock.Now().UTC()) {
-			return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
+			err := trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+
+			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
+
+			return err
 		}
 	}
 	fnErr := authenticateFn()
@@ -1075,7 +1091,10 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
 	}
-	return trace.AccessDenied(message)
+
+	retErr := trace.AccessDenied(message)
+	retErr.AddField(ErrFieldKeyUserMaxedAttempts, true)
+	return retErr
 }
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
@@ -1135,6 +1154,10 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if err := a.WithUserLock(username, func() error {
 			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
+			if err.(trace.Error).GetFields()[ErrFieldKeyUserMaxedAttempts] != nil {
+				return nil, trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			}
+
 			log.Error(trace.DebugReport(err))
 			return nil, trace.AccessDenied("invalid password or username")
 		}
