@@ -492,7 +492,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
-	if opts.leafConfig!= nil {
+	if opts.leafConfig != nil {
 		opts.rootConfig(lcConf)
 	}
 

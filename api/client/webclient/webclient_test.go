@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 )
 
 func newPingHandler(path string) http.Handler {
@@ -177,14 +178,14 @@ func TestTunnelAddr(t *testing.T) {
 		settings:           ProxySettings{SSH: SSHProxySettings{}},
 		expectedTunnelAddr: "proxy.example.com:3024",
 	}))
-	t.Run("should use PublicAddr and WebAddrPort if ALPNSNIListenerEnabled was enabled", testTunnelAddr(testCase{
+	t.Run("should use PublicAddr and WebAddrPort if ProxyListenerMode is multiplex", testTunnelAddr(testCase{
 		proxyAddr: "proxy.example.com:443",
 		settings: ProxySettings{
 			SSH: SSHProxySettings{
 				PublicAddr:       "public.example.com",
 				TunnelListenAddr: "[::]:5024",
 			},
-			ALPNSNIListenerEnabled: true,
+			ProxyListenerMode: types.ProxyListenerMode_Multiplex,
 		},
 		expectedTunnelAddr: "public.example.com:443",
 	}))

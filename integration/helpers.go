@@ -40,9 +40,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -574,7 +574,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		},
 	}
 
-	if i.isSinglePortSetup {
+	if i.ProxyListenerMode == types.ProxyListenerMode_Multiplex {
 		tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
 		// Reset other addresses to ensure that teleport instance will expose only web port listener.
 		tconf.Proxy.ReverseTunnelListenAddr = utils.NetAddr{}
@@ -1182,19 +1182,19 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	cconf := &client.Config{
-		Username:               cfg.Login,
-		Host:                   cfg.Host,
-		HostPort:               cfg.Port,
-		HostLogin:              cfg.Login,
-		InsecureSkipVerify:     true,
-		KeysDir:                keyDir,
-		SiteName:               cfg.Cluster,
-		ForwardAgent:           fwdAgentMode,
-		Labels:                 cfg.Labels,
-		WebProxyAddr:           webProxyAddr,
-		SSHProxyAddr:           sshProxyAddr,
-		Interactive:            cfg.Interactive,
-		ALPNSNIListenerEnabled: i.isSinglePortSetup,
+		Username:           cfg.Login,
+		Host:               cfg.Host,
+		HostPort:           cfg.Port,
+		HostLogin:          cfg.Login,
+		InsecureSkipVerify: true,
+		KeysDir:            keyDir,
+		SiteName:           cfg.Cluster,
+		ForwardAgent:       fwdAgentMode,
+		Labels:             cfg.Labels,
+		WebProxyAddr:       webProxyAddr,
+		SSHProxyAddr:       sshProxyAddr,
+		Interactive:        cfg.Interactive,
+		ProxyListenerMode:  i.ProxyListenerMode,
 	}
 
 	// JumpHost turns on jump host mode

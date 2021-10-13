@@ -174,9 +174,9 @@ type Agent struct {
 
 // ReverseTunnelDetails contains catchable details about the reverse tunnel.
 type reverseTunnelDetails struct {
-	// ALPNSNIListenerEnabled indicates that remote address listener supports ALPN SNI Listener and
+	// ProxyListenerMode indicates that remote address listener supports ALPN SNI Listener and
 	// the client needs to dial the remote proxy with proper TLS ALPN protocol.
-	ALPNSNIListenerEnabled bool
+	ProxyListenerMode types.ProxyListenerMode
 }
 
 // NewAgent returns a new reverse tunnel agent
@@ -261,13 +261,12 @@ func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
 // getReverseTunnelDetails pings the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
 // If this is Web Service port check if proxy support ALPN SNI Listener.
 func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
-	pd := reverseTunnelDetails{ALPNSNIListenerEnabled: false}
+	pd := reverseTunnelDetails{ProxyListenerMode: types.ProxyListenerMode_Separate}
 	resp, err := webclient.Find(a.ctx, a.Addr.Addr, lib.IsInsecureDevMode(), nil)
 	if err != nil {
 		a.log.WithError(err).Errorf("Failed to ping web proxy %q addr.", a.Addr.Addr)
-	}
-	if err == nil && resp.Proxy.ALPNSNIListenerEnabled {
-		pd.ALPNSNIListenerEnabled = resp.Proxy.ALPNSNIListenerEnabled
+	} else {
+		pd.ProxyListenerMode = resp.Proxy.ProxyListenerMode
 	}
 	return &pd
 }
@@ -278,8 +277,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	}
 
 	var opts []proxy.DialerOptionFunc
-	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.ALPNSNIListenerEnabled {
-		a.log.Info("--->Connecting with ALPN Dialer")
+	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.ProxyListenerMode == types.ProxyListenerMode_Multiplex {
 		opts = append(opts, proxy.WithALPNDialer())
 	}
 

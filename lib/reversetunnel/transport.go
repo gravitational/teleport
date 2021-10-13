@@ -60,7 +60,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 	resp, err := webclient.Find(ctx, t.ProxyAddr, lib.IsInsecureDevMode(), nil)
 	if err != nil {
 		t.Log.WithError(err).Errorf("Failed to ping web proxy %q addr.", t.ProxyAddr)
-	} else if resp.Proxy.ALPNSNIListenerEnabled {
+	} else if resp.Proxy.ProxyListenerMode == types.ProxyListenerMode_Multiplex {
 		opts = append(opts, proxy.WithALPNDialer())
 	}
 

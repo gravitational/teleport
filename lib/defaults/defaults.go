@@ -753,6 +753,8 @@ func Transport() (*http.Transport, error) {
 }
 
 const (
+	// TeleportConfigVersionV1 is the teleport proxy configuration v1 version.
 	TeleportConfigVersionV1 string = "v1"
-	TeleportConfigVersionV2        = "v2"
+	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
+	TeleportConfigVersionV2 string = "v2"
 )

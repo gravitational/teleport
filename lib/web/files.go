@@ -62,9 +62,9 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	ft := fileTransfer{
-		ctx:                    ctx,
-		authClient:             clt,
-		proxyHostPort:          h.ProxyHostPort(),
+		ctx:           ctx,
+		authClient:    clt,
+		proxyHostPort: h.ProxyHostPort(),
 	}
 
 	isUpload := r.Method == http.MethodPost

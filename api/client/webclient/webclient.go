@@ -32,9 +32,10 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -216,9 +217,9 @@ type ProxySettings struct {
 	SSH SSHProxySettings `json:"ssh"`
 	// DB contains database access specific proxy settings
 	DB DBProxySettings `json:"db"`
-	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
+	// ProxyListenerMode indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
-	ALPNSNIListenerEnabled bool `json:"alpn_sni_listener_enabled"`
+	ProxyListenerMode types.ProxyListenerMode `json:"proxy_listener_mode"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -348,7 +349,7 @@ func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
 		}
 	}
 
-	if settings.ALPNSNIListenerEnabled && proxyAddr != "" {
+	if settings.ProxyListenerMode == types.ProxyListenerMode_Multiplex && proxyAddr != "" {
 		if port, err := extractPort(proxyAddr); err == nil {
 			tunnelPort = port
 		}

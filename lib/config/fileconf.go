@@ -1032,7 +1032,7 @@ type Proxy struct {
 	Service `yaml:",inline"`
 	// WebAddr is a web UI listen address
 	WebAddr string `yaml:"web_listen_addr,omitempty"`
-	// TunAddr ois a reverse tunnel address
+	// TunAddr is a reverse tunnel address
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`

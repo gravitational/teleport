@@ -3289,12 +3289,11 @@ func proxySettingsFromConfigFunc(cfg *Config, proxySSHAddr utils.NetAddr, access
 		if err != nil {
 			cfg.Log.WithError(err).Error("Failed to get cluster networking config.")
 		}
-		alpnListenerEnabled := resp.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex && !cfg.Proxy.DisableALPNSNIListener
 
 		if cfg.Version == defaults.TeleportConfigVersionV2 {
 			multiplexAddr := cfg.Proxy.WebAddr.String()
 			proxySettings := webclient.ProxySettings{
-				ALPNSNIListenerEnabled: alpnListenerEnabled,
+				ProxyListenerMode: resp.GetProxyListenerMode(),
 				Kube: webclient.KubeProxySettings{
 					Enabled: cfg.Proxy.Kube.Enabled,
 				},
@@ -3333,7 +3332,7 @@ func proxySettingsFromConfigFunc(cfg *Config, proxySSHAddr utils.NetAddr, access
 		}
 
 		proxySettings := webclient.ProxySettings{
-			ALPNSNIListenerEnabled: alpnListenerEnabled,
+			ProxyListenerMode: resp.GetProxyListenerMode(),
 			Kube: webclient.KubeProxySettings{
 				Enabled: cfg.Proxy.Kube.Enabled,
 			},
@@ -3381,12 +3380,12 @@ func proxySettingsFromConfig(cfg *Config, proxySSHAddr utils.NetAddr, accessPoin
 	if err != nil {
 		cfg.Log.WithError(err).Error("Failed to get cluster networking config.")
 	}
-	alpnListenerEnabled := resp.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex && !cfg.Proxy.DisableALPNSNIListener
+	//alpnListenerEnabled := resp.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex && !cfg.Proxy.DisableALPNSNIListener
 
 	if cfg.Version == defaults.TeleportConfigVersionV2 {
 		multiplexAddr := cfg.Proxy.WebAddr.String()
 		proxySettings := webclient.ProxySettings{
-			ALPNSNIListenerEnabled: alpnListenerEnabled,
+			ProxyListenerMode: resp.GetProxyListenerMode(),
 			Kube: webclient.KubeProxySettings{
 				Enabled: cfg.Proxy.Kube.Enabled,
 			},
@@ -3422,7 +3421,7 @@ func proxySettingsFromConfig(cfg *Config, proxySSHAddr utils.NetAddr, accessPoin
 	}
 
 	proxySettings := webclient.ProxySettings{
-		ALPNSNIListenerEnabled: alpnListenerEnabled,
+		ProxyListenerMode: resp.GetProxyListenerMode(),
 		Kube: webclient.KubeProxySettings{
 			Enabled: cfg.Proxy.Kube.Enabled,
 		},
@@ -3548,7 +3547,7 @@ func (process *TeleportProcess) initApps() {
 		}
 		resp, err := accessPoint.GetClusterNetworkingConfig(context.Background())
 		if err != nil {
-			panic(err)
+			return trace.Wrap(err)
 		}
 
 		// If this process connected through the web proxy, it will discover the

@@ -2582,20 +2582,20 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 		return nil, trace.Wrap(err)
 	}
 
-	listenerMode, err := sesCtx.GetProxyListenerMode(ctx)
+	proxyListenerMode, err := sesCtx.GetProxyListenerMode(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	config := &client.Config{
-		Username:               sesCtx.user,
-		Agent:                  agent,
-		SkipLocalAuth:          true,
-		TLS:                    tlsConfig,
-		AuthMethods:            []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-		DefaultPrincipal:       cert.ValidPrincipals[0],
-		HostKeyCallback:        callback,
-		ALPNSNIListenerEnabled: listenerMode == types.ProxyListenerMode_Multiplex,
+		Username:          sesCtx.user,
+		Agent:             agent,
+		SkipLocalAuth:     true,
+		TLS:               tlsConfig,
+		AuthMethods:       []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		DefaultPrincipal:  cert.ValidPrincipals[0],
+		HostKeyCallback:   callback,
+		ProxyListenerMode: proxyListenerMode,
 	}
 
 	return config, nil

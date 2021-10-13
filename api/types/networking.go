@@ -288,7 +288,7 @@ func (p *ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) err
 		return trace.Wrap(err)
 	}
 	for k, v := range ProxyListenerMode_value {
-		if strings.ToLower(k) == strings.ToLower(stringVar) {
+		if strings.EqualFold(k, stringVar) {
 			*p = ProxyListenerMode(v)
 			return nil
 		}
