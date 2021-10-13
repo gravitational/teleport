@@ -3162,6 +3162,9 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostUUID:         proxyID,
 		Emitter:          client,
 		StaticFS:         fs,
+		GetProxySettings: func(ctx context.Context) (*webclient.ProxySettings, error) {
+			return &webclient.ProxySettings{}, nil
+		},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
