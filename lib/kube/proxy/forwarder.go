@@ -1376,15 +1376,16 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 }
 
 func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.teleportCluster.DialWithContext(context.Background(), network, addr))
+	return s.DialWithContext(context.Background(), network, addr)
 }
 
 func (s *clusterSession) DialWithContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.teleportCluster.DialWithContext(ctx, network, addr))
-}
-
-func (s *clusterSession) DialWithEndpoints(network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.dialWithEndpoints(context.Background(), network, addr))
+	if s.teleportCluster.targetAddr != "" {
+		return s.monitorConn(s.teleportCluster.DialWithContext(ctx, network, addr))
+	} else if len(s.teleportClusterEndpoints) > 0 {
+		return s.monitorConn(s.dialWithEndpoints(ctx, network, addr))
+	}
+	return nil, trace.BadParameter("no targets to dial")
 }
 
 // This is separated from DialWithEndpoints for testing without monitorConn.
@@ -1515,7 +1516,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 		return nil, trace.Wrap(err)
 	}
 
-	fwd, err := forward.New(
+	sess.forwarder, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.WebsocketDial(sess.Dial),
@@ -1525,7 +1526,6 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess.forwarder = fwd
 	return sess, nil
 }
 
@@ -1552,11 +1552,11 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []endpoin
 		return nil, trace.AccessDenied("access denied: failed to authenticate with auth server")
 	}
 
-	transport := f.newTransport(sess.DialWithEndpoints, sess.tlsConfig)
+	transport := f.newTransport(sess.Dial, sess.tlsConfig)
 	sess.forwarder, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
-		forward.WebsocketDial(sess.DialWithEndpoints),
+		forward.WebsocketDial(sess.Dial),
 		forward.Logger(f.log),
 		forward.ErrorHandler(fwdutils.ErrorHandlerFunc(f.formatForwardResponseError)),
 	)
