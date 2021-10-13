@@ -687,9 +687,12 @@ message DatabaseCertRequest {
     // CSR is the request to sign.
     bytes CSR = 1 [ (gogoproto.jsontag) = "csr" ];
     // ServerName is the SAN to include in the certificate.
-    string ServerName = 2 [ (gogoproto.jsontag) = "server_name" ];
+    // DEPRECATED: Replaced by ServerNames.
+    string ServerName = 2 [ (gogoproto.jsontag) = "server_name", deprecated = true ];
     // TTL is the certificate validity period.
     int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+    // ServerNames are SANs to include in the certificate.
+    repeated string ServerNames = 4 [ (gogoproto.jsontag) = "server_names" ];
 }
 
 // DatabaseCertResponse contains the signed certificate.
@@ -1646,9 +1649,9 @@ service AuthService {
     // ResetAuthPreference resets cluster auth preference to defaults.
     rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty);
 
-    // Out-of-session request for audit events.
+    // GetEvents gets events from the audit log.
     rpc GetEvents(GetEventsRequest) returns (Events);
-    // In-session request for audit events.
+    // GetSessionEvents gets completed session events from the audit log.
     rpc GetSessionEvents(GetSessionEventsRequest) returns (Events);
 
     // GetLock gets a lock by name.

@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -246,7 +247,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			cfg.AuthServers = append(cfg.AuthServers, *addr)
 		}
 	}
-	if _, err := cfg.ApplyToken(fc.AuthToken); err != nil {
+
+	if err := applyTokenConfig(fc, cfg); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1153,6 +1155,28 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.WindowsDesktop.LDAP = service.LDAPConfig(fc.WindowsDesktop.LDAP)
 
+	for _, rule := range fc.WindowsDesktop.HostLabels {
+		r, err := regexp.Compile(rule.Match)
+		if err != nil {
+			return trace.BadParameter("WindowsDesktopService specifies invalid regexp %q", rule.Match)
+		}
+
+		if len(rule.Labels) == 0 {
+			return trace.BadParameter("WindowsDesktopService host regex %q has no labels", rule.Match)
+		}
+
+		for k := range rule.Labels {
+			if !types.IsValidLabelKey(k) {
+				return trace.BadParameter("WindowsDesktopService specifies invalid label %q", k)
+			}
+		}
+
+		cfg.WindowsDesktop.HostLabels = append(cfg.WindowsDesktop.HostLabels, service.HostLabelRule{
+			Regexp: r,
+			Labels: rule.Labels,
+		})
+	}
+
 	return nil
 }
 
@@ -1191,7 +1215,7 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(services.Allow, allowedLogins)
+	role.SetLogins(types.Allow, allowedLogins)
 	ca.AddRole(role.GetName())
 
 	return ca, role, nil
@@ -1236,7 +1260,7 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority,
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(services.Allow, apiutils.CopyStrings(allowedLogins))
+	role.SetLogins(types.Allow, apiutils.CopyStrings(allowedLogins))
 	ca.AddRole(role.GetName())
 
 	return ca, role, nil
@@ -1760,4 +1784,24 @@ func validateRoles(roles string) error {
 // splitRoles splits in the format roles expects.
 func splitRoles(roles string) []string {
 	return strings.Split(roles, ",")
+}
+
+// applyTokenConfig applies the auth_token and join_params to the config
+func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
+	if fc.AuthToken != "" {
+		cfg.JoinMethod = service.JoinMethodToken
+		_, err := cfg.ApplyToken(fc.AuthToken)
+		return trace.Wrap(err)
+	}
+	if fc.JoinParams != (JoinParams{}) {
+		if cfg.Token != "" {
+			return trace.BadParameter("only one of auth_token or join_params should be set")
+		}
+		cfg.Token = fc.JoinParams.TokenName
+		if fc.JoinParams.Method != "ec2" {
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected "ec2"`, fc.JoinParams.Method)
+		}
+		cfg.JoinMethod = service.JoinMethodEC2
+	}
+	return nil
 }

@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -2167,6 +2168,9 @@ type RegisterUsingTokenRequest struct {
 	// RemoteAddr is the remote address of the host requesting a host certificate.
 	// It is used to replace 0.0.0.0 in the list of additional principals.
 	RemoteAddr string `json:"remote_addr"`
+	// EC2IdentityDocument is used for Simplified Node Joining to prove the
+	// identity of a joining EC2 instance.
+	EC2IdentityDocument []byte `json:"ec2_id"`
 }
 
 // CheckAndSetDefaults checks for errors and sets defaults
@@ -2194,6 +2198,13 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs
 	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
 
 	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the request uses Simplified Node Joining check that the identity is
+	// valid and matches the token allow rules.
+	err := a.CheckEC2Request(context.Background(), req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3115,9 +3126,16 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if db == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
+
+		dbRoleMatchers := role.DatabaseRoleMatchers(
+			db.GetProtocol(),
+			t.Database.Username,
+			t.Database.GetDatabase(),
+		)
 		noMFAAccessErr = checker.CheckAccess(
 			db,
 			services.AccessMFAParams{},
+			dbRoleMatchers...,
 		)
 
 	default:
@@ -3154,44 +3172,27 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var enableTOTP, enableU2F, enableWebauthn bool
-	switch apref.GetSecondFactor() {
-	case constants.SecondFactorOTP:
-		enableTOTP = true
-	case constants.SecondFactorU2F:
-		enableU2F = true
-	case constants.SecondFactorWebauthn:
-		enableWebauthn = true
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		enableTOTP, enableU2F, enableWebauthn = true, true, true
-	case constants.SecondFactorOff: // All disabled.
+	enableTOTP := apref.IsSecondFactorTOTPAllowed()
+	enableU2F := apref.IsSecondFactorU2FAllowed()
+	enableWebauthn := apref.IsSecondFactorWebauthnAllowed()
+
+	// Fetch configurations. The IsSecondFactor*Allowed calls above already
+	// include the necessary checks of config empty, disabled, etc.
+	var u2fPref *types.U2F
+	switch val, err := apref.GetU2F(); {
+	case trace.IsNotFound(err): // OK, may happen.
+	case err != nil: // NOK, unexpected.
+		return nil, trace.Wrap(err)
 	default:
-		return nil, trace.BadParameter("unexpected second_factor value: %s", apref.GetSecondFactor())
+		u2fPref = val
 	}
-
-	// Read U2F configuration regardless, Webauthn uses it.
-	u2fPref, err := apref.GetU2F()
-	if err != nil && enableU2F {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		// If U2F parameters were not set in the auth server config, disable U2F
-		// challenges.
-		enableU2F = false
-	}
-
-	webConfig, err := apref.GetWebauthn()
-	switch {
-	case err == nil:
-		enableWebauthn = enableWebauthn && !webConfig.Disabled // Apply global disable
-	case err != nil && enableWebauthn:
-		if apref.GetSecondFactor() == constants.SecondFactorWebauthn {
-			// Fail explicitly for second_factor:"webauthn".
-			return nil, trace.BadParameter("second_factor set to %s, but webauthn config not present", constants.SecondFactorWebauthn)
-		}
-		// Fail silently for other modes.
-		log.WithError(err).Warningf("WebAuthn: failed to fetch configuration, disabling WebAuthn challenges")
-		enableWebauthn = false
+	var webConfig *types.Webauthn
+	switch val, err := apref.GetWebauthn(); {
+	case trace.IsNotFound(err): // OK, may happen.
+	case err != nil: // NOK, unexpected.
+		return nil, trace.Wrap(err)
+	default:
+		webConfig = val
 	}
 
 	devs, err := a.Identity.GetMFADevices(ctx, user, true)
