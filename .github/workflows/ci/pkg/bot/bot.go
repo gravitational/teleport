@@ -203,10 +203,18 @@ func (c *Bot) deleteRun(ctx context.Context, owner, repo string, runID int64) er
 // dismissing workflow runs are not nil.
 func validatePullRequestFields(pr *github.PullRequest) error {
 	switch {
+	case pr.Base == nil:
+		return trace.BadParameter("missing base branch")
+	case pr.Base.User == nil:
+		return trace.BadParameter("missing base branch user")
 	case pr.Base.User.Login == nil:
 		return trace.BadParameter("missing repository owner")
+	case pr.Base.Repo == nil:
+		return trace.BadParameter("missing base repository")
 	case pr.Base.Repo.Name == nil:
 		return trace.BadParameter("missing repository name")
+	case pr.Head == nil:
+		return trace.BadParameter("missing head branch")
 	case pr.Head.Ref == nil:
 		return trace.BadParameter("missing branch name")
 	}
