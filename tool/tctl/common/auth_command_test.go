@@ -376,8 +376,13 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		name           string
 		inFormat       identityfile.Format
 		inHost         string
+		inOutDir       string
+		inOutFile      string
 		outSubject     pkix.Name
 		outServerNames []string
+		outKeyFile     string
+		outCertFile    string
+		outCAFile      string
 		outKey         []byte
 		outCert        []byte
 		outCA          []byte
@@ -386,8 +391,13 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			name:           "database certificate",
 			inFormat:       identityfile.FormatDatabase,
 			inHost:         "postgres.example.com",
+			inOutDir:       t.TempDir(),
+			inOutFile:      "db",
 			outSubject:     pkix.Name{CommonName: "postgres.example.com"},
 			outServerNames: []string{"postgres.example.com"},
+			outKeyFile:     "db.key",
+			outCertFile:    "db.crt",
+			outCAFile:      "db.cas",
 			outKey:         key.Priv,
 			outCert:        certBytes,
 			outCA:          caBytes,
@@ -396,8 +406,13 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			name:           "database certificate multiple SANs",
 			inFormat:       identityfile.FormatDatabase,
 			inHost:         "mysql.external.net,mysql.internal.net,192.168.1.1",
+			inOutDir:       t.TempDir(),
+			inOutFile:      "db",
 			outSubject:     pkix.Name{CommonName: "mysql.external.net"},
 			outServerNames: []string{"mysql.external.net", "mysql.internal.net", "192.168.1.1"},
+			outKeyFile:     "db.key",
+			outCertFile:    "db.crt",
+			outCAFile:      "db.cas",
 			outKey:         key.Priv,
 			outCert:        certBytes,
 			outCA:          caBytes,
@@ -406,9 +421,27 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			name:           "mongodb certificate",
 			inFormat:       identityfile.FormatMongo,
 			inHost:         "mongo.example.com",
+			inOutDir:       t.TempDir(),
+			inOutFile:      "mongo",
 			outSubject:     pkix.Name{CommonName: "mongo.example.com", Organization: []string{"example.com"}},
 			outServerNames: []string{"mongo.example.com"},
+			outCertFile:    "mongo.crt",
+			outCAFile:      "mongo.cas",
 			outCert:        append(certBytes, key.Priv...),
+			outCA:          caBytes,
+		},
+		{
+			name:           "cockroachdb certificate",
+			inFormat:       identityfile.FormatCockroach,
+			inHost:         "localhost,roach1",
+			inOutDir:       t.TempDir(),
+			outSubject:     pkix.Name{CommonName: "node"},
+			outServerNames: []string{"node", "localhost", "roach1"}, // "node" principal should always be added
+			outKeyFile:     "node.key",
+			outCertFile:    "node.crt",
+			outCAFile:      "ca.crt",
+			outKey:         key.Priv,
+			outCert:        certBytes,
 			outCA:          caBytes,
 		},
 	}
@@ -416,7 +449,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ac := AuthCommand{
-				output:        filepath.Join(t.TempDir(), "db"),
+				output:        filepath.Join(test.inOutDir, test.inOutFile),
 				outputFormat:  test.inFormat,
 				signOverwrite: true,
 				genHost:       test.inHost,
@@ -434,19 +467,19 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			require.Equal(t, test.outServerNames[0], authClient.dbCertsReq.ServerName)
 
 			if len(test.outKey) > 0 {
-				keyBytes, err := ioutil.ReadFile(ac.output + ".key")
+				keyBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outKeyFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outKey, keyBytes, "keys match")
 			}
 
 			if len(test.outCert) > 0 {
-				certBytes, err := ioutil.ReadFile(ac.output + ".crt")
+				certBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outCertFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outCert, certBytes, "certificates match")
 			}
 
 			if len(test.outCA) > 0 {
-				caBytes, err := ioutil.ReadFile(ac.output + ".cas")
+				caBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outCAFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outCA, caBytes, "CA certificates match")
 			}

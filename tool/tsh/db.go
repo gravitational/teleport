@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -227,7 +228,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	var host string
 	var port int
 	switch database.Protocol {
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		host, port = tc.PostgresProxyHostPort()
 	case defaults.ProtocolMySQL:
 		host, port = tc.MySQLProxyHostPort()
@@ -265,7 +266,7 @@ func startLocalALPNSNIProxy(cf *CLIConf, tc *client.TeleportClient, databaseProt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lp, err := mkLocalProxy(cf.Context, tc.WebProxyAddr, databaseProtocol, listener)
+	lp, err := mkLocalProxy(cf, tc.WebProxyAddr, databaseProtocol, listener)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -324,6 +325,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	log.Debug(cmd.String())
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -449,6 +451,14 @@ func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 	}
 	for _, db := range profile.Databases {
 		if db.ServiceName == name {
+			// If database user or name were provided on the CLI,
+			// override the default ones.
+			if cf.DatabaseUser != "" {
+				db.Username = cf.DatabaseUser
+			}
+			if cf.DatabaseName != "" {
+				db.Database = cf.DatabaseName
+			}
 			return &db, nil
 		}
 	}
@@ -477,46 +487,54 @@ func getConnectCommand(cf *CLIConf, tc *client.TeleportClient, profile *client.P
 		opt(&options)
 	}
 
+	// In TLS routing mode a local proxy is started on demand so connect to it.
+	host, port := tc.DatabaseProxyHostPort(*db)
+	if options.localProxyPort != 0 && options.localProxyHost != "" {
+		host = options.localProxyHost
+		port = options.localProxyPort
+	}
+
 	switch db.Protocol {
 	case defaults.ProtocolPostgres:
-		return getPostgresCommand(db, profile.Cluster, cf.DatabaseUser, cf.DatabaseName, options), nil
+		return getPostgresCommand(tc, profile, db, host, port, options), nil
+
+	case defaults.ProtocolCockroachDB:
+		return getCockroachCommand(tc, profile, db, host, port, options), nil
+
 	case defaults.ProtocolMySQL:
-		return getMySQLCommand(db, profile.Cluster, cf.DatabaseUser, cf.DatabaseName, options), nil
+		return getMySQLCommand(profile, db, options), nil
+
 	case defaults.ProtocolMongoDB:
-		host, port := tc.WebProxyHostPort()
-		if options.localProxyPort != 0 && options.localProxyHost != "" {
-			host = options.localProxyHost
-			port = options.localProxyPort
-		}
-		return getMongoCommand(host, port, profile.DatabaseCertPath(db.ServiceName), options.caPath, cf.DatabaseName), nil
+		return getMongoCommand(profile, db, host, port, options), nil
 	}
+
 	return nil, trace.BadParameter("unsupported database protocol: %v", db)
 }
 
-func getPostgresCommand(db *tlsca.RouteToDatabase, cluster, user, name string, options connectionCommandOpts) *exec.Cmd {
-	connString := []string{fmt.Sprintf("service=%v-%v", cluster, db.ServiceName)}
-	if user != "" {
-		connString = append(connString, fmt.Sprintf("user=%v", user))
-	}
-	if name != "" {
-		connString = append(connString, fmt.Sprintf("dbname=%v", name))
-	}
-	if options.localProxyPort != 0 {
-		connString = append(connString, fmt.Sprintf("port=%v", options.localProxyPort))
-	}
-	if options.localProxyHost != "" {
-		connString = append(connString, fmt.Sprintf("host=%v", options.localProxyHost))
-	}
-	return exec.Command(postgresBin, strings.Join(connString, " "))
+func getPostgresCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
+	return exec.Command(postgresBin,
+		postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
 }
 
-func getMySQLCommand(db *tlsca.RouteToDatabase, cluster, user, name string, options connectionCommandOpts) *exec.Cmd {
-	args := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", cluster, db.ServiceName)}
-	if user != "" {
-		args = append(args, "--user", user)
+func getCockroachCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
+	// If cockroach CLI client is not available, fallback to psql.
+	if _, err := exec.LookPath(cockroachBin); err != nil {
+		log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
+			cockroachBin, postgresBin, err)
+		return exec.Command(postgresBin,
+			postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
 	}
-	if name != "" {
-		args = append(args, "--database", name)
+	return exec.Command(cockroachBin, "sql", "--url",
+		postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
+}
+
+func getMySQLCommand(profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
+	args := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", profile.Cluster, db.ServiceName)}
+	if db.Username != "" {
+		args = append(args, "--user", db.Username)
+	}
+	if db.Database != "" {
+		args = append(args, "--database", db.Database)
 	}
 
 	if options.localProxyPort != 0 {
@@ -532,21 +550,21 @@ func getMySQLCommand(db *tlsca.RouteToDatabase, cluster, user, name string, opti
 	return exec.Command(mysqlBin, args...)
 }
 
-func getMongoCommand(host string, port int, certPath, caPath, name string) *exec.Cmd {
+func getMongoCommand(profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
 	args := []string{
 		"--host", host,
 		"--port", strconv.Itoa(port),
 		"--ssl",
-		"--sslPEMKeyFile", certPath,
+		"--sslPEMKeyFile", profile.DatabaseCertPath(db.ServiceName),
 	}
 
-	if caPath != "" {
+	if options.caPath != "" {
 		// caPath is set only if mongo connects to the Teleport Proxy via ALPN SNI Local Proxy
 		// and connection is terminated by proxy identity certificate.
-		args = append(args, []string{"--sslCAFile", caPath}...)
+		args = append(args, []string{"--sslCAFile", options.caPath}...)
 	}
-	if name != "" {
-		args = append(args, name)
+	if db.Database != "" {
+		args = append(args, db.Database)
 	}
 	return exec.Command(mongoBin, args...)
 }
@@ -561,6 +579,8 @@ const (
 const (
 	// postgresBin is the Postgres client binary name.
 	postgresBin = "psql"
+	// cockroachBin is the Cockroach client binary name.
+	cockroachBin = "cockroach"
 	// mysqlBin is the MySQL client binary name.
 	mysqlBin = "mysql"
 	// mongoBin is the Mongo client binary name.

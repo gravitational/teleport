@@ -293,7 +293,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// create the default role
-	err = srv.AuthServer.UpsertRole(ctx, services.NewAdminRole())
+	err = srv.AuthServer.UpsertRole(ctx, services.NewImplicitRole())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

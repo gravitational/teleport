@@ -12,9 +12,21 @@ This guide works for Open Source and Enterprise, self-hosted or cloud-hosted edi
 - Installed and running Teleport cluster, self-hosted or cloud-hosted.
 - Tool `jq` to process `JSON` output.
 
+
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
 (!docs/pages/includes/tctl.mdx!)
+
+<Admonition type="notice" title="Enable Kubernetes for Self-Hosted">
+For self-hosted Teleport instances the `kube_listen_addr` setting in the `proxy_service` is required to enable Kubernetes Access.  This is already enabled for Cloud and the Teleport `teleport-cluster` helm chart.
+```yaml
+proxy_service:
+  # ...
+  public_addr: proxy.example.com:3080
+
+  kube_listen_addr: 0.0.0.0:3026  
+  ```  
+</Admonition>
 
 ## Deployment overview
 

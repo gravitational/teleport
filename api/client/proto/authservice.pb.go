@@ -9794,9 +9794,9 @@ type AuthServiceClient interface {
 	SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*empty.Empty, error)
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	// Out-of-session request for audit events.
+	// GetEvents gets events from the audit log.
 	GetEvents(ctx context.Context, in *GetEventsRequest, opts ...grpc.CallOption) (*Events, error)
-	// In-session request for audit events.
+	// GetSessionEvents gets completed session events from the audit log.
 	GetSessionEvents(ctx context.Context, in *GetSessionEventsRequest, opts ...grpc.CallOption) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(ctx context.Context, in *GetLockRequest, opts ...grpc.CallOption) (*types.LockV2, error)
@@ -11758,9 +11758,9 @@ type AuthServiceServer interface {
 	SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*empty.Empty, error)
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(context.Context, *empty.Empty) (*empty.Empty, error)
-	// Out-of-session request for audit events.
+	// GetEvents gets events from the audit log.
 	GetEvents(context.Context, *GetEventsRequest) (*Events, error)
-	// In-session request for audit events.
+	// GetSessionEvents gets completed session events from the audit log.
 	GetSessionEvents(context.Context, *GetSessionEventsRequest) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(context.Context, *GetLockRequest) (*types.LockV2, error)

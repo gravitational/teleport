@@ -733,7 +733,11 @@ type checkpointKey struct {
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	rawEvents, lastKey, err := l.searchEventsRaw(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+	return l.searchEventsWithFilter(fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes})
+}
+
+func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter) ([]apievents.AuditEvent, string, error) {
+	rawEvents, lastKey, err := l.searchEventsRaw(fromUTC, toUTC, namespace, limit, order, startKey, filter)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -815,7 +819,7 @@ func reverseStrings(slice []string) []string {
 
 // searchEventsRaw is a low level function for searching for events. This is kept
 // separate from the SearchEvents function in order to allow tests to grab more metadata.
-func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]event, string, error) {
+func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter) ([]event, string, error) {
 	if !l.readyForQuery.Load() {
 		return nil, "", trace.Wrap(notReadyYetError{})
 	}
@@ -837,7 +841,7 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 	}
 
 	query := "CreatedAtDate = :date AND CreatedAt BETWEEN :start and :end"
-	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey, "Order": order})
+	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "Filter": filter, "Limit": limit, "StartKey": startKey, "Order": order})
 	var left int64
 	if limit != 0 {
 		left = int64(limit)
@@ -845,10 +849,17 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 		left = math.MaxInt64
 	}
 
-	var typeFilter *string
-	if len(eventTypes) != 0 {
-		typeList := eventFilterList(len(eventTypes))
-		typeFilter = aws.String(fmt.Sprintf("EventType IN %s", typeList))
+	var filterConds []string
+	if len(filter.eventTypes) > 0 {
+		typeList := eventFilterList(len(filter.eventTypes))
+		filterConds = append(filterConds, fmt.Sprintf("EventType IN %s", typeList))
+	}
+	if filter.condExpr != "" {
+		filterConds = append(filterConds, filter.condExpr)
+	}
+	var filterExpr *string
+	if len(filterConds) > 0 {
+		filterExpr = aws.String(strings.Join(filterConds, " AND "))
 	}
 
 	// Resume scanning at the correct date. We need to do this because we send individual queries per date
@@ -875,6 +886,11 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, eventT
 		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
+	var attributeNames map[string]*string
+	if len(filter.condParams.attrNames) > 0 {
+		attributeNames = aws.StringMap(filter.condParams.attrNames)
+	}
+
 	// This is the main query loop, here we send individual queries for each date and
 	// we stop if we hit `limit` or process all dates, whichever comes first.
 dateLoop:
@@ -887,8 +903,11 @@ dateLoop:
 			":end":   toUTC.Unix(),
 		}
 
-		for i := range eventTypes {
-			attributes[fmt.Sprintf(":eventType%d", i)] = eventTypes[i]
+		for i, eventType := range filter.eventTypes {
+			attributes[fmt.Sprintf(":eventType%d", i)] = eventType
+		}
+		for k, v := range filter.condParams.attrValues {
+			attributes[k] = v
 		}
 
 		attributeValues, err := dynamodbattribute.MarshalMap(attributes)
@@ -900,11 +919,12 @@ dateLoop:
 			input := dynamodb.QueryInput{
 				KeyConditionExpression:    aws.String(query),
 				TableName:                 aws.String(l.Tablename),
+				ExpressionAttributeNames:  attributeNames,
 				ExpressionAttributeValues: attributeValues,
 				IndexName:                 aws.String(indexTimeSearchV2),
 				ExclusiveStartKey:         checkpoint.Iterator,
 				Limit:                     aws.Int64(left),
-				FilterExpression:          typeFilter,
+				FilterExpression:          filterExpr,
 				ScanIndexForward:          aws.Bool(forward),
 			}
 
@@ -998,13 +1018,100 @@ func getSubPageCheckpoint(e *event) (string, error) {
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	// only search for specific event types
-	query := []string{
-		events.SessionStartEvent,
-		events.SessionEndEvent,
+func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
+	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent}}
+	if cond != nil {
+		params := condFilterParams{attrValues: make(map[string]interface{}), attrNames: make(map[string]string)}
+		expr, err := fromWhereExpr(cond, &params)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		filter.condExpr = expr
+		filter.condParams = params
 	}
-	return l.SearchEvents(fromUTC, toUTC, apidefaults.Namespace, query, limit, order, startKey)
+	return l.searchEventsWithFilter(fromUTC, toUTC, apidefaults.Namespace, limit, order, startKey, filter)
+}
+
+type searchEventsFilter struct {
+	eventTypes []string
+	condExpr   string
+	condParams condFilterParams
+}
+
+type condFilterParams struct {
+	attrValues map[string]interface{}
+	attrNames  map[string]string
+}
+
+func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, error) {
+	if cond == nil {
+		return "", trace.BadParameter("cond is nil")
+	}
+
+	binOp := func(e types.WhereExpr2, format func(a, b string) string) (string, error) {
+		left, err := fromWhereExpr(e.L, params)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		right, err := fromWhereExpr(e.R, params)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return format(left, right), nil
+	}
+	if expr, err := binOp(cond.And, func(a, b string) string { return fmt.Sprintf("(%s) AND (%s)", a, b) }); err == nil {
+		return expr, nil
+	}
+	if expr, err := binOp(cond.Or, func(a, b string) string { return fmt.Sprintf("(%s) OR (%s)", a, b) }); err == nil {
+		return expr, nil
+	}
+	if inner, err := fromWhereExpr(cond.Not, params); err == nil {
+		return fmt.Sprintf("NOT (%s)", inner), nil
+	}
+
+	addAttrValue := func(in interface{}) string {
+		for k, v := range params.attrValues {
+			if in == v {
+				return k
+			}
+		}
+		k := fmt.Sprintf(":condValue%d", len(params.attrValues))
+		params.attrValues[k] = in
+		return k
+	}
+	addAttrName := func(n string) string {
+		for k, v := range params.attrNames {
+			if n == v {
+				return fmt.Sprintf("FieldsMap.%s", k)
+			}
+		}
+		k := fmt.Sprintf("#condName%d", len(params.attrNames))
+		params.attrNames[k] = n
+		return fmt.Sprintf("FieldsMap.%s", k)
+	}
+	binPred := func(e types.WhereExpr2, format func(a, b string) string) (string, error) {
+		left, right := e.L, e.R
+		switch {
+		case left.Field != "" && right.Field != "":
+			return format(addAttrName(left.Field), addAttrName(right.Field)), nil
+		case left.Literal != nil && right.Field != "":
+			return format(addAttrValue(left.Literal), addAttrName(right.Field)), nil
+		case left.Field != "" && right.Literal != nil:
+			return format(addAttrName(left.Field), addAttrValue(right.Literal)), nil
+		}
+		return "", trace.BadParameter("failed to handle binary predicate with arguments %q and %q", left, right)
+	}
+	if cond.Equals.L != nil && cond.Equals.R != nil {
+		if expr, err := binPred(cond.Equals, func(a, b string) string { return fmt.Sprintf("%s = %s", a, b) }); err == nil {
+			return expr, nil
+		}
+	}
+	if cond.Contains.L != nil && cond.Contains.R != nil {
+		if expr, err := binPred(cond.Contains, func(a, b string) string { return fmt.Sprintf("contains(%s, %s)", a, b) }); err == nil {
+			return expr, nil
+		}
+	}
+	return "", trace.BadParameter("failed to convert WhereExpr %q to DynamoDB filter expression", cond)
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to
@@ -1235,6 +1342,26 @@ func (l *Log) convertFieldsToDynamoMapFormat(ctx context.Context) error {
 	return trace.Wrap(l.migrateMatchingEvents(ctx, filterExpr, transformEvent))
 }
 
+func (l *Log) approximateOptimalMigrationWorkers() (int32, error) {
+	req := dynamodb.DescribeTableInput{TableName: aws.String(l.Tablename)}
+	table, err := l.svc.DescribeTable(&req)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	// calculate the throughput, accounting for r/w bottlenecks
+	provisioned := table.Table.ProvisionedThroughput
+	if provisioned == nil || provisioned.ReadCapacityUnits == nil || provisioned.WriteCapacityUnits == nil {
+		return maxMigrationWorkers, nil
+	}
+	throughput := utils.MinInt64(*provisioned.ReadCapacityUnits, *provisioned.WriteCapacityUnits)
+
+	// divide throughput by batch size rounding upwards and then take 75% of that
+	optimalWorkers := (throughput + (DynamoBatchSize - 1)) / DynamoBatchSize * 3 / 4
+	clamped := utils.MinInt64(utils.MaxInt64(optimalWorkers, 1), maxMigrationWorkers)
+	return int32(clamped), nil
+}
+
 // migrateMatchingEvents walks existing events that match the given filter
 // expression and transforms them using the provided transform function.
 //
@@ -1251,7 +1378,12 @@ func (l *Log) migrateMatchingEvents(ctx context.Context, filterExpr string, tran
 	var startKey map[string]*dynamodb.AttributeValue
 	workerCounter := atomic.NewInt32(0)
 	totalProcessed := atomic.NewInt32(0)
-	workerErrors := make(chan error, maxMigrationWorkers)
+	migrationWorkers, err := l.approximateOptimalMigrationWorkers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	workerErrors := make(chan error, migrationWorkers)
 	workerBarrier := sync.WaitGroup{}
 
 	for {
@@ -1270,7 +1402,7 @@ func (l *Log) migrateMatchingEvents(ctx context.Context, filterExpr string, tran
 			// for any missed events after an appropriate grace period which is far worse.
 			ConsistentRead: aws.Bool(true),
 			// `DynamoBatchSize*maxMigrationWorkers` is the maximum concurrent event uploads.
-			Limit:            aws.Int64(DynamoBatchSize * maxMigrationWorkers),
+			Limit:            aws.Int64(DynamoBatchSize * int64(migrationWorkers)),
 			TableName:        aws.String(l.Tablename),
 			FilterExpression: aws.String(filterExpr),
 		}
@@ -1283,7 +1415,7 @@ func (l *Log) migrateMatchingEvents(ctx context.Context, filterExpr string, tran
 			return trace.Wrap(convertError(err))
 		}
 
-		writeRequests := make([]*dynamodb.WriteRequest, 0, DynamoBatchSize*maxMigrationWorkers)
+		writeRequests := make([]*dynamodb.WriteRequest, 0, DynamoBatchSize*migrationWorkers)
 
 		// For every item processed by this scan iteration we generate a write request.
 		for _, item := range scanOut.Items {
@@ -1313,7 +1445,7 @@ func (l *Log) migrateMatchingEvents(ctx context.Context, filterExpr string, tran
 			writeRequests = writeRequests[top:]
 
 			// Don't exceed maximum workers.
-			for workerCounter.Load() >= maxMigrationWorkers {
+			for workerCounter.Load() >= migrationWorkers {
 				select {
 				case <-time.After(time.Millisecond * 50):
 				case <-ctx.Done():

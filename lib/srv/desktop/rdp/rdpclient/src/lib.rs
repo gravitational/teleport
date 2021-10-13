@@ -141,6 +141,7 @@ fn connect_rdp_inner(
     // Connect and authenticate.
     let tcp = TcpStream::connect(addr)?;
     let tcp_fd = tcp.as_raw_fd() as usize;
+    // Domain name "." means current domain.
     let domain = ".";
 
     // From rdp-rs/src/core/client.rs
@@ -153,6 +154,9 @@ fn connect_rdp_inner(
         screen_width,
         screen_height,
         KeyboardLayout::US,
+        // Request the RDPDR static channel.
+        // For some reason, we also need to request RDPSND along with it, although it's never used
+        // explicitly from our end.
         &vec!["rdpdr".to_string(), "rdpsnd".to_string()],
     )?;
     // Password must be non-empty for autologin (sec::InfoFlag::InfoPasswordIsScPin) to trigger on
@@ -164,8 +168,11 @@ fn connect_rdp_inner(
         &username,
         &password,
         true,
-        Some(sec::InfoFlag::InfoPasswordIsScPin as u32),
+        // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code.
+        // The password we pass will be automatically used as PIN.
+        Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
     )?;
+    // Client for the "global" channel - video output and user input.
     let global = global::Client::new(
         mcs.get_user_id(),
         mcs.get_global_channel_id(),
@@ -174,6 +181,7 @@ fn connect_rdp_inner(
         KeyboardLayout::US,
         "rdp-rs",
     );
+    // Client for the "rdpdr" channel - smartcard emulation.
     let rdpdr = rdpdr::Client::new(cert_der, key_der);
 
     let rdp_client = RdpClient { mcs, global, rdpdr };
@@ -196,6 +204,8 @@ impl<S: Read + Write> RdpClient<S> {
         T: FnMut(RdpEvent),
     {
         let (channel_name, message) = self.mcs.read()?;
+        // De-multiplex static channels. Forward messages to the correct channel client based on
+        // name.
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
             "rdpdr" => self.rdpdr.read(message, &mut self.mcs),
@@ -222,6 +232,8 @@ impl<S: Read + Write> RdpClient<S> {
     }
 }
 
+// CGOBitmap is a CGO-compatible version of BitmapEvent that we pass back to Go.
+// BitmapEvent is a video output update from the server.
 #[repr(C)]
 pub struct CGOBitmap {
     pub dest_left: u16,
@@ -258,6 +270,8 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
         res.data_ptr = data.as_mut_ptr();
         res.data_len = data.len();
         res.data_cap = data.capacity();
+        // Prevent the data field from being freed while Go handles it.
+        // It will be dropped once CGOBitmap is dropped (see below).
         mem::forget(data);
 
         Ok(res)
@@ -312,6 +326,9 @@ pub extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: i64) -> C
 fn read_rdp_output_inner(client: &Client, client_ref: i64) -> Option<String> {
     let tcp_fd = client.tcp_fd;
     // Read incoming events.
+    //
+    // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
+    // us from locking the mutex in Client permanently while no data is available.
     while wait_for_fd(tcp_fd as usize) {
         let mut err = CGO_OK;
         let res = client
@@ -353,7 +370,8 @@ fn read_rdp_output_inner(client: &Client, client_ref: i64) -> Option<String> {
     None
 }
 
-// A CGO-compatible copy of PointerEvent.
+// CGOPointer is a CGO-compatible version of PointerEvent that we pass back to Go.
+// PointerEvent is a mouse move or click update from the user.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct CGOPointer {
@@ -361,6 +379,8 @@ pub struct CGOPointer {
     pub y: u16,
     pub button: CGOPointerButton,
     pub down: bool,
+    pub wheel: CGOPointerWheel,
+    pub wheel_delta: i16,
 }
 
 #[repr(C)]
@@ -370,6 +390,14 @@ pub enum CGOPointerButton {
     PointerButtonLeft,
     PointerButtonRight,
     PointerButtonMiddle,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub enum CGOPointerWheel {
+    PointerWheelNone,
+    PointerWheelVertical,
+    PointerWheelHorizontal,
 }
 
 impl From<CGOPointer> for PointerEvent {
@@ -384,6 +412,12 @@ impl From<CGOPointer> for PointerEvent {
                 CGOPointerButton::PointerButtonMiddle => PointerButton::Middle,
             },
             down: p.down,
+            wheel: match p.wheel {
+                CGOPointerWheel::PointerWheelNone => PointerWheel::None,
+                CGOPointerWheel::PointerWheelVertical => PointerWheel::Vertical,
+                CGOPointerWheel::PointerWheelHorizontal => PointerWheel::Horizontal,
+            },
+            wheel_delta: p.wheel_delta,
         }
     }
 }
@@ -409,10 +443,14 @@ pub extern "C" fn write_rdp_pointer(client_ptr: *mut Client, pointer: CGOPointer
     }
 }
 
-// A CGO-compatible copy of KeyboardEvent.
+// CGOKey is a CGO-compatible version of KeyboardEvent that we pass back to Go.
+// KeyboardEvent is a keyboard update from the user.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct CGOKey {
+    // Note: there's only one key code sent at a time. A key combo is sent as a sequence of
+    // KeyboardEvent messages, one key at a time in the "down" state. The RDP server takes care of
+    // interpreting those.
     pub code: u16,
     pub down: bool,
 }
@@ -463,6 +501,7 @@ pub extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOError {
     }
 }
 
+// free_rdp lets the Go side inform us when it's done with Client and it can be dropped.
 #[no_mangle]
 pub extern "C" fn free_rdp(client_ptr: *mut Client) {
     unsafe { drop(Client::from_raw(client_ptr)) }
@@ -484,6 +523,7 @@ fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
 // CGOError is an alias for a C string pointer, for C API clarity.
 pub type CGOError = *mut c_char;
 
+// CGO_OK is a CGOError value that means "success".
 const CGO_OK: CGOError = ptr::null_mut();
 
 fn to_cgo_error(s: String) -> CGOError {
@@ -499,9 +539,12 @@ fn from_cgo_error(e: CGOError) -> String {
     s
 }
 
+// These functions are defined on the Go side. Look for functions with '//export funcname'
+// comments.
 extern "C" {
     fn free_go_string(s: *mut c_char);
     fn handle_bitmap(client_ref: i64, b: CGOBitmap) -> CGOError;
 }
 
+// Payload is a generic type used to represent raw incoming RDP messages for parsing.
 pub(crate) type Payload = Cursor<Vec<u8>>;

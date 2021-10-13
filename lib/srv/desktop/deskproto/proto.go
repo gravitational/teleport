@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package deskproto implements the desktop protocol encoder/decoder.
+// Package deskproto implements the Teleport desktop protocol (TDP)
+// encoder/decoder.
 // See https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
 //
-// TODO(awly): complete the implementation of all messages, even if we don't
+// TODO(zmb3): complete the implementation of all messages, even if we don't
 // use them yet.
+// TODO(zmb3): rename this package to "tdp".
 package deskproto
 
 import (
@@ -44,6 +46,7 @@ const (
 	TypeKeyboardButton   = MessageType(5)
 	TypeClipboardData    = MessageType(6)
 	TypeClientUsername   = MessageType(7)
+	TypeMouseWheel       = MessageType(8)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -59,13 +62,15 @@ func Decode(buf []byte) (Message, error) {
 	return decode(bytes.NewReader(buf))
 }
 
+// peekReader is an io.Reader which lets us peek at the first byte
+// (MessageType) for decoding.
 type peekReader interface {
 	io.Reader
-	ReadByte() (byte, error)
-	UnreadByte() error
+	io.ByteScanner
 }
 
 func decode(in peekReader) (Message, error) {
+	// Peek at the first byte to figure out message type.
 	t, err := in.ReadByte()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,6 +87,8 @@ func decode(in peekReader) (Message, error) {
 		return decodeMouseMove(in)
 	case TypeMouseButton:
 		return decodeMouseButton(in)
+	case TypeMouseWheel:
+		return decodeMouseWheel(in)
 	case TypeKeyboardButton:
 		return decodeKeyboardButton(in)
 	case TypeClientUsername:
@@ -114,6 +121,9 @@ func (f PNGFrame) Encode() ([]byte, error) {
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Note: this uses the default png.Encoder parameters.
+	// You can tweak compression level and reduce memory allocations by using a
+	// custom png.Encoder, if this happens to be a bottleneck.
 	if err := png.Encode(buf, f.Img); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -307,11 +317,51 @@ func decodeClientUsername(in peekReader) (ClientUsername, error) {
 	return ClientUsername{Username: username}, nil
 }
 
+// MouseWheelAxis identifies a scroll axis on the mouse wheel.
+type MouseWheelAxis byte
+
+const (
+	VerticalWheelAxis   = MouseWheelAxis(0)
+	HorizontalWheelAxis = MouseWheelAxis(1)
+)
+
+// MouseWheel is the mouse wheel scroll message.
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#8---mouse-wheel
+type MouseWheel struct {
+	Delta int16
+	Axis  MouseWheelAxis
+}
+
+func (w MouseWheel) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeMouseWheel))
+	if err := binary.Write(buf, binary.BigEndian, w); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeMouseWheel(in peekReader) (MouseWheel, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return MouseWheel{}, trace.Wrap(err)
+	}
+	if t != byte(TypeMouseWheel) {
+		return MouseWheel{}, trace.BadParameter("got message type %v, expected TypeMouseWheel(%v)", t, TypeMouseWheel)
+	}
+	var w MouseWheel
+	err = binary.Read(in, binary.BigEndian, &w)
+	return w, trace.Wrap(err)
+}
+
+// encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
+// a 32-bit length prefix (in bytes):
+// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#field-types
 func encodeString(w io.Writer, s string) error {
 	if err := binary.Write(w, binary.BigEndian, uint32(len(s))); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := w.Write([]byte(s)); err != nil {
+	if _, err := io.WriteString(w, s); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
