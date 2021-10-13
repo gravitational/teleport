@@ -63,11 +63,11 @@ func (PrivateKeyType) EnumDescriptor() ([]byte, []int) {
 type ProxyListenerMode int32
 
 const (
-	// Separate indicates the proxies are running in separate listener mode where Teleport Proxy
-	// services use different listeners.
+	// Separate is the proxy listener mode indicating that proxies are running
+	// in separate listener mode where Teleport Proxy services use different listeners.
 	ProxyListenerMode_Separate ProxyListenerMode = 0
-	// multiplex is proxy listener mode indicating the proxy should use multiplex mode
-	// and all proxy services are multiplexed on a single proxy port.
+	// Multiplex is the proxy listener mode indicating the proxy should use multiplex mode
+	// where all proxy services are multiplexed on a single proxy port.
 	ProxyListenerMode_Multiplex ProxyListenerMode = 1
 )
 

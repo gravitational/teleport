@@ -835,11 +835,11 @@ message ClusterNetworkingConfigSpecV2 {
 
 // ProxyListenerMode represents the cluster proxy listener mode.
 enum ProxyListenerMode {
-    // Separate indicates the proxies are running in separate listener mode where Teleport Proxy
-    // services use different listeners.
+    // Separate is the proxy listener mode indicating that proxies are running
+    // in separate listener mode where Teleport Proxy services use different listeners.
     Separate = 0;
-    // multiplex is proxy listener mode indicating the proxy should use multiplex mode
-    // and all proxy services are multiplexed on a single proxy port.
+    // Multiplex is the proxy listener mode indicating the proxy should use multiplex mode
+    // where all proxy services are multiplexed on a single proxy port.
     Multiplex = 1;
 }
 
