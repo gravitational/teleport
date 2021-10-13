@@ -326,8 +326,8 @@ func leafClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 	}
 }
 
-func createAdminRole(username string) types.Role {
-	role := services.NewAdminRole()
+func createTestRole(username string) types.Role {
+	role := services.NewImplicitRole()
 	role.SetName("test")
 	role.SetLogins(types.Allow, []string{username})
 	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"env": []string{"{{external.testing}}"}})

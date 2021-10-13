@@ -18,6 +18,10 @@ use uuid::Uuid;
 //
 // This emulator always reports a single card reader with a single active card called "Teleport".
 pub struct Client {
+    // contexts holds all the active contexts for the server, established using
+    // SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
+    //
+    // contexts also holds a cache and connected smartcard handles for each context.
     contexts: Contexts,
     uuid: Uuid,
     cert_der: Vec<u8>,
@@ -34,6 +38,7 @@ impl Client {
         }
     }
 
+    // ioctl handles messages coming from the RDP server over the RDPDR channel.
     pub fn ioctl(&mut self, code: u32, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
         let code = IoctlCode::from_u32(code).ok_or_else(|| {
             invalid_data_error(&format!("invalid I/O control code value {:#010x}", code))
@@ -61,8 +66,13 @@ impl Client {
             IoctlCode::SCARD_IOCTL_ENDTRANSACTION => self.handle_end_transaction(input),
             IoctlCode::SCARD_IOCTL_STATUSA => self.handle_status(input, StringEncoding::Ascii),
             IoctlCode::SCARD_IOCTL_STATUSW => self.handle_status(input, StringEncoding::Unicode),
+            // Transmit is where communication with the actual smartcard (and the PIV application
+            // on it) happens. All other messages are managing the smartcard reader and
+            // establishing a connection to the smartcard.
             IoctlCode::SCARD_IOCTL_TRANSMIT => self.handle_transmit(input),
             IoctlCode::SCARD_IOCTL_GETDEVICETYPEID => self.handle_get_device_type_id(input),
+            // Note: we keep an in-memory hashmap as a cache to implement these commands. Windows
+            // doesn't seem to like a smartcard without a functioning cache.
             IoctlCode::SCARD_IOCTL_READCACHEW => self.handle_read_cache(input),
             IoctlCode::SCARD_IOCTL_WRITECACHEW => self.handle_write_cache(input),
             IoctlCode::SCARD_IOCTL_GETREADERICON => self.handle_get_reader_icon(input),
@@ -210,6 +220,8 @@ impl Client {
         let req = Transmit_Call::decode(input)?;
         debug!("got {:?}", req);
 
+        // Decode the card command before sending it to piv.rs.
+        // In retrospect, piv.rs should probably handle this decoding.
         let cmd =
             CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&req.send_buffer).or_else(|err| {
                 Err(invalid_data_error(&format!(
@@ -400,6 +412,8 @@ impl RPCEStreamHeader {
     fn new() -> Self {
         Self {
             version: 1,
+            // We assume little endian for all messages, incoming and outgoing. If there's a weird
+            // Windows machine out there that sends us big endian data, decoding will just fail.
             endianness: RPCEEndianness::LittleEndian,
             common_header_length: 8,
             filler: 0xcccccccc,
@@ -421,7 +435,7 @@ impl RPCEStreamHeader {
             common_header_length: payload.read_u16::<LittleEndian>()?,
             filler: payload.read_u32::<LittleEndian>()?,
         };
-        // TODO(awly): implement big endian parsing support
+        // TODO(zmb3): implement big endian parsing support
         if let RPCEEndianness::LittleEndian = header.endianness {
             Ok(header)
         } else {
@@ -675,6 +689,8 @@ impl Context {
     }
 }
 
+// encode_ptr/decode_ptr and various encode_value/decode_value functions implement the strange NDR
+// protocol. See the big comment above with encoding notes.
 fn encode_ptr(length: u32, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
     w.write_u32::<LittleEndian>(length)?;
     w.write_u32::<LittleEndian>(0x00020000 + *index * 4)?;
@@ -778,10 +794,14 @@ impl ListReaders_Return {
     }
 }
 
+// Unicode multistring is a list of null-terminated UTF-16 strings. At the end, the list is
+// terminated with another null byte (so, two null bytes if you want to find the end in a binary
+// dump).
 fn decode_multistring_unicode(payload: &mut Payload) -> RdpResult<(u32, Vec<String>)> {
     let len = payload.read_u32::<LittleEndian>()?;
     let mut items = vec![];
     let mut buf = vec![];
+    // Each utf-16 character is 2 bytes. So there are len/2 characters.
     for _i in 0..(len / 2) {
         let c = payload.read_u16::<LittleEndian>()?;
         if c == 0 {
@@ -801,7 +821,8 @@ fn decode_multistring_unicode(payload: &mut Payload) -> RdpResult<(u32, Vec<Stri
 }
 
 fn decode_string_unicode(payload: &mut Payload) -> RdpResult<String> {
-    // These length/offset fields seem to be unnecessary since the strings are null-terminated.
+    // These length/offset fields seem to be unnecessary since the strings are null-terminated. But
+    // they are present in the encoded form anyway.
     let _len = payload.read_u32::<LittleEndian>()?;
     let _offset = payload.read_u32::<LittleEndian>()?;
     let _len2 = payload.read_u32::<LittleEndian>()?;
@@ -838,6 +859,7 @@ fn encode_multistring_unicode(items: &[String]) -> RdpResult<Vec<u8>> {
     Ok(buf)
 }
 
+// ASCII multistring is the same as a unicode one, except all characters are 1 byte.
 fn encode_multistring_ascii(items: &[String]) -> RdpResult<Vec<u8>> {
     let mut buf = vec![];
     for s in items.iter() {
@@ -1009,6 +1031,8 @@ impl GetStatusChange_Return {
         let mut reader_states = vec![];
         for state in req.states {
             match state.reader.as_str() {
+                // I think PnP is Plug-and-Play. This special reader "name" is used to monitor for
+                // new readers being plugged in.
                 "\\\\?PnP?\\Notification" => {
                     reader_states.push(ReaderState_Common_Call {
                         current_state: state.common.current_state,
@@ -1017,6 +1041,8 @@ impl GetStatusChange_Return {
                         atr: state.common.atr,
                     });
                 }
+                // This is our actual emulated smartcard reader. We always advertise its state as
+                // "present".
                 "Teleport" => {
                     let (atr_length, atr) = padded_atr(36);
                     reader_states.push(ReaderState_Common_Call {
@@ -1027,6 +1053,7 @@ impl GetStatusChange_Return {
                         atr: atr.try_into().unwrap(),
                     });
                 }
+                // All other reader names are unknown and unexpected.
                 _ => {
                     reader_states.push(ReaderState_Common_Call {
                         current_state: state.common.current_state,
@@ -1160,7 +1187,7 @@ impl Connect_Return {
 struct Handle {
     context: Context,
     length: u32,
-    // Shortcut: we always create 4-byte context values.
+    // Shortcut: we always create 4-byte handle values.
     // The spec allows this field to have variable length.
     value: u32,
 }
@@ -1298,6 +1325,9 @@ impl Status_Return {
         Self {
             return_code,
             reader_names,
+            // SPECIFICMODE state means that the card is ready to handle commands in a specific
+            // mode, no other negotiation is necessary. Real smartcards would probably negotiate
+            // some mode first.
             state: State::SCARD_SPECIFICMODE,
             protocol: CardProtocol::SCARD_PROTOCOL_T1,
             atr: atr.try_into().unwrap(),
@@ -1580,7 +1610,6 @@ impl ReadCache_Return {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
-        // Encode empty data field, cache is not supported.
         let mut index = 0;
         encode_ptr(self.data.length() as u32, &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.data.length() as u32)?;
