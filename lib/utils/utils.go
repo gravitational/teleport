@@ -590,4 +590,10 @@ const (
 	CertTeleportClusterName = "x-teleport-cluster-name"
 	// CertTeleportUserCertificate is the certificate of the authenticated in user.
 	CertTeleportUserCertificate = "x-teleport-certificate"
+	// ExtIntCertType is an internal extension used to propagate cert type.
+	ExtIntCertType = "certtype@teleport"
+	// ExtIntCertTypeHost indicates a host-type certificate.
+	ExtIntCertTypeHost = "host"
+	// ExtIntCertTypeUser indicates a user-type certificate.
+	ExtIntCertTypeUser = "user"
 )

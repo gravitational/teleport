@@ -219,25 +219,32 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		Streamer: streamer,
 	}
 
+	var publicAddr string
+	if len(cfg.Kube.PublicAddrs) > 0 {
+		publicAddr = cfg.Kube.PublicAddrs[0].String()
+	}
+
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
-			Namespace:         apidefaults.Namespace,
-			Keygen:            cfg.Keygen,
-			ClusterName:       teleportClusterName,
-			Authz:             authorizer,
-			AuthClient:        conn.Client,
-			StreamEmitter:     streamEmitter,
-			DataDir:           cfg.DataDir,
-			CachingAuthClient: accessPoint,
-			ServerID:          cfg.HostUUID,
-			Context:           process.ExitContext(),
-			KubeconfigPath:    cfg.Kube.KubeconfigPath,
-			KubeClusterName:   cfg.Kube.KubeClusterName,
-			KubeServiceType:   kubeproxy.KubeService,
-			Component:         teleport.ComponentKube,
-			StaticLabels:      cfg.Kube.StaticLabels,
-			DynamicLabels:     dynLabels,
-			LockWatcher:       lockWatcher,
+			Namespace:                     apidefaults.Namespace,
+			Keygen:                        cfg.Keygen,
+			ClusterName:                   teleportClusterName,
+			Authz:                         authorizer,
+			AuthClient:                    conn.Client,
+			StreamEmitter:                 streamEmitter,
+			DataDir:                       cfg.DataDir,
+			CachingAuthClient:             accessPoint,
+			ServerID:                      cfg.HostUUID,
+			Context:                       process.ExitContext(),
+			KubeconfigPath:                cfg.Kube.KubeconfigPath,
+			KubeClusterName:               cfg.Kube.KubeClusterName,
+			KubeServiceType:               kubeproxy.KubeService,
+			Component:                     teleport.ComponentKube,
+			StaticLabels:                  cfg.Kube.StaticLabels,
+			DynamicLabels:                 dynLabels,
+			LockWatcher:                   lockWatcher,
+			PublicAddr:                    publicAddr,
+			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,

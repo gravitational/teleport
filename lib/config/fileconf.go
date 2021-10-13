@@ -234,6 +234,12 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// JoinParams configures the parameters for Simplified Node Joining.
+type JoinParams struct {
+	TokenName string `yaml:"token_name"`
+	Method    string `yaml:"method"`
+}
+
 // ConnectionRate configures rate limiter
 type ConnectionRate struct {
 	Period  time.Duration `yaml:"period"`
@@ -313,6 +319,7 @@ type Global struct {
 	DataDir     string           `yaml:"data_dir,omitempty"`
 	PIDFile     string           `yaml:"pid_file,omitempty"`
 	AuthToken   string           `yaml:"auth_token,omitempty"`
+	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
@@ -342,8 +349,9 @@ type Global struct {
 	// If omitted, the default will be used.
 	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
 
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string `yaml:"ca_pin"`
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
+	// a single value or a list.
+	CAPin apiutils.Strings `yaml:"ca_pin"`
 
 	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
 	DiagAddr string `yaml:"diag_addr"`
@@ -527,6 +535,36 @@ type Auth struct {
 	// WebIdleTimeout sets global cluster default setting for WebUI client
 	// idle timeouts
 	WebIdleTimeout types.Duration `yaml:"web_idle_timeout,omitempty"`
+
+	// CAKeyParams configures how CA private keys will be created and stored.
+	CAKeyParams *CAKeyParams `yaml:"ca_key_params,omitempty"`
+}
+
+// CAKeyParams configures how CA private keys will be created and stored.
+type CAKeyParams struct {
+	// PKCS11 configures a PKCS#11 HSM to be used for private key generation and
+	// storage.
+	PKCS11 PKCS11 `yaml:"pkcs11"`
+}
+
+// PKCS11 configures a PKCS#11 HSM to be used for private key generation and
+// storage.
+type PKCS11 struct {
+	// ModulePath is the path to the PKCS#11 library.
+	ModulePath string `yaml:"module_path"`
+	// TokenLabel is the CKA_LABEL of the HSM token to use. Set this or
+	// SlotNumber to select a token.
+	TokenLabel string `yaml:"token_label,omitempty"`
+	// SlotNumber is the slot number of the HSM token to use. Set this or
+	// TokenLabel to select a token.
+	SlotNumber *int `yaml:"slot_number,omitempty"`
+	// Pin is the raw pin for connecting to the HSM. Set this or PinPath to set
+	// the pin.
+	Pin string `yaml:"pin,omitempty"`
+	// PinPath is a path to a file containing a pin for connecting to the HSM.
+	// Trailing newlines will be removed, other whitespace will be left. Set
+	// this or Pin to set the pin.
+	PinPath string `yaml:"pin_path,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key

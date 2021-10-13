@@ -52,7 +52,7 @@ var (
 
 	certificateMismatchCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: teleport.MetricCertificateMistmatch,
+			Name: teleport.MetricCertificateMismatch,
 			Help: "Number of times there was a certificate mismatch",
 		},
 	)
@@ -60,7 +60,7 @@ var (
 	prometheusCollectors = []prometheus.Collector{failedLoginCount, certificateMismatchCount}
 )
 
-// HandlerConfig is the configuration for an application handler.
+// AuthHandlerConfig is the configuration for an application handler.
 type AuthHandlerConfig struct {
 	// Server is the services.Server in the backend.
 	Server Server
@@ -284,6 +284,15 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	permissions.Extensions[utils.CertTeleportUser] = teleportUser
 	permissions.Extensions[utils.CertTeleportClusterName] = clusterName.GetClusterName()
 	permissions.Extensions[utils.CertTeleportUserCertificate] = string(ssh.MarshalAuthorizedKey(cert))
+
+	switch cert.CertType {
+	case ssh.UserCert:
+		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeUser
+	case ssh.HostCert:
+		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeHost
+	default:
+		log.Warnf("Unexpected cert type: %v", cert.CertType)
+	}
 
 	if h.isProxy() {
 		return permissions, nil

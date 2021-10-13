@@ -86,8 +86,8 @@ type RegisterParams struct {
 	PublicSSHKey []byte
 	// CipherSuites is a list of cipher suites to use for TLS client connection
 	CipherSuites []uint16
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 	// CAPath is the path to the CA file.
 	CAPath string
 	// GetHostCredentials is a client that can fetch host credentials.
@@ -96,6 +96,9 @@ type RegisterParams struct {
 	// for TLS certificate verification.
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
+	// EC2IdentityDocument is used for Simplified Node Joining to prove the
+	// identity of a joining EC2 instance.
+	EC2IdentityDocument []byte
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -183,6 +186,7 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 			DNSNames:             params.DNSNames,
 			PublicTLSKey:         params.PublicTLSKey,
 			PublicSSHKey:         params.PublicSSHKey,
+			EC2IdentityDocument:  params.EC2IdentityDocument,
 		})
 	if err != nil {
 		return nil, trace.Unwrap(err)
@@ -201,7 +205,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	// Auth Server is validated. Otherwise attempt to use the CA file on disk
 	// but if it's not available connect without validating the Auth Server CA.
 	switch {
-	case params.CAPin != "":
+	case len(params.CAPins) != 0:
 		client, err = pinRegisterClient(params)
 	default:
 		client, err = insecureRegisterClient(params)
@@ -221,6 +225,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 		DNSNames:             params.DNSNames,
 		PublicTLSKey:         params.PublicTLSKey,
 		PublicSSHKey:         params.PublicSSHKey,
+		EC2IdentityDocument:  params.EC2IdentityDocument,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -315,7 +320,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, err := tlsca.ParseCertificatePEM(localCA.TLSCA)
+	certs, err := tlsca.ParseCertificatePEMs(localCA.TLSCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -323,25 +328,29 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	// Check that the SPKI pin matches the CA we fetched over a insecure
 	// connection. This makes sure the CA fetched over a insecure connection is
 	// in-fact the expected CA.
-	err = utils.CheckSPKI(params.CAPin, tlsCA)
+	err = utils.CheckSPKI(params.CAPins, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Check that the fetched CA is valid at the current time.
-	err = utils.VerifyCertificateExpiry(tlsCA, params.Clock)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	for _, cert := range certs {
+		// Check that the fetched CA is valid at the current time.
+		err = utils.VerifyCertificateExpiry(cert, params.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	log.Infof("Joining remote cluster %v with CA pin.", tlsCA.Subject.CommonName)
+	}
+	log.Infof("Joining remote cluster %v with CA pin.", certs[0].Subject.CommonName)
 
 	// Create another client, but this time with the CA provided to validate
 	// that the Auth Server was issued a certificate by the same CA.
 	tlsConfig = utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	certPool := x509.NewCertPool()
-	certPool.AddCert(tlsCA)
+	for _, cert := range certs {
+		certPool.AddCert(cert)
+	}
 	tlsConfig.RootCAs = certPool
 
 	authClient, err = NewClient(client.Config{

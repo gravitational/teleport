@@ -1,0 +1,117 @@
+---
+title: GitHub SSO
+description: Setting up Github SSO
+videoBanner: XjgN2WWFCX8
+---
+
+This guide explains how to set up Github SSO with Open Source, Enterprise Teleport,
+self-hosted or cloud.
+
+## Prerequisites
+
+- Installed [Teleport](../../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
+- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
+
+(!docs/pages/includes/tctl.mdx!)
+
+<Admonition type="note">
+For cloud, login with a teleport user with editor privileges:
+```code
+# tsh logs you in and receives short-lived certificates
+$ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
+# try out the connection
+$ tctl get nodes
+```
+</Admonition>
+
+## Step 1/2. Create Github connector
+
+Define a Github connector:
+
+```yaml
+# Create a file called github.yaml:
+kind: github
+version: v3
+metadata:
+  # connector name that will be used with `tsh --auth=github login`
+  name: github
+spec:
+  # Client ID of Github OAuth app
+  client_id: <client-id>
+  # Client secret of Github OAuth app
+  client_secret: <client-secret>
+  # Connector display name that will be shown on web UI login screen
+  display: Github
+  # Callback URL that will be called after successful authentication
+  redirect_url: https://<proxy-address>/v1/webapi/github/callback
+  # Mapping of org/team memberships onto allowed logins and roles
+  teams_to_logins:
+    - organization: octocats # Github organization name
+      team: admins # Github team name within that organization
+      # maps octocats/admins to teleport role access
+      logins:
+        - access
+```
+
+To obtain a client ID and client secret, please follow Github documentation on
+how to [create and register an OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
+
+Be sure to set the "Authorization callback URL" to the same value as `redirect_url` in the resource spec.
+
+Teleport will request only the `read:org` OAuth scope, you can read more about
+[Github OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/).
+
+Finally, create the connector using [`tctl`](../reference/cli.mdx#tctl)
+[resource](../reference/resources.mdx) management command:
+
+```code
+$ tctl create github.yaml
+```
+
+<Admonition type="tip">
+  When going through the Github authentication flow for the first time,
+  the application must be granted access to all organizations that are
+  present in the "teams to logins" mapping, otherwise Teleport will not be
+  able to determine team memberships for these orgs.
+</Admonition>
+
+## Step 2/2. Configure authentication preference
+
+Configure Teleport Auth Service Github for authentication:
+
+<Tabs>
+  <TabItem label="Static Config (self-hosted)">
+  ```yaml
+  # Snippet from /etc/teleport.yaml
+  auth_service:
+    authentication:
+      type: github
+  ```
+  </TabItem>
+  <TabItem label="Dynamic resources (all editions)">
+  Create a file `cap.yaml`:
+  ```yaml
+  kind: cluster_auth_preference
+  metadata:
+    name: cluster-auth-preference
+  spec:
+    type: github
+    u2f:
+      app_id: 'https://example.teleport.sh'
+      facets:
+      - 'https://example.teleport.sh:443'
+      - 'https://example.teleport.sh'
+      - 'example.teleport.sh:443'
+      - 'example.teleport.sh'
+  version: v2
+  ```
+
+  Create a resource:
+
+  ```code
+  $ tctl create -f cap.yaml
+  ```
+  </TabItem>
+</Tabs>
+
+You can now login with Teleport using `github` SSO.
