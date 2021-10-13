@@ -3293,29 +3293,13 @@ func buildProxySettingsV1(cfg *Config, proxySSHAddr utils.NetAddr, proxyListener
 			TunnelListenAddr: cfg.Proxy.ReverseTunnelListenAddr.String(),
 		},
 	}
-	if len(cfg.Proxy.PublicAddrs) > 0 {
-		proxySettings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
-	}
-	if len(cfg.Proxy.SSHPublicAddrs) > 0 {
-		proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
-	}
-	if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
-		proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
-	}
-	if cfg.Proxy.Kube.Enabled {
-		proxySettings.Kube.ListenAddr = getProxyKubeAddress(cfg)
-	}
-	if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
-		proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
-	}
-	if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
-		proxySettings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
-	}
+	setProxyPublicAddressesSettings(cfg, &proxySettings)
+
 	if !cfg.Proxy.MySQLAddr.IsEmpty() {
 		proxySettings.DB.MySQLListenAddr = cfg.Proxy.MySQLAddr.String()
 	}
-	if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
-		proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
+	if cfg.Proxy.Kube.Enabled {
+		proxySettings.Kube.ListenAddr = getProxyKubeAddress(cfg)
 	}
 	if !cfg.Proxy.WebAddr.IsEmpty() || !cfg.Proxy.DisableTLS {
 		if proxySettings.SSH.ListenAddr == "" {
@@ -3323,6 +3307,27 @@ func buildProxySettingsV1(cfg *Config, proxySSHAddr utils.NetAddr, proxyListener
 		}
 	}
 	return &proxySettings
+}
+
+func setProxyPublicAddressesSettings(cfg *Config, settings *webclient.ProxySettings) {
+	if len(cfg.Proxy.PublicAddrs) > 0 {
+		settings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
+	}
+	if len(cfg.Proxy.SSHPublicAddrs) > 0 {
+		settings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
+	}
+	if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
+		settings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
+	}
+	if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
+		settings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
+	}
+	if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
+		settings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
+	}
+	if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
+		settings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
+	}
 }
 
 func buildProxySettingsV2(cfg *Config, proxySSHAddr utils.NetAddr, proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
@@ -3337,29 +3342,14 @@ func buildProxySettingsV2(cfg *Config, proxySSHAddr utils.NetAddr, proxyListener
 			TunnelListenAddr: multiplexAddr,
 		},
 	}
-	if len(cfg.Proxy.PublicAddrs) > 0 {
-		proxySettings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
-	}
-	if len(cfg.Proxy.SSHPublicAddrs) > 0 {
-		proxySettings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
-	}
-	if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
-		proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
-	}
+
+	setProxyPublicAddressesSettings(cfg, &proxySettings)
+
 	if cfg.Proxy.Kube.Enabled {
 		proxySettings.Kube.ListenAddr = multiplexAddr
 	}
-	if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
-		proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
-	}
-	if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
-		proxySettings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
-	}
 	if !cfg.Proxy.MySQLAddr.IsEmpty() {
 		proxySettings.DB.MySQLListenAddr = multiplexAddr
-	}
-	if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
-		proxySettings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
 	}
 	return &proxySettings
 }
