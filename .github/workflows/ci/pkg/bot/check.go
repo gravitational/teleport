@@ -249,6 +249,7 @@ func (c *Bot) isGithubCommit(ctx context.Context) error {
 		if _, ok := err.(*exec.ExitError); ok {
 			return trace.BadParameter("commit is not verified and/or is not signed by GitHub")
 		}
+		return trace.Wrap(err)
 	}
 	return c.hasFileChange(ctx)
 }
@@ -263,7 +264,7 @@ func (c *Bot) hasFileChange(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	headCommit, _, err := clt.Repositories.GetCommit(context.TODO(), pr.RepoOwner, pr.RepoName, pr.HeadSHA)
+	headCommit, _, err := clt.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, pr.HeadSHA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
