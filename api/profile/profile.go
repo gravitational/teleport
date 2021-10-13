@@ -85,8 +85,10 @@ type Profile struct {
 	// Dir is the directory of this profile.
 	Dir string
 
-	// ProxyListenerMode indicates that proxy supports ALPN SNI server where
+	// ProxyListenerMode is a current lister mode of the proxy.
+	// Multiplex mode indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	// where Separate listener mode designates that the proxy uses several listeners.
 	ProxyListenerMode types.ProxyListenerMode `yaml:"proxy_listener_mode,omitempty"`
 }
 

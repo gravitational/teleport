@@ -217,8 +217,10 @@ type ProxySettings struct {
 	SSH SSHProxySettings `json:"ssh"`
 	// DB contains database access specific proxy settings
 	DB DBProxySettings `json:"db"`
-	// ProxyListenerMode indicates that proxy supports ALPN SNI server where
+	// ProxyListenerMode is a current lister mode of the proxy.
+	// Multiplex mode indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	// where Separate listener mode designates that the proxy uses several listeners.
 	ProxyListenerMode types.ProxyListenerMode `json:"proxy_listener_mode"`
 }
 

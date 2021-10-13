@@ -174,7 +174,8 @@ type Agent struct {
 
 // ReverseTunnelDetails contains catchable details about the reverse tunnel.
 type reverseTunnelDetails struct {
-	// ProxyListenerMode indicates that remote address listener supports ALPN SNI Listener and
+	// ProxyListenerMode is a current lister mode of the proxy.
+	// Multiplex mode indicates that remote address listener supports ALPN SNI Listener and
 	// the client needs to dial the remote proxy with proper TLS ALPN protocol.
 	ProxyListenerMode types.ProxyListenerMode
 }

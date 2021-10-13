@@ -325,8 +325,10 @@ type Config struct {
 	// HomePath is where tsh stores profiles
 	HomePath string
 
-	// ProxyListenerMode indicates that proxy supports ALPN SNI server where
-	// all proxy services are exposed on single TLS listener (Proxy Web Listener).
+	// ProxyListenerMode is a current lister mode of the proxy.
+	// Multiplex mode indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	// where Separate listener mode designates that the proxy uses several listeners.
 	ProxyListenerMode types.ProxyListenerMode
 }
 

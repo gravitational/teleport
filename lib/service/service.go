@@ -3368,7 +3368,7 @@ func buildProxySettingsV2(cfg *Config, proxySSHAddr utils.NetAddr, proxyListener
 
 func getProxySettingsFunc(cfg *Config, proxySSHAddr utils.NetAddr, accessPoint auth.AccessPoint) func(ctx context.Context) (*webclient.ProxySettings, error) {
 	return func(ctx context.Context) (*webclient.ProxySettings, error) {
-		resp, err := accessPoint.GetClusterNetworkingConfig(context.Background())
+		resp, err := accessPoint.GetClusterNetworkingConfig(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3464,7 +3464,7 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resp, err := accessPoint.GetClusterNetworkingConfig(context.Background())
+		resp, err := accessPoint.GetClusterNetworkingConfig(process.ExitContext())
 		if err != nil {
 			return trace.Wrap(err)
 		}

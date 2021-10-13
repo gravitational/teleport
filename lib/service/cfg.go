@@ -64,7 +64,7 @@ import (
 // Some settings are global (like DataDir) while others are grouped into
 // sections, like AuthConfig
 type Config struct {
-	// Teleport Config Version
+	// Teleport configuration version.
 	Version string
 	// DataDir provides directory where teleport stores it's permanent state
 	// (in case of auth server backed by BoltDB) or local state, e.g. keys
