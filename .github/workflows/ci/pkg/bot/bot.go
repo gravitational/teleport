@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -217,6 +218,26 @@ func validatePullRequestFields(pr *github.PullRequest) error {
 		return trace.BadParameter("missing head branch")
 	case pr.Head.Ref == nil:
 		return trace.BadParameter("missing branch name")
+	}
+	if err := validateField(*pr.Base.User.Login); err != nil {
+		return trace.Errorf("user login err: %v", err)
+	}
+	if err := validateField(*pr.Base.Repo.Name); err != nil {
+		return trace.Errorf("repository name err: %v", err)
+	}
+	if err := validateField(*pr.Head.Ref); err != nil {
+		return trace.Errorf("branch name err: %v", err)
+	}
+	return nil
+}
+
+func validateField(field string) error {
+	// Only allow strings that contain alphanumeric characters, 
+	// underscores, and dashes. 
+	reg := regexp.MustCompile(`^[\da-zA-Z-_]+$`)
+	found := reg.MatchString(field)
+	if !found {
+		return trace.BadParameter("invalid field, %s contains illegal characters or is empty", field)
 	}
 	return nil
 }

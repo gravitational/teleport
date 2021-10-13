@@ -33,6 +33,7 @@ func TestNewBot(t *testing.T) {
 
 func TestValidatePullRequestFields(t *testing.T) {
 	testString := "testString"
+	invalidTestString := "&test"
 	tests := []struct {
 		pull     *github.PullRequest
 		checkErr require.ErrorAssertionFunc
@@ -101,6 +102,14 @@ func TestValidatePullRequestFields(t *testing.T) {
 			checkErr: require.Error,
 			desc:     "missing Head",
 		},
+		{
+			pull: &github.PullRequest{
+				Base: &github.PullRequestBranch{User: &github.User{Login: &testString}, Repo: &github.Repository{Name: &testString}},
+				Head: &github.PullRequestBranch{Ref: &invalidTestString},
+			},
+			checkErr: require.Error,
+			desc:     "invalid pull request branch name, contains illegal character",
+		},
 	}
 
 	for _, test := range tests {
@@ -109,5 +118,4 @@ func TestValidatePullRequestFields(t *testing.T) {
 			test.checkErr(t, err)
 		})
 	}
-
 }

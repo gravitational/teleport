@@ -172,6 +172,16 @@ func checkReviewFields(review *github.PullRequestReview) error {
 	case review.User.Login == nil:
 		return trace.Errorf("reviewer User.Login is nil. review: %+v", review)
 	}
+
+	if err := validateField(*review.State); err != nil {
+		return trace.Errorf("review ID err: %v", err)
+	}
+	if err := validateField(*review.CommitID); err != nil {
+		return trace.Errorf("commit ID err: %v", err)
+	}
+	if err := validateField(*review.User.Login); err != nil {
+		return trace.Errorf("user login err: %v", err)
+	}
 	return nil
 }
 
@@ -292,9 +302,8 @@ func (c *Bot) getValidCommit(ctx context.Context) (*github.RepositoryCommit, err
 	return commit, nil
 }
 
-// createAndWriteTempFile creates a temp file and write data to it.
-// This function returns the file name (string) and error.
-func createAndWriteTempFile(prefix, data string) (string, error) {
+// createAndWriteTempFile creates a temp file and writes to it.
+func createAndWriteTempFile(prefix, data string) (fileName string, err error) {
 	file, err := ioutil.TempFile(os.TempDir(), prefix)
 	if err != nil {
 		return "", trace.Wrap(err)
