@@ -1,7 +1,9 @@
 package bot
 
 import (
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/.github/workflows/ci/pkg/environment"
 
@@ -123,4 +125,52 @@ func TestHasRequiredApprovals(t *testing.T) {
 	err = hasRequiredApprovals(reviews, required)
 	require.Error(t, err)
 
+}
+
+func TestMostRecent(t *testing.T) {
+	time := time.Now()
+	timePlus10 := time.Add(10)
+	tests := []struct {
+		currentReviews []review
+		expectedOutput []review
+	}{
+		{
+			currentReviews: []review{
+				{name: "boo", submittedAt: &time},
+				{name: "boo", submittedAt: &timePlus10},
+				{name: "test", submittedAt: &time}},
+			expectedOutput: []review{
+				{name: "boo", submittedAt: &timePlus10},
+				{name: "test", submittedAt: &time}},
+		},
+		{
+			currentReviews: []review{
+				{name: "boo", submittedAt: &time},
+				{name: "boo", submittedAt: &timePlus10},
+				{name: "test", submittedAt: &time},
+				{name: "test", submittedAt: &timePlus10},
+				{name: "bar", submittedAt: &time},
+			},
+
+			expectedOutput: []review{
+				{name: "bar", submittedAt: &time},
+				{name: "boo", submittedAt: &timePlus10},
+				{name: "test", submittedAt: &timePlus10},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run("", func(t *testing.T) {
+			expected := test.expectedOutput
+			sort.Slice(expected, func(i, j int) bool {
+				return expected[i].name < expected[j].name
+			})
+
+			revs := mostRecent(test.currentReviews)
+			sort.Slice(revs, func(i, j int) bool {
+				return revs[i].name < revs[j].name
+			})
+			require.Equal(t, expected, revs)
+		})
+	}
 }
