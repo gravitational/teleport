@@ -160,10 +160,10 @@ Smart card authentication and emulator are described in more detail in RFD 35.
 
 #### Username/password
 
-Username and password are most universal and Teleport should support these
-interactively as a fallback, when other methods are not available. This will
-allow users to replace their existing RDP client software, while providing RBAC
-and session recording, despite weaker authentication and worse UX.
+Although username and password are the most universal, a major part of
+Teleport's value is to provide strong autentication using short-lived
+certificates. Supporting username and password authentication would weaken the
+overall security of the system and as such will not be implemented.
 
 #### Kerberos tickets
 

@@ -103,7 +103,7 @@ func NewPresetAccessRole() types.Role {
 		},
 	}
 	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
-	role.SetWindowsLogins(types.Allow, []string{teleport.Administrator})
+	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	return role

@@ -492,9 +492,13 @@ const (
 	// TraitExternalPrefix is the role variable prefix that indicates the data comes from an external identity provider.
 	TraitExternalPrefix = "external"
 
-	// TraitLogins is the name the role variable used to store
+	// TraitLogins is the name of the role variable used to store
 	// allowed logins.
 	TraitLogins = "logins"
+
+	// TraitWindowsLogins is the name of the role variable used
+	// to store allowed Windows logins.
+	TraitWindowsLogins = "windows_logins"
 
 	// TraitKubeGroups is the name the role variable used to store
 	// allowed kubernetes groups
@@ -515,6 +519,10 @@ const (
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
+
+	// TraitInternalWindowsLoginsVariable is the variable used to store
+	// allowed Windows Desktop logins for local accounts.
+	TraitInternalWindowsLoginsVariable = "{{internal.windows_logins}}"
 
 	// TraitInternalKubeGroupsVariable is the variable used to store allowed
 	// kubernetes groups for local accounts.
