@@ -422,8 +422,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	// For internal traits, only internal.logins, internal.windows_logins,
-	// internal.kubernetes_users and internal.kubernetes_groups are supported
+	// verify that internal traits match the supported variables
 	if variable.Namespace() == teleport.TraitInternalPrefix {
 		switch variable.Name() {
 		case teleport.TraitLogins, teleport.TraitWindowsLogins,
