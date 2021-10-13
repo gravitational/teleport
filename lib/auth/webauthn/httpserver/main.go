@@ -163,7 +163,7 @@ func (s *server) login2(w http.ResponseWriter, r *http.Request) {
 
 	body, err := json.Marshal(&libclient.AuthenticateWebUserRequest{
 		User:                      req.User,
-		WebauthnChallengeResponse: &req.CredentialAssertionResponse,
+		WebauthnAssertionResponse: &req.CredentialAssertionResponse,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
