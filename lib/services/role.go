@@ -244,6 +244,24 @@ func filterInvalidUnixLogins(candidates []string) []string {
 	return output
 }
 
+func filterInvalidWindowsLogins(candidates []string) []string {
+	var output []string
+
+	// https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-2000-server/bb726984(v=technet.10)
+	const invalidChars = `"/\[]:;|=,+*?<>`
+
+	for _, candidate := range candidates {
+		if strings.ContainsAny(candidate, invalidChars) {
+			log.Debugf("Skipping Windows login %v, not a valid Windows login.", candidate)
+			continue
+		}
+
+		output = append(output, candidate)
+	}
+
+	return output
+}
+
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
 func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
@@ -252,6 +270,11 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		outLogins := applyValueTraitsSlice(inLogins, traits, "login")
 		outLogins = filterInvalidUnixLogins(outLogins)
 		r.SetLogins(condition, apiutils.Deduplicate(outLogins))
+
+		inWindowsLogins := r.GetWindowsLogins(condition)
+		outWindowsLogins := applyValueTraitsSlice(inWindowsLogins, traits, "windows_login")
+		outWindowsLogins = filterInvalidWindowsLogins(outWindowsLogins)
+		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
 		inRoleARNs := r.GetAWSRoleARNs(condition)
 		var outRoleARNs []string
@@ -283,7 +306,6 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		r.SetDatabaseNames(condition, apiutils.Deduplicate(outDbNames))
 
 		// apply templates to database users
-
 		inDbUsers := r.GetDatabaseUsers(condition)
 		outDbUsers := applyValueTraitsSlice(inDbUsers, traits, "database user")
 		r.SetDatabaseUsers(condition, apiutils.Deduplicate(outDbUsers))
@@ -400,11 +422,13 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	// For internal traits, only internal.logins, internal.kubernetes_users and
-	// internal.kubernetes_groups are supported at the moment.
+	// For internal traits, only internal.logins, internal.windows_logins,
+	// internal.kubernetes_users and internal.kubernetes_groups are supported
 	if variable.Namespace() == teleport.TraitInternalPrefix {
 		switch variable.Name() {
-		case teleport.TraitLogins, teleport.TraitKubeGroups, teleport.TraitKubeUsers, teleport.TraitDBNames, teleport.TraitDBUsers:
+		case teleport.TraitLogins, teleport.TraitWindowsLogins,
+			teleport.TraitKubeGroups, teleport.TraitKubeUsers,
+			teleport.TraitDBNames, teleport.TraitDBUsers:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}

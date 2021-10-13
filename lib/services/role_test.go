@@ -1553,28 +1553,30 @@ func TestCheckRuleSorting(t *testing.T) {
 
 func TestApplyTraits(t *testing.T) {
 	type rule struct {
-		inLogins       []string
-		outLogins      []string
-		inRoleARNs     []string
-		outRoleARNs    []string
-		inLabels       types.Labels
-		outLabels      types.Labels
-		inKubeLabels   types.Labels
-		outKubeLabels  types.Labels
-		inKubeGroups   []string
-		outKubeGroups  []string
-		inKubeUsers    []string
-		outKubeUsers   []string
-		inAppLabels    types.Labels
-		outAppLabels   types.Labels
-		inDBLabels     types.Labels
-		outDBLabels    types.Labels
-		inDBNames      []string
-		outDBNames     []string
-		inDBUsers      []string
-		outDBUsers     []string
-		inImpersonate  types.ImpersonateConditions
-		outImpersonate types.ImpersonateConditions
+		inLogins         []string
+		outLogins        []string
+		inWindowsLogins  []string
+		outWindowsLogins []string
+		inRoleARNs       []string
+		outRoleARNs      []string
+		inLabels         types.Labels
+		outLabels        types.Labels
+		inKubeLabels     types.Labels
+		outKubeLabels    types.Labels
+		inKubeGroups     []string
+		outKubeGroups    []string
+		inKubeUsers      []string
+		outKubeUsers     []string
+		inAppLabels      types.Labels
+		outAppLabels     types.Labels
+		inDBLabels       types.Labels
+		outDBLabels      types.Labels
+		inDBNames        []string
+		outDBNames       []string
+		inDBUsers        []string
+		outDBUsers       []string
+		inImpersonate    types.ImpersonateConditions
+		outImpersonate   types.ImpersonateConditions
 	}
 	var tests = []struct {
 		comment  string
@@ -1620,6 +1622,31 @@ func TestApplyTraits(t *testing.T) {
 			deny: rule{
 				inLogins:  []string{`{{external.foo}}`},
 				outLogins: []string{"bar"},
+			},
+		},
+		{
+			comment: "windows logins substitute",
+			inTraits: map[string][]string{
+				"windows_logins": {"user"},
+				"foo":            {"bar"},
+			},
+			allow: rule{
+				inWindowsLogins:  []string{"{{internal.windows_logins}}"},
+				outWindowsLogins: []string{"user"},
+			},
+			deny: rule{
+				inWindowsLogins:  []string{"{{external.foo}}"},
+				outWindowsLogins: []string{"bar"},
+			},
+		},
+		{
+			comment: "invalid windows login",
+			inTraits: map[string][]string{
+				"windows_logins": {"test;"},
+			},
+			allow: rule{
+				inWindowsLogins:  []string{"Administrator", "{{internal.windows_logins}}"},
+				outWindowsLogins: []string{"Administrator"},
 			},
 		},
 		{
@@ -1977,30 +2004,32 @@ func TestApplyTraits(t *testing.T) {
 				},
 				Spec: types.RoleSpecV4{
 					Allow: types.RoleConditions{
-						Logins:           tt.allow.inLogins,
-						NodeLabels:       tt.allow.inLabels,
-						ClusterLabels:    tt.allow.inLabels,
-						KubernetesLabels: tt.allow.inKubeLabels,
-						KubeGroups:       tt.allow.inKubeGroups,
-						KubeUsers:        tt.allow.inKubeUsers,
-						AppLabels:        tt.allow.inAppLabels,
-						DatabaseLabels:   tt.allow.inDBLabels,
-						DatabaseNames:    tt.allow.inDBNames,
-						DatabaseUsers:    tt.allow.inDBUsers,
-						Impersonate:      &tt.allow.inImpersonate,
+						Logins:               tt.allow.inLogins,
+						WindowsDesktopLogins: tt.allow.inWindowsLogins,
+						NodeLabels:           tt.allow.inLabels,
+						ClusterLabels:        tt.allow.inLabels,
+						KubernetesLabels:     tt.allow.inKubeLabels,
+						KubeGroups:           tt.allow.inKubeGroups,
+						KubeUsers:            tt.allow.inKubeUsers,
+						AppLabels:            tt.allow.inAppLabels,
+						DatabaseLabels:       tt.allow.inDBLabels,
+						DatabaseNames:        tt.allow.inDBNames,
+						DatabaseUsers:        tt.allow.inDBUsers,
+						Impersonate:          &tt.allow.inImpersonate,
 					},
 					Deny: types.RoleConditions{
-						Logins:           tt.deny.inLogins,
-						NodeLabels:       tt.deny.inLabels,
-						ClusterLabels:    tt.deny.inLabels,
-						KubernetesLabels: tt.deny.inKubeLabels,
-						KubeGroups:       tt.deny.inKubeGroups,
-						KubeUsers:        tt.deny.inKubeUsers,
-						AppLabels:        tt.deny.inAppLabels,
-						DatabaseLabels:   tt.deny.inDBLabels,
-						DatabaseNames:    tt.deny.inDBNames,
-						DatabaseUsers:    tt.deny.inDBUsers,
-						Impersonate:      &tt.deny.inImpersonate,
+						Logins:               tt.deny.inLogins,
+						WindowsDesktopLogins: tt.deny.inWindowsLogins,
+						NodeLabels:           tt.deny.inLabels,
+						ClusterLabels:        tt.deny.inLabels,
+						KubernetesLabels:     tt.deny.inKubeLabels,
+						KubeGroups:           tt.deny.inKubeGroups,
+						KubeUsers:            tt.deny.inKubeUsers,
+						AppLabels:            tt.deny.inAppLabels,
+						DatabaseLabels:       tt.deny.inDBLabels,
+						DatabaseNames:        tt.deny.inDBNames,
+						DatabaseUsers:        tt.deny.inDBUsers,
+						Impersonate:          &tt.deny.inImpersonate,
 					},
 				},
 			}
@@ -2014,17 +2043,18 @@ func TestApplyTraits(t *testing.T) {
 				{types.Deny, &tt.deny},
 			}
 			for _, rule := range rules {
-				require.Equal(t, outRole.GetLogins(rule.condition), rule.spec.outLogins)
-				require.Equal(t, outRole.GetNodeLabels(rule.condition), rule.spec.outLabels)
-				require.Equal(t, outRole.GetClusterLabels(rule.condition), rule.spec.outLabels)
-				require.Equal(t, outRole.GetKubernetesLabels(rule.condition), rule.spec.outKubeLabels)
-				require.Equal(t, outRole.GetKubeGroups(rule.condition), rule.spec.outKubeGroups)
-				require.Equal(t, outRole.GetKubeUsers(rule.condition), rule.spec.outKubeUsers)
-				require.Equal(t, outRole.GetAppLabels(rule.condition), rule.spec.outAppLabels)
-				require.Equal(t, outRole.GetDatabaseLabels(rule.condition), rule.spec.outDBLabels)
-				require.Equal(t, outRole.GetDatabaseNames(rule.condition), rule.spec.outDBNames)
-				require.Equal(t, outRole.GetDatabaseUsers(rule.condition), rule.spec.outDBUsers)
-				require.Equal(t, outRole.GetImpersonateConditions(rule.condition), rule.spec.outImpersonate)
+				require.Equal(t, rule.spec.outLogins, outRole.GetLogins(rule.condition))
+				require.Equal(t, rule.spec.outWindowsLogins, outRole.GetWindowsLogins(rule.condition))
+				require.Equal(t, rule.spec.outLabels, outRole.GetNodeLabels(rule.condition))
+				require.Equal(t, rule.spec.outLabels, outRole.GetClusterLabels(rule.condition))
+				require.Equal(t, rule.spec.outKubeLabels, outRole.GetKubernetesLabels(rule.condition))
+				require.Equal(t, rule.spec.outKubeGroups, outRole.GetKubeGroups(rule.condition))
+				require.Equal(t, rule.spec.outKubeUsers, outRole.GetKubeUsers(rule.condition))
+				require.Equal(t, rule.spec.outAppLabels, outRole.GetAppLabels(rule.condition))
+				require.Equal(t, rule.spec.outDBLabels, outRole.GetDatabaseLabels(rule.condition))
+				require.Equal(t, rule.spec.outDBNames, outRole.GetDatabaseNames(rule.condition))
+				require.Equal(t, rule.spec.outDBUsers, outRole.GetDatabaseUsers(rule.condition))
+				require.Equal(t, rule.spec.outImpersonate, outRole.GetImpersonateConditions(rule.condition))
 			}
 		})
 	}
