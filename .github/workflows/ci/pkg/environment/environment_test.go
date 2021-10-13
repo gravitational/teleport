@@ -2,13 +2,12 @@ package environment
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/.github/workflows/ci"
-	"github.com/gravitational/trace"
 
 	"github.com/google/go-github/v37/github"
 	"github.com/stretchr/testify/require"
@@ -32,20 +31,20 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 	}{
 		{
 			cfg: Config{
-				Client:             github.NewClient(nil),
-				EventPath:          "",
-				unmarshalReviewers: UnmarshalReviewersTest,
+				Client:    github.NewClient(nil),
+				EventPath: "",
+				users:     &mockUserGetter{},
 			},
 			checkErr:   require.Error,
-			desc:       "invalid PullRequestEnvironment config with Reviewers parameter",
+			desc:       "invalid PullRequestEnvironment config without Reviewers parameter",
 			expected:   nil,
 			createFile: true,
 		},
 		{
 			cfg: Config{
-				Client:             github.NewClient(nil),
-				Reviewers:          `{"foo": ["bar", "baz"], "*":["admin"]}`,
-				unmarshalReviewers: UnmarshalReviewersTest,
+				Client:    github.NewClient(nil),
+				Reviewers: `{"foo": ["bar", "baz"], "*":["admin"]}`,
+				users:     &mockUserGetter{},
 			},
 			checkErr: require.NoError,
 			desc:     "valid PullRequestEnvironment config",
@@ -59,9 +58,9 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		},
 		{
 			cfg: Config{
-				Client:             github.NewClient(nil),
-				Reviewers:          `{"foo": ["bar", "baz"], "*":["admin"]}`,
-				unmarshalReviewers: UnmarshalReviewersTest,
+				Client:    github.NewClient(nil),
+				Reviewers: `{"foo": ["bar", "baz"], "*":["admin"]}`,
+				users:     &mockUserGetter{},
 			},
 			checkErr: require.NoError,
 			desc:     "valid PullRequestEnvironment config",
@@ -75,9 +74,9 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		},
 		{
 			cfg: Config{
-				Client:             github.NewClient(nil),
-				Reviewers:          `{"foo": ["bar", "baz"]}`,
-				unmarshalReviewers: UnmarshalReviewersTest,
+				Client:    github.NewClient(nil),
+				Reviewers: `{"foo": ["bar", "baz"]}`,
+				users:     &mockUserGetter{},
 			},
 			checkErr:   require.Error,
 			desc:       "invalid PullRequestEnvironment config, has no default reviewers key",
@@ -86,9 +85,8 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		},
 		{
 			cfg: Config{
-				Reviewers:          `{"foo": "baz", "*":["admin"]}`,
-				Client:             github.NewClient(nil),
-				unmarshalReviewers: UnmarshalReviewersTest,
+				Reviewers: `{"foo": "baz", "*":["admin"]}`,
+				Client:    github.NewClient(nil),
 			},
 			checkErr:   require.Error,
 			desc:       "invalid reviewers object format",
@@ -96,11 +94,20 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 			createFile: true,
 		},
 		{
-			cfg: Config{
-				unmarshalReviewers: UnmarshalReviewersTest,
-			},
+			cfg:        Config{},
 			checkErr:   require.Error,
 			desc:       "invalid config with no client",
+			expected:   nil,
+			createFile: true,
+		},
+		{
+			cfg: Config{
+				Client:    github.NewClient(nil),
+				Reviewers: `{"invalidUser": ["bar", "baz"], "*":["admin"]}`,
+				users:     &mockUserGetter{},
+			},
+			checkErr:   require.Error,
+			desc:       "invalid PullRequestEnvironment config, user does not exist",
 			expected:   nil,
 			createFile: true,
 		},
@@ -215,24 +222,12 @@ func TestSetPullRequest(t *testing.T) {
 
 }
 
-func UnmarshalReviewersTest(ctx context.Context, str string, client *github.Client) (map[string][]string, error) {
-	var hasDefaultReviewers bool
-	if str == "" {
-		return nil, trace.BadParameter("reviewers not found.")
+type mockUserGetter struct {
+}
+
+func (m *mockUserGetter) Get(ctx context.Context, userLogin string) (*github.User, *github.Response, error) {
+	if userLogin == "invalidUser" {
+		return nil, nil, errors.New("invalid user")
 	}
-	m := make(map[string][]string)
-	err := json.Unmarshal([]byte(str), &m)
-	if err != nil {
-		return nil, err
-	}
-	for k := range m {
-		if k == "*" {
-			hasDefaultReviewers = true
-			continue
-		}
-	}
-	if !hasDefaultReviewers {
-		return nil, trace.BadParameter("default reviewers are not set. set default reviewers with an empty string as a key.")
-	}
-	return m, nil
+	return nil, nil, nil
 }

@@ -24,9 +24,8 @@ type Config struct {
 	// EventPath is the path of the file with the complete
 	// webhook event payload on the runner.
 	EventPath string
-	// unmarshalReviewers is the function to unmarshal
-	// the `Reviewers` string into map[string][]string.
-	unmarshalReviewers unmarshalReviewersFn
+	// users optional override to inject a user list for testing.
+	users githubUserGetter
 }
 
 // PullRequestEnvironment contains information about the environment
@@ -71,8 +70,6 @@ type Metadata struct {
 	BranchName string
 }
 
-type unmarshalReviewersFn func(ctx context.Context, str string, client *github.Client) (map[string][]string, error)
-
 // CheckAndSetDefaults verifies configuration and sets defaults.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Context == nil {
@@ -87,8 +84,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.EventPath == "" {
 		c.EventPath = os.Getenv(ci.GithubEventPath)
 	}
-	if c.unmarshalReviewers == nil {
-		c.unmarshalReviewers = unmarshalReviewers
+	if c.users == nil {
+		c.users = c.Client.Users
 	}
 	return nil
 }
@@ -99,7 +96,7 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	revs, err := c.unmarshalReviewers(c.Context, c.Reviewers, c.Client)
+	revs, err := unmarshalReviewers(c.Context, c.Reviewers, c.users)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -115,8 +112,12 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	}, nil
 }
 
+type githubUserGetter interface {
+	Get(context.Context, string) (*github.User, *github.Response, error)
+}
+
 // unmarshalReviewers converts the passed in string representing json object into a map.
-func unmarshalReviewers(ctx context.Context, str string, client *github.Client) (map[string][]string, error) {
+func unmarshalReviewers(ctx context.Context, str string, users githubUserGetter) (map[string][]string, error) {
 	var hasDefaultReviewers bool
 	if str == "" {
 		return nil, trace.NotFound("reviewers not found")
@@ -129,7 +130,7 @@ func unmarshalReviewers(ctx context.Context, str string, client *github.Client) 
 	}
 	for author, requiredReviewers := range m {
 		for _, reviewer := range requiredReviewers {
-			_, err := userExists(ctx, reviewer, client)
+			_, err := userExists(ctx, reviewer, users)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -138,7 +139,7 @@ func unmarshalReviewers(ctx context.Context, str string, client *github.Client) 
 			hasDefaultReviewers = true
 			continue
 		}
-		_, err := userExists(ctx, author, client)
+		_, err := userExists(ctx, author, users)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -151,8 +152,8 @@ func unmarshalReviewers(ctx context.Context, str string, client *github.Client) 
 }
 
 // userExists checks if a user exists.
-func userExists(ctx context.Context, userLogin string, client *github.Client) (*github.User, error) {
-	user, _, err := client.Users.Get(ctx, userLogin)
+func userExists(ctx context.Context, userLogin string, users githubUserGetter) (*github.User, error) {
+	user, _, err := users.Get(ctx, userLogin)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
