@@ -53,7 +53,7 @@ package rdpclient
 /*
 // Flags to include the static Rust library.
 #cgo linux LDFLAGS: -L${SRCDIR}/target/release -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/debug -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/release -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
 #include <librdprs.h>
 */
 import "C"
@@ -64,6 +64,7 @@ import (
 	"image"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/gravitational/trace"
@@ -87,8 +88,10 @@ type Client struct {
 	// Parameters read from the TDP stream.
 	clientWidth, clientHeight uint16
 	username                  string
+
 	// RDP client on the Rust side.
 	rustClient *C.Client
+
 	// Synchronization point to prevent input messages from being forwarded
 	// until the connection is established.
 	// Used with sync/atomic, 0 means false, 1 means true.
@@ -98,6 +101,9 @@ type Client struct {
 	// goroutines to complete
 	wg        sync.WaitGroup
 	closeOnce sync.Once
+
+	clientActivityMu sync.RWMutex
+	clientLastActive time.Time
 }
 
 // New creates and connects a new Client based on cfg.
@@ -111,6 +117,9 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	}
 
 	if err := c.readClientUsername(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := cfg.AuthorizeFn(c.username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := c.readClientSize(); err != nil {
@@ -198,7 +207,7 @@ func (c *Client) start() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		defer c.closeConn()
+		defer c.Close()
 		defer c.cfg.Log.Info("RDP output streaming finished")
 
 		clientRef := registerClient(c)
@@ -215,7 +224,7 @@ func (c *Client) start() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		defer c.closeConn()
+		defer c.Close()
 		defer c.cfg.Log.Info("RDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
@@ -230,6 +239,8 @@ func (c *Client) start() {
 				// Input not allowed yet, drop the message.
 				continue
 			}
+
+			c.UpdateClientActivity()
 
 			switch m := msg.(type) {
 			case deskproto.MouseMove:
@@ -360,12 +371,31 @@ func (c *Client) Wait() error {
 	return nil
 }
 
-func (c *Client) closeConn() {
+// Close shuts down the client and closes any existing connections.
+// It is safe to call multiple times, from multiple goroutines.
+// Calls other than the first one are no-ops.
+func (c *Client) Close() {
 	c.closeOnce.Do(func() {
 		if err := cgoError(C.close_rdp(c.rustClient)); err != nil {
 			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
 		}
 	})
+}
+
+// GetClientLastActive returns the time of the last recorded activity.
+// For RDP, "activity" is defined as user-input messages
+// (mouse move, button press, etc.)
+func (c *Client) GetClientLastActive() time.Time {
+	c.clientActivityMu.RLock()
+	defer c.clientActivityMu.RUnlock()
+	return c.clientLastActive
+}
+
+// UpdateClientActivity updates the client activity timestamp.
+func (c *Client) UpdateClientActivity() {
+	c.clientActivityMu.Lock()
+	c.clientLastActive = time.Now().UTC()
+	c.clientActivityMu.Unlock()
 }
 
 // cgoError converts from a CGO-originated error to a Go error, copying the
@@ -386,6 +416,7 @@ func free_go_string(s *C.char) {
 
 // Global registry of active clients. This allows Rust to reference a specific
 // client without sending actual objects around.
+// TODO(zmb3) replace this with cgo.Handle when we move to Go 1.17
 var (
 	clientsMu    = &sync.RWMutex{}
 	clients      = make(map[int64]*Client)

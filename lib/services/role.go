@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -44,27 +43,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 )
-
-// getExtendedAdminUserRules provides access to the default set of rules assigned to
-// all users.
-func getExtendedAdminUserRules(features modules.Features) []types.Rule {
-	rules := []types.Rule{
-		types.NewRule(types.KindRole, RW()),
-		types.NewRule(types.KindAuthConnector, RW()),
-		types.NewRule(types.KindSession, RO()),
-		types.NewRule(types.KindTrustedCluster, RW()),
-		types.NewRule(types.KindEvent, RO()),
-		types.NewRule(types.KindUser, RW()),
-		types.NewRule(types.KindToken, RW()),
-		types.NewRule(types.KindLock, RW()),
-	}
-
-	if features.Cloud {
-		rules = append(rules, types.NewRule(types.KindBilling, RW()))
-	}
-
-	return rules
-}
 
 // DefaultImplicitRules provides access to the default set of implicit rules
 // assigned to all roles.
@@ -110,35 +88,6 @@ func RoleNameForUser(name string) string {
 // authority.
 func RoleNameForCertAuthority(name string) string {
 	return "ca:" + name
-}
-
-// NewAdminRole is the default admin role for all local users if another role
-// is not explicitly assigned (this role applies to all users in OSS version).
-func NewAdminRole() types.Role {
-	adminRules := getExtendedAdminUserRules(modules.GetModules().Features())
-	role, _ := types.NewRole(teleport.AdminRoleName, types.RoleSpecV4{
-		Options: types.RoleOptions{
-			CertificateFormat: constants.CertificateFormatStandard,
-			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
-			PortForwarding:    types.NewBoolOption(true),
-			ForwardAgent:      types.NewBool(true),
-			BPF:               defaults.EnhancedEvents(),
-		},
-		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
-			DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-			Rules:            adminRules,
-		},
-	})
-	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable, teleport.Root})
-	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
-	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
-	return role
 }
 
 // NewImplicitRole is the default implicit role that gets added to all
@@ -200,76 +149,6 @@ func RoleForUser(u types.User) types.Role {
 			},
 		},
 	})
-	return role
-}
-
-// NewDowngradedOSSAdminRole is a role for enabling RBAC for open source users.
-// This role overrides built in OSS "admin" role to have less privileges.
-// DELETE IN (7.x)
-func NewDowngradedOSSAdminRole() types.Role {
-	role := &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:      teleport.AdminRoleName,
-			Namespace: defaults.Namespace,
-			Labels:    map[string]string{teleport.OSSMigratedV6: types.True},
-		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
-				PortForwarding:    types.NewBoolOption(true),
-				ForwardAgent:      types.NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
-			},
-			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
-				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
-				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-				Rules: []types.Rule{
-					types.NewRule(types.KindEvent, RO()),
-					types.NewRule(types.KindSession, RO()),
-				},
-			},
-		},
-	}
-	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
-	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
-	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
-	return role
-}
-
-// NewOSSGithubRole creates a role for enabling RBAC for open source Github users
-func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) types.Role {
-	role, _ := types.NewRole("github-"+uuid.New(), types.RoleSpecV4{
-		Options: types.RoleOptions{
-			CertificateFormat: constants.CertificateFormatStandard,
-			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
-			PortForwarding:    types.NewBoolOption(true),
-			ForwardAgent:      types.NewBool(true),
-			BPF:               defaults.EnhancedEvents(),
-		},
-		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
-			DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-			Rules: []types.Rule{
-				types.NewRule(types.KindEvent, RO()),
-			},
-		},
-	})
-	role.SetLogins(types.Allow, logins)
-	role.SetKubeUsers(types.Allow, kubeUsers)
-	role.SetKubeGroups(types.Allow, kubeGroups)
 	return role
 }
 
@@ -365,6 +244,24 @@ func filterInvalidUnixLogins(candidates []string) []string {
 	return output
 }
 
+func filterInvalidWindowsLogins(candidates []string) []string {
+	var output []string
+
+	// https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-2000-server/bb726984(v=technet.10)
+	const invalidChars = `"/\[]:;|=,+*?<>`
+
+	for _, candidate := range candidates {
+		if strings.ContainsAny(candidate, invalidChars) {
+			log.Debugf("Skipping Windows login %v, not a valid Windows login.", candidate)
+			continue
+		}
+
+		output = append(output, candidate)
+	}
+
+	return output
+}
+
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
 func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
@@ -373,6 +270,11 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		outLogins := applyValueTraitsSlice(inLogins, traits, "login")
 		outLogins = filterInvalidUnixLogins(outLogins)
 		r.SetLogins(condition, apiutils.Deduplicate(outLogins))
+
+		inWindowsLogins := r.GetWindowsLogins(condition)
+		outWindowsLogins := applyValueTraitsSlice(inWindowsLogins, traits, "windows_login")
+		outWindowsLogins = filterInvalidWindowsLogins(outWindowsLogins)
+		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
 		inRoleARNs := r.GetAWSRoleARNs(condition)
 		var outRoleARNs []string
@@ -404,7 +306,6 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		r.SetDatabaseNames(condition, apiutils.Deduplicate(outDbNames))
 
 		// apply templates to database users
-
 		inDbUsers := r.GetDatabaseUsers(condition)
 		outDbUsers := applyValueTraitsSlice(inDbUsers, traits, "database user")
 		r.SetDatabaseUsers(condition, apiutils.Deduplicate(outDbUsers))
@@ -521,11 +422,12 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	// For internal traits, only internal.logins, internal.kubernetes_users and
-	// internal.kubernetes_groups are supported at the moment.
+	// verify that internal traits match the supported variables
 	if variable.Namespace() == teleport.TraitInternalPrefix {
 		switch variable.Name() {
-		case teleport.TraitLogins, teleport.TraitKubeGroups, teleport.TraitKubeUsers, teleport.TraitDBNames, teleport.TraitDBUsers:
+		case teleport.TraitLogins, teleport.TraitWindowsLogins,
+			teleport.TraitKubeGroups, teleport.TraitKubeUsers,
+			teleport.TraitDBNames, teleport.TraitDBUsers:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
@@ -1618,6 +1520,27 @@ func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool
 	return false, nil
 }
 
+type windowsLoginMatcher struct {
+	login string
+}
+
+// NewWindowsLoginMatcher creates a RoleMatcher that checks whether the role's
+// Windows desktop logins match the specified condition.
+func NewWindowsLoginMatcher(login string) RoleMatcher {
+	return &windowsLoginMatcher{login: login}
+}
+
+// Match matches a Windows Desktop login against a role.
+func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	logins := role.GetWindowsLogins(typ)
+	for _, login := range logins {
+		if l.login == login {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
 type AccessCheckable interface {
 	GetKind() string
@@ -1661,6 +1584,8 @@ func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		getRoleLabels = types.Role.GetNodeLabels
 	case types.KindKubernetesCluster:
 		getRoleLabels = types.Role.GetKubernetesLabels
+	case types.KindWindowsDesktop:
+		getRoleLabels = types.Role.GetWindowsDesktopLabels
 	default:
 		return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
 	}
