@@ -207,7 +207,7 @@ type Desktop struct {
 	Labels []Label `json:"labels"`
 }
 
-// MakeDesktops makes desktop objects for the ui to display.
+// MakeDesktops converts desktops from their API form to a type the UI can display.
 func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
 	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
 
