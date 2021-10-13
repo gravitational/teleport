@@ -366,7 +366,7 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 
 			switch {
 			case tc.wantErr:
-				require.True(t, trace.IsAccessDenied(err))
+				require.NotNil(t, err)
 			default:
 				require.NoError(t, err)
 				require.NotNil(t, res.GetTOTP())
