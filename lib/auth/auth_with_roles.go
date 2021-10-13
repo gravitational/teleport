@@ -136,6 +136,40 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 	return nil
 }
 
+// sessionRecordingAction is a special checker that grants access to session
+// recordings. It allows access to specific recordings based on the `where`
+// section of the user's access rule.
+func (a *ServerWithRoles) sessionRecordingAction(namespace string, sid session.ID, verb string) error {
+	ruleCtx := &services.Context{User: a.context.User}
+	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, types.KindSession, verb, true)
+	if origErr == nil || !trace.IsAccessDenied(origErr) {
+		return trace.Wrap(origErr)
+	}
+	sessionEvents, err := a.alog.GetSessionEvents(namespace, sid, 0, false)
+	if err != nil {
+		log.WithError(err).Warnf("An error occurred while fetching session.end for session ID %q.", sid)
+		return trace.Wrap(origErr)
+	}
+	for _, ef := range sessionEvents {
+		if ef.GetType() == events.SessionEndEvent {
+			event, err := events.FromEventFields(ef)
+			if err != nil {
+				log.WithError(err).Warnf("An error occurred while extracting session.end for session ID %q.", sid)
+				return trace.Wrap(origErr)
+			}
+			session, ok := event.(*apievents.SessionEnd)
+			if !ok {
+				log.Warnf("Unexpected event type %T of session.end found for session ID %q.", event, sid)
+				return trace.Wrap(origErr)
+			}
+			ruleCtx.Session = session
+			return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, types.KindSession, verb, false))
+		}
+	}
+	log.Warnf("session.end event not found for session ID %q.", sid)
+	return trace.Wrap(origErr)
+}
+
 // hasBuiltinRole checks the type of the role set returned and the name.
 // Returns true if role set is builtin and the name matches.
 func (a *ServerWithRoles) hasBuiltinRole(name string) bool {
@@ -595,7 +629,7 @@ func (a *ServerWithRoles) filterNodes(nodes []types.Server) ([]types.Server, err
 	// Extract all unique allowed logins across all roles.
 	allowedLogins := make(map[string]bool)
 	for _, role := range roleset {
-		for _, login := range role.GetLogins(services.Allow) {
+		for _, login := range role.GetLogins(types.Allow) {
 			allowedLogins[login] = true
 		}
 	}
@@ -1995,7 +2029,7 @@ func (a *ServerWithRoles) UploadSessionRecording(r events.SessionRecording) erro
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if err := a.action(namespace, types.KindSession, types.VerbRead); err != nil {
+	if err := a.sessionRecordingAction(namespace, sid, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2003,7 +2037,7 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 }
 
 func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
-	if err := a.action(namespace, types.KindSession, types.VerbRead); err != nil {
+	if err := a.sessionRecordingAction(namespace, sid, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3078,12 +3112,25 @@ func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace strin
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.
-func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
-	if err := a.action(apidefaults.Namespace, types.KindSession, types.VerbList); err != nil {
-		return nil, "", trace.Wrap(err)
+func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) (events []apievents.AuditEvent, lastKey string, err error) {
+	if cond != nil {
+		return nil, "", trace.BadParameter("cond is an internal parameter, should not be set by client")
 	}
 
-	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey)
+	if actionErr := a.action(apidefaults.Namespace, types.KindSession, types.VerbList); actionErr != nil {
+		if !trace.IsAccessDenied(actionErr) {
+			return nil, "", trace.Wrap(actionErr)
+		}
+		cond, err = a.context.Checker.ExtractConditionForIdentifier(&services.Context{User: a.context.User}, apidefaults.Namespace, types.KindSession, types.VerbList, services.SessionIdentifier)
+		if err != nil {
+			if !trace.IsAccessDenied(err) {
+				return nil, "", trace.Wrap(err)
+			}
+			return nil, "", trace.Wrap(actionErr)
+		}
+	}
+
+	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3141,7 +3188,7 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // channel if one is encountered. Otherwise it is simply closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	if err := a.action(apidefaults.Namespace, types.KindSession, types.VerbList); err != nil {
+	if err := a.sessionRecordingAction(apidefaults.Namespace, sessionID, types.VerbList); err != nil {
 		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 		e <- trace.Wrap(err)
 		return c, e
@@ -3406,7 +3453,11 @@ func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context) ([]types.Windo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return hosts, nil
+	filtered, err := a.filterWindowsDesktops(hosts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return filtered, nil
 }
 
 // GetWindowsDesktop returns a registered windows desktop host.
@@ -3418,6 +3469,11 @@ func (a *ServerWithRoles) GetWindowsDesktop(ctx context.Context, name string) (t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if filtered, err := a.filterWindowsDesktops([]types.WindowsDesktop{host}); err != nil {
+		return nil, trace.Wrap(err)
+	} else if len(filtered) == 0 {
+		return nil, trace.NotFound("not found")
+	}
 	return host, nil
 }
 
@@ -3426,12 +3482,24 @@ func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.Wind
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+
 	return a.authServer.CreateWindowsDesktop(ctx, s)
 }
 
 // UpdateWindowsDesktop updates an existing windows desktop host.
 func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	existing, err := a.authServer.GetWindowsDesktop(ctx, s.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToWindowsDesktop(existing); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToWindowsDesktop(s); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpdateWindowsDesktop(ctx, s)
@@ -3442,6 +3510,13 @@ func (a *ServerWithRoles) DeleteWindowsDesktop(ctx context.Context, name string)
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+	desktop, err := a.authServer.GetWindowsDesktop(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToWindowsDesktop(desktop); err != nil {
+		return trace.Wrap(err)
+	}
 	return a.authServer.DeleteWindowsDesktop(ctx, name)
 }
 
@@ -3450,7 +3525,57 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteAllWindowsDesktops(ctx)
+	// Only delete the desktops the user has access to.
+	desktops, err := a.authServer.GetWindowsDesktops(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, desktop := range desktops {
+		if err := a.checkAccessToWindowsDesktop(desktop); err == nil {
+			if err := a.authServer.DeleteWindowsDesktop(ctx, desktop.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}
+
+func (a *ServerWithRoles) filterWindowsDesktops(desktops []types.WindowsDesktop) ([]types.WindowsDesktop, error) {
+	// For certain built-in roles allow full access
+	if a.hasBuiltinRole(string(types.RoleAdmin)) ||
+		a.hasBuiltinRole(string(types.RoleProxy)) ||
+		a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return desktops, nil
+	}
+
+	filtered := make([]types.WindowsDesktop, 0, len(desktops))
+	for _, desktop := range desktops {
+		if err := a.checkAccessToWindowsDesktop(desktop); err == nil {
+			filtered = append(filtered, desktop)
+		}
+	}
+
+	return filtered, nil
+}
+
+func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) error {
+	return a.context.Checker.CheckAccess(w,
+		// MFA is not required for operations on desktop resources
+		// TODO(zmb3): per-session MFA for desktops will be added after general availability
+		services.AccessMFAParams{Verified: true},
+		// Note: we don't use the Windows login matcher here, as we won't know what OS user
+		// the user is trying to log in as until they initiate the connection.
+	)
+}
+
+// GenerateWindowsDesktopCert generates a certificate for Windows RDP
+// authentication.
+func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+	// Only windows_desktop_service should be requesting Windows certificates.
+	if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return nil, trace.AccessDenied("access denied")
+	}
+	return a.authServer.GenerateWindowsDesktopCert(ctx, req)
 }
 
 // StartAccountRecovery is implemented by AuthService.StartAccountRecovery.
@@ -3504,6 +3629,19 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
 	// User in context can retrieve their own recovery codes.
 	return a.authServer.GetAccountRecoveryCodes(ctx, req)
+}
+
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	// Only windows_desktop_service should be requesting CRLs
+	if !a.hasBuiltinRole(string(types.RoleWindowsDesktop)) {
+		return nil, trace.AccessDenied("access denied")
+	}
+	crl, err := a.authServer.GenerateCertAuthorityCRL(ctx, caType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return crl, nil
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

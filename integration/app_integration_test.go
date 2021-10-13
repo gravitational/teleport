@@ -948,9 +948,9 @@ func (p *pack) initUser(t *testing.T, opts appTestOptions) {
 
 	role := services.RoleForUser(user)
 	if len(opts.userLogins) != 0 {
-		role.SetLogins(services.Allow, opts.userLogins)
+		role.SetLogins(types.Allow, opts.userLogins)
 	} else {
-		role.SetLogins(services.Allow, []string{p.username})
+		role.SetLogins(types.Allow, []string{p.username})
 	}
 	err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)

@@ -203,6 +203,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, user, deviceName string, 
 
 	origin := parsedResp.Response.CollectedClientData.Origin
 	if err := validateOrigin(origin, f.Webauthn.RPID); err != nil {
+		log.WithError(err).Debugf("WebAuthn: origin validation failed")
 		return nil, trace.Wrap(err)
 	}
 

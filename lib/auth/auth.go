@@ -26,13 +26,16 @@ package auth
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
+	"math/big"
+	insecurerand "math/rand"
 	"net"
 	"net/url"
 	"strings"
@@ -68,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -372,7 +376,7 @@ func (a *Server) runPeriodicOperations() {
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
 	// to update the same resources.
-	r := rand.New(rand.NewSource(a.GetClock().Now().UnixNano()))
+	r := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 	log.Debugf("Ticking with period: %v.", period)
 	a.lock.RLock()
@@ -2164,6 +2168,9 @@ type RegisterUsingTokenRequest struct {
 	// RemoteAddr is the remote address of the host requesting a host certificate.
 	// It is used to replace 0.0.0.0 in the list of additional principals.
 	RemoteAddr string `json:"remote_addr"`
+	// EC2IdentityDocument is used for Simplified Node Joining to prove the
+	// identity of a joining EC2 instance.
+	EC2IdentityDocument []byte `json:"ec2_id"`
 }
 
 // CheckAndSetDefaults checks for errors and sets defaults
@@ -2191,6 +2198,13 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs
 	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
 
 	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the request uses Simplified Node Joining check that the identity is
+	// valid and matches the token allow rules.
+	err := a.CheckEC2Request(context.Background(), req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2597,6 +2611,55 @@ func (a *Server) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opt
 // loadSigningKeys controls whether signing keys should be loaded or not
 func (a *Server) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	return a.GetCache().GetCertAuthorities(caType, loadSigningKeys, opts...)
+}
+
+// GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
+func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	// Generate a CRL for the current cluster CA.
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := a.GetCertAuthority(types.CertAuthID{
+		Type:       caType,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(awly): this will only create a CRL for an active signer.
+	// If there are multiple signers (multiple HSMs), we won't have the full CRL coverage.
+	// Generate a CRL per signer and return all of them separately.
+
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	if trace.IsNotFound(err) {
+		// If there is no local TLS signer found in the host CA ActiveKeys, this
+		// auth server may have a newly configured HSM and has only populated
+		// local keys in the AdditionalTrustedKeys until the next CA rotation.
+		// This is the only case where we should be able to get a signer from
+		// AdditionalTrustedKeys but not ActiveKeys.
+		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ca)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsAuthority, err := tlsca.FromCertAndSigner(cert, signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Empty CRL valid for 1yr.
+	template := &x509.RevocationList{
+		Number:     big.NewInt(1),
+		ThisUpdate: time.Now().Add(-1 * time.Minute), // 1 min in the past to account for clock skew.
+		NextUpdate: time.Now().Add(365 * 24 * time.Hour),
+	}
+	crl, err := x509.CreateRevocationList(rand.Reader, template, tlsAuthority.Cert, tlsAuthority.Signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return crl, nil
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -3063,9 +3126,16 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if db == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
+
+		dbRoleMatchers := role.DatabaseRoleMatchers(
+			db.GetProtocol(),
+			t.Database.Username,
+			t.Database.GetDatabase(),
+		)
 		noMFAAccessErr = checker.CheckAccess(
 			db,
 			services.AccessMFAParams{},
+			dbRoleMatchers...,
 		)
 
 	default:
@@ -3102,44 +3172,27 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, u2fStorage u
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var enableTOTP, enableU2F, enableWebauthn bool
-	switch apref.GetSecondFactor() {
-	case constants.SecondFactorOTP:
-		enableTOTP = true
-	case constants.SecondFactorU2F:
-		enableU2F = true
-	case constants.SecondFactorWebauthn:
-		enableWebauthn = true
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		enableTOTP, enableU2F, enableWebauthn = true, true, true
-	case constants.SecondFactorOff: // All disabled.
+	enableTOTP := apref.IsSecondFactorTOTPAllowed()
+	enableU2F := apref.IsSecondFactorU2FAllowed()
+	enableWebauthn := apref.IsSecondFactorWebauthnAllowed()
+
+	// Fetch configurations. The IsSecondFactor*Allowed calls above already
+	// include the necessary checks of config empty, disabled, etc.
+	var u2fPref *types.U2F
+	switch val, err := apref.GetU2F(); {
+	case trace.IsNotFound(err): // OK, may happen.
+	case err != nil: // NOK, unexpected.
+		return nil, trace.Wrap(err)
 	default:
-		return nil, trace.BadParameter("unexpected second_factor value: %s", apref.GetSecondFactor())
+		u2fPref = val
 	}
-
-	// Read U2F configuration regardless, Webauthn uses it.
-	u2fPref, err := apref.GetU2F()
-	if err != nil && enableU2F {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		// If U2F parameters were not set in the auth server config, disable U2F
-		// challenges.
-		enableU2F = false
-	}
-
-	webConfig, err := apref.GetWebauthn()
-	switch {
-	case err == nil:
-		enableWebauthn = enableWebauthn && !webConfig.Disabled // Apply global disable
-	case err != nil && enableWebauthn:
-		if apref.GetSecondFactor() == constants.SecondFactorWebauthn {
-			// Fail explicitly for second_factor:"webauthn".
-			return nil, trace.BadParameter("second_factor set to %s, but webauthn config not present", constants.SecondFactorWebauthn)
-		}
-		// Fail silently for other modes.
-		log.WithError(err).Warningf("WebAuthn: failed to fetch configuration, disabling WebAuthn challenges")
-		enableWebauthn = false
+	var webConfig *types.Webauthn
+	switch val, err := apref.GetWebauthn(); {
+	case trace.IsNotFound(err): // OK, may happen.
+	case err != nil: // NOK, unexpected.
+		return nil, trace.Wrap(err)
+	default:
+		webConfig = val
 	}
 
 	devs, err := a.Identity.GetMFADevices(ctx, user, true)

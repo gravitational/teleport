@@ -242,6 +242,12 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// JoinParams configures the parameters for Simplified Node Joining.
+type JoinParams struct {
+	TokenName string `yaml:"token_name"`
+	Method    string `yaml:"method"`
+}
+
 // ConnectionRate configures rate limiter
 type ConnectionRate struct {
 	Period  time.Duration `yaml:"period"`
@@ -321,6 +327,7 @@ type Global struct {
 	DataDir     string           `yaml:"data_dir,omitempty"`
 	PIDFile     string           `yaml:"pid_file,omitempty"`
 	AuthToken   string           `yaml:"auth_token,omitempty"`
+	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
@@ -654,7 +661,7 @@ type AuthenticationConfig struct {
 func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	var err error
 
-	var u types.U2F
+	var u *types.U2F
 	if a.U2F != nil {
 		u, err = a.U2F.Parse()
 		if err != nil {
@@ -674,7 +681,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
 		ConnectorName:     a.ConnectorName,
-		U2F:               &u,
+		U2F:               u,
 		Webauthn:          w,
 		RequireSessionMFA: a.RequireSessionMFA,
 		LockingMode:       a.LockingMode,
@@ -688,12 +695,12 @@ type UniversalSecondFactor struct {
 	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
 
-func (u *UniversalSecondFactor) Parse() (types.U2F, error) {
+func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
 	attestationCAs, err := getAttestationPEMs(u.DeviceAttestationCAs)
 	if err != nil {
-		return types.U2F{}, trace.BadParameter("u2f.device_attestation_cas: %v", err)
+		return nil, trace.BadParameter("u2f.device_attestation_cas: %v", err)
 	}
-	return types.U2F{
+	return &types.U2F{
 		AppID:                u.AppID,
 		Facets:               u.Facets,
 		DeviceAttestationCAs: attestationCAs,
@@ -704,6 +711,7 @@ type Webauthn struct {
 	RPID                  string   `yaml:"rp_id,omitempty"`
 	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
+	Disabled              bool     `yaml:"disabled,omitempty"`
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
@@ -721,6 +729,7 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 		RPID:                  w.RPID,
 		AttestationAllowedCAs: allowedCAs,
 		AttestationDeniedCAs:  deniedCAs,
+		Disabled:              w.Disabled,
 	}, nil
 }
 
@@ -929,11 +938,21 @@ type DatabaseAWS struct {
 	Region string `yaml:"region,omitempty"`
 	// Redshift contains Redshift specific settings.
 	Redshift DatabaseAWSRedshift `yaml:"redshift"`
+	// RDS contains RDS specific settings.
+	RDS DatabaseAWSRDS `yaml:"rds"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
+	ClusterID string `yaml:"cluster_id,omitempty"`
+}
+
+// DatabaseAWSRDS contains settings for RDS databases.
+type DatabaseAWSRDS struct {
+	// InstanceID is the RDS instance identifier.
+	InstanceID string `yaml:"instance_id,omitempty"`
+	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string `yaml:"cluster_id,omitempty"`
 }
 
@@ -979,10 +998,11 @@ type App struct {
 	// the application at.
 	PublicAddr string `yaml:"public_addr"`
 
-	// Labels is a map of static labels to apply to this application.
+	// StaticLabels is a map of static labels to apply to this application.
 	StaticLabels map[string]string `yaml:"labels,omitempty"`
 
-	// Commands is a list of dynamic labels to apply to this application.
+	// DynamicLabels is a list of commands that generate dynamic labels
+	// to apply to this application.
 	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
 
 	// InsecureSkipVerify is used to skip validating the servers certificate.
@@ -1266,7 +1286,38 @@ type WindowsDesktopService struct {
 	Service `yaml:",inline"`
 	// PublicAddr is a list of advertised public addresses of this service.
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
+	// LDAP is the LDAP connection parameters.
+	LDAP LDAPConfig `yaml:"ldap"`
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`
+	// HostLabels optionally applies labels to Windows hosts for RBAC.
+	// A host can match multiple rules and will get a union of all
+	// the matched labels.
+	HostLabels []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
+}
+
+// WindowsHostLabelRule describes how a set of labels should be a applied to
+// a Windows host.
+type WindowsHostLabelRule struct {
+	// Match is a regexp that is checked against the Windows host's DNS name.
+	// If the regexp matches, this rule's labels will be applied to the host.
+	Match string `yaml:"match"`
+	// Labels is the set of labels to apply to hosts that match this rule.
+	Labels map[string]string `yaml:"labels"`
+}
+
+// LDAPConfig is the LDAP connection parameters.
+//
+// TODO(awly): these credentials are very sensitive. Add support for loading
+// from a file.
+type LDAPConfig struct {
+	// Addr is the address:port of the LDAP server (typically port 389).
+	Addr string `yaml:"addr"`
+	// Domain is the ActiveDirectory domain name.
+	Domain string `yaml:"domain"`
+	// Username for LDAP authentication.
+	Username string `yaml:"username"`
+	// Password for LDAP authentication.
+	Password string `yaml:"password"`
 }
