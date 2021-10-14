@@ -43,20 +43,23 @@ type TestEvent struct {
 	Output         string
 }
 
-const (
-	actionPass   = "pass"
-	actionFail   = "fail"
-	actionSkip   = "skip"
-	actionOutput = "output"
-separator = "==================================================="
-)
-
 func (e *TestEvent) FullName() string {
 	if e.Test == "" {
 		return e.Package
 	}
 	return e.Package + "." + e.Test
 }
+
+// action names used by the go test runner in its JSON output
+const (
+	actionPass   = "pass"
+	actionFail   = "fail"
+	actionSkip   = "skip"
+	actionOutput = "output"
+)
+
+// separator for console output
+const separator = "==================================================="
 
 func readInput(input io.Reader, ch chan<- TestEvent) {
 	decoder := json.NewDecoder(input)
@@ -77,7 +80,6 @@ func readInput(input io.Reader, ch chan<- TestEvent) {
 		ch <- event
 	}
 }
-
 
 func main() {
 
