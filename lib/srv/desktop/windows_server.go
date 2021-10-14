@@ -259,7 +259,8 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.Log.Debugln("DNS lookups will be performed against", dnsServer+":53")
+	dnsAddr := net.JoinHostPort(dnsServer, "53")
+	cfg.Log.Debugln("DNS lookups will be performed against", dnsAddr)
 
 	ctx, close := context.WithCancel(context.Background())
 	s := &WindowsService{
@@ -274,7 +275,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 				// Ignore the address provided, and always explicitly dial
 				// the domain controller.
 				d := net.Dialer{Timeout: 5 * time.Second}
-				return d.DialContext(ctx, network, dnsServer+":53")
+				return d.DialContext(ctx, network, dnsAddr)
 			},
 		},
 		lc:          lc,
@@ -347,15 +348,23 @@ func (s *WindowsService) startServiceHeartbeat() error {
 // Windows hosts via LDAP
 // see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
 var computerAttribtes = []string{
-	"name",
-	"dNSHostName",
-	"objectGUID",
-	"operatingSystem",
-	"operatingSystemVersion",
+	attrName,
+	attrDNSHostName,
+	attrObjectGUID,
+	attrOS,
+	attrOSVersion,
 }
 
-// computerClass is the object çlass for computers in Active Directory
-const computerClass = "computer"
+const (
+	// computerClass is the object class for computers in Active Directory
+	computerClass = "computer"
+
+	attrName        = "name"
+	attrDNSHostName = "dNSHostName" // unusual capitalization is correct
+	attrObjectGUID  = "objectGUID"
+	attrOS          = "operatingSystem"
+	attrOSVersion   = "operatingSystemVersion"
+)
 
 // startDiscoveredHostHeartbeats kicks off background processing to discover Windows
 // hosts via LDAP and perform heartbeats to record them with the auth server
@@ -381,7 +390,7 @@ func (s *WindowsService) startDiscoveredHostHeartbeats() error {
 			Component:       teleport.ComponentWindowsDesktop,
 			Mode:            srv.HeartbeatModeWindowsDesktop,
 			Announcer:       s.cfg.AccessPoint,
-			GetServerInfo:   func() (types.Resource, error) { return s.ldapEntryToDesktop(entry) },
+			GetServerInfo:   func() (types.Resource, error) { return s.dynamicHostHeartbeatInfo(s.closeCtx, entry) },
 			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL, // TODO(zmb3): consider increasing
 			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 			CheckPeriod:     defaults.HeartbeatCheckPeriod, // TODO(zmb3): consider increasing
@@ -401,16 +410,19 @@ func (s *WindowsService) startDiscoveredHostHeartbeats() error {
 	return nil
 }
 
-func (s *WindowsService) ldapEntryToDesktop(entry *ldap.Entry) (types.Resource, error) {
+// dynamicHostHeartbeatInfo generates the Windows Desktop resource
+// for heartbeating hosts discovered via LDAP
+func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ldap.Entry) (types.Resource, error) {
 	hostname := entry.GetAttributeValue("dNSHostName")
 	labels := map[string]string{
-		"teleport.dev/computer_name":  entry.GetAttributeValue("name"),
+		"teleport.dev/computer_name":  entry.GetAttributeValue(attrName),
 		"teleport.dev/dns_host_name":  hostname,
-		"teleport.dev/os":             entry.GetAttributeValue("operatingSystem"),
-		"teleport.dev/os_version":     entry.GetAttributeValue("operatingSystemVersion"),
+		"teleport.dev/os":             entry.GetAttributeValue(attrOS),
+		"teleport.dev/os_version":     entry.GetAttributeValue(attrOSVersion),
 		"teleport.dev/windows_domain": s.cfg.Domain,
+		types.OriginLabel:             types.OriginDynamic,
 	}
-	addrs, err := s.dnsResolver.LookupHost(context.Background(), hostname)
+	addrs, err := s.dnsResolver.LookupHost(ctx, hostname)
 	if err != nil || len(addrs) == 0 {
 		return nil, trace.WrapWithMessage(err, "couldn't resolve %q", hostname)
 	}
@@ -440,7 +452,7 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 			Component:       teleport.ComponentWindowsDesktop,
 			Mode:            srv.HeartbeatModeWindowsDesktop,
 			Announcer:       s.cfg.AccessPoint,
-			GetServerInfo:   s.getHostHeartbeatInfo(host, s.cfg.HostLabelsFn),
+			GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn),
 			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
 			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 			CheckPeriod:     defaults.HeartbeatCheckPeriod,
@@ -635,7 +647,9 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 	return srv, nil
 }
 
-func (s *WindowsService) getHostHeartbeatInfo(netAddr utils.NetAddr,
+// staticHostHeartbeatInfo generates the Windows Desktop resource
+// for heartbeating statically defined hosts
+func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 	getHostLabels func(string) map[string]string) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
 		addr := netAddr.String()
@@ -643,9 +657,11 @@ func (s *WindowsService) getHostHeartbeatInfo(netAddr utils.NetAddr,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		labels := getHostLabels(name)
+		labels[types.OriginLabel] = types.OriginConfigFile
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
-			getHostLabels(name), // TODO(zmb3): include teleport.dev/origin (see #8519)
+			labels,
 			types.WindowsDesktopSpecV3{
 				Addr:   addr,
 				Domain: s.cfg.Domain,
