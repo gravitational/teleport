@@ -1154,12 +1154,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if err := a.WithUserLock(username, func() error {
 			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
-			if err.(trace.Error).GetFields()[ErrFieldKeyUserMaxedAttempts] != nil {
-				return nil, trace.AccessDenied(MaxFailedAttemptsErrMsg)
-			}
-
-			log.Error(trace.DebugReport(err))
-			return nil, trace.AccessDenied("invalid password or username")
+			return nil, trace.Wrap(err)
 		}
 
 	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:

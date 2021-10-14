@@ -367,7 +367,7 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 
 			switch {
 			case tc.wantErr:
-				require.True(t, trace.IsAccessDenied(err))
+				require.Error(t, err)
 			default:
 				require.NoError(t, err)
 				require.NotNil(t, res.GetTOTP())
@@ -393,7 +393,7 @@ func TestCreateAuthenticateChallenge_WithUserCredentials_WithLock(t *testing.T) 
 				Password: []byte("invalid-password"),
 			}},
 		})
-		require.True(t, trace.IsAccessDenied(err))
+		require.Error(t, err)
 
 		// Test last attempt returns locked error.
 		if i == defaults.MaxLoginAttempts {
