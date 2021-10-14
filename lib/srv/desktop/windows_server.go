@@ -409,6 +409,7 @@ func (s *WindowsService) ldapEntryToDesktop(entry *ldap.Entry) (types.Resource, 
 		"teleport.dev/os":             entry.GetAttributeValue("operatingSystem"),
 		"teleport.dev/os_version":     entry.GetAttributeValue("operatingSystemVersion"),
 		"teleport.dev/windows_domain": s.cfg.Domain,
+		types.OriginLabel:             types.OriginDynamic,
 	}
 	addrs, err := s.dnsResolver.LookupHost(context.Background(), hostname)
 	if err != nil || len(addrs) == 0 {
@@ -641,9 +642,11 @@ func (s *WindowsService) getHostHeartbeatInfo(netAddr utils.NetAddr,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		labels := getHostLabels(name)
+		labels[types.OriginLabel] = types.OriginConfigFile
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
-			getHostLabels(name), // TODO(zmb3): include teleport.dev/origin (see #8519)
+			getHostLabels(name),
 			types.WindowsDesktopSpecV3{
 				Addr:   addr,
 				Domain: s.cfg.Domain,
