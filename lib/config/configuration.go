@@ -22,6 +22,7 @@ package config
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"io/ioutil"
 	"net"
@@ -1153,7 +1154,20 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cfg.WindowsDesktop.LDAP = service.LDAPConfig(fc.WindowsDesktop.LDAP)
+	ldapPassword, err := os.ReadFile(fc.WindowsDesktop.LDAP.PasswordFile)
+	if err != nil {
+		return trace.WrapWithMessage(err, "loading LDAP password from file %v",
+			fc.WindowsDesktop.LDAP.PasswordFile)
+	}
+	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
+		Addr:     fc.WindowsDesktop.LDAP.Addr,
+		Username: fc.WindowsDesktop.LDAP.Username,
+		Domain:   fc.WindowsDesktop.LDAP.Domain,
+
+		// trim whitespace to protect against things like
+		// a leading tab character or trailing newline
+		Password: string(bytes.TrimSpace(ldapPassword)),
+	}
 
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
