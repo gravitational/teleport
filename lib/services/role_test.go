@@ -3356,8 +3356,6 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 	// Add a role denying access for user2.
 	role = denyWhere(fmt.Sprintf(`equals(user.metadata.name, "%s")`, user2.GetName()))
 	set = append(set, role)
-	fmt.Println(role)
-	fmt.Println(user.GetName())
 
 	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
@@ -3365,6 +3363,32 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Add a role allowing access to all sessions.
+	// This should cause all the other allow rules' conditions to be dropped.
+	role = allowWhere(``)
+	set = append(set, role)
+
+	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, noRootLoginCond))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, noRootLoginCond))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Add a role denying access to all sessions.
+	// This should make all calls return an AccessDenied.
+	role = denyWhere(``)
+	set = append(set, role)
+
+	_, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
 	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
 	require.True(t, trace.IsAccessDenied(err))
 }
