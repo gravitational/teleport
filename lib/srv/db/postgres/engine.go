@@ -23,7 +23,6 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -183,7 +182,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	}
 
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		defaults.ProtocolPostgres,
+		sessionCtx.Database.GetProtocol(),
 		sessionCtx.DatabaseUser,
 		sessionCtx.DatabaseName,
 	)

@@ -128,7 +128,7 @@ func toALPNProtocol(dbProtocol string) (alpncommon.Protocol, error) {
 	switch dbProtocol {
 	case defaults.ProtocolMySQL:
 		return alpncommon.ProtocolMySQL, nil
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return alpncommon.ProtocolPostgres, nil
 	case defaults.ProtocolMongoDB:
 		return alpncommon.ProtocolMongoDB, nil

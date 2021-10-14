@@ -1,4 +1,5 @@
-//+build !desktop_access_beta
+//go:build !desktop_access_beta
+// +build !desktop_access_beta
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -25,6 +26,7 @@ package rdpclient
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 // Client is the dummy RDP client.
@@ -40,3 +42,15 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 func (c *Client) Wait() error {
 	return errors.New("the real rdpclient.Client implementation was not included in this build")
 }
+
+// Close shuts down the client and closes any existing connections.
+func (c *Client) Close() {
+}
+
+// GetClientLastActive returns the time of the last recorded activity.
+func (c *Client) GetClientLastActive() time.Time {
+	return time.Now().UTC()
+}
+
+// UpdateClientActivity updates the client activity timestamp.
+func (c *Client) UpdateClientActivity() {}
