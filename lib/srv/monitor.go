@@ -42,7 +42,7 @@ import (
 type ActivityTracker interface {
 	// GetClientLastActive returns the time of the last recorded activity
 	GetClientLastActive() time.Time
-	// UpdateClient updates client activity
+	// UpdateClientActivity updates the last active timestamp
 	UpdateClientActivity()
 }
 
@@ -146,8 +146,8 @@ func StartMonitor(cfg MonitorConfig) error {
 }
 
 // Monitor monitors the activity on a single connection and disconnects
-// that connection if the certificate expires or after
-// periods of inactivity
+// that connection if the certificate expires, if a new lock is placed
+// that applies to the connection, or after periods of inactivity
 type Monitor struct {
 	// MonitorConfig is a connection monitor configuration
 	MonitorConfig

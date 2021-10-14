@@ -33,7 +33,10 @@ type Config struct {
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
 
-	// TODO(awly): replace these callbacks with a deskproto.Conn
+	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
+	AuthorizeFn func(login string) error
+
+	// TODO(zmb3): replace these callbacks with a deskproto.Conn
 
 	// InputMessage is called to receive a message from the client for the RDP
 	// server. This function should block until there is a message.
@@ -61,6 +64,9 @@ func (c *Config) checkAndSetDefaults() error {
 	}
 	if c.OutputMessage == nil {
 		return trace.BadParameter("missing OutputMessage in rdpclient.Config")
+	}
+	if c.AuthorizeFn == nil {
+		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")
 	}
 	if c.Log == nil {
 		c.Log = logrus.New()
