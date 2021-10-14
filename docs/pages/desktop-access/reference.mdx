@@ -45,9 +45,9 @@ windows_desktop_service:
     # likely "EXAMPLE". When connecting as the "Administrator" user, you should
     # use the format: "EXAMPLE\Administrator".
     username: '$LDAP_USERNAME'
-    # LDAP password for authentication. This is usually the same password you
-    # use to login to the Domain Controller.
-    password: '$LDAP_PASSWORD'
+    # Plain text file containing the LDAP password for authentication.
+    # This is usually the same password you use to login to the Domain Controller.
+    password_file: /var/lib/ldap-pass
   # Rules for applying labels to Windows hosts based on regular expressions
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.
