@@ -1035,19 +1035,19 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	status := user.GetStatus()
 	if status.IsLocked {
 		if status.RecoveryAttemptLockExpires.After(a.clock.Now().UTC()) {
-			err := trace.AccessDenied("%v exceeds %v failed account recovery attempts, locked until %v",
+			log.Debugf("%v exceeds %v failed account recovery attempts, locked until %v",
 				user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
 
+			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
 			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
-
 			return err
 		}
 		if status.LockExpires.After(a.clock.Now().UTC()) {
-			err := trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
+			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 
+			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
 			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
-
 			return err
 		}
 	}
@@ -1082,9 +1082,8 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		return trace.Wrap(fnErr)
 	}
 	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
-	message := fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
-		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(lockUntil))
-	log.Debug(message)
+	log.Debug(fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
+		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(lockUntil)))
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	err = a.Identity.UpsertUser(user)
 	if err != nil {
@@ -1092,7 +1091,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		return trace.Wrap(fnErr)
 	}
 
-	retErr := trace.AccessDenied(message)
+	retErr := trace.AccessDenied(MaxFailedAttemptsErrMsg)
 	retErr.AddField(ErrFieldKeyUserMaxedAttempts, true)
 	return retErr
 }

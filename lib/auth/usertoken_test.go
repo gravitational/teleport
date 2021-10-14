@@ -503,7 +503,7 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 			// Test lock from max failed auth attempts.
 			for i := 1; i <= defaults.MaxLoginAttempts; i++ {
 				_, err := clt.CreatePrivilegeToken(ctx, tc.getReq())
-				require.NotNil(t, err)
+				require.Error(t, err)
 
 				// Test last attempt returns locked error.
 				if i == defaults.MaxLoginAttempts {
