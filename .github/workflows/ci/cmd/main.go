@@ -83,7 +83,6 @@ func main() {
 	default:
 		log.Fatalf("Unknown subcommand: %v.\n%s", subcommand, usage)
 	}
-
 }
 
 func constructBot(ctx context.Context, clt *github.Client, reviewers string) (*bots.Bot, error) {
@@ -94,8 +93,7 @@ func constructBot(ctx context.Context, clt *github.Client, reviewers string) (*b
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	bot, err := bots.New(bots.Config{Environment: env,  GithubClient: clt})
+	bot, err := bots.New(bots.Config{Environment: env, GithubClient: clt})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

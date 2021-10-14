@@ -134,7 +134,7 @@ func (c *Bot) getMostRecentReviews(ctx context.Context) ([]review, error) {
 	}
 	currentReviewsSlice := []review{}
 	for _, rev := range reviews {
-		err := checkReviewFields(rev)
+		err := validateReviewFields(rev)
 		if err != nil {
 			return []review{}, trace.Wrap(err)
 		}
@@ -159,7 +159,7 @@ type review struct {
 	submittedAt *time.Time
 }
 
-func checkReviewFields(review *github.PullRequestReview) error {
+func validateReviewFields(review *github.PullRequestReview) error {
 	switch {
 	case review.ID == nil:
 		return trace.Errorf("review ID is nil. review: %+v", review)
@@ -172,7 +172,6 @@ func checkReviewFields(review *github.PullRequestReview) error {
 	case review.User.Login == nil:
 		return trace.Errorf("reviewer User.Login is nil. review: %+v", review)
 	}
-
 	if err := validateField(*review.State); err != nil {
 		return trace.Errorf("review ID err: %v", err)
 	}
