@@ -1285,6 +1285,62 @@ func TestProxyKube(t *testing.T) {
 	}
 }
 
+func TestWindowsDesktopService(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		desc        string
+		mutate      func(fc *FileConfig)
+		expectError require.ErrorAssertionFunc
+	}{
+		{
+			desc:        "NOK - invalid static host addr",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{"badscheme://foo:1:2"}
+			},
+		},
+		{
+			desc:        "NOK - invalid host label key",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
+					{Match: ".*", Labels: map[string]string{"invalid label key": "value"}},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid host label regexp",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
+					{Match: "g(-z]+ invalid regex", Labels: map[string]string{"key": "value"}},
+				}
+			},
+		},
+		{
+			desc:        "OK - valid config",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.EnabledFlag = "yes"
+				fc.WindowsDesktop.ListenAddress = "0.0.0.0:3028"
+				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
+					{Match: ".*", Labels: map[string]string{"key": "value"}},
+				}
+			},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			fc := &FileConfig{}
+			test.mutate(fc)
+			cfg := &service.Config{}
+			err := applyWindowsDesktopConfig(fc, cfg)
+			test.expectError(t, err)
+		})
+	}
+}
+
 func TestApps(t *testing.T) {
 	tests := []struct {
 		inConfigString string

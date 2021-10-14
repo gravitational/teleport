@@ -998,10 +998,11 @@ type App struct {
 	// the application at.
 	PublicAddr string `yaml:"public_addr"`
 
-	// Labels is a map of static labels to apply to this application.
+	// StaticLabels is a map of static labels to apply to this application.
 	StaticLabels map[string]string `yaml:"labels,omitempty"`
 
-	// Commands is a list of dynamic labels to apply to this application.
+	// DynamicLabels is a list of commands that generate dynamic labels
+	// to apply to this application.
 	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
 
 	// InsecureSkipVerify is used to skip validating the servers certificate.
@@ -1290,6 +1291,20 @@ type WindowsDesktopService struct {
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`
+	// HostLabels optionally applies labels to Windows hosts for RBAC.
+	// A host can match multiple rules and will get a union of all
+	// the matched labels.
+	HostLabels []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
+}
+
+// WindowsHostLabelRule describes how a set of labels should be a applied to
+// a Windows host.
+type WindowsHostLabelRule struct {
+	// Match is a regexp that is checked against the Windows host's DNS name.
+	// If the regexp matches, this rule's labels will be applied to the host.
+	Match string `yaml:"match"`
+	// Labels is the set of labels to apply to hosts that match this rule.
+	Labels map[string]string `yaml:"labels"`
 }
 
 // LDAPConfig is the LDAP connection parameters.

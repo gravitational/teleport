@@ -989,6 +989,19 @@ func (c *Config) MySQLProxyHostPort() (string, int) {
 	return webProxyHost, defaults.MySQLListenPort
 }
 
+// DatabaseProxyHostPort returns proxy connection endpoint for the database.
+func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
+	switch db.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
+		return c.PostgresProxyHostPort()
+	case defaults.ProtocolMySQL:
+		return c.MySQLProxyHostPort()
+	case defaults.ProtocolMongoDB:
+		return c.WebProxyHostPort()
+	}
+	return c.WebProxyHostPort()
+}
+
 // ProxyHost returns the hostname of the proxy server (without any port numbers)
 func ProxyHost(proxyHost string) string {
 	host, _, err := net.SplitHostPort(proxyHost)
