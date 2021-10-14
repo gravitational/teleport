@@ -26,9 +26,7 @@ EXPOSE 3023 3080
 
 
 # Rust installation based on official rust image Dockerfile here:
-#   https://github.com/rust-lang/docker-rust/blob/master/1.55.0/buster/Dockerfile
-# 
-
+# https://github.com/rust-lang/docker-rust/blob/master/1.55.0/buster/Dockerfile
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH \
