@@ -41,10 +41,10 @@ jobs:
         # from Github when determining whether or not to invalidate 
         # reviews for external contributors. 
       - name: Get Github Webflow Key
-        run: curl https://github.com/web-flow.gpg >> github.pgp
+        run: curl https://github.com/web-flow.gpg > github.gpg
         # Note: GPG is already installed on the runner
       - name: Import Key 
-        run: gpg --import github.pgp 
+        run: gpg --import github.gpg 
         # Remove key once it is imported. It is no longer needed. 
       - name: Remove Key
         run: rm github.pgp
