@@ -70,6 +70,9 @@ const (
 	// MetricHeartbeatsMissed counts the nodes that failed to heartbeat
 	MetricHeartbeatsMissed = "heartbeats_missed_total"
 
+	// MetricMissingSSHTunnels returns the number of missing SSH tunnels for this proxy.
+	MetricMissingSSHTunnels = "proxy_missing_ssh_tunnels"
+
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
 )

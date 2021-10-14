@@ -67,6 +67,7 @@ func init() {
 	// Metrics have to be registered to be exposed:
 	prometheus.MustRegister(remoteClustersStats)
 	prometheus.MustRegister(trustedClustersStats)
+	prometheus.MustRegister(missingSSHTunnels)
 }
 
 // server is a "reverse tunnel server". it exposes the cluster capabilities

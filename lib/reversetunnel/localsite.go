@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils/proxy"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -53,7 +54,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 		return nil, trace.Wrap(err)
 	}
 
-	return &localSite{
+	s := &localSite{
 		srv:              srv,
 		client:           client,
 		accessPoint:      accessPoint,
@@ -68,7 +69,12 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 			},
 		}),
 		offlineThreshold: srv.offlineThreshold,
-	}, nil
+	}
+
+	// Start periodic functions for the the local cluster in the background.
+	go s.periodicFunctions()
+
+	return s, nil
 }
 
 // localSite allows to directly access the remote servers
@@ -464,3 +470,73 @@ func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *sshutils.DialReq)
 
 	return conn, nil
 }
+
+// periodicFunctions runs functions periodic functions for the local cluster.
+func (s *localSite) periodicFunctions() {
+	ticker := time.NewTicker(defaults.ResyncInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.srv.ctx.Done():
+			return
+		case <-ticker.C:
+			if err := s.sshTunnelStats(); err != nil {
+				s.log.Warningf("Failed to report SSH tunnel statistics for: %v: %v.", s.domainName, err)
+			}
+		}
+	}
+}
+
+// sshTunnelStats reports SSH tunnel statistics for the cluster.
+func (s *localSite) sshTunnelStats() error {
+	servers, err := s.accessPoint.GetNodes(s.srv.ctx, defaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var missing []string
+
+	for _, server := range servers {
+		// Skip over any servers that that have a TTL larger than announce TTL (10
+		// minutes) and are non-IoT SSH servers (they won't have tunnels).
+		//
+		// Servers with a TTL larger than the announce TTL skipped over to work around
+		// an issue with DynamoDB where objects can hang around for 48 hours after
+		// their TTL value.
+		ttl := s.clock.Now().Add(-1 * defaults.ServerAnnounceTTL)
+		if server.Expiry().Before(ttl) {
+			continue
+		}
+		if !server.GetUseTunnel() {
+			continue
+		}
+
+		// Check if the tunnel actually exists.
+		_, err := s.getRemoteConn(&sshutils.DialReq{
+			ServerID: fmt.Sprintf("%v.%v", server.GetName(), s.domainName),
+			ConnType: types.NodeTunnel,
+		})
+		if err == nil {
+			continue
+		}
+
+		missing = append(missing, server.GetName())
+	}
+
+	// Update Prometheus metrics and also log if any tunnels are missing.
+	missingSSHTunnels.Set(float64(len(missing)))
+	if len(missing) > 0 {
+		log.Warnf("Cluster %v is missing %v tunnels. This happens when a node can not discover all registered proxies. Check that all of your proxies are behind a load balancer and the load balancer is using a round robin strategy. Missing hosts hosts: %v.", s.domainName, len(missing), missing)
+	}
+	return nil
+}
+
+var (
+	missingSSHTunnels = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: teleport.MetricMissingSSHTunnels,
+			Help: "Number of missing SSH tunnels",
+		},
+	)
+)
