@@ -359,9 +359,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	if err := applyConfigVersion(fc, cfg); err != nil {
-		return trace.Wrap(err)
-	}
+	applyConfigVersion(fc, cfg)
 
 	// Apply configuration for "auth_service", "proxy_service", "ssh_service",
 	// and "app_service" if they are enabled.
@@ -753,7 +751,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	case legacyKube && newKube:
 		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
-		// Enabled proxy kubernetes service event if the fc.Proxy.KubeAddr address is empty.
+		// Enabled proxy kubernetes service even if the fc.Proxy.KubeAddr address is empty.
 		// Proxy kubernetes listener will be multiplexed by ALPN SNI listener.
 		cfg.Proxy.Kube.Enabled = true
 	}
@@ -1388,12 +1386,11 @@ func applyString(src string, target *string) bool {
 
 // applyConfigVersion applies config version from parsed file. If config version is not
 // present the v1 version will be used as default.
-func applyConfigVersion(fc *FileConfig, cfg *service.Config) error {
+func applyConfigVersion(fc *FileConfig, cfg *service.Config) {
 	cfg.Version = defaults.TeleportConfigVersionV1
 	if fc.Version != "" {
 		cfg.Version = fc.Version
 	}
-	return nil
 }
 
 // Configure merges command line arguments with what's in a configuration file

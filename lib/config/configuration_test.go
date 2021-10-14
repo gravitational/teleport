@@ -1338,7 +1338,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
-			desc: "v2 config with custom web address ",
+			desc: "v2 config with custom web address",
 			fc: FileConfig{
 				Version: defaults.TeleportConfigVersionV2,
 				Proxy: Proxy{
