@@ -78,7 +78,6 @@ func readInput(input io.Reader, ch chan<- TestEvent) {
 	}
 }
 
-var separator = "==================================================="
 
 func main() {
 
