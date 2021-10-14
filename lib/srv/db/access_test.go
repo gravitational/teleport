@@ -48,6 +48,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/siddontang/go-mysql/client"
+	mysqllib "github.com/siddontang/go-mysql/mysql"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -294,6 +295,43 @@ func TestMySQLBadHandshake(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// TestAccessMySQLChangeUser verifies that COM_CHANGE_USER command is rejected.
+func TestAccessMySQLChangeUser(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+
+	// Connect to the database as this user.
+	mysqlConn, err := testCtx.mysqlClient("alice", "mysql", "alice")
+	require.NoError(t, err)
+
+	// Send COM_CHANGE_USER command. The driver doesn't support it natively so
+	// assemble the raw packet and send it which should be enough to test the
+	// rejection logic.
+	packet := []byte{
+		0x05,                     // Payload length.
+		0x00,                     // Payload length cont'd.
+		0x00,                     // Payload length cont'd.
+		0x00,                     // Sequence number.
+		mysqllib.COM_CHANGE_USER, // Command type.
+		'b',                      // Null-terminated string with new user name.
+		'o',
+		'b',
+		0x00,
+		// There would've been other fields in "real" packet but these will
+		// do for the test to detect the command.
+	}
+	err = mysqlConn.WritePacket(packet)
+	require.NoError(t, err)
+
+	// Connection should've been closed so any attempt to use it should fail.
+	_, err = mysqlConn.Execute("select 1")
+	require.Error(t, err)
 }
 
 // TestAccessMongoDB verifies access scenarios to a MongoDB database based
