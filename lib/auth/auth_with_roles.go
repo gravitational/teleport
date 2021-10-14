@@ -136,9 +136,9 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 	return nil
 }
 
-// actionWithConditionForList extracts a restrictive filter condition to be
-// appended to a listing query after a simple resource check fails.
-func (a *ServerWithRoles) actionWithConditionForList(namespace, resource, identifier string) (*types.WhereExpr, error) {
+// actionForListWithCondition extracts a restrictive filter condition to be
+// added to a list query after a simple resource check fails.
+func (a *ServerWithRoles) actionForListWithCondition(namespace, resource, identifier string) (*types.WhereExpr, error) {
 	origErr := a.withOptions(quietAction(true)).action(namespace, resource, types.VerbList)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return nil, trace.Wrap(origErr)
@@ -264,7 +264,7 @@ func (a *ServerWithRoles) GetSessions(namespace string, cond *types.WhereExpr) (
 	}
 
 	var err error
-	cond, err = a.actionWithConditionForList(namespace, types.KindSSHSession, services.SSHSessionIdentifier)
+	cond, err = a.actionForListWithCondition(namespace, types.KindSSHSession, services.SSHSessionIdentifier)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3164,7 +3164,7 @@ func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit in
 		return nil, "", trace.BadParameter("cond is an internal parameter, should not be set by client")
 	}
 
-	cond, err = a.actionWithConditionForList(apidefaults.Namespace, types.KindSession, services.SessionIdentifier)
+	cond, err = a.actionForListWithCondition(apidefaults.Namespace, types.KindSession, services.SessionIdentifier)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
