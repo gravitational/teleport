@@ -11,7 +11,7 @@ use std::convert::TryFrom;
 use std::io::{Cursor, Read};
 use uuid::Uuid;
 
-// AID of PIV application, per
+// AID (Application ID) of PIV application, per
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
 const PIV_AID: Aid = Aid::new_truncatable(
     &[
@@ -20,11 +20,17 @@ const PIV_AID: Aid = Aid::new_truncatable(
     5, // usually truncates to first 5 bytes
 );
 
+// Card implements a PIV-compatible smartcard, per:
+// https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
 #[derive(Debug)]
 pub struct Card<const S: usize> {
+    // Card-holder user ID (CHUID). In federal agencies, this value would be unique per employee
+    // and encodes some agency information. In our case it's static.
     chuid: Vec<u8>,
     piv_auth_cert: Vec<u8>,
     piv_auth_key: Rsa<Private>,
+    // Pending command and response to receive/send over multiple messages when they don't fit into
+    // one.
     pending_command: Option<Command<S>>,
     pending_response: Option<Cursor<Vec<u8>>>,
 }
@@ -181,8 +187,9 @@ impl<const S: usize> Card<S> {
 
         // P1='07' means 2048-bit RSA.
         //
-        // TODO(awly): compare algorithm against the private key using consts from
+        // TODO(zmb3): compare algorithm against the private key using consts from
         // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-78-4.pdf
+        // TODO(zmb3): support non-RSA keys, if needed.
         if cmd.p1 != 0x07 {
             return Err(invalid_data_error(&format!(
                 "unsupported algorithm identifier P1:{:#X} in general authenticate command",
@@ -251,6 +258,8 @@ impl<const S: usize> Card<S> {
         // In our case, the RDP server does all of the above hashing and signing and only gives us
         // a finished blob to decrypt. This is why we call private_decrypt below, and not the usual
         // signer.
+        //
+        // TODO(zmb3): support non-RSA keys, if needed.
         self.piv_auth_key
             .private_decrypt(&challenge, &mut signed_challenge, Padding::NONE)
             .or_else(|e| {

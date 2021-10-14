@@ -1111,7 +1111,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 	fixtures.DeepCompare(c, user, out)
 
 	// update user's roles
-	user.SetRoles([]string{"admin"})
+	user.SetRoles([]string{"access"})
 	c.Assert(err, check.IsNil)
 	err = p.usersS.UpsertUser(user)
 	c.Assert(err, check.IsNil)

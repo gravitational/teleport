@@ -5555,7 +5555,7 @@ func TestTraitsPropagation(t *testing.T) {
 	me, err := user.Current()
 	require.NoError(t, err)
 
-	role := services.NewAdminRole()
+	role := services.NewImplicitRole()
 	role.SetName("test")
 	role.SetLogins(types.Allow, []string{me.Username})
 	// Users created by CreateEx have "testing: integration" trait.
