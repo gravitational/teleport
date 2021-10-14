@@ -84,11 +84,7 @@ func writeTestConfigs() error {
 	}
 	// create a bad config file fixture
 	testConfigs.configFileBadContent = filepath.Join(testConfigs.tempDir, "bad-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFileBadContent, []byte("bad-data!"), 0660); err != nil {
-		return err
-	}
-
-	return nil
+	return ioutil.WriteFile(testConfigs.configFileBadContent, []byte("bad-data!"), 0660)
 }
 
 func (tc testConfigFiles) cleanup() {

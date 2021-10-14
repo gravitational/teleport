@@ -19,8 +19,7 @@ limitations under the License.
 
 package pam
 
-var buildHasPAM bool = false
-var systemHasPAM bool = false
+var buildHasPAM, systemHasPAM bool
 
 // PAM is used to create a PAM context and initiate PAM transactions to checks
 // the users account and open/close a session.
