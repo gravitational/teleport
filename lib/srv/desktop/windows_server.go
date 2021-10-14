@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-ldap/ldap/v3"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -61,6 +62,13 @@ import (
 type WindowsService struct {
 	cfg        WindowsServiceConfig
 	middleware *auth.Middleware
+
+	lc *ldapClient
+
+	// Windows hosts discovered via LDAP likely won't resolve with the
+	// default DNS resolver, so we need a custom resolver that will
+	// query the domain controller.
+	dnsResolver *net.Resolver
 
 	// clusterName is the cached local cluster name, to avoid calling
 	// cfg.AccessPoint.GetClusterName multiple times.
@@ -154,7 +162,11 @@ func (cfg LDAPConfig) dn(path ldapPath) string {
 		}
 	}
 	for _, dc := range strings.Split(cfg.Domain, ".") {
-		fmt.Fprintf(s, ",DC=%s", dc)
+		// we always want to emit a leading ',' unless path was empty
+		if s.Len() > 0 {
+			s.WriteString(",")
+		}
+		fmt.Fprintf(s, "DC=%s", dc)
 	}
 	return s.String()
 }
@@ -236,6 +248,19 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err, "fetching cluster name: %v", err)
 	}
 
+	lc, err := newLDAPClient(cfg.LDAPConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "connecting to LDAP server: %v", err)
+	}
+
+	// Here we assume the LDAP server is an Active Directory Domain Controller,
+	// which means it should also be a DNS server that can resolve Windows hosts.
+	dnsServer, _, err := net.SplitHostPort(cfg.LDAPConfig.Addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg.Log.Debugln("DNS lookups will be performed against", dnsServer+":53")
+
 	ctx, close := context.WithCancel(context.Background())
 	s := &WindowsService{
 		cfg: cfg,
@@ -243,21 +268,19 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			AccessPoint:   cfg.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
+		dnsResolver: &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				// Ignore the address provided, and always explicitly dial
+				// the domain controller.
+				d := net.Dialer{Timeout: 5 * time.Second}
+				return d.DialContext(ctx, network, dnsServer+":53")
+			},
+		},
+		lc:          lc,
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
-	}
-
-	// TODO(zmb3): session recording.
-	// TODO(zmb3): LDAP host discovery
-
-	if err := s.startServiceHeartbeat(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO(zmb3): fetch registered hosts automatically.
-	if err := s.startStaticHostHeartbeats(); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Note: admin still needs to import our CA into the Group Policy following
@@ -273,6 +296,23 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	//
 	// TODO(zmb3): do these periodically
 	if err := s.updateCA(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(zmb3): session recording.
+
+	if err := s.startServiceHeartbeat(); err != nil {
+		s.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.startStaticHostHeartbeats(); err != nil {
+		s.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.startDiscoveredHostHeartbeats(); err != nil {
+		s.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -301,6 +341,89 @@ func (s *WindowsService) startServiceHeartbeat() error {
 		}
 	}()
 	return nil
+}
+
+// computerAttributes are the attributes we fetch when discovering
+// Windows hosts via LDAP
+// see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
+var computerAttribtes = []string{
+	"name",
+	"dNSHostName",
+	"objectGUID",
+	"operatingSystem",
+	"operatingSystemVersion",
+}
+
+// computerClass is the object çlass for computers in Active Directory
+const computerClass = "computer"
+
+// startDiscoveredHostHeartbeats kicks off background processing to discover Windows
+// hosts via LDAP and perform heartbeats to record them with the auth server
+func (s *WindowsService) startDiscoveredHostHeartbeats() error {
+	// here we're searching for computers using an empty ldapPath
+	// in order to search from the root
+	entries, err := s.lc.read(ldapPath{}, computerClass, computerAttribtes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.cfg.Log.Infof("discovered %d Windows hosts", len(entries))
+
+	// NOTE: for now, we only search for hosts once, and then kick off a heartbeat
+	// for each discovered host.
+	//
+	// TODO(zmb3): periodically refresh hosts from LDAP in order to detect new hosts
+	// and stop heartbeating for hosts that no longer exist
+	// (this may require updates to srv.Heartbeat)
+	for _, entry := range entries {
+		heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+			Context:         s.closeCtx,
+			Component:       teleport.ComponentWindowsDesktop,
+			Mode:            srv.HeartbeatModeWindowsDesktop,
+			Announcer:       s.cfg.AccessPoint,
+			GetServerInfo:   func() (types.Resource, error) { return s.ldapEntryToDesktop(entry) },
+			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL, // TODO(zmb3): consider increasing
+			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+			CheckPeriod:     defaults.HeartbeatCheckPeriod, // TODO(zmb3): consider increasing
+			ServerTTL:       apidefaults.ServerAnnounceTTL,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		go func(entry *ldap.Entry) {
+			if err := heartbeat.Run(); err != nil {
+				s.cfg.Log.WithError(err).Errorf("heartbeat for Windows host %v ended with error", entry.DN)
+			}
+		}(entry)
+	}
+
+	return nil
+}
+
+func (s *WindowsService) ldapEntryToDesktop(entry *ldap.Entry) (types.Resource, error) {
+	hostname := entry.GetAttributeValue("dNSHostName")
+	labels := map[string]string{
+		"teleport.dev/computer_name":  entry.GetAttributeValue("name"),
+		"teleport.dev/dns_host_name":  hostname,
+		"teleport.dev/os":             entry.GetAttributeValue("operatingSystem"),
+		"teleport.dev/os_version":     entry.GetAttributeValue("operatingSystemVersion"),
+		"teleport.dev/windows_domain": s.cfg.Domain,
+	}
+	addrs, err := s.dnsResolver.LookupHost(context.Background(), hostname)
+	if err != nil || len(addrs) == 0 {
+		return nil, trace.WrapWithMessage(err, "couldn't resolve %q", hostname)
+	}
+
+	s.cfg.Log.Debugf("resolved %v => %v", hostname, addrs[0])
+	return types.NewWindowsDesktopV3(
+		entry.GetAttributeValue("name"),
+		labels,
+		types.WindowsDesktopSpecV3{
+			Addr:   addrs[0],
+			Domain: s.cfg.Domain,
+		},
+	)
 }
 
 // startStaticHostHeartbeats spawns heartbeat routines for all static hosts in
@@ -340,6 +463,7 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 // established ones. Close does not wait for the connections to be finished.
 func (s *WindowsService) Close() error {
 	s.close()
+	s.lc.close()
 	return nil
 }
 
@@ -583,12 +707,6 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 		return trace.Wrap(err, "generating CRL: %v", err)
 	}
 
-	lc, err := newLDAPClient(s.cfg.LDAPConfig)
-	if err != nil {
-		return trace.Wrap(err, "connecting to LDAP server: %v", err)
-	}
-	defer lc.close()
-
 	// To make the CA trusted, we need 3 things:
 	// 1. put the CA cert into the Trusted Certification Authorities in the
 	//    Group Policy (done manually for now, see public docs)
@@ -596,20 +714,20 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	// 3. put the CRL of the CA into a dedicated LDAP entry
 	//
 	// Below we do #2 and #3.
-	if err := s.updateCAInNTAuthStore(ctx, lc, caDER); err != nil {
+	if err := s.updateCAInNTAuthStore(ctx, caDER); err != nil {
 		return trace.Wrap(err, "updating NTAuth store over LDAP: %v", err)
 	}
-	if err := s.updateCRL(ctx, lc, crlDER); err != nil {
+	if err := s.updateCRL(ctx, crlDER); err != nil {
 		return trace.Wrap(err, "updating CRL over LDAP: %v", err)
 	}
 	return nil
 }
 
-func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, con *ldapClient, caDER []byte) error {
+func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, caDER []byte) error {
 	// Check if our CA is already in the store. The LDAP entry for NTAuth store
 	// is constant and it should always exist.
 	ntauthPath := ldapPath{"Configuration", "Services", "Public Key Services", "NTAuthCertificates"}
-	entries, err := con.read(ntauthPath, "certificationAuthority", []string{"cACertificate"})
+	entries, err := s.lc.read(ntauthPath, "certificationAuthority", []string{"cACertificate"})
 	if err != nil {
 		return trace.Wrap(err, "fetching existing CAs: %v", err)
 	}
@@ -634,7 +752,7 @@ func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, con *ldapCli
 	}
 	updatedCAs = append(updatedCAs, string(caDER))
 
-	if err := con.update(ntauthPath, map[string][]string{
+	if err := s.lc.update(ntauthPath, map[string][]string{
 		"cACertificate": updatedCAs,
 	}); err != nil {
 		return trace.Wrap(err, "updating CA entry: %v", err)
@@ -643,7 +761,7 @@ func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, con *ldapCli
 	return nil
 }
 
-func (s *WindowsService) updateCRL(ctx context.Context, con *ldapClient, crlDER []byte) error {
+func (s *WindowsService) updateCRL(ctx context.Context, crlDER []byte) error {
 	// Publish the CRL for current cluster CA. For trusted clusters, their
 	// respective windows_desktop_services will publish CRLs of their CAs so we
 	// don't have to do it here.
@@ -660,12 +778,12 @@ func (s *WindowsService) updateCRL(ctx context.Context, con *ldapClient, crlDER 
 	crlPath := append(containerPath, s.clusterName)
 
 	// Create the parent container.
-	if err := con.createContainer(containerPath); err != nil {
+	if err := s.lc.createContainer(containerPath); err != nil {
 		return trace.Wrap(err, "creating CRL container: %v", err)
 	}
 
 	// Create the CRL object itself.
-	if err := con.create(
+	if err := s.lc.create(
 		crlPath,
 		"cRLDistributionPoint",
 		map[string][]string{"certificateRevocationList": {string(crlDER)}},
@@ -674,7 +792,7 @@ func (s *WindowsService) updateCRL(ctx context.Context, con *ldapClient, crlDER 
 			return trace.Wrap(err)
 		}
 		// CRL already exists, update it.
-		if err := con.update(
+		if err := s.lc.update(
 			crlPath,
 			map[string][]string{"certificateRevocationList": {string(crlDER)}},
 		); err != nil {
