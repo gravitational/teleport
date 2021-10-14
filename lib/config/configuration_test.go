@@ -1203,6 +1203,7 @@ func TestProxyKube(t *testing.T) {
 	tests := []struct {
 		desc     string
 		cfg      Proxy
+		version  string
 		want     service.KubeProxyConfig
 		checkErr require.ErrorAssertionFunc
 	}{
@@ -1212,7 +1213,18 @@ func TestProxyKube(t *testing.T) {
 			desc: "new and legacy k8 settings not configured - k8 should be enabled by default",
 			cfg:  Proxy{},
 			want: service.KubeProxyConfig{
-				Enabled: true,
+				Enabled:    true,
+				ListenAddr: *defaults.KubeProxyListenAddr(),
+			},
+			checkErr: require.NoError,
+		},
+		{
+			desc:    "v2 config - k8 should be enabled but listener address should be empty",
+			cfg:     Proxy{},
+			version: defaults.TeleportConfigVersionV2,
+			want: service.KubeProxyConfig{
+				Enabled:    true,
+				ListenAddr: utils.NetAddr{},
 			},
 			checkErr: require.NoError,
 		},
@@ -1283,7 +1295,9 @@ func TestProxyKube(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			fc := &FileConfig{Proxy: tt.cfg}
-			cfg := &service.Config{}
+			cfg := &service.Config{
+				Version: tt.version,
+			}
 			err := applyProxyConfig(fc, cfg)
 			tt.checkErr(t, err)
 			require.Empty(t, cmp.Diff(cfg.Proxy.Kube, tt.want, cmpopts.EquateEmpty()))
