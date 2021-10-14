@@ -282,14 +282,14 @@ func (p ProxyListenerMode) MarshalYAML() (interface{}, error) {
 }
 
 // UnmarshalYAML unmarshalls proxy listener mode from YAML value.
-func (p ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (p *ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var stringVar string
 	if err := unmarshal(&stringVar); err != nil {
 		return trace.Wrap(err)
 	}
 	for k, v := range ProxyListenerMode_value {
 		if strings.EqualFold(k, stringVar) {
-			p = ProxyListenerMode(v)
+			*p = ProxyListenerMode(v)
 			return nil
 		}
 	}
