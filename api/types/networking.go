@@ -293,5 +293,11 @@ func (p *ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) err
 			return nil
 		}
 	}
-	return trace.BadParameter("failed to unmarshal proxy listener mode: %q is not supported", stringVar)
+
+	available := make([]string, 0, len(ProxyListenerMode_value))
+	for k := range ProxyListenerMode_value {
+		available = append(available, strings.ToLower(k))
+	}
+	return trace.BadParameter(
+		"proxy listener mode must be one of %s; got %q", strings.Join(available, ","), stringVar)
 }

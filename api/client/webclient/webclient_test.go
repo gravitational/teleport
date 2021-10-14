@@ -177,7 +177,7 @@ func TestTunnelAddr(t *testing.T) {
 		settings:           ProxySettings{SSH: SSHProxySettings{}},
 		expectedTunnelAddr: "proxy.example.com:3024",
 	}))
-	t.Run("should use PublicAddr and WebAddrPort if multiple proxy listener mode", testTunnelAddr(testCase{
+	t.Run("should use PublicAddr and WebAddrPort if MultiplexListenerModeEnabled was enabled", testTunnelAddr(testCase{
 		proxyAddr: "proxy.example.com:443",
 		settings: ProxySettings{
 			SSH: SSHProxySettings{

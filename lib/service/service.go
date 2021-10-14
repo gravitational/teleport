@@ -2473,36 +2473,16 @@ func (l *proxyListeners) Close() {
 
 // setupProxyListeners sets up web proxy listeners based on the configuration
 func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
-	switch process.Config.Version {
-	case defaults.TeleportConfigVersionV2:
-		return process.setupProxyV2Listeners()
-	default:
-		return process.setupProxyV1Listeners()
-	}
-}
-
-func (process *TeleportProcess) setupProxyV2Listeners() (*proxyListeners, error) {
-	cfg := process.Config
-	process.log.Debugf("Setup Proxy on a single port address %v ", cfg.Proxy.WebAddr.Addr)
-	var listeners proxyListeners
-	listener, err := process.importOrCreateListener(listenerProxyTunnelAndWeb, cfg.Proxy.WebAddr.Addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	listeners.web = listener
-	return &listeners, nil
-}
-
-// setupProxyListeners sets up web proxy listeners based on the configuration
-func (process *TeleportProcess) setupProxyV1Listeners() (*proxyListeners, error) {
 	cfg := process.Config
 	process.log.Debugf("Setup Proxy: Web Proxy Address: %v, Reverse Tunnel Proxy Address: %v", cfg.Proxy.WebAddr.Addr, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 	var err error
 	var listeners proxyListeners
 
-	listeners.ssh, err = process.importOrCreateListener(listenerProxySSH, cfg.Proxy.SSHAddr.Addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if !cfg.Proxy.SSHAddr.IsEmpty() {
+		listeners.ssh, err = process.importOrCreateListener(listenerProxySSH, cfg.Proxy.SSHAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if cfg.Proxy.Kube.Enabled && !cfg.Proxy.Kube.ListenAddr.IsEmpty() {
@@ -2570,11 +2550,13 @@ func (process *TeleportProcess) setupProxyV1Listeners() (*proxyListeners, error)
 		}
 		listeners.web = listeners.mux.TLS()
 		listeners.db.postgres = listeners.mux.DB()
-		listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
-		if err != nil {
-			listener.Close()
-			listeners.Close()
-			return nil, trace.Wrap(err)
+		if !cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
+			listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+			if err != nil {
+				listener.Close()
+				listeners.Close()
+				return nil, trace.Wrap(err)
+			}
 		}
 		go listeners.mux.Serve()
 		return &listeners, nil

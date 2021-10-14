@@ -964,16 +964,12 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 
+	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
 	// Proxy service defaults.
 	cfg.Proxy.Enabled = true
-	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
-	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
-	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnelListenAddr()
-	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
-
-	// Kubernetes proxy service defaults.
 	cfg.Proxy.Kube.Enabled = false
-	cfg.Proxy.Kube.ListenAddr = *defaults.KubeProxyListenAddr()
+
+	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 
 	// SSH service defaults.
 	cfg.SSH.Enabled = true

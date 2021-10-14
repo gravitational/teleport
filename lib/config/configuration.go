@@ -813,19 +813,31 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
-	if cfg.Version == defaults.TeleportConfigVersionV2 {
-		applyV2Config(fc, cfg)
-	}
+	applyDefaultProxyListenerAddresses(cfg)
 
 	return nil
 }
 
-func applyV2Config(fc *FileConfig, cfg *service.Config) {
-	// Reset default value of listeners to clean up the proxy configuration.
-	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{}
-	cfg.Proxy.SSHAddr = utils.NetAddr{}
-	cfg.Proxy.MySQLAddr = utils.NetAddr{}
-	cfg.Proxy.Kube.ListenAddr = utils.NetAddr{}
+func applyDefaultProxyListenerAddresses(cfg *service.Config) {
+	if cfg.Version == defaults.TeleportConfigVersionV2 {
+		// For v2 configuration if an address is not provided don't fallback to the default values.
+		return
+	}
+
+	// For v1 configuration check if address was set in config file if
+	// not fallback to the default listener address.
+	if cfg.Proxy.WebAddr.IsEmpty() {
+		cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
+	}
+	if cfg.Proxy.SSHAddr.IsEmpty() {
+		cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
+	}
+	if cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
+		cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnelListenAddr()
+	}
+	if cfg.Proxy.Kube.ListenAddr.IsEmpty() {
+		cfg.Proxy.Kube.ListenAddr = *defaults.KubeProxyListenAddr()
+	}
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
