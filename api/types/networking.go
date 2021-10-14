@@ -277,19 +277,19 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 }
 
 // MarshalYAML defines how a proxy listener mode should be marshalled to a string
-func (p *ProxyListenerMode) MarshalYAML() (interface{}, error) {
+func (p ProxyListenerMode) MarshalYAML() (interface{}, error) {
 	return strings.ToLower(p.String()), nil
 }
 
 // UnmarshalYAML unmarshalls proxy listener mode from YAML value.
-func (p *ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (p ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var stringVar string
 	if err := unmarshal(&stringVar); err != nil {
 		return trace.Wrap(err)
 	}
 	for k, v := range ProxyListenerMode_value {
 		if strings.EqualFold(k, stringVar) {
-			*p = ProxyListenerMode(v)
+			p = ProxyListenerMode(v)
 			return nil
 		}
 	}
