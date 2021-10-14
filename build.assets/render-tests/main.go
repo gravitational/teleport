@@ -48,6 +48,7 @@ const (
 	actionFail   = "fail"
 	actionSkip   = "skip"
 	actionOutput = "output"
+separator = "==================================================="
 )
 
 func (e *TestEvent) FullName() string {
