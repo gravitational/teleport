@@ -231,10 +231,12 @@ func validatePullRequestFields(pr *github.PullRequest) error {
 	return nil
 }
 
+// reg is used for validating various fields on Github types.
+// Only allow strings that contain alphanumeric characters,
+// underscores, and dashes for fields.
+var reg = regexp.MustCompile(`^[\da-zA-Z-_]+$`)
+
 func validateField(field string) error {
-	// Only allow strings that contain alphanumeric characters, 
-	// underscores, and dashes. 
-	reg := regexp.MustCompile(`^[\da-zA-Z-_]+$`)
 	found := reg.MatchString(field)
 	if !found {
 		return trace.BadParameter("invalid field, %s contains illegal characters or is empty", field)

@@ -254,7 +254,7 @@ func (c *Bot) isGithubCommit(ctx context.Context) error {
 
 	// GPG verification command requires the signature as the first argument
 	// Runner must have gpg (GnuPG) installed.
-	cmd := exec.Command("gpg", "--verify", signatureFileName, payloadFileName)
+	cmd := exec.Command("/usr/bin/gpg", "--verify", signatureFileName, payloadFileName)
 	if err := cmd.Run(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			return trace.BadParameter("commit is not verified and/or is not signed by GitHub")
