@@ -22,10 +22,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -72,21 +74,6 @@ func TestSessionStartEvent(t *testing.T) {
 		},
 	}
 
-	s.onSessionStart(
-		context.Background(),
-		id,
-		"Administrator",
-		"sessionID",
-		desktop,
-		true,
-	)
-
-	event := emitter.LastEvent()
-	require.NotNil(t, event)
-
-	startEvent, ok := event.(*events.WindowsDesktopSessionStart)
-	require.True(t, ok)
-
 	expected := &events.WindowsDesktopSessionStart{
 		Metadata: events.Metadata{
 			ClusterName: s.clusterName,
@@ -115,7 +102,51 @@ func TestSessionStartEvent(t *testing.T) {
 		WindowsUser:           "Administrator",
 		DesktopLabels:         map[string]string{"env": "production"},
 	}
-	require.Empty(t, cmp.Diff(expected, startEvent))
+
+	for _, test := range []struct {
+		desc string
+		err  error
+		exp  func() events.WindowsDesktopSessionStart
+	}{
+		{
+			desc: "success",
+			err:  nil,
+			exp:  func() events.WindowsDesktopSessionStart { return *expected },
+		},
+		{
+			desc: "failure",
+			err:  trace.AccessDenied("access denied"),
+			exp: func() events.WindowsDesktopSessionStart {
+				e := *expected
+				e.Code = libevents.DesktopSessionStartFailureCode
+				e.Success = false
+				e.Error = "access denied"
+				e.UserMessage = "access denied"
+				return e
+			},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			s.onSessionStart(
+				context.Background(),
+				id,
+				"Administrator",
+				"sessionID",
+				desktop,
+				test.err,
+			)
+
+			event := emitter.LastEvent()
+			require.NotNil(t, event)
+
+			startEvent, ok := event.(*events.WindowsDesktopSessionStart)
+			require.True(t, ok)
+
+			require.Empty(t, cmp.Diff(test.exp(), *startEvent,
+				cmpopts.IgnoreFields(events.Metadata{}, "Time"),
+			))
+		})
+	}
 }
 
 func TestSessionEndEvent(t *testing.T) {
