@@ -1906,7 +1906,7 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 	}
 	role, ok := a.context.Identity.(BuiltinRole)
 	if !ok || !role.IsServer() {
-		return trace.AccessDenied("this request can be only executed by proxy, node or auth")
+		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
 	err := events.ValidateServerMetadata(event, role.GetServerID())
 	if err != nil {

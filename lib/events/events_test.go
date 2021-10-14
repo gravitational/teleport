@@ -19,22 +19,16 @@ package events
 import (
 	"encoding/json"
 	"reflect"
+	"testing"
 	"time"
 
-	"gopkg.in/check.v1"
-
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 )
 
-type EventsTestSuite struct {
-}
-
-var _ = check.Suite(&EventsTestSuite{})
-
 // TestJSON tests JSON marshal events
-func (a *EventsTestSuite) TestJSON(c *check.C) {
+func TestJSON(t *testing.T) {
 	type testCase struct {
 		name  string
 		json  string
@@ -490,29 +484,80 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 				},
 			},
 		},
+		{
+			name: "desktop session start",
+			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","success":true,"proto":"tdp","sid":"test-session","addr.local":"192.168.1.100:39887","addr.remote":"[::1]:34902","with_mfa":"mfa-device","code":"TDP00I","event":"windows.desktop.session.start","time":"2020-04-23T18:22:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","desktop_labels":{"env":"production"}}`,
+			event: apievents.WindowsDesktopSessionStart{
+				Metadata: apievents.Metadata{
+					Index:       4,
+					ID:          "cd06365f-3cef-4b21-809a-4af9502c11a1",
+					Type:        WindowsDesktopSessionStartEvent,
+					Code:        DesktopSessionStartCode,
+					Time:        time.Date(2020, 04, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:         "foo",
+					Impersonator: "bar",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					WithMFA:   "mfa-device",
+					SessionID: "test-session",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "192.168.1.100:39887",
+					RemoteAddr: "[::1]:34902",
+					Protocol:   EventProtocolTDP,
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				WindowsDesktopService: "00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8",
+				DesktopAddr:           "[::1]:34902",
+				Domain:                "test.example.com",
+				WindowsUser:           "Administrator",
+				DesktopLabels:         map[string]string{"env": "production"},
+			},
+		},
+		{
+			name: "desktop session end",
+			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","sid":"test-session","with_mfa":"mfa-device","code":"TDP01I","event":"windows.desktop.session.end","time":"2020-04-23T18:22:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","desktop_labels":{"env":"production"}}`,
+			event: apievents.WindowsDesktopSessionEnd{
+				Metadata: apievents.Metadata{
+					Index:       4,
+					ID:          "cd06365f-3cef-4b21-809a-4af9502c11a1",
+					Type:        WindowsDesktopSessionEndEvent,
+					Code:        DesktopSessionEndCode,
+					Time:        time.Date(2020, 04, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:         "foo",
+					Impersonator: "bar",
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					WithMFA:   "mfa-device",
+					SessionID: "test-session",
+				},
+				WindowsDesktopService: "00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8",
+				DesktopAddr:           "[::1]:34902",
+				Domain:                "test.example.com",
+				WindowsUser:           "Administrator",
+				DesktopLabels:         map[string]string{"env": "production"},
+			},
+		},
 	}
-	for i, tc := range testCases {
-		comment := check.Commentf("Test case %v: %v", i, tc.name)
-		outJSON, err := utils.FastMarshal(tc.event)
-		c.Assert(err, check.IsNil, comment)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			outJSON, err := utils.FastMarshal(tc.event)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.json, string(outJSON))
 
-		var out map[string]interface{}
-		err = json.Unmarshal(outJSON, &out)
-		c.Assert(err, check.IsNil, comment)
-
-		// JSON key order is not deterministic when marshaling,
-		// this code makes sure intermediate representation is equal
-		var expected map[string]interface{}
-		err = json.Unmarshal([]byte(tc.json), &expected)
-		c.Assert(err, check.IsNil, comment)
-
-		fixtures.DeepCompareMaps(c, out, expected)
-
-		// unmarshal back into the type and compare the values
-		outEvent := reflect.New(reflect.TypeOf(tc.event))
-		err = json.Unmarshal(outJSON, outEvent.Interface())
-		c.Assert(err, check.IsNil, comment)
-
-		fixtures.DeepCompare(c, outEvent.Elem().Interface(), tc.event)
+			// unmarshal back into the type and compare the values
+			outEvent := reflect.New(reflect.TypeOf(tc.event))
+			err = json.Unmarshal(outJSON, outEvent.Interface())
+			require.NoError(t, err)
+			require.Equal(t, tc.event, outEvent.Elem().Interface())
+		})
 	}
 }
