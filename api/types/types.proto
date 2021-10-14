@@ -1536,6 +1536,17 @@ message RoleConditions {
 
     // AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
     repeated string AWSRoleARNs = 16 [ (gogoproto.jsontag) = "aws_role_arns,omitempty" ];
+
+    // WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
+    repeated string WindowsDesktopLogins = 17
+        [ (gogoproto.jsontag) = "windows_desktop_logins,omitempty" ];
+
+    // WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.
+    wrappers.LabelValues WindowsDesktopLabels = 18 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "windows_desktop_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on

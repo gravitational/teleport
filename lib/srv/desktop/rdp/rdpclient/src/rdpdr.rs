@@ -13,6 +13,10 @@ use std::io::{Read, Write};
 
 const CHANNEL_NAME: &str = "rdpdr";
 
+// Client implements a device redirection (RDPDR) client, as defined in
+// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
+//
+// This client only supports a single smartcard device.
 pub struct Client {
     scard: scard::Client,
 }
@@ -45,9 +49,12 @@ impl Client {
             }
             PacketId::PAKID_CORE_CLIENTID_CONFIRM => self.handle_client_id_confirm(&mut payload)?,
             PacketId::PAKID_CORE_DEVICE_REPLY => self.handle_device_reply(&mut payload)?,
+            // Device IO request is where communication with the smartcard actually happens.
+            // Everything up to this point was negotiation and smartcard device registration.
             PacketId::PAKID_CORE_DEVICE_IOREQUEST => self.handle_device_io_request(&mut payload)?,
             _ => {
-                // TODO(awly): return an error here once the entire protocol is implemented?
+                // We don't implement the full set of messages. Only the ones necessary for initial
+                // negotiation and registration of a smartcard device.
                 error!(
                     "RDPDR packets {:?} are not implemented yet, ignoring",
                     header.packet_id
@@ -296,6 +303,8 @@ struct ServerCoreCapabilityRequest {
 
 impl ServerCoreCapabilityRequest {
     fn new_response() -> Self {
+        // Clients are always required to send the "general" capability set.
+        // In addition, we also send the optional smartcard capability.
         Self {
             num_capabilities: 2,
             padding: 0,
@@ -501,6 +510,8 @@ impl GeneralCapabilitySet {
 
 type ClientCoreCapabilityResponse = ServerCoreCapabilityRequest;
 
+// If there were multiple redirected devices, they would need unique IDs. In our case there is only
+// one permanent smartcard device, so we hardcode an ID 1.
 const SCARD_DEVICE_ID: u32 = 1;
 
 #[derive(Debug)]
@@ -516,6 +527,7 @@ impl ClientDeviceListAnnounceRequest {
             devices: vec![DeviceAnnounceHeader {
                 device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
                 device_id: SCARD_DEVICE_ID,
+                // This name is a constant defined by the spec.
                 preferred_dos_name: "SCARD".to_string(),
                 device_data_length: 0,
                 device_data: vec![],
