@@ -337,8 +337,8 @@ type teleportClusterClient struct {
 	isRemoteClosed func() bool
 }
 
-// DialEndpoint dials the given kube service endpoint to form a connection with the kube cluster
-func (c *teleportClusterClient) DialEndpoint(ctx context.Context, network string, endpoint kubeServiceEndpoint) (net.Conn, error) {
+// DialEndpoint dials a connection to a kube cluster using the given kube cluster endpoint
+func (c *teleportClusterClient) DialEndpoint(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 	return c.dial(ctx, network, endpoint.addr, endpoint.serverID)
 }
 
@@ -1100,7 +1100,7 @@ const (
 )
 
 func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Request) error {
-	if len(sess.kubeServiceEndpoints) == 0 {
+	if len(sess.kubeClusterEndpoints) == 0 {
 		return trace.BadParameter("no endpoints provided, cannot set URL host")
 	}
 
@@ -1111,7 +1111,7 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	// Setup scheme, override target URL to the destination address
 	req.URL.Scheme = "https"
 	req.RequestURI = req.URL.Path + "?" + req.URL.RawQuery
-	req.URL.Host = sess.kubeServiceEndpoints[0].addr
+	req.URL.Host = sess.kubeClusterEndpoints[0].addr
 
 	// add origin headers so the service consuming the request on the other site
 	// is aware of where it came from
@@ -1323,16 +1323,14 @@ type clusterSession struct {
 	forwarder *forward.Forwarder
 	// noAuditEvents is true if this teleport service should leave audit event
 	// logging to another service.
-	noAuditEvents bool
-	// kubeAddress is the address of this session's active connection
+	noAuditEvents        bool
+	kubeClusterEndpoints []kubeClusterEndpoint
+	// kubeAddress is the address of this session's active connection (if there is one)
 	kubeAddress string
-	// kubeServiceEndpoints is a list of kube service endpoints
-	// which can be used to connect to the specified kubeCluster
-	kubeServiceEndpoints []kubeServiceEndpoint
 }
 
-// kubeServiceEndpoint can be used to connect to a kube cluster
-type kubeServiceEndpoint struct {
+// kubeClusterEndpoint can be used to connect to a kube cluster
+type kubeClusterEndpoint struct {
 	// addr is a direct network address.
 	addr string
 	// serverID is the server:cluster ID of the endpoint,
@@ -1386,13 +1384,13 @@ func (s *clusterSession) DialWithContext(ctx context.Context, network, _ string)
 }
 
 func (s *clusterSession) dial(ctx context.Context, network string) (net.Conn, error) {
-	if len(s.kubeServiceEndpoints) == 0 {
+	if len(s.kubeClusterEndpoints) == 0 {
 		return nil, trace.BadParameter("no kube services to dial")
 	}
 
 	// Shuffle endpoints to balance load
-	shuffledEndpoints := make([]kubeServiceEndpoint, len(s.kubeServiceEndpoints))
-	copy(shuffledEndpoints, s.kubeServiceEndpoints)
+	shuffledEndpoints := make([]kubeClusterEndpoint, len(s.kubeClusterEndpoints))
+	copy(shuffledEndpoints, s.kubeClusterEndpoints)
 	mathrand.Shuffle(len(shuffledEndpoints), func(i, j int) {
 		shuffledEndpoints[i], shuffledEndpoints[j] = shuffledEndpoints[j], shuffledEndpoints[i]
 	})
@@ -1431,7 +1429,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 	}
 	// remote clusters use special hardcoded URL,
 	// and use a special dialer
-	sess.kubeServiceEndpoints = []kubeServiceEndpoint{{addr: reversetunnel.LocalKubernetes}}
+	sess.kubeClusterEndpoints = []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}}
 	transport := f.newTransport(sess.Dial, sess.tlsConfig)
 
 	sess.forwarder, err = forward.New(
@@ -1463,7 +1461,7 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 	}
 
 	// Validate that the requested kube cluster is registered.
-	var endpoints []kubeServiceEndpoint
+	var endpoints []kubeClusterEndpoint
 outer:
 	for _, s := range kubeServices {
 		for _, k := range s.GetKubernetesClusters() {
@@ -1471,7 +1469,7 @@ outer:
 				continue
 			}
 			// TODO(awly): check RBAC
-			endpoints = append(endpoints, kubeServiceEndpoint{
+			endpoints = append(endpoints, kubeClusterEndpoint{
 				serverID: fmt.Sprintf("%s.%s", s.GetName(), ctx.teleportCluster.name),
 				addr:     s.GetAddr(),
 			})
@@ -1498,7 +1496,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 		return nil, trace.NotFound("kubernetes cluster %q not found", ctx.kubeCluster)
 	}
 	sess.creds = creds
-	sess.kubeServiceEndpoints = []kubeServiceEndpoint{{addr: creds.targetAddr}}
+	sess.kubeClusterEndpoints = []kubeClusterEndpoint{{addr: creds.targetAddr}}
 	sess.tlsConfig = creds.tlsConfig
 
 	// When running inside Kubernetes cluster or using auth/exec providers,
@@ -1525,7 +1523,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 	return sess, nil
 }
 
-func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []kubeServiceEndpoint) (*clusterSession, error) {
+func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []kubeClusterEndpoint) (*clusterSession, error) {
 	if len(endpoints) == 0 {
 		return nil, trace.BadParameter("no kube cluster endpoints provided")
 	}
@@ -1539,7 +1537,7 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []kubeSer
 		// audit logging. Avoid duplicate logging.
 		noAuditEvents: true,
 	}
-	sess.kubeServiceEndpoints = endpoints
+	sess.kubeClusterEndpoints = endpoints
 
 	var err error
 	sess.tlsConfig, err = f.getOrRequestClientCreds(ctx)

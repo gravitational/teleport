@@ -602,9 +602,6 @@ func mockAuthCtx(ctx context.Context, t *testing.T, isRemote bool) authContext {
 			UnmappedIdentity: unmappedIdentity,
 		},
 		teleportCluster: teleportClusterClient{
-			dial: func(ctx context.Context, network, addr, serverID string) (net.Conn, error) {
-				return &net.TCPConn{}, nil
-			},
 			name:     "teleport-cluster",
 			isRemote: isRemote,
 		},
@@ -643,16 +640,13 @@ func TestNewClusterSession(t *testing.T) {
 		sess, err := f.newClusterSession(authCtx)
 		require.NoError(t, err)
 		require.NotNil(t, sess.forwarder)
-		require.Equal(t, []kubeServiceEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeServiceEndpoints)
+		require.Equal(t, []kubeClusterEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeClusterEndpoints)
 
 		// Make sure newClusterSession used provided creds
 		// instead of requesting a Teleport client cert.
 		require.Equal(t, f.creds["local"].tlsConfig, sess.tlsConfig)
 		require.Nil(t, f.cfg.AuthClient.(*mockCSRClient).lastCert)
 		require.Equal(t, 0, f.clientCredentials.Len())
-
-		// test dialing to the endpoints set by new cluster session
-		testDial(ctx, t, sess, f.creds["local"].targetAddr)
 	})
 
 	t.Run("remote session", func(t *testing.T) {
@@ -661,52 +655,41 @@ func TestNewClusterSession(t *testing.T) {
 		sess, err := f.newClusterSession(authCtx)
 		require.NoError(t, err)
 		require.NotNil(t, sess.forwarder)
-		require.Equal(t, []kubeServiceEndpoint{{addr: reversetunnel.LocalKubernetes}}, sess.kubeServiceEndpoints)
+		require.Equal(t, []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}}, sess.kubeClusterEndpoints)
 
 		// Make sure newClusterSession obtained a new client cert instead of using f.creds.
 		require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
 		require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
 		require.Equal(t, 1, f.clientCredentials.Len())
-
-		// test dialing to the endpoints set by new cluster session
-		testDial(ctx, t, sess, reversetunnel.LocalKubernetes)
 	})
 
 	t.Run("direct sesssion", func(t *testing.T) {
 		authCtx := mockAuthCtx(ctx, t, false)
-		publicKubeServer := &types.ServerV2{
-			Kind:    types.KindKubeService,
-			Version: types.V2,
-			Metadata: types.Metadata{
-				Name: "public-server",
-			},
-			Spec: types.ServerSpecV2{
-				Addr:     "k8s.example.com:3026",
-				Hostname: "",
+
+		publicKubeServer, err := types.NewServer("public-server", types.KindKubeService,
+			types.ServerSpecV2{
+				Addr: "k8s.example.com:3026",
 				KubernetesClusters: []*types.KubernetesCluster{{
 					Name: "kube-cluster",
 				}},
 			},
-		}
-		publicEndpoint := kubeServiceEndpoint{
+		)
+		require.NoError(t, err)
+		publicEndpoint := kubeClusterEndpoint{
 			addr:     publicKubeServer.GetAddr(),
 			serverID: fmt.Sprintf("%s.%s", publicKubeServer.GetName(), authCtx.teleportCluster.name),
 		}
-		reverseTunnelKubeServer := &types.ServerV2{
-			Kind:    types.KindKubeService,
-			Version: types.V2,
-			Metadata: types.Metadata{
-				Name: "reverse-tunnel-server",
-			},
-			Spec: types.ServerSpecV2{
-				Addr:     reversetunnel.LocalKubernetes,
-				Hostname: "",
+
+		reverseTunnelKubeServer, err := types.NewServer("reverse-tunnel-server", types.KindKubeService,
+			types.ServerSpecV2{
+				Addr: reversetunnel.LocalKubernetes,
 				KubernetesClusters: []*types.KubernetesCluster{{
 					Name: "kube-cluster",
 				}},
 			},
-		}
-		reverseTunnelEndpoint := kubeServiceEndpoint{
+		)
+		require.NoError(t, err)
+		reverseTunnelEndpoint := kubeClusterEndpoint{
 			addr:     reverseTunnelKubeServer.GetAddr(),
 			serverID: fmt.Sprintf("%s.%s", reverseTunnelKubeServer.GetName(), authCtx.teleportCluster.name),
 		}
@@ -721,10 +704,7 @@ func TestNewClusterSession(t *testing.T) {
 			sess, err := f.newClusterSession(authCtx)
 			require.NoError(t, err)
 			require.NotNil(t, sess.forwarder)
-			require.Equal(t, []kubeServiceEndpoint{publicEndpoint}, sess.kubeServiceEndpoints)
-
-			// test dialing to the endpoints set by new cluster session
-			testDial(ctx, t, sess, publicEndpoint.addr)
+			require.Equal(t, []kubeClusterEndpoint{publicEndpoint}, sess.kubeClusterEndpoints)
 		})
 
 		t.Run("reverse tunnel kube service", func(t *testing.T) {
@@ -737,10 +717,7 @@ func TestNewClusterSession(t *testing.T) {
 			sess, err := f.newClusterSession(authCtx)
 			require.NoError(t, err)
 			require.NotNil(t, sess.forwarder)
-			require.Equal(t, []kubeServiceEndpoint{reverseTunnelEndpoint}, sess.kubeServiceEndpoints)
-
-			// test dialing to the endpoints set by new cluster session
-			testDial(ctx, t, sess, reverseTunnelEndpoint.addr)
+			require.Equal(t, []kubeClusterEndpoint{reverseTunnelEndpoint}, sess.kubeClusterEndpoints)
 		})
 
 		t.Run("multiple kube services", func(t *testing.T) {
@@ -754,18 +731,54 @@ func TestNewClusterSession(t *testing.T) {
 			sess, err := f.newClusterSession(authCtx)
 			require.NoError(t, err)
 			require.NotNil(t, sess.forwarder)
-			require.Equal(t, []kubeServiceEndpoint{publicEndpoint, reverseTunnelEndpoint}, sess.kubeServiceEndpoints)
-
-			// test dialing to the endpoints set by new cluster session
-			testDial(ctx, t, sess, publicEndpoint.addr, reverseTunnelEndpoint.addr)
+			require.Equal(t, []kubeClusterEndpoint{publicEndpoint, reverseTunnelEndpoint}, sess.kubeClusterEndpoints)
 		})
 	})
 }
 
-func testDial(ctx context.Context, t *testing.T, sess *clusterSession, expectAddrs ...string) {
-	_, err := sess.dial(ctx, "")
-	require.NoError(t, err)
-	require.Contains(t, expectAddrs, sess.kubeAddress)
+func TestClusterSessionDial(t *testing.T) {
+	ctx := context.Background()
+	sess := &clusterSession{
+		authContext: authContext{
+			teleportCluster: teleportClusterClient{
+				dial: func(ctx context.Context, network, addr, serverID string) (net.Conn, error) {
+					if addr == "" {
+						return nil, trace.BadParameter("no addr")
+					}
+					return &net.TCPConn{}, nil
+				},
+			},
+		},
+	}
+
+	t.Run("no endpoints", func(t *testing.T) {
+		_, err := sess.dial(ctx, "")
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	t.Run("one endpoint", func(t *testing.T) {
+		sess.kubeClusterEndpoints = []kubeClusterEndpoint{{
+			addr:     "addr1",
+			serverID: "server1",
+		}}
+		_, err := sess.dial(ctx, "")
+		require.NoError(t, err)
+		require.Equal(t, sess.kubeAddress, "addr1")
+	})
+
+	t.Run("multiple endpoints", func(t *testing.T) {
+		sess.kubeClusterEndpoints = make([]kubeClusterEndpoint, 10)
+
+		// dial should fail if no endpoints are reachable
+		_, err := sess.dial(ctx, "")
+		require.Error(t, err)
+
+		// dial should succeed if at least one endpoint is reachable
+		sess.kubeClusterEndpoints[5] = kubeClusterEndpoint{addr: "addr1"}
+		_, err = sess.dial(ctx, "")
+		require.NoError(t, err)
+		require.Equal(t, "addr1", sess.kubeAddress)
+	})
 }
 
 func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
