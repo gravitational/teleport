@@ -48,8 +48,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -445,15 +445,15 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			services.NewWindowsLoginMatcher(login))
 	}
 
-	dpc := deskproto.NewConn(conn)
+	tdpConn := tdp.NewConn(conn)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain())
 		},
 		Addr:          desktop.GetAddr(),
-		InputMessage:  dpc.InputMessage,
-		OutputMessage: dpc.OutputMessage,
+		InputMessage:  tdpConn.InputMessage,
+		OutputMessage: tdpConn.OutputMessage,
 		AuthorizeFn:   authorize,
 	})
 	if err != nil {
