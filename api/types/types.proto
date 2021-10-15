@@ -2604,6 +2604,36 @@ message WindowsDesktopSpecV3 {
     string Domain = 2 [ (gogoproto.jsontag) = "domain" ];
 }
 
+// RegisterUsingTokenRequest is a request to register with the auth server using
+// an authentication token
+message RegisterUsingTokenRequest {
+    // HostID is a unique host ID, usually a UUID
+    string HostID = 1 [ (gogoproto.jsontag) = "hostID" ];
+    // NodeName is a node name
+    string NodeName = 2 [ (gogoproto.jsontag) = "node_name" ];
+    // Role is a system role, e.g. Proxy
+    string Role = 3 [ (gogoproto.jsontag) = "role", (gogoproto.casttype) = "SystemRole" ];
+    // Token is the name of an authentication token
+    string Token = 4 [ (gogoproto.jsontag) = "token" ];
+    // AdditionalPrincipals is a list of additional principals
+    repeated string AdditionalPrincipals = 5 [ (gogoproto.jsontag) = "additional_principals" ];
+    // DNSNames is a list of DNS names to include in the x509 client certificate
+    repeated string DNSNames = 6 [ (gogoproto.jsontag) = "dns_names" ];
+    // PublicTLSKey is a PEM encoded public key
+    // used for TLS setup
+    bytes PublicTLSKey = 7 [ (gogoproto.jsontag) = "public_tls_key" ];
+    // PublicSSHKey is a SSH encoded public key,
+    // if present will be signed as a return value
+    // otherwise, new public/private key pair will be generated
+    bytes PublicSSHKey = 8 [ (gogoproto.jsontag) = "public_ssh_key" ];
+    // RemoteAddr is the remote address of the host requesting a host certificate.
+    // It is used to replace 0.0.0.0 in the list of additional principals.
+    string RemoteAddr = 9 [ (gogoproto.jsontag) = "remote_addr" ];
+    // EC2IdentityDocument is used for Simplified Node Joining to prove the
+    // identity of a joining EC2 instance.
+    bytes EC2IdentityDocument = 10 [ (gogoproto.jsontag) = "ec2_id" ];
+}
+
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
 // access to their account by restoring their lost password or second factor. Once a recovery code
 // is successfully verified, the code is mark used (which invalidates it), and lets the user begin

@@ -122,7 +122,7 @@ func (r *RegisterParams) setDefaults() {
 // CredGetter is an interface for a client that can be used to get host
 // credentials. This interface is needed because lib/client can not be imported
 // in lib/auth due to circular imports.
-type HostCredentials func(context.Context, string, bool, RegisterUsingTokenRequest) (*proto.Certs, error)
+type HostCredentials func(context.Context, string, bool, types.RegisterUsingTokenRequest) (*proto.Certs, error)
 
 // Register is used to generate host keys when a node or proxy are running on
 // different hosts than the auth server. This method requires provisioning
@@ -189,7 +189,7 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 	certs, err := params.GetHostCredentials(context.Background(),
 		params.Servers[0].String(),
 		lib.IsInsecureDevMode(),
-		RegisterUsingTokenRequest{
+		types.RegisterUsingTokenRequest{
 			Token:                token,
 			HostID:               params.ID.HostUUID,
 			NodeName:             params.ID.NodeName,
@@ -227,7 +227,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	defer client.Close()
 
 	// Get the SSH and X509 certificates for a node.
-	certs, err := client.RegisterUsingToken(RegisterUsingTokenRequest{
+	certs, err := client.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:                token,
 		HostID:               params.ID.HostUUID,
 		NodeName:             params.ID.NodeName,
