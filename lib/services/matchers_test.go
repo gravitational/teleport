@@ -30,22 +30,22 @@ import (
 func TestMatchResourceLabels(t *testing.T) {
 	tests := []struct {
 		description    string
-		selectors      []Selector
+		selectors      []ResourceMatcher
 		databaseLabels map[string]string
 		match          bool
 	}{
 		{
 			description: "wildcard selector matches empty labels",
-			selectors: []Selector{
-				{MatchLabels: types.Labels{types.Wildcard: []string{types.Wildcard}}},
+			selectors: []ResourceMatcher{
+				{Labels: types.Labels{types.Wildcard: []string{types.Wildcard}}},
 			},
 			databaseLabels: nil,
 			match:          true,
 		},
 		{
 			description: "wildcard selector matches any label",
-			selectors: []Selector{
-				{MatchLabels: types.Labels{types.Wildcard: []string{types.Wildcard}}},
+			selectors: []ResourceMatcher{
+				{Labels: types.Labels{types.Wildcard: []string{types.Wildcard}}},
 			},
 			databaseLabels: map[string]string{
 				uuid.New(): uuid.New(),
@@ -55,40 +55,40 @@ func TestMatchResourceLabels(t *testing.T) {
 		},
 		{
 			description: "selector doesn't match empty labels",
-			selectors: []Selector{
-				{MatchLabels: types.Labels{"env": []string{"dev"}}},
+			selectors: []ResourceMatcher{
+				{Labels: types.Labels{"env": []string{"dev"}}},
 			},
 			databaseLabels: nil,
 			match:          false,
 		},
 		{
 			description: "selector matches specific label",
-			selectors: []Selector{
-				{MatchLabels: types.Labels{"env": []string{"dev"}}},
+			selectors: []ResourceMatcher{
+				{Labels: types.Labels{"env": []string{"dev"}}},
 			},
 			databaseLabels: map[string]string{"env": "dev"},
 			match:          true,
 		},
 		{
 			description: "selector doesn't match label",
-			selectors: []Selector{
-				{MatchLabels: types.Labels{"env": []string{"dev"}}},
+			selectors: []ResourceMatcher{
+				{Labels: types.Labels{"env": []string{"dev"}}},
 			},
 			databaseLabels: map[string]string{"env": "prod"},
 			match:          false,
 		},
 		{
 			description: "selector matches label",
-			selectors: []Selector{
-				{MatchLabels: types.Labels{"env": []string{"dev", "prod"}}},
+			selectors: []ResourceMatcher{
+				{Labels: types.Labels{"env": []string{"dev", "prod"}}},
 			},
 			databaseLabels: map[string]string{"env": "prod"},
 			match:          true,
 		},
 		{
 			description: "selector doesn't match multiple labels",
-			selectors: []Selector{
-				{MatchLabels: types.Labels{
+			selectors: []ResourceMatcher{
+				{Labels: types.Labels{
 					"env":     []string{"dev"},
 					"cluster": []string{"root"},
 				}},
@@ -98,8 +98,8 @@ func TestMatchResourceLabels(t *testing.T) {
 		},
 		{
 			description: "selector matches multiple labels",
-			selectors: []Selector{
-				{MatchLabels: types.Labels{
+			selectors: []ResourceMatcher{
+				{Labels: types.Labels{
 					"env":     []string{"dev"},
 					"cluster": []string{"root"},
 				}},
@@ -109,9 +109,9 @@ func TestMatchResourceLabels(t *testing.T) {
 		},
 		{
 			description: "one of multiple selectors matches",
-			selectors: []Selector{
-				{MatchLabels: types.Labels{"env": []string{"dev"}}},
-				{MatchLabels: types.Labels{"cluster": []string{"root"}}},
+			selectors: []ResourceMatcher{
+				{Labels: types.Labels{"env": []string{"dev"}}},
+				{Labels: types.Labels{"cluster": []string{"root"}}},
 			},
 			databaseLabels: map[string]string{"cluster": "root"},
 			match:          true,
