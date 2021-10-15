@@ -54,6 +54,8 @@ type Config struct {
 	Insecure bool
 	//DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
+	// BucketOwnerFullControl if canned ACL of the same name should be set
+	BucketOwnerFullControl bool
 	// Session is an optional existing AWS client session
 	Session *awssession.Session
 	// Credentials if supplied are used in tests
@@ -61,7 +63,7 @@ type Config struct {
 }
 
 // SetFromURL sets values on the Config from the supplied URI
-func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
+func (s *Config) SetFromURL(in *url.URL, inRegion string, bucketOwnerFullControl bool) error {
 	region := inRegion
 	if uriRegion := in.Query().Get(teleport.Region); uriRegion != "" {
 		region = uriRegion
@@ -86,6 +88,7 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 	s.Region = region
 	s.Bucket = in.Host
 	s.Path = in.Path
+	s.BucketOwnerFullControl = bucketOwnerFullControl
 	return nil
 }
 
@@ -176,6 +179,9 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	}
 	if !h.Config.DisableServerSideEncryption {
 		uploadInput.ServerSideEncryption = aws.String(s3.ServerSideEncryptionAwsKms)
+	}
+	if h.Config.BucketOwnerFullControl {
+		uploadInput.ACL = aws.String("bucket-owner-full-control")
 	}
 	_, err = h.uploader.UploadWithContext(ctx, uploadInput)
 	if err != nil {

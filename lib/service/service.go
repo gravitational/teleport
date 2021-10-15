@@ -954,7 +954,7 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 		return handler, nil
 	case teleport.SchemeS3:
 		config := s3sessions.Config{}
-		if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
+		if err := config.SetFromURL(uri, auditConfig.Region(), auditConfig.BucketOwnerFullControl()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		handler, err := s3sessions.NewHandler(ctx, config)

@@ -789,6 +789,10 @@ message ClusterAuditConfigSpecV2 {
     int64 WriteMinCapacity = 12 [ (gogoproto.jsontag) = "write_min_capacity,omitempty" ];
     // WriteTargetValue is the ratio of consumed write to provisioned capacity.
     double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
+    // BucketOwnerFullControl is used to enable the S3 bucket owner to take control of audit
+    // session objects uploaded to it.
+    bool BucketOwnerFullControl = 14
+        [ (gogoproto.jsontag) = "bucket_owner_full_control,omitempty" ];
 }
 
 // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
