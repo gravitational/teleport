@@ -373,6 +373,7 @@ func Run(args []string, opts ...cliOption) error {
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
 	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI").StringsVar(&cf.AWSCommandArgs)
+	aws.Flag("app", "Name of the AWS application.").StringVar(&cf.AppName)
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")

@@ -133,7 +133,12 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 		return nil, trace.NotFound("remote Teleport Proxy doesn't support AWS CLI access protocol")
 	}
 
-	appCerts, err := loadAWSAppCertificate(tc)
+	awsApp, err := pickActiveAWSApp(cf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	appCerts, err := loadAWSAppCertificate(tc, awsApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,15 +175,12 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	return lp, nil
 }
 
-func loadAWSAppCertificate(tc *client.TeleportClient) (tls.Certificate, error) {
-	if tc.CurrentAWSCLIApp == "" {
-		return tls.Certificate{}, trace.NotFound("please login into AWS Console App 'tsh app login' first")
-	}
+func loadAWSAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {
 	key, err := tc.LocalAgent().GetKey(tc.SiteName, client.WithAppCerts{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	cc, ok := key.AppTLSCerts[tc.CurrentAWSCLIApp]
+	cc, ok := key.AppTLSCerts[appName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("please login into AWS Console App 'tsh app login' first")
 	}
@@ -195,8 +197,8 @@ func loadAWSAppCertificate(tc *client.TeleportClient) (tls.Certificate, error) {
 	}
 	if time.Until(x509cert.NotAfter) < 5*time.Second {
 		return tls.Certificate{}, trace.BadParameter(
-			"AWS app %s certificate has expired please re-login to the app 'tsh app login'",
-			tc.CurrentAWSCLIApp)
+			"AWS application %s certificate has expired please re-login to the app 'tsh app login'",
+			appName)
 	}
 	return cert, nil
 }
@@ -324,4 +326,61 @@ func (t tempSelfSignedLocalCert) Clean() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func pickActiveAWSApp(cf *CLIConf) (string, error) {
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if len(profile.Apps) == 0 {
+		return "", trace.NotFound("Please login using 'tsh app login' first")
+	}
+	name := cf.AppName
+	if name != "" {
+		app, err := findApp(profile.Apps, name)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return "", trace.NotFound("Please login to AWS App using 'tsh app login' first")
+			}
+			return "", trace.Wrap(err)
+		}
+		if app.AWSRoleARN == "" {
+			return "", trace.BadParameter(
+				"Selected app %q is not a valid AWS application", name,
+			)
+		}
+		return name, nil
+	}
+
+	awsApps := getAWSAppsName(profile.Apps)
+	if len(awsApps) == 0 {
+		return "", trace.NotFound("Please login to AWS App using 'tsh app login' first")
+	}
+	if len(awsApps) > 1 {
+		names := strings.Join(awsApps, ", ")
+		return "", trace.BadParameter(
+			"Multiple AWS App are available (%v), please specify one using --app CLI argument", names,
+		)
+	}
+	return awsApps[0], nil
+}
+
+func findApp(apps []tlsca.RouteToApp, name string) (*tlsca.RouteToApp, error) {
+	for _, app := range apps {
+		if app.Name == name {
+			return &app, nil
+		}
+	}
+	return nil, trace.NotFound("failed to find app with %q name", name)
+}
+
+func getAWSAppsName(apps []tlsca.RouteToApp) []string {
+	var out []string
+	for _, app := range apps {
+		if app.AWSRoleARN != "" {
+			out = append(out, app.Name)
+		}
+	}
+	return out
 }
