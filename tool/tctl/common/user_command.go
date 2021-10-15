@@ -188,6 +188,7 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, format stri
 func (u *UserCommand) Add(client auth.ClientI) error {
 	u.createRoles = flattenSlice(u.createRoles)
 	u.allowedLogins = flattenSlice(u.allowedLogins)
+	u.allowedWindowsLogins = flattenSlice(u.allowedWindowsLogins)
 
 	// Validate roles (server does not do this yet).
 	for _, roleName := range u.createRoles {

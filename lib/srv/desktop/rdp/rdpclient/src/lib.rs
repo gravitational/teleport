@@ -154,9 +154,9 @@ fn connect_rdp_inner(
         screen_width,
         screen_height,
         KeyboardLayout::US,
-        // Request the RDPDR static channel.
-        // For some reason, we also need to request RDPSND along with it, although it's never used
-        // explicitly from our end.
+        // Request the RDPDR (device redirection) static channel.
+        // For some reason, we also need to request RDPSND (sound) along with it,
+        // although it's never used explicitly from our end.
         &vec!["rdpdr".to_string(), "rdpsnd".to_string()],
     )?;
     // Password must be non-empty for autologin (sec::InfoFlag::InfoPasswordIsScPin) to trigger on
@@ -370,11 +370,11 @@ fn read_rdp_output_inner(client: &Client, client_ref: i64) -> Option<String> {
     None
 }
 
-// CGOPointer is a CGO-compatible version of PointerEvent that we pass back to Go.
+// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
 // PointerEvent is a mouse move or click update from the user.
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct CGOPointer {
+pub struct CGOMousePointerEvent {
     pub x: u16,
     pub y: u16,
     pub button: CGOPointerButton,
@@ -400,8 +400,8 @@ pub enum CGOPointerWheel {
     PointerWheelHorizontal,
 }
 
-impl From<CGOPointer> for PointerEvent {
-    fn from(p: CGOPointer) -> PointerEvent {
+impl From<CGOMousePointerEvent> for PointerEvent {
+    fn from(p: CGOMousePointerEvent) -> PointerEvent {
         PointerEvent {
             x: p.x,
             y: p.y,
@@ -423,7 +423,10 @@ impl From<CGOPointer> for PointerEvent {
 }
 
 #[no_mangle]
-pub extern "C" fn write_rdp_pointer(client_ptr: *mut Client, pointer: CGOPointer) -> CGOError {
+pub extern "C" fn write_rdp_pointer(
+    client_ptr: *mut Client,
+    pointer: CGOMousePointerEvent,
+) -> CGOError {
     let client = unsafe { Client::from_ptr(client_ptr) };
     let client = match client {
         Some(client) => client,
@@ -443,11 +446,11 @@ pub extern "C" fn write_rdp_pointer(client_ptr: *mut Client, pointer: CGOPointer
     }
 }
 
-// CGOKey is a CGO-compatible version of KeyboardEvent that we pass back to Go.
+// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
 // KeyboardEvent is a keyboard update from the user.
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct CGOKey {
+pub struct CGOKeyboardEvent {
     // Note: there's only one key code sent at a time. A key combo is sent as a sequence of
     // KeyboardEvent messages, one key at a time in the "down" state. The RDP server takes care of
     // interpreting those.
@@ -455,8 +458,8 @@ pub struct CGOKey {
     pub down: bool,
 }
 
-impl From<CGOKey> for KeyboardEvent {
-    fn from(k: CGOKey) -> KeyboardEvent {
+impl From<CGOKeyboardEvent> for KeyboardEvent {
+    fn from(k: CGOKeyboardEvent) -> KeyboardEvent {
         KeyboardEvent {
             code: k.code,
             down: k.down,
@@ -465,7 +468,7 @@ impl From<CGOKey> for KeyboardEvent {
 }
 
 #[no_mangle]
-pub extern "C" fn write_rdp_keyboard(client_ptr: *mut Client, key: CGOKey) -> CGOError {
+pub extern "C" fn write_rdp_keyboard(client_ptr: *mut Client, key: CGOKeyboardEvent) -> CGOError {
     let client = unsafe { Client::from_ptr(client_ptr) };
     let client = match client {
         Some(client) => client,

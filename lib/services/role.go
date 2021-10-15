@@ -1878,6 +1878,9 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		return nil, trace.Wrap(err)
 	}
 	parseWhere := func(rule types.Rule) (types.WhereExpr, error) {
+		if rule.Where == "" {
+			return types.WhereExpr{Literal: true}, nil
+		}
 		out, err := parser.Parse(rule.Where)
 		if err != nil {
 			return types.WhereExpr{}, trace.Wrap(err)
@@ -1899,6 +1902,9 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		}
 		rules := MakeRuleSet(role.GetRules(types.Deny))
 		for _, rule := range rules[resource] {
+			if !rule.HasVerb(verb) && !rule.HasVerb(types.Wildcard) {
+				continue
+			}
 			expr, err := parseWhere(rule)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -1928,13 +1934,16 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		}
 		rules := MakeRuleSet(role.GetRules(types.Allow))
 		for _, rule := range rules[resource] {
+			if !rule.HasVerb(verb) && !rule.HasVerb(types.Wildcard) {
+				continue
+			}
 			expr, err := parseWhere(rule)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			if b, ok := expr.Literal.(bool); ok {
 				if b {
-					return nil, nil
+					return denyCond, nil
 				}
 				continue
 			}

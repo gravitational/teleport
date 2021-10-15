@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package deskproto implements the Teleport desktop protocol (TDP)
+// Package tdp implements the Teleport desktop protocol (TDP)
 // encoder/decoder.
 // See https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
-//
+package tdp
+
 // TODO(zmb3): complete the implementation of all messages, even if we don't
 // use them yet.
-// TODO(zmb3): rename this package to "tdp".
-package deskproto
 
 import (
 	"bytes"

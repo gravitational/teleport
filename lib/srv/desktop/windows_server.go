@@ -46,9 +46,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -435,22 +436,24 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		return trace.Wrap(err)
 	}
 
+	var windowsUser string
 	authorize := func(login string) error {
+		windowsUser = login // capture attempted login user
 		return authCtx.Checker.CheckAccess(
 			desktop,
 			services.AccessMFAParams{Verified: true},
 			services.NewWindowsLoginMatcher(login))
 	}
 
-	dpc := deskproto.NewConn(conn)
+	tdpConn := tdp.NewConn(conn)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain())
 		},
 		Addr:          desktop.GetAddr(),
-		InputMessage:  dpc.InputMessage,
-		OutputMessage: dpc.OutputMessage,
+		InputMessage:  tdpConn.InputMessage,
+		OutputMessage: tdpConn.OutputMessage,
 		AuthorizeFn:   authorize,
 	})
 	if err != nil {
@@ -475,15 +478,21 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		monitorCfg.DisconnectExpiredCert = identity.Expires
 	}
 
+	sessionID := session.NewID()
+
 	if err := srv.StartMonitor(monitorCfg); err != nil {
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
 		rdpc.Close()
+		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err == nil)
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(rdpc.Wait())
+	s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err == nil)
+	err = rdpc.Wait()
+	s.onSessionEnd(ctx, &identity, windowsUser, string(sessionID), desktop)
+	return trace.Wrap(err)
 }
 
 func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
