@@ -2324,6 +2324,13 @@ func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAu
 	return resp, trail.FromGRPC(err)
 }
 
+// RegisterUsingIAMMethod is used to register a new node to the cluster using
+// the IAM join method.
+func (c *Client) RegisterUsingIAMMethod(ctx context.Context) (proto.AuthService_RegisterUsingIAMMethodClient, error) {
+	stream, err := c.grpc.RegisterUsingIAMMethod(ctx)
+	return stream, trail.FromGRPC(err)
+}
+
 // ListResources returns a paginated list of nodes that the user has access to.
 // `nextKey` is used as `startKey` in another call to ListResources to retrieve
 // the next page. If you want to list all resources pages, check the

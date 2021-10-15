@@ -196,7 +196,6 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 
 	testCases := []struct {
 		desc        string
-		tokenRules  []*types.TokenRule
 		tokenSpec   types.ProvisionTokenSpecV2
 		ec2Client   ec2Client
 		request     types.RegisterUsingTokenRequest

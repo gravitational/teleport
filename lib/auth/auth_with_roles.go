@@ -466,6 +466,13 @@ func (a *ServerWithRoles) RegisterNewAuthServer(ctx context.Context, token strin
 	return a.authServer.RegisterNewAuthServer(ctx, token)
 }
 
+// RegisterUsingIAMMethod is used to register new nodes to the cluster using the
+// IAM join method.
+func (a *ServerWithRoles) RegisterUsingIAMMethod(srv proto.AuthService_RegisterUsingIAMMethodServer) error {
+	// register method has its own authz mechanism, no need to check
+	return a.authServer.RegisterUsingIAMMethod(srv)
+}
+
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
 func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {

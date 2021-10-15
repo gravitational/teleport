@@ -646,13 +646,13 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
 		} else {
 			switch cfg.JoinMethod {
-			case JoinMethodToken:
-				cfg.HostUUID = uuid.New().String()
-			case JoinMethodEC2:
+			case types.JoinMethodEC2:
 				cfg.HostUUID, err = utils.GetEC2NodeID()
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
+			case types.JoinMethodUnspecified, types.JoinMethodToken, types.JoinMethodIAM:
+				cfg.HostUUID = uuid.New().String()
 			default:
 				return nil, trace.BadParameter("unknown join method %q", cfg.JoinMethod)
 			}
