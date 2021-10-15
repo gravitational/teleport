@@ -37,10 +37,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newNodeConfig(t *testing.T, authAddr utils.NetAddr, awsTokenName string) *service.Config {
+func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
 	config := service.MakeDefaultConfig()
-	config.Token = awsTokenName
-	config.JoinMethod = service.JoinMethodEC2
+	config.Token = tokenName
+	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
 	config.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
 	config.Auth.Enabled = false
@@ -94,14 +94,13 @@ func getIID(t *testing.T) imds.InstanceIdentityDocument {
 	return output.InstanceIdentityDocument
 }
 
-// TestSimplifiedNodeJoin is an integration test which asserts that Simplified
-// Node Joining works when run on a real EC2 instance with access to the IMDS
-// and the ec2:DesribeInstances API.
-// This is a very basic test, unit testing with mocked AWS endopoints is in
-// lib/auth/ec2_join_test.go
-func TestSimplifiedNodeJoin(t *testing.T) {
+// TestEC2NodeJoin is an integration test which asserts that the EC2 method for
+// Simplified Node Joining works when run on a real EC2 instance with access to
+// the IMDS and the ec2:DesribeInstances API. This is a very basic test, unit
+// testing with mocked AWS endopoints is in lib/auth/ec2_join_test.go
+func TestEC2NodeJoin(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_EC2") == "" {
-		t.Skipf("Skipping TestSimplifiedNodeJoin because TELEPORT_TEST_EC2 is not set")
+		t.Skipf("Skipping TestEC2NodeJoin because TELEPORT_TEST_EC2 is not set")
 	}
 
 	// fetch the IID to create a token which will match this instance
@@ -144,7 +143,66 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 	require.Empty(t, nodes)
 
 	// create and start the node
-	nodeConfig := newNodeConfig(t, authConfig.Auth.SSHAddr, tokenName)
+	nodeConfig := newNodeConfig(t, authConfig.Auth.SSHAddr, tokenName, types.JoinMethodEC2)
+	nodeSvc, err := service.NewTeleport(nodeConfig)
+	require.NoError(t, err)
+	require.NoError(t, nodeSvc.Start())
+	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
+
+	// the node should eventually join the cluster and heartbeat
+	require.Eventually(t, func() bool {
+		nodes, err := authServer.GetNodes(context.Background(), defaults.Namespace)
+		require.NoError(t, err)
+		return len(nodes) > 0
+	}, time.Minute, time.Second, "waiting for node to join cluster")
+}
+
+// TestIAMNodeJoin is an integration test which asserts that the IAM method for
+// Simplified Node Joining works when run on a real EC2 instance with an
+// attached IAM role.  This is a very basic test, unit testing with mocked AWS
+// endopoints is in lib/auth/iam_join_test.go
+func TestIAMNodeJoin(t *testing.T) {
+	if os.Getenv("TELEPORT_TEST_EC2") == "" {
+		t.Skipf("Skipping TestIAMNodeJoin because TELEPORT_TEST_EC2 is not set")
+	}
+
+	// create and start the auth server
+	authConfig := newAuthConfig(t, nil)
+	authSvc, err := service.NewTeleport(authConfig)
+	require.NoError(t, err)
+	require.NoError(t, authSvc.Start())
+	t.Cleanup(func() { require.NoError(t, authSvc.Close()) })
+
+	authServer := authSvc.GetAuthServer()
+
+	// fetch the EC2 IID to find the AWS account
+	iid := getIID(t)
+
+	tokenName := "test_token"
+	token, err := types.NewProvisionTokenFromSpec(
+		tokenName,
+		time.Now().Add(time.Hour),
+		types.ProvisionTokenSpecV2{
+			Roles: []types.SystemRole{types.RoleNode},
+			Allow: []*types.TokenRule{
+				&types.TokenRule{
+					AWSAccount: iid.AccountID,
+				},
+			},
+			JoinMethod: types.JoinMethodIAM,
+		})
+	require.NoError(t, err)
+
+	err = authServer.UpsertToken(context.Background(), token)
+	require.NoError(t, err)
+
+	// sanity check there are no nodes to start with
+	nodes, err := authServer.GetNodes(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, nodes)
+
+	// create and start the node
+	nodeConfig := newNodeConfig(t, authConfig.Auth.SSHAddr, tokenName, types.JoinMethodIAM)
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())

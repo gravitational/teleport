@@ -3496,6 +3496,15 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 	return resp, nil
 }
 
+func (g *GRPCServer) RegisterUsingIAMMethod(srv proto.AuthService_RegisterUsingIAMMethodServer) error {
+	auth, err := g.authenticate(srv.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(auth.authServer.registerUsingIAMMethod(srv))
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

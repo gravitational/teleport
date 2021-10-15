@@ -25,6 +25,20 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// JoinMethod is the method used for new nodes to join the cluster.
+type JoinMethod string
+
+const (
+	JoinMethodUnspecified JoinMethod = ""
+	// JoinMethodToken is the default join method, nodes join the cluster by
+	// presenting a secret token.
+	JoinMethodToken JoinMethod = "token"
+	// JoinMethodEC2 indicates that the node will join with the EC2 join method.
+	JoinMethodEC2 JoinMethod = "ec2"
+	// JoinMethodIAM indicates that the node will join with the IAM join method.
+	JoinMethodIAM JoinMethod = "iam"
+)
+
 // ProvisionToken is a provisioning token
 type ProvisionToken interface {
 	Resource
@@ -40,6 +54,8 @@ type ProvisionToken interface {
 	GetAllowRules() []*TokenRule
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
+	// GetJoinMethod returns joining method that must be used with this token.
+	GetJoinMethod() JoinMethod
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
@@ -98,7 +114,33 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	hasAllowRules := len(p.Spec.Allow) > 0
+	if p.Spec.JoinMethod == JoinMethodUnspecified {
+		// Default to the ec2 join method if any allow rules were specified,
+		// else default to the token method. These default are necessary for
+		// backwards compatibility.
+		if hasAllowRules {
+			p.Spec.JoinMethod = JoinMethodEC2
+		} else {
+			p.Spec.JoinMethod = JoinMethodToken
+		}
+	} else {
+		switch p.Spec.JoinMethod {
+		case JoinMethodToken:
+			if hasAllowRules {
+				return trace.BadParameter(`token allow rules are not compatible with "token" join method`)
+			}
+		case JoinMethodEC2, JoinMethodIAM:
+			if !hasAllowRules {
+				return trace.BadParameter(`join method "%s" requires defined token allow rules`, p.Spec.JoinMethod)
+			}
+		default:
+			return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
+		}
+	}
+
 	if p.Spec.AWSIIDTTL == 0 {
+		// default to 5 minute ttl if unspecified
 		p.Spec.AWSIIDTTL = Duration(5 * time.Minute)
 	}
 
@@ -130,6 +172,11 @@ func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 	return p.Spec.AWSIIDTTL
+}
+
+// GetJoinMethod returns joining method that must be used with this token.
+func (p *ProvisionTokenV2) GetJoinMethod() JoinMethod {
+	return p.Spec.JoinMethod
 }
 
 // GetKind returns resource kind
