@@ -38,20 +38,24 @@ With every user combination, try to login and signup with invalid second factor,
   - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users U2F
+  - [ ] Adding Users WebAuthn
   - [ ] Managing MFA devices
     - [ ] Add an OTP device with `tsh mfa add`
     - [ ] Add a U2F device with `tsh mfa add`
+    - [ ] Verify that the U2F device works under WebAuthn
+    - [ ] Add a WebAuthn device with `tsh mfa add`
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
     - [ ] Remove a U2F device with `tsh mfa rm`
+    - [ ] Remove a WebAuthn device with `tsh mfa rm`
     - [ ] Attempt removing the last MFA device on the user
       - [ ] with `second_factor: on` in `auth_service`, should fail
       - [ ] with `second_factor: optional` in `auth_service`, should succeed
   - [ ] Login Password Only
   - [ ] Login with MFA
-    - [ ] Add 2 OTP and 2 U2F devices with `tsh mfa add`
+    - [ ] Add 2 OTP and 2 WebAuthn devices with `tsh mfa add`
     - [ ] Login via OTP
-    - [ ] Login via U2F
+    - [ ] Login via WebAuthn
   - [ ] Login OIDC
   - [ ] Login SAML
   - [ ] Login GitHub
@@ -530,6 +534,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify that invite works with 2FA disabled
 - [ ] Verify that invite works with OTP enabled
 - [ ] Verify that invite works with U2F enabled
+- [ ] Verify that invite works with WebAuthn enabled
 - [ ] Verify that error message is shown if an invite is expired/invalid
 
 ## Login Form
@@ -540,36 +545,36 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify that changing passwords works for OTP enabled
 - [ ] Verify that login works with U2F enabled
 - [ ] Verify that changing passwords works for U2F enabled
+- [ ] Verify that login works with WebAuthn enabled
+- [ ] Verify that changing passwords works for WebAuthn enabled
 - [ ] Verify that login works for Github/SAML/OIDC
 - [ ] Verify that account is locked after several unsuccessful attempts
 - [ ] Verify that redirect to original URL works after successful login
 
 ## Multi-factor Authentication (mfa)
 Create/modify `teleport.yaml` and set the following authentication settings under `auth_service`
-```
+
+```yaml
 authentication:
   type: local
   second_factor: optional
   require_session_mfa: yes
-  u2f:
-    app_id: https://example.com:443
-    facets:
-    - https://example.com:443
-    - https://example.com
-    - example.com:443
-    - example.com
+  webauthn:
+    rp_id: example.com
 ```
+
 #### MFA create, login, password reset
 - [ ] Verify when creating a user, and setting password, required 2nd factor is `totp` (TODO: temporary hack, ideally want to allow user to select)
-- [ ] Verify at login page, there is a mfa dropdown menu (none, u2f, otp), and can login with `otp`
+- [ ] Verify at login page, there is a mfa dropdown menu (none, webauthn, otp), and can login with `otp`
+- [ ] Verify at login page that the dropdown changes to (none, u2f, otp) if the second_factor is changed to `u2f`
 - [ ] Verify at reset password page, there is the same dropdown to select your mfa, and can reset with `otp`
 
 #### MFA require auth
-Through the CLI, `tsh login` and register a u2f key with `tsh mfa add` (not supported in UI yet).
+Through the CLI, `tsh login` and register a WebAuthn key with `tsh mfa add` (not supported in UI yet).
 
 Using the same user as above:
-- [ ] Verify logging in with registered u2f key works
-- [ ] Verify connecting to a ssh node prompts you to tap your registered u2f key
+- [ ] Verify logging in with registered WebAuthn key works
+- [ ] Verify connecting to a ssh node prompts you to tap your registered WebAuthn key
 - [ ] Verify in the web terminal, you can scp upload/download files
 
 ## RBAC

@@ -36,22 +36,31 @@ type ProvisionToken interface {
 	GetRoles() SystemRoles
 	// SetRoles sets teleport roles
 	SetRoles(SystemRoles)
+	// GetAllowRules returns the list of allow rules
+	GetAllowRules() []*TokenRule
+	// GetAWSIIDTTL returns the TTL of EC2 IIDs
+	GetAWSIIDTTL() Duration
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
 	String() string
 }
 
-// NewProvisionToken returns a new instance of provision token resource
+// NewProvisionToken returns a new provision token with the given roles.
 func NewProvisionToken(token string, roles SystemRoles, expires time.Time) (ProvisionToken, error) {
+	return NewProvisionTokenFromSpec(token, expires, ProvisionTokenSpecV2{
+		Roles: roles,
+	})
+}
+
+// NewProvisionTokenFromSpec returns a new provision token with the given spec.
+func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTokenSpecV2) (ProvisionToken, error) {
 	t := &ProvisionTokenV2{
 		Metadata: Metadata{
 			Name:    token,
 			Expires: &expires,
 		},
-		Spec: ProvisionTokenSpecV2{
-			Roles: roles,
-		},
+		Spec: spec,
 	}
 	if err := t.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -89,6 +98,10 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if p.Spec.AWSIIDTTL == 0 {
+		p.Spec.AWSIIDTTL = Duration(5 * time.Minute)
+	}
+
 	return nil
 }
 
@@ -107,6 +120,16 @@ func (p *ProvisionTokenV2) GetRoles() SystemRoles {
 // SetRoles sets teleport roles
 func (p *ProvisionTokenV2) SetRoles(r SystemRoles) {
 	p.Spec.Roles = r
+}
+
+// GetAllowRules returns the list of allow rules
+func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
+	return p.Spec.Allow
+}
+
+// GetAWSIIDTTL returns the TTL of EC2 IIDs
+func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
+	return p.Spec.AWSIIDTTL
 }
 
 // GetKind returns resource kind
@@ -232,6 +255,7 @@ func (p *ProvisionTokenV1) V2() *ProvisionTokenV2 {
 	if !p.Expires.IsZero() {
 		t.SetExpiry(p.Expires)
 	}
+	t.CheckAndSetDefaults()
 	return t
 }
 

@@ -543,17 +543,8 @@ func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var response registerUsingTokenResponseJSON
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	return &proto.Certs{
-		SSH:        response.SSHCert,
-		TLS:        response.TLSCert,
-		SSHCACerts: response.SSHCACerts,
-		TLSCACerts: response.TLSCACerts,
-	}, nil
+	return UnmarshalLegacyCerts(out.Bytes())
 }
 
 // RegisterNewAuthServer is used to register new auth server with token
@@ -1387,7 +1378,7 @@ func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventT
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (c *Client) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, order, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -1626,6 +1617,15 @@ func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...service
 // GetSessionRecordingConfig gets session recording configuration.
 func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
 	return c.APIClient.GetSessionRecordingConfig(ctx)
+}
+
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	resp, err := c.APIClient.GenerateCertAuthorityCRL(ctx, &proto.CertAuthorityRequest{Type: caType})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.CRL, nil
 }
 
 // WebService implements features used by Web UI clients
@@ -1929,4 +1929,10 @@ type ClientI interface {
 
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
 	ResetSessionRecordingConfig(ctx context.Context) error
+
+	// GenerateWindowsDesktopCert generates client smartcard certificate used
+	// by an RDP client to authenticate with Windows.
+	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
+	// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
 }

@@ -553,7 +553,7 @@ func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	return nil, "", trace.NotFound("")
 }
 
-func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (a *fakeLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotFound("")
 }
 

@@ -150,8 +150,8 @@ type AuthenticateWebUserRequest struct {
 	User string `json:"user"`
 	// U2FSignResponse is the signature from the U2F device.
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response,omitempty"`
-	// WebauthnChallengeResponse is a signed WebAuthn credential assertion.
-	WebauthnChallengeResponse *wanlib.CredentialAssertionResponse `json:"webauthn_challenge_response,omitempty"`
+	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
+	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
 // SSHLogin contains common SSH login parameters.
@@ -459,11 +459,5 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req a
 		return nil, trace.Wrap(err)
 	}
 
-	var certs *proto.Certs
-	err = json.Unmarshal(resp.Bytes(), &certs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return certs, nil
+	return auth.UnmarshalLegacyCerts(resp.Bytes())
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -62,12 +63,10 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		PublicKey: csr.PublicKey,
 		Subject:   csr.Subject,
 		NotAfter:  s.clock.Now().UTC().Add(req.TTL.Get()),
-	}
-	// Include provided server name as a SAN in the certificate, CommonName
-	// has been deprecated since Go 1.15:
-	//   https://golang.org/doc/go1.15#commonname
-	if req.ServerName != "" {
-		certReq.DNSNames = []string{req.ServerName}
+		// Include provided server names as SANs in the certificate, CommonName
+		// has been deprecated since Go 1.15:
+		//   https://golang.org/doc/go1.15#commonname
+		DNSNames: getServerNames(req),
 	}
 	cert, err := tlsCA.GenerateCertificate(certReq)
 	if err != nil {
@@ -77,6 +76,15 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		Cert:    cert,
 		CACerts: services.GetTLSCerts(hostCA),
 	}, nil
+}
+
+// getServerNames returns deduplicated list of server names from signing request.
+func getServerNames(req *proto.DatabaseCertRequest) []string {
+	serverNames := req.ServerNames
+	if req.ServerName != "" { // Include legacy ServerName field for compatibility.
+		serverNames = append(serverNames, req.ServerName)
+	}
+	return utils.Deduplicate(serverNames)
 }
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking

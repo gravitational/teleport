@@ -164,14 +164,7 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	case p.RouteToDatabase.ServiceName != "":
 		// Database means a request for a TLS certificate for access to a
 		// specific database, as specified by RouteToDatabase.
-
-		// DELETE IN 7.0
-		// Database certs have to be requested with CertUsage All because
-		// pre-7.0 servers do not accept usage-restricted certificates.
-		//
-		// In 7.0 clients, we can expect the server to be 7.0+ and set this to
-		// proto.UserCertsRequest_Database again.
-		return proto.UserCertsRequest_All
+		return proto.UserCertsRequest_Database
 	case p.RouteToApp.Name != "":
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
