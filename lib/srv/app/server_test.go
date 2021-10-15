@@ -355,6 +355,7 @@ func TestHandleConnection(t *testing.T) {
 // TestAuthorize verifies that only authorized requests are handled.
 func TestAuthorize(t *testing.T) {
 	// TODO(r0mant): Implement this.
+	t.Skip("Not implemented")
 }
 
 // TestAuthorizeWithLocks verifies that requests are forbidden when there is
