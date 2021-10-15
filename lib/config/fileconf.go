@@ -1320,16 +1320,13 @@ type WindowsHostLabelRule struct {
 }
 
 // LDAPConfig is the LDAP connection parameters.
-//
-// TODO(awly): these credentials are very sensitive. Add support for loading
-// from a file.
 type LDAPConfig struct {
-	// Addr is the address:port of the LDAP server (typically port 389).
+	// Addr is the host:port of the LDAP server (typically port 389).
 	Addr string `yaml:"addr"`
 	// Domain is the ActiveDirectory domain name.
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
 	Username string `yaml:"username"`
-	// Password for LDAP authentication.
-	Password string `yaml:"password"`
+	// PasswordFile is a text file containing the password for LDAP authentication.
+	PasswordFile string `yaml:"password_file"`
 }
