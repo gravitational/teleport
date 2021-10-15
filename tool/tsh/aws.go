@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
@@ -28,6 +29,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
@@ -135,6 +137,7 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	address, err := utils.ParseAddr(tc.WebProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -182,6 +185,18 @@ func loadAWSAppCertificate(tc *client.TeleportClient) (tls.Certificate, error) {
 	cert, err := tls.X509KeyPair(cc, key.Priv)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
+	}
+	if len(cert.Certificate) < 1 {
+		return tls.Certificate{}, trace.NotFound("invalid certificate length")
+	}
+	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	if time.Until(x509cert.NotAfter) < 5*time.Second {
+		return tls.Certificate{}, trace.BadParameter(
+			"AWS app %s certificate has expired please re-login to the app 'tsh app login'",
+			tc.CurrentAWSCLIApp)
 	}
 	return cert, nil
 }
