@@ -337,8 +337,8 @@ type teleportClusterClient struct {
 	isRemoteClosed func() bool
 }
 
-// DialEndpoint dials a connection to a kube cluster using the given kube cluster endpoint
-func (c *teleportClusterClient) DialEndpoint(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
+// dialEndpoint dials a connection to a kube cluster using the given kube cluster endpoint
+func (c *teleportClusterClient) dialEndpoint(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 	return c.dial(ctx, network, endpoint.addr, endpoint.serverID)
 }
 
@@ -1375,11 +1375,11 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 	return tc, nil
 }
 
-func (s *clusterSession) Dial(network, _ string) (net.Conn, error) {
+func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
 	return s.monitorConn(s.dial(context.Background(), network))
 }
 
-func (s *clusterSession) DialWithContext(ctx context.Context, network, _ string) (net.Conn, error) {
+func (s *clusterSession) DialWithContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	return s.monitorConn(s.dial(ctx, network))
 }
 
@@ -1397,7 +1397,7 @@ func (s *clusterSession) dial(ctx context.Context, network string) (net.Conn, er
 
 	errs := []error{}
 	for _, endpoint := range shuffledEndpoints {
-		conn, err := s.teleportCluster.DialEndpoint(ctx, network, endpoint)
+		conn, err := s.teleportCluster.dialEndpoint(ctx, network, endpoint)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -1446,6 +1446,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 }
 
 func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSession, error) {
+	// Try local creds first
 	sess, localErr := f.newClusterSessionLocal(ctx)
 	if localErr == nil {
 		return sess, nil

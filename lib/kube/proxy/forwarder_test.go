@@ -591,7 +591,8 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 	}
 }
 
-func mockAuthCtx(ctx context.Context, t *testing.T, isRemote bool) authContext {
+func mockAuthCtx(ctx context.Context, t *testing.T, kubeCluster string, isRemote bool) authContext {
+	t.Helper()
 	user, err := types.NewUser("bob")
 	require.NoError(t, err)
 
@@ -602,7 +603,7 @@ func mockAuthCtx(ctx context.Context, t *testing.T, isRemote bool) authContext {
 			UnmappedIdentity: unmappedIdentity,
 		},
 		teleportCluster: teleportClusterClient{
-			name:     "teleport-cluster",
+			name:     "kube-cluster",
 			isRemote: isRemote,
 		},
 		kubeCluster: "kube-cluster",
@@ -610,130 +611,106 @@ func mockAuthCtx(ctx context.Context, t *testing.T, isRemote bool) authContext {
 	}
 }
 
-func TestNewClusterSession(t *testing.T) {
+func TestNewClusterSessionLocal(t *testing.T) {
 	ctx := context.Background()
 	f := newMockForwader(ctx, t)
+	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
 
-	t.Run("kube cluster not specified", func(t *testing.T) {
-		authCtx := mockAuthCtx(ctx, t, false)
-		authCtx.kubeCluster = ""
+	// Set creds for kube cluster local
+	f.creds = map[string]*kubeCreds{
+		"local": {
+			targetAddr:      "k8s.example.com",
+			tlsConfig:       &tls.Config{},
+			transportConfig: &transport.Config{},
+		},
+	}
 
-		_, err := f.newClusterSession(authCtx)
-		require.Error(t, err)
-		require.Equal(t, trace.IsNotFound(err), true)
-		require.Equal(t, f.clientCredentials.Len(), 0)
-	})
+	// Fail when kubeCluster is not specified
+	authCtx.kubeCluster = ""
+	_, err := f.newClusterSession(authCtx)
+	require.Error(t, err)
+	require.Equal(t, trace.IsNotFound(err), true)
+	require.Empty(t, 0, f.clientCredentials.Len())
 
-	t.Run("local session", func(t *testing.T) {
-		authCtx := mockAuthCtx(ctx, t, false)
-		authCtx.kubeCluster = "local"
+	// Fail when creds aren't available
+	authCtx.kubeCluster = "other"
+	_, err = f.newClusterSession(authCtx)
+	require.Error(t, err)
+	require.Equal(t, trace.IsNotFound(err), true)
+	require.Empty(t, 0, f.clientCredentials.Len())
 
-		// Set local creds
-		f.creds = map[string]*kubeCreds{
-			"local": {
-				targetAddr:      "k8s.example.com",
-				tlsConfig:       &tls.Config{},
-				transportConfig: &transport.Config{},
-			},
-		}
+	// Succeed when creds are available
+	authCtx.kubeCluster = "local"
+	sess, err := f.newClusterSession(authCtx)
+	require.NoError(t, err)
+	require.NotNil(t, sess.forwarder)
+	require.Equal(t, []kubeClusterEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeClusterEndpoints)
 
-		sess, err := f.newClusterSession(authCtx)
-		require.NoError(t, err)
-		require.NotNil(t, sess.forwarder)
-		require.Equal(t, []kubeClusterEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeClusterEndpoints)
+	// Make sure newClusterSession used provided creds
+	// instead of requesting a Teleport client cert.
+	require.Equal(t, f.creds["local"].tlsConfig, sess.tlsConfig)
+	require.Nil(t, f.cfg.AuthClient.(*mockCSRClient).lastCert)
+	require.Empty(t, 0, f.clientCredentials.Len())
+}
 
-		// Make sure newClusterSession used provided creds
-		// instead of requesting a Teleport client cert.
-		require.Equal(t, f.creds["local"].tlsConfig, sess.tlsConfig)
-		require.Nil(t, f.cfg.AuthClient.(*mockCSRClient).lastCert)
-		require.Equal(t, 0, f.clientCredentials.Len())
-	})
+func TestNewClusterSessionRemote(t *testing.T) {
+	ctx := context.Background()
+	f := newMockForwader(ctx, t)
+	authCtx := mockAuthCtx(ctx, t, "kube-cluster", true)
 
-	t.Run("remote session", func(t *testing.T) {
-		authCtx := mockAuthCtx(ctx, t, true)
+	// Succeed on remote cluster session
+	sess, err := f.newClusterSession(authCtx)
+	require.NoError(t, err)
+	require.NotNil(t, sess.forwarder)
+	require.Equal(t, []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}}, sess.kubeClusterEndpoints)
 
-		sess, err := f.newClusterSession(authCtx)
-		require.NoError(t, err)
-		require.NotNil(t, sess.forwarder)
-		require.Equal(t, []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}}, sess.kubeClusterEndpoints)
+	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
+	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
+	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
+	require.Equal(t, 1, f.clientCredentials.Len())
+}
 
-		// Make sure newClusterSession obtained a new client cert instead of using f.creds.
-		require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
-		require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
-		require.Equal(t, 1, f.clientCredentials.Len())
-	})
+func TestNewClusterSessionDirect(t *testing.T) {
+	ctx := context.Background()
+	f := newMockForwader(ctx, t)
+	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
 
-	t.Run("direct sesssion", func(t *testing.T) {
-		authCtx := mockAuthCtx(ctx, t, false)
-
-		publicKubeServer, err := types.NewServer("public-server", types.KindKubeService,
+	// helper function to create kube services
+	newKubeService := func(name, addr, kubeCluster string) (types.Server, kubeClusterEndpoint) {
+		kubeService, err := types.NewServer(name, types.KindKubeService,
 			types.ServerSpecV2{
-				Addr: "k8s.example.com:3026",
+				Addr: addr,
 				KubernetesClusters: []*types.KubernetesCluster{{
-					Name: "kube-cluster",
+					Name: kubeCluster,
 				}},
 			},
 		)
 		require.NoError(t, err)
-		publicEndpoint := kubeClusterEndpoint{
-			addr:     publicKubeServer.GetAddr(),
-			serverID: fmt.Sprintf("%s.%s", publicKubeServer.GetName(), authCtx.teleportCluster.name),
+		kubeServiceEndpoint := kubeClusterEndpoint{
+			addr:     addr,
+			serverID: fmt.Sprintf("%s.%s", name, authCtx.teleportCluster.name),
 		}
+		return kubeService, kubeServiceEndpoint
+	}
 
-		reverseTunnelKubeServer, err := types.NewServer("reverse-tunnel-server", types.KindKubeService,
-			types.ServerSpecV2{
-				Addr: reversetunnel.LocalKubernetes,
-				KubernetesClusters: []*types.KubernetesCluster{{
-					Name: "kube-cluster",
-				}},
-			},
-		)
-		require.NoError(t, err)
-		reverseTunnelEndpoint := kubeClusterEndpoint{
-			addr:     reverseTunnelKubeServer.GetAddr(),
-			serverID: fmt.Sprintf("%s.%s", reverseTunnelKubeServer.GetName(), authCtx.teleportCluster.name),
-		}
+	// no kube services for kube cluster
+	otherKubeService, _ := newKubeService("other", "other.example.com", "other-kube-cluster")
+	f.cfg.CachingAuthClient = mockAccessPoint{
+		kubeServices: []types.Server{otherKubeService, otherKubeService, otherKubeService},
+	}
+	_, err := f.newClusterSession(authCtx)
+	require.Error(t, err)
 
-		t.Run("public address kube service", func(t *testing.T) {
-			f.cfg.CachingAuthClient = mockAccessPoint{
-				kubeServices: []types.Server{
-					publicKubeServer,
-				},
-			}
-
-			sess, err := f.newClusterSession(authCtx)
-			require.NoError(t, err)
-			require.NotNil(t, sess.forwarder)
-			require.Equal(t, []kubeClusterEndpoint{publicEndpoint}, sess.kubeClusterEndpoints)
-		})
-
-		t.Run("reverse tunnel kube service", func(t *testing.T) {
-			f.cfg.CachingAuthClient = mockAccessPoint{
-				kubeServices: []types.Server{
-					reverseTunnelKubeServer,
-				},
-			}
-
-			sess, err := f.newClusterSession(authCtx)
-			require.NoError(t, err)
-			require.NotNil(t, sess.forwarder)
-			require.Equal(t, []kubeClusterEndpoint{reverseTunnelEndpoint}, sess.kubeClusterEndpoints)
-		})
-
-		t.Run("multiple kube services", func(t *testing.T) {
-			f.cfg.CachingAuthClient = mockAccessPoint{
-				kubeServices: []types.Server{
-					publicKubeServer,
-					reverseTunnelKubeServer,
-				},
-			}
-
-			sess, err := f.newClusterSession(authCtx)
-			require.NoError(t, err)
-			require.NotNil(t, sess.forwarder)
-			require.Equal(t, []kubeClusterEndpoint{publicEndpoint, reverseTunnelEndpoint}, sess.kubeClusterEndpoints)
-		})
-	})
+	// multiple kube services for kube cluster
+	publicKubeService, publicEndpoint := newKubeService("public", "k8s.example.com", "kube-cluster")
+	tunnelKubeService, tunnelEndpoint := newKubeService("tunnel", reversetunnel.LocalKubernetes, "kube-cluster")
+	f.cfg.CachingAuthClient = mockAccessPoint{
+		kubeServices: []types.Server{publicKubeService, otherKubeService, tunnelKubeService, otherKubeService},
+	}
+	sess, err := f.newClusterSession(authCtx)
+	require.NoError(t, err)
+	require.NotNil(t, sess.forwarder)
+	require.Equal(t, []kubeClusterEndpoint{publicEndpoint, tunnelEndpoint}, sess.kubeClusterEndpoints)
 }
 
 func TestClusterSessionDial(t *testing.T) {
@@ -741,7 +718,7 @@ func TestClusterSessionDial(t *testing.T) {
 	sess := &clusterSession{
 		authContext: authContext{
 			teleportCluster: teleportClusterClient{
-				dial: func(ctx context.Context, network, addr, serverID string) (net.Conn, error) {
+				dial: func(_ context.Context, _, addr, _ string) (net.Conn, error) {
 					if addr == "" {
 						return nil, trace.BadParameter("no addr")
 					}
@@ -751,34 +728,29 @@ func TestClusterSessionDial(t *testing.T) {
 		},
 	}
 
-	t.Run("no endpoints", func(t *testing.T) {
-		_, err := sess.dial(ctx, "")
-		require.True(t, trace.IsBadParameter(err))
-	})
+	// fail with no endpoints
+	_, err := sess.dial(ctx, "")
+	require.True(t, trace.IsBadParameter(err))
 
-	t.Run("one endpoint", func(t *testing.T) {
-		sess.kubeClusterEndpoints = []kubeClusterEndpoint{{
-			addr:     "addr1",
-			serverID: "server1",
-		}}
-		_, err := sess.dial(ctx, "")
-		require.NoError(t, err)
-		require.Equal(t, sess.kubeAddress, "addr1")
-	})
+	// succeed with one endpoint
+	sess.kubeClusterEndpoints = []kubeClusterEndpoint{{
+		addr:     "addr1",
+		serverID: "server1",
+	}}
+	_, err = sess.dial(ctx, "")
+	require.NoError(t, err)
+	require.Equal(t, sess.kubeAddress, "addr1")
 
-	t.Run("multiple endpoints", func(t *testing.T) {
-		sess.kubeClusterEndpoints = make([]kubeClusterEndpoint, 10)
+	// fail if no endpoints are reachable
+	sess.kubeClusterEndpoints = make([]kubeClusterEndpoint, 10)
+	_, err = sess.dial(ctx, "")
+	require.Error(t, err)
 
-		// dial should fail if no endpoints are reachable
-		_, err := sess.dial(ctx, "")
-		require.Error(t, err)
-
-		// dial should succeed if at least one endpoint is reachable
-		sess.kubeClusterEndpoints[5] = kubeClusterEndpoint{addr: "addr1"}
-		_, err = sess.dial(ctx, "")
-		require.NoError(t, err)
-		require.Equal(t, "addr1", sess.kubeAddress)
-	})
+	// succeed if at least one endpoint is reachable
+	sess.kubeClusterEndpoints[5] = kubeClusterEndpoint{addr: "addr1"}
+	_, err = sess.dial(ctx, "")
+	require.NoError(t, err)
+	require.Equal(t, "addr1", sess.kubeAddress)
 }
 
 func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
