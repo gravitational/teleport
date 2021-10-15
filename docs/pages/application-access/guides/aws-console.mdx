@@ -15,6 +15,7 @@ This guide will explain how to:
 - Setup example AWS IAM Read Only and Power User roles.
 - Use Teleport's role-based access control with AWS IAM roles.
 - View Teleport users' AWS console activity in CloudTrail.
+- AWS command line tool [Installing the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
 ## Prerequisites
 
@@ -243,6 +244,26 @@ Each Teleport federated login session uses Teleport username as the federated
 username which you can search for to get the events history:
 
 ![CloudTrail](../../../img/application-access/cloud-trail.png)
+
+## Accessing AWS resource using tsh aws cli command
+
+First, you need to log-in into the previously configured AWS console app:
+
+```code
+tsh app login --aws-role ExamplePowerUser awsconsole
+Logged into AWS app awsconsole. Example AWS cli command:
+
+tsh aws s3 ls
+```
+
+The `--aws-role` allows to specify the user role that will be used during accessing AWS API. You can either
+provide only a role name like `--aws-role ExamplePowerUser` or full AWS IAM role ARN `arn:aws:iam::1234567890:role/ExamplePowerUser`
+
+Now you can use the `tsh aws` command like the native `aws` command-line tool:
+
+```code
+tsh aws s3 ls
+```
 
 ## Next steps
 
