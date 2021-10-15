@@ -1864,7 +1864,7 @@ func splitRoles(roles string) []string {
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
-		cfg.JoinMethod = service.JoinMethodToken
+		cfg.JoinMethod = types.JoinMethodToken
 		_, err := cfg.ApplyToken(fc.AuthToken)
 		return trace.Wrap(err)
 	}
@@ -1873,10 +1873,14 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 		cfg.Token = fc.JoinParams.TokenName
-		if fc.JoinParams.Method != "ec2" {
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected "ec2"`, fc.JoinParams.Method)
+		switch fc.JoinParams.Method {
+		case string(types.JoinMethodEC2):
+			cfg.JoinMethod = types.JoinMethodEC2
+		case string(types.JoinMethodIAM):
+			cfg.JoinMethod = types.JoinMethodIAM
+		default:
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected "ec2" or "iam"`, fc.JoinParams.Method)
 		}
-		cfg.JoinMethod = service.JoinMethodEC2
 	}
 	return nil
 }

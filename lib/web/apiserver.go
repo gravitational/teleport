@@ -260,6 +260,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// OIDC connectors and auth preferences
 	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 
+	h.GET("/webapi/clusterca", httplib.MakeHandler(h.getClusterCA))
+
 	// Unauthenticated access to JWT public keys.
 	h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwks))
 
@@ -754,6 +756,17 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
+	}, nil
+}
+
+func (h *Handler) getClusterCA(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	localCAResponse, err := h.cfg.ProxyClient.GetClusterCACert()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return webclient.ClusterCAResponse{
+		ClusterName: h.auth.clusterName,
+		ClusterCAs:  localCAResponse.TLSCA,
 	}, nil
 }
 

@@ -1186,6 +1186,16 @@ message CRL {
     bytes CRL = 1;
 }
 
+// RegisterUsingIAMMethodResponse is a stream response and will contain either a
+// Challenge or Certs.
+message RegisterUsingIAMMethodResponse {
+    // Challenge is a crypto-random string that should be included in the signed
+    // sts:GetCallerIdentity request.
+    string Challenge = 1;
+    // Certs is the returned signed certs.
+    Certs Certs = 2;
+}
+
 // ChangeUserAuthenticationRequest defines a request to change a password and if enabled
 // also adds a new MFA device from a user reset or from a new user invite. After successful changing
 // of authentications a new web session is created. Users may also receive new recovery codes if the
@@ -1807,4 +1817,9 @@ service AuthService {
     // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
     // is used to gain access to privileged actions eg: deleting/adding a MFA device.
     rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
+
+    // RegisterUsingIAMMethod is used to register a new node to the cluster using
+    // the IAM join method.
+    rpc RegisterUsingIAMMethod(stream types.RegisterUsingTokenRequest)
+        returns (stream RegisterUsingIAMMethodResponse);
 }

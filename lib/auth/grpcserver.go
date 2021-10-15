@@ -3452,6 +3452,15 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *proto.Ce
 	return &proto.CRL{CRL: crl}, nil
 }
 
+func (g *GRPCServer) RegisterUsingIAMMethod(srv proto.AuthService_RegisterUsingIAMMethodServer) error {
+	auth, err := g.authenticate(srv.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(auth.authServer.registerUsingIAMMethod(srv))
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
