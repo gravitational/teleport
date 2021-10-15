@@ -1100,10 +1100,6 @@ const (
 )
 
 func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Request) error {
-	if len(sess.kubeClusterEndpoints) == 0 {
-		return trace.BadParameter("no endpoints provided, cannot set URL host")
-	}
-
 	if err := setupImpersonationHeaders(f.log, sess.authContext, req.Header); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1111,7 +1107,14 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	// Setup scheme, override target URL to the destination address
 	req.URL.Scheme = "https"
 	req.RequestURI = req.URL.Path + "?" + req.URL.RawQuery
-	req.URL.Host = sess.kubeClusterEndpoints[0].addr
+
+	// Host will be overwritten by the actual dial, but we need to provide
+	// a Host to pass the TLS handshake first. If there is only one endpoint,
+	// simply provide that address. Otherwise, use the SNI for kube reverse tunnels
+	req.URL.Host = reversetunnel.LocalKubernetes
+	if len(sess.kubeClusterEndpoints) == 1 {
+		req.URL.Host = sess.kubeClusterEndpoints[0].addr
+	}
 
 	// add origin headers so the service consuming the request on the other site
 	// is aware of where it came from
@@ -1458,7 +1461,7 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 	}
 
 	if len(kubeServices) == 0 && ctx.kubeCluster == ctx.teleportCluster.name {
-		return nil, localErr
+		return nil, trace.Wrap(localErr)
 	}
 
 	// Validate that the requested kube cluster is registered.
