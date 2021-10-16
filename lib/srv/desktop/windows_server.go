@@ -386,11 +386,13 @@ func (s *WindowsService) startDiscoveredHostHeartbeats() error {
 	// (this may require updates to srv.Heartbeat)
 	for _, entry := range entries {
 		heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-			Context:         s.closeCtx,
-			Component:       teleport.ComponentWindowsDesktop,
-			Mode:            srv.HeartbeatModeWindowsDesktop,
-			Announcer:       s.cfg.AccessPoint,
-			GetServerInfo:   func() (types.Resource, error) { return s.dynamicHostHeartbeatInfo(s.closeCtx, entry) },
+			Context:   s.closeCtx,
+			Component: teleport.ComponentWindowsDesktop,
+			Mode:      srv.HeartbeatModeWindowsDesktop,
+			Announcer: s.cfg.AccessPoint,
+			GetServerInfo: func() (types.Resource, error) {
+				return s.dynamicHostHeartbeatInfo(s.closeCtx, entry, s.cfg.HostLabelsFn)
+			},
 			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL, // TODO(zmb3): consider increasing
 			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 			CheckPeriod:     defaults.HeartbeatCheckPeriod, // TODO(zmb3): consider increasing
@@ -412,16 +414,17 @@ func (s *WindowsService) startDiscoveredHostHeartbeats() error {
 
 // dynamicHostHeartbeatInfo generates the Windows Desktop resource
 // for heartbeating hosts discovered via LDAP
-func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ldap.Entry) (types.Resource, error) {
+func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.Resource, error) {
 	hostname := entry.GetAttributeValue("dNSHostName")
-	labels := map[string]string{
-		"teleport.dev/computer_name":  entry.GetAttributeValue(attrName),
-		"teleport.dev/dns_host_name":  hostname,
-		"teleport.dev/os":             entry.GetAttributeValue(attrOS),
-		"teleport.dev/os_version":     entry.GetAttributeValue(attrOSVersion),
-		"teleport.dev/windows_domain": s.cfg.Domain,
-		types.OriginLabel:             types.OriginDynamic,
-	}
+
+	labels := getHostLabels(hostname)
+	labels["teleport.dev/computer_name"] = entry.GetAttributeValue(attrName)
+	labels["teleport.dev/dns_host_name"] = hostname
+	labels["teleport.dev/os"] = entry.GetAttributeValue(attrOS)
+	labels["teleport.dev/os_version"] = entry.GetAttributeValue(attrOSVersion)
+	labels["teleport.dev/windows_domain"] = s.cfg.Domain
+	labels[types.OriginLabel] = types.OriginDynamic
+
 	addrs, err := s.dnsResolver.LookupHost(ctx, hostname)
 	if err != nil || len(addrs) == 0 {
 		return nil, trace.WrapWithMessage(err, "couldn't resolve %q", hostname)
@@ -657,7 +660,9 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		labels := getHostLabels(name)
+		// for static hosts, we match against the host's addr,
+		// as the name is a randomly generated UUID
+		labels := getHostLabels(addr)
 		labels[types.OriginLabel] = types.OriginConfigFile
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
