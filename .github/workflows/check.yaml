@@ -10,10 +10,10 @@ on:
     type: [submitted, edited, dismissed]
   pull_request_target: 
     types: [assigned, opened, reopened, ready_for_review, synchronize]
-
-# Only grant read permissions to PRs and write to actions for the Github token. 
-# The default is write permissions to many resources, but it's best 
-# practice to keep the scope as small as possible. 
+# Limit the permissions on the GitHub token for this workflow to the subset
+# that is required. In this case, the check workflow needs to invalidate
+# reviews and delete workflow runs, so it needs write access to "actions" and
+# "pull-requests", nothing else.
 permissions:  
     actions: write
     pull-requests: write

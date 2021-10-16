@@ -12,6 +12,10 @@ on:
   schedule:
     # Runs every 30 minutes
     - cron:  '0,30 * * * *' 
+# Limit the permissions on the GitHub token for this workflow to the subset
+# that is required. In this case, the dismiss workflow needs to read reviews and
+# delete workflow runs so it needs write access to "actions" and read to
+# "pull-requests", nothing else.
 permissions: 
   actions: write 
   pull-requests: read

@@ -8,9 +8,10 @@ name: Assign
 on: 
   pull_request_target:
     types: [assigned, opened, reopened, ready_for_review]
-# Only grant write access to pull requests for the Github token. 
-# The default is write permissions to many resources, but it's best 
-# practice to keep the scope as small as possible. 
+# Limit the permissions on the GitHub token for this workflow to the subset
+# that is required. In this case, the assign workflow only needs to be able
+# to update the assigned reviewers, so it needs write access to
+# "pull-requests", nothing else.
 permissions:  
     pull-requests: write
     actions: none
