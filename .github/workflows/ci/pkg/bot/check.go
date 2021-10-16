@@ -260,6 +260,12 @@ func (c *Bot) isGithubCommit(ctx context.Context) error {
 	return c.hasFileChange(ctx)
 }
 
+// verifyCommit verifies that a commit was made by Github's committer
+// "web-flow".
+//
+// The go OpenPGP package (https://pkg.go.dev/golang.org/x/crypto/openpgp) is deprecated
+// and has a bug in it where it can't correctly verify GPG signatures from web-flow (it
+// is unclear as to why), therefore commit verifcation is being done directly on the runner.
 func verifyCommit(signaturePath, payloadPath string) error {
 	pathToKey, err := getGithubKey()
 	if err != nil {
@@ -273,9 +279,6 @@ func verifyCommit(signaturePath, payloadPath string) error {
 	}
 	// GPG verification command requires the signature as the first argument
 	// Runner must have gpg (GnuPG) installed.
-	// The go OpenPGP package (https://pkg.go.dev/golang.org/x/crypto/openpgp) is deprecated
-	// and has a bug in it where it can't correctly verify GPG signatures from web-flow (it is unclear as to why),
-	// therefore commit verifcation is being done directly on the runner.
 	cmd := exec.Command("/usr/bin/gpg", "--verify", signaturePath, payloadPath)
 	if err := cmd.Run(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
@@ -286,7 +289,8 @@ func verifyCommit(signaturePath, payloadPath string) error {
 	return nil
 }
 
-// importKey imports a key into GPG given the path.
+// importKey imports a Github's public GPG key (web-flow) into the GPG keyring on the
+// runner given the path.
 func importKey(pathToKey string) error {
 	cmd := exec.Command("/usr/bin/gpg", "--import", pathToKey)
 	if err := cmd.Run(); err != nil {
@@ -298,7 +302,7 @@ func importKey(pathToKey string) error {
 	return nil
 }
 
-// getGithubKey gets Github's public GPG key and writes it to disk.
+// getGithubKey gets Github's public GPG key (web-flow) and writes it to disk.
 // This is the key that is used to verify that a commit was signed by them.
 func getGithubKey() (string, error) {
 	response, err := http.Get(ci.WebflowKeyURL)
