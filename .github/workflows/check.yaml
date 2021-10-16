@@ -37,17 +37,6 @@ jobs:
         uses: actions/checkout@master
       - name: Installing the latest version of Go.
         uses: actions/setup-go@v2
-        # Getting the Github Webflow key to verify commit signatures 
-        # from Github when determining whether or not to invalidate 
-        # reviews for external contributors. 
-      - name: Get Github Webflow Key
-        run: curl https://github.com/web-flow.gpg > github.gpg
-        # Note: GPG is already installed on the runner
-      - name: Import Key 
-        run: gpg --import github.gpg 
-        # Remove key once it is imported. It is no longer needed. 
-      - name: Remove Key
-        run: rm github.pgp
         # Run "check-reviewers" subcommand on bot.
       - name: Checking reviewers
         run: cd .github/workflows && go run cmd/main.go --token=${{ secrets.GITHUB_TOKEN }} --reviewers="${{ secrets.reviewers }}" check-reviewers

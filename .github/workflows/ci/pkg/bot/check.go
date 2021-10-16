@@ -3,7 +3,9 @@ package bot
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -250,17 +252,65 @@ func (c *Bot) isGithubCommit(ctx context.Context) error {
 	}
 	defer os.Remove(payloadFileName)
 
+	err = verifyCommit(signatureFileName, payloadFileName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Verify that the content of the PR has not changed.
+	return c.hasFileChange(ctx)
+}
+
+func verifyCommit(signaturePath, payloadPath string) error {
+	pathToKey, err := getGithubKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer os.Remove(pathToKey)
+
+	err = importKey(pathToKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// GPG verification command requires the signature as the first argument
 	// Runner must have gpg (GnuPG) installed.
-	cmd := exec.Command("/usr/bin/gpg", "--verify", signatureFileName, payloadFileName)
+	// The go OpenPGP package (https://pkg.go.dev/golang.org/x/crypto/openpgp) is deprecated
+	// and has a bug in it where it can't correctly verify GPG signatures from web-flow (it is unclear as to why),
+	// therefore commit verifcation is being done directly on the runner.
+	cmd := exec.Command("/usr/bin/gpg", "--verify", signaturePath, payloadPath)
 	if err := cmd.Run(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			return trace.BadParameter("commit is not verified and/or is not signed by GitHub")
 		}
 		return trace.Wrap(err)
 	}
-	// Verify that the content of the PR has not changed.
-	return c.hasFileChange(ctx)
+	return nil
+}
+
+// importKey imports a key into GPG given the path.
+func importKey(pathToKey string) error {
+	cmd := exec.Command("/usr/bin/gpg", "--import", pathToKey)
+	if err := cmd.Run(); err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			return trace.BadParameter("failed to import Github's web-flow key")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// getGithubKey gets Github's public GPG key and writes it to disk.
+// This is the key that is used to verify that a commit was signed by them.
+func getGithubKey() (string, error) {
+	response, err := http.Get(ci.WebflowKeyURL)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	b, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer response.Body.Close()
+	return createAndWriteTempFile(ci.GithubKey, string(b))
 }
 
 // hasFileChange compares all of the files that have changes in the PR to the one at the current commit.

@@ -63,9 +63,15 @@ const (
 	// Created is an event type that is triggered when a pull request review is created.
 	Created = "created"
 
-	// Signature is a prefix used for a file name
+	// Signature is a prefix used for the commit signature file name.
 	Signature = "signature"
 
-	// Payload is a prefix used for a file name
+	// Payload is a prefix used for the commit payload file name.
 	Payload = "payload"
+	// GithubKey is a prefix used for the Github web-flow public key file name.
+	GithubKey = "github-key"
+	// WebflowKeyURL is the URL that points to Github's public GPG key.
+	// GitHub sets the committer for all commits made using their web
+	// interface to the user "web-flow".
+	WebflowKeyURL = "https://github.com/web-flow.gpg"
 )
