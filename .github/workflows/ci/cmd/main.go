@@ -75,7 +75,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		err = bot.DimissStaleWorkflowRunsForExternalContributors(ctx)
+		err = bot.DimissStaleWorkflowRuns(ctx)
 		if err != nil {
 			log.Fatal(err)
 		}
