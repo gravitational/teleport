@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -61,40 +62,11 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// DimissStaleWorkflowRunsForExternalContributors dismisses stale workflow runs for external contributors.
-// Dismissing stale workflows for external contributors is done on a cron job and checks the whole repo for
-// stale runs on PRs.
-func (c *Bot) DimissStaleWorkflowRunsForExternalContributors(ctx context.Context) error {
-	clt := c.GithubClient.Client
-	// Get the repository name and owner, on the Github Actions runner the
-	// GITHUB_REPOSITORY environment variable is in the format of
-	// repo-owner/repo-name.
-	repoOwner, repoName, err := getRepositoryMetadata()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	pullReqs, _, err := clt.PullRequests.List(ctx, repoOwner, repoName, &github.PullRequestListOptions{State: ci.Open})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, pull := range pullReqs {
-		err := validatePullRequestFields(pull)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = c.DismissStaleWorkflowRuns(ctx, *pull.Base.User.Login, *pull.Base.Repo.Name, *pull.Head.Ref)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 // DismissStaleWorkflowRuns dismisses stale Check workflow runs.
 // Stale workflow runs are workflow runs that were previously ran and are no longer valid
 // due to a new event triggering thus a change in state. The workflow running in the current context is the source of truth for
 // the state of checks.
-func (c *Bot) DismissStaleWorkflowRuns(ctx context.Context, owner, repoName, branch string) error {
+func (c *Bot) dismissStaleWorkflowRuns(ctx context.Context, owner, repoName, branch string) error {
 	// Get the target workflow to know get runs triggered by the `Check` workflow.
 	// The `Check` workflow is being targeted because it is the only workflow
 	// that runs multiple times per PR.
@@ -102,7 +74,7 @@ func (c *Bot) DismissStaleWorkflowRuns(ctx context.Context, owner, repoName, bra
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	runs, err := c.findStaleWorkflowRuns(ctx, owner, repoName, branch, *workflow.ID)
+	runs, err := c.getWorkflowRuns(ctx, owner, repoName, branch, *workflow.ID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -145,7 +117,7 @@ func getRepositoryMetadata() (repositoryOwner string, repositoryName string, err
 	return metadata[0], metadata[1], nil
 }
 
-func (c *Bot) findStaleWorkflowRuns(ctx context.Context, owner, repoName, branchName string, workflowID int64) ([]*github.WorkflowRun, error) {
+func (c *Bot) getWorkflowRuns(ctx context.Context, owner, repoName, branchName string, workflowID int64) ([]*github.WorkflowRun, error) {
 	clt := c.GithubClient.Client
 	list, _, err := clt.Actions.ListWorkflowRunsByID(ctx, owner, repoName, workflowID, &github.ListWorkflowRunsOptions{Branch: branchName})
 	if err != nil {
@@ -171,10 +143,10 @@ func (c *Bot) getCheckWorkflow(ctx context.Context, owner, repoName string) (*gi
 
 const (
 	// GithubAPIHostname is the Github API hostname.
-	GithubAPIHostname = "api.github.com"
+	githubAPIHostname = "api.github.com"
 	// Scheme is the protocol scheme used when making
 	// a request to delete a workflow run to the Github API.
-	Scheme = "https"
+	scheme = "https"
 )
 
 // deleteRun deletes a workflow run.
@@ -182,14 +154,12 @@ const (
 func (c *Bot) deleteRun(ctx context.Context, owner, repo string, runID int64) error {
 	clt := c.GithubClient.Client
 	// Construct url
-	s := fmt.Sprintf("repos/%s/%s/actions/runs/%v", owner, repo, runID)
-	cleanPath := path.Join("/", s)
 	url := url.URL{
-		Scheme: Scheme,
-		Host:   GithubAPIHostname,
-		Path:   cleanPath,
+		Scheme: scheme,
+		Host:   githubAPIHostname,
+		Path:   path.Join("repos", owner, repo, "actions", "runs", fmt.Sprint(runID)),
 	}
-	req, err := clt.NewRequest("DELETE", url.String(), nil)
+	req, err := clt.NewRequest(http.MethodDelete, url.String(), nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -3,7 +3,6 @@ package bot
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -19,17 +18,6 @@ import (
 
 // Check checks if all the reviewers have approved the pull request in the current context.
 func (c *Bot) Check(ctx context.Context) error {
-	// Check if the assigned reviewers have approved this PR.
-	err := c.check(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// check checks to see if all the required reviewers have approved and invalidates
-// approvals for external contributors if a new commit is pushed
-func (c *Bot) check(ctx context.Context) error {
 	pr := c.Environment.Metadata
 	if c.Environment.IsInternal(pr.Author) {
 		return c.checkInternal(ctx)
@@ -37,6 +25,10 @@ func (c *Bot) check(ctx context.Context) error {
 	return c.checkExternal(ctx)
 }
 
+// checkInternal is called to check if a PR reviewed and approved by the
+// required reviewers for internal contributors. Unlike approvals for
+// external contributors, approvals from internal team members will not be
+// invalidated when new changes are pushed to the PR.
 func (c *Bot) checkInternal(ctx context.Context) error {
 	pr := c.Environment.Metadata
 	// Remove any stale workflow runs. As only the current workflow run should
@@ -45,7 +37,7 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 	// Note: This is run for all workflow runs triggered by an event from an internal contributor,
 	// but has to be run again in cron workflow because workflows triggered by external contributors do not
 	// grant the Github actions token the correct permissions to dismiss workflow runs.
-	err := c.DismissStaleWorkflowRuns(ctx, pr.RepoOwner, pr.RepoName, pr.BranchName)
+	err := c.dismissStaleWorkflowRuns(ctx, pr.RepoOwner, pr.RepoName, pr.BranchName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -61,6 +53,11 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 	return nil
 }
 
+// checkExternal is called to check if a PR reviewed and approved by the
+// required reviewers for external contributors. Approvals for external
+// contributors are dismissed when new changes are pushed to the PR. The only
+// case in which reviews are not dismissed is if they are from GitHub and
+// only update the PR.
 func (c *Bot) checkExternal(ctx context.Context) error {
 	var obsoleteReviews []review
 	var validReviews []review
@@ -134,6 +131,8 @@ func (c *Bot) getMostRecentReviews(ctx context.Context) ([]review, error) {
 	}
 	currentReviewsSlice := []review{}
 	for _, rev := range reviews {
+		// Because PRs can be submitted by anyone, input here is attacker controlled
+		// and do strict validation of input.
 		err := validateReviewFields(rev)
 		if err != nil {
 			return []review{}, trace.Wrap(err)
@@ -159,6 +158,9 @@ type review struct {
 	submittedAt *time.Time
 }
 
+// validateReviewFields validates required fields exist and passes them
+// through a restrictive allow list (alphanumerics only). This is done to
+// mitigate impact of attacker controlled input (the PR).
 func validateReviewFields(review *github.PullRequestReview) error {
 	switch {
 	case review.ID == nil:
@@ -232,13 +234,10 @@ func dismissMessage(pr *environment.Metadata, required []string) string {
 // pull request's reviews should be invalidated. If a commit is signed by Github and is empty
 // there is no need to invalidate commits because the branch is just being updated.
 func (c *Bot) isGithubCommit(ctx context.Context) error {
-	commit, err := c.getValidCommit(ctx)
+	signature, payloadData, err := c.getCommitVerificationParts(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	signature := *commit.Commit.Verification.Signature
-	payloadData := *commit.Commit.Verification.Payload
-
 	signatureFileName, err := createAndWriteTempFile(ci.Signature, signature)
 	if err != nil {
 		return trace.Wrap(err)
@@ -260,6 +259,7 @@ func (c *Bot) isGithubCommit(ctx context.Context) error {
 		}
 		return trace.Wrap(err)
 	}
+	// Verify that the content of the PR has not changed.
 	return c.hasFileChange(ctx)
 }
 
@@ -287,28 +287,26 @@ func (c *Bot) hasFileChange(ctx context.Context) error {
 	return nil
 }
 
-// getValidCommit returns a valid repository commit to perform GPG signature verification on.
-// A valid commit is one that has a signature and a payload.
-func (c *Bot) getValidCommit(ctx context.Context) (*github.RepositoryCommit, error) {
+// getCommitVerificationParts returns a commit signaure, the commit data to perform GPG signature verification on.
+func (c *Bot) getCommitVerificationParts(ctx context.Context) (signature string, payload string, err error) {
 	pr := c.Environment.Metadata
 	commit, _, err := c.Environment.Client.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, pr.HeadSHA)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 	if commit.Commit.Verification.Signature == nil || commit.Commit.Verification.Payload == nil {
-		return nil, trace.BadParameter("commit is not signed")
+		return "", "", trace.BadParameter("commit is not signed")
 	}
-	return commit, nil
+	return *commit.Commit.Verification.Signature, *commit.Commit.Verification.Payload, nil
 }
 
 // createAndWriteTempFile creates a temp file and writes to it.
 func createAndWriteTempFile(prefix, data string) (fileName string, err error) {
-	file, err := ioutil.TempFile(os.TempDir(), prefix)
+	file, err := os.CreateTemp(os.TempDir(), prefix)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	contents := []byte(data)
-	if _, err = file.Write(contents); err != nil {
+	if _, err = file.Write([]byte(data)); err != nil {
 		return "", trace.Wrap(err)
 	}
 	if err := file.Close(); err != nil {
@@ -321,7 +319,7 @@ func createAndWriteTempFile(prefix, data string) (fileName string, err error) {
 func (c *Bot) invalidateApprovals(ctx context.Context, msg string, reviews []review) error {
 	pr := c.Environment.Metadata
 	for _, v := range reviews {
-		if v.status == ci.Approved && pr.HeadSHA != v.commitID {
+		if pr.HeadSHA != v.commitID {
 			_, _, err := c.Environment.Client.PullRequests.DismissReview(ctx,
 				pr.RepoOwner,
 				pr.RepoName,
