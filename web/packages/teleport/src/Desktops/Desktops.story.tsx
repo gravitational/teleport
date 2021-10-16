@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import { State } from './useDesktops';
 import { Desktops } from './Desktops';
+import { desktops } from './fixtures';
 
 export default {
   title: 'Teleport/Desktops',
@@ -38,20 +39,7 @@ export const Failed = () => (
 );
 
 const props: State = {
-  desktops: [
-    {
-      os: 'windows',
-      name: 'bb8411a4-ba50-537c-89b3-226a00447bc6',
-      addr: 'host.com',
-      tags: ['foo: bar'],
-    },
-    {
-      os: 'windows',
-      name: 'bb8411a4-ba50-537c-89b3-226a00447bc6',
-      addr: 'another.com',
-      tags: [],
-    },
-  ],
+  desktops,
   attempt: { status: 'success' },
   username: 'user',
   clusterId: 'im-a-cluster',

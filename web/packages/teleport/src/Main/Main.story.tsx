@@ -29,6 +29,7 @@ import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { userContext } from './fixtures';
 import { kubes } from 'teleport/Kubes/fixtures';
+import { desktops } from 'teleport/Desktops/fixtures';
 
 export function OSS() {
   const state = useMainStory();
@@ -68,6 +69,7 @@ function useMainStory() {
     ctx.appService.fetchApps = () => Promise.resolve(apps);
     ctx.kubeService.fetchKubernetes = () => Promise.resolve(kubes);
     ctx.databaseService.fetchDatabases = () => Promise.resolve(databases);
+    ctx.desktopService.fetchDesktops = () => Promise.resolve(desktops);
     ctx.storeUser.setState(userContext);
     getFeatures().forEach(f => f.register(ctx));
     return ctx;
