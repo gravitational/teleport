@@ -14,6 +14,7 @@ import { apps } from 'teleport/Apps/fixtures';
 import { kubes } from 'teleport/Kubes/fixtures';
 import { userContext } from 'teleport/Main/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
+import { desktops } from 'teleport/Desktops/fixtures';
 import {
   MockedWorkflowService,
   MockedStoreAccessRequests,
@@ -58,6 +59,7 @@ function useMainStory() {
     ctx.appService.fetchApps = () => Promise.resolve(apps);
     ctx.kubeService.fetchKubernetes = () => Promise.resolve(kubes);
     ctx.databaseService.fetchDatabases = () => Promise.resolve(databases);
+    ctx.desktopService.fetchDesktops = () => Promise.resolve(desktops);
     ctx.storeUser.setState(userContext);
     ctx.storeAccessRequests = new MockedStoreAccessRequests();
     ctx.workflowService = new MockedWorkflowService();
