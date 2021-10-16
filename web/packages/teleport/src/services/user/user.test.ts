@@ -79,7 +79,7 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
-      desktopServers: {
+      desktops: {
         create: false,
         edit: false,
         list: false,
