@@ -48,8 +48,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -436,6 +436,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		return trace.Wrap(err)
 	}
 
+	sessionID := session.NewID()
+
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
@@ -445,18 +447,19 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			services.NewWindowsLoginMatcher(login))
 	}
 
-	dpc := deskproto.NewConn(conn)
+	tdpConn := tdp.NewConn(conn)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain())
 		},
 		Addr:          desktop.GetAddr(),
-		InputMessage:  dpc.InputMessage,
-		OutputMessage: dpc.OutputMessage,
+		InputMessage:  tdpConn.InputMessage,
+		OutputMessage: tdpConn.OutputMessage,
 		AuthorizeFn:   authorize,
 	})
 	if err != nil {
+		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
@@ -478,20 +481,19 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		monitorCfg.DisconnectExpiredCert = identity.Expires
 	}
 
-	sessionID := session.NewID()
-
 	if err := srv.StartMonitor(monitorCfg); err != nil {
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
 		rdpc.Close()
-		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err == nil)
+		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
-	s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err == nil)
+	s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, nil)
 	err = rdpc.Wait()
 	s.onSessionEnd(ctx, &identity, windowsUser, string(sessionID), desktop)
+
 	return trace.Wrap(err)
 }
 

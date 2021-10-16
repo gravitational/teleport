@@ -31,7 +31,9 @@ import (
 )
 
 func (process *TeleportProcess) initDatabases() {
-	if len(process.Config.Databases.Databases) == 0 && len(process.Config.Databases.Selectors) == 0 {
+	if len(process.Config.Databases.Databases) == 0 &&
+		len(process.Config.Databases.ResourceMatchers) == 0 &&
+		len(process.Config.Databases.AWSMatchers) == 0 {
 		return
 	}
 	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
@@ -168,13 +170,14 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			Emitter:  asyncEmitter,
 			Streamer: streamer,
 		},
-		Authorizer:  authorizer,
-		TLSConfig:   tlsConfig,
-		GetRotation: process.getRotation,
-		Hostname:    process.Config.Hostname,
-		HostID:      process.Config.HostUUID,
-		Databases:   databases,
-		Selectors:   process.Config.Databases.Selectors,
+		Authorizer:       authorizer,
+		TLSConfig:        tlsConfig,
+		GetRotation:      process.getRotation,
+		Hostname:         process.Config.Hostname,
+		HostID:           process.Config.HostUUID,
+		Databases:        databases,
+		ResourceMatchers: process.Config.Databases.ResourceMatchers,
+		AWSMatchers:      process.Config.Databases.AWSMatchers,
 		OnHeartbeat: func(err error) {
 			if err != nil {
 				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentDatabase})
