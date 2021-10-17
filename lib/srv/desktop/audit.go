@@ -23,9 +23,10 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 )
 
-func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity, windowsUser, sessionID string, desktop types.WindowsDesktop, success bool) {
+func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
 	event := &events.WindowsDesktopSessionStart{
 		Metadata: events.Metadata{
 			Type:        libevents.WindowsDesktopSessionStartEvent,
@@ -46,13 +47,18 @@ func (s *WindowsService) onSessionStart(ctx context.Context, id *tlsca.Identity,
 			Protocol:   libevents.EventProtocolTDP,
 		},
 		Status: events.Status{
-			Success: success,
+			Success: err == nil,
 		},
 		WindowsDesktopService: s.cfg.Heartbeat.HostUUID,
 		DesktopAddr:           desktop.GetAddr(),
 		Domain:                desktop.GetDomain(),
 		WindowsUser:           windowsUser,
 		DesktopLabels:         desktop.GetAllLabels(),
+	}
+	if err != nil {
+		event.Code = libevents.DesktopSessionStartFailureCode
+		event.Error = trace.Unwrap(err).Error()
+		event.UserMessage = err.Error()
 	}
 	s.emit(ctx, event)
 }
