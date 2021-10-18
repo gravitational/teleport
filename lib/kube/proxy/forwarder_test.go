@@ -619,8 +619,14 @@ func TestNewClusterSessionLocal(t *testing.T) {
 	// Set creds for kube cluster local
 	f.creds = map[string]*kubeCreds{
 		"local": {
-			targetAddr:      "k8s.example.com",
-			tlsConfig:       &tls.Config{},
+			targetAddr: "k8s.example.com:443",
+			tlsConfig: &tls.Config{
+				Certificates: []tls.Certificate{
+					{
+						Certificate: [][]byte{[]byte("cert")},
+					},
+				},
+			},
 			transportConfig: &transport.Config{},
 		},
 	}
@@ -648,9 +654,12 @@ func TestNewClusterSessionLocal(t *testing.T) {
 
 	// Make sure newClusterSession used provided creds
 	// instead of requesting a Teleport client cert.
-	require.Equal(t, f.creds["local"].tlsConfig, sess.tlsConfig)
+	require.Equal(t, f.creds["local"].tlsConfig.Certificates, sess.tlsConfig.Certificates)
 	require.Nil(t, f.cfg.AuthClient.(*mockCSRClient).lastCert)
 	require.Empty(t, 0, f.clientCredentials.Len())
+
+	// Make sure SNI was set correctly
+	require.Equal(t, utils.MustParseAddr(f.creds["local"].targetAddr).Host(), sess.tlsConfig.ServerName)
 }
 
 func TestNewClusterSessionRemote(t *testing.T) {
@@ -668,6 +677,9 @@ func TestNewClusterSessionRemote(t *testing.T) {
 	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
 	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
 	require.Equal(t, 1, f.clientCredentials.Len())
+
+	// Make sure SNI was set correctly
+	require.Equal(t, reversetunnel.LocalKubernetes, sess.tlsConfig.ServerName)
 }
 
 func TestNewClusterSessionDirect(t *testing.T) {
@@ -711,6 +723,14 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sess.forwarder)
 	require.Equal(t, []kubeClusterEndpoint{publicEndpoint, tunnelEndpoint}, sess.kubeClusterEndpoints)
+
+	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
+	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
+	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
+	require.Equal(t, 1, f.clientCredentials.Len())
+
+	// Make sure SNI was set correctly
+	require.Equal(t, reversetunnel.LocalKubernetes, sess.tlsConfig.ServerName)
 }
 
 func TestClusterSessionDial(t *testing.T) {
