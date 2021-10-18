@@ -1013,6 +1013,169 @@ func (s *WebSuite) TestTerminal(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *WebSuite) TestTerminalRequireSessionMfa_WithU2F(c *C) {
+	ctx := context.Background()
+	pack1 := s.authPack(c, "llama")
+
+	// Enable require session mfa.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorU2F,
+		U2F: &types.U2F{
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
+		},
+		RequireSessionMFA: true,
+	})
+	c.Assert(err, IsNil)
+	err = s.server.Auth().SetAuthPreference(ctx, ap)
+	c.Assert(err, IsNil)
+
+	clt, err := s.server.NewClient(auth.TestUser("llama"))
+	c.Assert(err, IsNil)
+	u2fDev, err := auth.RegisterTestDevice(ctx, clt, "u2f", apiProto.DeviceType_DEVICE_TYPE_U2F, nil /* authenticator */)
+	c.Assert(err, IsNil)
+
+	// Open a terminal to a new session.
+	sid := session.NewID()
+	ws, err := s.makeTerminal(pack1, sid)
+	c.Assert(err, IsNil)
+	defer ws.Close()
+
+	// Wait for websocket u2f challenge event.
+	payload, err := s.waitForMFAPromptEvent(ws, 5*time.Second)
+	c.Assert(err, IsNil)
+	chals := &auth.MFAAuthenticateChallenge{}
+	c.Assert(json.Unmarshal([]byte(payload), &chals), IsNil)
+
+	res, err := u2fDev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+		U2F: []*apiProto.U2FChallenge{{
+			KeyHandle: chals.U2FChallenges[0].KeyHandle,
+			Challenge: chals.U2FChallenges[0].Challenge,
+			AppID:     chals.U2FChallenges[0].AppID,
+			Version:   chals.U2FChallenges[0].Version,
+		}},
+	})
+	c.Assert(err, IsNil)
+
+	// Send response over ws.
+	u2fResBytes, err := json.Marshal(&u2f.AuthenticateChallengeResponse{
+		KeyHandle:     res.GetU2F().KeyHandle,
+		SignatureData: res.GetU2F().Signature,
+		ClientData:    res.GetU2F().ClientData,
+	})
+	c.Assert(err, IsNil)
+
+	termHandler := newTerminalHandler()
+	_, err = termHandler.write(u2fResBytes, ws)
+	c.Assert(err, IsNil)
+
+	// Test we can write.
+	stream := termHandler.asTerminalStream(ws)
+	_, err = io.WriteString(stream, "echo alpacas\r\n")
+	c.Assert(err, IsNil)
+	c.Assert(waitForOutput(stream, "alpacas"), IsNil)
+}
+
+func (s *WebSuite) TestTerminalRequireSessionMfa_WithWebAuthn(c *C) {
+	ctx := context.Background()
+	pack1 := s.authPack(c, "llama")
+
+	// Enable require session mfa.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorWebauthn,
+		U2F: &types.U2F{
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
+		},
+		RequireSessionMFA: true,
+	})
+	c.Assert(err, IsNil)
+	err = s.server.Auth().SetAuthPreference(ctx, ap)
+	c.Assert(err, IsNil)
+
+	clt, err := s.server.NewClient(auth.TestUser("llama"))
+	c.Assert(err, IsNil)
+	webautnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+	c.Assert(err, IsNil)
+
+	// Open a terminal to a new session.
+	sid := session.NewID()
+	ws, err := s.makeTerminal(pack1, sid)
+	c.Assert(err, IsNil)
+	defer ws.Close()
+
+	// Wait for websocket webauthn challenge event.
+	payload, err := s.waitForMFAPromptEvent(ws, 5*time.Second)
+	c.Assert(err, IsNil)
+	chals := &auth.MFAAuthenticateChallenge{}
+	c.Assert(json.Unmarshal([]byte(payload), &chals), IsNil)
+
+	res, err := webautnDev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+		WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
+	})
+	c.Assert(err, IsNil)
+
+	// Send response over ws.
+	u2fResBytes, err := json.Marshal(wanlib.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+	c.Assert(err, IsNil)
+
+	termHandler := newTerminalHandler()
+	_, err = termHandler.write(u2fResBytes, ws)
+	c.Assert(err, IsNil)
+
+	// Test we can write.
+	stream := termHandler.asTerminalStream(ws)
+	_, err = io.WriteString(stream, "echo alpacas\r\n")
+	c.Assert(err, IsNil)
+	c.Assert(waitForOutput(stream, "alpacas"), IsNil)
+}
+
+type waitForMFAPromptResult struct {
+	err error
+	env Envelope
+}
+
+func (s *WebSuite) waitForMFAPromptEvent(ws *websocket.Conn, timeout time.Duration) (string, error) {
+	timeoutContext, timeoutCancel := context.WithTimeout(context.Background(), timeout)
+	defer timeoutCancel()
+
+	done := make(chan waitForMFAPromptResult, 1)
+
+	go func() {
+		for {
+			var raw []byte
+			res := waitForMFAPromptResult{}
+			if err := websocket.Message.Receive(ws, &raw); err != nil {
+				res.err = trace.Wrap(err)
+				done <- res
+				return
+			}
+
+			if err := proto.Unmarshal(raw, &res.env); err != nil {
+				res.err = trace.Wrap(err)
+				done <- res
+				return
+			}
+
+			if res.env.GetType() == defaults.WebsocketU2FChallenge || res.env.GetType() == defaults.WebsocketWebAuthnChallenge {
+				done <- res
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-timeoutContext.Done():
+			return "", trace.BadParameter("timeout waiting for mfa prompt event")
+		case res := <-done:
+			return res.env.Payload, trace.Wrap(res.err)
+		}
+	}
+}
+
 func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	// Change cluster networking config for keep alive interval to be run faster.
 	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{

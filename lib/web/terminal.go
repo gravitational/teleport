@@ -34,6 +34,8 @@ import (
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
@@ -336,29 +338,35 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 
 func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-		if len(c.U2F) == 0 {
-			return nil, trace.AccessDenied("only U2F challenges are supported on the web terminal, please register a U2F device using 'tsh mfa add' to connect to this server")
+		if len(c.U2F) == 0 && c.GetWebauthnChallenge() == nil {
+			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
 		}
 
+		var chal *auth.MFAAuthenticateChallenge
+		var envelopeType string
+
 		// Convert from proto to JSON types.
-		u2fChals := make([]u2f.AuthenticateChallenge, 0, len(c.U2F))
-		for _, uc := range c.U2F {
-			u2fChals = append(u2fChals, u2f.AuthenticateChallenge{
-				Version:   uc.Version,
-				Challenge: uc.Challenge,
-				KeyHandle: uc.KeyHandle,
-				AppID:     uc.AppID,
-			})
-		}
-		chal := &auth.MFAAuthenticateChallenge{
-			AuthenticateChallenge: &u2f.AuthenticateChallenge{
-				// Get the common challenge fields from the first item.
-				// All of these fields should be identical for all u2fChals.
-				Challenge: u2fChals[0].Challenge,
-				AppID:     u2fChals[0].AppID,
-				Version:   u2fChals[0].Version,
-			},
-			U2FChallenges: u2fChals,
+		switch {
+		// Webauthn takes precedence.
+		case c.GetWebauthnChallenge() != nil:
+			envelopeType = defaults.WebsocketWebAuthnChallenge
+			chal = &auth.MFAAuthenticateChallenge{
+				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
+			}
+		default:
+			u2fChals := make([]u2f.AuthenticateChallenge, 0, len(c.U2F))
+			envelopeType = defaults.WebsocketU2FChallenge
+			for _, uc := range c.U2F {
+				u2fChals = append(u2fChals, u2f.AuthenticateChallenge{
+					Version:   uc.Version,
+					Challenge: uc.Challenge,
+					KeyHandle: uc.KeyHandle,
+					AppID:     uc.AppID,
+				})
+			}
+			chal = &auth.MFAAuthenticateChallenge{
+				U2FChallenges: u2fChals,
+			}
 		}
 
 		// Send the challenge over the socket.
@@ -368,7 +376,7 @@ func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMF
 		}
 		envelope := &Envelope{
 			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketU2FChallenge,
+			Type:    envelopeType,
 			Payload: string(chalEnc),
 		}
 		envelopeBytes, err := proto.Marshal(envelope)
@@ -390,20 +398,39 @@ func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMF
 		if err = proto.Unmarshal(bytes, envelope); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var resp u2f.AuthenticateChallengeResponse
-		if err := json.Unmarshal([]byte(envelope.Payload), &resp); err != nil {
-			return nil, trace.Wrap(err)
-		}
+
+		var mfaResponse *authproto.MFAAuthenticateResponse
+
 		// Convert from JSON to proto.
-		return &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_U2F{
-				U2F: &authproto.U2FResponse{
-					KeyHandle:  resp.KeyHandle,
-					ClientData: resp.ClientData,
-					Signature:  resp.SignatureData,
+		switch envelopeType {
+		case defaults.WebsocketWebAuthnChallenge:
+			var webauthnResponse wanlib.CredentialAssertionResponse
+			if err := json.Unmarshal([]byte(envelope.Payload), &webauthnResponse); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			mfaResponse = &authproto.MFAAuthenticateResponse{
+				Response: &authproto.MFAAuthenticateResponse_Webauthn{
+					Webauthn: wanlib.CredentialAssertionResponseToProto(&webauthnResponse),
 				},
-			},
-		}, nil
+			}
+
+		default:
+			var u2fResponse u2f.AuthenticateChallengeResponse
+			if err := json.Unmarshal([]byte(envelope.Payload), &u2fResponse); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			mfaResponse = &authproto.MFAAuthenticateResponse{
+				Response: &authproto.MFAAuthenticateResponse_U2F{
+					U2F: &authproto.U2FResponse{
+						KeyHandle:  u2fResponse.KeyHandle,
+						ClientData: u2fResponse.ClientData,
+						Signature:  u2fResponse.SignatureData,
+					},
+				},
+			}
+		}
+
+		return mfaResponse, nil
 	}
 }
 

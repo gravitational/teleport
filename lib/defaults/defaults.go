@@ -648,6 +648,9 @@ const (
 
 	// WebsocketU2FChallenge is sending a U2F challenge.
 	WebsocketU2FChallenge = "u"
+
+	// WebsocketWebAuthnChallenge is sending a webauthn challenge.
+	WebsocketWebAuthnChallenge = "n"
 )
 
 // The following are cryptographic primitives Teleport does not support in
