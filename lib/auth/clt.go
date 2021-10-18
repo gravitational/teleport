@@ -187,7 +187,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 
 	// Since the client uses a custom dialer and SNI is used for TLS handshake,
 	// the address below just needs to be set to pass request validation.
-	httpClient, err := roundtrip.NewClient("https://" + constants.APIHost, CurrentVersion, clientParams...)
+	httpClient, err := roundtrip.NewClient("https://"+constants.APIHost, CurrentVersion, clientParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
