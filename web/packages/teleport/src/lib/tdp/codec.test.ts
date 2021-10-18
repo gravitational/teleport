@@ -101,8 +101,25 @@ test('encodes utf8 characters correctly up to 3 bytes for username and password'
   });
 });
 
-// todo until jsdom adds support for Blob.arrayBuffer() (https://github.com/jsdom/jsdom/issues/2555)
-test.todo(`TODO: decoding -- jest uses jsdom to emulate a browser environment during the tests, but jsdom does not currently
-    support Blob.arrayBuffer() (used in our decoding functions) and thus it is difficult to test.
-    I think I've come up with a hacky workaround but @awly and I agreed to put this aside
-    for the time being; all will be tested manually for now by necessity during development.`);
+test('decodes message types', () => {
+  const pngFrameBuf = new ArrayBuffer(100);
+  const clipboardBuf = new ArrayBuffer(100);
+  const cliScreenBuf = new ArrayBuffer(100);
+  const pngFrameView = new DataView(pngFrameBuf);
+  const clipboardView = new DataView(clipboardBuf);
+  const cliScreenView = new DataView(cliScreenBuf);
+
+  pngFrameView.setUint8(0, MessageType.PNG_FRAME);
+  expect(codec.decodeMessageType(pngFrameBuf)).toEqual(MessageType.PNG_FRAME);
+
+  clipboardView.setUint8(0, MessageType.CLIPBOARD_DATA);
+  expect(codec.decodeMessageType(clipboardBuf)).toEqual(
+    MessageType.CLIPBOARD_DATA
+  );
+
+  // We only expect to need to decode png frames and clipboard data.
+  cliScreenView.setUint8(0, MessageType.CLIENT_SCREEN_SPEC);
+  expect(() => {
+    codec.decodeMessageType(cliScreenBuf);
+  }).toThrow(`invalid message type: ${MessageType.CLIENT_SCREEN_SPEC}`);
+});
