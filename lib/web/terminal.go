@@ -338,10 +338,6 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 
 func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-		if len(c.U2F) == 0 && c.GetWebauthnChallenge() == nil {
-			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
-		}
-
 		var chal *auth.MFAAuthenticateChallenge
 		var envelopeType string
 
@@ -349,11 +345,11 @@ func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMF
 		switch {
 		// Webauthn takes precedence.
 		case c.GetWebauthnChallenge() != nil:
-			envelopeType = defaults.WebsocketWebAuthnChallenge
+			envelopeType = defaults.WebsocketWebauthnChallenge
 			chal = &auth.MFAAuthenticateChallenge{
 				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
 			}
-		default:
+		case len(c.U2F) > 0:
 			u2fChals := make([]u2f.AuthenticateChallenge, 0, len(c.U2F))
 			envelopeType = defaults.WebsocketU2FChallenge
 			for _, uc := range c.U2F {
@@ -367,6 +363,8 @@ func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMF
 			chal = &auth.MFAAuthenticateChallenge{
 				U2FChallenges: u2fChals,
 			}
+		default:
+			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
 		}
 
 		// Send the challenge over the socket.
@@ -403,7 +401,7 @@ func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMF
 
 		// Convert from JSON to proto.
 		switch envelopeType {
-		case defaults.WebsocketWebAuthnChallenge:
+		case defaults.WebsocketWebauthnChallenge:
 			var webauthnResponse wanlib.CredentialAssertionResponse
 			if err := json.Unmarshal([]byte(envelope.Payload), &webauthnResponse); err != nil {
 				return nil, trace.Wrap(err)
