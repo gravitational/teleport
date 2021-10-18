@@ -39,7 +39,7 @@ export default function useDesktops(ctx: Ctx) {
     run(() => ctx.desktopService.fetchDesktops(clusterId).then(setDesktops));
   }, [clusterId]);
 
-  const openRemoteDesktopWindow = (username: string, desktopId: string) => {
+  const openRemoteDesktopTab = (username: string, desktopId: string) => {
     const url = cfg.getDesktopRoute({
       clusterId,
       desktopId,
@@ -57,7 +57,7 @@ export default function useDesktops(ctx: Ctx) {
     searchValue,
     setSearchValue,
     getWindowsLoginOptions,
-    openRemoteDesktopWindow,
+    openRemoteDesktopTab,
   };
 }
 

@@ -46,5 +46,5 @@ const props: State = {
   searchValue: '',
   setSearchValue: () => {},
   getWindowsLoginOptions: (desktopId: string) => [{ login: '', url: '' }],
-  openRemoteDesktopWindow: (username: string, desktopId: string) => {},
+  openRemoteDesktopTab: (username: string, desktopId: string) => {},
 };

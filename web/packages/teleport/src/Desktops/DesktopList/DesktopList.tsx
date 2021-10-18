@@ -35,7 +35,7 @@ function DesktopList(props: Props) {
     pageSize = 100,
     searchValue,
     onLoginMenuOpen,
-    openRemoteDesktopWindow,
+    onLoginSelect,
   } = props;
 
   const [sortDir, setSortDir] = useState<Record<string, string>>({
@@ -69,7 +69,7 @@ function DesktopList(props: Props) {
     desktopId: string
   ) {
     e.preventDefault();
-    openRemoteDesktopWindow(username, desktopId);
+    onLoginSelect(username, desktopId);
   }
 
   const data = sortAndFilter(searchValue);
@@ -188,7 +188,6 @@ const StyledTable = styled(Table)`
   }
 `;
 
-// TODO
 function searchAndFilterCb(
   targetValue: any[],
   searchValue: string,
@@ -208,7 +207,7 @@ type Props = {
   clusterId: string;
   searchValue: string;
   onLoginMenuOpen(desktopId: string): { login: string; url: string }[];
-  openRemoteDesktopWindow(username: string, desktopId: string): void;
+  onLoginSelect(username: string, desktopId: string): void;
 };
 
 export default DesktopList;
