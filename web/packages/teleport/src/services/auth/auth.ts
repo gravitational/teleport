@@ -22,6 +22,8 @@ import makePasswordToken from './makePasswordToken';
 import {
   makeMfaAuthenticateChallenge,
   makeMfaRegistrationChallenge,
+  makeWebauthnAssertionResponse,
+  makeWebauthnCreationResponse,
 } from './makeMfa';
 import { DeviceType } from './types';
 
@@ -33,6 +35,18 @@ const auth = {
 
     return new Error(
       'this browser does not support U2F required for hardware tokens, please try Chrome or Firefox instead'
+    );
+  },
+
+  checkWebauthnSupport() {
+    if (window.PublicKeyCredential) {
+      return Promise.resolve();
+    }
+
+    return Promise.reject(
+      new Error(
+        'this browser does not support Webauthn required for hardware tokens, please try the latest version of Chrome, Firefox or Safari'
+      )
     );
   },
 
@@ -113,9 +127,48 @@ const auth = {
     });
   },
 
+  loginWithWebauthn(user: string, pass: string) {
+    return auth
+      .checkWebauthnSupport()
+      .then(() => auth.mfaLoginBegin(user, pass))
+      .then(res =>
+        navigator.credentials.get({
+          publicKey: res.webauthnPublicKey,
+        })
+      )
+      .then(res => {
+        const request = {
+          user,
+          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+        };
+
+        return api.post(cfg.api.mfaLoginFinish, request);
+      });
+  },
+
   fetchPasswordToken(tokenId: string) {
     const path = cfg.getPasswordTokenUrl(tokenId);
     return api.get(path).then(makePasswordToken);
+  },
+
+  resetPasswordWithWebauthn(tokenId: string, password: string) {
+    return auth
+      .checkWebauthnSupport()
+      .then(() => auth.createMfaRegistrationChallenge(tokenId, 'webauthn'))
+      .then(res =>
+        navigator.credentials.create({
+          publicKey: res.webauthnPublicKey,
+        })
+      )
+      .then(res => {
+        const request = {
+          token: tokenId,
+          password: base64EncodeUnicode(password),
+          webauthnCreationResponse: makeWebauthnCreationResponse(res),
+        };
+
+        return api.put(cfg.getPasswordTokenUrl(), request);
+      });
   },
 
   resetPasswordWithU2f(tokenId: string, password: string) {
@@ -174,6 +227,26 @@ const auth = {
         });
       });
     });
+  },
+
+  changePasswordWithWebauthn(oldPass: string, newPass: string) {
+    return auth
+      .checkWebauthnSupport()
+      .then(() => api.post(cfg.api.mfaChangePasswordBegin, { pass: oldPass }))
+      .then(res =>
+        navigator.credentials.get({
+          publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
+        })
+      )
+      .then(res => {
+        const request = {
+          old_password: base64EncodeUnicode(oldPass),
+          new_password: base64EncodeUnicode(newPass),
+          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+        };
+
+        return api.put(cfg.api.changeUserPasswordPath, request);
+      });
   },
 
   _resetPassword(tokenId: string, psw: string, hotpToken: string, u2fResponse) {

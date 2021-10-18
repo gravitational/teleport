@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { MfaAuthenticateChallenge, MfaRegistrationChallenge } from './types';
-import { base64urlToBuffer } from 'shared/utils/base64url';
+import { base64urlToBuffer, bufferToBase64url } from 'shared/utils/base64url';
 
 // makeMfaRegistrationChallenge formats fetched register challenge JSON.
 // Webauthn challange contains Base64URL(byte) fields that needs to
@@ -70,5 +70,63 @@ export function makeMfaAuthenticateChallenge(json): MfaAuthenticateChallenge {
   return {
     u2fSignRequests: json.u2f_challenges || [],
     webauthnPublicKey: webauthnPublicKey,
+  };
+}
+
+// makeWebauthnCreationResponse takes response from navigator.credentials.create
+// and creates a credential object expected by the server with ArrayBuffer
+// fields converted to Base64URL:
+// - rawId
+// - response.attestationObject
+// - response.clientDataJSON
+export function makeWebauthnCreationResponse(res) {
+  // Response can be null if no Credential object can be created.
+  if (!res) {
+    throw new Error('error creating credential, please try again');
+  }
+
+  const clientExtentions = res.getClientExtensionResults();
+  return {
+    id: res.id,
+    type: res.type,
+    extensions: {
+      appid: Boolean(clientExtentions?.appid),
+    },
+    rawId: bufferToBase64url(res.rawId),
+    response: {
+      attestationObject: bufferToBase64url(res.response?.attestationObject),
+      clientDataJSON: bufferToBase64url(res.response?.clientDataJSON),
+    },
+  };
+}
+
+// makeWebauthnAssertionResponse takes response from navigator.credentials.get
+// and creates a credential object expected by the server with ArrayBuffer
+// fields converted to Base64URL:
+// - rawId
+// - response.authenticatorData
+// - response.clientDataJSON
+// - response.signature
+// - response.userHandle
+export function makeWebauthnAssertionResponse(res) {
+  // Response can be null if Credential cannot be unambiguously obtained.
+  if (!res) {
+    throw new Error('error obtaining credential, please try again');
+  }
+
+  const clientExtentions = res.getClientExtensionResults();
+  return {
+    id: res.id,
+    type: res.type,
+    extensions: {
+      appid: Boolean(clientExtentions?.appid),
+    },
+    rawId: bufferToBase64url(res.rawId),
+    response: {
+      authenticatorData: bufferToBase64url(res.response?.authenticatorData),
+      clientDataJSON: bufferToBase64url(res.response?.clientDataJSON),
+      signature: bufferToBase64url(res.response?.signature),
+      userHandle: bufferToBase64url(res.response?.userHandle),
+    },
   };
 }
