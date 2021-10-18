@@ -35,13 +35,8 @@ class RecoveryService {
     }
 
     return new Promise<RecoveryToken>((resolve, reject) => {
-      api.post(cfg.oss.getAuthnChallengeWithTokenUrl(tokenId)).then(data => {
-        let devices = [data];
-
-        if (data.u2f_challenges) {
-          devices = data.u2f_challenges;
-        }
-        (window as any).u2f.sign(data.appId, data.challenge, devices, res => {
+      auth.createMfaAuthnChallengeWithToken(tokenId).then(data => {
+        window['u2f'].sign(null, null, data.u2fSignRequests, res => {
           if (res.errorCode) {
             const err = auth._getU2fErr(res.errorCode);
             reject(err);
