@@ -104,6 +104,7 @@ Now you can see the monitoring information by visiting several endpoints:
 | `promhttp_metric_handler_requests_in_flight` | gauge | prometheus | Current number of scrapes being served. |
 | `promhttp_metric_handler_requests_total` | counter | prometheus | Total number of scrapes by HTTP status code. |
 | `proxy_connection_limit_exceeded_total` | counter | Teleport Proxy | Number of connections that exceeded the proxy connection limit. |
+| `proxy_missing_ssh_tunnels` | gauge | Teleport Proxy | Number of missing SSH tunnels. Used to debug if nodes have discovered all proxies. |
 | `reversetunnel_connected_proxies` | gauge | Teleport | Number of known proxies being sought. |
 | `rx` | counter | Teleport | Number of bytes received. |
 | `server_interactive_sessions_total` | gauge | Teleport | Number of active sessions. |

@@ -55,16 +55,16 @@ func TestAWSIAM(t *testing.T) {
 
 	// Configure mocks.
 	stsClient := &STSMock{
-		arn: "arn:aws:iam::1234567890:role/test-role",
+		ARN: "arn:aws:iam::1234567890:role/test-role",
 	}
 
 	rdsClient := &RDSMock{
-		dbInstances: []*rds.DBInstance{rdsInstance},
-		dbClusters:  []*rds.DBCluster{auroraCluster},
+		DBInstances: []*rds.DBInstance{rdsInstance},
+		DBClusters:  []*rds.DBCluster{auroraCluster},
 	}
 
 	redshiftClient := &RedshiftMock{
-		clusters: []*redshift.Cluster{redshiftCluster},
+		Clusters: []*redshift.Cluster{redshiftCluster},
 	}
 
 	iamClient := &IAMMock{}
@@ -75,7 +75,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{RDS: types.RDS{InstanceID: "postgres-rds"}},
+		AWS:      types.AWS{RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -84,7 +84,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{RDS: types.RDS{ClusterID: "postgres-aurora"}},
+		AWS:      types.AWS{RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -105,6 +105,7 @@ func TestAWSIAM(t *testing.T) {
 			STS:      stsClient,
 			IAM:      iamClient,
 		},
+		HostID: "host-id",
 	})
 	require.NoError(t, err)
 
@@ -112,33 +113,39 @@ func TestAWSIAM(t *testing.T) {
 	err = configurator.Setup(ctx, rdsDatabase)
 	require.NoError(t, err)
 	require.True(t, aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled))
-	require.Equal(t, []string{"postgres-rds"}, iamClient.attachedRolePolicies["test-role"])
+	policy := iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	require.Contains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
 
 	// Deconfigure RDS database, policy should get detached.
 	err = configurator.Teardown(ctx, rdsDatabase)
 	require.NoError(t, err)
-	require.Equal(t, []string{}, iamClient.attachedRolePolicies["test-role"])
+	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	require.NotContains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
 
 	// Configure Aurora database and make sure IAM was enabled and policy was attached.
 	err = configurator.Setup(ctx, auroraDatabase)
 	require.NoError(t, err)
 	require.True(t, aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled))
-	require.Equal(t, []string{"postgres-aurora"}, iamClient.attachedRolePolicies["test-role"])
+	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	require.Contains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 
 	// Deconfigure Aurora database, policy should get detached.
 	err = configurator.Teardown(ctx, auroraDatabase)
 	require.NoError(t, err)
-	require.Equal(t, []string{}, iamClient.attachedRolePolicies["test-role"])
+	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 
 	// Configure Redshift database and make sure policy was attached.
 	err = configurator.Setup(ctx, redshiftDatabase)
 	require.NoError(t, err)
-	require.Equal(t, []string{"redshift"}, iamClient.attachedRolePolicies["test-role"])
+	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	require.Contains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 
 	// Deconfigure Redshift database, policy should get detached.
 	err = configurator.Teardown(ctx, redshiftDatabase)
 	require.NoError(t, err)
-	require.Equal(t, []string{}, iamClient.attachedRolePolicies["test-role"])
+	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 }
 
 // TestAWSIAMNoPermissions tests that lack of AWS permissions does not produce
@@ -148,7 +155,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 
 	// Create unauthorized mocks for AWS services.
 	stsClient := &STSMock{
-		arn: "arn:aws:iam::1234567890:role/test-role",
+		ARN: "arn:aws:iam::1234567890:role/test-role",
 	}
 	rdsClient := &RDSMockUnauth{}
 	redshiftClient := &RedshiftMockUnauth{}
@@ -162,6 +169,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			Redshift: redshiftClient,
 			IAM:      iamClient,
 		},
+		HostID: "host-id",
 	})
 	require.NoError(t, err)
 

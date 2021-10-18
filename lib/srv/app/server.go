@@ -90,8 +90,8 @@ type Config struct {
 	// Cloud provides cloud provider access related functionality.
 	Cloud Cloud
 
-	// Selectors is a list of resource monitor selectors.
-	Selectors []services.Selector
+	// ResourceMatchers is a list of app resource matchers.
+	ResourceMatchers []services.ResourceMatcher
 
 	// OnReconcile is called after each database resource reconciliation.
 	OnReconcile func(types.Apps)
@@ -160,7 +160,15 @@ type Server struct {
 	mu            sync.RWMutex
 	heartbeats    map[string]*srv.Heartbeat
 	dynamicLabels map[string]*labels.Dynamic
-	apps          map[string]types.Application
+
+	// apps are all apps this server currently proxies. Proxied apps are
+	// reconciled against monitoredApps below.
+	apps map[string]types.Application
+	// monitoredApps contains all cluster apps the proxied apps are
+	// reconciled against.
+	monitoredApps monitoredApps
+	// reconcileCh triggers reconciliation of proxied apps.
+	reconcileCh chan struct{}
 
 	proxyPort string
 
@@ -168,8 +176,32 @@ type Server struct {
 
 	// watcher monitors changes to application resources.
 	watcher *services.AppWatcher
-	// reconciler reconciles proxied apps with application resources.
-	reconciler *services.Reconciler
+}
+
+// monitoredApps is a collection of applications from different sources
+// like configuration file and dynamic resources.
+//
+// It's updated by respective watchers and is used for reconciling with the
+// currently proxied apps.
+type monitoredApps struct {
+	// static are apps from the agent's YAML configuration.
+	static types.Apps
+	// resources are apps created via CLI or API.
+	resources types.Apps
+	// mu protects access to the fields.
+	mu sync.Mutex
+}
+
+func (m *monitoredApps) setResources(apps types.Apps) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.resources = apps
+}
+
+func (m *monitoredApps) get() types.ResourcesWithLabels {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append(m.static, m.resources...).AsResources()
 }
 
 // New returns a new application server.
@@ -187,6 +219,10 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		heartbeats:    make(map[string]*srv.Heartbeat),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
+		monitoredApps: monitoredApps{
+			static: c.Apps,
+		},
+		reconcileCh: make(chan struct{}),
 	}
 
 	s.closeContext, s.closeFunc = context.WithCancel(ctx)
@@ -213,12 +249,6 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	// Figure out the port the proxy is running on.
 	s.proxyPort = s.getProxyPort()
-
-	// Reconciler will be reconciling application resources with proxied apps.
-	s.reconciler, err = s.getReconciler()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	return s, nil
 }
@@ -433,7 +463,7 @@ func (s *Server) getApps() (apps types.Apps) {
 }
 
 // Start starts proxying all registered apps.
-func (s *Server) Start(ctx context.Context) error {
+func (s *Server) Start(ctx context.Context) (err error) {
 	// Register all apps from static configuration.
 	for _, app := range s.c.Apps {
 		if err := s.registerApp(ctx, app); err != nil {
@@ -441,18 +471,15 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}
 
-	// Register all matching apps from resources.
-	apps, err := s.c.AccessPoint.GetApps(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := s.reconciler.Reconcile(ctx, types.Apps(apps).AsResources()); err != nil {
+	// Start reconciler that will be reconciling proxied apps with
+	// application resources.
+	if err := s.startReconciler(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Initialize watcher that will be dynamically (un-)registering
 	// proxied apps based on the application resources.
-	if s.watcher, err = s.startWatcher(ctx); err != nil {
+	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
