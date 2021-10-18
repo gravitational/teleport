@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1110,7 +1111,7 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 
 	// Since the forwarder uses a custom dialer and SNI is used for TLS handshake,
 	// the host below just needs to be set to pass request validation.
-	req.URL.Host = "host"
+	req.URL.Host = constants.APIDomain
 
 	// add origin headers so the service consuming the request on the other site
 	// is aware of where it came from
@@ -1218,6 +1219,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
+
 	if err := f.setupForwardingHeaders(sess, req); err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
@@ -1426,14 +1428,13 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 	sess := &clusterSession{
 		parent:      f,
 		authContext: ctx,
-		// remote clusters use special hardcoded URL,
-		// and use a special dialer
+		// Proxy uses reverse tunnel dialer to connect to Kubernetes in a leaf cluster
+		// and the targetKubernetes cluster endpoint is determined from the identity
+		// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
+		// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
 		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}},
-		tlsConfig:            tlsConfig.Clone(),
+		tlsConfig:            tlsConfig,
 	}
-
-	// Set SNI for TLS handshake
-	sess.tlsConfig.ServerName = reversetunnel.LocalKubernetes
 
 	transport := f.newTransport(sess.Dial, sess.tlsConfig)
 	sess.forwarder, err = forward.New(
@@ -1503,15 +1504,8 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 		authContext:          ctx,
 		creds:                creds,
 		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: creds.targetAddr}},
-		tlsConfig:            creds.tlsConfig.Clone(),
+		tlsConfig:            creds.tlsConfig,
 	}
-
-	// Parse host from address and set as SNI for TLS handshake
-	host, _, err := net.SplitHostPort(creds.targetAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess.tlsConfig.ServerName = host
 
 	// When running inside Kubernetes cluster or using auth/exec providers,
 	// kubeconfig provides a transport wrapper that adds a bearer token to
@@ -1553,14 +1547,11 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []kubeClu
 		parent:               f,
 		authContext:          ctx,
 		kubeClusterEndpoints: endpoints,
-		tlsConfig:            tlsConfig.Clone(),
+		tlsConfig:            tlsConfig,
 		// This session talks to a kubernetes_service, which should handle
 		// audit logging. Avoid duplicate logging.
 		noAuditEvents: true,
 	}
-
-	// Set SNI for TLS handshake
-	sess.tlsConfig.ServerName = reversetunnel.LocalKubernetes
 
 	transport := f.newTransport(sess.Dial, sess.tlsConfig)
 	sess.forwarder, err = forward.New(
@@ -1743,6 +1734,7 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		RootCAs:      pool,
 		Certificates: []tls.Certificate{cert},
+		ServerName:   constants.APIDomain,
 	}
 	tlsConfig.BuildNameToCertificate()
 
