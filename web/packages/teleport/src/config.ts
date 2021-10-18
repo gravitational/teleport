@@ -93,10 +93,6 @@ const cfg = {
     userStatusPath: '/v1/webapi/user/status',
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
-    u2fCreateUserChallengePath: '/v1/webapi/u2f/signuptokens/:tokenId',
-    u2fSessionChallengePath: '/v1/webapi/u2f/signrequest',
-    u2fChangePassChallengePath: '/v1/webapi/u2f/password/changerequest',
-    u2fSessionPath: '/v1/webapi/u2f/sessions',
     nodesPath: '/v1/webapi/sites/:clusterId/nodes',
     databasesPath: `/v1/webapi/sites/:clusterId/databases`,
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
@@ -116,6 +112,11 @@ const cfg = {
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
+    mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
+    mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
+    mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
+    mfaCreateRegistrationChallengePath:
+      '/v1/webapi/mfa/token/:tokenId/registerchallenge',
     mfaAuthnChallengeWithTokenPath:
       '/v1/webapi/mfa/token/:tokenId/authenticatechallenge',
     mfaDeviceListPath: '/v1/webapi/mfa/token/:tokenId/devices',
@@ -285,10 +286,6 @@ const cfg = {
     return generatePath(cfg.api.applicationsPath, { clusterId });
   },
 
-  getU2fCreateUserChallengeUrl(tokenId: string) {
-    return generatePath(cfg.api.u2fCreateUserChallengePath, { tokenId });
-  },
-
   getScpUrl(params: UrlScpParams) {
     return generatePath(cfg.api.scp, {
       ...params,
@@ -327,6 +324,12 @@ const cfg = {
 
   getMfaDeviceUrl(tokenId: string, deviceName: string) {
     return generatePath(cfg.api.mfaDevicePath, { tokenId, deviceName });
+  },
+
+  getMfaCreateRegistrationChallengeUrl(tokenId: string) {
+    return generatePath(cfg.api.mfaCreateRegistrationChallengePath, {
+      tokenId,
+    });
   },
 
   init(backendConfig = {}) {

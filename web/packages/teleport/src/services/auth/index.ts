@@ -15,4 +15,7 @@ limitations under the License.
 */
 
 import service from './auth';
+
+export * from './makeMfa';
+export * from './types';
 export default service;

@@ -33,7 +33,8 @@ describe('services/auth', () => {
   });
 
   // sample data
-  const dummyU2fRegResponse = Promise.resolve({ appId: 'xxx' });
+  const dummyU2fRegChallenge = { u2f: { appId: 'xxx' } };
+  const dummyU2fRegResponse = { appId: 'xxx' };
   const password = 'sample_pass';
   const email = 'user@example.com';
 
@@ -52,22 +53,18 @@ describe('services/auth', () => {
   });
 
   test('login()', async () => {
-    jest.spyOn(api, 'post').mockImplementation(() => Promise.resolve());
+    jest.spyOn(api, 'post').mockResolvedValue();
 
     await auth.login(email, password);
-    expect(api.post).toHaveBeenCalledWith(
-      cfg.api.sessionPath,
-      {
-        user: email,
-        pass: password,
-        second_factor_token: undefined,
-      },
-      false
-    );
+    expect(api.post).toHaveBeenCalledWith(cfg.api.sessionPath, {
+      user: email,
+      pass: password,
+      second_factor_token: undefined,
+    });
   });
 
   test('login() OTP', async () => {
-    jest.spyOn(api, 'post').mockImplementation(() => Promise.resolve());
+    jest.spyOn(api, 'post').mockResolvedValue();
     const data = {
       user: email,
       pass: password,
@@ -75,11 +72,11 @@ describe('services/auth', () => {
     };
 
     await auth.login(email, password, 'xxx');
-    expect(api.post).toHaveBeenCalledWith(cfg.api.sessionPath, data, false);
+    expect(api.post).toHaveBeenCalledWith(cfg.api.sessionPath, data);
   });
 
   test('loginWithU2f()', async () => {
-    jest.spyOn(api, 'post').mockImplementation(() => dummyU2fRegResponse);
+    jest.spyOn(api, 'post').mockResolvedValue(dummyU2fRegResponse);
     jest.spyOn(global.u2f, 'sign').mockImplementation((a, b, c, d) => {
       d(dummyU2fRegResponse);
     });
@@ -89,7 +86,7 @@ describe('services/auth', () => {
   });
 
   test('loginWithU2f() error', async () => {
-    jest.spyOn(api, 'post').mockImplementation(() => dummyU2fRegResponse);
+    jest.spyOn(api, 'post').mockResolvedValue(dummyU2fRegResponse);
     jest.spyOn(window.u2f, 'sign').mockImplementation((a, b, c, d) => {
       d({ errorCode: '404' });
     });
@@ -104,7 +101,7 @@ describe('services/auth', () => {
   });
 
   test('resetPassword()', async () => {
-    jest.spyOn(api, 'put').mockImplementation(() => Promise.resolve());
+    jest.spyOn(api, 'put').mockResolvedValue();
     const submitData = {
       token: 'tokenId',
       second_factor_token: '2fa_token',
@@ -113,16 +110,12 @@ describe('services/auth', () => {
     };
 
     await auth.resetPassword('tokenId', password, '2fa_token');
-    expect(api.put).toHaveBeenCalledWith(
-      cfg.getPasswordTokenUrl(),
-      submitData,
-      false
-    );
+    expect(api.put).toHaveBeenCalledWith(cfg.getPasswordTokenUrl(), submitData);
   });
 
   test('resetPasswordU2F()', async () => {
-    jest.spyOn(api, 'post').mockImplementation(() => dummyU2fRegResponse);
-    jest.spyOn(api, 'get').mockImplementation(() => Promise.resolve({}));
+    jest.spyOn(api, 'post').mockResolvedValue(dummyU2fRegChallenge);
+    jest.spyOn(api, 'put').mockResolvedValue({});
     jest.spyOn(window.u2f, 'register').mockImplementation((a, b, c, d) => {
       d(dummyU2fRegResponse);
     });
@@ -137,19 +130,17 @@ describe('services/auth', () => {
     };
 
     await auth.resetPasswordWithU2f('tokenId', password);
-    expect(api.get).toHaveBeenCalledWith(
-      cfg.getU2fCreateUserChallengeUrl('tokenId')
+    expect(
+      api.post
+    ).toHaveBeenCalledWith(
+      cfg.getMfaCreateRegistrationChallengeUrl('tokenId'),
+      { deviceType: 'u2f' }
     );
-    expect(api.put).toHaveBeenCalledWith(
-      cfg.getPasswordTokenUrl(),
-      submitted,
-      false
-    );
+    expect(api.put).toHaveBeenCalledWith(cfg.getPasswordTokenUrl(), submitted);
   });
 
   test('resetPasswordU2F() error', async () => {
-    jest.spyOn(api, 'post').mockImplementation(() => dummyU2fRegResponse);
-    jest.spyOn(api, 'get').mockImplementation(() => dummyU2fRegResponse);
+    jest.spyOn(api, 'put').mockResolvedValue(dummyU2fRegResponse);
     jest.spyOn(window.u2f, 'register').mockImplementation((a, b, c, d) => {
       d({ errorCode: '404' });
     });
@@ -157,7 +148,7 @@ describe('services/auth', () => {
     try {
       await auth.resetPasswordWithU2f('tokenId', password);
     } catch (err) {
-      expect(api.post).toHaveBeenCalledTimes(0);
+      expect(api.put).toHaveBeenCalledTimes(0);
     }
 
     expect.assertions(1);

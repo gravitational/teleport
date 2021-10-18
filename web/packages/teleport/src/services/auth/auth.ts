@@ -19,10 +19,15 @@ import 'u2f-api-polyfill';
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import makePasswordToken from './makePasswordToken';
+import {
+  makeMfaAuthenticateChallenge,
+  makeMfaRegistrationChallenge,
+} from './makeMfa';
+import { DeviceType } from './types';
 
 const auth = {
   u2fBrowserSupported() {
-    if (window.u2f) {
+    if (window['u2f']) {
       return null;
     }
 
@@ -31,36 +36,57 @@ const auth = {
     );
   },
 
-  login(userId, password, token) {
+  createMfaRegistrationChallenge(tokenId: string, deviceType: DeviceType) {
+    return api
+      .post(cfg.getMfaCreateRegistrationChallengeUrl(tokenId), {
+        deviceType,
+      })
+      .then(makeMfaRegistrationChallenge);
+  },
+
+  createMfaAuthnChallengeWithToken(tokenId: string) {
+    return api
+      .post(cfg.getAuthnChallengeWithTokenUrl(tokenId))
+      .then(makeMfaAuthenticateChallenge);
+  },
+
+  // mfaLoginBegin retrieves users mfa challenges for their
+  // registered devices after verifying given username and password
+  // at login.
+  mfaLoginBegin(user: string, pass: string) {
+    return api
+      .post(cfg.api.mfaLoginBegin, { user, pass })
+      .then(makeMfaAuthenticateChallenge);
+  },
+
+  // changePasswordBegin retrieves users mfa challenges for their
+  // registered devices after verifying given password from an
+  // authenticated user.
+  mfaChangePasswordBegin(oldPass: string) {
+    return api
+      .post(cfg.api.mfaChangePasswordBegin, { pass: oldPass })
+      .then(makeMfaAuthenticateChallenge);
+  },
+
+  login(userId: string, password: string, token: string) {
     const data = {
       user: userId,
       pass: password,
       second_factor_token: token,
     };
 
-    return api.post(cfg.api.sessionPath, data, false);
+    return api.post(cfg.api.sessionPath, data);
   },
 
-  loginWithU2f(name, password) {
+  loginWithU2f(name: string, password: string) {
     const err = this.u2fBrowserSupported();
     if (err) {
       return Promise.reject(err);
     }
 
-    const data = {
-      user: name,
-      pass: password,
-    };
-
-    return api.post(cfg.api.u2fSessionChallengePath, data, false).then(data => {
+    return auth.mfaLoginBegin(name, password).then(data => {
       const promise = new Promise((resolve, reject) => {
-        var devices = [data];
-        // u2f_challenges is a new field returned by post-6.0 auth servers.
-        // It contains all registered U2F devices.
-        if (data.u2f_challenges) {
-          devices = data.u2f_challenges;
-        }
-        window.u2f.sign(data.appId, data.challenge, devices, function(res) {
+        window['u2f'].sign(null, null, data.u2fSignRequests, function(res) {
           if (res.errorCode) {
             const err = auth._getU2fErr(res.errorCode);
             reject(err);
@@ -73,7 +99,7 @@ const auth = {
           };
 
           api
-            .post(cfg.api.u2fSessionPath, response, false)
+            .post(cfg.api.mfaLoginFinish, response)
             .then(data => {
               resolve(data);
             })
@@ -87,12 +113,12 @@ const auth = {
     });
   },
 
-  fetchPasswordToken(tokenId) {
+  fetchPasswordToken(tokenId: string) {
     const path = cfg.getPasswordTokenUrl(tokenId);
     return api.get(path).then(makePasswordToken);
   },
 
-  resetPasswordWithU2f(tokenId, password) {
+  resetPasswordWithU2f(tokenId: string, password: string) {
     const err = this.u2fBrowserSupported();
     if (err) {
       return Promise.reject(err);
@@ -103,11 +129,11 @@ const auth = {
     });
   },
 
-  resetPassword(tokenId, password, hotpToken) {
+  resetPassword(tokenId: string, password: string, hotpToken: string) {
     return this._resetPassword(tokenId, password, hotpToken);
   },
 
-  changePassword(oldPass, newPass, token) {
+  changePassword(oldPass: string, newPass: string, token: string) {
     const data = {
       old_password: base64EncodeUnicode(oldPass),
       new_password: base64EncodeUnicode(newPass),
@@ -117,25 +143,15 @@ const auth = {
     return api.put(cfg.api.changeUserPasswordPath, data);
   },
 
-  changePasswordWithU2f(oldPass, newPass) {
+  changePasswordWithU2f(oldPass: string, newPass: string) {
     const err = this.u2fBrowserSupported();
     if (err) {
       return Promise.reject(err);
     }
 
-    const data = {
-      pass: oldPass,
-    };
-
-    return api.post(cfg.api.u2fChangePassChallengePath, data).then(data => {
-      var devices = [data];
-      // u2f_challenges is a new field returned by post-6.0 auth servers.
-      // It contains all registered U2F devices.
-      if (data.u2f_challenges) {
-        devices = data.u2f_challenges;
-      }
+    return auth.mfaChangePasswordBegin(oldPass).then(data => {
       return new Promise((resolve, reject) => {
-        window.u2f.sign(data.appId, data.challenge, devices, function(res) {
+        window['u2f'].sign(null, null, data.u2fSignRequests, function(res) {
           if (res.errorCode) {
             const err = auth._getU2fErr(res.errorCode);
             reject(err);
@@ -160,7 +176,7 @@ const auth = {
     });
   },
 
-  _resetPassword(tokenId, psw, hotpToken, u2fResponse) {
+  _resetPassword(tokenId: string, psw: string, hotpToken: string, u2fResponse) {
     const request = {
       password: base64EncodeUnicode(psw),
       second_factor_token: hotpToken,
@@ -168,13 +184,14 @@ const auth = {
       u2f_register_response: u2fResponse,
     };
 
-    return api.put(cfg.getPasswordTokenUrl(), request, false);
+    return api.put(cfg.getPasswordTokenUrl(), request);
   },
 
-  _getU2FRegisterRes(tokenId) {
-    return api.get(cfg.getU2fCreateUserChallengeUrl(tokenId)).then(data => {
+  _getU2FRegisterRes(tokenId: string) {
+    return auth.createMfaRegistrationChallenge(tokenId, 'u2f').then(data => {
+      const challenge = data.u2fRegisterRequest;
       return new Promise((resolve, reject) => {
-        window.u2f.register(data.appId, [data], [], function(res) {
+        window['u2f'].register(challenge.appId, [challenge], [], function(res) {
           if (res.errorCode) {
             const err = auth._getU2fErr(res.errorCode);
             reject(err);
@@ -186,11 +203,11 @@ const auth = {
     });
   },
 
-  _getU2fErr(errorCode) {
+  _getU2fErr(errorCode: number) {
     let errorMsg = `error code ${errorCode}`;
     // lookup error message...
-    for (var msg in window.u2f.ErrorCodes) {
-      if (window.u2f.ErrorCodes[msg] == errorCode) {
+    for (var msg in window['u2f'].ErrorCodes) {
+      if (window['u2f'].ErrorCodes[msg] == errorCode) {
         errorMsg = msg;
       }
     }
@@ -201,10 +218,11 @@ const auth = {
   },
 };
 
-function base64EncodeUnicode(str) {
+function base64EncodeUnicode(str: string) {
   return window.btoa(
     encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
-      return String.fromCharCode('0x' + p1);
+      const hexadecimalStr = '0x' + p1;
+      return String.fromCharCode(Number(hexadecimalStr));
     })
   );
 }
