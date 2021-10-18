@@ -435,11 +435,16 @@ func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ld
 	}
 
 	s.cfg.Log.Debugf("resolved %v => %v", hostname, addrs[0])
+	addr, err := utils.ParseHostPortAddr(addrs[0], defaults.RDPListenPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return types.NewWindowsDesktopV3(
 		entry.GetAttributeValue("name"),
 		labels,
 		types.WindowsDesktopSpecV3{
-			Addr:   addrs[0],
+			Addr:   addr.String(),
 			Domain: s.cfg.Domain,
 		},
 	)
