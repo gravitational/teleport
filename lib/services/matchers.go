@@ -17,37 +17,37 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-
 	"github.com/gravitational/teleport/api/types"
 
 	"github.com/sirupsen/logrus"
 )
 
-// Selector represents a single resource monitor selector.
-type Selector struct {
-	// MatchLabels is a selector that matches labels.
-	MatchLabels types.Labels
+// ResourceMatcher matches cluster resources.
+type ResourceMatcher struct {
+	// Labels match resource labels.
+	Labels types.Labels
 }
 
-// String returns the selector string representation.
-func (s Selector) String() string {
-	if len(s.MatchLabels) != 0 {
-		return fmt.Sprintf("MatchLabels(%v)", s.MatchLabels)
-	}
-	return ""
+// AWSMatcher matches AWS databases.
+type AWSMatcher struct {
+	// Types are AWS database types to match, "rds" or "redshift".
+	Types []string
+	// Regions are AWS regions to query for databases.
+	Regions []string
+	// Tags are AWS tags to match.
+	Tags types.Labels
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
-func MatchResourceLabels(selectors []Selector, resource types.ResourceWithLabels) bool {
-	for _, selector := range selectors {
-		if len(selector.MatchLabels) == 0 {
+func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWithLabels) bool {
+	for _, matcher := range matchers {
+		if len(matcher.Labels) == 0 {
 			return false
 		}
-		match, _, err := MatchLabels(selector.MatchLabels, resource.GetAllLabels())
+		match, _, err := MatchLabels(matcher.Labels, resource.GetAllLabels())
 		if err != nil {
 			logrus.WithError(err).Errorf("Failed to match labels %v: %v.",
-				selector.MatchLabels, resource)
+				matcher.Labels, resource)
 			return false
 		}
 		if match {
@@ -56,3 +56,10 @@ func MatchResourceLabels(selectors []Selector, resource types.ResourceWithLabels
 	}
 	return false
 }
+
+const (
+	// AWSMatcherRDS is the AWS matcher type for RDS databases.
+	AWSMatcherRDS = "rds"
+	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
+	AWSMatcherRedshift = "redshift"
+)

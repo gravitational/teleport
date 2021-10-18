@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -601,8 +602,10 @@ type DatabasesConfig struct {
 	Enabled bool
 	// Databases is a list of databases proxied by this service.
 	Databases []Database
-	// Selectors is a list of resource monitor selectors.
-	Selectors []services.Selector
+	// ResourceMatchers match cluster database resources.
+	ResourceMatchers []services.ResourceMatcher
+	// AWSMatchers match AWS hosted databases.
+	AWSMatchers []services.AWSMatcher
 }
 
 // Database represents a single database that's being proxied.
@@ -727,8 +730,8 @@ type AppsConfig struct {
 	// Apps is the list of applications that are being proxied.
 	Apps []App
 
-	// Selectors is a list of resource monitor selectors.
-	Selectors []services.Selector
+	// ResourceMatchers match cluster database resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // App is the specific application that will be proxied by the application
@@ -846,6 +849,35 @@ type WindowsDesktopConfig struct {
 	Hosts []utils.NetAddr
 	// ConnLimiter limits the connection and request rates.
 	ConnLimiter limiter.Config
+	// HostLabels specifies rules that are used to apply labels to Windows hosts.
+	HostLabels HostLabelRules
+}
+
+// HostLabelRules is a collection of rules describing how to apply labels to hosts.
+type HostLabelRules []HostLabelRule
+
+// LabelsForHost returns the set of all labels that should be applied
+// to the specified host. If multiple rules match and specify the same
+// label keys, the value will be that of the last matching rule.
+func (h HostLabelRules) LabelsForHost(host string) map[string]string {
+	// TODO(zmb3): consider memoizing this call - the set of rules doesn't
+	// change, so it may be worth not matching regexps on each heartbeat.
+	result := make(map[string]string)
+	for _, rule := range h {
+		if rule.Regexp.MatchString(host) {
+			for k, v := range rule.Labels {
+				result[k] = v
+			}
+		}
+	}
+	return result
+}
+
+// HostLabelRule specifies a set of labels that should be applied to
+// hosts matching the provided regexp.
+type HostLabelRule struct {
+	Regexp *regexp.Regexp
+	Labels map[string]string
 }
 
 // LDAPConfig is the LDAP connection parameters.

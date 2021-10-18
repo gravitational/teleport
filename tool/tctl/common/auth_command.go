@@ -320,9 +320,11 @@ func (a *AuthCommand) GenerateKeys() error {
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(clusterAPI auth.ClientI) error {
-	switch {
-	case a.outputFormat == identityfile.FormatDatabase || a.outputFormat == identityfile.FormatMongo:
+	switch a.outputFormat {
+	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach:
 		return a.generateDatabaseKeys(clusterAPI)
+	}
+	switch {
 	case a.genUser != "" && a.genHost == "":
 		return a.generateUserKeys(clusterAPI)
 	case a.genUser == "" && a.genHost != "":
@@ -425,6 +427,12 @@ func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *c
 	if len(principals) == 0 {
 		return trace.BadParameter("at least one hostname must be specified via --host flag")
 	}
+	// For CockroachDB node certificates, CommonName must be "node":
+	//
+	// https://www.cockroachlabs.com/docs/v21.1/cockroach-cert#node-key-and-certificates
+	if a.outputFormat == identityfile.FormatCockroach {
+		principals = append([]string{"node"}, principals...)
+	}
 	subject := pkix.Name{CommonName: principals[0]}
 	if a.outputFormat == identityfile.FormatMongo {
 		// Include Organization attribute in MongoDB certificates as well.
@@ -485,6 +493,11 @@ func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *c
 			"files":  strings.Join(filesWritten, ", "),
 			"output": a.output,
 		})
+	case identityfile.FormatCockroach:
+		cockroachAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+			"files":  strings.Join(filesWritten, ", "),
+			"output": a.output,
+		})
 	}
 	return nil
 }
@@ -521,6 +534,15 @@ net:
     mode: requireTLS
     certificateKeyFile: /path/to/{{.output}}.crt
     CAFile: /path/to/{{.output}}.cas
+`))
+	cockroachAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your CockroachDB server, point it to the certs
+directory using --certs-dir flag:
+
+cockroach start \
+  --certs-dir={{.output}} \
+  # other flags...
 `))
 )
 

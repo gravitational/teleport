@@ -121,6 +121,17 @@ type Role interface {
 	GetAWSRoleARNs(RoleConditionType) []string
 	// SetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
 	SetAWSRoleARNs(RoleConditionType, []string)
+
+	// GetWindowsDesktopLabels gets the Windows desktop labels this role
+	// is allowed or denied access to.
+	GetWindowsDesktopLabels(RoleConditionType) Labels
+	// SetWindowsDesktopLabels sets the Windows desktop labels this role
+	// is allowed or denied access to.
+	SetWindowsDesktopLabels(RoleConditionType, Labels)
+	// GetWindowsLogins gets Windows desktop logins for allow or deny condition.
+	GetWindowsLogins(RoleConditionType) []string
+	// SetWindowsLogins sets Windows desktop logins for allow or deny condition.
+	SetWindowsLogins(RoleConditionType, []string)
 }
 
 // NewRole constructs new standard role
@@ -487,6 +498,42 @@ func (r *RoleV4) SetAWSRoleARNs(rct RoleConditionType, arns []string) {
 	}
 }
 
+// GetWindowsDesktopLabels gets the desktop labels this role is allowed or denied access to.
+func (r *RoleV4) GetWindowsDesktopLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.WindowsDesktopLabels
+	}
+	return r.Spec.Deny.WindowsDesktopLabels
+}
+
+// SetWindowsDesktopLabels sets the desktop labels this role is allowed or denied access to.
+func (r *RoleV4) SetWindowsDesktopLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.WindowsDesktopLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.WindowsDesktopLabels = labels.Clone()
+	}
+}
+
+// GetWindowsLogins gets Windows desktop logins for the role's allow or deny condition.
+func (r *RoleV4) GetWindowsLogins(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.WindowsDesktopLogins
+	}
+	return r.Spec.Deny.WindowsDesktopLogins
+}
+
+// SetWindowsLogins sets Windows desktop logins for the role's allow or deny condition.
+func (r *RoleV4) SetWindowsLogins(rct RoleConditionType, logins []string) {
+	lcopy := utils.CopyStrings(logins)
+
+	if rct == Allow {
+		r.Spec.Allow.WindowsDesktopLogins = lcopy
+	} else {
+		r.Spec.Deny.WindowsDesktopLogins = lcopy
+	}
+}
+
 // GetRules gets all allow or deny rules.
 func (r *RoleV4) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
@@ -608,26 +655,26 @@ func (r *RoleV4) CheckAndSetDefaults() error {
 			return trace.BadParameter("wildcard matcher is not allowed in aws_role_arns")
 		}
 	}
-	for key, val := range r.Spec.Allow.NodeLabels {
-		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
-			return trace.BadParameter("selector *:<val> is not supported")
+	checkWildcardSelector := func(labels Labels) error {
+		for key, val := range labels {
+			if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
+				return trace.BadParameter("selector *:<val> is not supported")
+			}
+		}
+		return nil
+	}
+	for _, labels := range []Labels{
+		r.Spec.Allow.NodeLabels,
+		r.Spec.Allow.AppLabels,
+		r.Spec.Allow.KubernetesLabels,
+		r.Spec.Allow.DatabaseLabels,
+		r.Spec.Allow.WindowsDesktopLabels,
+	} {
+		if err := checkWildcardSelector(labels); err != nil {
+			return trace.Wrap(err)
 		}
 	}
-	for key, val := range r.Spec.Allow.AppLabels {
-		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
-			return trace.BadParameter("selector *:<val> is not supported")
-		}
-	}
-	for key, val := range r.Spec.Allow.KubernetesLabels {
-		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
-			return trace.BadParameter("selector *:<val> is not supported")
-		}
-	}
-	for key, val := range r.Spec.Allow.DatabaseLabels {
-		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
-			return trace.BadParameter("selector *:<val> is not supported")
-		}
-	}
+
 	for i := range r.Spec.Allow.Rules {
 		err := r.Spec.Allow.Rules[i].CheckAndSetDefaults()
 		if err != nil {
