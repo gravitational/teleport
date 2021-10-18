@@ -1108,9 +1108,9 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	req.URL.Scheme = "https"
 	req.RequestURI = req.URL.Path + "?" + req.URL.RawQuery
 
-	// SNI will be used for TLS handshake, and the session's custom dialer will handle
-	// Host address, so this URL Host address just needs to pass request validation.
-	req.URL.Host = "example.com"
+	// Since the forwarder uses a custom dialer and SNI is used for TLS handshake,
+	// the host below just needs to be set to pass request validation.
+	req.URL.Host = "host"
 
 	// add origin headers so the service consuming the request on the other site
 	// is aware of where it came from
