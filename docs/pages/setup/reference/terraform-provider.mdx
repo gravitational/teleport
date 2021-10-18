@@ -5,14 +5,19 @@ description: Terraform provider resources reference
 
 Supported resources:
 
-- [teleport_user](#teleport_user)
-- [teleport_role](#teleport_role)
-- [teleport_provision_token](#teleport_provision_token)
+- [teleport_app](#teleport_app)
+- [teleport_auth_preference](#teleport_auth_preference)
+- [teleport_cluster_audit_config](#teleport_cluster_audit_config)
+- [teleport_cluster_networking_config](#teleport_cluster_networking_config)
+- [teleport_database](#teleport_database)
 - [teleport_github_connector](#teleport_github_connector)
 - [teleport_oidc_connector](#teleport_oidc_connector)
+- [teleport_provision_token](#teleport_provision_token)
+- [teleport_role](#teleport_role)
 - [teleport_saml_connector](#teleport_saml_connector)
+- [teleport_session_recording_config](#teleport_session_recording_config)
 - [teleport_trusted_cluster](#teleport_trusted_cluster)
-- [teleport_auth_preference](#teleport_auth_preference)
+- [teleport_user](#teleport_user)
 
 ## Provider configuration
 
@@ -20,6 +25,7 @@ Add the following configuration section to your `terraform` configuration block:
 
 ```
 terraform {
+  required_version = ">=1.0.0"
   required_providers {
     teleport = {
       version = ">= (=teleport.version=)"
@@ -58,6 +64,538 @@ provider "teleport" {
 }
 ```
 
+Please note that fields marked as `*` are required.
+
+
+## teleport_app
+
+Teleport application resource.
+
+**metadata**
+
+Metadata is the app resource metadata.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `name`* | string | Name is an object name |
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires` | string | Expires is a global expiry time header can be set on any resource in the  system. |
+
+**spec**
+
+Spec is the app resource spec.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `uri`* | string | URI is the web app endpoint. |
+| `public_addr` | string | PublicAddr is the public address the application is accessible at. |
+| `dynamic_labels` | set | DynamicLabels are the app's command labels. |
+| `insecure_skip_verify` | bool | InsecureSkipVerify disables app's TLS certificate verification. |
+| `rewrite` | object | Rewrite is a list of rewriting rules to apply to requests and responses. |
+
+**spec.rewrite**
+
+Rewrite is a list of rewriting rules to apply to requests and responses.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `redirect` | string list | Redirect defines a list of hosts which will be rewritten to the public  address of the application if they occur in the "Location" header. |
+| `headers` | object list | Headers is a list of headers to inject when passing the request over  to the application. |
+| `headers.name` | string | Name is the http header name. |
+| `headers.value` | string | Value is the http header value. |
+
+
+## teleport_auth_preference
+
+The auth preferenfce resource defines cluster auth preference for the Teleport cluster. This resource is a singleton. It resets on deletion.
+
+**metadata**
+
+Metadata specifies a resource description, labels and optional expiry date and time.
+
+| Name                    | Type       | Required | Description                               |
+|-------------------------|------------|----------|-------------------------------------------|
+|            `description`|     string |          | Connector description                     |
+|                 `labels`| string map |          | Resource labels                           |
+|              `namespace`|     string |          | Resource namespace ("default" by default) |
+|                `expires`|     string |          | Expiry time in RFC8829 format             |
+
+**spec**
+
+Spec is an auth preference specification
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `type` | string | Type is the type of authentication. |
+| `second_factor` | string | SecondFactor is the type of second factor. |
+| `connector_name` | string | ConnectorName is the name of the OIDC or SAML connector. If this value is  not set the first connector in the backend will be used. |
+| `u2f` | object | U2F are the settings for the U2F device. |
+| `u2f.app_id` | string | AppID returns the application ID for universal second factor. |
+| `u2f.facets` | string list | Facets returns the facets for universal second factor. |
+| `u2f.device_attestation_cas` | string list | DeviceAttestationCAs contains the trusted attestation CAs for U2F  devices. |
+| `require_session_mfa` | bool | RequireSessionMFA causes all sessions in this cluster to require MFA  checks. |
+| `disconnect_expired_cert` |  | DisconnectExpiredCert provides disconnect expired certificate setting -  if true, connections with expired client certificates will get disconnected |
+| `allow_local_auth` |  | AllowLocalAuth is true if local authentication is enabled. |
+| `message_of_the_day` | string |  |
+| `locking_mode` | string | LockingMode is the cluster-wide locking mode default. |
+| `webauthn` | object | Webauthn are the settings for server-side Web Authentication support. |
+| `webauthn.rp_id` | string | RPID is the ID of the Relying Party.  It should be set to the domain name of the Teleport installation.   IMPORTANT: RPID must never change in the lifetime of the cluster, because  it's recorded in the registration data on the WebAuthn device. If the  RPID changes, all existing WebAuthn key registrations will become invalid  and all users who use WebAuthn as the second factor will need to  re-register. |
+| `webauthn.attestation_allowed_cas` | string list | Allow list of device attestation CAs in PEM format.  If present, only devices whose attestation certificates match the  certificates specified here may be registered (existing registrations are  unchanged).  If supplied in conjunction with AttestationDeniedCAs, then both  conditions need to be true for registration to be allowed (the device  MUST match an allowed CA and MUST NOT match a denied CA).  By default all devices are allowed. |
+| `webauthn.attestation_denied_cas` | string list | Deny list of device attestation CAs in PEM format.  If present, only devices whose attestation certificates don't match the  certificates specified here may be registered (existing registrations are  unchanged).  If supplied in conjunction with AttestationAllowedCAs, then both  conditions need to be true for registration to be allowed (the device  MUST match an allowed CA and MUST NOT match a denied CA).  By default no devices are denied. |
+| `webauthn.disabled` | bool | Disables Webauthn, regardless of other cluster settings.  Allows fallback to pure U2F in clusters with second_factor:on or  second_factor:optional.  Must not be set for clusters with second_factor:webauthn.  Temporary safety switch for Webauthn, to be removed in future versions of  Teleport.  DELETE IN 9.x, fallback not possible without U2F (codingllama). |
+
+
+## teleport_cluster_audit_config
+
+Specifies audit log settings in the cluster. 
+
+**metadata**
+
+Metadata is resource metadata. It's a singleton resource. Metadata does not require a name.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires` | string | Expires is a global expiry time header can be set on any resource in the  system. |
+
+**spec**
+
+Spec is a cluster audit config specification
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `type` | string | Type is audit backend type |
+| `region` | string | Region is a region setting for audit sessions used by cloud providers |
+| `audit_sessions_uri` | string | AuditSessionsURI is a parameter where to upload sessions |
+| `audit_events_uri` |  | AuditEventsURI is a parameter with all supported outputs  for audit events |
+| `continuous_backups` | bool | EnableContinuousBackups is used to enable (or disable) PITR (Point-In-Time Recovery). |
+| `auto_scaling` | bool | EnableAutoScaling is used to enable (or disable) auto scaling policy. |
+| `read_max_capacity` | int | ReadMaxCapacity is the maximum provisioned read capacity. |
+| `read_min_capacity` | int | ReadMinCapacity is the minimum provisioned read capacity. |
+| `read_target_value` | float64 | ReadTargetValue is the ratio of consumed read to provisioned capacity. |
+| `write_max_capacity` | int | WriteMaxCapacity is the maximum provisioned write capacity. |
+| `write_min_capacity` | int | WriteMinCapacity is the minimum provisioned write capacity. |
+| `write_target_value` | float64 | WriteTargetValue is the ratio of consumed write to provisioned capacity. |
+
+
+## teleport_cluster_networking_config
+
+Specifies cluster-wide networking configuration. It's a singleton resource. It has no name.
+
+**metadata**
+
+Metadata is resource metadata
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires` | string | Expires is a global expiry time header can be set on any resource in the  system. |
+
+**spec**
+
+Spec is a cluster networking config specification
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `client_idle_timeout` | string | ClientIdleTimeout sets global cluster default setting for client idle  timeouts. |
+| `keep_alive_interval` | string | KeepAliveInterval is the interval at which the server sends keep-alive messsages  to the client. |
+| `keep_alive_count_max` | int | KeepAliveCountMax is the number of keep-alive messages that can be  missed before the server disconnects the connection to the client. |
+| `session_control_timeout` | string | SessionControlTimeout is the session control lease expiry and defines  the upper limit of how long a node may be out of contact with the auth  server before it begins terminating controlled sessions. |
+| `idle_timeout_message` | string | ClientIdleTimeoutMessage is the message sent to the user when a connection times out. |
+| `web_idle_timeout` | string | WebIdleTimeout sets global cluster default setting for the web UI idle  timeouts. |
+
+
+## teleport_database
+
+Teleport database.
+
+**metadata**
+
+Metadata is the database metadata.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `name`* | string | Name is an object name |
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires` | string | Expires is a global expiry time header can be set on any resource in the  system. |
+
+**spec**
+
+Spec is the database spec.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `protocol` | string | Protocol is the database protocol: postgres, mysql, mongodb, etc. |
+| `uri` | string | URI is the database connection endpoint. |
+| `ca_cert` | string | CACert is the PEM-encoded database CA certificate. |
+| `dynamic_labels` | set | DynamicLabels is the database dynamic labels. |
+| `aws` | object | AWS contains AWS specific settings for RDS/Aurora/Redshift databases. |
+| `gcp` | object | GCP contains parameters specific to GCP Cloud SQL databases. |
+
+**spec.aws**
+
+AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `region` | string | Region is a AWS cloud region. |
+| `redshift` | object | Redshift contains Redshift specific metadata. |
+| `redshift.cluster_id` | string | ClusterID is the Redshift cluster identifier. |
+| `rds` | object | RDS contains RDS specific metadata. |
+| `account_id` | string | AccountID is the AWS account ID this database belongs to. |
+
+**spec.aws.rds**
+
+RDS contains RDS specific metadata.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `instance_id` | string | InstanceID is the RDS instance identifier. |
+| `cluster_id` | string | ClusterID is the RDS cluster (Aurora) identifier. |
+| `resource_id` | string | ResourceID is the RDS instance resource identifier (db-xxx). |
+| `iam_auth` | bool | IAMAuth indicates whether database IAM authentication is enabled. |
+
+**spec.gcp**
+
+GCP contains parameters specific to GCP Cloud SQL databases.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `project_id` | string | ProjectID is the GCP project ID the Cloud SQL instance resides in. |
+| `instance_id` | string | InstanceID is the Cloud SQL instance ID. |
+
+
+## teleport_github_connector
+
+**metadata**
+
+Metadata specifies a resource name, description, labels and optional expiry date and time.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `name`* | string | Name is an object name |
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires` | string | Expires is a global expiry time header can be set on any resource in the  system. |
+
+**spec**
+
+Spec is an Github connector specification.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `client_id`* | string | ClientID is the Github OAuth app client ID. |
+| `client_secret`* | string | ClientSecret is the Github OAuth app client secret. |
+| `redirect_url` | string | RedirectURL is the authorization callback URL. |
+| `teams_to_logins`* | object list | TeamsToLogins maps Github team memberships onto allowed logins/roles. |
+| `display` | string | Display is the connector display name. |
+
+**spec.teams_to_logins**
+
+TeamsToLogins maps Github team memberships onto allowed logins/roles.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `organization` | string | Organization is a Github organization a user belongs to. |
+| `team`* | string | Team is a team within the organization a user belongs to. |
+| `logins`* | string list | Logins is a list of allowed logins for this org/team. |
+| `kubernetes_groups` | string list | KubeGroups is a list of allowed kubernetes groups for this org/team. |
+| `kubernetes_users` | string list | KubeUsers is a list of allowed kubernetes users to impersonate for this org/team. |
+
+
+## teleport_oidc_connector
+
+An OIDC connector resource specifies OpenID Connect identity provider for Teleport.
+
+**metadata**
+
+Metadata specifies a resource name, description, labels and optional expiry date and time.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `name`* | string | Name is an object name |
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires` | string | Expires is a global expiry time header can be set on any resource in the  system. |
+
+**spec**
+
+Spec is an OIDC connector specification.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `issuer_url` | string | IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com. |
+| `client_id` | string | ClientID is the id of the authentication client (Teleport Auth server). |
+| `client_secret` | string | ClientSecret is used to authenticate the client. |
+| `redirect_url` | string | RedirectURL is a URL that will redirect the client's browser  back to the identity provider after successful authentication.  This should match the URL on the Provider's side. |
+| `acr_values` | string | ACR is an Authentication Context Class Reference value. The meaning of the ACR  value is context-specific and varies for identity providers. |
+| `provider` | string | Provider is the external identity provider. |
+| `display` | string | Display is the friendly name for this provider. |
+| `scope` | string list | Scope specifies additional scopes set by provider. |
+| `prompt` | string | Prompt is an optional OIDC prompt. An empty string omits prompt.  If not specified, it defaults to select_account for backwards compatibility. |
+| `claims_to_roles` | object list | ClaimsToRoles specifies a dynamic mapping from claims to roles. |
+| `google_service_account_uri` | string | GoogleServiceAccountURI is a path to a google service account uri. |
+| `google_service_account` | string | GoogleServiceAccount is a string containing google service account credentials. |
+| `google_admin_email` | string | GoogleAdminEmail is the email of a google admin to impersonate. |
+
+
+**spec.claims_to_roles**
+
+ClaimsToRoles specifies a dynamic mapping from claims to roles.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `claim` | string | Claim is a claim name. |
+| `value` | string | Value is a claim value to match. |
+| `roles` | string list | Roles is a list of static teleport roles to match. |
+
+
+## teleport_provision_token
+
+Provision tokens authenticate teleport nodes and proxies when they first join the cluster.
+
+**metadata**
+
+Metadata specifies a resource name, description, labels and optional expiry date and time.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `name`* | string | Name is an object name |
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires`* | string | Expires is a global expiry time header can be set on any resource in the  system. |
+
+**spec**
+
+Spec contains parameters of a resource. It has a single field: `roles`, a list of roles associated with a token.
+It will be converted to metadata in the SSH and X509 certificates issued to the user of the token.
+
+
+## teleport_role
+
+The role resource specifies a set of permissions assigned to local and SSO users.
+
+**metadata**
+
+Metadata specifies a resource name, description, labels and optional expiry date and time.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `name`* | string | Name is an object name |
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires` | string | Expires is a global expiry time header can be set on any resource in the  system. |
+
+
+**spec**
+
+Role specification consists of two sections: `allow` and `deny`. They are identical and contain the following fields:
+
+`spec.allow` and `spec.deny`
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `logins` | string list | Logins is a list of *nix system logins. |
+| `node_labels` |  | NodeLabels is a map of node labels (used to dynamically grant access to  nodes). |
+| `rules` | object list | Rules is a list of rules and their access levels. Rules are a high level  construct used for access control. |
+| `kubernetes_groups` | string list | KubeGroups is a list of kubernetes groups |
+| `request` | object |  |
+| `kubernetes_users` | string list | KubeUsers is an optional kubernetes users to impersonate |
+| `app_labels` |  | AppLabels is a map of labels used as part of the RBAC system. |
+| `cluster_labels` |  | ClusterLabels is a map of node labels (used to dynamically grant access to  clusters). |
+| `kubernetes_labels` |  | KubernetesLabels is a map of kubernetes cluster labels used for RBAC. |
+| `db_labels` |  | DatabaseLabels are used in RBAC system to allow/deny access to databases. |
+| `db_names` | string list | DatabaseNames is a list of database names this role is allowed to connect to. |
+| `db_users` | string list | DatabaseUsers is a list of databaes users this role is allowed to connect as. |
+| `impersonate` | object | Impersonate specifies what users and roles this role is allowed to impersonate  by issuing certificates or other possible means. |
+| `review_requests` | object | ReviewRequests defines conditions for submitting access reviews. |
+| `aws_role_arns` | string list | AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume. |
+
+**spec.allow.rules** and **spec.deny.rules**
+
+Rules is a list of rules and their access levels. Rules are a high level  construct used for access control.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `resources` | string list | Resources is a list of resources |
+| `verbs` | string list | Verbs is a list of verbs |
+| `where` | string | Where specifies optional advanced matcher |
+| `actions` | string list | Actions specifies optional actions taken when this rule matches |
+
+**spec.allow.request** and **spec.deny.request**
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `roles` | string list | Roles is the name of roles which will match the request rule. |
+| `claims_to_roles` | object list | ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. |
+| `claims_to_roles.claim` | string | Claim is a claim name. |
+| `claims_to_roles.value` | string | Value is a claim value to match. |
+| `claims_to_roles.roles` | string list | Roles is a list of static teleport roles to match. |
+| `annotations` |  | Annotations is a collection of annotations to be programmatically  appended to pending access requests at the time of their creation.  These annotations serve as a mechanism to propagate extra information  to plugins.  Since these annotations support variable interpolation  syntax, they also offer a mechanism for forwarding claims from an  external identity provider, to a plugin via `{{external.trait_name}}`  style substitutions. |
+| `thresholds` | object list | Thresholds is a list of thresholds, one of which must be met in order for reviews  to trigger a state-transition.  If no thresholds are provided, a default threshold  of 1 for approval and denial is used. |
+| `thresholds.name` | string | Name is the optional human-readable name of the threshold. |
+| `thresholds.filter` | string | Filter is an optional predicate used to determine which reviews  count toward this threshold. |
+| `thresholds.approve` | int | Approve is the number of matching approvals needed for state-transition. |
+| `thresholds.deny` | int | Deny is the number of denials needed for state-transition. |
+| `suggested_reviewers` | string list | SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but  that is not a requirement. |
+
+**spec.allow.impersonate** and **spec.deny.impersonate**
+
+Impersonate specifies what users and roles this role is allowed to impersonate  by issuing certificates or other possible means.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `users` | string list | Users is a list of resources this role is allowed to impersonate,  could be an empty list or a Wildcard pattern |
+| `roles` | string list | Roles is a list of resources this role is allowed to impersonate |
+| `where` | string | Where specifies optional advanced matcher |
+
+**spec.allow.review_requests** and **spec.deny.review_requests**
+
+ReviewRequests defines conditions for submitting access reviews.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `roles` | string list | Roles is the name of roles which may be reviewed. |
+| `claims_to_roles` | object list | ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. |
+| `claims_to_roles.claim` | string | Claim is a claim name. |
+| `claims_to_roles.value` | string | Value is a claim value to match. |
+| `claims_to_roles.roles` | string list | Roles is a list of static teleport roles to match. |
+| `where` | string | Where is an optional predicate which further limits which requests are  reviewable. |
+
+**spec.options**
+
+Options specify session, connection and auditing permissions of the role.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `forward_agent` | bool | ForwardAgent is SSH agent forwarding. |
+| `max_session_ttl` | string | MaxSessionTTL defines how long a SSH session can last for. |
+| `port_forwarding` |  | PortForwarding defines if the certificate will have  "permit-port-forwarding"  in the certificate. PortForwarding is "yes" if not set,  that's why this is a pointer |
+| `cert_format` | string | CertificateFormat defines the format of the user certificate to allow  compatibility with older versions of OpenSSH. |
+| `client_idle_timeout` | string | ClientIdleTimeout sets disconnect clients on idle timeout behavior,  if set to 0 means do not disconnect, otherwise is set to the idle  duration. |
+| `disconnect_expired_cert` | bool | DisconnectExpiredCert sets disconnect clients on expired certificates. |
+| `enhanced_recording` | string list | BPF defines what events to record for the BPF-based session recorder. |
+| `permit_x11_forwarding` | bool | PermitX11Forwarding authorizes use of X11 forwarding. |
+| `max_connections` | int | MaxConnections defines the maximum number of  concurrent connections a user may hold. |
+| `max_sessions` | int | MaxSessions defines the maximum number of  concurrent sessions per connection. |
+| `request_access` | string | RequestAccess defines the access request stategy (optional|note|always)  where optional is the default. |
+| `request_prompt` | string | RequestPrompt is an optional message which tells users what they aught to |
+| `require_session_mfa` | bool | RequireSessionMFA specifies whether a user is required to do an MFA  check for every session. |
+| `lock` | string | Lock specifies the locking mode (strict|best_effort) to be applied with  the role. |
+
+
+## teleport_saml_connector
+
+An OIDC connector resource specifies SAML identity provider for Teleport.
+
+**metadata**
+
+Metadata specifies a resource name, description, labels and optional expiry date and time.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `name`* | string | Name is an object name |
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires` | string | Expires is a global expiry time header can be set on any resource in the  system. |
+
+**spec**
+
+Spec contains parameters of a resource.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `issuer` | string | Issuer is the identity provider issuer. |
+| `sso` | string | SSO is the URL of the identity provider's SSO service. |
+| `cert` | string | Cert is the identity provider certificate PEM.  IDP signs Response responses using this certificate. |
+| `display` | string | Display controls how this connector is displayed. |
+| `acs`* | string | AssertionConsumerService is a URL for assertion consumer service  on the service provider (Teleport's side). |
+| `audience` | string | Audience uniquely identifies our service provider. |
+| `service_provider_issuer` | string | ServiceProviderIssuer is the issuer of the service provider (Teleport). |
+| `entity_descriptor`* | string | EntityDescriptor is XML with descriptor. It can be used to supply configuration  parameters in one XML file rather than supplying them in the individual elements. |
+| `entity_descriptor_url` | string | EntityDescriptorURL is a URL that supplies a configuration XML. |
+| `attributes_to_roles`* | object list | AttributesToRoles is a list of mappings of attribute statements to roles. |
+| `attributes_to_roles.name` | string | Name is an attribute statement name. |
+| `attributes_to_roles.value` | string | Value is an attribute statement value to match. |
+| `attributes_to_roles.roles` | string list | Roles is a list of static teleport roles to map to. |
+| `signing_key_pair` | object | SigningKeyPair is an x509 key pair used to sign AuthnRequest. |
+| `signing_key_pair.private_key` | string | PrivateKey is a PEM encoded x509 private key. |
+| `signing_key_pair.cert` | string | Cert is a PEM-encoded x509 certificate. |
+| `provider` | string | Provider is the external identity provider. |
+| `assertion_key_pair` | object | EncryptionKeyPair is a key pair used for decrypting SAML assertions. |
+| `assertion_key_pair.private_key` | string | PrivateKey is a PEM encoded x509 private key. |
+| `assertion_key_pair.cert` | string | Cert is a PEM-encoded x509 certificate. |
+
+
+## teleport_session_recording_config
+
+Session recording configuration.
+
+**metadata**
+
+Metadata is resource metadata.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires` | string | Expires is a global expiry time header can be set on any resource in the  system. |
+
+**spec**
+
+Spec is a session recording config settings.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `mode` | string | Mode controls where (or if) the session is recorded. |
+| `proxy_checks_host_keys` |  | ProxyChecksHostKeys is used to control if the proxy will check host keys  when in recording mode. |
+
+
+## teleport_trusted_cluster
+
+A trusted cluster resource connects dials and connects this cluster to another, root cluster.
+
+**metadata**
+
+Metadata specifies a resource name, description, labels and optional expiry date and time.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `name`* | string | Name is an object name |
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires` | string | Expires is a global expiry time header can be set on any resource in the  system. |
+
+**spec**
+
+Spec contains parameters of a resource.
+
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `enabled` | bool | Enabled is a bool that indicates if the TrustedCluster is enabled or disabled.  Setting Enabled to false has a side effect of deleting the user and host certificate  authority (CA). |
+| `roles` | string list | Roles is a list of roles that users will be assuming when connecting to this cluster. |
+| `token` | string | Token is the authorization token provided by another cluster needed by this cluster to join. |
+| `web_proxy_addr` | string | ProxyAddress is the address of the web proxy server of the cluster to join. If not set,  it is derived from metadata.name:default web proxy server port. |
+| `tunnel_addr` | string | ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If  not set, it is derived from metadata.name:default reverse tunnel port. |
+| `role_map` | object list | RoleMap specifies role mappings to remote roles. |
+| `role_map.remote` | string | Remote specifies remote role name to map from |
+| `role_map.local` | string list | Local specifies local roles to map to |
+
 
 ## teleport_user
 
@@ -67,13 +605,13 @@ The user resource allows to manage local non-interactive Teleport users: CI/CD b
 
 Metadata specifies the resource name, description, labels and optional expiry date and time.
 
-| Name                    | Type       | Required | Description                               |
-|-------------------------|------------|----------|-------------------------------------------|
-|                   `name`|     string |        * | User name                                 |
-|            `description`|     string |          | User description                          |
-|                 `labels`| string map |          | Resource labels                           |
-|              `namespace`|     string |          | Resource namespace ("default" by default) |
-|                `expires`|     string |          | Expiry time in RFC8829 format             |
+| Name                    | Type       | Description                               |
+|-------------------------|------------|-------------------------------------------|
+| `name`* | string | Name is an object name |
+| `namespace` | string | Namespace is object namespace. The field should be called "namespace"  when it returns in Teleport 2.4. |
+| `description` | string | Description is object description |
+| `labels` | map | Labels is a set of labels |
+| `expires` | string | Expires is a global expiry time header can be set on any resource in the  system. |
 
 Example:
 
@@ -151,307 +689,4 @@ resource "teleport_user" "example" {
 ```
 
 
-## teleport_role
 
-The role resource specifies a set of permissions assigned to local and SSO users.
-
-**metadata**
-
-Metadata specifies a resource name, description, labels and optional expiry date and time.
-
-| Name                    | Type       | Required | Description                               |
-|-------------------------|------------|----------|-------------------------------------------|
-|                   `name`|     string |        * | Role name                                 |
-|            `description`|     string |          | Role description                          |
-|                 `labels`| string map |          | Resource labels                           |
-|              `namespace`|     string |          | Resource namespace ("default" by default) |
-|                `expires`|     string |          | Expiry time in RFC8829 format             |
-
-
-**spec**
-
-Role specification consists of two sections: `allow` and `deny`. They are identical and contain the following fields:
-
-`spec.allow` and `spec.deny`
-
-| Name                      | Type        | Description                                                     |
-|---------------------------|-------------|-----------------------------------------------------------------|
-|           `database_names`| string list | List of database names this role is allowed to connect to       |
-|           `database_users`| string list | List of database users this role is allowed to connect as       |
-|              `kube_groups`| string list | List of Kubernetes groups                                       |
-|               `kube_users`| string list | List of Kubernetes users to impersonate                         |
-|                   `logins`| string list | Logins is a list of *nix system logins                          |
-|               `app_labels`|         set | Application labels                                              |
-|          `app_labels.name`|      string | Application name                                                |
-|        `app_labels.values`| string list | List of labels                                                  |
-|           `cluster_labels`|         set | Cluster labels                                                  |
-|      `cluster_labels.name`|      string | Cluster name                                                    | 
-|    `cluster_labels.values`| string list | List of labels                                                  |
-|          `database_labels`|         set | Database labels                                                 |
-|     `database_labels.name`|      string | Database name                                                   | 
-|   `database_labels.values`| string list | List of labels                                                  |
-|        `kubernetes_labels`|         set | Kubernetes labels                                               |
-|   `kubernetes_labels.name`|      string | Kubernetes cluster name                                         |
-| `kubernetes_labels.values`| string list | List of labels                                                  |
-|              `node_labels`|         set | Node labels                                                     |
-|         `node_labels.name`|      string | Node name                                                       | 
-|       `node_labels.values`| string list | List of labels                                                  |
-|              `impersonate`|      object | Specifies whether users are allowed  to issue certificates for other users or groups |
-|        `impersonate.roles`| string list | list of roles this role is allowed to impersonate               | 
-|        `impersonate.users`| string list | List of users this role is allowed to impersonate               |
-|        `impersonate.where`|      string | Optional advanced matcher                                       |
-|                    `rules`|         set | List of rules and their access levels. Rules are a high level construct used for access control |
-|            `rules.actions`| string list | Actions specifies optional actions taken when this rule matches |
-|          `rules.resources`| string list | List of resources                                               |
-|              `rules.verbs`| string list | List of verbs                                                   |
-|              `rules.where`|      string | Additional advanced matcher                                     |
-
-**spec.allow.request and spec.deny.request**
-
-Request matcher represents matcher for allow/deny restrictions on access-requests.
-
-| Name                      | Type        | Description                                                     |
-|---------------------------|-------------|-----------------------------------------------------------------|
-|                    `roles`| string list | Name of roles which will match the request rule                 |
-|      `suggested_reviewers`| string list | List of reviewer suggestions. These can be teleport usernames, but that is not a requirement. |
-|              `annotations`|         set | Annotations                                                     |
-|          `annotations.key`|      string | Annotation name                                                 |
-|        `annotations.value`| string list | Annotation values                                               |
-|          `claims_to_roles`|         set | Specifies a mapping from claims (traits) to teleport roles      |
-|    `claims_to_roles.claim`|      string | Claim name                                                      |
-|    `claims_to_roles.roles`| string list | List of static Teleport roles to match                          |
-|    `claims_to_roles.value`|      string | Claim value to match                                            |
-|               `thresholds`|         set | List of thresholds, one of which must be met in order for reviews to trigger a state-transition. If no thresholds are provided, a default threshold of 1 for approval and denial is used. |
-|          `thresholds.name`|      string | Threshold name                                                  |
-|       `thresholds.approve`|      number | Number of matching approvals needed for state-transition        |
-|          `thresholds.deny`|      number | Number of denials needed for state-transition                   |
-|        `thresholds.filter`|      string | Optional predicate used to determine which reviews count toward this threshold. |
-
-**spec.allow.review_requests and spec.deny.review_requests**
-
-Allow or deny access reviews matching the criteria.
-
-| Name                      | Type        | Description                                                     |
-|---------------------------|-------------|-----------------------------------------------------------------|
-|                    `roles`| string list | Name of roles which may be reviewed                             |
-|                    `where`|      string | Optional predicate which further limits which requests are reviewable |
-|    `claims_to_roles.claim`|      string | Claim name                                                      |
-|    `claims_to_roles.roles`| string list | List of static Teleport roles to match                          |
-|    `claims_to_roles.value`|      string | Claim value to match                                            |
-
-**spec.options**
-
-Options specify session, connection and auditing permissions of the role.
-
-| Name                      | Type        | Description                                                     |
-|---------------------------|-------------|-----------------------------------------------------------------|
-| `bpf`                     | string list | Events to record for the BPF-based session recorder |
-| `certificate_format`      | string      | The format of the user certificate to allow  compatibility with older versions of OpenSSH |
-| `client_idle_timeout`     | duration    | Sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration |
-| `disconnect_expired_cert` | bool        | Sets disconnect clients on expired certificates |
-| `forward_agent`           | bool        | SSH agent forwarding |
-| `max_connections`         | number      | The maximum number of  concurrent connections a user may hold |
-| `max_session_ttl`         | number      | How long a SSH session can last for |
-| `max_sessions`            | number      | Maximum number of  concurrent sessions per connection |
-| `permit_x11forwarding`    | bool        | Authorizes use of X11 forwarding |
-| `port_forwarding`         | bool        | Port forwarding |
-| `request_access`          | string      | Access request strategy (optional|note|always) |
-| `request_prompt`          | string      | An optional message which tells users what they aught to |
-| `require_session_mfa`     | bool        | Specifies whether a user is required to do an MFA  check for every session |
-
-## teleport_provision_token
-
-Provision tokens authenticate teleport nodes and proxies when they first join the cluster.
-
-**metadata**
-
-Metadata specifies a resource name, description, labels and optional expiry date and time.
-
-| Name                    | Type       | Required | Description                               |
-|-------------------------|------------|----------|-------------------------------------------|
-|                   `name`|     string |        * | Token name                                |
-|            `description`|     string |          | Token description                         |
-|                 `labels`| string map |          | Resource labels                           |
-|              `namespace`|     string |          | Resource namespace ("default" by default) |
-|                `expires`|     string |        * | Expiry time in RFC8829 format             |
-
-**spec**
-
-Spec contains parameters of a resource. It has a single field: `roles`, a list of roles associated with a token.
-It will be converted to metadata in the SSH and X509 certificates issued to the user of the token.
-
-## teleport_github_connector
-
-**metadata**
-
-Metadata specifies a resource name, description, labels and optional expiry date and time.
-
-| Name                    | Type       | Required | Description                               |
-|-------------------------|------------|----------|-------------------------------------------|
-|                   `name`|     string |        * | Connector name                            |
-|            `description`|     string |          | Connector description                     |
-|                 `labels`| string map |          | Resource labels                           |
-|              `namespace`|     string |          | Resource namespace ("default" by default) |
-|                `expires`|     string |          | Expiry time in RFC8829 format             |
-
-**spec**
-
-Spec contains parameters of a resource.
-
-| Name                          | Type        | Description                                                     |
-|-------------------------------|-------------|-----------------------------------------------------------------|
-| `client_id`                   | string      | Github OAuth app client ID                                      |
-| `client_secret`               | string      | Github OAuth app client secret                                  |
-| `display`                     | string      | Connector display name                                          |
-| `redirect_url`                | string      | Authorization callback URL                                      |
-| `teams_to_logins`             | set         | Maps Github team memberships onto allowed logins/roles.
-| `teams_to_logins.kube_groups` | string list | List of allowed kubernetes groups for this org/team             |
-| `teams_to_logins.kube_users`  | string list | List of allowed kubernetes users to impersonate for this org/team |
-| `teams_to_logins.logins`      | string list | List of allowed logins for this org/team                        |
-| `teams_to_logins.organization`| string      | Github organization a user belongs to                           |
-| `teams_to_logins.team`        | string      | Team within the organization a user belongs to                  |
-
-## teleport_oidc_connector
-
-An OIDC connector resource specifies OpenID Connect identity provider for Teleport.
-
-**metadata**
-
-Metadata specifies a resource name, description, labels and optional expiry date and time.
-
-| Name                    | Type       | Required | Description                               |
-|-------------------------|------------|----------|-------------------------------------------|
-|                   `name`|     string |        * | Connector name                            |
-|            `description`|     string |          | Connector description                     |
-|                 `labels`| string map |          | Resource labels                           |
-|              `namespace`|     string |          | Resource namespace ("default" by default) |
-|                `expires`|     string |          | Expiry time in RFC8829 format             |
-
-**spec**
-
-Spec contains parameters of a resource.
-
-| Name                      | Type        | Description                                                     |
-|---------------------------|-------------|-----------------------------------------------------------------|
-| `acr`                     | string      | Authentication Context Class Reference value. The meaning of the ACR  value is context-specific and varies for identity providers |
-| `client_id`               | string      | The id of the authentication client (Teleport Auth server)      |
-| `client_secret`           | string      | Used to authenticate the client                                 |
-| `display`                 | string      | Connector display name                                          |
-| `google_admin_email`      | string      | The email of a google admin to impersonate                      |
-| `google_service_account`  | string      | String containing google service account credentials            |
-| `google_service_account_uri` | string   | Path to a google service account uri                            |
-| `issuer_url`              | string      | The endpoint of the provider, e.g. https://accounts.google.com  |
-| `prompt`                  | string      | An optional OIDC prompt. An empty string omits prompt.  If not specified, it defaults to select_account for backwards compatibility |
-| `provider`                | string      | The external identity provider                                  |
-| `redirect_url`            | string      | An URL that will redirect the client's browser back to the identity provider after successful authentication. This should match the URL on the Provider's side |
-| `scope`                   | string list | Specifies additional scopes set by provider                     |
-| `claims_to_roles`         |         set | Specifies a mapping from claims (traits) to teleport roles      |
-| `claims_to_roles.claim`   |      string | Claim name                                                      |
-| `claims_to_roles.roles`   | string list | List of static Teleport roles to match                          |
-| `claims_to_roles.value`   |      string | Claim value to match                                            |
-
-## teleport_saml_connector
-
-An OIDC connector resource specifies SAML identity provider for Teleport.
-
-**metadata**
-
-Metadata specifies a resource name, description, labels and optional expiry date and time.
-
-| Name                    | Type       | Required | Description                               |
-|-------------------------|------------|----------|-------------------------------------------|
-|                   `name`|     string |        * | Connector name                            |
-|            `description`|     string |          | Connector description                     |
-|                 `labels`| string map |          | Resource labels                           |
-|              `namespace`|     string |          | Resource namespace ("default" by default) |
-|                `expires`|     string |          | Expiry time in RFC8829 format             |
-
-**spec**
-
-Spec contains parameters of a resource.
-
-| Name                         | Type        | Description                                                                   |
-|------------------------------|-------------|-------------------------------------------------------------------------------|
-| `assertion_consumer_service` | string      | URL for assertion consumer service  on the service provider (Teleport's side) |
-| `audience`                   | string      | Audience uniquely identifies our service provider                             |
-| `cert`                       | string      | Cert is the identity provider certificate PEM. IDP signs `Response` responses using this certificate |
-| `display`                    | string      | Connector display name                                                        | 
-| `entity_descriptor`          | string      | XML with descriptor. It can be used to supply configuration  parameters in one XML file rather than supplying them in the individual elements. |
-| `entity_descriptor_url`      | string      | URL that supplies a configuration XML |
-| `issuer`                     | string      | Identity provider issuer |
-| `provider`                   | string      | External identity provider |
-| `service_provider_issuer`    | string      | The issuer of the service provider (Teleport) |
-| `sso`                        | string      | SSO is the URL of the identity provider's SSO service |
-| `attributes_to_roles`        | set         | List of mappings of attribute statements to roles |
-| `attributes_to_roles.name`   | string      | Attribute statement name |
-| `attributes_to_roles.roles`  | string list | List of static Teleport roles to map to |
-| `attributes_to_roles.value`  | string      | Attribute statement value to match |
-| `encryption_key_pair`        | object      | Public and private key used for encryption |
-| `encryption_key_pair.cert`   | string      | PEM-encoded x509 certificate |
-| `encryption_key_pair.private_key` | string | PEM-encoded x509 private key |
-| `signing_key_pair`        | object      | Public and private key used for signing |
-| `signing_key_pair.cert`   | string      | PEM-encoded x509 certificate |
-| `signing_key_pair.private_key` | string | PEM-encoded x509 private key |
-
-## teleport_trusted_cluster
-
-A trusted cluster resource connects dials and connects this cluster to another, root cluster.
-
-**metadata**
-
-Metadata specifies a resource name, description, labels and optional expiry date and time.
-
-| Name                    | Type       | Required | Description                               |
-|-------------------------|------------|----------|-------------------------------------------|
-|                   `name`|     string |        * | Connector name                            |
-|            `description`|     string |          | Connector description                     |
-|                 `labels`| string map |          | Resource labels                           |
-|              `namespace`|     string |          | Resource namespace ("default" by default) |
-|                `expires`|     string |          | Expiry time in RFC8829 format             |
-
-**spec**
-
-Spec contains parameters of a resource.
-
-| Name                         | Type        | Description                                                                   |
-|------------------------------|-------------|-------------------------------------------------------------------------------|
-| `enabled`                    | bool        | Indicates if the trusted cluster is enabled or disabled.  Setting Enabled to false has a side effect of deleting the user and host certificate  authority (CA). |
-| `proxy_address`              | string      | The address of the web proxy server of the cluster to join. If not set,  it is derived from `metadata.name:default web proxy server port`. |
-| `reverse_tunnel_address`     | string      | The address of the SSH proxy server of the cluster to join. If  not set, it is derived from `metadata.name:default reverse tunnel port`. |
-| `roles`                      | string list | List of roles that users will be assuming when connecting to this cluster |
-| `token`                      | string      | The authorization token provided by another cluster needed by this cluster to join |
-| `role_map`                   | set         | Role mappings to remote roles |
-| `role_map.local`             | string list | Local roles to map to |
-| `role_map.remote`            | string      | Remote role name to map from |
-
-## teleport_auth_preference
-
-The auth preferenfce resource defines cluster auth preference for the Teleport cluster. This resource is a singleton. It gots reset on deletion.
-
-**metadata**
-
-Metadata specifies a resource description, labels and optional expiry date and time.
-
-| Name                    | Type       | Required | Description                               |
-|-------------------------|------------|----------|-------------------------------------------|
-|            `description`|     string |          | Connector description                     |
-|                 `labels`| string map |          | Resource labels                           |
-|              `namespace`|     string |          | Resource namespace ("default" by default) |
-|                `expires`|     string |          | Expiry time in RFC8829 format             |
-
-**spec**
-
-Spec contains parameters of a resource.
-
-| Name                         | Type        | Description                                                                   |
-|------------------------------|-------------|-------------------------------------------------------------------------------|
-| `type`                       | string      | Type is the type of authentication                                            |
-| `second_factor`              | string      | SecondFactor is the type of second factor                                     |
-| `connector_name`             | string      | ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used |
-| `u2f`                        | set         | U2F defines settings for U2F device                                           |
-| `u2f.app_id`                 | string      | The application ID for universal second factor                                |
-| `u2f.facets`                 | string list | The facets for universal second factor                                        |
-| `u2f.device_attestation_cas` | string list | Trusted attestation CAs for U2F  devices                                      |
-| `require_session_mfa`        | bool        | Causes all sessions in this cluster to require MFA  checks                    |
-| `disconnect_expired_cert`    | bool        | If true, connections with expired client certificates will get disconnected   |
-| `allow_local_auth`           | bool        | If true, local authentication is enabled                                      |

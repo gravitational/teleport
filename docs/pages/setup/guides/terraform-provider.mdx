@@ -59,10 +59,28 @@ Put the following content into `terraform.yaml`:
 kind: role
 metadata:
   name: terraform
+  # This gives Terraform user an access to all apps and databases in the cluster. You might want to choose a stricter
+  # value or remove it if you do not plan to manage your apps and databases via Terraform.
+  app_labels:
+    '*': '*'
+  db_labels: 
+    '*': '*'
 spec:
   allow:
     rules:
-      - resources: ['user', 'role', 'token', 'trusted_cluster', 'github', 'oidc', 'saml']
+      - resources:
+        - user
+        - role
+        - token
+        - trusted_cluster
+        - github
+        - oidc
+        - saml
+        - cluster_auth_preference
+        - cluster_networking_config
+        - session_recording_config
+        - app
+        - db
         verbs: ['list','create','read','update','delete']
 version: v4
 ---
@@ -132,6 +150,7 @@ Create a `main.tf` terraform file:
 
 ```
 terraform {
+  required_version = ">=1.0.0"
   required_providers {
     teleport = {
       version = ">= (=teleport.version=)"
@@ -163,7 +182,7 @@ resource "teleport_role" "terraform-test" {
       port_forwarding         = false
       client_idle_timeout     = "1h"
       disconnect_expired_cert = true
-      permit_x11forwarding    = false
+      permit_x11_forwarding   = false
       request_access          = "denied"
     }
 
