@@ -317,7 +317,7 @@ func getGithubKey() (string, error) {
 
 // hasFileChange compares all of the files that have changes in the PR to the one at the current commit.
 // This is used for comparing files when Github makes a auto update branch commit to ensure the merge
-// didn't result in changes to the files already in the PR.
+// didn't result in changes/additions/deletions to the files already in the PR.
 func (c *Bot) hasFileChange(ctx context.Context) error {
 	pr := c.Environment.Metadata
 	clt := c.Environment.Client
@@ -331,7 +331,7 @@ func (c *Bot) hasFileChange(ctx context.Context) error {
 	}
 	for _, headFile := range headCommit.Files {
 		for _, prFile := range prFiles {
-			if *headFile.Filename == *prFile.Filename {
+			if *headFile.Filename == *prFile.Filename || *headFile.SHA == *prFile.SHA {
 				return trace.BadParameter("detected file change")
 			}
 		}
