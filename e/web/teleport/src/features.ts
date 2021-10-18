@@ -97,6 +97,7 @@ export default function getFeatures() {
     new OSS.FeatureApps(),
     new OSS.FeatureKubes(),
     new OSS.FeatureDatabases(),
+    new OSS.FeatureDesktops(),
     new OSS.FeatureSessions(),
     new OSS.FeatureRecordings(),
     new OSS.FeatureAudit(),
