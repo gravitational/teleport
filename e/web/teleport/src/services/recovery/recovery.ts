@@ -1,6 +1,9 @@
 import 'u2f-api-polyfill';
 import api from 'teleport/services/api';
-import auth from 'teleport/services/auth';
+import auth, {
+  makeWebauthnAssertionResponse,
+  makeWebauthnCreationResponse,
+} from 'teleport/services/auth';
 import cfg from 'e-teleport/config';
 import makeRecoveryToken from './makeRecoveryToken';
 import {
@@ -58,6 +61,27 @@ class RecoveryService {
     });
   }
 
+  verifyUserWithWebautn(tokenId: string, username: string) {
+    return auth
+      .checkWebauthnSupport()
+      .then(() => auth.createMfaAuthnChallengeWithToken(tokenId))
+      .then(res =>
+        navigator.credentials.get({
+          publicKey: res.webauthnPublicKey,
+        })
+      )
+      .then(res => {
+        const request = {
+          tokenId,
+          username,
+          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+        };
+
+        return api.post(cfg.api.recoveryVerifyUserPath, request);
+      })
+      .then(res => makeRecoveryToken(res));
+  }
+
   setNewTotpDeviceOrPassword(data: NewCredentialRequest) {
     return api.post(cfg.api.recoveryNewCredentialsPath, data);
   }
@@ -74,6 +98,25 @@ class RecoveryService {
         u2fRegisterResponse,
       });
     });
+  }
+
+  setNewWebauthnDevice(data: NewCredentialRequest) {
+    return auth
+      .checkWebauthnSupport()
+      .then(() => auth.createMfaRegistrationChallenge(data.tokenId, 'webauthn'))
+      .then(res =>
+        navigator.credentials.create({
+          publicKey: res.webauthnPublicKey,
+        })
+      )
+      .then(res => {
+        const request = {
+          ...data,
+          webauthnCreationResponse: makeWebauthnCreationResponse(res),
+        };
+
+        return api.post(cfg.api.recoveryNewCredentialsPath, request);
+      });
   }
 
   generateRecoveryCodes(tokenId: string) {
