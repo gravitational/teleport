@@ -86,8 +86,7 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH \
     RUST_VERSION=1.55.0
 
-COPY --from=rust:1.55.0 /usr/local/rustup /usr/local/rustup
-COPY --from=rust:1.55.0 /usr/local/cargo /usr/local/cargo
+COPY --from=rust:1.55.0 /usr/local/cargo /usr/local/rustup /usr/local/
 RUN set -eux \
     rustup component add rustfmt clippy; \
     chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
