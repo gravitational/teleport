@@ -47,7 +47,6 @@ export function DesktopSession(props: State) {
     onMouseMove,
     onMouseDown,
     onMouseUp,
-    onResize,
   } = props;
 
   const { attempt, setAttempt } = useAttempt('processing'); // attempt.status === '' means disconnected
@@ -127,7 +126,6 @@ export function DesktopSession(props: State) {
         onMouseMove={onMouseMove}
         onMouseDown={onMouseDown}
         onMouseUp={onMouseUp}
-        onResize={onResize}
       />
     </Flex>
   );

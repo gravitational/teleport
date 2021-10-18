@@ -111,11 +111,6 @@ export default function useTdpClientCanvas() {
     }
   };
 
-  const onResize = (cli: TdpClient, canvas: HTMLCanvasElement) => {
-    syncCanvasSizeToClientSize(canvas);
-    cli.resize(canvas.width, canvas.height);
-  };
-
   return {
     tdpClient,
     connectionAttempt,
@@ -130,6 +125,5 @@ export default function useTdpClientCanvas() {
     onMouseMove,
     onMouseDown,
     onMouseUp,
-    onResize,
   };
 }

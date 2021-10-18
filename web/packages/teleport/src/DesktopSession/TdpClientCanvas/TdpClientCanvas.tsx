@@ -30,7 +30,6 @@ export default function TdpClientCanvas(props: Props) {
     onMouseMove,
     onMouseDown,
     onMouseUp,
-    onResize,
     style,
   } = props;
 
@@ -96,12 +95,6 @@ export default function TdpClientCanvas(props: Props) {
     };
     document.onkeyup = onkeyup;
 
-    // Window resize.
-    const onresize = () => {
-      onResize(tdpClient, canvas);
-    };
-    window.addEventListener('resize', onresize);
-
     // Initialize tdpClient event listeners.
     tdpClient.on('init', () => {
       onInit(tdpClient, canvas);
@@ -135,7 +128,6 @@ export default function TdpClientCanvas(props: Props) {
       canvas.removeEventListener('mouseleave', onmouseleave);
       document.removeEventListener('keydown', onkeydown);
       document.removeEventListener('keyup', onkeyup);
-      window.removeEventListener('resize', onresize);
     };
   }, [tdpClient]);
 
