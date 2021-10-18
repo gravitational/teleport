@@ -1022,13 +1022,34 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
+type asyncError struct {
+	name   string
+	detail string
+	err    error
+}
+
+type asyncAssertion func(error) *asyncError
+
+func errorContains(text string) asyncAssertion {
+	return func(err error) *asyncError {
+		if err == nil || !strings.Contains(err.Error(), text) {
+			return &asyncError{
+				name:   "Invalid Error",
+				detail: fmt.Sprintf("Expected %q, got: %v", text, err),
+				err:    err,
+			}
+		}
+		return nil
+	}
+}
+
 type disconnectTestCase struct {
 	recordingMode     string
 	options           types.RoleOptions
 	disconnectTimeout time.Duration
 	concurrentConns   int
 	sessCtlTimeout    time.Duration
-	assertExpected    func(*testing.T, error)
+	assertExpected    asyncAssertion
 	postFunc          func(context.Context, *testing.T, *TeleInstance)
 }
 
@@ -1074,11 +1095,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			},
 			disconnectTimeout: 1 * time.Second,
 			concurrentConns:   2,
-			assertExpected: func(t *testing.T, err error) {
-				if err == nil || !strings.Contains(err.Error(), "administratively prohibited") {
-					require.Failf(t, "Invalid error", "Expected 'administratively prohibited', got: %v", err)
-				}
-			},
+			assertExpected:    errorContains("administratively prohibited"),
 		}, {
 			// "verify that concurrent connection limits are applied when recording at proxy",
 			recordingMode: types.RecordAtProxy,
@@ -1088,11 +1105,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			},
 			disconnectTimeout: 1 * time.Second,
 			concurrentConns:   2,
-			assertExpected: func(t *testing.T, err error) {
-				if err == nil || !strings.Contains(err.Error(), "administratively prohibited") {
-					require.FailNowf(t, "Invalid error", "Expected 'administratively prohibited', got: %v", err)
-				}
-			},
+			assertExpected:    errorContains("administratively prohibited"),
 		}, {
 			// "verify that lost connections to auth server terminate controlled conns",
 			recordingMode: types.RecordAtNode,
@@ -1189,6 +1202,8 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 		tc.concurrentConns = 1
 	}
 
+	asyncErrors := make(chan asyncError, 1)
+
 	for i := 0; i < tc.concurrentConns; i++ {
 		person := NewTerminal(250)
 
@@ -1209,15 +1224,22 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 			}
 
 			if tc.assertExpected != nil {
-				tc.assertExpected(t, err)
+				if asyncErr := tc.assertExpected(err); asyncErr != nil {
+					asyncErrors <- *asyncErr
+				}
 			} else if err != nil && !trace.IsEOF(err) && !isSSHError(err) {
-				require.FailNowf(t, "Missing EOF", "expected EOF, ExitError, or nil, got %v instead", err)
+				asyncErrors <- asyncError{
+					name:   "Missing EOF",
+					detail: fmt.Sprintf("expected EOF, ExitError, or nil, got %v instead", err),
+					err:    err,
+				}
+				return
 			}
 		}
 
 		go openSession()
 
-		go enterInput(ctx, t, person, "echo start \r\n", ".*start.*")
+		go enterInputAsync(ctx, asyncErrors, person, "echo start \r\n", ".*start.*")
 	}
 
 	if tc.postFunc != nil {
@@ -1229,6 +1251,10 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	case <-time.After(tc.disconnectTimeout + time.Second):
 		dumpGoroutineProfile()
 		require.FailNowf(t, "timeout", "%s timeout waiting for session to exit: %+v", timeNow(), tc)
+
+	case ae := <-asyncErrors:
+		require.FailNow(t, ae.name, ae.detail)
+
 	case <-ctx.Done():
 		// session closed.  a test case is successful if the first
 		// session to close encountered the expected error variant.
@@ -1248,7 +1274,7 @@ func timeNow() string {
 	return time.Now().Format(time.StampMilli)
 }
 
-func enterInput(ctx context.Context, t *testing.T, person *Terminal, command, pattern string) {
+func enterInput(ctx context.Context, person *Terminal, command, pattern string) *asyncError {
 	person.Type(command)
 	abortTime := time.Now().Add(10 * time.Second)
 	var matched bool
@@ -1257,18 +1283,33 @@ func enterInput(ctx context.Context, t *testing.T, person *Terminal, command, pa
 		output = replaceNewlines(person.Output(1000))
 		matched, _ = regexp.MatchString(pattern, output)
 		if matched {
-			return
+			return nil
 		}
 		select {
 		case <-time.After(time.Millisecond * 50):
 		case <-ctx.Done():
 			// cancellation means that we don't care about the input being
 			// confirmed anymore; not equivalent to a timeout.
-			return
+			return nil
 		}
 		if time.Now().After(abortTime) {
-			require.FailNowf(t, "timeout", "failed to capture pattern %q in %q", pattern, output)
+			return &asyncError{
+				name:   "timeout",
+				detail: fmt.Sprintf("failed to capture pattern %q in %q", pattern, output),
+			}
 		}
+	}
+}
+
+func enterInputSync(ctx context.Context, t *testing.T, person *Terminal, command, pattern string) {
+	if asyncErr := enterInput(ctx, person, command, pattern); asyncErr != nil {
+		require.FailNow(t, asyncErr.name, asyncErr.detail)
+	}
+}
+
+func enterInputAsync(ctx context.Context, asyncErrors chan<- asyncError, person *Terminal, command, pattern string) {
+	if asyncErr := enterInput(ctx, person, command, pattern); asyncErr != nil {
+		asyncErrors <- *asyncErr
 	}
 }
 

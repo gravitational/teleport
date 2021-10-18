@@ -19,11 +19,14 @@ package utils
 import (
 	"io"
 	"net"
+	"sync"
 	"time"
 )
 
-// PipeNetConn implemetns net.Conn from io.Reader,io.Writer and io.Closer
+// PipeNetConn implements net.Conn from io.Reader,io.Writer and io.Closer
 type PipeNetConn struct {
+	lock sync.Mutex
+
 	reader     io.Reader
 	writer     io.Writer
 	closer     io.Closer
@@ -53,10 +56,15 @@ func (nc *PipeNetConn) Read(buf []byte) (n int, e error) {
 }
 
 func (nc *PipeNetConn) Write(buf []byte) (n int, e error) {
+	nc.lock.Lock()
+	defer nc.lock.Unlock()
 	return nc.writer.Write(buf)
 }
 
 func (nc *PipeNetConn) Close() error {
+	nc.lock.Lock()
+	defer nc.lock.Unlock()
+
 	if nc.closer != nil {
 		return nc.closer.Close()
 	}
