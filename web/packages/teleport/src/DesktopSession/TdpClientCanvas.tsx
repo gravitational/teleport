@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import React, { useEffect, useRef, CSSProperties } from 'react';
-import { RenderData } from 'teleport/lib/tdp/client';
+import { ImageData } from 'teleport/lib/tdp/client';
 import useTdpClientCanvas from './useTdpClientCanvas';
 
 export default function TdpClientCanvas(props: Props) {
@@ -41,7 +41,7 @@ export default function TdpClientCanvas(props: Props) {
     const ctx = canvas.getContext('2d');
 
     // Buffered rendering logic
-    var buffer: RenderData[] = [];
+    var buffer: ImageData[] = [];
     const renderBuffer = () => {
       if (buffer.length) {
         for (let i = 0; i < buffer.length; i++) {
@@ -111,7 +111,7 @@ export default function TdpClientCanvas(props: Props) {
       onConnect();
     });
 
-    tdpClient.on('render', (data: RenderData) => {
+    tdpClient.on('render', (data: ImageData) => {
       buffer.push(data);
     });
 

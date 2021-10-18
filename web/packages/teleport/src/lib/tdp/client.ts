@@ -121,7 +121,7 @@ export default class Client extends EventEmitter {
   }
 
   // Called to cleanup websocket when the connection is intentionally
-  // closed by the end user (customer). Causes 'disconnect' event to be emitted.
+  // closed by the end user (customer). Causes 'disconnect' event to be emitted
   disconnect() {
     this.userDisconnected = true;
     this.socket?.close();
@@ -141,7 +141,7 @@ export default class Client extends EventEmitter {
   }
 }
 
-export type RenderData = {
+export type ImageData = {
   image: HTMLImageElement;
   left: number;
   top: number;

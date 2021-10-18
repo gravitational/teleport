@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { useMemo } from 'react';
-import TdpClient, { RenderData } from 'teleport/lib/tdp/client';
+import TdpClient, { ImageData } from 'teleport/lib/tdp/client';
 import { useParams } from 'react-router';
 import { TopBarHeight } from './TopBar';
 import cfg, { UrlDesktopParams } from 'teleport/config';
@@ -66,7 +66,7 @@ export default function useTdpClientCanvas() {
     setConnectionAttempt({ status: 'success' });
   };
 
-  const onRender = (ctx: CanvasRenderingContext2D, data: RenderData) => {
+  const onRender = (ctx: CanvasRenderingContext2D, data: ImageData) => {
     ctx.drawImage(data.image, data.left, data.top);
   };
 
