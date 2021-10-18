@@ -30,35 +30,6 @@ export default function TopBar(props: Props) {
     };
   };
 
-  const userHostStyle = {
-    color: theme.colors.text.secondary,
-  };
-
-  const clipboardTextStyle = {
-    ...primaryOnTrue(clipboard),
-    verticalAlign: 'text-bottom',
-  };
-
-  const clipboardStyle = {
-    ...primaryOnTrue(clipboard),
-    fontWeight: theme.fontWeights.bold,
-    fontSize: theme.fontSizes[4] + 'px',
-    alignSelf: 'center',
-  };
-
-  const recordingTextStyle = primaryOnTrue(recording);
-
-  const recordingIndicatorStyle = {
-    width: '10px',
-    height: '10px',
-    borderRadius: '10px',
-    marginRight: '6px',
-    backgroundColor: recording
-      ? theme.colors.error.light
-      : theme.colors.text.secondary,
-    verticalAlign: 'text-bottom',
-  };
-
   return (
     <TopNav
       height={`${TopBarHeight}px`}
@@ -67,19 +38,30 @@ export default function TopBar(props: Props) {
         justifyContent: 'space-between',
       }}
     >
-      <Text px={3} style={userHostStyle}>
+      <Text px={3} style={{ color: theme.colors.text.secondary }}>
         {userHost}
       </Text>
 
-      <Text style={clipboardTextStyle}>
-        <Clipboard style={clipboardStyle} pr={2} />
+      <Text
+        style={{
+          ...primaryOnTrue(clipboard),
+          verticalAlign: 'text-bottom',
+        }}
+      >
+        <StyledClipboard style={primaryOnTrue(clipboard)} pr={2} />
         Clipboard Sharing {clipboard ? 'Enabled' : 'Disabled'}
       </Text>
 
       <Flex px={3}>
         <Flex alignItems="center">
-          <RecordingIndicator style={recordingIndicatorStyle} />
-          <Text style={recordingTextStyle}>
+          <StyledRecordingIndicator
+            style={{
+              backgroundColor: recording
+                ? theme.colors.error.light
+                : theme.colors.text.secondary,
+            }}
+          />
+          <Text style={primaryOnTrue(recording)}>
             {recording ? '' : 'Not '}Recording
           </Text>
         </Flex>
@@ -91,7 +73,19 @@ export default function TopBar(props: Props) {
 
 export const TopBarHeight = 40;
 
-const RecordingIndicator = styled.div``;
+const StyledClipboard = styled(Clipboard)`
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  font-size: ${({ theme }) => theme.fontSizes[4] + 'px'};
+  align-self: 'center';
+`;
+
+const StyledRecordingIndicator = styled.div`
+  width: 10px;
+  height: 10px;
+  border-radius: 10px;
+  margin-right: 6px;
+  vertical-align: text-bottom;
+`;
 
 type Props = {
   userHost: string;
