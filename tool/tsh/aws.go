@@ -197,7 +197,7 @@ func loadAWSAppCertificate(tc *client.TeleportClient, appName string) (tls.Certi
 	}
 	if time.Until(x509cert.NotAfter) < 5*time.Second {
 		return tls.Certificate{}, trace.BadParameter(
-			"AWS application %s certificate has expired please re-login to the app 'tsh app login'",
+			"AWS application %s certificate has expired please re-login to the app using 'tsh app login'",
 			appName)
 	}
 	return cert, nil
@@ -334,20 +334,20 @@ func pickActiveAWSApp(cf *CLIConf) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	if len(profile.Apps) == 0 {
-		return "", trace.NotFound("Please login using 'tsh app login' first")
+		return "", trace.NotFound("Please login to AWS app using 'tsh app login' first")
 	}
 	name := cf.AppName
 	if name != "" {
 		app, err := findApp(profile.Apps, name)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return "", trace.NotFound("Please login to AWS App using 'tsh app login' first")
+				return "", trace.NotFound("Please login to AWS app using 'tsh app login' first")
 			}
 			return "", trace.Wrap(err)
 		}
 		if app.AWSRoleARN == "" {
 			return "", trace.BadParameter(
-				"Selected app %q is not a valid AWS application", name,
+				"Selected app %q is not an AWS application", name,
 			)
 		}
 		return name, nil
@@ -360,7 +360,7 @@ func pickActiveAWSApp(cf *CLIConf) (string, error) {
 	if len(awsApps) > 1 {
 		names := strings.Join(awsApps, ", ")
 		return "", trace.BadParameter(
-			"Multiple AWS App are available (%v), please specify one using --app CLI argument", names,
+			"Multiple AWS apps are available (%v), please specify one using --app CLI argument", names,
 		)
 	}
 	return awsApps[0], nil
