@@ -251,13 +251,13 @@ func (c *Bot) isGithubCommit(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	signatureFileName, err := createAndWriteTempFile(ci.Signature, signature)
+	signatureFileName, err := createAndWriteTempFile(ci.Signature, []byte(signature))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer os.Remove(signatureFileName)
 
-	payloadFileName, err := createAndWriteTempFile(ci.Payload, payloadData)
+	payloadFileName, err := createAndWriteTempFile(ci.Payload, []byte(payloadData))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -320,12 +320,12 @@ func getGithubKey() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	defer response.Body.Close()
 	b, err := io.ReadAll(response.Body)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	defer response.Body.Close()
-	return createAndWriteTempFile(ci.GithubKey, string(b))
+	return createAndWriteTempFile(ci.GithubKey, b)
 }
 
 // hasFileChange compares all of the files that have changes in the PR to the one at the current commit.
@@ -366,12 +366,12 @@ func (c *Bot) getCommitVerificationParts(ctx context.Context) (signature string,
 }
 
 // createAndWriteTempFile creates a temp file and writes to it.
-func createAndWriteTempFile(prefix, data string) (fileName string, err error) {
+func createAndWriteTempFile(prefix string, data []byte) (fileName string, err error) {
 	file, err := os.CreateTemp(os.TempDir(), prefix)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if _, err = file.Write([]byte(data)); err != nil {
+	if _, err = file.Write(data); err != nil {
 		return "", trace.Wrap(err)
 	}
 	if err := file.Close(); err != nil {
