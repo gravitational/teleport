@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -149,20 +150,7 @@ func fetchRDSInstanceMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, in
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &types.AWS{
-		Region:    parsedARN.Region,
-		AccountID: parsedARN.AccountID,
-		RDS: types.RDS{
-			InstanceID: aws.StringValue(rdsInstance.DBInstanceIdentifier),
-			ClusterID:  aws.StringValue(rdsInstance.DBClusterIdentifier),
-			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
-			IAMAuth:    aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled),
-		},
-	}, nil
+	return services.MetadataFromRDSInstance(rdsInstance)
 }
 
 // describeRDSInstance returns AWS RDS instance for the specified ID.
@@ -185,19 +173,7 @@ func fetchRDSClusterMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, clu
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	parsedARN, err := arn.Parse(aws.StringValue(rdsCluster.DBClusterArn))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &types.AWS{
-		Region:    parsedARN.Region,
-		AccountID: parsedARN.AccountID,
-		RDS: types.RDS{
-			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
-			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
-			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
-		},
-	}, nil
+	return services.MetadataFromRDSCluster(rdsCluster)
 }
 
 // describeRDSCluster returns AWS Aurora cluster for the specified ID.
