@@ -1108,13 +1108,9 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	req.URL.Scheme = "https"
 	req.RequestURI = req.URL.Path + "?" + req.URL.RawQuery
 
-	// Host will be overwritten by the actual dial, but we need to provide
-	// a Host to pass the TLS handshake first. If there is only one endpoint,
-	// simply provide that address. Otherwise, use the SNI for kube reverse tunnels
-	req.URL.Host = reversetunnel.LocalKubernetes
-	if len(sess.kubeClusterEndpoints) == 1 {
-		req.URL.Host = sess.kubeClusterEndpoints[0].addr
-	}
+	// SNI will be used for TLS handshake, and the session's custom dialer will handle
+	// Host address, so this URL Host address just needs to pass request validation.
+	req.URL.Host = "example.com"
 
 	// add origin headers so the service consuming the request on the other site
 	// is aware of where it came from
@@ -1420,21 +1416,26 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 }
 
 func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSession, error) {
-	sess := &clusterSession{
-		parent:      f,
-		authContext: ctx,
-	}
-	var err error
-	sess.tlsConfig, err = f.getOrRequestClientCreds(ctx)
+	tlsConfig, err := f.getOrRequestClientCreds(ctx)
 	if err != nil {
 		f.log.Warningf("Failed to get certificate for %v: %v.", ctx, err)
 		return nil, trace.AccessDenied("access denied: failed to authenticate with auth server")
 	}
-	// remote clusters use special hardcoded URL,
-	// and use a special dialer
-	sess.kubeClusterEndpoints = []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}}
-	transport := f.newTransport(sess.Dial, sess.tlsConfig)
 
+	f.log.Debugf("Forwarding kubernetes session for %v to remote cluster.", ctx)
+	sess := &clusterSession{
+		parent:      f,
+		authContext: ctx,
+		// remote clusters use special hardcoded URL,
+		// and use a special dialer
+		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}},
+		tlsConfig:            tlsConfig.Clone(),
+	}
+
+	// Set SNI for TLS handshake
+	sess.tlsConfig.ServerName = reversetunnel.LocalKubernetes
+
+	transport := f.newTransport(sess.Dial, sess.tlsConfig)
 	sess.forwarder, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
@@ -1487,21 +1488,30 @@ outer:
 }
 
 func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, error) {
-	f.log.Debugf("Handling kubernetes session for %v using local credentials.", ctx)
-	sess := &clusterSession{
-		parent:      f,
-		authContext: ctx,
-	}
 	if len(f.creds) == 0 {
 		return nil, trace.NotFound("this Teleport process is not configured for direct Kubernetes access; you likely need to 'tsh login' into a leaf cluster or 'tsh kube login' into a different kubernetes cluster")
 	}
+
 	creds, ok := f.creds[ctx.kubeCluster]
 	if !ok {
 		return nil, trace.NotFound("kubernetes cluster %q not found", ctx.kubeCluster)
 	}
-	sess.creds = creds
-	sess.kubeClusterEndpoints = []kubeClusterEndpoint{{addr: creds.targetAddr}}
-	sess.tlsConfig = creds.tlsConfig
+
+	f.log.Debugf("Handling kubernetes session for %v using local credentials.", ctx)
+	sess := &clusterSession{
+		parent:               f,
+		authContext:          ctx,
+		creds:                creds,
+		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: creds.targetAddr}},
+		tlsConfig:            creds.tlsConfig.Clone(),
+	}
+
+	// Parse host from address and set as SNI for TLS handshake
+	host, _, err := net.SplitHostPort(creds.targetAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess.tlsConfig.ServerName = host
 
 	// When running inside Kubernetes cluster or using auth/exec providers,
 	// kubeconfig provides a transport wrapper that adds a bearer token to
@@ -1532,23 +1542,25 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []kubeClu
 		return nil, trace.BadParameter("no kube cluster endpoints provided")
 	}
 
-	f.log.WithField("kube_service.endpoints", endpoints).Debugf("Kubernetes session for %v forwarded to remote kubernetes_service instance.", ctx)
-
-	sess := &clusterSession{
-		parent:      f,
-		authContext: ctx,
-		// This session talks to a kubernetes_service, which should handle
-		// audit logging. Avoid duplicate logging.
-		noAuditEvents: true,
-	}
-	sess.kubeClusterEndpoints = endpoints
-
-	var err error
-	sess.tlsConfig, err = f.getOrRequestClientCreds(ctx)
+	tlsConfig, err := f.getOrRequestClientCreds(ctx)
 	if err != nil {
 		f.log.Warningf("Failed to get certificate for %v: %v.", ctx, err)
 		return nil, trace.AccessDenied("access denied: failed to authenticate with auth server")
 	}
+
+	f.log.WithField("kube_service.endpoints", endpoints).Debugf("Kubernetes session for %v forwarded to remote kubernetes_service instance.", ctx)
+	sess := &clusterSession{
+		parent:               f,
+		authContext:          ctx,
+		kubeClusterEndpoints: endpoints,
+		tlsConfig:            tlsConfig.Clone(),
+		// This session talks to a kubernetes_service, which should handle
+		// audit logging. Avoid duplicate logging.
+		noAuditEvents: true,
+	}
+
+	// Set SNI for TLS handshake
+	sess.tlsConfig.ServerName = reversetunnel.LocalKubernetes
 
 	transport := f.newTransport(sess.Dial, sess.tlsConfig)
 	sess.forwarder, err = forward.New(
