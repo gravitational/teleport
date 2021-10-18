@@ -279,7 +279,7 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 ## WEB UI
 
 ## Main
-For main, test with admin role that has access to all resources.
+For main, test with a role that has access to all resources.
 
 #### Top Nav
 - [ ] Verify that cluster selector displays all (root + leaf) clusters
