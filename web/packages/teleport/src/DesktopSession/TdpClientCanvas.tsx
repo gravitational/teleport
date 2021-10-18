@@ -100,7 +100,7 @@ export default function TdpClientCanvas(props: Props) {
     const onresize = () => {
       onResize(tdpClient, canvas);
     };
-    window.onresize = onresize;
+    window.addEventListener('resize', onresize);
 
     // Initialize tdpClient event listeners.
     tdpClient.on('init', () => {

@@ -66,15 +66,15 @@ function makeOptions(
   desktopId = '',
   logins = [] as string[]
 ) {
-  return logins.map(login => {
+  return logins.map(username => {
     const url = cfg.getDesktopRoute({
       clusterId,
       desktopId,
-      username: login,
+      username,
     });
 
     return {
-      login,
+      login: username,
       url,
     };
   });

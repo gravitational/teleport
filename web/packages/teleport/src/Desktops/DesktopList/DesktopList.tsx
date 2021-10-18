@@ -146,9 +146,7 @@ const LoginCell: React.FC<Required<{
       return [];
     }
 
-    const username = login;
-
-    return onSelect(e, username, desktopId);
+    return onSelect(e, login, desktopId);
   }
 
   return (
