@@ -3314,7 +3314,11 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 			Webauthn: webConfig,
 			Identity: a.Identity,
 		}
-		return webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
+		dev, err := webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
+		if err != nil {
+			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
+		}
+		return dev, nil
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
