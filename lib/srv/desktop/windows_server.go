@@ -54,6 +54,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// dnsDialTimeout is the timeout for dialing the LDAP server
+	// when resolving Windows Desktop hostnames
+	dnsDialTimeout = 5 * time.Second
+
+	// windowsDesktopCertTTL is the TTL for Teleport-issued Windows Certificates.
+	// Certificates are requested on each connection attempt, so the TTL is
+	// deliberately set to a small value to give enough time to establish a
+	// single desktop session.
+	windowsDesktopCertTTL = 5 * time.Minute
+)
+
 // WindowsService implements the RDP-based Windows desktop access service.
 //
 // This service accepts mTLS connections from the proxy, establishes RDP
@@ -274,7 +286,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 				// Ignore the address provided, and always explicitly dial
 				// the domain controller.
-				d := net.Dialer{Timeout: 5 * time.Second}
+				d := net.Dialer{Timeout: dnsDialTimeout}
 				return d.DialContext(ctx, network, dnsAddr)
 			},
 		},
@@ -901,7 +913,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 		// domain_controller_addr) will cause Windows to fetch the CRL from any
 		// of its current domain controllers.
 		CRLEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN),
-		TTL:         proto.Duration(5 * time.Minute),
+		TTL:         proto.Duration(windowsDesktopCertTTL),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
