@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/gravitational/trace"
@@ -32,12 +32,17 @@ import (
 type IAMConfig struct {
 	// Clients is an interface for retrieving cloud clients.
 	Clients common.CloudClients
+	// HostID is the host identified where this agent is running.
+	HostID string
 }
 
 // Check validates the IAM configurator config.
 func (c *IAMConfig) Check() error {
 	if c.Clients == nil {
 		c.Clients = common.NewCloudClients()
+	}
+	if c.HostID == "" {
+		return trace.BadParameter("missing HostID")
 	}
 	return nil
 }
@@ -46,7 +51,7 @@ func (c *IAMConfig) Check() error {
 type IAM struct {
 	cfg         IAMConfig
 	log         logrus.FieldLogger
-	awsIdentity cloud.AWSIdentity
+	awsIdentity aws.Identity
 	mu          sync.RWMutex
 }
 
@@ -63,8 +68,8 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 
 // Setup sets up cloud IAM policies for the provided database.
 func (c *IAM) Setup(ctx context.Context, database types.Database) error {
-	if database.IsRDS() {
-		rds, err := c.getRDSConfigurator(ctx, database)
+	if database.IsRDS() || database.IsRedshift() {
+		rds, err := c.getAWSConfigurator(ctx, database)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -75,8 +80,8 @@ func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 
 // Teardown tears down cloud IAM policies for the provided database.
 func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
-	if database.IsRDS() {
-		rds, err := c.getRDSConfigurator(ctx, database)
+	if database.IsRDS() || database.IsRedshift() {
+		rds, err := c.getAWSConfigurator(ctx, database)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -85,21 +90,22 @@ func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
 	return nil
 }
 
-// getRDSConfigurator returns configurator instance for the provided database.
-func (c *IAM) getRDSConfigurator(ctx context.Context, database types.Database) (*rdsClient, error) {
+// getAWSConfigurator returns configurator instance for the provided database.
+func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (*awsClient, error) {
 	identity, err := c.getAWSIdentity(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newRDS(ctx, rdsConfig{
+	return newAWS(ctx, awsConfig{
 		clients:  c.cfg.Clients,
 		identity: identity,
 		database: database,
+		hostID:   c.cfg.HostID,
 	})
 }
 
 // getAWSIdentity returns this process' AWS identity.
-func (c *IAM) getAWSIdentity(ctx context.Context) (cloud.AWSIdentity, error) {
+func (c *IAM) getAWSIdentity(ctx context.Context) (aws.Identity, error) {
 	c.mu.RLock()
 	if c.awsIdentity != nil {
 		defer c.mu.RUnlock()
@@ -110,7 +116,7 @@ func (c *IAM) getAWSIdentity(ctx context.Context) (cloud.AWSIdentity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	awsIdentity, err := cloud.GetAWSIdentityWithClient(ctx, sts)
+	awsIdentity, err := aws.GetIdentityWithClient(ctx, sts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

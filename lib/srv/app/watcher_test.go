@@ -47,8 +47,8 @@ func TestWatcher(t *testing.T) {
 	// watches for apps with label group=a.
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		Apps: types.Apps{app0},
-		Selectors: []services.Selector{
-			{MatchLabels: types.Labels{
+		ResourceMatchers: []services.ResourceMatcher{
+			{Labels: types.Labels{
 				"group": []string{"a"},
 			}},
 		},

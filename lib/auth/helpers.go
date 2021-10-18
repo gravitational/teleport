@@ -293,7 +293,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// create the default role
-	err = srv.AuthServer.UpsertRole(ctx, services.NewAdminRole())
+	err = srv.AuthServer.UpsertRole(ctx, services.NewImplicitRole())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -906,10 +906,10 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (ty
 		return nil, trace.Wrap(err)
 	}
 	baseRole := services.RoleForUser(user)
-	baseRole.SetAccessRequestConditions(services.Allow, types.AccessRequestConditions{
+	baseRole.SetAccessRequestConditions(types.Allow, types.AccessRequestConditions{
 		Roles: []string{rolename},
 	})
-	baseRole.SetLogins(services.Allow, nil)
+	baseRole.SetLogins(types.Allow, nil)
 	err = clt.UpsertRole(ctx, baseRole)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -921,7 +921,7 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (ty
 	}
 	requestableRole := services.RoleForUser(user)
 	requestableRole.SetName(rolename)
-	requestableRole.SetLogins(services.Allow, []string{rolename})
+	requestableRole.SetLogins(types.Allow, []string{rolename})
 	err = clt.UpsertRole(ctx, requestableRole)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -991,7 +991,7 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string) (types.
 		return nil, nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
-	role.SetLogins(services.Allow, []string{user.GetName()})
+	role.SetLogins(types.Allow, []string{user.GetName()})
 	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1013,10 +1013,10 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	role := services.RoleForUser(user)
-	set := services.MakeRuleSet(role.GetRules(services.Allow))
+	set := services.MakeRuleSet(role.GetRules(types.Allow))
 	delete(set, types.KindRole)
-	role.SetRules(services.Allow, set.Slice())
-	role.SetLogins(services.Allow, []string{user.GetName()})
+	role.SetRules(types.Allow, set.Slice())
+	role.SetLogins(types.Allow, []string{user.GetName()})
 	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

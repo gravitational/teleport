@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=8.0.0-dev
+VERSION=8.0.0-alpha.1
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -245,6 +245,8 @@ ifeq ("$(DESKTOP_ACCESS)", "yes")
 .PHONY: rdpclient
 rdpclient:
 	cargo build --manifest-path=lib/srv/desktop/rdp/rdpclient/Cargo.toml --release
+	cargo install cbindgen
+	cbindgen --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
 rdpclient:
@@ -438,8 +440,12 @@ test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
-	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
-	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
+	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+		| tee tests-unit.json \
+		| go run build.assets/render-tests/main.go
+	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover \
+		| tee -a tests-unit.json \
+		| go run build.assets/render-tests/main.go
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.

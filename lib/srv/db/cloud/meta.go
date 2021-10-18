@@ -20,12 +20,15 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
+	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -74,7 +77,18 @@ func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 			return trace.Wrap(err)
 		}
 		m.log.Debugf("Fetched RDS metadata for %q: %v.", database.GetName(), metadata)
-		database.SetAWS(*metadata)
+		database.SetStatusAWS(*metadata)
+	} else if database.IsRedshift() {
+		metadata, err := m.fetchRedshiftMetadata(ctx, database)
+		if err != nil {
+			if trace.IsAccessDenied(err) { // Permission errros are expected.
+				m.log.Debugf("No permissions to fetch Redshift metadata for %q: %v.", database.GetName(), err)
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		m.log.Debugf("Fetched Redshift metadata for %q: %v.", database.GetName(), metadata)
+		database.SetStatusAWS(*metadata)
 	}
 	return nil
 }
@@ -107,29 +121,39 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 	return metadata, nil
 }
 
-// fetchRDSInstanceMetadata fetches metadata about specified RDS instance.
-func fetchRDSInstanceMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, instanceID string) (*types.AWS, error) {
-	rdsInstance, err := describeRDSInstance(ctx, rdsClient, instanceID)
+// fetchRedshiftMetadata fetches metadata for the provided Redshift database.
+func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
+	redshift, err := m.cfg.Clients.GetAWSRedshiftClient(database.GetAWS().Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
+	cluster, err := describeRedshiftCluster(ctx, redshift, database.GetAWS().Redshift.ClusterID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	parsedARN, err := arn.Parse(aws.StringValue(cluster.ClusterNamespaceArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
-		RDS: types.RDS{
-			InstanceID: aws.StringValue(rdsInstance.DBInstanceIdentifier),
-			ClusterID:  aws.StringValue(rdsInstance.DBClusterIdentifier),
-			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
-			IAMAuth:    aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled),
+		Redshift: types.Redshift{
+			ClusterID: aws.StringValue(cluster.ClusterIdentifier),
 		},
 	}, nil
 }
 
-// describeRDSInstance returns AWS RDS instance for the specified database.
+// fetchRDSInstanceMetadata fetches metadata about specified RDS instance.
+func fetchRDSInstanceMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, instanceID string) (*types.AWS, error) {
+	rdsInstance, err := describeRDSInstance(ctx, rdsClient, instanceID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.MetadataFromRDSInstance(rdsInstance)
+}
+
+// describeRDSInstance returns AWS RDS instance for the specified ID.
 func describeRDSInstance(ctx context.Context, rdsClient rdsiface.RDSAPI, instanceID string) (*rds.DBInstance, error) {
 	out, err := rdsClient.DescribeDBInstancesWithContext(ctx, &rds.DescribeDBInstancesInput{
 		DBInstanceIdentifier: aws.String(instanceID),
@@ -149,22 +173,10 @@ func fetchRDSClusterMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, clu
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	parsedARN, err := arn.Parse(aws.StringValue(rdsCluster.DBClusterArn))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &types.AWS{
-		Region:    parsedARN.Region,
-		AccountID: parsedARN.AccountID,
-		RDS: types.RDS{
-			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
-			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
-			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
-		},
-	}, nil
+	return services.MetadataFromRDSCluster(rdsCluster)
 }
 
-// describeRDSCluster returns AWS Aurora cluster for the specified database.
+// describeRDSCluster returns AWS Aurora cluster for the specified ID.
 func describeRDSCluster(ctx context.Context, rdsClient rdsiface.RDSAPI, clusterID string) (*rds.DBCluster, error) {
 	out, err := rdsClient.DescribeDBClustersWithContext(ctx, &rds.DescribeDBClustersInput{
 		DBClusterIdentifier: aws.String(clusterID),
@@ -176,4 +188,18 @@ func describeRDSCluster(ctx context.Context, rdsClient rdsiface.RDSAPI, clusterI
 		return nil, trace.BadParameter("expected 1 RDS cluster for %v, got %s", clusterID, out.DBClusters)
 	}
 	return out.DBClusters[0], nil
+}
+
+// describeRedshiftCluster returns AWS Redshift cluster for the specified ID.
+func describeRedshiftCluster(ctx context.Context, redshiftClient redshiftiface.RedshiftAPI, clusterID string) (*redshift.Cluster, error) {
+	out, err := redshiftClient.DescribeClustersWithContext(ctx, &redshift.DescribeClustersInput{
+		ClusterIdentifier: aws.String(clusterID),
+	})
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	if len(out.Clusters) != 1 {
+		return nil, trace.BadParameter("expected 1 Redshift cluster for %v, got %s", clusterID, out.Clusters)
+	}
+	return out.Clusters[0], nil
 }

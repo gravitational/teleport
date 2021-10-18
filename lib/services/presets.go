@@ -88,22 +88,24 @@ func NewPresetAccessRole() types.Role {
 				BPF:               apidefaults.EnhancedEvents(),
 			},
 			Allow: types.RoleConditions{
-				Namespaces:       []string{apidefaults.Namespace},
-				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
-				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
+				Namespaces:           []string{apidefaults.Namespace},
+				NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
+				WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseNames:        []string{teleport.TraitInternalDBNamesVariable},
+				DatabaseUsers:        []string{teleport.TraitInternalDBUsersVariable},
 				Rules: []types.Rule{
 					types.NewRule(types.KindEvent, RO()),
 				},
 			},
 		},
 	}
-	role.SetLogins(Allow, []string{teleport.TraitInternalLoginsVariable})
-	role.SetKubeUsers(Allow, []string{teleport.TraitInternalKubeUsersVariable})
-	role.SetKubeGroups(Allow, []string{teleport.TraitInternalKubeGroupsVariable})
+	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
+	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
+	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
+	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	return role
 }
 
@@ -140,6 +142,6 @@ func NewPresetAuditorRole() types.Role {
 			},
 		},
 	}
-	role.SetLogins(Allow, []string{"no-login-" + uuid.New()})
+	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New()})
 	return role
 }

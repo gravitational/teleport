@@ -120,7 +120,7 @@ func TestInitCACert(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			var database types.Database
-			for _, db := range databaseServer.getDatabases() {
+			for _, db := range databaseServer.getProxiedDatabases() {
 				if db.GetName() == test.database {
 					database = db
 				}
@@ -156,7 +156,7 @@ func TestInitCACertCaching(t *testing.T) {
 	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 
 	// Reset it and initialize again, it should already be downloaded.
-	rds.SetCA("")
+	rds.SetStatusCA("")
 	require.NoError(t, databaseServer.initCACert(ctx, rds))
 	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 }
