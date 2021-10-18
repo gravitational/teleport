@@ -1034,9 +1034,8 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 				ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorWebauthn,
-					U2F: &types.U2F{
-						AppID:  "https://localhost",
-						Facets: []string{"https://localhost"},
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
 					},
 					RequireSessionMFA: true,
 				})
