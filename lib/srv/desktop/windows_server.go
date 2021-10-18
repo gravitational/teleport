@@ -393,9 +393,13 @@ func (s *WindowsService) startDiscoveredHostHeartbeats() error {
 			GetServerInfo: func() (types.Resource, error) {
 				return s.dynamicHostHeartbeatInfo(s.closeCtx, entry, s.cfg.HostLabelsFn)
 			},
-			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL, // TODO(zmb3): consider increasing
-			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-			CheckPeriod:     defaults.HeartbeatCheckPeriod, // TODO(zmb3): consider increasing
+			// Larger than normal periods are due to the fact that we don't currently refresh
+			// the list of hosts from LDAP. Since the heartbeat data is static we don't need
+			// to announce it as frequently as we do for dynamic resources.
+			// TODO(zmb3): reconsider timeouts when #8644 is addressed
+			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL * 2,
+			AnnouncePeriod:  apidefaults.ServerAnnounceTTL + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+			CheckPeriod:     defaults.HeartbeatCheckPeriod * 60,
 			ServerTTL:       apidefaults.ServerAnnounceTTL,
 		})
 		if err != nil {
