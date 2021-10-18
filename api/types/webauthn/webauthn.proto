@@ -72,9 +72,8 @@ message PublicKeyCredentialRequestOptions {
     repeated CredentialDescriptor allow_credentials = 4;
     // Extensions supplied by the Relying Party.
     AuthenticationExtensionsClientInputs extensions = 5;
-
-    // Notes:
-    // * User verification omitted (assume default/preferred).
+    // User verification requirement.
+    string user_verification = 6;
 }
 
 // Assertion response returned by the authenticator.

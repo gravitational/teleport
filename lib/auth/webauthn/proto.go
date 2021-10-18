@@ -36,6 +36,7 @@ func CredentialAssertionToProto(assertion *CredentialAssertion) *wantypes.Creden
 			RpId:             assertion.Response.RelyingPartyID,
 			AllowCredentials: credentialDescriptorsToProto(assertion.Response.AllowedCredentials),
 			Extensions:       inputExtensionsToProto(assertion.Response.Extensions),
+			UserVerification: string(assertion.Response.UserVerification),
 		},
 	}
 }
@@ -319,6 +320,7 @@ func publicKeyCredentialRequestOptionsFromProto(pubKey *wantypes.PublicKeyCreden
 		RelyingPartyID:     pubKey.RpId,
 		AllowedCredentials: credentialDescriptorsFromProto(pubKey.AllowCredentials),
 		Extensions:         inputExtensionsFromProto(pubKey.Extensions),
+		UserVerification:   protocol.UserVerificationRequirement(pubKey.UserVerification),
 	}
 }
 
