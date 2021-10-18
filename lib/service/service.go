@@ -1600,27 +1600,77 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 
 // newLocalCacheForNode returns new instance of access point configured for a local proxy.
 func (process *TeleportProcess) newLocalCacheForNode(clt auth.ClientI, cacheName []string) (auth.NodeAccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForNode, cacheName)
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForNode, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewNodeWrapper(clt, cache), nil
 }
 
 // newLocalCacheForKubernetes returns new instance of access point configured for a kubernetes service.
 func (process *TeleportProcess) newLocalCacheForKubernetes(clt auth.ClientI, cacheName []string) (auth.KubernetesAccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForKubernetes, cacheName)
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForKubernetes, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewKubernetesWrapper(clt, cache), nil
 }
 
 // newLocalCacheForDatabase returns new instance of access point configured for a database service.
 func (process *TeleportProcess) newLocalCacheForDatabase(clt auth.ClientI, cacheName []string) (auth.DatabaseAccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForDatabases, cacheName)
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForDatabases, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewDatabaseWrapper(clt, cache), nil
 }
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
 func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.ProxyAccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForProxy, cacheName)
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForProxy, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewProxyWrapper(clt, cache), nil
 }
 
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
 func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewRemoteProxyWrapper(clt, cache), nil
 }
 
 // DELETE IN: 8.0.0
@@ -1628,35 +1678,57 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, ca
 // newLocalCacheForOldRemoteProxy returns new instance of access point
 // configured for an old remote proxy.
 func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForOldRemoteProxy, cacheName)
-}
-
-// newLocalCacheForApps returns new instance of access point configured for a remote proxy.
-func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName []string) (auth.AppsAccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForApps, cacheName)
-}
-
-// newLocalCacheForApps returns new instance of access point configured for a windows desktop service.
-func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForWindowsDesktop, cacheName)
-}
-
-// newLocalCache returns new instance of access point
-func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.AccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
 	}
-	cache, err := process.newAccessCache(accessCacheConfig{
+
+	cache, err := process.newLocalCache(clt, cache.ForOldRemoteProxy, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewRemoteProxyWrapper(clt, cache), nil
+}
+
+// newLocalCacheForApps returns new instance of access point configured for a remote proxy.
+func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName []string) (auth.AppsAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForApps, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewAppsWrapper(clt, cache), nil
+}
+
+// newLocalCacheForApps returns new instance of access point configured for a windows desktop service.
+func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForWindowsDesktop, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewWindowsDesktopWrapper(clt, cache), nil
+}
+
+// newLocalCache returns new instance of access point
+func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
+	return process.newAccessCache(accessCacheConfig{
 		inMemory:  process.Config.CachePolicy.Type == memory.GetName(),
 		services:  clt,
 		setup:     setupConfig,
 		cacheName: cacheName,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return auth.NewWrapper(clt, cache), nil
 }
 
 func (process *TeleportProcess) getRotation(role types.SystemRole) (*types.Rotation, error) {

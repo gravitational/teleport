@@ -123,7 +123,7 @@ func (s *localSite) GetTunnelsCount() int {
 	return len(s.remoteConns)
 }
 
-// CachingAccessPoint returns a auth.AccessPoint for this cluster.
+// CachingAccessPoint returns an auth.RemoteProxyAccessPoint for this cluster.
 func (s *localSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	return s.accessPoint, nil
 }

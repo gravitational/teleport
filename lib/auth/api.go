@@ -22,11 +22,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
-
 	"github.com/gravitational/trace"
 )
 
@@ -69,144 +66,6 @@ type Announcer interface {
 	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	// UpdateWindowsDesktop updates a Windows desktop host.
 	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
-}
-
-// ReadAccessPoint is a read only API interface implemented by a certificate authority (CA).
-//
-// NOTE: This should not be used directly. The component specific interfaces should be used instead.
-type ReadAccessPoint interface {
-	// Closer closes all the resources
-	io.Closer
-
-	// NewWatcher returns a new event watcher.
-	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
-
-	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
-
-	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
-
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
-
-	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
-
-	// GetAuthPreference returns the cluster authentication configuration.
-	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
-
-	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
-
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-
-	// GetNode returns a node by name and namespace.
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
-
-	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-
-	// ListNodes returns a paginated list of registered servers for this cluster.
-	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
-
-	// GetProxies returns a list of proxy servers registered in the cluster
-	GetProxies() ([]types.Server, error)
-
-	// GetAuthServers returns a list of auth servers registered in the cluster
-	GetAuthServers() ([]types.Server, error)
-
-	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
-
-	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
-
-	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
-
-	// GetUsers returns a list of local users registered with this domain
-	GetUsers(withSecrets bool) ([]types.User, error)
-
-	// GetRole returns role by name
-	GetRole(ctx context.Context, name string) (types.Role, error)
-
-	// GetRoles returns a list of roles
-	GetRoles(ctx context.Context) ([]types.Role, error)
-
-	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
-
-	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
-
-	// GetAppServers gets all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-
-	// GetApps returns all application resources.
-	GetApps(ctx context.Context) ([]types.Application, error)
-
-	// GetApp returns the specified application resource.
-	GetApp(ctx context.Context, name string) (types.Application, error)
-
-	// GetApplicationServers returns all registered application servers.
-	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
-
-	// GetAppSession gets an application web session.
-	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
-
-	// GetWebSession gets a web session for the given request
-	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
-
-	// GetWebToken gets a web token for the given request
-	GetWebToken(context.Context, types.GetWebTokenRequest) (types.WebToken, error)
-
-	// GetRemoteClusters returns a list of remote clusters
-	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
-
-	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
-
-	// GetKubeServices returns a list of kubernetes services registered in the cluster
-	GetKubeServices(context.Context) ([]types.Server, error)
-
-	// GetDatabaseServers returns all registered database proxy servers.
-	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
-
-	// GetDatabases returns all database resources.
-	GetDatabases(ctx context.Context) ([]types.Database, error)
-
-	// GetDatabase returns the specified database resource.
-	GetDatabase(ctx context.Context, name string) (types.Database, error)
-
-	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
-	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
-
-	// GetWindowsDesktops returns windows desktop hosts.
-	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
-
-	// GetWindowsDesktop returns a named windows desktop host.
-	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
-
-	// GetWindowsDesktopServices returns windows desktop hosts.
-	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
-}
-
-// AccessPoint is an API interface implemented by a certificate authority (CA)
-//
-// NOTE: This should not be used directly. The component specific interfaces should be used instead.
-type AccessPoint interface {
-	// ReadAccessPoint provides methods to read data
-	ReadAccessPoint
-
-	// accessPoint provides common access point functionality
-	accessPoint
 }
 
 // accessPoint is an API interface implemented by a certificate authority (CA)
@@ -801,7 +660,127 @@ type AccessCache interface {
 // Cache is a subset of the auth interface handling
 // access to the discovery API and static tokens
 type Cache interface {
-	ReadAccessPoint
+	// Closer closes all the resources
+	io.Closer
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	// GetReverseTunnels returns  a list of reverse tunnels
+	GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+
+	// GetClusterName returns cluster name
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+
+	// GetClusterAuditConfig returns cluster audit configuration.
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
+
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
+	// GetNode returns a node by name and namespace.
+	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+
+	// GetNodes returns a list of registered servers for this cluster.
+	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+
+	// ListNodes returns a paginated list of registered servers for this cluster.
+	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
+
+	// GetProxies returns a list of proxy servers registered in the cluster
+	GetProxies() ([]types.Server, error)
+
+	// GetAuthServers returns a list of auth servers registered in the cluster
+	GetAuthServers() ([]types.Server, error)
+
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+
+	// GetUser returns a services.User for this cluster.
+	GetUser(name string, withSecrets bool) (types.User, error)
+
+	// GetUsers returns a list of local users registered with this domain
+	GetUsers(withSecrets bool) ([]types.User, error)
+
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetRoles returns a list of roles
+	GetRoles(ctx context.Context) ([]types.Role, error)
+
+	// GetAllTunnelConnections returns all tunnel connections
+	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+
+	// GetTunnelConnections returns tunnel connections for a given cluster
+	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+
+	// GetAppServers gets all application servers.
+	//
+	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
+	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+
+	// GetApps returns all application resources.
+	GetApps(ctx context.Context) ([]types.Application, error)
+
+	// GetApp returns the specified application resource.
+	GetApp(ctx context.Context, name string) (types.Application, error)
+
+	// GetApplicationServers returns all registered application servers.
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+
+	// GetAppSession gets an application web session.
+	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
+
+	// GetWebSession gets a web session for the given request
+	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
+
+	// GetWebToken gets a web token for the given request
+	GetWebToken(context.Context, types.GetWebTokenRequest) (types.WebToken, error)
+
+	// GetRemoteClusters returns a list of remote clusters
+	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
+
+	// GetRemoteCluster returns a remote cluster by name
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+
+	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	GetKubeServices(context.Context) ([]types.Server, error)
+
+	// GetDatabaseServers returns all registered database proxy servers.
+	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// GetDatabases returns all database resources.
+	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// GetDatabase returns the specified database resource.
+	GetDatabase(ctx context.Context, name string) (types.Database, error)
+
+	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
+	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
+
+	// GetWindowsDesktops returns windows desktop hosts.
+	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
+
+	// GetWindowsDesktop returns a named windows desktop host.
+	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+
+	// GetWindowsDesktopServices returns windows desktop hosts.
+	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
 
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens() (types.StaticTokens, error)
@@ -824,149 +803,158 @@ type Cache interface {
 	// cache, the other Teleport components should make use of
 	// services.LockWatcher that provides the necessary freshness guarantees.
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
-
-	// NewWatcher returns a new event watcher
-	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 }
 
-// NewWrapper returns new access point wrapper
-func NewWrapper(base AccessPoint, cache ReadAccessPoint) AccessPoint {
-	return &Wrapper{
-		NoCache:         base,
-		ReadAccessPoint: cache,
+type NodeWrapper struct {
+	ReadNodeAccessPoint
+	accessPoint
+	NoCache NodeAccessPoint
+}
+
+func NewNodeWrapper(base NodeAccessPoint, cache ReadNodeAccessPoint) NodeAccessPoint {
+	return &NodeWrapper{
+		NoCache:             base,
+		accessPoint:         base,
+		ReadNodeAccessPoint: cache,
 	}
 }
 
-// Wrapper wraps access point and auth cache in one client
-// so that reads of cached values can be intercepted.
-type Wrapper struct {
-	ReadAccessPoint
-	NoCache AccessPoint
-}
-
-// ResumeAuditStream resumes existing audit stream
-func (w *Wrapper) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
-	return w.NoCache.ResumeAuditStream(ctx, sid, uploadID)
-}
-
-// CreateAuditStream creates new audit stream
-func (w *Wrapper) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	return w.NoCache.CreateAuditStream(ctx, sid)
-}
-
 // Close closes all associated resources
-func (w *Wrapper) Close() error {
+func (w *NodeWrapper) Close() error {
 	err := w.NoCache.Close()
-	err2 := w.ReadAccessPoint.Close()
+	err2 := w.ReadNodeAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 
-// UpsertNode is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
-	return w.NoCache.UpsertNode(ctx, s)
+type ProxyWrapper struct {
+	ReadProxyAccessPoint
+	accessPoint
+	NoCache ProxyAccessPoint
 }
 
-// UpsertAuthServer is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertAuthServer(s types.Server) error {
-	return w.NoCache.UpsertAuthServer(s)
+func NewProxyWrapper(base ProxyAccessPoint, cache ReadProxyAccessPoint) ProxyAccessPoint {
+	return &ProxyWrapper{
+		NoCache:              base,
+		accessPoint:          base,
+		ReadProxyAccessPoint: cache,
+	}
 }
 
-// NewKeepAliver returns a new instance of keep aliver
-func (w *Wrapper) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
-	return w.NoCache.NewKeepAliver(ctx)
+// Close closes all associated resources
+func (w *ProxyWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadProxyAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
 }
 
-// UpsertProxy is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertProxy(s types.Server) error {
-	return w.NoCache.UpsertProxy(s)
+type RemoteProxyWrapper struct {
+	ReadRemoteProxyAccessPoint
+	accessPoint
+	NoCache RemoteProxyAccessPoint
 }
 
-// UpsertTunnelConnection is a part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertTunnelConnection(conn types.TunnelConnection) error {
-	return w.NoCache.UpsertTunnelConnection(conn)
+func NewRemoteProxyWrapper(base RemoteProxyAccessPoint, cache ReadRemoteProxyAccessPoint) RemoteProxyAccessPoint {
+	return &RemoteProxyWrapper{
+		NoCache:                    base,
+		accessPoint:                base,
+		ReadRemoteProxyAccessPoint: cache,
+	}
 }
 
-// DeleteTunnelConnection is a part of auth.AccessPoint implementation
-func (w *Wrapper) DeleteTunnelConnection(clusterName, connName string) error {
-	return w.NoCache.DeleteTunnelConnection(clusterName, connName)
+// Close closes all associated resources
+func (w *RemoteProxyWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadRemoteProxyAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
 }
 
-// AcquireSemaphore acquires lease with requested resources from semaphore
-func (w *Wrapper) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
-	return w.NoCache.AcquireSemaphore(ctx, params)
+type KubernetesWrapper struct {
+	ReadKubernetesAccessPoint
+	accessPoint
+	NoCache KubernetesAccessPoint
 }
 
-// KeepAliveSemaphoreLease updates semaphore lease
-func (w *Wrapper) KeepAliveSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
-	return w.NoCache.KeepAliveSemaphoreLease(ctx, lease)
+func NewKubernetesWrapper(base KubernetesAccessPoint, cache ReadKubernetesAccessPoint) KubernetesAccessPoint {
+	return &KubernetesWrapper{
+		NoCache:                   base,
+		accessPoint:               base,
+		ReadKubernetesAccessPoint: cache,
+	}
 }
 
-// CancelSemaphoreLease cancels semaphore lease early
-func (w *Wrapper) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
-	return w.NoCache.CancelSemaphoreLease(ctx, lease)
+// Close closes all associated resources
+func (w *KubernetesWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadKubernetesAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
 }
 
-// GetSemaphores returns a list of semaphores matching supplied filter.
-func (w *Wrapper) GetSemaphores(ctx context.Context, filter types.SemaphoreFilter) ([]types.Semaphore, error) {
-	return w.NoCache.GetSemaphores(ctx, filter)
+type DatabaseWrapper struct {
+	ReadDatabaseAccessPoint
+	accessPoint
+	NoCache DatabaseAccessPoint
 }
 
-// DeleteSemaphore deletes a semaphore matching supplied filter.
-func (w *Wrapper) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilter) error {
-	return w.NoCache.DeleteSemaphore(ctx, filter)
+func NewDatabaseWrapper(base DatabaseAccessPoint, cache ReadDatabaseAccessPoint) DatabaseAccessPoint {
+	return &DatabaseWrapper{
+		NoCache:                 base,
+		accessPoint:             base,
+		ReadDatabaseAccessPoint: cache,
+	}
 }
 
-// UpsertKubeService is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertKubeService(ctx context.Context, s types.Server) error {
-	return w.NoCache.UpsertKubeService(ctx, s)
+// Close closes all associated resources
+func (w *DatabaseWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadDatabaseAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
 }
 
-// UpsertAppServer adds an application server.
-//
-// DELETE IN 9.0. Deprecated, use UpsertAppServer.
-func (w *Wrapper) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
-	return w.NoCache.UpsertAppServer(ctx, server)
+type AppsWrapper struct {
+	ReadAppsAccessPoint
+	accessPoint
+	NoCache AppsAccessPoint
 }
 
-// UpsertApplicationServer registers an application server.
-func (w *Wrapper) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
-	return w.NoCache.UpsertApplicationServer(ctx, server)
+func NewAppsWrapper(base AppsAccessPoint, cache ReadAppsAccessPoint) AppsAccessPoint {
+	return &AppsWrapper{
+		NoCache:             base,
+		accessPoint:         base,
+		ReadAppsAccessPoint: cache,
+	}
 }
 
-// UpsertDatabaseServer registers a database proxy server.
-func (w *Wrapper) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
-	return w.NoCache.UpsertDatabaseServer(ctx, server)
+// Close closes all associated resources
+func (w *AppsWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadAppsAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
 }
 
-// UpsertWindowsDesktopService registers a Windows desktop service.
-func (w *Wrapper) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {
-	return w.NoCache.UpsertWindowsDesktopService(ctx, s)
+type WindowsDesktopWrapper struct {
+	ReadWindowsDesktopAccessPoint
+	accessPoint
+	NoCache WindowsDesktopAccessPoint
 }
 
-// CreateWindowsDesktop registers a Windows desktop host.
-func (w *Wrapper) CreateWindowsDesktop(ctx context.Context, d types.WindowsDesktop) error {
-	return w.NoCache.CreateWindowsDesktop(ctx, d)
+func NewWindowsDesktopWrapper(base WindowsDesktopAccessPoint, cache ReadWindowsDesktopAccessPoint) WindowsDesktopAccessPoint {
+	return &WindowsDesktopWrapper{
+		NoCache:                       base,
+		accessPoint:                   base,
+		ReadWindowsDesktopAccessPoint: cache,
+	}
 }
 
-// UpdateWindowsDesktop updates a Windows desktop host.
-func (w *Wrapper) UpdateWindowsDesktop(ctx context.Context, d types.WindowsDesktop) error {
-	return w.NoCache.UpdateWindowsDesktop(ctx, d)
+// Close closes all associated resources
+func (w *WindowsDesktopWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadWindowsDesktopAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
 }
 
-// GenerateCertAuthorityCRL generates an empty CRL for a CA.
-func (w *Wrapper) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
-	crl, err := w.NoCache.GenerateCertAuthorityCRL(ctx, caType)
-	return crl, trace.Wrap(err)
-}
-
-// NewCachingAccessPoint returns new caching access point using
+// NewRemoteProxyCachingAccessPoint returns new caching access point using
 // access point policy
-type NewCachingAccessPoint func(clt ClientI, cacheName []string) (RemoteProxyAccessPoint, error)
-
-// NoCache is a no cache used for access point
-func NoCache(clt ClientI, cacheName []string) (AccessPoint, error) {
-	return clt, nil
-}
+type NewRemoteProxyCachingAccessPoint func(clt ClientI, cacheName []string) (RemoteProxyAccessPoint, error)
 
 // notImplementedMessage is the message to return for endpoints that are not
 // implemented. This is due to how service interfaces are used with Teleport.

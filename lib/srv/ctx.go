@@ -73,7 +73,7 @@ func init() {
 	prometheus.MustRegister(serverRX)
 }
 
-//AccessPoint is the access point contract required by a Server
+// AccessPoint is the access point contract required by a Server
 type AccessPoint interface {
 	// Announcer adds methods used to announce presence
 	auth.Announcer
@@ -126,7 +126,7 @@ type Server interface {
 	// startup is allowed.
 	PermitUserEnvironment() bool
 
-	// GetAccessPoint returns an auth.AccessPoint for this cluster.
+	// GetAccessPoint returns an AccessPoint for this cluster.
 	GetAccessPoint() AccessPoint
 
 	// GetSessionServer returns a session server.

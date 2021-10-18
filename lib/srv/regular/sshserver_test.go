@@ -936,7 +936,7 @@ func mustListen(t *testing.T) (net.Listener, utils.NetAddr) {
 }
 
 func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
-	return auth.NoCache(clt, cacheName)
+	return clt, nil
 }
 
 func TestProxyReverseTunnel(t *testing.T) {

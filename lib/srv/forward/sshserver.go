@@ -372,7 +372,7 @@ func (s *Server) PermitUserEnvironment() bool {
 	return false
 }
 
-// GetAccessPoint returns an auth.AccessPoint for this cluster.
+// GetAccessPoint returns a srv.AccessPoint for this cluster.
 func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }

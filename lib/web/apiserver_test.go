@@ -145,7 +145,7 @@ func (s *WebSuite) SetUpSuite(c *C) {
 }
 
 func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
-	return auth.NoCache(clt, cacheName)
+	return clt, nil
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
