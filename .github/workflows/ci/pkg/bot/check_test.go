@@ -17,7 +17,7 @@ func TestApproved(t *testing.T) {
 		botInstance    *Bot
 		pr             *environment.Metadata
 		required       []string
-		currentReviews []review
+		currentReviews map[string]review
 		desc           string
 		checkErr       require.ErrorAssertionFunc
 	}{
@@ -25,10 +25,10 @@ func TestApproved(t *testing.T) {
 			botInstance: bot,
 			pr:          pull,
 			required:    []string{"foo", "bar", "baz"},
-			currentReviews: []review{
-				{name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
-				{name: "bar", status: "Commented", commitID: "fe324c", id: 2},
-				{name: "baz", status: "APPROVED", commitID: "ba0d35", id: 3},
+			currentReviews: map[string]review{
+				"foo": {name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
+				"bar": {name: "bar", status: "Commented", commitID: "fe324c", id: 2},
+				"baz": {name: "baz", status: "APPROVED", commitID: "ba0d35", id: 3},
 			},
 			desc:     "PR does not have all required approvals",
 			checkErr: require.Error,
@@ -38,10 +38,10 @@ func TestApproved(t *testing.T) {
 
 			pr:       pull,
 			required: []string{"foo", "bar", "baz"},
-			currentReviews: []review{
-				{name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
-				{name: "bar", status: "APPROVED", commitID: "12ga34", id: 2},
-				{name: "baz", status: "APPROVED", commitID: "12ga34", id: 3},
+			currentReviews: map[string]review{
+				"foo": {name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
+				"bar": {name: "bar", status: "APPROVED", commitID: "12ga34", id: 2},
+				"baz": {name: "baz", status: "APPROVED", commitID: "12ga34", id: 3},
 			},
 			desc:     "PR has required approvals, commit shas match",
 			checkErr: require.NoError,
@@ -50,8 +50,8 @@ func TestApproved(t *testing.T) {
 			botInstance: bot,
 			pr:          pull,
 			required:    []string{"foo", "bar"},
-			currentReviews: []review{
-				{name: "foo", status: "APPROVED", commitID: "fe324c", id: 1},
+			currentReviews: map[string]review{
+				"foo": {name: "foo", status: "APPROVED", commitID: "fe324c", id: 1},
 			},
 			desc:     "PR does not have all required approvals",
 			checkErr: require.Error,
@@ -67,10 +67,10 @@ func TestApproved(t *testing.T) {
 }
 
 func TestContainsApprovalReview(t *testing.T) {
-	reviews := []review{
-		{name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
-		{name: "bar", status: "Commented", commitID: "fe324c", id: 2},
-		{name: "baz", status: "APPROVED", commitID: "ba0d35", id: 1},
+	reviews := map[string]review{
+		"foo": {name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
+		"bar": {name: "bar", status: "Commented", commitID: "fe324c", id: 2},
+		"baz": {name: "baz", status: "APPROVED", commitID: "ba0d35", id: 1},
 	}
 	// Has a review but no approval
 	ok := hasApproved("bar", reviews)
@@ -85,41 +85,37 @@ func TestContainsApprovalReview(t *testing.T) {
 	require.Equal(t, true, ok)
 }
 
-func TestHasNewCommit(t *testing.T) {
-	reviews := []review{
-		{name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
-		{name: "bar", status: "Commented", commitID: "fe324c", id: 2},
-		{name: "baz", status: "APPROVED", commitID: "ba0d35", id: 3},
-		{name: "foo", status: "APPROVED", commitID: "fe324c", id: 4},
-		{name: "bar", status: "Commented", commitID: "fe324c", id: 5},
+func TestSplitReviews(t *testing.T) {
+	reviews := map[string]review{
+		"foo": {name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
+		"bar": {name: "bar", status: "Commented", commitID: "fe324c", id: 2},
+		"baz": {name: "baz", status: "APPROVED", commitID: "ba0d35", id: 3},
 	}
 	valid, obs := splitReviews("fe324c", reviews)
-	expectedValid := []review{
-		{name: "bar", status: "Commented", commitID: "fe324c", id: 2},
-		{name: "foo", status: "APPROVED", commitID: "fe324c", id: 4},
-		{name: "bar", status: "Commented", commitID: "fe324c", id: 5},
+	expectedValid := map[string]review{
+		"bar": {name: "bar", status: "Commented", commitID: "fe324c", id: 2},
 	}
-	expectedObsolete := []review{
-		{name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
-		{name: "baz", status: "APPROVED", commitID: "ba0d35", id: 3},
+	expectedObsolete := map[string]review{
+		"foo": {name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
+		"baz": {name: "baz", status: "APPROVED", commitID: "ba0d35", id: 3},
 	}
 	require.Equal(t, expectedValid, valid)
 	require.Equal(t, expectedObsolete, obs)
 }
 
 func TestHasRequiredApprovals(t *testing.T) {
-	reviews := []review{
-		{name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
-		{name: "bar", status: "APPROVED", commitID: "ba0d35", id: 3},
+	reviews := map[string]review{
+		"foo": {name: "foo", status: "APPROVED", commitID: "12ga34", id: 1},
+		"bar": {name: "bar", status: "APPROVED", commitID: "ba0d35", id: 3},
 	}
 	required := []string{"foo", "bar"}
 	err := hasRequiredApprovals(reviews, required)
 	require.NoError(t, err)
 
-	reviews = []review{
-		{name: "foo", status: "APPROVED", commitID: "fe324c", id: 1},
-		{name: "bar", status: "Commented", commitID: "fe324c", id: 2},
-		{name: "baz", status: "APPROVED", commitID: "fe324c", id: 3},
+	reviews = map[string]review{
+		"foo": {name: "foo", status: "APPROVED", commitID: "fe324c", id: 1},
+		"bar": {name: "bar", status: "Commented", commitID: "fe324c", id: 2},
+		"baz": {name: "baz", status: "APPROVED", commitID: "fe324c", id: 3},
 	}
 	required = []string{"foo", "reviewer"}
 	err = hasRequiredApprovals(reviews, required)
@@ -166,11 +162,20 @@ func TestMostRecent(t *testing.T) {
 				return expected[i].name < expected[j].name
 			})
 
-			revs := mostRecent(test.currentReviews)
+			mapRevs := mostRecent(test.currentReviews)
+			revs := mapToSlice(mapRevs)
 			sort.Slice(revs, func(i, j int) bool {
 				return revs[i].name < revs[j].name
 			})
 			require.Equal(t, expected, revs)
 		})
 	}
+}
+
+func mapToSlice(revs map[string]review) []review {
+	reviews := make([]review, 0, len(revs))
+	for _, v := range revs {
+		reviews = append(reviews, v)
+	}
+	return reviews
 }

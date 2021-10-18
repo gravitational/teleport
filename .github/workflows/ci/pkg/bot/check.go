@@ -61,8 +61,8 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 // case in which reviews are not dismissed is if they are from GitHub and
 // only update the PR.
 func (c *Bot) checkExternal(ctx context.Context) error {
-	var obsoleteReviews []review
-	var validReviews []review
+	var obsoleteReviews map[string]review
+	var validReviews map[string]review
 
 	pr := c.Environment.Metadata
 	mostRecentReviews, err := c.getMostRecentReviews(ctx)
@@ -92,19 +92,21 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 
 // splitReviews splits a list of reviews into two lists: `valid` (those reviews that refer to
 // the current PR head revision) and `obsolete` (those that do not)
-func splitReviews(headSHA string, reviews []review) (valid, obsolete []review) {
+func splitReviews(headSHA string, reviews map[string]review) (valid, obsolete map[string]review) {
+	valid = make(map[string]review)
+	obsolete = make(map[string]review)
 	for _, r := range reviews {
 		if r.commitID == headSHA {
-			valid = append(valid, r)
+			valid[r.name] = r
 		} else {
-			obsolete = append(obsolete, r)
+			obsolete[r.name] = r
 		}
 	}
-	return
+	return valid, obsolete
 }
 
 // hasRequiredApprovals determines if all required reviewers have approved.
-func hasRequiredApprovals(mostRecentReviews []review, required []string) error {
+func hasRequiredApprovals(mostRecentReviews map[string]review, required []string) error {
 	if len(mostRecentReviews) == 0 {
 		return trace.BadParameter("pull request has no approvals")
 	}
@@ -121,7 +123,7 @@ func hasRequiredApprovals(mostRecentReviews []review, required []string) error {
 	return nil
 }
 
-func (c *Bot) getMostRecentReviews(ctx context.Context) ([]review, error) {
+func (c *Bot) getMostRecentReviews(ctx context.Context) (map[string]review, error) {
 	env := c.Environment
 	pr := c.Environment.Metadata
 	reviews, _, err := env.Client.PullRequests.ListReviews(ctx, pr.RepoOwner,
@@ -129,7 +131,7 @@ func (c *Bot) getMostRecentReviews(ctx context.Context) ([]review, error) {
 		pr.Number,
 		&github.ListOptions{})
 	if err != nil {
-		return []review{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	currentReviewsSlice := []review{}
 	for _, rev := range reviews {
@@ -137,7 +139,7 @@ func (c *Bot) getMostRecentReviews(ctx context.Context) ([]review, error) {
 		// and do strict validation of input.
 		err := validateReviewFields(rev)
 		if err != nil {
-			return []review{}, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		currReview := review{
 			name:        *rev.User.Login,
@@ -189,7 +191,7 @@ func validateReviewFields(review *github.PullRequestReview) error {
 }
 
 // mostRecent returns a list of the most recent review from each required reviewer.
-func mostRecent(currentReviews []review) []review {
+func mostRecent(currentReviews []review) map[string]review {
 	mostRecentReviews := make(map[string]review)
 	for _, rev := range currentReviews {
 		val, ok := mostRecentReviews[rev.name]
@@ -203,16 +205,12 @@ func mostRecent(currentReviews []review) []review {
 			}
 		}
 	}
-	reviews := make([]review, 0, len(mostRecentReviews))
-	for _, v := range mostRecentReviews {
-		reviews = append(reviews, v)
-	}
-	return reviews
+	return mostRecentReviews
 }
 
 // hasApproved determines if the reviewer has submitted an approval
 // for the pull request.
-func hasApproved(reviewer string, reviews []review) bool {
+func hasApproved(reviewer string, reviews map[string]review) bool {
 	for _, rev := range reviews {
 		if rev.name == reviewer && rev.status == ci.Approved {
 			return true
@@ -370,7 +368,7 @@ func createAndWriteTempFile(prefix, data string) (fileName string, err error) {
 }
 
 // invalidateApprovals dismisses all approved reviews on a pull request.
-func (c *Bot) invalidateApprovals(ctx context.Context, msg string, reviews []review) error {
+func (c *Bot) invalidateApprovals(ctx context.Context, msg string, reviews map[string]review) error {
 	pr := c.Environment.Metadata
 	for _, v := range reviews {
 		if pr.HeadSHA != v.commitID {
