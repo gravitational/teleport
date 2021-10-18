@@ -16,7 +16,7 @@ limitations under the License.
 
 import React, { useEffect } from 'react';
 import useDesktopSession, { State } from './useDesktopSession';
-import TopBar from './TopBar';
+import TopBar from './TdpClientCanvas/TopBar';
 import { Indicator, Box, Alert, Text, Flex } from 'design';
 import useTeleport from 'teleport/useTeleport';
 import TdpClientCanvas from './TdpClientCanvas';

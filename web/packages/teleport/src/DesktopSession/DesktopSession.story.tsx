@@ -16,7 +16,6 @@ limitations under the License.
 
 import React from 'react';
 import { DesktopSession } from './DesktopSession';
-import useTdpClientCanvas from './useTdpClientCanvas';
 import { State } from './useDesktopSession';
 import TdpClient, { ImageData } from 'teleport/lib/tdp/client';
 import useAttempt from 'shared/hooks/useAttemptNext';

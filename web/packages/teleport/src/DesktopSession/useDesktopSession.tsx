@@ -21,7 +21,7 @@ import { UrlDesktopParams } from 'teleport/config';
 import Ctx from 'teleport/teleportContext';
 import { Desktop } from 'teleport/services/desktops';
 import { stripRdpPort } from '../Desktops/DesktopList';
-import useTdpClientCanvas from './useTdpClientCanvas';
+import { useTdpClientCanvas } from './TdpClientCanvas';
 
 export default function useDesktopSession(ctx: Ctx) {
   // Tracks combination of tdpclient/websocket and api call state,

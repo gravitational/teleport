@@ -18,7 +18,7 @@ import styled, { useTheme } from 'styled-components';
 import { Text, TopNav, Flex } from 'design';
 import { Clipboard } from 'design/Icon';
 import { colors } from 'teleport/Console/colors';
-import ActionMenu from './ActionMenu';
+import ActionMenu from '../ActionMenu';
 
 export default function TopBar(props: Props) {
   const { userHost, clipboard, recording, onDisconnect } = props;
