@@ -1,14 +1,8 @@
 package bot
 
 import (
-	"context"
-	"fmt"
-	"net/http"
-	"net/url"
 	"os"
-	"path"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/gravitational/teleport/.github/workflows/ci"
@@ -62,49 +56,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// DismissStaleWorkflowRuns dismisses stale Check workflow runs.
-// Stale workflow runs are workflow runs that were previously ran and are no longer valid
-// due to a new event triggering thus a change in state. The workflow running in the current context is the source of truth for
-// the state of checks.
-func (c *Bot) dismissStaleWorkflowRuns(ctx context.Context, owner, repoName, branch string) error {
-	// Get the target workflow to know get runs triggered by the `Check` workflow.
-	// The `Check` workflow is being targeted because it is the only workflow
-	// that runs multiple times per PR.
-	workflow, err := c.getCheckWorkflow(ctx, owner, repoName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	runs, err := c.getWorkflowRuns(ctx, owner, repoName, branch, *workflow.ID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = c.deleteRuns(ctx, owner, repoName, runs)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// deleteRuns deletes all workflow runs except the most recent one because that is
-// the run in the current context.
-func (c *Bot) deleteRuns(ctx context.Context, owner, repoName string, runs []*github.WorkflowRun) error {
-	// Sorting runs by time from oldest to newest.
-	sort.Slice(runs, func(i, j int) bool {
-		time1, time2 := runs[i].CreatedAt, runs[j].CreatedAt
-		return time1.Time.Before(time2.Time)
-	})
-	// Deleting all runs except the most recent one.
-	for i := 0; i < len(runs)-1; i++ {
-		run := runs[i]
-		err := c.deleteRun(ctx, owner, repoName, *run.ID)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 func getRepositoryMetadata() (repositoryOwner string, repositoryName string, err error) {
 	repository := os.Getenv(ci.GithubRepository)
 	if repository == "" {
@@ -115,59 +66,6 @@ func getRepositoryMetadata() (repositoryOwner string, repositoryName string, err
 		return "", "", trace.BadParameter("environment variable GITHUB_REPOSITORY is not in the correct format,\n the valid format is '<repo owner>/<repo name>'")
 	}
 	return metadata[0], metadata[1], nil
-}
-
-func (c *Bot) getWorkflowRuns(ctx context.Context, owner, repoName, branchName string, workflowID int64) ([]*github.WorkflowRun, error) {
-	clt := c.GithubClient.Client
-	list, _, err := clt.Actions.ListWorkflowRunsByID(ctx, owner, repoName, workflowID, &github.ListWorkflowRunsOptions{Branch: branchName})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return list.WorkflowRuns, nil
-}
-
-// getCheckWorkflow gets the workflow named 'Check'.
-func (c *Bot) getCheckWorkflow(ctx context.Context, owner, repoName string) (*github.Workflow, error) {
-	clt := c.GithubClient.Client
-	workflows, _, err := clt.Actions.ListWorkflows(ctx, owner, repoName, &github.ListOptions{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, w := range workflows.Workflows {
-		if *w.Name == ci.CheckWorkflow {
-			return w, nil
-		}
-	}
-	return nil, trace.NotFound("workflow %s not found", ci.CheckWorkflow)
-}
-
-const (
-	// GithubAPIHostname is the Github API hostname.
-	githubAPIHostname = "api.github.com"
-	// Scheme is the protocol scheme used when making
-	// a request to delete a workflow run to the Github API.
-	scheme = "https"
-)
-
-// deleteRun deletes a workflow run.
-// Note: the go-github client library does not support this endpoint.
-func (c *Bot) deleteRun(ctx context.Context, owner, repo string, runID int64) error {
-	clt := c.GithubClient.Client
-	// Construct url
-	url := url.URL{
-		Scheme: scheme,
-		Host:   githubAPIHostname,
-		Path:   path.Join("repos", owner, repo, "actions", "runs", fmt.Sprint(runID)),
-	}
-	req, err := clt.NewRequest(http.MethodDelete, url.String(), nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = clt.Do(ctx, req, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // validatePullRequestFields checks that pull request fields needed for
