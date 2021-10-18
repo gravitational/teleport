@@ -87,17 +87,6 @@ function DesktopList(props: Props) {
         }
         cell={<DesktopDomainCell />}
       />
-      <Column
-        columnKey="os"
-        header={
-          <SortHeaderCell
-            sortDir={sortDir.desc}
-            onSortChange={onSortChange}
-            title="Operating System"
-          />
-        }
-        cell={<OSCell />}
-      />
       <Column header={<Cell>Labels</Cell>} cell={<LabelCell />} />
       <Column
         header={<Cell />}
@@ -172,13 +161,6 @@ function LabelCell(props) {
   const { tags = [] } = data[rowIndex];
   return renderLabelCell(tags);
 }
-
-const OSCell = props => {
-  const { rowIndex, data, columnKey, ...rest } = props;
-  var osText =
-    data[rowIndex][columnKey] === 'windows' ? 'Windows' : 'Unknown OS';
-  return <Cell {...rest}>{osText}</Cell>;
-};
 
 const StyledTable = styled(Table)`
   & > tbody > tr > td {
