@@ -80,7 +80,8 @@
             { "title": "Authentication", "slug": "/setup/reference/authentication/" },
             { "title": "Storage Backends", "slug": "/setup/reference/backends/" },
             { "title": "Networking", "slug": "/setup/reference/networking/" },
-            { "title": "Enterprise License File", "slug": "/setup/reference/license/" }
+            { "title": "Enterprise License File", "slug": "/setup/reference/license/" },
+            { "title": "Fluentd", "slug": "/setup/reference/fluentd/" }
           ]
         }
       ]

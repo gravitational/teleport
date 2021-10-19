@@ -150,7 +150,7 @@ Create a `main.tf` terraform file:
 
 ```
 terraform {
-  required_version = ">=1.0.0"
+  required_version = ">=(=terraform.version=)"
   required_providers {
     teleport = {
       version = ">= (=teleport.version=)"
