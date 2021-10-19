@@ -1399,8 +1399,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -1525,8 +1525,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -1654,8 +1654,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -1803,8 +1803,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -1954,8 +1954,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -2099,8 +2099,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -2236,8 +2236,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -2362,8 +2362,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -2511,8 +2511,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -2656,8 +2656,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3161,8 +3161,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3287,8 +3287,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3427,8 +3427,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3567,8 +3567,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3716,8 +3716,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3870,8 +3870,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -4004,8 +4004,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT > /releases.crt
-  - echo $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT | base64 -d > /releases.crt
+  - echo $RELEASES_KEY | base64 -d > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -4784,6 +4784,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 74753da53255e47130d971925d81dd1ae827da31a1a375d55ed8f53056bca7a5
+hmac: e080accc39ff9fc824ad3a50b2206cd5d1c090e72954677b1dcd5eaff446d524
 
 ...
