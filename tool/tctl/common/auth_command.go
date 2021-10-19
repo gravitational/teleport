@@ -66,6 +66,7 @@ type AuthCommand struct {
 	proxyAddr                  string
 	leafCluster                string
 	kubeCluster                string
+	appName                    string
 	signOverwrite              bool
 
 	rotateGracePeriod time.Duration
@@ -122,6 +123,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("kube-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).Hidden().StringVar(&a.leafCluster)
 	a.authSign.Flag("leaf-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.leafCluster)
 	a.authSign.Flag("kube-cluster-name", `Kubernetes cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.kubeCluster)
+	a.authSign.Flag("app-name", `Application to generate identity file for`).StringVar(&a.appName)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").
@@ -580,6 +582,45 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
+	var routeToApp proto.RouteToApp
+	var certUsage proto.UserCertsRequest_CertUsage
+
+	if a.appName != "" {
+		var server types.AppServer
+		var serverFound bool
+
+		servers, err := clusterAPI.GetApplicationServers(context.TODO(), apidefaults.Namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, s := range servers {
+			if s.GetName() == a.appName {
+				server = s
+				serverFound = true
+				break
+			}
+		}
+		if !serverFound {
+			return trace.NotFound("app '%v' not found", a.appName)
+		}
+
+		appSession, err := clusterAPI.CreateAppSession(context.TODO(), types.CreateAppSessionRequest{
+			Username:    a.genUser,
+			PublicAddr:  server.GetApp().GetPublicAddr(),
+			ClusterName: a.leafCluster,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		appSessionID := appSession.GetName()
+		routeToApp = proto.RouteToApp{
+			Name:        a.appName,
+			PublicAddr:  server.GetApp().GetPublicAddr(),
+			ClusterName: a.leafCluster,
+			SessionID:   appSessionID,
+		}
+		certUsage = proto.UserCertsRequest_App
+	}
 	// Request signed certs from `auth` server.
 	certs, err := clusterAPI.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
 		PublicKey:         key.Pub,
@@ -588,6 +629,8 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		Format:            certificateFormat,
 		RouteToCluster:    a.leafCluster,
 		KubernetesCluster: a.kubeCluster,
+		RouteToApp:        routeToApp,
+		Usage:             certUsage,
 	})
 	if err != nil {
 		return trace.Wrap(err)
