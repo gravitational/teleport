@@ -1408,7 +1408,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -1535,7 +1535,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -1665,7 +1665,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -1815,7 +1815,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -1967,7 +1967,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -2113,7 +2113,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -2251,7 +2251,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -2378,7 +2378,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -2528,7 +2528,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -2674,7 +2674,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -3180,7 +3180,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -3307,7 +3307,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -3448,7 +3448,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -3589,7 +3589,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -3739,7 +3739,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -3894,7 +3894,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -4029,7 +4029,7 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
@@ -4801,6 +4801,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: dc5eb53731908cefdf028cd902736eaccc68b8fc74c744f184f99606af0e79a5
+hmac: 18491183f6fc8bd81b57fbb7f42f3e0709cd8f7ab8f1fb33eaf00ff7728e42d0
 
 ...
