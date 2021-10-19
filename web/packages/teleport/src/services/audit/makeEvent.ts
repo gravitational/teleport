@@ -464,7 +464,7 @@ export const formatters: Formatters = {
     type: 'windows.desktop.session.end',
     desc: 'Windows Desktop Session Ended',
     format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `User [${user}] has disconnected from Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
+      `Session for Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}] has ended for user [${user}]`,
   },
 };
 
