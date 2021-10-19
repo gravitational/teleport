@@ -1398,17 +1398,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -1517,17 +1526,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -1639,17 +1657,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -1678,7 +1705,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:389
+# Generated at dronegen/tag.go:397
 ################################################
 
 kind: pipeline
@@ -1781,17 +1808,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -1825,7 +1861,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:389
+# Generated at dronegen/tag.go:397
 ################################################
 
 kind: pipeline
@@ -1925,17 +1961,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -1969,7 +2014,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:389
+# Generated at dronegen/tag.go:397
 ################################################
 
 kind: pipeline
@@ -2063,17 +2108,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -2102,7 +2156,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:389
+# Generated at dronegen/tag.go:397
 ################################################
 
 kind: pipeline
@@ -2193,17 +2247,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -2312,17 +2375,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -2351,7 +2423,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:389
+# Generated at dronegen/tag.go:397
 ################################################
 
 kind: pipeline
@@ -2454,17 +2526,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -2498,7 +2579,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:389
+# Generated at dronegen/tag.go:397
 ################################################
 
 kind: pipeline
@@ -2592,17 +2673,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -3090,17 +3180,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -3209,17 +3308,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -3248,7 +3356,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:389
+# Generated at dronegen/tag.go:397
 ################################################
 
 kind: pipeline
@@ -3342,17 +3450,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -3381,7 +3498,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:389
+# Generated at dronegen/tag.go:397
 ################################################
 
 kind: pipeline
@@ -3475,17 +3592,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -3514,7 +3640,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:389
+# Generated at dronegen/tag.go:397
 ################################################
 
 kind: pipeline
@@ -3617,17 +3743,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -3661,7 +3796,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:389
+# Generated at dronegen/tag.go:397
 ################################################
 
 kind: pipeline
@@ -3764,17 +3899,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -3891,17 +4035,26 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASE_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - base64 -d < $RELEASES_CERT > /releases.crt
+  - base64 -d < $RELEASES_KEY > /releases.key
+  - ls -alh /releases.*
+  - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
     cd /go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      status_code=$(curl -s -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
       [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-      curl -s -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+      curl -s -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -4665,6 +4818,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0d2a7600f0b24eea43d16488d307ec8e24c711656b69d0627dd1eb97a80d798f
+hmac: 7c1591c8bc07027f582af74a16b1f4b904cfae551d74c82958c06272ffb9da74
 
 ...
