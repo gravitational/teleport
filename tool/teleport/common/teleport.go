@@ -225,7 +225,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("acme-email",
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
 	dump.Flag("test", "Path to a configuration file to test.").ExistingFileVar(&dumpFlags.testConfigFile)
-	dump.Flag("version", "Teleport configuration version.").StringVar(&dumpFlags.Version)
+	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV2).StringVar(&dumpFlags.Version)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)

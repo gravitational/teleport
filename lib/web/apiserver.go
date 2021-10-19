@@ -117,6 +117,10 @@ func SetClock(clock clockwork.Clock) HandlerOption {
 	}
 }
 
+type proxySettingsGetter interface {
+	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
+}
+
 // Config represents web handler configuration parameters
 type Config struct {
 	// PluginRegistry handles plugin registration
@@ -168,8 +172,8 @@ type Config struct {
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
 
-	// GetProxySettings fetches current proxy settings.
-	GetProxySettings func(ctx context.Context) (*webclient.ProxySettings, error)
+	// ProxySettings allows fetching the current proxy settings.
+	ProxySettings proxySettingsGetter
 }
 
 type RewritingHandler struct {
@@ -481,7 +485,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	}
 
-	resp, err := h.cfg.GetProxySettings(cfg.Context)
+	resp, err := h.cfg.ProxySettings.GetProxySettings(cfg.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -728,7 +732,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
-	proxyConfig, err := h.cfg.GetProxySettings(r.Context())
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -742,7 +746,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	proxyConfig, err := h.cfg.GetProxySettings(r.Context())
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -762,7 +766,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	proxyConfig, err := h.cfg.GetProxySettings(r.Context())
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

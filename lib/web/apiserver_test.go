@@ -318,9 +318,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Emitter:                         s.proxyClient,
 		StaticFS:                        fs,
 		cachedSessionLingeringThreshold: &sessionLingeringThreshold,
-		GetProxySettings: func(ctx context.Context) (*webclient.ProxySettings, error) {
-			return &webclient.ProxySettings{}, nil
-		},
+		ProxySettings:                   &mockProxySettings{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	c.Assert(err, IsNil)
 
@@ -3293,9 +3291,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostUUID:         proxyID,
 		Emitter:          client,
 		StaticFS:         fs,
-		GetProxySettings: func(ctx context.Context) (*webclient.ProxySettings, error) {
-			return &webclient.ProxySettings{}, nil
-		},
+		ProxySettings:    &mockProxySettings{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -3547,4 +3543,11 @@ func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
 
 	err = waitForOutput(stream, "foo")
 	require.NoError(t, err)
+}
+
+type mockProxySettings struct {
+}
+
+func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
+	return &webclient.ProxySettings{}, nil
 }

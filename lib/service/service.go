@@ -48,7 +48,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -2780,6 +2779,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}
 
+		proxySettings := &proxySettings{
+			cfg:          cfg,
+			proxySSHAddr: proxySSHAddr,
+			accessPoint:  accessPoint,
+		}
+
 		webHandler, err = web.NewHandler(
 			web.Config{
 				Proxy:            tsrv,
@@ -2798,7 +2803,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Context:          process.ExitContext(),
 				StaticFS:         fs,
 				ClusterFeatures:  process.getClusterFeatures(),
-				GetProxySettings: getProxySettingsFunc(cfg, proxySSHAddr, accessPoint),
+				ProxySettings:    proxySettings,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3273,101 +3278,6 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 	listeners.db.tls = webTLSDB
 
 	return router
-}
-
-func buildProxySettingsV1(cfg *Config, proxySSHAddr utils.NetAddr, proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
-	proxySettings := webclient.ProxySettings{
-		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
-		Kube: webclient.KubeProxySettings{
-			Enabled: cfg.Proxy.Kube.Enabled,
-		},
-		SSH: webclient.SSHProxySettings{
-			ListenAddr:       proxySSHAddr.String(),
-			TunnelListenAddr: cfg.Proxy.ReverseTunnelListenAddr.String(),
-		},
-	}
-	setProxyPublicAddressesSettings(cfg, &proxySettings)
-
-	if !cfg.Proxy.MySQLAddr.IsEmpty() {
-		proxySettings.DB.MySQLListenAddr = cfg.Proxy.MySQLAddr.String()
-	}
-	if cfg.Proxy.Kube.Enabled {
-		proxySettings.Kube.ListenAddr = getProxyKubeAddress(cfg)
-	}
-	if !cfg.Proxy.WebAddr.IsEmpty() || !cfg.Proxy.DisableTLS {
-		if proxySettings.SSH.ListenAddr == "" {
-			proxySettings.SSH.TunnelListenAddr = cfg.Proxy.WebAddr.String()
-		}
-	}
-	return &proxySettings
-}
-
-func setProxyPublicAddressesSettings(cfg *Config, settings *webclient.ProxySettings) {
-	if len(cfg.Proxy.PublicAddrs) > 0 {
-		settings.SSH.PublicAddr = cfg.Proxy.PublicAddrs[0].String()
-	}
-	if len(cfg.Proxy.SSHPublicAddrs) > 0 {
-		settings.SSH.SSHPublicAddr = cfg.Proxy.SSHPublicAddrs[0].String()
-	}
-	if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
-		settings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
-	}
-	if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
-		settings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
-	}
-	if len(cfg.Proxy.PostgresPublicAddrs) > 0 {
-		settings.DB.PostgresPublicAddr = cfg.Proxy.PostgresPublicAddrs[0].String()
-	}
-	if len(cfg.Proxy.MySQLPublicAddrs) > 0 {
-		settings.DB.MySQLPublicAddr = cfg.Proxy.MySQLPublicAddrs[0].String()
-	}
-}
-
-func buildProxySettingsV2(cfg *Config, proxySSHAddr utils.NetAddr, proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
-	multiplexAddr := cfg.Proxy.WebAddr.String()
-	proxySettings := webclient.ProxySettings{
-		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
-		Kube: webclient.KubeProxySettings{
-			Enabled: cfg.Proxy.Kube.Enabled,
-		},
-		SSH: webclient.SSHProxySettings{
-			ListenAddr:       multiplexAddr,
-			TunnelListenAddr: multiplexAddr,
-		},
-	}
-
-	setProxyPublicAddressesSettings(cfg, &proxySettings)
-
-	if cfg.Proxy.Kube.Enabled {
-		proxySettings.Kube.ListenAddr = multiplexAddr
-	}
-	if !cfg.Proxy.MySQLAddr.IsEmpty() {
-		proxySettings.DB.MySQLListenAddr = multiplexAddr
-	}
-	return &proxySettings
-}
-
-func getProxySettingsFunc(cfg *Config, proxySSHAddr utils.NetAddr, accessPoint auth.AccessPoint) func(ctx context.Context) (*webclient.ProxySettings, error) {
-	return func(ctx context.Context) (*webclient.ProxySettings, error) {
-		resp, err := accessPoint.GetClusterNetworkingConfig(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		switch cfg.Version {
-		case defaults.TeleportConfigVersionV2:
-			return buildProxySettingsV2(cfg, proxySSHAddr, resp.GetProxyListenerMode()), nil
-		default:
-			return buildProxySettingsV1(cfg, proxySSHAddr, resp.GetProxyListenerMode()), nil
-		}
-	}
-}
-
-func getProxyKubeAddress(cfg *Config) string {
-	if !cfg.Proxy.DisableALPNSNIListener && !cfg.Proxy.DisableTLS {
-		return cfg.Proxy.WebAddr.String()
-	}
-	return cfg.Proxy.Kube.ListenAddr.String()
 }
 
 // registerAppDepend will register dependencies for application service.
