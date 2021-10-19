@@ -89,8 +89,7 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 	// not do this automatically, so we must dismiss the reviews
 	// manually.
 	if err = c.isGithubCommit(ctx); err != nil {
-		msg := dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author))
-		err = c.invalidateApprovals(ctx, msg, obsoleteReviews)
+		err = c.invalidateApprovals(ctx, obsoleteReviews)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -366,7 +365,7 @@ func (c *Bot) getCommitVerificationParts(ctx context.Context) (signature string,
 }
 
 // createAndWriteTempFile creates a temp file and writes to it.
-func createAndWriteTempFile(prefix string, data []byte) (fileName string, err error) {
+func createAndWriteTempFile(prefix string, data []byte) (string, error) {
 	file, err := os.CreateTemp(os.TempDir(), prefix)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -381,8 +380,9 @@ func createAndWriteTempFile(prefix string, data []byte) (fileName string, err er
 }
 
 // invalidateApprovals dismisses all approved reviews on a pull request.
-func (c *Bot) invalidateApprovals(ctx context.Context, msg string, reviews map[string]review) error {
+func (c *Bot) invalidateApprovals(ctx context.Context, reviews map[string]review) error {
 	pr := c.Environment.Metadata
+	msg := dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author))
 	for _, v := range reviews {
 		if pr.HeadSHA != v.commitID {
 			_, _, err := c.Environment.Client.PullRequests.DismissReview(ctx,
