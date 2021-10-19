@@ -146,8 +146,8 @@ exports[`loaded 1`] = `
   border-radius: 8px;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .c13 > thead > tr > th,
@@ -262,6 +262,18 @@ exports[`loaded 1`] = `
   background: #222C59;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
+}
+
+.c19 {
+  padding: 8px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c18 {
@@ -685,7 +697,7 @@ exports[`loaded 1`] = `
            
           of 
           <strong>
-            50
+            53
           </strong>
         </div>
       </div>
@@ -703,7 +715,6 @@ exports[`loaded 1`] = `
           />
         </button>
         <button
-          disabled=""
           title="Next Page"
         >
           <span
@@ -744,6 +755,111 @@ exports[`loaded 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-desktop c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Windows Desktop Session Denied
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [joe] was denied access to Windows desktop [Administrator@100.104.52.89:3389] on [desktopaccess.com]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-10-18 23:39:13
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-desktop c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Windows Desktop Session Ended
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Session for Windows desktop [Administrator@100.104.52.89:3389] on [desktopaccess.com] has ended for user [joe]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-10-18 23:19:13
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c15"
+            >
+              <span
+                class="c11 c16 icon icon-desktop c11 c16"
+                color="light"
+                font-size="3"
+              />
+              Windows Desktop Session Started
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [joe] has connected to Windows desktop [Administrator@100.104.52.89:3389] on [desktopaccess.com]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2021-10-18 23:18:29
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c17"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
         <tr>
           <td>
             <div
@@ -2396,113 +2512,57 @@ exports[`loaded 1`] = `
             </button>
           </td>
         </tr>
-        <tr>
-          <td>
-            <div
-              class="c15"
-            >
-              <span
-                class="c11 c16 icon icon-info_outline c11 c16"
-                color="light"
-                font-size="3"
-              />
-              Local Login Failed
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            Local user [fsdfsdf] login failed [user(name="fsdfsdf") not found]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 18:06:32
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c17"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c15"
-            >
-              <span
-                class="c11 c16 icon icon-info_outline c11 c16"
-                color="light"
-                font-size="3"
-              />
-              Auth Attempt Failed
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            User [admin@example.com] failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 02:09:06
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c17"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div
-              class="c15"
-            >
-              <span
-                class="c11 c16 icon icon-info_outline c11 c16"
-                color="light"
-                font-size="3"
-              />
-              Local Login
-            </div>
-          </td>
-          <td
-            style="word-break: break-word;"
-          >
-            Local user [admin@example.com] successfully logged in
-          </td>
-          <td
-            style="min-width: 120px;"
-          >
-            2019-04-22 00:49:03
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c17"
-              kind="border"
-              width="87px"
-            >
-              Details
-            </button>
-          </td>
-        </tr>
       </tbody>
     </table>
+    <nav
+      class="c19"
+    >
+      <div
+        class="c8"
+      >
+        <div
+          class="c9"
+          color="primary.contrastText"
+        >
+          SHOWING 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            50
+          </strong>
+           
+          of 
+          <strong>
+            53
+          </strong>
+        </div>
+      </div>
+      <div
+        class="c10"
+      >
+        <button
+          disabled=""
+          title="Previous Page"
+        >
+          <span
+            class="c11 c12 icon icon-arrow-left-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+        <button
+          title="Next Page"
+        >
+          <span
+            class="c11 c12 icon icon-arrow-right-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+      </div>
+    </nav>
   </div>
 </div>
 `;
