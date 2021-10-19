@@ -37,6 +37,13 @@ export default function TdpClientCanvas(props: Props) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    // Make the canvas a focusable keyboard listener
+    // https://stackoverflow.com/a/51267699/6277051
+    // https://stackoverflow.com/a/16492878/6277051
+    canvas.tabIndex = -1;
+    canvas.style.outline = 'none';
+    canvas.focus();
+
     const ctx = canvas.getContext('2d');
 
     // Buffered rendering logic
@@ -51,19 +58,6 @@ export default function TdpClientCanvas(props: Props) {
       requestAnimationFrame(renderBuffer);
     };
     requestAnimationFrame(renderBuffer);
-
-    // React's vdom apparently doesn't support
-    // standard html document.activeElement semantics
-    // so tracking here manually instead.
-    var canvasInFocus = false;
-    const onmouseenter = () => {
-      canvasInFocus = true;
-    };
-    canvas.onmouseenter = onmouseenter;
-    const onmouseleave = () => {
-      canvasInFocus = false;
-    };
-    canvas.onmouseleave = onmouseleave;
 
     // Initialize canvas, document, and window event listeners.
 
@@ -87,13 +81,13 @@ export default function TdpClientCanvas(props: Props) {
 
     // Key controls.
     const onkeydown = (e: KeyboardEvent) => {
-      if (canvasInFocus) onKeyDown(tdpClient, e);
+      onKeyDown(tdpClient, e);
     };
-    document.onkeydown = onkeydown;
+    canvas.onkeydown = onkeydown;
     const onkeyup = (e: KeyboardEvent) => {
-      if (canvasInFocus) onKeyUp(tdpClient, e);
+      onKeyUp(tdpClient, e);
     };
-    document.onkeyup = onkeyup;
+    canvas.onkeyup = onkeyup;
 
     // Initialize tdpClient event listeners.
     tdpClient.on('init', () => {
@@ -124,10 +118,8 @@ export default function TdpClientCanvas(props: Props) {
       canvas.removeEventListener('mousemove', onmousemove);
       canvas.removeEventListener('mousedown', onmousedown);
       canvas.removeEventListener('mouseup', onmouseup);
-      canvas.removeEventListener('mouseenter', onmouseenter);
-      canvas.removeEventListener('mouseleave', onmouseleave);
-      document.removeEventListener('keydown', onkeydown);
-      document.removeEventListener('keyup', onkeyup);
+      canvas.removeEventListener('keydown', onkeydown);
+      canvas.removeEventListener('keyup', onkeyup);
     };
   }, [tdpClient]);
 
