@@ -401,6 +401,9 @@ type ProfileStatus struct {
 	// ActiveRequests tracks the privilege escalation requests applied
 	// during certificate construction.
 	ActiveRequests services.RequestIDs
+
+	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
+	AWSRolesARNs []string
 }
 
 // IsExpired returns true if profile is not expired yet
@@ -645,6 +648,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		KubeGroups:     tlsID.KubernetesGroups,
 		Databases:      databases,
 		Apps:           apps,
+		AWSRolesARNs:   tlsID.AWSRoleARNs,
 	}, nil
 }
 
@@ -987,6 +991,19 @@ func (c *Config) MySQLProxyHostPort() (string, int) {
 	}
 	webProxyHost, _ := c.WebProxyHostPort()
 	return webProxyHost, defaults.MySQLListenPort
+}
+
+// DatabaseProxyHostPort returns proxy connection endpoint for the database.
+func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
+	switch db.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
+		return c.PostgresProxyHostPort()
+	case defaults.ProtocolMySQL:
+		return c.MySQLProxyHostPort()
+	case defaults.ProtocolMongoDB:
+		return c.WebProxyHostPort()
+	}
+	return c.WebProxyHostPort()
 }
 
 // ProxyHost returns the hostname of the proxy server (without any port numbers)

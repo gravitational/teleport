@@ -49,8 +49,8 @@ func TestWatcher(t *testing.T) {
 	// watches for databases with label group=a.
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: []types.Database{db0},
-		Selectors: []services.Selector{
-			{MatchLabels: types.Labels{
+		ResourceMatchers: []services.ResourceMatcher{
+			{Labels: types.Labels{
 				"group": []string{"a"},
 			}},
 		},
