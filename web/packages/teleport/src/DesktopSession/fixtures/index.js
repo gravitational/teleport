@@ -45,9 +45,9 @@
 
 import uint82260x1130 from './2260x1130.json';
 
-function convert2ArrayBuf(data: any): ArrayBuffer[] {
-  const arrayBuf: ArrayBuffer[] = [];
-  const array = data as Array<{ index: string; value: number }>;
+function convert2ArrayBuf(data) {
+  const arrayBuf = [];
+  const array = data;
   array.forEach(obj => {
     let uint8array = new Uint8Array(Object.keys(obj).map(key => obj[key]));
     arrayBuf.push(uint8array.buffer);
