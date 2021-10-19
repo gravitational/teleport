@@ -15,7 +15,7 @@ Common issues and resolution steps.
 
 ## Auto-login does not work
 
-### Issue 1
+### Smart Card Service Not Running
 
 You connect to a Windows host from the Teleport UI, land on the Windows login
 screen and nothing happens.
@@ -24,7 +24,7 @@ You can click on the username, click `Sign-in options` and click on the smart
 card icon. The error message is: **"No Valid Certificates Were Found on This
 Smart Card"**.
 
-### Solution 1
+**Solution:** Enable the Smart Card Service
 
 Usually, this means that the Smart Card service is not running on the target
 host.
@@ -40,13 +40,13 @@ If the "Smart Card" service is not running, open PowerShell and run
 `gpupdate.exe /force`. This forces a Group Policy sync and should pick up the
 service changes.
 
-### Issue 2
+### Smart Card Certificate Not Trusted
 
 You connect to a Windows host from the Teleport UI, land on the Windows login
 screen and see an error message: **"The smartcard certificate used for
 authentication was not trusted"** (or similar).
 
-### Solution 2
+**Solution:** Import the Teleport CA
 
 This means that the host does not trust the Teleport CA.
 
@@ -61,13 +61,13 @@ the new CA.
 
 ## New session "hangs"
 
-### Issue
+### Host Unreachable
 
 You click `CONNECT` on a Windows host from the Teleport UI, a new tab opens but
 nothing is displayed other than the top bar. After a while, an error is
 displayed about a failed connection.
 
-### Solution
+**Solution:** Open Firewall for RDP Traffic
 
 This happens when the `windows_desktop_service` can't reach the target Windows
 host.
@@ -82,9 +82,25 @@ from the Linux server that runs `windows_desktop_service`. If the host is
 online but not reachable, there is some other networking barrier in the way,
 specific to your infrastructure.
 
+### Hostname Does Not Resolve
+
+Connections to Windows Desktops hang during connection establishment, or the
+Teleport debug logs show errors of the form
+`couldn't resolve winserver.example.com`.
+
+**Solution:** Ensure Firewall Permits DNS Traffic
+
+For desktops that are automatically discovered via LDAP, Teleport makes DNS
+queries against the LDAP server in order to resolve the hostname to an IP
+address.
+
+Ensure that your firewalls allow inbound DNS traffic on port 53 from the
+instance(s) running Teleport's Windows Desktop Service to the LDAP server
+(Active Directory Domain Controller).
+
 ## Teleport fails to start
 
-### Issue 1
+### Invalid LDAP Credentials
 
 Teleport fails to start with an error similar to:
 
@@ -92,7 +108,7 @@ Teleport fails to start with an error similar to:
 LDAP Result Code 49 "Invalid Credentials": 80090308: LdapErr: DSID-0C0903C5, comment: AcceptSecurityContext error, data 52e, v2580\x00
 ```
 
-### Solution 1
+**Solution:** Fix Credentials
 
 This means that your LDAP username and password were not correct. Double-check
 them in the `ldap` section of `windows_desktop_service`.
@@ -101,7 +117,7 @@ Note that the LDAP username must be formatted as `DOMAIN\User`, where `DOMAIN`
 is the NetBIOS name for the domain. For example, user `Administrator` in domain
 `example.com` should be formatted as `EXAMPLE\Administrator`.
 
-### Issue 2
+### Incorrect Domain
 
 Teleport fails to start with an error similar to:
 
@@ -111,12 +127,12 @@ LDAP Result Code 10 "Referral": 0000202B: RefErr: DSID-0310082F, data 0, 1 acces
 "\x00"
 ```
 
-### Solution 2
+**Solution:** Correct Domain
 
 This means that your domain name is likely wrong. Double-check the `domain`
 field in the `ldap` section of `windows_desktop_service`.
 
-### Issue 2
+### Domain Controller Unreachable
 
 Teleport fails to start with an error similar to:
 
@@ -124,14 +140,14 @@ Teleport fails to start with an error similar to:
 LDAP Result Code 200 "Network Error": dial tcp ad.example.com:389: i/o timeout
 ```
 
-### Solution 2
+**Solution:** Check LDAP Address
 
 This means that your Domain Controller is down or unreachable. Double-check the
 `addr` field in the `ldap` section of `windows_desktop_service`. If it's
 correct, check that the Domain Controller is up and reachable from the server
 that runs `windows_desktop_service`.
 
-### Issue 3
+### Cannot Initialize LDAP over TLS
 
 Teleport fails to start with an error similar to:
 
@@ -139,7 +155,7 @@ Teleport fails to start with an error similar to:
 LDAP Result Code 52 "Unavailable": 00000000: LdapErr: DSID-0C090F78, comment: Error initializing SSL/TLS, data 0, v2580\x00
 ```
 
-### Solution 3
+**Solution:** Install Active Directory Certificate Services
 
 This means that you do not have Active Directory Certificate Services (AD CS)
 installed in your domain. AD CS provides the certificate for TLS connections to
