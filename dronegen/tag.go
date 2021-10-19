@@ -312,8 +312,8 @@ func tagCreateReleaseAssetCommands(b buildType) []string {
 	commands := []string{
 		`VERSION=$(cat /go/.version.txt)`,
 		fmt.Sprintf(`RELEASES_HOST=%v`, releasesHost),
-		`base64 -d < $RELEASES_CERT > /releases.crt`,
-		`base64 -d < $RELEASES_KEY > /releases.key`,
+		`echo $RELEASES_CERT > /releases.crt`,
+		`echo $RELEASES_KEY > /releases.key`,
 		`ls -alh /releases.*`, // debug
 		`CREDENTIALS="--cert /releases.crt --key /releases.key"`,
 		`apk add --no-cache curl`,

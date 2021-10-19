@@ -1399,8 +1399,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -1527,8 +1527,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -1658,8 +1658,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -1809,8 +1809,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -1962,8 +1962,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -2109,8 +2109,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -2248,8 +2248,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -2376,8 +2376,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -2527,8 +2527,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -2674,8 +2674,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -3181,8 +3181,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -3309,8 +3309,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -3451,8 +3451,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -3593,8 +3593,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -3744,8 +3744,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -3900,8 +3900,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -4036,8 +4036,8 @@ steps:
   commands:
   - VERSION=$(cat /go/.version.txt)
   - RELEASES_HOST=https://rlz.cloud.gravitational.io
-  - base64 -d < $RELEASES_CERT > /releases.crt
-  - base64 -d < $RELEASES_KEY > /releases.key
+  - echo $RELEASES_CERT > /releases.crt
+  - echo $RELEASES_KEY > /releases.key
   - ls -alh /releases.*
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
@@ -4818,6 +4818,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 7c1591c8bc07027f582af74a16b1f4b904cfae551d74c82958c06272ffb9da74
+hmac: 5536d184a1c85e213a4a47d42a1aec01533a89d637ffdca189ee9d563d2d876e
 
 ...
