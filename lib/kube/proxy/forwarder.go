@@ -1109,9 +1109,12 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	req.URL.Scheme = "https"
 	req.RequestURI = req.URL.Path + "?" + req.URL.RawQuery
 
-	// Since the forwarder uses a custom dialer and SNI is used for TLS handshake,
-	// the host below just needs to be set to pass request validation.
+	// We only have a direct host to provide when using local creds.
+	// Otherwise, use teleport.cluster.local to pass TLS handshake.
 	req.URL.Host = constants.APIDomain
+	if sess.creds != nil {
+		req.URL.Host = sess.creds.targetAddr
+	}
 
 	// add origin headers so the service consuming the request on the other site
 	// is aware of where it came from
@@ -1497,6 +1500,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 	if !ok {
 		return nil, trace.NotFound("kubernetes cluster %q not found", ctx.kubeCluster)
 	}
+	f.log.Debugf("local Servername: %v", creds.tlsConfig.ServerName)
 
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", ctx)
 	sess := &clusterSession{
@@ -1734,7 +1738,6 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		RootCAs:      pool,
 		Certificates: []tls.Certificate{cert},
-		ServerName:   constants.APIDomain,
 	}
 	tlsConfig.BuildNameToCertificate()
 

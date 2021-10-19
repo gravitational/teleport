@@ -170,20 +170,10 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	tlsConfig, err := rest.TLSConfigFor(clientCfg)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate TLS config from kubeconfig: %v", err)
 	}
-
-	if tlsConfig != nil && tlsConfig.ServerName != "" {
-		// Parse host from address and set as SNI for TLS handshake
-		tlsConfig.ServerName, _, err = net.SplitHostPort(targetAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	transportConfig, err := clientCfg.TransportConfig()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)
