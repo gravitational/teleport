@@ -68,6 +68,34 @@ ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
+# Install Rust 1.55.0
+#
+# Rust installation based on official rust image Dockerfile here:
+#   https://github.com/rust-lang/docker-rust/blob/master/1.55.0/bullseye/Dockerfile
+# 
+# The original Rust docker image uses a script to install `rustup`, and from
+# there rustc and associated tools. 
+#
+# Rather than execute an arbitrary `rustup` installation script, we are cherry-
+# picking the appropriate files off the official docker image and then installing
+# the extra tooling we need.
+# 
+
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=1.55.0
+
+COPY --from=rust:1.55.0 /usr/local/rustup /usr/local/rustup
+COPY --from=rust:1.55.0 /usr/local/cargo /usr/local/cargo
+RUN set -eux \
+    rustup component add rustfmt clippy; \
+    chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
+    rustup --version; \
+    cargo --version; \
+    rustc --version;
+
+
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
