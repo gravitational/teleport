@@ -225,7 +225,7 @@ func TestLoginIdentityOut(t *testing.T) {
 
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
-	alice.SetRoles([]string{"admin"})
+	alice.SetRoles([]string{"access"})
 
 	authProcess, proxyProcess := makeTestServers(t, connector, alice)
 
@@ -264,7 +264,7 @@ func TestRelogin(t *testing.T) {
 
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
-	alice.SetRoles([]string{"admin"})
+	alice.SetRoles([]string{"access"})
 
 	authProcess, proxyProcess := makeTestServers(t, connector, alice)
 

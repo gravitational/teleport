@@ -103,20 +103,14 @@ func CredentialAssertionFromProto(assertion *wantypes.CredentialAssertion) *Cred
 		return nil
 	}
 	return &CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
-			Challenge:          assertion.PublicKey.Challenge,
-			Timeout:            int(assertion.PublicKey.TimeoutMs),
-			RelyingPartyID:     assertion.PublicKey.RpId,
-			AllowedCredentials: credentialDescriptorsFromProto(assertion.PublicKey.AllowCredentials),
-			Extensions:         inputExtensionsFromProto(assertion.PublicKey.Extensions),
-		},
+		Response: publicKeyCredentialRequestOptionsFromProto(assertion.PublicKey),
 	}
 }
 
 // CredentialAssertionResponseFromProto converts a CredentialAssertionResponse
 // proto to its lib counterpart.
 func CredentialAssertionResponseFromProto(car *wantypes.CredentialAssertionResponse) *CredentialAssertionResponse {
-	if car == nil || car.Response == nil {
+	if car == nil {
 		return nil
 	}
 	return &CredentialAssertionResponse{
@@ -128,14 +122,7 @@ func CredentialAssertionResponseFromProto(car *wantypes.CredentialAssertionRespo
 			RawID:      car.RawId,
 			Extensions: outputExtensionsFromProto(car.Extensions),
 		},
-		AssertionResponse: AuthenticatorAssertionResponse{
-			AuthenticatorResponse: AuthenticatorResponse{
-				ClientDataJSON: car.Response.ClientDataJson,
-			},
-			AuthenticatorData: car.Response.AuthenticatorData,
-			Signature:         car.Response.Signature,
-			UserHandle:        car.Response.UserHandle,
-		},
+		AssertionResponse: authenticatorAssertionResponseFromProto(car.Response),
 	}
 }
 
@@ -145,20 +132,8 @@ func CredentialCreationFromProto(cc *wantypes.CredentialCreation) *CredentialCre
 	if cc == nil {
 		return nil
 	}
-	if cc.PublicKey == nil {
-		return &CredentialCreation{}
-	}
 	return &CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
-			Challenge:             cc.PublicKey.Challenge,
-			RelyingParty:          rpEntityFromProto(cc.PublicKey.Rp),
-			User:                  userEntityFromProto(cc.PublicKey.User),
-			Parameters:            credentialParametersFromProto(cc.PublicKey.CredentialParameters),
-			Timeout:               int(cc.PublicKey.TimeoutMs),
-			CredentialExcludeList: credentialDescriptorsFromProto(cc.PublicKey.ExcludeCredentials),
-			Extensions:            inputExtensionsFromProto(cc.PublicKey.Extensions),
-			Attestation:           protocol.ConveyancePreference(cc.PublicKey.Attestation),
-		},
+		Response: publicKeyCredentialCreationOptionsFromProto(cc.PublicKey),
 	}
 }
 
@@ -177,12 +152,7 @@ func CredentialCreationResponseFromProto(ccr *wantypes.CredentialCreationRespons
 			RawID:      ccr.RawId,
 			Extensions: outputExtensionsFromProto(ccr.Extensions),
 		},
-		AttestationResponse: AuthenticatorAttestationResponse{
-			AuthenticatorResponse: AuthenticatorResponse{
-				ClientDataJSON: ccr.Response.ClientDataJson,
-			},
-			AttestationObject: ccr.Response.AttestationObject,
-		},
+		AttestationResponse: authenticatorAttestationResponseFromProto(ccr.Response),
 	}
 }
 
@@ -249,24 +219,56 @@ func userEntityToProto(user protocol.UserEntity) *wantypes.UserEntity {
 	}
 }
 
+func authenticatorAssertionResponseFromProto(resp *wantypes.AuthenticatorAssertionResponse) AuthenticatorAssertionResponse {
+	if resp == nil {
+		return AuthenticatorAssertionResponse{}
+	}
+	return AuthenticatorAssertionResponse{
+		AuthenticatorResponse: AuthenticatorResponse{
+			ClientDataJSON: resp.ClientDataJson,
+		},
+		AuthenticatorData: resp.AuthenticatorData,
+		Signature:         resp.Signature,
+		UserHandle:        resp.UserHandle,
+	}
+}
+
+func authenticatorAttestationResponseFromProto(resp *wantypes.AuthenticatorAttestationResponse) AuthenticatorAttestationResponse {
+	if resp == nil {
+		return AuthenticatorAttestationResponse{}
+	}
+	return AuthenticatorAttestationResponse{
+		AuthenticatorResponse: AuthenticatorResponse{
+			ClientDataJSON: resp.ClientDataJson,
+		},
+		AttestationObject: resp.AttestationObject,
+	}
+}
+
 func credentialDescriptorsFromProto(creds []*wantypes.CredentialDescriptor) []protocol.CredentialDescriptor {
-	res := make([]protocol.CredentialDescriptor, len(creds))
-	for i, cred := range creds {
-		res[i] = protocol.CredentialDescriptor{
+	var res []protocol.CredentialDescriptor
+	for _, cred := range creds {
+		if cred == nil {
+			continue
+		}
+		res = append(res, protocol.CredentialDescriptor{
 			Type:         protocol.CredentialType(cred.Type),
 			CredentialID: cred.Id,
-		}
+		})
 	}
 	return res
 }
 
 func credentialParametersFromProto(params []*wantypes.CredentialParameter) []protocol.CredentialParameter {
-	res := make([]protocol.CredentialParameter, len(params))
-	for i, p := range params {
-		res[i] = protocol.CredentialParameter{
+	var res []protocol.CredentialParameter
+	for _, p := range params {
+		if p == nil {
+			continue
+		}
+		res = append(res, protocol.CredentialParameter{
 			Type:      protocol.CredentialType(p.Type),
 			Algorithm: webauthncose.COSEAlgorithmIdentifier(p.Alg),
-		}
+		})
 	}
 	return res
 }
@@ -288,6 +290,35 @@ func outputExtensionsFromProto(exts *wantypes.AuthenticationExtensionsClientOutp
 	}
 	return &AuthenticationExtensionsClientOutputs{
 		AppID: exts.AppId,
+	}
+}
+
+func publicKeyCredentialCreationOptionsFromProto(pubKey *wantypes.PublicKeyCredentialCreationOptions) protocol.PublicKeyCredentialCreationOptions {
+	if pubKey == nil {
+		return protocol.PublicKeyCredentialCreationOptions{}
+	}
+	return protocol.PublicKeyCredentialCreationOptions{
+		Challenge:             pubKey.Challenge,
+		RelyingParty:          rpEntityFromProto(pubKey.Rp),
+		User:                  userEntityFromProto(pubKey.User),
+		Parameters:            credentialParametersFromProto(pubKey.CredentialParameters),
+		Timeout:               int(pubKey.TimeoutMs),
+		CredentialExcludeList: credentialDescriptorsFromProto(pubKey.ExcludeCredentials),
+		Extensions:            inputExtensionsFromProto(pubKey.Extensions),
+		Attestation:           protocol.ConveyancePreference(pubKey.Attestation),
+	}
+}
+
+func publicKeyCredentialRequestOptionsFromProto(pubKey *wantypes.PublicKeyCredentialRequestOptions) protocol.PublicKeyCredentialRequestOptions {
+	if pubKey == nil {
+		return protocol.PublicKeyCredentialRequestOptions{}
+	}
+	return protocol.PublicKeyCredentialRequestOptions{
+		Challenge:          pubKey.Challenge,
+		Timeout:            int(pubKey.TimeoutMs),
+		RelyingPartyID:     pubKey.RpId,
+		AllowedCredentials: credentialDescriptorsFromProto(pubKey.AllowCredentials),
+		Extensions:         inputExtensionsFromProto(pubKey.Extensions),
 	}
 }
 

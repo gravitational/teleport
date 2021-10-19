@@ -345,7 +345,7 @@ const (
 	// AppSessionRequestCode is the application request/response code.
 	AppSessionRequestCode = "T2009I"
 
-	// DatabaseSessioStartCode is the database session start event code.
+	// DatabaseSessionStartCode is the database session start event code.
 	DatabaseSessionStartCode = "TDB00I"
 	// DatabaseSessionStartFailureCode is the database session start failure event code.
 	DatabaseSessionStartFailureCode = "TDB00W"
@@ -362,6 +362,14 @@ const (
 	DatabaseUpdateCode = "TDB04I"
 	// DatabaseDeleteCode is the db.delete event code.
 	DatabaseDeleteCode = "TDB05I"
+
+	// DesktopSessionStartCode is the desktop session start event code.
+	DesktopSessionStartCode = "TDP00I"
+	// DesktopSessionStartFailureCode is event code for desktop sessions
+	// that failed to start.
+	DesktopSessionStartFailureCode = "TDP00W"
+	// DesktopSessionEndCode is the desktop session end event code.
+	DesktopSessionEndCode = "TDP01I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"

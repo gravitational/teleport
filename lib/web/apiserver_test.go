@@ -1013,6 +1013,134 @@ func (s *WebSuite) TestTerminal(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func TestTerminalRequireSessionMfa(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "llama")
+
+	clt, err := env.server.NewClient(auth.TestUser("llama"))
+	require.NoError(t, err)
+
+	cases := []struct {
+		name                      string
+		getAuthPreference         func() types.AuthPreference
+		registerDevice            func() *auth.TestDevice
+		getChallengeResponseBytes func(chals *auth.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte
+	}{
+		{
+			name: "with webauthn",
+			getAuthPreference: func() types.AuthPreference {
+				ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorWebauthn,
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
+					},
+					RequireSessionMFA: true,
+				})
+				require.NoError(t, err)
+
+				return ap
+			},
+			registerDevice: func() *auth.TestDevice {
+				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+				require.NoError(t, err)
+
+				return webauthnDev
+			},
+			getChallengeResponseBytes: func(chals *auth.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
+				res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+					WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
+				})
+				require.Nil(t, err)
+
+				webauthnResBytes, err := json.Marshal(wanlib.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+				require.Nil(t, err)
+
+				return webauthnResBytes
+			},
+		},
+		{
+			name: "with u2f",
+			getAuthPreference: func() types.AuthPreference {
+				ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorU2F,
+					U2F: &types.U2F{
+						AppID:  "https://localhost",
+						Facets: []string{"https://localhost"},
+					},
+					RequireSessionMFA: true,
+				})
+				require.NoError(t, err)
+
+				return ap
+			},
+			registerDevice: func() *auth.TestDevice {
+				u2fDev, err := auth.RegisterTestDevice(ctx, clt, "u2f", apiProto.DeviceType_DEVICE_TYPE_U2F, nil /* authenticator */)
+				require.NoError(t, err)
+
+				return u2fDev
+			},
+			getChallengeResponseBytes: func(chals *auth.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
+				res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+					U2F: []*apiProto.U2FChallenge{{
+						KeyHandle: chals.U2FChallenges[0].KeyHandle,
+						Challenge: chals.U2FChallenges[0].Challenge,
+						AppID:     chals.U2FChallenges[0].AppID,
+						Version:   chals.U2FChallenges[0].Version,
+					}},
+				})
+				require.NoError(t, err)
+
+				u2fResBytes, err := json.Marshal(&u2f.AuthenticateChallengeResponse{
+					KeyHandle:     res.GetU2F().KeyHandle,
+					SignatureData: res.GetU2F().Signature,
+					ClientData:    res.GetU2F().ClientData,
+				})
+				require.NoError(t, err)
+
+				return u2fResBytes
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err = env.server.Auth().SetAuthPreference(ctx, tc.getAuthPreference())
+			require.NoError(t, err)
+
+			dev := tc.registerDevice()
+
+			// Open a terminal to a new session.
+			ws := proxy.makeTerminal(t, pack, session.NewID())
+
+			// Wait for websocket authn challenge event.
+			var raw []byte
+			require.Nil(t, websocket.Message.Receive(ws, &raw))
+			var env Envelope
+			require.Nil(t, proto.Unmarshal(raw, &env))
+
+			chals := &auth.MFAAuthenticateChallenge{}
+			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
+
+			// Send response over ws.
+			termHandler := newTerminalHandler()
+			_, err := termHandler.write(tc.getChallengeResponseBytes(chals, dev), ws)
+			require.Nil(t, err)
+
+			// Test we can write.
+			stream := termHandler.asTerminalStream(ws)
+			_, err = io.WriteString(stream, "echo alpacas\r\n")
+			require.Nil(t, err)
+			require.Nil(t, waitForOutput(stream, "alpacas"))
+
+			require.Nil(t, ws.Close())
+		})
+	}
+}
+
 func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	// Change cluster networking config for keep alive interval to be run faster.
 	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
@@ -2225,9 +2353,9 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 		reqBody client.MFAChallengeRequest
 	}{
 		{
-			name: "/webapi/u2f/password/changerequest",
+			name: "/webapi/mfa/authenticatechallenge/password",
 			clt:  authnClt,
-			ep:   []string{"webapi", "u2f", "password", "changerequest"},
+			ep:   []string{"webapi", "mfa", "authenticatechallenge", "password"},
 			reqBody: client.MFAChallengeRequest{
 				Pass: authPack.password,
 			},

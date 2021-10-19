@@ -473,6 +473,12 @@ const (
 	ProtocolMySQL = "mysql"
 	// ProtocolMongoDB is the MongoDB database protocol.
 	ProtocolMongoDB = "mongodb"
+	// ProtocolCockroachDB is the CockroachDB database protocol.
+	//
+	// Technically it's the same as the Postgres protocol but it's used to
+	// differentiate between Cockroach and Postgres databases e.g. when
+	// selecting a CLI client to use.
+	ProtocolCockroachDB = "cockroachdb"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -480,6 +486,7 @@ var DatabaseProtocols = []string{
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
+	ProtocolCockroachDB,
 }
 
 const (
@@ -641,6 +648,9 @@ const (
 
 	// WebsocketU2FChallenge is sending a U2F challenge.
 	WebsocketU2FChallenge = "u"
+
+	// WebsocketWebauthnChallenge is sending a webauthn challenge.
+	WebsocketWebauthnChallenge = "n"
 )
 
 // The following are cryptographic primitives Teleport does not support in

@@ -38,6 +38,13 @@ func DatabaseRoleMatchers(dbProtocol string, user, database string) services.Rol
 		return services.RoleMatchers{
 			&services.DatabaseUserMatcher{User: user},
 		}
+	case defaults.ProtocolCockroachDB:
+		// Cockroach uses the same wire protocol as Postgres but handling of
+		// databases is different and there's no way to prevent cross-database
+		// queries so only apply RBAC to db_users.
+		return services.RoleMatchers{
+			&services.DatabaseUserMatcher{User: user},
+		}
 	default:
 		return services.RoleMatchers{
 			&services.DatabaseUserMatcher{User: user},

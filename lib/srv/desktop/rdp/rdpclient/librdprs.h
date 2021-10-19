@@ -14,6 +14,12 @@ typedef enum CGOPointerButton {
   PointerButtonMiddle,
 } CGOPointerButton;
 
+typedef enum CGOPointerWheel {
+  PointerWheelNone,
+  PointerWheelVertical,
+  PointerWheelHorizontal,
+} CGOPointerWheel;
+
 typedef struct Client Client;
 
 typedef char *CGOError;
@@ -23,17 +29,19 @@ typedef struct ClientOrError {
   CGOError err;
 } ClientOrError;
 
-typedef struct CGOPointer {
+typedef struct CGOMousePointerEvent {
   uint16_t x;
   uint16_t y;
   enum CGOPointerButton button;
   bool down;
-} CGOPointer;
+  enum CGOPointerWheel wheel;
+  int16_t wheel_delta;
+} CGOMousePointerEvent;
 
-typedef struct CGOKey {
+typedef struct CGOKeyboardEvent {
   uint16_t code;
   bool down;
-} CGOKey;
+} CGOKeyboardEvent;
 
 typedef struct CGOBitmap {
   uint16_t dest_left;
@@ -58,9 +66,9 @@ struct ClientOrError connect_rdp(char *go_addr,
 
 CGOError read_rdp_output(struct Client *client_ptr, int64_t client_ref);
 
-CGOError write_rdp_pointer(struct Client *client_ptr, struct CGOPointer pointer);
+CGOError write_rdp_pointer(struct Client *client_ptr, struct CGOMousePointerEvent pointer);
 
-CGOError write_rdp_keyboard(struct Client *client_ptr, struct CGOKey key);
+CGOError write_rdp_keyboard(struct Client *client_ptr, struct CGOKeyboardEvent key);
 
 CGOError close_rdp(struct Client *client_ptr);
 
