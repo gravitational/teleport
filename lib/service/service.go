@@ -3244,6 +3244,7 @@ func setupALPNRouter(listeners *proxyListeners, cfg *Config) *alpnproxy.Router {
 				alpncommon.ProtocolHTTP,
 				alpncommon.ProtocolHTTP2,
 				alpncommon.ProtocolDefault,
+				alpncommon.ProtocolAWSCLI,
 				acme.ALPNProto,
 			),
 			Handler:    webWrapper.HandleConnection,
