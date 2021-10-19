@@ -336,9 +336,17 @@ with the cluster.`, params.ConnType, dreq.Address, tunnelErr)
 	dialer := proxy.DialerFromEnvironment(params.To.String())
 	conn, directErr := dialer.DialTimeout(params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
 	if directErr != nil {
+		directMsg := fmt.Sprintf(`Teleport proxy failed to connect to %q agent %q over direct dial:
+
+  %v
+
+This usually means that the agent is offline or has disconnected. Check the
+agent logs and, if the issue persists, try restarting it or re-registering it
+with the cluster.`, params.ConnType, dreq.Address, directErr)
+
 		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")
 		aggregateErr := trace.NewAggregate(tunnelErr, directErr)
-		return nil, false, trace.ConnectionProblem(aggregateErr, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(aggregateErr, directMsg)
 	}
 
 	// Return a direct dialed connection.
