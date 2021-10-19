@@ -175,9 +175,10 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		switch {
 		case err != nil:
 			log.Debugf("User %v failed to authenticate: %v.", user, err)
-			if err.(trace.Error).GetFields()[ErrFieldKeyUserMaxedAttempts] != nil {
-				return nil, trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			if fieldErr := getErrorByTraceField(err); fieldErr != nil {
+				return nil, trace.Wrap(fieldErr)
 			}
+
 			return nil, trace.AccessDenied(failMsg)
 		case dev == nil:
 			log.Debugf(
@@ -225,8 +226,8 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	if err = s.WithUserLock(user, func() error {
 		return s.checkPasswordWOToken(user, req.Pass.Password)
 	}); err != nil {
-		if err.(trace.Error).GetFields()[ErrFieldKeyUserMaxedAttempts] != nil {
-			return nil, trace.AccessDenied(MaxFailedAttemptsErrMsg)
+		if fieldErr := getErrorByTraceField(err); fieldErr != nil {
+			return nil, trace.Wrap(fieldErr)
 		}
 		// provide obscure message on purpose, while logging the real
 		// error server side
@@ -464,6 +465,18 @@ func (s *Server) createUserWebSession(ctx context.Context, user types.User) (typ
 		Traits:    user.GetTraits(),
 		LoginTime: s.clock.Now().UTC(),
 	})
+}
+
+func getErrorByTraceField(err error) error {
+	traceErr, ok := err.(trace.Error)
+	switch {
+	case !ok:
+		return trace.BadParameter("unexpected error type %T", err)
+	case traceErr.GetFields()[ErrFieldKeyUserMaxedAttempts] != nil:
+		return trace.AccessDenied(MaxFailedAttemptsErrMsg)
+	}
+
+	return nil
 }
 
 const noLocalAuth = "local auth disabled"

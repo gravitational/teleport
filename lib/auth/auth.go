@@ -83,7 +83,6 @@ const (
 	ErrFieldKeyUserMaxedAttempts = "maxed-attempts"
 
 	// MaxFailedAttemptsErrMsg is a user friendly error message that tells a user that they are locked.
-	// This error is defined in a variable so that the root caller can determine that the user is locked.
 	MaxFailedAttemptsErrMsg = "too many incorrect attempts, please try again later"
 )
 
