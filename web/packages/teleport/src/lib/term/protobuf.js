@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,20 +26,21 @@ export const MessageTypeEnum = {
   AUDIT: 'a',
   SESSION_END: 'c',
   RESIZE: 'w',
-  U2F_CHALLENGE: 'u'
-}
+  U2F_CHALLENGE: 'u',
+  WEBAUTHN_CHALLENGE: 'n',
+};
 
 export const messageFields = {
   payload: {
-    code: 0x1a
+    code: 0x1a,
   },
 
   version: {
     code: 10,
     length: 1,
     values: {
-      v1: 49
-    }
+      v1: 49,
+    },
   },
 
   type: {
@@ -47,15 +48,14 @@ export const messageFields = {
     code: 0x12,
     values: {
       resize: MessageTypeEnum.RESIZE.charCodeAt(0),
-      data:  MessageTypeEnum.RAW.charCodeAt(0),
+      data: MessageTypeEnum.RAW.charCodeAt(0),
       event: MessageTypeEnum.AUDIT.charCodeAt(0),
-      close: MessageTypeEnum.SESSION_END.charCodeAt(0)
-    }
-  }
-}
+      close: MessageTypeEnum.SESSION_END.charCodeAt(0),
+    },
+  },
+};
 
 export class Protobuf {
-
   encode(messageType, message) {
     var buffer = [];
     this.encodeVersion(buffer);
@@ -79,7 +79,7 @@ export class Protobuf {
     // encode payload
     var uintArray = this._textToUintArray(text);
     this.encodeVarint(buffer, uintArray.length);
-    for (var i = 0; i < uintArray.length; i++){
+    for (var i = 0; i < uintArray.length; i++) {
       buffer.push(uintArray[i]);
     }
   }
@@ -115,39 +115,46 @@ export class Protobuf {
     return {
       version,
       type,
-      payload
-    }
+      payload,
+    };
   }
 
   decodeVersion(uintArray) {
-    if (uintArray[0] === messageFields.version.code &&
-        uintArray[1] === messageFields.version.length) {
+    if (
+      uintArray[0] === messageFields.version.code &&
+      uintArray[1] === messageFields.version.length
+    ) {
       return String.fromCharCode(uintArray[2]);
     }
 
-    throw new Error("invalid version field");
+    throw new Error('invalid version field');
   }
 
   decodeType(uintArray) {
-    if (uintArray[3] === messageFields.type.code &&
-        uintArray[4] === messageFields.type.length) {
+    if (
+      uintArray[3] === messageFields.type.code &&
+      uintArray[4] === messageFields.type.length
+    ) {
       return String.fromCharCode(uintArray[5]);
     }
-    throw new Error("invalid type field");
+    throw new Error('invalid type field');
   }
 
   decodePayload(uintArray) {
-    if (!uintArray[6] ) {
-      return "";
+    if (!uintArray[6]) {
+      return '';
     }
 
     if (uintArray[6] !== messageFields.payload.code) {
-      throw new Error("invalid payload field");
+      throw new Error('invalid payload field');
     }
 
     const rawPayloadField = uintArray.slice(7);
     const [startsAt, payloadLength] = this.decodeVarint(rawPayloadField);
-    const payloadBytes = rawPayloadField.slice(startsAt, startsAt + payloadLength);
+    const payloadBytes = rawPayloadField.slice(
+      startsAt,
+      startsAt + payloadLength
+    );
     return this._uintArrayToText(payloadBytes);
   }
 
@@ -158,7 +165,7 @@ export class Protobuf {
       var b = uintArray[i];
       if (b < 0x80) {
         if (i > 9 || (i == 9 && b > 1)) {
-          throw new Error("unable to decode varint: overflow");
+          throw new Error('unable to decode varint: overflow');
         }
         return [i + 1, x | (b << s)];
       }
@@ -166,7 +173,7 @@ export class Protobuf {
       s = s + 7;
     }
 
-    throw new Error("unable to decode varint: empty array");
+    throw new Error('unable to decode varint: empty array');
   }
 
   _textToUintArray(text) {
@@ -176,7 +183,7 @@ export class Protobuf {
   _uintArrayToText(uintArray) {
     // use native TextDecoder if supported
     if (window.TextDecoder) {
-      return new TextDecoder("utf-8").decode(uintArray);
+      return new TextDecoder('utf-8').decode(uintArray);
     } else {
       return BufferModule.Buffer(uintArray).toString();
     }
@@ -186,6 +193,6 @@ export class Protobuf {
 // Polyfill for Uint8Array.slice for IE and Safari
 if (!Uint8Array.prototype.slice) {
   Object.defineProperty(Uint8Array.prototype, 'slice', {
-    value: Array.prototype.slice
+    value: Array.prototype.slice,
   });
 }

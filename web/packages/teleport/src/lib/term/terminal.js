@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,10 @@ import XTerm from 'xterm/dist/xterm';
 import 'xterm/dist/xterm.css';
 import { debounce, isInteger } from 'lodash';
 import Logger from 'shared/libs/logger';
+import {
+  makeMfaAuthenticateChallenge,
+  makeWebauthnAssertionResponse,
+} from 'teleport/services/auth';
 import { TermEventEnum } from './enums';
 
 const logger = Logger.create('lib/term/terminal');
@@ -71,6 +75,10 @@ class TtyTerminal {
     this.tty.on(
       TermEventEnum.U2F_CHALLENGE,
       this._processU2FChallenge.bind(this)
+    );
+    this.tty.on(
+      TermEventEnum.WEBAUTHN_CHALLENGE,
+      this._processWebauthnChallenge.bind(this)
     );
 
     // subscribe tty resize event (used by session player)
@@ -180,6 +188,29 @@ class TtyTerminal {
 
     $terminal.removeChild($fakeRow);
     return { cols, rows };
+  }
+
+  _processWebauthnChallenge(payload) {
+    if (!window.PublicKeyCredential) {
+      const termMsg =
+        'This browser does not support WebAuthn required for hardware tokens, please try the latest version of Chrome, Firefox or Safari.';
+      this.term.write(`\x1b[31m${termMsg}\x1b[m\r\n`);
+      return;
+    }
+
+    const json = JSON.parse(payload);
+    const publicKey = makeMfaAuthenticateChallenge(json).webauthnPublicKey;
+
+    navigator.credentials
+      .get({ publicKey })
+      .then(res => {
+        const credential = makeWebauthnAssertionResponse(res);
+        this.tty.send(JSON.stringify(credential));
+      })
+      .catch(err => {
+        const termMsg = `Please check your WebAuthn settings, make sure you are using the supported browser.\r\nError: ${err.message}`;
+        this.term.write(`\x1b[31m${termMsg}\x1b[m\r\n`);
+      });
   }
 
   _processU2FChallenge(payload) {

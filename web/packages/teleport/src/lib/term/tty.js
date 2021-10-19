@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,11 +22,10 @@ import { Protobuf, MessageTypeEnum } from './protobuf';
 const logger = Logger.create('Tty');
 
 const defaultOptions = {
-  buffered: true
-}
+  buffered: true,
+};
 
 class Tty extends EventEmitter {
-
   socket = null;
 
   _buffered = true;
@@ -37,8 +36,8 @@ class Tty extends EventEmitter {
     super();
     const options = {
       ...defaultOptions,
-      ...props
-    }
+      ...props,
+    };
 
     this._addressResolver = addressResolver;
     this._buffered = options.buffered;
@@ -64,7 +63,7 @@ class Tty extends EventEmitter {
   }
 
   send(data) {
-    if(!this.socket || !data){
+    if (!this.socket || !data) {
       return;
     }
 
@@ -73,8 +72,8 @@ class Tty extends EventEmitter {
     this.socket.send(bytearray.buffer);
   }
 
-  requestResize(w, h){
-    if(!this.socket){
+  requestResize(w, h) {
+    if (!this.socket) {
       return;
     }
 
@@ -83,8 +82,8 @@ class Tty extends EventEmitter {
       event: EventTypeEnum.RESIZE,
       width: w,
       height: h,
-      size: `${w}:${h}`
-    })
+      size: `${w}:${h}`,
+    });
 
     var encoded = this._proto.encodeResizeMessage(data);
     var bytearray = new Uint8Array(encoded);
@@ -128,6 +127,9 @@ class Tty extends EventEmitter {
       switch (msg.type) {
         case MessageTypeEnum.U2F_CHALLENGE:
           this.emit(TermEventEnum.U2F_CHALLENGE, msg.payload);
+          break;
+        case MessageTypeEnum.WEBAUTHN_CHALLENGE:
+          this.emit(TermEventEnum.WEBAUTHN_CHALLENGE, msg.payload);
           break;
         case MessageTypeEnum.AUDIT:
           this._processAuditPayload(msg.payload);

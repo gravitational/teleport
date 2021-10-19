@@ -19,17 +19,19 @@ export const EventTypeEnum = {
   JOIN: 'session.join',
   END: 'session.end',
   PRINT: 'print',
-  RESIZE: 'resize'
-}
+  RESIZE: 'resize',
+};
 
 export const TermEventEnum = {
   RESIZE: 'terminal.resize',
   CLOSE: 'terminal.close',
   RESET: 'terminal.reset',
   DATA: 'terminal.data',
-  CONN_CLOSE: 'connection.close'
-}
+  CONN_CLOSE: 'connection.close',
+  U2F_CHALLENGE: 'terminal.u2f',
+  WEBAUTHN_CHALLENGE: 'terminal.webauthn',
+};
 
 export const StatusCodeEnum = {
-  NORMAL: 1000
-}
+  NORMAL: 1000,
+};
