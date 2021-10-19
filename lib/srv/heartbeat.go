@@ -171,7 +171,7 @@ type HeartbeatConfig struct {
 	GetServerInfo GetServerInfoFn
 	// ServerTTL is a server TTL used in announcements
 	ServerTTL time.Duration
-	// KeepAlivePeriod is a period between lights weight
+	// KeepAlivePeriod is a period between light-weight
 	// keep alive calls, that only update TTLs and don't consume
 	// bandwidh, also is used to derive time between
 	// failed attempts as well for auth and proxy modes

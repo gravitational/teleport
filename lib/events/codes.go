@@ -365,6 +365,9 @@ const (
 
 	// DesktopSessionStartCode is the desktop session start event code.
 	DesktopSessionStartCode = "TDP00I"
+	// DesktopSessionStartFailureCode is event code for desktop sessions
+	// that failed to start.
+	DesktopSessionStartFailureCode = "TDP00W"
 	// DesktopSessionEndCode is the desktop session end event code.
 	DesktopSessionEndCode = "TDP01I"
 
