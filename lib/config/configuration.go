@@ -1745,7 +1745,7 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 		if len(cmdSpec) < 1 {
 			return nil, trace.Wrap(invalidSpecError)
 		}
-		var openQuote bool = false
+		openQuote := false
 		return &types.CommandLabelV2{
 			Period: types.NewDuration(period),
 			Command: strings.FieldsFunc(cmdSpec, func(c rune) bool {
