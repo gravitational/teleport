@@ -216,9 +216,9 @@ type ProxySettings struct {
 	SSH SSHProxySettings `json:"ssh"`
 	// DB contains database access specific proxy settings
 	DB DBProxySettings `json:"db"`
-	// MultiplexListenerModeEnabled indicates that proxy supports ALPN SNI server where
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
-	MultiplexListenerModeEnabled bool `json:"multiplex_listener_mode_enabled"`
+	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -348,7 +348,7 @@ func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
 		}
 	}
 
-	if settings.MultiplexListenerModeEnabled && proxyAddr != "" {
+	if settings.TLSRoutingEnabled && proxyAddr != "" {
 		if port, err := extractPort(proxyAddr); err == nil {
 			tunnelPort = port
 		}

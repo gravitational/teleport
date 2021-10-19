@@ -3277,7 +3277,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 
 func buildProxySettingsV1(cfg *Config, proxySSHAddr utils.NetAddr, proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
 	proxySettings := webclient.ProxySettings{
-		MultiplexListenerModeEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
+		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 		Kube: webclient.KubeProxySettings{
 			Enabled: cfg.Proxy.Kube.Enabled,
 		},
@@ -3326,7 +3326,7 @@ func setProxyPublicAddressesSettings(cfg *Config, settings *webclient.ProxySetti
 func buildProxySettingsV2(cfg *Config, proxySSHAddr utils.NetAddr, proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
 	multiplexAddr := cfg.Proxy.WebAddr.String()
 	proxySettings := webclient.ProxySettings{
-		MultiplexListenerModeEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
+		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 		Kube: webclient.KubeProxySettings{
 			Enabled: cfg.Proxy.Kube.Enabled,
 		},

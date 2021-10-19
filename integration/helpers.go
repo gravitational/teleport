@@ -1186,19 +1186,19 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	cconf := &client.Config{
-		Username:                     cfg.Login,
-		Host:                         cfg.Host,
-		HostPort:                     cfg.Port,
-		HostLogin:                    cfg.Login,
-		InsecureSkipVerify:           true,
-		KeysDir:                      keyDir,
-		SiteName:                     cfg.Cluster,
-		ForwardAgent:                 fwdAgentMode,
-		Labels:                       cfg.Labels,
-		WebProxyAddr:                 webProxyAddr,
-		SSHProxyAddr:                 sshProxyAddr,
-		Interactive:                  cfg.Interactive,
-		MultiplexListenerModeEnabled: i.isSinglePortSetup,
+		Username:           cfg.Login,
+		Host:               cfg.Host,
+		HostPort:           cfg.Port,
+		HostLogin:          cfg.Login,
+		InsecureSkipVerify: true,
+		KeysDir:            keyDir,
+		SiteName:           cfg.Cluster,
+		ForwardAgent:       fwdAgentMode,
+		Labels:             cfg.Labels,
+		WebProxyAddr:       webProxyAddr,
+		SSHProxyAddr:       sshProxyAddr,
+		Interactive:        cfg.Interactive,
+		TLSRoutingEnabled:  i.isSinglePortSetup,
 	}
 
 	// JumpHost turns on jump host mode

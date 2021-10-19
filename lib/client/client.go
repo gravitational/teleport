@@ -728,7 +728,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
 	// If proxy supports multiplex listener mode dial root/leaf cluster auth service via ALPN Proxy
 	// directly without using SSH tunnels.
-	if proxy.teleportClient.MultiplexListenerModeEnabled {
+	if proxy.teleportClient.TLSRoutingEnabled {
 		clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)

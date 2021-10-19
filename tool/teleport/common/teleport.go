@@ -326,10 +326,13 @@ func (flags *dumpFlags) CheckAndSetDefaults() error {
 		flags.output = teleport.SchemeStdout + "://"
 	}
 
+	supportedVersions := []string{defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2}
 	switch flags.Version {
 	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2, "":
 	default:
-		return trace.BadParameter("unsupported teleport configuration version %q", flags.Version)
+		return trace.BadParameter(
+			"unsupported Teleport configuration version %q, supported are: %s",
+			flags.Version, strings.Join(supportedVersions, ","))
 	}
 
 	return nil

@@ -84,9 +84,9 @@ type Profile struct {
 	// Dir is the directory of this profile.
 	Dir string
 
-	// MultiplexListenerModeEnabled indicates that proxy supports ALPN SNI server where
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
-	MultiplexListenerModeEnabled bool `yaml:"multiplex_listener_mode_enabled,omitempty"`
+	TLSRoutingEnabled bool `yaml:"tls_routing_enabled,omitempty"`
 }
 
 // Name returns the name of the profile.

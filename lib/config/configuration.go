@@ -754,7 +754,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	case legacyKube && newKube:
 		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
-		// Enabled proxy kubernetes service even if the fc.Proxy.KubeAddr address is empty.
+		// Enable proxy kubernetes service even if the fc.Proxy.KubeAddr address is empty.
 		// Proxy kubernetes listener will be multiplexed by ALPN SNI listener.
 		cfg.Proxy.Kube.Enabled = true
 	}
