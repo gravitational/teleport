@@ -256,6 +256,10 @@ func tagPipeline(b buildType) pipeline {
 			Name:     "Register artifacts",
 			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b),
+			Environment: map[string]value{
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY"},
+			},
 		},
 		uploadToS3Step(s3Settings{
 			region:      "us-west-2",
@@ -307,15 +311,19 @@ func tagCopyPackageArtifactCommands(b buildType, packageType string) []string {
 func tagCreateReleaseAssetCommands(b buildType) []string {
 	commands := []string{
 		`VERSION=$(cat /go/.version.txt)`,
-		fmt.Sprintf(`RELEASE_HOST=%v`, releasesHost),
+		fmt.Sprintf(`RELEASES_HOST=%v`, releasesHost),
+		`base64 -d < $RELEASES_CERT > /releases.crt`,
+		`base64 -d < $RELEASES_KEY > /releases.key`,
+		`ls -alh /releases.*`, // debug
+		`CREDENTIALS="--cert /releases.crt --key /releases.key"`,
 		`apk add --no-cache curl`,
 		fmt.Sprintf(`cd /go/artifacts
 for file in $(find . -type f ! -iname '*.sha256'); do
   product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
   shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-  status_code=$(curl -s -o /tmp/curl_out.txt -w "%%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+  status_code=$(curl -s -o /tmp/curl_out.txt -w "%%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
   [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
-  curl -s -F description="TODO" -F os="%s" -F arch="%s" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASE_HOST/assets;
+  curl -s -F description="TODO" -F os="%s" -F arch="%s" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
 done`,
 			b.os, b.arch /* TODO: fips */),
 	}
@@ -431,6 +439,10 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Name:     "Register artifacts",
 			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b),
+			Environment: map[string]value{
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY"},
+			},
 		},
 		uploadToS3Step(s3Settings{
 			region:      "us-west-2",
