@@ -46,7 +46,7 @@ type AppServer interface {
 	String() string
 	// Copy returns a copy of this app server object.
 	Copy() AppServer
-	// GetDatabase returns the app this app server proxies.
+	// GetApp returns the app this app server proxies.
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
 	SetApp(Application) error

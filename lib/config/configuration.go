@@ -22,12 +22,14 @@ package config
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -246,7 +248,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			cfg.AuthServers = append(cfg.AuthServers, *addr)
 		}
 	}
-	if _, err := cfg.ApplyToken(fc.AuthToken); err != nil {
+
+	if err := applyTokenConfig(fc, cfg); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -964,10 +967,18 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 // applyDatabasesConfig applies file configuration for the "db_service" section.
 func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Databases.Enabled = true
-	for _, selector := range fc.Databases.Selectors {
-		cfg.Databases.Selectors = append(cfg.Databases.Selectors,
-			services.Selector{
-				MatchLabels: selector.MatchLabels,
+	for _, matcher := range fc.Databases.ResourceMatchers {
+		cfg.Databases.ResourceMatchers = append(cfg.Databases.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
+			})
+	}
+	for _, matcher := range fc.Databases.AWSMatchers {
+		cfg.Databases.AWSMatchers = append(cfg.Databases.AWSMatchers,
+			services.AWSMatcher{
+				Types:   matcher.Types,
+				Regions: matcher.Regions,
+				Tags:    matcher.Tags,
 			})
 	}
 	for _, database := range fc.Databases.Databases {
@@ -1033,10 +1044,10 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
 	// Configure resource watcher selectors if present.
-	for _, selector := range fc.Apps.Selectors {
-		cfg.Apps.Selectors = append(cfg.Apps.Selectors,
-			services.Selector{
-				MatchLabels: selector.MatchLabels,
+	for _, matcher := range fc.Apps.ResourceMatchers {
+		cfg.Apps.ResourceMatchers = append(cfg.Apps.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
 			})
 	}
 
@@ -1180,7 +1191,42 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cfg.WindowsDesktop.LDAP = service.LDAPConfig(fc.WindowsDesktop.LDAP)
+	ldapPassword, err := os.ReadFile(fc.WindowsDesktop.LDAP.PasswordFile)
+	if err != nil {
+		return trace.WrapWithMessage(err, "loading LDAP password from file %v",
+			fc.WindowsDesktop.LDAP.PasswordFile)
+	}
+	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
+		Addr:     fc.WindowsDesktop.LDAP.Addr,
+		Username: fc.WindowsDesktop.LDAP.Username,
+		Domain:   fc.WindowsDesktop.LDAP.Domain,
+
+		// trim whitespace to protect against things like
+		// a leading tab character or trailing newline
+		Password: string(bytes.TrimSpace(ldapPassword)),
+	}
+
+	for _, rule := range fc.WindowsDesktop.HostLabels {
+		r, err := regexp.Compile(rule.Match)
+		if err != nil {
+			return trace.BadParameter("WindowsDesktopService specifies invalid regexp %q", rule.Match)
+		}
+
+		if len(rule.Labels) == 0 {
+			return trace.BadParameter("WindowsDesktopService host regex %q has no labels", rule.Match)
+		}
+
+		for k := range rule.Labels {
+			if !types.IsValidLabelKey(k) {
+				return trace.BadParameter("WindowsDesktopService specifies invalid label %q", k)
+			}
+		}
+
+		cfg.WindowsDesktop.HostLabels = append(cfg.WindowsDesktop.HostLabels, service.HostLabelRule{
+			Regexp: r,
+			Labels: rule.Labels,
+		})
+	}
 
 	return nil
 }
@@ -1798,4 +1844,24 @@ func validateRoles(roles string) error {
 // splitRoles splits in the format roles expects.
 func splitRoles(roles string) []string {
 	return strings.Split(roles, ",")
+}
+
+// applyTokenConfig applies the auth_token and join_params to the config
+func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
+	if fc.AuthToken != "" {
+		cfg.JoinMethod = service.JoinMethodToken
+		_, err := cfg.ApplyToken(fc.AuthToken)
+		return trace.Wrap(err)
+	}
+	if fc.JoinParams != (JoinParams{}) {
+		if cfg.Token != "" {
+			return trace.BadParameter("only one of auth_token or join_params should be set")
+		}
+		cfg.Token = fc.JoinParams.TokenName
+		if fc.JoinParams.Method != "ec2" {
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected "ec2"`, fc.JoinParams.Method)
+		}
+		cfg.JoinMethod = service.JoinMethodEC2
+	}
+	return nil
 }

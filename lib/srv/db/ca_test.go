@@ -120,7 +120,7 @@ func TestInitCACert(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			var database types.Database
-			for _, db := range databaseServer.getDatabases() {
+			for _, db := range databaseServer.getProxiedDatabases() {
 				if db.GetName() == test.database {
 					database = db
 				}

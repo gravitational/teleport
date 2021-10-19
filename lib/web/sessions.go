@@ -588,8 +588,8 @@ func (s *sessionCache) AuthenticateWebUser(req *client.AuthenticateWebUserReques
 			SignResponse: *req.U2FSignResponse,
 		}
 	}
-	if req.WebauthnChallengeResponse != nil {
-		authReq.Webauthn = req.WebauthnChallengeResponse
+	if req.WebauthnAssertionResponse != nil {
+		authReq.Webauthn = req.WebauthnAssertionResponse
 	}
 	return s.proxyClient.AuthenticateWebUser(authReq)
 }
