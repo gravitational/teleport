@@ -361,10 +361,10 @@ type ResourceMarshaler func(types.Resource, ...MarshalOption) ([]byte, error)
 type ResourceUnmarshaler func([]byte, ...MarshalOption) (types.Resource, error)
 
 // resourceMarshalers holds a collection of marshalers organized by kind.
-var resourceMarshalers map[string]ResourceMarshaler = make(map[string]ResourceMarshaler)
+var resourceMarshalers = make(map[string]ResourceMarshaler)
 
 // resourceUnmarshalers holds a collection of unmarshalers organized by kind.
-var resourceUnmarshalers map[string]ResourceUnmarshaler = make(map[string]ResourceUnmarshaler)
+var resourceUnmarshalers = make(map[string]ResourceUnmarshaler)
 
 // GetResourceMarshalerKinds lists all registered resource marshalers by kind.
 func GetResourceMarshalerKinds() []string {
