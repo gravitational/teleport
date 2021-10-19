@@ -1408,8 +1408,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -1534,8 +1535,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -1663,8 +1665,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -1699,7 +1702,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:395
+# Generated at dronegen/tag.go:396
 ################################################
 
 kind: pipeline
@@ -1812,8 +1815,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -1853,7 +1857,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:395
+# Generated at dronegen/tag.go:396
 ################################################
 
 kind: pipeline
@@ -1963,8 +1967,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -2004,7 +2009,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:395
+# Generated at dronegen/tag.go:396
 ################################################
 
 kind: pipeline
@@ -2108,8 +2113,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -2144,7 +2150,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:395
+# Generated at dronegen/tag.go:396
 ################################################
 
 kind: pipeline
@@ -2245,8 +2251,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -2371,8 +2378,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -2407,7 +2415,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:395
+# Generated at dronegen/tag.go:396
 ################################################
 
 kind: pipeline
@@ -2520,8 +2528,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -2561,7 +2570,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:395
+# Generated at dronegen/tag.go:396
 ################################################
 
 kind: pipeline
@@ -2665,8 +2674,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -3170,8 +3180,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -3296,8 +3307,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -3332,7 +3344,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:395
+# Generated at dronegen/tag.go:396
 ################################################
 
 kind: pipeline
@@ -3436,8 +3448,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -3472,7 +3485,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:395
+# Generated at dronegen/tag.go:396
 ################################################
 
 kind: pipeline
@@ -3576,8 +3589,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -3612,7 +3626,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:395
+# Generated at dronegen/tag.go:396
 ################################################
 
 kind: pipeline
@@ -3725,8 +3739,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -3766,7 +3781,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:395
+# Generated at dronegen/tag.go:396
 ################################################
 
 kind: pipeline
@@ -3879,8 +3894,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -4013,8 +4029,9 @@ steps:
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      curl -i $CREDENTIALS -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases
-      curl $CREDENTIALS -s -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASE_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
     RELEASES_CERT:
@@ -4784,6 +4801,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: e080accc39ff9fc824ad3a50b2206cd5d1c090e72954677b1dcd5eaff446d524
+hmac: dc5eb53731908cefdf028cd902736eaccc68b8fc74c744f184f99606af0e79a5
 
 ...
