@@ -227,7 +227,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		heartbeats:    make(map[string]*srv.Heartbeat),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
-		awsSigner: awsSigner,
+		awsSigner:     awsSigner,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
