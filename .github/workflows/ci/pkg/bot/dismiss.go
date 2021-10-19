@@ -122,14 +122,6 @@ func (c *Bot) getCheckWorkflow(ctx context.Context, owner, repoName string) (*gi
 	return nil, trace.NotFound("workflow %s not found", ci.CheckWorkflow)
 }
 
-const (
-	// GithubAPIHostname is the Github API hostname.
-	githubAPIHostname = "api.github.com"
-	// Scheme is the protocol scheme used when making
-	// a request to delete a workflow run to the Github API.
-	scheme = "https"
-)
-
 // deleteRun deletes a workflow run.
 // Note: the go-github client library does not support this endpoint.
 func (c *Bot) deleteRun(ctx context.Context, owner, repo string, runID int64) error {
@@ -150,3 +142,11 @@ func (c *Bot) deleteRun(ctx context.Context, owner, repo string, runID int64) er
 	}
 	return nil
 }
+
+const (
+	// GithubAPIHostname is the Github API hostname.
+	githubAPIHostname = "api.github.com"
+	// Scheme is the protocol scheme used when making
+	// a request to delete a workflow run to the Github API.
+	scheme = "https"
+)
