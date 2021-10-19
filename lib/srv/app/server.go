@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -174,6 +175,8 @@ type Server struct {
 
 	cache *sessionCache
 
+	awsSigner *appaws.SigningService
+
 	// watcher monitors changes to application resources.
 	watcher *services.AppWatcher
 }
@@ -211,6 +214,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	awsSigner, err := appaws.NewSigningService(appaws.SigningServiceConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s := &Server{
 		c: c,
 		log: logrus.WithFields(logrus.Fields{
@@ -219,6 +227,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		heartbeats:    make(map[string]*srv.Heartbeat),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
+		awsSigner:     awsSigner,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
@@ -561,6 +570,16 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	identity, app, err := s.authorize(r.Context(), r)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Distinguish between AWS console access originated from Teleport Proxy WebUI and
+	// access from AWS CLI where the request is already singed by the AWS Signature Version 4 algorithm.
+	// AWS CLI, automatically use SigV4 for all services that support it (All services expect Amazon SimpleDB
+	// but this AWS service has been deprecated)
+	if appaws.IsSignedByAWSSigV4(r) && app.IsAWSConsole() {
+		// Sign the request based on RouteToApp.AWSRoleARN user identity and route signed request to the AWS API.
+		s.awsSigner.Handle(w, r)
+		return nil
 	}
 
 	// If this application is AWS management console, generate a sign-in URL

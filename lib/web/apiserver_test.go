@@ -303,7 +303,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// Expired sessions are purged immediately
-	var sessionLingeringThreshold time.Duration = 0
+	var sessionLingeringThreshold time.Duration
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	c.Assert(err, IsNil)
 	handler, err := NewHandler(Config{

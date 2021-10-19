@@ -67,7 +67,7 @@ Enable ACME in your proxy config:
 ```yaml
 proxy_service:
   enabled: "yes"
-  web_listen_addr: ":443"
+  web_listen_addr: "0.0.0.0:443"
   public_addr: "teleport.example.com:443"
   acme:
     enabled: "yes"
@@ -89,7 +89,7 @@ to the proxy service:
 ```yaml
 proxy_service:
   enabled: "yes"
-  web_listen_addr: ":443"
+  web_listen_addr: "0.0.0.0:443"
   public_addr: "teleport.example.com:443"
   https_keypairs:
   - key_file: "/etc/letsencrypt/live/teleport.example.com/privkey.pem"

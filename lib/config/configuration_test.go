@@ -69,26 +69,22 @@ func writeTestConfigs() error {
 	}
 	// create a good config file fixture
 	testConfigs.configFile = filepath.Join(testConfigs.tempDir, "good-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFile, []byte(makeConfigFixture()), 0660); err != nil {
+	if err = os.WriteFile(testConfigs.configFile, []byte(makeConfigFixture()), 0660); err != nil {
 		return err
 	}
 	// create a static config file fixture
 	testConfigs.configFileStatic = filepath.Join(testConfigs.tempDir, "static-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFileStatic, []byte(StaticConfigString), 0660); err != nil {
+	if err = os.WriteFile(testConfigs.configFileStatic, []byte(StaticConfigString), 0660); err != nil {
 		return err
 	}
 	// create an empty config file
 	testConfigs.configFileNoContent = filepath.Join(testConfigs.tempDir, "empty-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFileNoContent, []byte(""), 0660); err != nil {
+	if err = os.WriteFile(testConfigs.configFileNoContent, []byte(""), 0660); err != nil {
 		return err
 	}
 	// create a bad config file fixture
 	testConfigs.configFileBadContent = filepath.Join(testConfigs.tempDir, "bad-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFileBadContent, []byte("bad-data!"), 0660); err != nil {
-		return err
-	}
-
-	return nil
+	return os.WriteFile(testConfigs.configFileBadContent, []byte("bad-data!"), 0660)
 }
 
 func (tc testConfigFiles) cleanup() {
@@ -122,7 +118,7 @@ func TestConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, sfc)
 		fn := filepath.Join(t.TempDir(), "default-config.yaml")
-		err = ioutil.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
+		err = os.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
 		require.NoError(t, err)
 
 		// make sure it could be parsed:
@@ -569,7 +565,7 @@ teleport:
 func TestApplyConfig(t *testing.T) {
 	tempDir := t.TempDir()
 	tokenPath := filepath.Join(tempDir, "small-config-token")
-	err := ioutil.WriteFile(tokenPath, []byte("join-token"), 0644)
+	err := os.WriteFile(tokenPath, []byte("join-token"), 0644)
 	require.NoError(t, err)
 
 	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(SmallConfigString, tokenPath)))
@@ -1641,7 +1637,7 @@ db_service:
 func TestDatabaseCLIFlags(t *testing.T) {
 	// Prepare test CA certificate used to configure some databases.
 	testCertPath := filepath.Join(t.TempDir(), "cert.pem")
-	err := ioutil.WriteFile(testCertPath, fixtures.LocalhostCert, 0644)
+	err := os.WriteFile(testCertPath, fixtures.LocalhostCert, 0644)
 	require.NoError(t, err)
 	tests := []struct {
 		inFlags     CommandLineFlags
