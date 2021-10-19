@@ -1,3 +1,4 @@
+//go:build roletester
 // +build roletester
 
 /*
@@ -228,7 +229,7 @@ func (s *AccessTestSuite) SetUpSuite(c *check.C) {
 		"otherTrait": {"trait1", "trait2"},
 	})
 
-	s.testRole = services.NewAdminRole()
+	s.testRole = services.NewImplicitRole()
 	s.testRole.SetName("testRole")
 	s.testRole.SetLogins(types.Allow, []string{"{{internal.logins}}", "root"})
 	s.testRole.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"env": []string{"example"}})

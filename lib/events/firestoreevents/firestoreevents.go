@@ -136,6 +136,9 @@ const (
 	// eventNamespaceDocProperty is used internally to query for records and matches the key in the event struct tag
 	eventNamespaceDocProperty = "eventNamespace"
 
+	// eventTypeDocProperty is the event struct tag associated with event type.
+	eventTypeDocProperty = "eventType"
+
 	// credentialsPath is used to supply credentials to teleport via JSON-typed service account key file
 	credentialsPath = "credentialsPath"
 
@@ -323,6 +326,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 		// key distribution
 		sessionID = uuid.New()
 	}
+
 	event := event{
 		SessionID:      sessionID,
 		EventIndex:     in.GetIndex(),
@@ -472,13 +476,17 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	return l.searchEventsWithFilter(fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes})
+}
+
+func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter) ([]apievents.AuditEvent, string, error) {
 	var eventsArr []apievents.AuditEvent
 	var estimatedSize int
 	checkpoint := startKey
 	left := limit
 
 	for {
-		gotEvents, withSize, withCheckpoint, err := l.searchEventsOnce(fromUTC, toUTC, namespace, eventTypes, left, order, checkpoint, events.MaxEventBytesInResponse-estimatedSize)
+		gotEvents, withSize, withCheckpoint, err := l.searchEventsOnce(fromUTC, toUTC, namespace, left, order, checkpoint, filter, events.MaxEventBytesInResponse-estimatedSize)
 		if nil != err {
 			return nil, "", trace.Wrap(err)
 		}
@@ -496,9 +504,8 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	return eventsArr, checkpoint, nil
 }
 
-func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string, spaceRemaining int) ([]apievents.AuditEvent, int, string, error) {
-	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
-	doFilter := len(eventTypes) > 0
+func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, spaceRemaining int) ([]apievents.AuditEvent, int, string, error) {
+	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "Filter": filter, "Limit": limit, "StartKey": startKey})
 
 	var lastKey int64
 	var values []events.EventFields
@@ -532,14 +539,18 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, event
 		return nil, 0, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
-	start := time.Now()
-	docSnaps, err := modifyquery(l.svc.Collection(l.CollectionName).
+	query := modifyquery(l.svc.Collection(l.CollectionName).
 		Where(eventNamespaceDocProperty, "==", apidefaults.Namespace).
 		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
 		Where(createdAtDocProperty, "<=", toUTC.Unix()).
 		OrderBy(createdAtDocProperty, firestoreOrdering)).
-		Limit(limit).
-		Documents(l.svcContext).GetAll()
+		Limit(limit)
+	if len(filter.eventTypes) > 0 {
+		query = query.Where(eventTypeDocProperty, "in", filter.eventTypes)
+	}
+
+	start := time.Now()
+	docSnaps, err := query.Documents(l.svcContext).GetAll()
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 	if err != nil {
@@ -563,29 +574,26 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, event
 			return nil, 0, "", firestorebk.ConvertGRPCError(err)
 		}
 
-		var fields events.EventFields
 		data := []byte(e.Fields)
+		if totalSize+len(data) >= spaceRemaining {
+			break
+		}
+
+		var fields events.EventFields
 		if err := json.Unmarshal(data, &fields); err != nil {
 			return nil, 0, "", trace.Errorf("failed to unmarshal event %v", err)
 		}
-		var accepted bool
-		for i := range eventTypes {
-			if fields.GetString(events.EventType) == eventTypes[i] {
-				accepted = true
-				break
-			}
-		}
-		if accepted || !doFilter {
-			if totalSize+len(data) >= spaceRemaining {
-				break
-			}
 
-			lastKey = docSnap.Data()["createdAt"].(int64)
-			values = append(values, fields)
-			totalSize += len(data)
-			if limit > 0 && len(values) >= limit {
-				break
-			}
+		// Check that the filter condition is satisfied.
+		if filter.condition != nil && !filter.condition(fields) {
+			continue
+		}
+
+		lastKey = docSnap.Data()[createdAtDocProperty].(int64)
+		values = append(values, fields)
+		totalSize += len(data)
+		if limit > 0 && len(values) >= limit {
+			break
 		}
 	}
 
@@ -618,14 +626,22 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, event
 }
 
 // SearchSessionEvents returns session related events only. This is used to
-// find completed session.
-func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	// only search for specific event types
-	query := []string{
-		events.SessionStartEvent,
-		events.SessionEndEvent,
+// find completed sessions.
+func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
+	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent}}
+	if cond != nil {
+		condFn, err := events.ToEventFieldsCondition(cond)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		filter.condition = condFn
 	}
-	return l.SearchEvents(fromUTC, toUTC, apidefaults.Namespace, query, limit, order, startKey)
+	return l.searchEventsWithFilter(fromUTC, toUTC, apidefaults.Namespace, limit, order, startKey, filter)
+}
+
+type searchEventsFilter struct {
+	eventTypes []string
+	condition  events.EventFieldsCondition
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to
@@ -651,12 +667,22 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 		SecondFieldOrder: admin.Index_IndexField_DESCENDING,
 	})
 	tuples = append(tuples, &firestorebk.IndexTuple{
+		FirstField:       eventTypeDocProperty,
+		SecondField:      createdAtDocProperty,
+		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
+	})
+	tuples = append(tuples, &firestorebk.IndexTuple{
+		FirstField:       eventTypeDocProperty,
+		SecondField:      createdAtDocProperty,
+		SecondFieldOrder: admin.Index_IndexField_DESCENDING,
+	})
+	tuples = append(tuples, &firestorebk.IndexTuple{
 		FirstField:       sessionIDDocProperty,
 		SecondField:      eventIndexDocProperty,
 		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
 	})
 	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
-	return err
+	return trace.Wrap(err)
 }
 
 // Close the Firestore driver

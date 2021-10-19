@@ -23,8 +23,11 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httputil"
 	"os"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -32,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 )
@@ -69,6 +73,10 @@ type LocalProxyConfig struct {
 	// ClientTLSConfig is a client TLS configuration used during establishing
 	// connection to the RemoteProxyAddr.
 	ClientTLSConfig *tls.Config
+	// Certs are the client certificates used to connect to the remote Teleport Proxy.
+	Certs []tls.Certificate
+	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
+	AWSCredentials *credentials.Credentials
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -254,6 +262,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		NextProtos:         []string{string(l.cfg.Protocol)},
 		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 		ServerName:         serverName,
+		Certificates:       l.cfg.Certs,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -307,6 +316,37 @@ func (l *LocalProxy) Close() error {
 		if err := l.cfg.Listener.Close(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	return nil
+}
+
+// StartAWSAccessProxy starts the local AWS CLI proxy.
+func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			NextProtos:         []string{string(l.cfg.Protocol)},
+			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
+			ServerName:         l.cfg.SNI,
+			Certificates:       l.cfg.Certs,
+		},
+	}
+	proxy := &httputil.ReverseProxy{
+		Director: func(outReq *http.Request) {
+			outReq.URL.Scheme = "https"
+			outReq.URL.Host = l.cfg.RemoteProxyAddr
+		},
+		Transport: tr,
+	}
+	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if err := appaws.VerifyAWSSignature(req, l.cfg.AWSCredentials); err != nil {
+			log.WithError(err).Errorf("AWS signature verification failed.")
+			rw.WriteHeader(http.StatusForbidden)
+			return
+		}
+		proxy.ServeHTTP(rw, req)
+	}))
+	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		return trace.Wrap(err)
 	}
 	return nil
 }

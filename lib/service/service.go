@@ -634,7 +634,17 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
 			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
 		} else {
-			cfg.HostUUID = uuid.New()
+			switch cfg.JoinMethod {
+			case JoinMethodToken:
+				cfg.HostUUID = uuid.New()
+			case JoinMethodEC2:
+				cfg.HostUUID, err = getEC2NodeID()
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			default:
+				return nil, trace.BadParameter("unknown join method %q", cfg.JoinMethod)
+			}
 			cfg.Log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
 		}
 		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
@@ -3239,6 +3249,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 				alpncommon.ProtocolHTTP,
 				alpncommon.ProtocolHTTP2,
 				alpncommon.ProtocolDefault,
+				alpncommon.ProtocolAWSCLI,
 				acme.ALPNProto,
 			),
 			Handler:    webWrapper.HandleConnection,
@@ -3345,7 +3356,9 @@ func (process *TeleportProcess) initApps() {
 	// If no applications are specified, exit early. This is due to the strange
 	// behavior in reading file configuration. If the user does not specify an
 	// "app_service" section, that is considered enabling "app_service".
-	if len(process.Config.Apps.Apps) == 0 && !process.Config.Apps.DebugApp && len(process.Config.Apps.Selectors) == 0 {
+	if len(process.Config.Apps.Apps) == 0 &&
+		!process.Config.Apps.DebugApp &&
+		len(process.Config.Apps.ResourceMatchers) == 0 {
 		return
 	}
 
@@ -3500,17 +3513,17 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		appServer, err = app.New(process.ExitContext(), &app.Config{
-			DataDir:      process.Config.DataDir,
-			AuthClient:   conn.Client,
-			AccessPoint:  accessPoint,
-			Authorizer:   authorizer,
-			TLSConfig:    tlsConfig,
-			CipherSuites: process.Config.CipherSuites,
-			HostID:       process.Config.HostUUID,
-			Hostname:     process.Config.Hostname,
-			GetRotation:  process.getRotation,
-			Apps:         applications,
-			Selectors:    process.Config.Apps.Selectors,
+			DataDir:          process.Config.DataDir,
+			AuthClient:       conn.Client,
+			AccessPoint:      accessPoint,
+			Authorizer:       authorizer,
+			TLSConfig:        tlsConfig,
+			CipherSuites:     process.Config.CipherSuites,
+			HostID:           process.Config.HostUUID,
+			Hostname:         process.Config.Hostname,
+			GetRotation:      process.getRotation,
+			Apps:             applications,
+			ResourceMatchers: process.Config.Apps.ResourceMatchers,
 			OnHeartbeat: func(err error) {
 				if err != nil {
 					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentApp})
@@ -3804,7 +3817,11 @@ func (process *TeleportProcess) singleProcessMode() (string, bool) {
 			return process.Config.Proxy.PublicAddrs[0].String(), true
 		}
 
-		return process.Config.Proxy.WebAddr.String(), true
+		// If WebAddress is unspecified "0.0.0.0" replace 0.0.0.0 with localhost since 0.0.0.0 is never a valid
+		// principal (auth server explicitly removes it when issuing host certs) and when WebPort is used
+		// in the single process mode to establish SSH reverse tunnel connection the host is validated against
+		// the valid principal list.
+		return utils.ReplaceUnspecifiedHost(&process.Config.Proxy.WebAddr, defaults.HTTPListenPort), true
 	}
 
 	if len(process.Config.Proxy.TunnelPublicAddrs) == 0 {

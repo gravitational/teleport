@@ -19,12 +19,13 @@ package service
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/require"
@@ -139,7 +140,7 @@ func TestCheckApp(t *testing.T) {
 			err: "must be a valid DNS subdomain",
 		},
 	}
-	for _, h := range app.ReservedHeaders {
+	for _, h := range common.ReservedHeaders {
 		tests = append(tests, tc{
 			desc: fmt.Sprintf("reserved header rewrite %v", h),
 			inApp: App{
@@ -340,6 +341,67 @@ func TestParseHeaders(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, test.out, out)
+			}
+		})
+	}
+}
+
+// TestHostLabelMatching tests regex-based host matching.
+func TestHostLabelMatching(t *testing.T) {
+	matchAllRule := regexp.MustCompile(`^.+`)
+
+	for _, test := range []struct {
+		desc      string
+		hostnames []string
+		rules     HostLabelRules
+		expected  map[string]string
+	}{
+		{
+			desc:      "single rule matches all",
+			hostnames: []string{"foo", "foo.bar", "127.0.0.1", "test.example.com"},
+			rules:     HostLabelRules{HostLabelRule{Regexp: matchAllRule, Labels: map[string]string{"foo": "bar"}}},
+			expected:  map[string]string{"foo": "bar"},
+		},
+		{
+			desc:      "only one rule matches",
+			hostnames: []string{"db.example.com"},
+			rules: HostLabelRules{
+				HostLabelRule{Regexp: regexp.MustCompile(`^db\.example\.com$`), Labels: map[string]string{"role": "db"}},
+				HostLabelRule{Regexp: regexp.MustCompile(`^app\.example\.com$`), Labels: map[string]string{"role": "app"}},
+			},
+			expected: map[string]string{"role": "db"},
+		},
+		{
+			desc:      "all rules match",
+			hostnames: []string{"test.example.com"},
+			rules: HostLabelRules{
+				HostLabelRule{Regexp: regexp.MustCompile(`\.example\.com$`), Labels: map[string]string{"foo": "bar"}},
+				HostLabelRule{Regexp: regexp.MustCompile(`\.example\.com$`), Labels: map[string]string{"baz": "quux"}},
+			},
+			expected: map[string]string{"foo": "bar", "baz": "quux"},
+		},
+		{
+			desc:      "no rules match",
+			hostnames: []string{"test.example.com"},
+			rules: HostLabelRules{
+				HostLabelRule{Regexp: regexp.MustCompile(`\.xyz$`), Labels: map[string]string{"foo": "bar"}},
+				HostLabelRule{Regexp: regexp.MustCompile(`\.xyz$`), Labels: map[string]string{"baz": "quux"}},
+			},
+			expected: map[string]string{},
+		},
+		{
+			desc:      "conflicting rules, last one wins",
+			hostnames: []string{"test.example.com"},
+			rules: HostLabelRules{
+				HostLabelRule{Regexp: regexp.MustCompile(`\.example\.com$`), Labels: map[string]string{"test": "one"}},
+				HostLabelRule{Regexp: regexp.MustCompile(`^test\.`), Labels: map[string]string{"test": "two"}},
+			},
+			expected: map[string]string{"test": "two"},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			for _, host := range test.hostnames {
+				require.Equal(t, test.expected, test.rules.LabelsForHost(host))
 			}
 		})
 	}

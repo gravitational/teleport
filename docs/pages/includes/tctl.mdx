@@ -1,3 +1,5 @@
+<Details title="Before you begin: verify connectivity" opened={false}>
+
 Verify that your Teleport client is connected:
 
 ```code
@@ -8,12 +10,13 @@ $ tctl status
 # CA pin   sha256:sha-hash-here
 ```
 
-<Admonition type="note" title="Connecting to the cloud">
-To try this flow in the cloud, login into your cluster using tsh, then use tctl remotely:
+<Notice title="Connecting to the cloud" type="note" scope={["cloud"]}>
+To try this flow in the cloud, login into your cluster using `tsh`, then use `tctl` remotely:
 
 ```code
 $ tsh login --proxy=myinstance.teleport.sh
 $ tctl status
 ```
+</Notice>
 
-</Admonition>
+</Details>

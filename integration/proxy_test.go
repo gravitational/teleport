@@ -100,7 +100,7 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 				}),
 				withRootClusterPorts(tc.mainClusterPortSetup),
 				withLeafClusterPorts(tc.secondClusterPortSetup),
-				withRootAndLeafClusterRoles(createAdminRole(username)),
+				withRootAndLeafClusterRoles(createTestRole(username)),
 				withStandardRoleMapping(),
 			)
 			// Run command in root.
@@ -220,7 +220,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterPorts(singleProxyPortSetup()),
 		withLeafClusterPorts(singleProxyPortSetup()),
-		withRootAndLeafClusterRoles(createAdminRole(username)),
+		withRootAndLeafClusterRoles(createTestRole(username)),
 		withStandardRoleMapping(),
 	)
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
