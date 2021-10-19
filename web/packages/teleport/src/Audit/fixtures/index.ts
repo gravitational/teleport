@@ -608,8 +608,8 @@ export const events = [
     cluster_name: 'root',
     code: 'TDB03I',
     db_labels: {
-      'env': 'local',
-      'teleport.dev/origin': 'dynamic'
+      env: 'local',
+      'teleport.dev/origin': 'dynamic',
     },
     db_protocol: 'postgres',
     db_uri: 'localhost:5432',
@@ -619,14 +619,14 @@ export const events = [
     name: 'postgres-local',
     time: '2021-10-08T15:42:15.39Z',
     uid: '9d37514f-aef5-426f-9fda-31fd35d070f5',
-    user: '05ff66c9-a948-42f4-af0e-a1b6ba62561e.root'
+    user: '05ff66c9-a948-42f4-af0e-a1b6ba62561e.root',
   },
   {
     cluster_name: 'root',
     code: 'TDB04I',
     db_labels: {
-      'env': 'local',
-      'teleport.dev/origin': 'dynamic'
+      env: 'local',
+      'teleport.dev/origin': 'dynamic',
     },
     db_protocol: 'postgres',
     db_uri: 'localhost:5432',
@@ -636,7 +636,7 @@ export const events = [
     name: 'postgres-local',
     time: '2021-10-08T15:42:24.581Z',
     uid: 'fe631a5a-6418-49d6-99e7-5280654663ec',
-    user: '05ff66c9-a948-42f4-af0e-a1b6ba62561e.root'
+    user: '05ff66c9-a948-42f4-af0e-a1b6ba62561e.root',
   },
   {
     cluster_name: 'root',
@@ -647,7 +647,7 @@ export const events = [
     name: 'postgres-local',
     time: '2021-10-08T15:42:36.005Z',
     uid: '74f5e6b9-50c4-4195-bb26-d615641255bc',
-    user: '05ff66c9-a948-42f4-af0e-a1b6ba62561e.root'
+    user: '05ff66c9-a948-42f4-af0e-a1b6ba62561e.root',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -670,5 +670,62 @@ export const events = [
     time: '2021-08-06T18:49:51.626Z',
     uid: 'e4630384-ac85-5a43-9ba9-3355b8d5cae4',
     user: 'df83fda8-1111-5567-8bcc-c282dec3290e.im-a-cluster-name',
+  },
+  {
+    'addr.remote': '100.104.52.89:3389',
+    cluster_name: 'im-a-cluster-name',
+    code: 'TDP00I',
+    desktop_addr: '100.104.52.89:3389',
+    desktop_labels: {
+      env: 'prod',
+      foo: 'bar',
+    },
+    ei: 0,
+    event: 'windows.desktop.session.start',
+    proto: 'tdp',
+    sid: 'b7f734d8-bdc2-4996-8959-0b42a11708e7',
+    success: true,
+    time: '2021-10-18T23:18:29.144Z',
+    uid: 'cf15cc08-f818-4f09-91c5-238e1326b22b',
+    user: 'joe',
+    windows_desktop_service: 'ba17ae92-5519-476a-954e-c225cf751de1',
+    windows_domain: 'desktopaccess.com',
+    windows_user: 'Administrator',
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TDP01I',
+    desktop_addr: '100.104.52.89:3389',
+    desktop_labels: {
+      env: 'prod',
+      foo: 'bar',
+    },
+    ei: 0,
+    event: 'windows.desktop.session.end',
+    sid: 'b7f734d8-bdc2-4996-8959-0b42a11708e7',
+    time: '2021-10-18T23:19:13.105Z',
+    uid: '84d408d1-3314-4a30-b7b7-35970633c9de',
+    user: 'joe',
+    windows_desktop_service: 'ba17ae92-5519-476a-954e-c225cf751de1',
+    windows_domain: 'desktopaccess.com',
+    windows_user: 'Administrator',
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TDP00W',
+    desktop_addr: '100.104.52.89:3389',
+    desktop_labels: {
+      env: 'prod',
+      foo: 'bar',
+    },
+    ei: 0,
+    event: 'windows.desktop.session.start',
+    sid: 'b7f734d8-bdc2-4996-8959-0b42a11708e7',
+    time: '2021-10-18T23:39:13.105Z',
+    uid: '84d408d1-3314-4a30-b7b7-35970633c9de',
+    user: 'joe',
+    windows_desktop_service: 'ba17ae92-5519-476a-954e-c225cf751de1',
+    windows_domain: 'desktopaccess.com',
+    windows_user: 'Administrator',
   },
 ].map(makeEvent);

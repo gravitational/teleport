@@ -59,6 +59,9 @@ export const eventCodes = {
   DATABASE_CREATED: 'TDB03I',
   DATABASE_UPDATED: 'TDB04I',
   DATABASE_DELETED: 'TDB05I',
+  DESKTOP_SESSION_STARTED: 'TDP00I',
+  DESKTOP_SESSION_STARTED_FAILED: 'TDP00W',
+  DESKTOP_SESSION_ENDED: 'TDP01I',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
@@ -445,6 +448,30 @@ export type RawEvents = {
   >;
   [eventCodes.RECOVERY_CODE_USED_FAILURE]: RawEvent<
     typeof eventCodes.RECOVERY_CODE_USED_FAILURE
+  >;
+  [eventCodes.DESKTOP_SESSION_STARTED]: RawEvent<
+    typeof eventCodes.DESKTOP_SESSION_STARTED,
+    {
+      desktop_addr: string;
+      windows_user: string;
+      windows_domain: string;
+    }
+  >;
+  [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: RawEvent<
+    typeof eventCodes.DESKTOP_SESSION_STARTED_FAILED,
+    {
+      desktop_addr: string;
+      windows_user: string;
+      windows_domain: string;
+    }
+  >;
+  [eventCodes.DESKTOP_SESSION_ENDED]: RawEvent<
+    typeof eventCodes.DESKTOP_SESSION_ENDED,
+    {
+      desktop_addr: string;
+      windows_user: string;
+      windows_domain: string;
+    }
   >;
 };
 

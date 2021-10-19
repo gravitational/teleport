@@ -372,20 +372,17 @@ export const formatters: Formatters = {
   [eventCodes.DATABASE_CREATED]: {
     type: 'db.create',
     desc: 'Database Created',
-    format: ({ user, name }) =>
-      `User [${user}] created database [${name}]`,
+    format: ({ user, name }) => `User [${user}] created database [${name}]`,
   },
   [eventCodes.DATABASE_UPDATED]: {
     type: 'db.update',
     desc: 'Database Updated',
-    format: ({ user, name }) =>
-      `User [${user}] updated database [${name}]`,
+    format: ({ user, name }) => `User [${user}] updated database [${name}]`,
   },
   [eventCodes.DATABASE_DELETED]: {
     type: 'db.delete',
     desc: 'Database Deleted',
-    format: ({ user, name }) =>
-      `User [${user}] deleted database [${name}]`,
+    format: ({ user, name }) => `User [${user}] deleted database [${name}]`,
   },
   [eventCodes.MFA_DEVICE_ADD]: {
     type: 'mfa.add',
@@ -450,6 +447,24 @@ export const formatters: Formatters = {
     desc: 'Recovery Code Use Failed',
     format: ({ user }) =>
       `User [${user}] failed an attempt to use a recovery code`,
+  },
+  [eventCodes.DESKTOP_SESSION_STARTED]: {
+    type: 'windows.desktop.session.start',
+    desc: 'Windows Desktop Session Started',
+    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
+      `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
+  },
+  [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: {
+    type: 'windows.desktop.session.start',
+    desc: 'Windows Desktop Session Denied',
+    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
+      `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
+  },
+  [eventCodes.DESKTOP_SESSION_ENDED]: {
+    type: 'windows.desktop.session.end',
+    desc: 'Windows Desktop Session Ended',
+    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
+      `User [${user}] has disconnected from Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
   },
 };
 
