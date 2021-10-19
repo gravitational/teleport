@@ -1786,7 +1786,7 @@ func replaceHost(addr *utils.NetAddr, newHost string) {
 	addr.Addr = net.JoinHostPort(newHost, port)
 }
 
-// validateRoles makes sure that value upassed to --roles flag is valid
+// validateRoles makes sure that value passed to the --roles flag is valid
 func validateRoles(roles string) error {
 	for _, role := range splitRoles(roles) {
 		switch role {
@@ -1794,8 +1794,8 @@ func validateRoles(roles string) error {
 			defaults.RoleNode,
 			defaults.RoleProxy,
 			defaults.RoleApp,
-			defaults.RoleDatabase:
-			break
+			defaults.RoleDatabase,
+			defaults.RoleWindowsDesktop:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}
