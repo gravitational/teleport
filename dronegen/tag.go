@@ -25,7 +25,7 @@ const (
 	debPackage = "deb"
 )
 
-const releasesHost = "https://rlz.cloud.gravitational.io"
+const releasesHost = "https://releases-staging.platform.teleport.sh"
 
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
 func tagCheckoutCommands(fips bool) []string {

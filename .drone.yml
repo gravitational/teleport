@@ -1398,7 +1398,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -1525,7 +1525,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -1655,7 +1655,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -1805,7 +1805,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -1957,7 +1957,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -2103,7 +2103,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -2241,7 +2241,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -2368,7 +2368,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -2518,7 +2518,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -2664,7 +2664,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -3170,7 +3170,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -3297,7 +3297,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -3438,7 +3438,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -3579,7 +3579,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -3729,7 +3729,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -3884,7 +3884,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -4019,7 +4019,7 @@ steps:
   image: docker
   commands:
   - VERSION=$(cat /go/.version.txt)
-  - RELEASES_HOST=https://rlz.cloud.gravitational.io
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT > /releases.crt
   - echo $RELEASES_KEY > /releases.key
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
@@ -4801,6 +4801,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 6f1ecd22b791e59c62a947fb82428df76c321edaa83bc65e610ccdcfef6477af
+hmac: bbfa6f8186e6936d31ef554c3351dbfb78431638722c49bf22db949d542e6fb5
 
 ...
