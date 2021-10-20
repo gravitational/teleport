@@ -271,8 +271,7 @@ func (c *Bot) isValidGithubBranchUpdate(ctx context.Context) error {
 func (c *Bot) compareCommits(ctx context.Context, otherSHA string) error {
 	clt := c.Environment.Client
 	pr := c.Environment.Metadata
-	// non Github-committed commit
-	nonGithubCommitted, _, err := clt.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, otherSHA)
+	inBetweenCommit, _, err := clt.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, otherSHA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -282,8 +281,8 @@ func (c *Bot) compareCommits(ctx context.Context, otherSHA string) error {
 		return trace.Wrap(err)
 	}
 	for _, headFile := range headCommit.Files {
-		for _, prFile := range nonGithubCommitted.Files {
-			if *headFile.Filename == *prFile.Filename || *headFile.SHA == *prFile.SHA {
+		for _, inBetweenFile := range inBetweenCommit.Files {
+			if *headFile.Filename == *inBetweenFile.Filename || *headFile.SHA == *inBetweenFile.SHA {
 				return trace.BadParameter("detected file change")
 			}
 		}
@@ -327,6 +326,7 @@ func (c *Bot) getInBetweenCommits(ctx context.Context, commits []githubCommit) (
 		return nil, trace.BadParameter("no commits to check against HEAD")
 	}
 	// Pop off HEAD (most recent commit) because we will be comparing the "in between" commits against it.
+	// If kept in, the commits (when later on checked) would have complete overlap. 
 	commits = commits[1:]
 
 	for _, commit := range commits {
