@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cloud
+package aws
 
 import (
 	"context"
@@ -28,12 +28,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGetAWSIdentity verifies parsing of AWS identity received from STS API.
-func TestGetAWSIdentity(t *testing.T) {
+// TestGetIdentity verifies parsing of AWS identity received from STS API.
+func TestGetIdentity(t *testing.T) {
 	tests := []struct {
 		description  string
 		inARN        string
-		outIdentity  AWSIdentity
+		outIdentity  Identity
 		outName      string
 		outAccountID string
 		outPartition string
@@ -41,15 +41,23 @@ func TestGetAWSIdentity(t *testing.T) {
 		{
 			description:  "role identity",
 			inARN:        "arn:aws:iam::1234567890:role/custom/path/EC2ReadOnly",
-			outIdentity:  AWSRole{},
+			outIdentity:  Role{},
 			outName:      "EC2ReadOnly",
+			outAccountID: "1234567890",
+			outPartition: "aws",
+		},
+		{
+			description:  "assumed role identity",
+			inARN:        "arn:aws:sts::1234567890:assumed-role/DatabaseAccess/i-1234567890",
+			outIdentity:  Role{},
+			outName:      "DatabaseAccess",
 			outAccountID: "1234567890",
 			outPartition: "aws",
 		},
 		{
 			description:  "user identity",
 			inARN:        "arn:aws-us-gov:iam::1234567890:user/custom/path/alice",
-			outIdentity:  AWSUser{},
+			outIdentity:  User{},
 			outName:      "alice",
 			outAccountID: "1234567890",
 			outPartition: "aws-us-gov",
@@ -57,7 +65,7 @@ func TestGetAWSIdentity(t *testing.T) {
 		{
 			description:  "unsupported identity",
 			inARN:        "arn:aws:iam::1234567890:group/readers",
-			outIdentity:  AWSUnknown{},
+			outIdentity:  Unknown{},
 			outName:      "readers",
 			outAccountID: "1234567890",
 			outPartition: "aws",
@@ -65,7 +73,7 @@ func TestGetAWSIdentity(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
-			identity, err := GetAWSIdentityWithClient(context.Background(), &stsMock{arn: test.inARN})
+			identity, err := GetIdentityWithClient(context.Background(), &stsMock{arn: test.inARN})
 			require.NoError(t, err)
 			require.IsType(t, test.outIdentity, identity)
 			require.Equal(t, test.outName, identity.GetName())
