@@ -331,7 +331,9 @@ func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 		params.dialer = params.cfg.Dialer
 	}
 	clt := newClient(params.cfg, params.dialer, params.tlsConfig)
-	if err := clt.dialGRPC(ctx, constants.APIHost); err != nil {
+	// Since the client uses a custom dialer to connect to the server and SNI
+	// is used for the TLS handshake, the address dialed here is arbitrary.
+	if err := clt.dialGRPC(ctx, constants.APIDomain); err != nil {
 		return nil, trace.Wrap(err, "failed to connect using pre-defined dialer")
 	}
 	return clt, nil

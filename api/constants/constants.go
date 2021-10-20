@@ -22,14 +22,10 @@ const (
 	// objects.
 	DefaultImplicitRole = "default-implicit-role"
 
-	// APIDomain is a default domain name for Auth server API, which is used as
-	// an SNI to pass TLS handshake regardless of the underlying server address.
+	// APIDomain is a default domain name for Auth server API. It is often
+	// used as an SNI to pass TLS handshakes regardless of the server address
+	// since we register "teleport.cluster.local" as a DNS in Certificates.
 	APIDomain = "teleport.cluster.local"
-
-	// APIHost is a stand-in domain name used for requests which don't provide a
-	// host/address directly. These requests usually use a custom Dialer and
-	// set an SNI for the TLs handshake instead.
-	APIHost = "api.host"
 
 	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
 	// recording feature.
