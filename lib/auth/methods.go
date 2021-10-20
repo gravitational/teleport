@@ -472,7 +472,7 @@ func getErrorByTraceField(err error) error {
 	switch {
 	case !ok:
 		log.WithError(err).Warn("Unexpected error type, wanted TraceError")
-		return trace.Wrap(err)
+		return trace.AccessDenied("an error has occurred")
 	case traceErr.GetFields()[ErrFieldKeyUserMaxedAttempts] != nil:
 		return trace.AccessDenied(MaxFailedAttemptsErrMsg)
 	}
