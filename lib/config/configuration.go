@@ -22,6 +22,7 @@ package config
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"io/ioutil"
 	"net"
@@ -937,10 +938,18 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 // applyDatabasesConfig applies file configuration for the "db_service" section.
 func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Databases.Enabled = true
-	for _, selector := range fc.Databases.Selectors {
-		cfg.Databases.Selectors = append(cfg.Databases.Selectors,
-			services.Selector{
-				MatchLabels: selector.MatchLabels,
+	for _, matcher := range fc.Databases.ResourceMatchers {
+		cfg.Databases.ResourceMatchers = append(cfg.Databases.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
+			})
+	}
+	for _, matcher := range fc.Databases.AWSMatchers {
+		cfg.Databases.AWSMatchers = append(cfg.Databases.AWSMatchers,
+			services.AWSMatcher{
+				Types:   matcher.Types,
+				Regions: matcher.Regions,
+				Tags:    matcher.Tags,
 			})
 	}
 	for _, database := range fc.Databases.Databases {
@@ -1006,10 +1015,10 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
 	// Configure resource watcher selectors if present.
-	for _, selector := range fc.Apps.Selectors {
-		cfg.Apps.Selectors = append(cfg.Apps.Selectors,
-			services.Selector{
-				MatchLabels: selector.MatchLabels,
+	for _, matcher := range fc.Apps.ResourceMatchers {
+		cfg.Apps.ResourceMatchers = append(cfg.Apps.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
 			})
 	}
 
@@ -1153,7 +1162,20 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cfg.WindowsDesktop.LDAP = service.LDAPConfig(fc.WindowsDesktop.LDAP)
+	ldapPassword, err := os.ReadFile(fc.WindowsDesktop.LDAP.PasswordFile)
+	if err != nil {
+		return trace.WrapWithMessage(err, "loading LDAP password from file %v",
+			fc.WindowsDesktop.LDAP.PasswordFile)
+	}
+	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
+		Addr:     fc.WindowsDesktop.LDAP.Addr,
+		Username: fc.WindowsDesktop.LDAP.Username,
+		Domain:   fc.WindowsDesktop.LDAP.Domain,
+
+		// trim whitespace to protect against things like
+		// a leading tab character or trailing newline
+		Password: string(bytes.TrimSpace(ldapPassword)),
+	}
 
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
@@ -1723,7 +1745,7 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 		if len(cmdSpec) < 1 {
 			return nil, trace.Wrap(invalidSpecError)
 		}
-		var openQuote bool = false
+		openQuote := false
 		return &types.CommandLabelV2{
 			Period: types.NewDuration(period),
 			Command: strings.FieldsFunc(cmdSpec, func(c rune) bool {
@@ -1764,7 +1786,7 @@ func replaceHost(addr *utils.NetAddr, newHost string) {
 	addr.Addr = net.JoinHostPort(newHost, port)
 }
 
-// validateRoles makes sure that value upassed to --roles flag is valid
+// validateRoles makes sure that value passed to the --roles flag is valid
 func validateRoles(roles string) error {
 	for _, role := range splitRoles(roles) {
 		switch role {
@@ -1772,8 +1794,8 @@ func validateRoles(roles string) error {
 			defaults.RoleNode,
 			defaults.RoleProxy,
 			defaults.RoleApp,
-			defaults.RoleDatabase:
-			break
+			defaults.RoleDatabase,
+			defaults.RoleWindowsDesktop:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}

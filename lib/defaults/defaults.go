@@ -464,6 +464,8 @@ const (
 	RoleApp = "app"
 	// RoleDatabase is a database proxy role.
 	RoleDatabase = "db"
+	// RoleWindowsDesktop is a Windows desktop service.
+	RoleWindowsDesktop = "windowsdesktop"
 )
 
 const (
@@ -648,6 +650,9 @@ const (
 
 	// WebsocketU2FChallenge is sending a U2F challenge.
 	WebsocketU2FChallenge = "u"
+
+	// WebsocketWebauthnChallenge is sending a webauthn challenge.
+	WebsocketWebauthnChallenge = "n"
 )
 
 // The following are cryptographic primitives Teleport does not support in

@@ -1,3 +1,4 @@
+//go:build dynamodb
 // +build dynamodb
 
 /*

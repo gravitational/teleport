@@ -69,7 +69,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
 func init() {
@@ -132,13 +132,15 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	return c, nil
 }
 
+// TODO(zmb3): allow passing a ctx or otherwise configuring a timeout here
+// (if we cannot route to the host this will hang indefinitely)
 func (c *Client) readClientUsername() error {
 	for {
 		msg, err := c.cfg.InputMessage()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		u, ok := msg.(deskproto.ClientUsername)
+		u, ok := msg.(tdp.ClientUsername)
 		if !ok {
 			c.cfg.Log.Debugf("Expected ClientUsername message, got %T", msg)
 			continue
@@ -155,7 +157,7 @@ func (c *Client) readClientSize() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s, ok := msg.(deskproto.ClientScreenSpec)
+		s, ok := msg.(tdp.ClientScreenSpec)
 		if !ok {
 			c.cfg.Log.Debugf("Expected ClientScreenSpec message, got %T", msg)
 			continue
@@ -243,11 +245,11 @@ func (c *Client) start() {
 			c.UpdateClientActivity()
 
 			switch m := msg.(type) {
-			case deskproto.MouseMove:
+			case tdp.MouseMove:
 				mouseX, mouseY = m.X, m.Y
 				if err := cgoError(C.write_rdp_pointer(
 					c.rustClient,
-					C.CGOPointer{
+					C.CGOMousePointerEvent{
 						x:      C.uint16_t(m.X),
 						y:      C.uint16_t(m.Y),
 						button: C.PointerButtonNone,
@@ -257,38 +259,38 @@ func (c *Client) start() {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
-			case deskproto.MouseButton:
+			case tdp.MouseButton:
 				// Map the button to a C enum value.
 				var button C.CGOPointerButton
 				switch m.Button {
-				case deskproto.LeftMouseButton:
+				case tdp.LeftMouseButton:
 					button = C.PointerButtonLeft
-				case deskproto.RightMouseButton:
+				case tdp.RightMouseButton:
 					button = C.PointerButtonRight
-				case deskproto.MiddleMouseButton:
+				case tdp.MiddleMouseButton:
 					button = C.PointerButtonMiddle
 				default:
 					button = C.PointerButtonNone
 				}
 				if err := cgoError(C.write_rdp_pointer(
 					c.rustClient,
-					C.CGOPointer{
+					C.CGOMousePointerEvent{
 						x:      C.uint16_t(mouseX),
 						y:      C.uint16_t(mouseY),
 						button: uint32(button),
-						down:   m.State == deskproto.ButtonPressed,
+						down:   m.State == tdp.ButtonPressed,
 						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
-			case deskproto.MouseWheel:
+			case tdp.MouseWheel:
 				var wheel C.CGOPointerWheel
 				switch m.Axis {
-				case deskproto.VerticalWheelAxis:
+				case tdp.VerticalWheelAxis:
 					wheel = C.PointerWheelVertical
-				case deskproto.HorizontalWheelAxis:
+				case tdp.HorizontalWheelAxis:
 					wheel = C.PointerWheelHorizontal
 					// TDP positive scroll deltas move towards top-left.
 					// RDP positive scroll deltas move towards top-right.
@@ -301,7 +303,7 @@ func (c *Client) start() {
 				}
 				if err := cgoError(C.write_rdp_pointer(
 					c.rustClient,
-					C.CGOPointer{
+					C.CGOMousePointerEvent{
 						x:           C.uint16_t(mouseX),
 						y:           C.uint16_t(mouseY),
 						button:      C.PointerButtonNone,
@@ -312,12 +314,12 @@ func (c *Client) start() {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
-			case deskproto.KeyboardButton:
+			case tdp.KeyboardButton:
 				if err := cgoError(C.write_rdp_keyboard(
 					c.rustClient,
-					C.CGOKey{
+					C.CGOKeyboardEvent{
 						code: C.uint16_t(m.KeyCode),
-						down: m.State == deskproto.ButtonPressed,
+						down: m.State == tdp.ButtonPressed,
 					},
 				)); err != nil {
 					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
@@ -357,7 +359,7 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	})
 	copy(img.Pix, data)
 
-	if err := c.cfg.OutputMessage(deskproto.PNGFrame{Img: img}); err != nil {
+	if err := c.cfg.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
 		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
 	}
 	return nil
