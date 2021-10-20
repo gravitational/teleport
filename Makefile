@@ -611,11 +611,13 @@ $(VERSRC): Makefile
 	$(MAKE) update-api-module-path || true
 
 # This rule updates the api module path to be in sync with the current api release version.
-# e.g. github.com/gravitational/teleport/api/vgsX -> github.com/gravitational/teleport/api/vY
+# e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
 #
 # It will immediately fail if:
 #  1. A suffix is present in the version - e.g. "v7.0.0-alpha"
-#  2. The major version suffix hasn't changed - e.g. 7.0.0 -> 7.1.0 or v0.0.0 -> 1.0.0 (no suffix)
+#  2. The major version suffix in the api module path hasn't changed. e.g:
+#    - v7.0.0 -> v7.1.0 - both use version suffix "/v7" - github.com/gravitational/teleport/api/v7
+#    - v0.0.0 -> v1.0.0 - both have no version suffix - github.com/gravitational/teleport/api
 #
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
 .PHONY: update-api-module-path

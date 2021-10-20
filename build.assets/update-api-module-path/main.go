@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"go/format"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/mod/modfile"
 	"golang.org/x/tools/go/ast/astutil"
@@ -40,6 +38,12 @@ func init() {
 }
 
 func main() {
+	var buildFlags []string
+	if len(os.Args) > 1 {
+		log.Infof("Using buildFlags: %v", buildFlags)
+		buildFlags = os.Args[1:]
+	}
+
 	// the api module import path should only be updated on releases
 	if isPreRelease() {
 		exitWithMessage("the current API version (%v) is not a release, continue without updating", api.Version)
@@ -55,31 +59,23 @@ func main() {
 
 	// update go files within the teleport/api and teleport modules to use the new import path
 	log.Info("Updating teleport/api module...")
-	if err := updateGoModule("./api", currentPath, newPath); err != nil {
+	if err := updateGoModule("./api", currentPath, newPath, buildFlags); err != nil {
 		exitWithError(trace.Wrap(err, "failed to update teleport/api module"))
 	}
 	log.Info("Updating teleport module...")
-	if err := updateGoModule("./", currentPath, newPath); err != nil {
+	if err := updateGoModule("./", currentPath, newPath, buildFlags); err != nil {
 		exitWithError(trace.Wrap(err, "failed to update teleport module"))
 	}
 
 	// Update .proto files in teleport/api to use the new import path
 	log.Info("Updating .proto files...")
-	if err := updateFiles("./api", ".proto", currentPath, newPath); err != nil {
+	if err := updateProtoFiles("./api", currentPath, newPath); err != nil {
 		exitWithError(trace.Wrap(err, "failed to update teleport mod file"))
 	}
 }
 
 // updateGoModule updates instances of the currentPath with the newPath in the given go module.
-func updateGoModule(modulePath, currentPath, newPath string) error {
-	var buildFlags []string
-	if len(os.Args) > 1 {
-		buildFlags = os.Args[1:]
-		log.Infof("    Using buildFlags: %v", buildFlags)
-	} else {
-		log.Info("    Updating without build flags. This will exclude some packages, such as /teleport/lib/bpf.")
-	}
-
+func updateGoModule(modulePath, currentPath, newPath string, buildFlags []string) error {
 	mode := packages.NeedTypes | packages.NeedSyntax
 	cfg := &packages.Config{Mode: mode, Tests: true, Dir: modulePath, BuildFlags: buildFlags}
 	pkgs, err := packages.Load(cfg, "./...")
@@ -129,12 +125,12 @@ func updateGoImports(p *packages.Package, currentPath, newPath string) error {
 		goFileName := p.Fset.File(syn.Pos()).Name()
 		f, err := os.OpenFile(goFileName, os.O_RDWR, 0660)
 		if err != nil {
-			return errors.Wrapf(err, "could not open go file %v", goFileName)
+			return trace.Wrap(err, "could not open go file %v", goFileName)
 		}
 		defer f.Close()
 
 		if err = format.Node(f, p.Fset, syn); err != nil {
-			return errors.Wrapf(err, "could not rewrite go file %v", goFileName)
+			return trace.Wrap(err, "could not rewrite go file %v", goFileName)
 		}
 	}
 
@@ -155,48 +151,57 @@ func updateModFile(dir, oldPath, newPath string) error {
 	// Update require statements in place if needed
 	for _, r := range modFile.Require {
 		if r.Mod.Path == oldPath {
-			pathI, versionI := 0, 1
-			if r.Syntax.Token[0] == "require" {
-				pathI, versionI = 1, 2
+			// Update path and version of require statement.
+			if r.Syntax.InBlock {
+				r.Syntax.Token[0], r.Syntax.Token[1] = newPath, "v"+api.Version
+			} else {
+				// First token in the line is "require", skip to second and third indices
+				r.Syntax.Token[1], r.Syntax.Token[2] = newPath, "v"+api.Version
 			}
-			r.Syntax.Token[pathI], r.Syntax.Token[versionI] = newPath, "v"+api.Version
 		}
 	}
 	// Update replace statements in place if needed
 	for _, r := range modFile.Replace {
 		if r.Old.Path == oldPath {
-			pathI := 0
-			if r.Syntax.Token[0] == "replace" {
-				pathI = 1
+			// Update path of replace statement.
+			if r.Syntax.InBlock {
+				r.Syntax.Token[0] = newPath
+			} else {
+				// First token in the line is "replace", skip to second index
+				r.Syntax.Token[1] = newPath
 			}
-			r.Syntax.Token[pathI] = newPath
 		}
 	}
+
 	// Format and save mod file
-	bts, err := modFile.Format()
+	bytes, err := modFile.Format()
 	if err != nil {
 		return trace.Wrap(err, "could not format go.mod file with new import path")
 	}
-	if err = ioutil.WriteFile(filepath.Join(dir, "go.mod"), bts, 0660); err != nil {
+	info, err := os.Stat(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err = os.WriteFile(filepath.Join(dir, "go.mod"), bytes, info.Mode().Perm()); err != nil {
 		return trace.Wrap(err, "could not rewrite go.mod file")
 	}
 	return nil
 }
 
-// updateFiles updates instances of the currentPath with the newPath
-// in files with the given fileExtension in the given directory.
-func updateFiles(dir, fileExtension, currentPath, newPath string) error {
+// updateProtoFiles updates instances of the currentPath with
+// the newPath in .proto files within the given directory
+func updateProtoFiles(dir, currentPath, newPath string) error {
 	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if strings.HasSuffix(d.Name(), fileExtension) {
-			data, err := ioutil.ReadFile(path)
+		if strings.HasSuffix(d.Name(), ".proto") {
+			data, err := os.ReadFile(path)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			data = bytes.ReplaceAll(data, []byte(currentPath), []byte(newPath))
-			if err := ioutil.WriteFile(path, data, 0660); err != nil {
+			if err := os.WriteFile(path, data, d.Type().Perm()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -219,7 +224,7 @@ func getModImportPath(dir string) (string, error) {
 // getModFile returns an AST of the given go.mod file
 func getModFile(dir string) (*modfile.File, error) {
 	modPath := filepath.Join(dir, "go.mod")
-	bts, err := ioutil.ReadFile(modPath)
+	bts, err := os.ReadFile(modPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
