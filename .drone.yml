@@ -3833,7 +3833,7 @@ steps:
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
 
   - name: Build OSS AMIs
-    image: hashicorp/packer
+    image: hashicorp/packer:1.7.6
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_PACKER_ACCESS_KEY_ID
@@ -3936,7 +3936,7 @@ steps:
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
 
   - name: Build Enterprise AMIs
-    image: hashicorp/packer
+    image: hashicorp/packer:1.7.6
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_PACKER_ACCESS_KEY_ID
@@ -4450,6 +4450,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 143f53acf0698bad8676be15e98f6e974fdf1a1672a0b8b7617371926e45d488
+hmac: 447d9e6b60cc9a9042d18613e2973263ea68e09e9d0da8ec04bdc4ee8bb625d6
 
 ...
