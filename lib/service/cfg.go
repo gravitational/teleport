@@ -51,7 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -602,8 +602,10 @@ type DatabasesConfig struct {
 	Enabled bool
 	// Databases is a list of databases proxied by this service.
 	Databases []Database
-	// Selectors is a list of resource monitor selectors.
-	Selectors []services.Selector
+	// ResourceMatchers match cluster database resources.
+	ResourceMatchers []services.ResourceMatcher
+	// AWSMatchers match AWS hosted databases.
+	AWSMatchers []services.AWSMatcher
 }
 
 // Database represents a single database that's being proxied.
@@ -728,8 +730,8 @@ type AppsConfig struct {
 	// Apps is the list of applications that are being proxied.
 	Apps []App
 
-	// Selectors is a list of resource monitor selectors.
-	Selectors []services.Selector
+	// ResourceMatchers match cluster database resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // App is the specific application that will be proxied by the application
@@ -800,7 +802,7 @@ func (a *App) CheckAndSetDefaults() error {
 	// early and let the user know.
 	if a.Rewrite != nil {
 		for _, h := range a.Rewrite.Headers {
-			if app.IsReservedHeader(h.Name) {
+			if common.IsReservedHeader(h.Name) {
 				return trace.BadParameter("invalid application %q header rewrite configuration: header %q is reserved and can't be rewritten",
 					a.Name, http.CanonicalHeaderKey(h.Name))
 			}
