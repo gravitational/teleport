@@ -622,7 +622,7 @@ $(VERSRC): Makefile
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
 .PHONY: update-api-module-path
 update-api-module-path:
-	go run build.assets/update-api-module-path/main.go -tags "bpf fips pam roletester desktop_access_beta"
+	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_beta"
 	$(MAKE) update-vendor
 	$(MAKE) grpc
 
