@@ -262,10 +262,12 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			// service handler returned will break service logic.
 			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
 			if err := p.handleConn(ctx, clientConn); err != nil {
-				if err := clientConn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-					p.log.WithError(err).Warnf("Failed to close client connection.")
+				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
+					p.log.WithError(cerr).Warnf("Failed to close client connection.")
 				}
-				p.log.WithError(err).Warnf("Failed to handle client connection.")
+				if !utils.IsOKNetworkError(err) {
+					p.log.WithError(err).Warnf("Failed to handle client connection.")
+				}
 			}
 		}()
 	}
@@ -426,25 +428,28 @@ func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHe
 
 // getHandleDescBasedOnALPNVal returns the HandlerDesc base on ALPN field read from ClientHelloInfo message.
 func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
-	protocol := common.ProtocolDefault
-	if len(clientHelloInfo.SupportedProtos) != 0 {
-		protocol = common.Protocol(clientHelloInfo.SupportedProtos[0])
-	}
+	// Add the HTTP protocol as a default protocol. If the server doesn't support any of client protocol or
+	// clientHelloInfo.SupportedProtos list is empty the default HTTP handler will be returned.
+	clientProtocols := append(clientHelloInfo.SupportedProtos, string(common.ProtocolHTTP))
 
-	if isDBTLSProtocol(protocol) {
-		return &HandlerDecs{
-			MatchFunc:           MatchByProtocol(protocol),
-			HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,
-			ForwardTLS:          false,
-		}, nil
-	}
+	for _, v := range clientProtocols {
+		protocol := common.Protocol(v)
+		if isDBTLSProtocol(protocol) {
+			return &HandlerDecs{
+				MatchFunc:           MatchByProtocol(protocol),
+				HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,
+				ForwardTLS:          false,
+			}, nil
+		}
 
-	for _, h := range p.cfg.Router.alpnHandlers {
-		if ok := h.MatchFunc(clientHelloInfo.ServerName, string(protocol)); ok {
-			return h, nil
+		for _, h := range p.cfg.Router.alpnHandlers {
+			if ok := h.MatchFunc(clientHelloInfo.ServerName, string(protocol)); ok {
+				return h, nil
+			}
 		}
 	}
-	return nil, trace.BadParameter("unsupported ALPN protocol %q", protocol)
+	return nil, trace.BadParameter(
+		"failed to find ALPN handler based on received client supported protocols %q", clientProtocols)
 }
 
 func shouldRouteToKubeService(sni string) bool {

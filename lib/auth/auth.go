@@ -3117,11 +3117,11 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if cluster == nil || server == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
-		kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), cluster)
+		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), cluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		noMFAAccessErr = checker.CheckAccess(kV3, services.AccessMFAParams{})
+		noMFAAccessErr = checker.CheckAccess(k8sV3, services.AccessMFAParams{})
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
