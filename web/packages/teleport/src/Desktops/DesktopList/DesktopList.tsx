@@ -45,7 +45,7 @@ function DesktopList(props: Props) {
   function sortAndFilter(search) {
     const filtered = desktops.filter(obj =>
       isMatch(obj, search, {
-        searchableProps: ['os', 'addr'],
+        searchableProps: ['name', 'addr'],
         cb: searchAndFilterCb,
       })
     );
@@ -80,9 +80,20 @@ function DesktopList(props: Props) {
         columnKey="addr"
         header={
           <SortHeaderCell
+            sortDir={sortDir.addr}
+            onSortChange={onSortChange}
+            title="Address"
+          />
+        }
+        cell={<DesktopDomainCell />}
+      />
+      <Column
+        columnKey="name"
+        header={
+          <SortHeaderCell
             sortDir={sortDir.name}
             onSortChange={onSortChange}
-            title="Hostname"
+            title="Name"
           />
         }
         cell={<DesktopDomainCell />}
