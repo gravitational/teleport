@@ -464,6 +464,8 @@ const (
 	RoleApp = "app"
 	// RoleDatabase is a database proxy role.
 	RoleDatabase = "db"
+	// RoleWindowsDesktop is a Windows desktop service.
+	RoleWindowsDesktop = "windowsdesktop"
 )
 
 const (

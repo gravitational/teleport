@@ -3248,7 +3248,6 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 			MatchFunc: alpnproxy.MatchByProtocol(
 				alpncommon.ProtocolHTTP,
 				alpncommon.ProtocolHTTP2,
-				alpncommon.ProtocolDefault,
 				alpncommon.ProtocolAWSCLI,
 				acme.ALPNProto,
 			),
