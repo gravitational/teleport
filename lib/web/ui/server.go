@@ -157,7 +157,7 @@ type Database struct {
 	Protocol string `json:"protocol"`
 	// Type is the database type, self-hosted or cloud-hosted.
 	Type string `json:"type"`
-	// Labels is a map of static and dynamic labels associated with an database.
+	// Labels is a map of static and dynamic labels associated with a database.
 	Labels []Label `json:"labels"`
 }
 
@@ -203,17 +203,31 @@ type Desktop struct {
 	Name string `json:"name"`
 	// Addr is the network address the desktop can be reached at.
 	Addr string `json:"addr"`
+	// Labels is a map of static and dynamic labels associated with a desktop.
+	Labels []Label `json:"labels"`
 }
 
-// MakeDesktops makes desktop objects for the ui to display
+// MakeDesktops converts desktops from their API form to a type the UI can display.
 func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
 	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
 
 	for _, windowsDesktop := range windowsDesktops {
+		uiLabels := []Label{}
+
+		for name, value := range windowsDesktop.GetAllLabels() {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: value,
+			})
+		}
+
+		sort.Sort(sortedLabels(uiLabels))
+
 		uiDesktops = append(uiDesktops, Desktop{
-			OS:   constants.WindowsOS,
-			Name: windowsDesktop.GetName(),
-			Addr: windowsDesktop.GetAddr(),
+			OS:     constants.WindowsOS,
+			Name:   windowsDesktop.GetName(),
+			Addr:   windowsDesktop.GetAddr(),
+			Labels: uiLabels,
 		})
 	}
 
