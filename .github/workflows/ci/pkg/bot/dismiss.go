@@ -144,9 +144,9 @@ func (c *Bot) deleteRun(ctx context.Context, owner, repo string, runID int64) er
 }
 
 const (
-	// GithubAPIHostname is the Github API hostname.
+	// githubAPIHostname is the Github API hostname.
 	githubAPIHostname = "api.github.com"
-	// Scheme is the protocol scheme used when making
+	// scheme is the protocol scheme used when making
 	// a request to delete a workflow run to the Github API.
 	scheme = "https"
 )

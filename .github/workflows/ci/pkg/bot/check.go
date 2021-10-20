@@ -16,11 +16,7 @@ package bot
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -88,7 +84,7 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 	// not carry over to when new changes are added. Github does
 	// not do this automatically, so we must dismiss the reviews
 	// manually.
-	if err = c.isGithubCommit(ctx); err != nil {
+	if err = c.isValidMerge(ctx); err != nil {
 		err = c.invalidateApprovals(ctx, obsoleteReviews)
 		if err != nil {
 			return trace.Wrap(err)
@@ -241,142 +237,8 @@ func dismissMessage(pr *environment.Metadata, required []string) string {
 	return sb.String()
 }
 
-// isGithubCommit verfies GitHub is the commit author and that the commit is empty.
-// Commits are checked for verification and emptiness specifically to determine if a
-// pull request's reviews should be invalidated. If a commit is signed by Github and is empty
-// there is no need to invalidate commits because the branch is just being updated.
-func (c *Bot) isGithubCommit(ctx context.Context) error {
-	signature, payloadData, err := c.getCommitVerificationParts(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	signatureFileName, err := createAndWriteTempFile(ci.Signature, []byte(signature))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer os.Remove(signatureFileName)
-
-	payloadFileName, err := createAndWriteTempFile(ci.Payload, []byte(payloadData))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer os.Remove(payloadFileName)
-
-	err = verifyCommit(signatureFileName, payloadFileName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Verify that the content of the PR has not changed.
-	return c.hasFileChange(ctx)
-}
-
-// verifyCommit verifies that a commit was made by Github's committer
-// "web-flow".
-//
-// The go OpenPGP package (https://pkg.go.dev/golang.org/x/crypto/openpgp) is deprecated
-// and has a bug in it where it can't correctly verify GPG signatures from web-flow (it
-// is unclear as to why), therefore commit verifcation is being done directly on the runner.
-func verifyCommit(signaturePath, payloadPath string) error {
-	pathToKey, err := getGithubKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer os.Remove(pathToKey)
-
-	err = importKey(pathToKey)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// GPG verification command requires the signature as the first argument
-	// Runner must have gpg (GnuPG) installed.
-	cmd := exec.Command("/usr/bin/gpg", "--verify", signaturePath, payloadPath)
-	if err := cmd.Run(); err != nil {
-		if _, ok := err.(*exec.ExitError); ok {
-			return trace.BadParameter("commit is not verified and/or is not signed by GitHub")
-		}
-		return trace.Wrap(err)
-	}
+func (c *Bot) isValidMerge(ctx context.Context) error {
 	return nil
-}
-
-// importKey imports a Github's public GPG key (web-flow) into the GPG keyring on the
-// runner given the path.
-func importKey(pathToKey string) error {
-	cmd := exec.Command("/usr/bin/gpg", "--import", pathToKey)
-	if err := cmd.Run(); err != nil {
-		if _, ok := err.(*exec.ExitError); ok {
-			return trace.BadParameter("failed to import Github's web-flow key")
-		}
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// getGithubKey gets Github's public GPG key (web-flow) and writes it to disk.
-// This is the key that is used to verify that a commit was signed by them.
-func getGithubKey() (string, error) {
-	response, err := http.Get(ci.WebflowKeyURL)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	defer response.Body.Close()
-	b, err := io.ReadAll(response.Body)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return createAndWriteTempFile(ci.GithubKey, b)
-}
-
-// hasFileChange compares all of the files that have changes in the PR to the one at the current commit.
-// This is used for comparing files when Github makes a auto update branch commit to ensure the merge
-// didn't result in changes/additions/deletions to the files already in the PR.
-func (c *Bot) hasFileChange(ctx context.Context) error {
-	pr := c.Environment.Metadata
-	clt := c.Environment.Client
-	prFiles, _, err := clt.PullRequests.ListFiles(ctx, pr.RepoOwner, pr.RepoName, pr.Number, &github.ListOptions{})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	headCommit, _, err := clt.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, pr.HeadSHA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, headFile := range headCommit.Files {
-		for _, prFile := range prFiles {
-			if *headFile.Filename == *prFile.Filename || *headFile.SHA == *prFile.SHA {
-				return trace.BadParameter("detected file change")
-			}
-		}
-	}
-	return nil
-}
-
-// getCommitVerificationParts returns a commit signaure, the commit data to perform GPG signature verification on.
-func (c *Bot) getCommitVerificationParts(ctx context.Context) (signature string, payload string, err error) {
-	pr := c.Environment.Metadata
-	commit, _, err := c.Environment.Client.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, pr.HeadSHA)
-	if err != nil {
-		return "", "", trace.Wrap(err)
-	}
-	if commit.Commit.Verification.Signature == nil || commit.Commit.Verification.Payload == nil {
-		return "", "", trace.BadParameter("commit is not signed")
-	}
-	return *commit.Commit.Verification.Signature, *commit.Commit.Verification.Payload, nil
-}
-
-// createAndWriteTempFile creates a temp file and writes to it.
-func createAndWriteTempFile(prefix string, data []byte) (string, error) {
-	file, err := os.CreateTemp(os.TempDir(), prefix)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	if _, err = file.Write(data); err != nil {
-		return "", trace.Wrap(err)
-	}
-	if err := file.Close(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return file.Name(), nil
 }
 
 // invalidateApprovals dismisses all approved reviews on a pull request.
