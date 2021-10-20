@@ -21,6 +21,7 @@ import {
   Column,
   SortHeaderCell,
   Cell,
+  TextCell,
   SortTypes,
   renderLabelCell,
 } from 'design/DataTable';
@@ -85,7 +86,7 @@ function DesktopList(props: Props) {
             title="Address"
           />
         }
-        cell={<DesktopDomainCell />}
+        cell={<AddressCell />}
       />
       <Column
         columnKey="name"
@@ -96,7 +97,7 @@ function DesktopList(props: Props) {
             title="Name"
           />
         }
-        cell={<DesktopDomainCell />}
+        cell={<TextCell />}
       />
       <Column header={<Cell>Labels</Cell>} cell={<LabelCell />} />
       <Column
@@ -116,7 +117,7 @@ export const stripRdpPort = (addr: string): string => {
   return addr;
 };
 
-const DesktopDomainCell = props => {
+const AddressCell = props => {
   // If default RDP port (3389) is present, don't show it
   const { rowIndex, data, columnKey, ...rest } = props;
   const addr = stripRdpPort(data[rowIndex][columnKey]);
