@@ -18,7 +18,7 @@ import React, { useState, useMemo } from 'react';
 import styled from 'styled-components';
 import { Card, Text, Flex, ButtonLink, ButtonPrimary, Box } from 'design';
 import * as Alerts from 'design/Alert';
-import { AuthProvider, Auth2faType } from 'shared/services';
+import { AuthProvider, Auth2faType, PreferredMfaType } from 'shared/services';
 import { useAttempt } from 'shared/hooks';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
@@ -35,10 +35,12 @@ export default function LoginForm(props: Props) {
     title,
     attempt,
     onLoginWithU2f,
+    onLoginWithWebauthn,
     onLogin,
     onLoginWithSso,
     authProviders,
     auth2faType = 'off',
+    preferredMfaType = '',
     isLocalAuthEnabled = true,
     isRecoveryEnabled = false,
     onRecover,
@@ -51,7 +53,10 @@ export default function LoginForm(props: Props) {
   const [user, setUser] = useState('');
   const [token, setToken] = useState('');
 
-  const mfaOptions = useMemo<MfaOption[]>(() => getMfaOptions(auth2faType), []);
+  const mfaOptions = useMemo<MfaOption[]>(
+    () => getMfaOptions(auth2faType, preferredMfaType),
+    []
+  );
 
   const [mfaType, setMfaType] = useState<MfaOption>(mfaOptions[0]);
   const [isExpanded, toggleExpander] = useState(
@@ -68,10 +73,15 @@ export default function LoginForm(props: Props) {
       return;
     }
 
-    if (mfaType?.value === 'u2f') {
-      onLoginWithU2f(user, pass);
-    } else {
-      onLogin(user, pass, token);
+    switch (mfaType?.value) {
+      case 'u2f':
+        onLoginWithU2f(user, pass);
+        break;
+      case 'webauthn':
+        onLoginWithWebauthn(user, pass);
+        break;
+      default:
+        onLogin(user, pass, token);
     }
   }
 
@@ -263,16 +273,18 @@ const StyledOr = styled.div`
   z-index: 1;
 `;
 
-type Props = {
+export type Props = {
   title?: string;
   isLocalAuthEnabled?: boolean;
   authProviders?: AuthProvider[];
   auth2faType?: Auth2faType;
+  preferredMfaType?: PreferredMfaType;
   attempt: ReturnType<typeof useAttempt>[0];
   isRecoveryEnabled?: boolean;
   onRecover?: (isRecoverPassword: boolean) => void;
   clearAttempt?: () => void;
   onLoginWithSso(provider: AuthProvider): void;
   onLoginWithU2f(username: string, password: string): void;
+  onLoginWithWebauthn(username: string, password: string): void;
   onLogin(username: string, password: string, token: string): void;
 };

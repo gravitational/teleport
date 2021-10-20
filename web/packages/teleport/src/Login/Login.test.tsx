@@ -35,7 +35,7 @@ test('basic rendering', () => {
   expect(getByText(/sign into teleport/i)).toBeInTheDocument();
 });
 
-test('login with username/password', async () => {
+test('login with username and password', async () => {
   jest.spyOn(auth, 'login').mockResolvedValue(null);
 
   const { getByPlaceholderText, getByText } = render(<Login />);
@@ -56,9 +56,9 @@ test('login with username/password', async () => {
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
 
-test('login with U2F', async () => {
+test('login with password and u2f', async () => {
   jest.spyOn(auth, 'loginWithU2f').mockResolvedValue(null);
-  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'u2f' as any);
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'u2f');
 
   const { getByPlaceholderText, getByText } = render(<Login />);
 
@@ -78,8 +78,56 @@ test('login with U2F', async () => {
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
 
+test('login with password and otp', async () => {
+  jest.spyOn(auth, 'login').mockResolvedValue(null);
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'otp');
+
+  render(<Login />);
+
+  // fill form
+  const username = screen.getByPlaceholderText(/username/i);
+  const password = screen.getByPlaceholderText(/password/i);
+  fireEvent.change(username, { target: { value: 'username' } });
+  fireEvent.change(password, { target: { value: '123' } });
+
+  // test token requirement
+  fireEvent.click(screen.getByText(/login/i));
+  screen.getByText(/token is require/i);
+  expect(auth.login).not.toHaveBeenCalled();
+
+  // test login pathway
+  const token = screen.getByPlaceholderText('123 456');
+  fireEvent.change(token, { target: { value: '0' } });
+
+  await wait(() => fireEvent.click(screen.getByText(/login/i)));
+  expect(auth.login).toHaveBeenCalledWith('username', '123', '0');
+  expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
+});
+
+test('login with password and webauthn', async () => {
+  jest.spyOn(auth, 'loginWithWebauthn').mockResolvedValue(null);
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'webauthn');
+
+  const { getByPlaceholderText, getByText } = render(<Login />);
+
+  // test validation errors
+  fireEvent.click(getByText(/login/i));
+  expect(auth.loginWithWebauthn).not.toHaveBeenCalled();
+
+  // fill form
+  const username = getByPlaceholderText(/username/i);
+  const password = getByPlaceholderText(/password/i);
+  fireEvent.change(username, { target: { value: 'username' } });
+  fireEvent.change(password, { target: { value: '123' } });
+
+  // test login pathways
+  await wait(() => fireEvent.click(getByText(/login/i)));
+  expect(auth.loginWithWebauthn).toHaveBeenCalledWith('username', '123');
+  expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
+});
+
 test('login with SSO', () => {
-  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'otp' as any);
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'otp');
   jest.spyOn(cfg, 'getAuthProviders').mockImplementation(() => [
     {
       displayName: 'With Github',
@@ -100,52 +148,17 @@ test('login with SSO', () => {
   );
 });
 
-test('login with 2fa set to "optional", select option: none', () => {
-  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional' as any);
-
-  render(<Login />);
-
-  // mfa dropdown default set to none
-  expect(screen.getByTestId('mfa-select').textContent).toMatch(/none/i);
-  expect(screen.queryAllByLabelText(/two factor token/i)).toHaveLength(0);
-});
-
-test('login with 2fa set to "optional", select option: u2f', async () => {
-  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional' as any);
-  jest.spyOn(auth, 'loginWithU2f').mockResolvedValue(null);
-
-  render(<Login />);
-
-  // select u2f from mfa dropdown
-  const selectEl = screen.getByTestId('mfa-select').querySelector('input');
-  fireEvent.focus(selectEl);
-  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  fireEvent.click(screen.getByText(/hardware key/i));
-  expect(screen.queryAllByLabelText(/authenticator code/i)).toHaveLength(0);
-
-  // fill form
-  const username = screen.getByPlaceholderText(/username/i);
-  const password = screen.getByPlaceholderText(/password/i);
-  fireEvent.change(username, { target: { value: 'username' } });
-  fireEvent.change(password, { target: { value: '123' } });
-
-  // test login pathway
-  await wait(() => fireEvent.click(screen.getByText(/login/i)));
-  screen.getByText(/Insert your hardware key/i);
-  expect(auth.loginWithU2f).toHaveBeenCalledWith('username', '123');
-});
-
-test('login with 2fa set to "optional", select option: totp', async () => {
-  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional' as any);
+test('login with 2fa set to "optional", select option: none', async () => {
   jest.spyOn(auth, 'login').mockResolvedValue(null);
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional');
 
   render(<Login />);
 
-  // select totp from mfa dropdown
+  // select none from mfa dropdown
   const selectEl = screen.getByTestId('mfa-select').querySelector('input');
   fireEvent.focus(selectEl);
   fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  fireEvent.click(screen.getByText(/authenticator app/i));
+  fireEvent.click(screen.getByText(/none/i));
 
   // fill form
   const username = screen.getByPlaceholderText(/username/i);
@@ -153,35 +166,14 @@ test('login with 2fa set to "optional", select option: totp', async () => {
   fireEvent.change(username, { target: { value: 'username' } });
   fireEvent.change(password, { target: { value: '123' } });
 
-  // test token requirement
-  fireEvent.click(screen.getByText(/login/i));
-  screen.getByText(/token is require/i);
-  expect(auth.login).not.toHaveBeenCalled();
-
-  // test login pathway
-  const token = screen.getByPlaceholderText('123 456');
-  fireEvent.change(token, { target: { value: '0' } });
-
   await wait(() => fireEvent.click(screen.getByText(/login/i)));
-  expect(auth.login).toHaveBeenCalledWith('username', '123', '0');
+  expect(auth.login).toHaveBeenCalledWith('username', '123', '');
 });
 
-test('login with 2fa set to "on" have correct select options', async () => {
-  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'on' as any);
+test('2fa set to "on" with preferredMfa renders hardware key as first in dropdown', async () => {
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'on');
+  jest.spyOn(cfg, 'getPreferredMfaType').mockImplementation(() => 'webauthn');
 
-  render(<Login />);
-
-  // default mfa dropdown is set to u2f
-  expect(screen.getByTestId('mfa-select').textContent).toMatch(/hardware key/i);
-
-  // select totp from mfa dropdown
-  const selectEl = screen.getByTestId('mfa-select').querySelector('input');
-  fireEvent.focus(selectEl);
-  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  fireEvent.click(screen.getByText(/authenticator app/i));
-
-  // none type is not part of mfa dropdown
-  fireEvent.focus(selectEl);
-  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  expect(screen.queryAllByText(/none/i)).toHaveLength(0);
+  const { container } = render(<Login />);
+  expect(container).toMatchSnapshot();
 });

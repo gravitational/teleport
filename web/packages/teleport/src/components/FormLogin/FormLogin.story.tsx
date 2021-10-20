@@ -15,30 +15,53 @@ limitations under the License.
 */
 
 import React from 'react';
-import FormLogin from './FormLogin';
+import FormLogin, { Props } from './FormLogin';
 
-const props = {
+const props: Props = {
   title: 'Custom Title',
   attempt: {
     isFailed: false,
-    isSuccess: undefined,
-    isProcessing: undefined,
-    message: undefined,
+    isSuccess: false,
+    isProcessing: false,
+    message: '',
   },
   authProviders: [],
   onLoginWithSso: () => null,
   onLoginWithU2f: () => null,
+  onLoginWithWebauthn: () => null,
   onLogin: () => null,
   clearAttempt: () => null,
+  auth2faType: 'off',
+  preferredMfaType: 'webauthn',
 };
 
 export default {
-  title: 'Shared/FormLogin',
+  title: 'Teleport/FormLogin',
 };
 
-export const Basic = () => <FormLogin {...props} auth2faType="otp" />;
+export const Off = () => <FormLogin {...props} />;
 
-export const Multi = () => <FormLogin {...props} auth2faType="optional" />;
+export const Otp = () => <FormLogin {...props} auth2faType="otp" />;
+
+export const Webauthn = () => <FormLogin {...props} auth2faType="webauthn" />;
+
+export const Universal2ndFactor = () => {
+  const attempt = {
+    ...props.attempt,
+    isProcessing: true,
+  };
+
+  return (
+    <FormLogin
+      {...props}
+      title="Welcome!"
+      auth2faType="u2f"
+      attempt={attempt}
+    />
+  );
+};
+
+export const Optional = () => <FormLogin {...props} auth2faType="optional" />;
 
 export const Cloud = () => (
   <FormLogin
@@ -95,22 +118,6 @@ export const SSOProviders = () => {
   ];
 
   return <FormLogin {...props} title="Welcome!" authProviders={ssoProvider} />;
-};
-
-export const Universal2ndFactor = () => {
-  const attempt = {
-    ...props.attempt,
-    isProcessing: true,
-  };
-
-  return (
-    <FormLogin
-      {...props}
-      title="Welcome!"
-      auth2faType="u2f"
-      attempt={attempt}
-    />
-  );
 };
 
 export const LocalAuthDisabled = () => {

@@ -18,7 +18,7 @@ import React from 'react';
 import FormInvite, { Props } from './FormInvite';
 
 export default {
-  title: 'Shared/FormInvite',
+  title: 'Teleport/FormInvite',
   component: FormInvite,
 };
 
@@ -53,11 +53,30 @@ export const U2fError = () => (
 
 U2fError.storyName = 'U2f Error';
 
+export const OptionalWithU2f = () => (
+  <FormInvite {...props} auth2faType="optional" preferredMfaType="u2f" />
+);
+OptionalWithU2f.storyName = 'Optional With U2f';
+
+export const Webauthn = () => <FormInvite {...props} auth2faType="webauthn" />;
+
+export const WebauthnError = () => (
+  <FormInvite
+    {...props}
+    auth2faType="webauthn"
+    attempt={{ status: 'failed', statusText: 'Message with has [U2F] word' }}
+  />
+);
+
 export const Optional = () => <FormInvite {...props} auth2faType="optional" />;
+
+export const On = () => <FormInvite {...props} auth2faType="on" />;
 
 const props: Props = {
   auth2faType: 'otp',
+  preferredMfaType: 'webauthn',
   onSubmitWithU2f() {},
+  onSubmitWithWebauthn() {},
   onSubmit() {},
   attempt: {
     status: '',

@@ -50,6 +50,14 @@ export default function useInvite(tokenId: string) {
       .catch(submitAttempt.handleError);
   }
 
+  function onSubmitWithWebauthn(password: string) {
+    submitAttempt.setAttempt({ status: 'processing' });
+    auth
+      .resetPasswordWithWebauthn(tokenId, password)
+      .then(redirect)
+      .catch(submitAttempt.handleError);
+  }
+
   function redirect() {
     history.push(cfg.routes.root, true);
   }
@@ -60,11 +68,13 @@ export default function useInvite(tokenId: string) {
 
   return {
     auth2faType,
+    preferredMfaType: cfg.getPreferredMfaType(),
     fetchAttempt: fetchAttempt.attempt,
     submitAttempt: submitAttempt.attempt,
     clearSubmitAttempt,
     onSubmit,
     onSubmitWithU2f,
+    onSubmitWithWebauthn,
     passwordToken,
   };
 }

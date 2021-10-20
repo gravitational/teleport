@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import LoginForm from 'teleport/components/FormLogin';
+import FormLogin from 'teleport/components/FormLogin';
 import Logo from 'teleport/components/LogoHero';
 import useLogin, { State } from './useLogin';
 
@@ -30,22 +30,26 @@ export function Login({
   attempt,
   onLogin,
   onLoginWithU2f,
+  onLoginWithWebauthn,
   onLoginWithSso,
   authProviders,
   auth2faType,
+  preferredMfaType,
   isLocalAuthEnabled,
   clearAttempt,
 }: State) {
   return (
     <>
       <Logo src={logoSrc} />
-      <LoginForm
+      <FormLogin
         title={'Sign into Teleport'}
         authProviders={authProviders}
         auth2faType={auth2faType}
+        preferredMfaType={preferredMfaType}
         isLocalAuthEnabled={isLocalAuthEnabled}
         onLoginWithSso={onLoginWithSso}
         onLoginWithU2f={onLoginWithU2f}
+        onLoginWithWebauthn={onLoginWithWebauthn}
         onLogin={onLogin}
         attempt={attempt}
         clearAttempt={clearAttempt}

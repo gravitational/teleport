@@ -46,6 +46,16 @@ export default function useLogin() {
       });
   }
 
+  function onLoginWithWebauthn(name, password) {
+    attemptActions.start();
+    auth
+      .loginWithWebauthn(name, password)
+      .then(onSuccess)
+      .catch(err => {
+        attemptActions.error(err);
+      });
+  }
+
   function onLoginWithSso(provider: AuthProvider) {
     attemptActions.start();
     const appStartRoute = getEntryRoute();
@@ -60,7 +70,9 @@ export default function useLogin() {
     onLoginWithSso,
     authProviders,
     auth2faType,
+    preferredMfaType: cfg.getPreferredMfaType(),
     isLocalAuthEnabled,
+    onLoginWithWebauthn,
     clearAttempt: attemptActions.clear,
   };
 }

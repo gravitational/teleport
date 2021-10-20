@@ -18,7 +18,7 @@ import React from 'react';
 import { Card, ButtonPrimary, Flex, Box } from 'design';
 import * as Alerts from 'design/Alert';
 import useAttempt from 'shared/hooks/useAttempt';
-import { Option } from 'shared/components/Select';
+import { getMfaOptions, MfaOption } from 'teleport/services/mfa/utils';
 import FieldInput from '../FieldInput';
 import FieldSelect from '../FieldSelect';
 import Validation, { Validator } from '../Validation';
@@ -28,40 +28,41 @@ import {
   requiredField,
   requiredConfirmedPassword,
 } from '../Validation/rules';
-import { Auth2faType } from 'shared/services';
+import { Auth2faType, PreferredMfaType } from 'shared/services';
 
 function FormPassword(props: Props) {
-  const { onChangePassWithU2f, onChangePass, auth2faType = 'off' } = props;
-  const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
-  const otpEnabled = auth2faType === 'otp';
-  const u2fEnabled = auth2faType === 'u2f';
+  const {
+    onChangePassWithWebauthn,
+    onChangePassWithU2f,
+    onChangePass,
+    auth2faType = 'off',
+    preferredMfaType,
+  } = props;
+  const mfaEnabled = auth2faType !== 'off';
 
   const [attempt, attemptActions] = useAttempt({});
   const [token, setToken] = React.useState('');
   const [oldPass, setOldPass] = React.useState('');
   const [newPass, setNewPass] = React.useState('');
   const [newPassConfirmed, setNewPassConfirmed] = React.useState('');
-  const [mfaOptions] = React.useState(() => {
-    let mfaOptions = [
-      { value: 'u2f', label: 'U2F' },
-      { value: 'otp', label: 'TOTP' },
-    ];
-    if (auth2faType === 'optional') {
-      mfaOptions = [{ value: 'none', label: 'NONE' }, ...mfaOptions];
-    }
-    return mfaOptions;
-  });
+  const mfaOptions = React.useMemo<MfaOption[]>(
+    () => getMfaOptions(auth2faType, preferredMfaType),
+    []
+  );
   const [mfaType, setMfaType] = React.useState(mfaOptions[0]);
 
   const { isProcessing } = attempt;
-  const isU2fSelected = u2fEnabled || (mfaEnabled && mfaType.value === 'u2f');
+  const isU2fSelected = auth2faType === 'u2f' || mfaType?.value === 'u2f';
 
   function submit() {
-    if (isU2fSelected) {
-      return onChangePassWithU2f(oldPass, newPass);
+    switch (mfaType?.value) {
+      case 'u2f':
+        return onChangePassWithU2f(oldPass, newPass);
+      case 'webauthn':
+        return onChangePassWithWebauthn(oldPass, newPass);
+      default:
+        return onChangePass(oldPass, newPass, token);
     }
-
-    return onChangePass(oldPass, newPass, token);
   }
 
   function resetForm() {
@@ -93,7 +94,7 @@ function FormPassword(props: Props) {
       });
   }
 
-  function onSetMfaOption(option: Option, validator: Validator) {
+  function onSetMfaOption(option: MfaOption, validator: Validator) {
     setToken('');
     attemptActions.clear();
     validator.reset();
@@ -117,10 +118,10 @@ function FormPassword(props: Props) {
             <Flex alignItems="flex-end" mb={4}>
               <Box width="50%" data-testid="mfa-select">
                 <FieldSelect
-                  label="Second factor"
+                  label="Two-factor type"
                   value={mfaType}
                   options={mfaOptions}
-                  onChange={opt => onSetMfaOption(opt as Option, validator)}
+                  onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
                   mr={3}
                   mb={0}
                   isDisabled={isProcessing}
@@ -129,7 +130,7 @@ function FormPassword(props: Props) {
               <Box width="50%">
                 {mfaType.value === 'otp' && (
                   <FieldInput
-                    label="two-factor token"
+                    label="Authenticator code"
                     rule={requiredToken}
                     autoComplete="off"
                     value={token}
@@ -140,17 +141,6 @@ function FormPassword(props: Props) {
                 )}
               </Box>
             </Flex>
-          )}
-          {otpEnabled && (
-            <FieldInput
-              label="two-factor token"
-              rule={requiredToken}
-              width="50%"
-              value={token}
-              onChange={e => setToken(e.target.value)}
-              type="text"
-              placeholder="123 456"
-            />
           )}
           <FieldInput
             rule={requiredPassword}
@@ -211,8 +201,10 @@ type StatusProps = {
 
 type Props = {
   auth2faType?: Auth2faType;
+  preferredMfaType?: PreferredMfaType;
   onChangePass(oldPass: string, newPass: string, token: string): Promise<any>;
   onChangePassWithU2f(oldPass: string, newPass: string): Promise<any>;
+  onChangePassWithWebauthn(oldPass: string, newPass: string): Promise<any>;
 };
 
 export default FormPassword;

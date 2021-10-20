@@ -41,12 +41,14 @@ const inputVal = { target: { value: inputValText } };
 test('input validation error states', async () => {
   const onChangePass = jest.fn().mockResolvedValue(null);
   const onChangePassWithU2f = jest.fn().mockResolvedValue(null);
+  const onChangePassWithWebauthn = jest.fn().mockResolvedValue(null);
 
   const { getByText } = render(
     <FormPassword
       auth2faType={'otp'}
       onChangePass={onChangePass}
       onChangePassWithU2f={onChangePassWithU2f}
+      onChangePassWithWebauthn={onChangePassWithWebauthn}
     />
   );
 
@@ -61,17 +63,22 @@ test('input validation error states', async () => {
   expect(getByText(/token is required/i)).toBeInTheDocument();
 });
 
-test('prop auth2faType: disabled', async () => {
+test('prop auth2faType: off', async () => {
   const onChangePass = jest.fn().mockResolvedValue(null);
   const onChangePassWithU2f = jest.fn().mockResolvedValue(null);
+  const onChangePassWithWebauthn = jest.fn().mockResolvedValue(null);
 
   const { getByText, getByPlaceholderText } = render(
     <FormPassword
       auth2faType="off"
       onChangePass={onChangePass}
       onChangePassWithU2f={onChangePassWithU2f}
+      onChangePassWithWebauthn={onChangePassWithWebauthn}
     />
   );
+
+  // Rendering of mfa dropdown.
+  expect(screen.queryByTestId('mfa-select')).toBeNull();
 
   // fill out form
   fireEvent.change(getByPlaceholderText(placeholdCurrPass), inputVal);
@@ -92,17 +99,54 @@ test('prop auth2faType: disabled', async () => {
   expect(getByPlaceholderText(placeholdConfirm)).toHaveAttribute('value', '');
 });
 
+test('prop auth2faType: webauthn form with mocked error', async () => {
+  const onChangePass = jest.fn().mockResolvedValue(null);
+  const onChangePassWithU2f = jest.fn().mockResolvedValue(null);
+  const onChangePassWithWebauthn = jest
+    .fn()
+    .mockRejectedValue(new Error('errMsg'));
+
+  const { getByText, getByPlaceholderText } = render(
+    <FormPassword
+      auth2faType={'webauthn'}
+      onChangePass={onChangePass}
+      onChangePassWithU2f={onChangePassWithU2f}
+      onChangePassWithWebauthn={onChangePassWithWebauthn}
+    />
+  );
+
+  // Rendering of mfa dropdown.
+  expect(screen.getByTestId('mfa-select')).not.toBeEmpty();
+
+  // fill out form
+  fireEvent.change(getByPlaceholderText(placeholdCurrPass), inputVal);
+  fireEvent.change(getByPlaceholderText(placeholdNewPass), inputVal);
+  fireEvent.change(getByPlaceholderText(placeholdConfirm), inputVal);
+
+  // test correct cb is called
+  await wait(() => fireEvent.click(getByText(btnSubmitText)));
+  expect(onChangePassWithWebauthn).toHaveBeenCalledTimes(1);
+
+  // test rendering of status message after submit
+  expect(getByText(/errMsg/i)).toBeInTheDocument();
+});
+
 test('prop auth2faType: OTP form', async () => {
   const onChangePass = jest.fn().mockResolvedValue(null);
   const onChangePassWithU2f = jest.fn().mockResolvedValue(null);
+  const onChangePassWithWebauthn = jest.fn().mockResolvedValue(null);
 
   const { getByText, getByPlaceholderText } = render(
     <FormPassword
       auth2faType="otp"
       onChangePass={onChangePass}
       onChangePassWithU2f={onChangePassWithU2f}
+      onChangePassWithWebauthn={onChangePassWithWebauthn}
     />
   );
+
+  // rendering of mfa dropdown
+  expect(screen.getByTestId('mfa-select')).not.toBeEmpty();
 
   // test input validation error state
   await wait(() => fireEvent.click(getByText(btnSubmitText)));
@@ -132,14 +176,19 @@ test('prop auth2faType: OTP form', async () => {
 test('prop auth2faType: U2f form with mocked error', async () => {
   const onChangePass = jest.fn().mockResolvedValue(null);
   const onChangePassWithU2f = jest.fn().mockRejectedValue(new Error('errMsg'));
+  const onChangePassWithWebauthn = jest.fn().mockResolvedValue(null);
 
   const { getByText, getByPlaceholderText } = render(
     <FormPassword
       auth2faType={'u2f'}
       onChangePass={onChangePass}
       onChangePassWithU2f={onChangePassWithU2f}
+      onChangePassWithWebauthn={onChangePassWithWebauthn}
     />
   );
+
+  // rendering of mfa dropdown
+  expect(screen.getByTestId('mfa-select')).not.toBeEmpty();
 
   // fill out form
   fireEvent.change(getByPlaceholderText(placeholdCurrPass), inputVal);
@@ -178,46 +227,12 @@ test('prop auth2faType: U2f form with mocked error', async () => {
   );
 });
 
-test('auth2faType "optional", has correct select options', async () => {
-  render(<Optional />);
-
-  // default mfa dropdown is set to none
-  expect(screen.getByTestId('mfa-select').textContent).toMatch(/none/i);
-
-  // select u2f from mfa dropdown
-  let selectEl = screen.getByTestId('mfa-select').querySelector('input');
-  fireEvent.focus(selectEl);
-  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  fireEvent.click(screen.getByText(/u2f/i));
-  screen.getByText(/u2f/i);
-
-  // select totp from mfa dropdown
-  selectEl = screen.getByTestId('mfa-select').querySelector('input');
-  fireEvent.focus(selectEl);
-  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  fireEvent.click(screen.getByText(/totp/i));
-  screen.getByText(/totp/i);
-
-  // test totp requirement
-  fireEvent.click(screen.getByText(/update password/i));
-  screen.getByText(/token is require/i);
+test('auth2faType "optional" should render form with hardware key as first option in dropdown', async () => {
+  const { container } = render(<Optional />);
+  expect(container).toMatchSnapshot();
 });
 
-test('auth2faType "on", has correct select options', async () => {
-  render(<On />);
-
-  // default mfa dropdown is set to u2f
-  expect(screen.getByTestId('mfa-select').textContent).toMatch(/u2f/i);
-
-  // select totp from mfa dropdown
-  const selectEl = screen.getByTestId('mfa-select').querySelector('input');
-  fireEvent.focus(selectEl);
-  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  fireEvent.click(screen.getByText(/totp/i));
-  screen.getByText(/totp/i);
-
-  // none type is not part of mfa dropdown
-  fireEvent.focus(selectEl);
-  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  expect(screen.queryAllByText(/none/i)).toHaveLength(0);
+test('auth2faType "on" should render form with hardware key as first option in dropdown', async () => {
+  const { container } = render(<On />);
+  expect(container).toMatchSnapshot();
 });

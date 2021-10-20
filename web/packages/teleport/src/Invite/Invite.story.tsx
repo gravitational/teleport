@@ -36,18 +36,25 @@ export const ResetPasswordScreen = () => (
   <Component {...props} passwordResetMode={true} />
 );
 
-export const AuthTfaOn = () => <Component {...props} auth2faType="on" />;
+export const AuthMfaOn = () => <Component {...props} auth2faType="on" />;
 
-export const AuthTfaOptional = () => (
+export const AuthMfaOnWithU2f = () => (
+  <Component {...props} auth2faType="on" preferredMfaType="u2f" />
+);
+AuthMfaOnWithU2f.storyName = 'Auth Mfa Optional with U2f';
+
+export const AuthMfaOptional = () => (
   <Component {...props} auth2faType="optional" />
 );
 
 const props: State & Props = {
   auth2faType: 'off',
+  preferredMfaType: 'webauthn',
   submitAttempt: { status: '' },
   clearSubmitAttempt: () => null,
   fetchAttempt: { status: 'success' },
   onSubmitWithU2f: () => null,
+  onSubmitWithWebauthn: () => null,
   onSubmit: () => null,
   passwordResetMode: false,
   passwordToken: {

@@ -21,21 +21,28 @@ export default {
   title: 'Shared/FormPassword',
 };
 
-export const Local = () => <FormPassword {...props} />;
+export const Off = () => <FormPassword {...props} />;
 
 export const OTP = () => <FormPassword auth2faType="otp" {...props} />;
+
+export const Webauthn = () => (
+  <FormPassword auth2faType="webauthn" {...props} />
+);
+
+export const On = () => (
+  <FormPassword auth2faType="on" {...props} preferredMfaType="webauthn" />
+);
+
+export const Optional = () => (
+  <FormPassword auth2faType="optional" {...props} preferredMfaType="webauthn" />
+);
 
 export const Universal2ndFactor = () => (
   <FormPassword auth2faType="u2f" {...props} />
 );
 
-export const On = () => <FormPassword auth2faType="on" {...props} />;
-
-export const Optional = () => (
-  <FormPassword auth2faType="optional" {...props} />
-);
-
 const props = {
   onChangePass: () => Promise.resolve(),
   onChangePassWithU2f: () => Promise.reject(new Error('server error')),
+  onChangePassWithWebauthn: () => Promise.reject(new Error('server error')),
 };

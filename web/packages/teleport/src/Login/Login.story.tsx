@@ -18,29 +18,36 @@ import React from 'react';
 import LoginSuccess from './LoginSuccess';
 import { LoginFailed } from './LoginFailed';
 import { Login } from './Login';
+import { State } from './useLogin';
 
 export default {
   title: 'Teleport/Login',
 };
 
-export const Form = () => <Login {...sample} />;
+export const Off = () => <Login {...sample} />;
+export const Otp = () => <Login {...sample} auth2faType="otp" />;
+export const Universal2ndFactor = () => <Login {...sample} auth2faType="u2f" />;
+export const Webauthn = () => <Login {...sample} auth2faType="webauthn" />;
+export const Optional = () => <Login {...sample} auth2faType="optional" />;
+export const On = () => <Login {...sample} auth2faType="on" />;
 export const Success = () => <LoginSuccess />;
 export const FailedDefault = () => <LoginFailed />;
 export const FailedCustom = () => <LoginFailed message="custom message" />;
 
-const sample = {
+const sample: State = {
   attempt: {
     isProcessing: false,
-    status: 'success' as any,
     isFailed: false,
     isSuccess: true,
     message: '',
   },
   onLogin: () => null,
   onLoginWithU2f: () => null,
+  onLoginWithWebauthn: () => null,
   onLoginWithSso: () => null,
   authProviders: [],
-  auth2faType: 'off' as any,
+  auth2faType: 'off',
+  preferredMfaType: 'webauthn',
   isLocalAuthEnabled: true,
   clearAttempt: () => null,
 };

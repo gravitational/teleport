@@ -19,7 +19,6 @@ import cfg from 'teleport/config';
 import PasswordForm from 'shared/components/FormPassword';
 import { FeatureBox } from 'teleport/components/Layout';
 import authService from 'teleport/services/auth';
-import { Auth2faType } from 'shared/services';
 
 export default function Container() {
   const state = useAccount();
@@ -27,13 +26,21 @@ export default function Container() {
 }
 
 export function Account(props: ReturnType<typeof useAccount>) {
-  const { auth2faType, changePass, changePassWithU2f } = props;
+  const {
+    auth2faType,
+    preferredMfaType,
+    changePass,
+    changePassWithU2f,
+    changePassWithWebauthn,
+  } = props;
   return (
     <FeatureBox pt="4">
       <PasswordForm
         auth2faType={auth2faType}
+        preferredMfaType={preferredMfaType}
         onChangePass={changePass}
         onChangePassWithU2f={changePassWithU2f}
+        onChangePassWithWebauthn={changePassWithWebauthn}
       />
     </FeatureBox>
   );
@@ -41,8 +48,12 @@ export function Account(props: ReturnType<typeof useAccount>) {
 
 function useAccount() {
   return {
-    auth2faType: cfg.getAuth2faType() as Auth2faType,
+    auth2faType: cfg.getAuth2faType(),
+    preferredMfaType: cfg.getPreferredMfaType(),
     changePass: authService.changePassword.bind(authService),
     changePassWithU2f: authService.changePasswordWithU2f.bind(authService),
+    changePassWithWebauthn: authService.changePasswordWithWebauthn.bind(
+      authService
+    ),
   };
 }

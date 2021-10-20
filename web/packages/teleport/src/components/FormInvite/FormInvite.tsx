@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useState, useMemo } from 'react';
 import { Text, Card, ButtonPrimary, Flex, Box, Link } from 'design';
 import * as Alerts from 'design/Alert';
-import { Auth2faType } from 'shared/services';
+import { Auth2faType, PreferredMfaType } from 'shared/services';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import FieldSelect from 'shared/components/FieldSelect';
 import FieldInput from 'shared/components/FieldInput';
@@ -36,7 +36,9 @@ const U2F_ERROR_CODES_URL =
 export default function FormInvite(props: Props) {
   const {
     auth2faType,
+    preferredMfaType,
     onSubmitWithU2f,
+    onSubmitWithWebauthn,
     onSubmit,
     attempt,
     clearSubmitAttempt,
@@ -46,21 +48,22 @@ export default function FormInvite(props: Props) {
     submitBtnText = 'Submit',
   } = props;
 
-  const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
-  const u2fEnabled = auth2faType === 'u2f';
-  const otpEnabled = auth2faType === 'otp';
-  const secondFactorEnabled = otpEnabled || u2fEnabled || mfaEnabled;
-
   const [password, setPassword] = useState('');
   const [passwordConfirmed, setPasswordConfirmed] = useState('');
   const [token, setToken] = useState('');
 
-  const mfaOptions = useMemo<MfaOption[]>(() => getMfaOptions(auth2faType), []);
-
+  const mfaOptions = useMemo<MfaOption[]>(
+    () => getMfaOptions(auth2faType, preferredMfaType),
+    []
+  );
   const [mfaType, setMfaType] = useState(mfaOptions[0]);
 
-  const boxWidth =
-    (secondFactorEnabled && mfaType.value !== 'optional' ? 720 : 464) + 'px';
+  const secondFactorEnabled = auth2faType !== 'off';
+  const showSideNote =
+    secondFactorEnabled &&
+    mfaType.value !== 'optional' &&
+    mfaType.value !== 'webauthn';
+  const boxWidth = (showSideNote ? 720 : 464) + 'px';
 
   function onBtnClick(
     e: React.MouseEvent<HTMLButtonElement>,
@@ -71,10 +74,15 @@ export default function FormInvite(props: Props) {
       return;
     }
 
-    if (mfaType.value === 'u2f') {
-      onSubmitWithU2f(password);
-    } else {
-      onSubmit(password, token);
+    switch (mfaType?.value) {
+      case 'u2f':
+        onSubmitWithU2f(password);
+        break;
+      case 'webauthn':
+        onSubmitWithWebauthn(password);
+        break;
+      default:
+        onSubmit(password, token);
     }
   }
 
@@ -164,7 +172,7 @@ export default function FormInvite(props: Props) {
                 {submitBtnText}
               </ButtonPrimary>
             </Box>
-            {secondFactorEnabled && mfaType.value !== 'optional' && (
+            {showSideNote && (
               <Box
                 flex="1"
                 bg="primary.main"
@@ -192,9 +200,11 @@ export type Props = {
   user: string;
   qr: string;
   auth2faType: Auth2faType;
+  preferredMfaType: PreferredMfaType;
   attempt: Attempt;
   clearSubmitAttempt: () => void;
   onSubmitWithU2f(password: string): void;
+  onSubmitWithWebauthn(password: string): void;
   onSubmit(password: string, optToken: string): void;
 };
 

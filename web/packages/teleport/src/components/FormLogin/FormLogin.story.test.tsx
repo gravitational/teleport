@@ -16,8 +16,10 @@
 
 import React from 'react';
 import {
-  Basic,
-  Multi,
+  Off,
+  Otp,
+  Optional,
+  Webauthn,
   Cloud,
   ServerError,
   SSOProviders,
@@ -27,13 +29,23 @@ import {
 } from './FormLogin.story';
 import { render } from 'design/utils/testing';
 
+test('auth2faType: off', () => {
+  const { container } = render(<Off />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
 test('auth2faType: otp rendering', () => {
-  const { container } = render(<Basic />);
+  const { container } = render(<Otp />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('auth2faType: webauthn rendering', () => {
+  const { container } = render(<Webauthn />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('auth2faType: optional rendering', () => {
-  const { container } = render(<Multi />);
+  const { container } = render(<Optional />);
   expect(container.firstChild).toMatchSnapshot();
 });
 

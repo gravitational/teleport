@@ -18,7 +18,7 @@ import React from 'react';
 import { render } from 'design/utils/testing';
 import * as story from './FormInvite.story';
 
-describe('shared/components/Invite.story', () => {
+describe('teleport/components/Invite.story', () => {
   test('story.off', () => {
     const { container } = render(<story.Off />);
     expect(container.firstChild).toMatchSnapshot();
@@ -36,6 +36,16 @@ describe('shared/components/Invite.story', () => {
 
   test('story.OtpError', () => {
     const { container } = render(<story.OtpError />);
+    expect(container.firstChild).toMatchSnapshot();
+  });
+
+  test('story.Webauthn', () => {
+    const { container } = render(<story.Webauthn />);
+    expect(container.firstChild).toMatchSnapshot();
+  });
+
+  test('story.Webauthn Error', () => {
+    const { container } = render(<story.WebauthnError />);
     expect(container.firstChild).toMatchSnapshot();
   });
 });

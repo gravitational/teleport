@@ -15,30 +15,18 @@
  */
 
 import React from 'react';
-import FormLogin from './FormLogin';
-import { render, fireEvent } from 'design/utils/testing';
+import FormLogin, { Props } from './FormLogin';
+import { render, fireEvent, wait } from 'design/utils/testing';
 
-test('login with auth2faType: disabled', () => {
+test('auth2faType: off', () => {
   const onLogin = jest.fn();
-  const onLoginWithSso = jest.fn();
-  const onLoginWithU2f = jest.fn();
 
-  const { getByText, getByPlaceholderText } = render(
-    <FormLogin
-      title="titleText"
-      auth2faType="off"
-      authProviders={[]}
-      attempt={{
-        isFailed: false,
-        isProcessing: false,
-        message: '',
-        isSuccess: undefined,
-      }}
-      onLogin={onLogin}
-      onLoginWithSso={onLoginWithSso}
-      onLoginWithU2f={onLoginWithU2f}
-    />
+  const { getByText, getByPlaceholderText, queryByTestId } = render(
+    <FormLogin {...props} onLogin={onLogin} />
   );
+
+  // Rendering of mfa dropdown.
+  expect(queryByTestId('mfa-select')).toBeNull();
 
   fireEvent.change(getByPlaceholderText(/username/i), {
     target: { value: 'username' },
@@ -50,30 +38,17 @@ test('login with auth2faType: disabled', () => {
   fireEvent.click(getByText(/login/i));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '');
-  expect(onLoginWithSso).not.toHaveBeenCalled();
-  expect(onLoginWithU2f).not.toHaveBeenCalled();
 });
 
-test('login with auth2faType: OTP', () => {
+test('auth2faType: otp', () => {
   const onLogin = jest.fn();
-  const onLoginWithSso = jest.fn();
-  const onLoginWithU2f = jest.fn();
 
-  const { getByText, getByPlaceholderText } = render(
-    <FormLogin
-      auth2faType="otp"
-      authProviders={[]}
-      attempt={{
-        isFailed: false,
-        isProcessing: false,
-        message: '',
-        isSuccess: undefined,
-      }}
-      onLogin={onLogin}
-      onLoginWithSso={onLoginWithSso}
-      onLoginWithU2f={onLoginWithU2f}
-    />
+  const { getByText, getByPlaceholderText, getByTestId } = render(
+    <FormLogin {...props} auth2faType="otp" onLogin={onLogin} />
   );
+
+  // Rendering of mfa dropdown.
+  expect(getByTestId('mfa-select')).not.toBeEmpty();
 
   // fill form
   fireEvent.change(getByPlaceholderText(/username/i), {
@@ -88,119 +63,153 @@ test('login with auth2faType: OTP', () => {
   fireEvent.click(getByText(/login/i));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '456');
-  expect(onLoginWithSso).not.toHaveBeenCalled();
-  expect(onLoginWithU2f).not.toHaveBeenCalled();
 });
 
-test('login with auth2faType: U2F', () => {
-  const onLogin = jest.fn();
-  const onLoginWithSso = jest.fn();
+test('auth2faType: u2f', async () => {
   const onLoginWithU2f = jest.fn();
 
-  const { getByText } = render(
+  const { getByText, getByPlaceholderText, rerender, getByTestId } = render(
+    <FormLogin {...props} auth2faType="u2f" onLoginWithU2f={onLoginWithU2f} />
+  );
+
+  // Rendering of mfa dropdown.
+  expect(getByTestId('mfa-select')).not.toBeEmpty();
+
+  // fill form
+  fireEvent.change(getByPlaceholderText(/username/i), {
+    target: { value: 'username' },
+  });
+  fireEvent.change(getByPlaceholderText(/password/i), {
+    target: { value: '123' },
+  });
+
+  fireEvent.click(getByText(/login/i));
+  expect(onLoginWithU2f).toHaveBeenCalledWith('username', '123');
+
+  // test u2f instructions
+  rerender(
     <FormLogin
-      title="titleText"
+      {...props}
       auth2faType="u2f"
-      authProviders={[]}
+      onLoginWithU2f={onLoginWithU2f}
       attempt={{
         isFailed: false,
         isProcessing: true,
         message: '',
-        isSuccess: undefined,
+        isSuccess: false,
       }}
-      onLogin={onLogin}
-      onLoginWithSso={onLoginWithSso}
-      onLoginWithU2f={onLoginWithU2f}
     />
   );
-
   const expEl = getByText(
     /insert your hardware key and press the button on the key/i
   );
-
   expect(expEl).toBeInTheDocument();
   expect(getByText(/login/i)).toBeDisabled();
 });
 
-test('input validation error handling', () => {
-  const onLogin = jest.fn();
-  const onLoginWithSso = jest.fn();
-  const onLoginWithU2f = jest.fn();
+test('auth2faType: webauthn', async () => {
+  const onLoginWithWebauthn = jest.fn();
 
-  const { getByText } = render(
+  const { getByText, getByPlaceholderText, getByTestId } = render(
     <FormLogin
-      title="titleText"
-      auth2faType="otp"
-      attempt={{
-        isFailed: false,
-        isProcessing: false,
-        message: '',
-        isSuccess: undefined,
-      }}
-      onLogin={onLogin}
-      onLoginWithSso={onLoginWithSso}
-      onLoginWithU2f={onLoginWithU2f}
-      authProviders={[]}
+      {...props}
+      auth2faType="webauthn"
+      onLoginWithWebauthn={onLoginWithWebauthn}
     />
   );
 
+  // Rendering of mfa dropdown.
+  expect(getByTestId('mfa-select')).not.toBeEmpty();
+
+  // fill form
+  fireEvent.change(getByPlaceholderText(/username/i), {
+    target: { value: 'username' },
+  });
+  fireEvent.change(getByPlaceholderText(/password/i), {
+    target: { value: '123' },
+  });
+
   fireEvent.click(getByText(/login/i));
+  expect(onLoginWithWebauthn).toHaveBeenCalledWith('username', '123');
+});
+
+test('input validation error handling', async () => {
+  const onLogin = jest.fn();
+  const onLoginWithSso = jest.fn();
+  const onLoginWithU2f = jest.fn();
+  const onLoginWithWebauthn = jest.fn();
+
+  const { getByText } = render(
+    <FormLogin
+      {...props}
+      auth2faType="otp"
+      onLogin={onLogin}
+      onLoginWithSso={onLoginWithSso}
+      onLoginWithU2f={onLoginWithU2f}
+      onLoginWithWebauthn={onLoginWithWebauthn}
+    />
+  );
+
+  await wait(() => {
+    fireEvent.click(getByText(/login/i));
+  });
 
   expect(onLogin).not.toHaveBeenCalled();
   expect(onLoginWithSso).not.toHaveBeenCalled();
   expect(onLoginWithU2f).not.toHaveBeenCalled();
+  expect(onLoginWithWebauthn).not.toHaveBeenCalled();
 
   expect(getByText(/username is required/i)).toBeInTheDocument();
   expect(getByText(/password is required/i)).toBeInTheDocument();
   expect(getByText(/token is required/i)).toBeInTheDocument();
 });
 
-test('error handling', () => {
+test('error rendering', () => {
   const { getByText } = render(
     <FormLogin
+      {...props}
       auth2faType="off"
-      authProviders={[]}
       attempt={{
         isFailed: true,
         isProcessing: false,
         message: 'errMsg',
-        isSuccess: undefined,
+        isSuccess: false,
       }}
-      onLogin={jest.fn()}
-      onLoginWithSso={jest.fn()}
-      onLoginWithU2f={jest.fn()}
     />
   );
 
   expect(getByText('errMsg')).toBeInTheDocument();
 });
 
-test('login with SSO providers', () => {
-  const onLogin = jest.fn();
+test('sso providers', () => {
   const onLoginWithSso = jest.fn();
-  const onLoginWithU2f = jest.fn();
 
   const { getByText } = render(
     <FormLogin
-      auth2faType="off"
+      {...props}
       authProviders={[
         { name: 'github', type: 'github', url: '' },
         { name: 'google', type: 'saml', url: '' },
       ]}
-      attempt={{
-        isFailed: false,
-        isProcessing: false,
-        message: '',
-        isSuccess: undefined,
-      }}
-      onLogin={onLogin}
       onLoginWithSso={onLoginWithSso}
-      onLoginWithU2f={onLoginWithU2f}
     />
   );
 
   fireEvent.click(getByText(/github/i));
   expect(onLoginWithSso).toHaveBeenCalledTimes(1);
-  expect(onLogin).not.toHaveBeenCalled();
-  expect(onLoginWithU2f).not.toHaveBeenCalled();
 });
+
+const props: Props = {
+  auth2faType: 'off',
+  authProviders: [],
+  attempt: {
+    isFailed: false,
+    isProcessing: false,
+    message: '',
+    isSuccess: false,
+  },
+  onLogin: null,
+  onLoginWithSso: null,
+  onLoginWithU2f: null,
+  onLoginWithWebauthn: null,
+};

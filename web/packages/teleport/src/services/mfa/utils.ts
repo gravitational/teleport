@@ -1,22 +1,54 @@
-import { Auth2faType } from 'shared/services';
-import { Option } from 'shared/components/Select';
+/**
+ * Copyright 2021 Gravitational, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-export type MfaOption = Option<Auth2faType>;
+import { Auth2faType, PreferredMfaType } from 'shared/services';
 
-export function getMfaOptions(auth2faType: Auth2faType) {
+export type MfaOption = {
+  value: Auth2faType;
+  label: string;
+};
+
+export function getMfaOptions(
+  mfa: Auth2faType,
+  preferredMfa: PreferredMfaType
+) {
   const mfaOptions: MfaOption[] = [];
-  const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
 
-  if (auth2faType === 'optional' || auth2faType === 'off') {
-    mfaOptions.push({ value: 'optional', label: 'None' });
+  if (mfa === 'off' || !mfa) {
+    return mfaOptions;
   }
 
-  if (auth2faType === 'u2f' || mfaEnabled) {
+  const mfaEnabled = mfa === 'on' || mfa === 'optional';
+  const preferMfaWebauthn = mfaEnabled && preferredMfa === 'webauthn';
+  const preferMfaU2f = mfaEnabled && preferredMfa === 'u2f';
+
+  if (mfa === 'webauthn' || preferMfaWebauthn) {
+    mfaOptions.push({ value: 'webauthn', label: 'Hardware Key' });
+  }
+
+  if (mfa === 'u2f' || preferMfaU2f) {
     mfaOptions.push({ value: 'u2f', label: 'Hardware Key' });
   }
 
-  if (auth2faType === 'otp' || mfaEnabled) {
+  if (mfa === 'otp' || mfaEnabled) {
     mfaOptions.push({ value: 'otp', label: 'Authenticator App' });
+  }
+
+  if (mfa === 'optional') {
+    mfaOptions.push({ value: 'optional', label: 'None' });
   }
 
   return mfaOptions;

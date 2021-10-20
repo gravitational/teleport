@@ -21,7 +21,7 @@ import { Logger } from 'shared/libs/logger';
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 import Invite from './Invite';
-import { AuthTfaOn, AuthTfaOptional } from './Invite.story';
+import { AuthMfaOn, AuthMfaOptional } from './Invite.story';
 
 describe('teleport/components/Invite', () => {
   beforeEach(() => {
@@ -103,6 +103,30 @@ describe('teleport/components/Invite', () => {
     expect(auth.resetPasswordWithU2f).toHaveBeenCalledWith('5182', 'pwd_value');
   });
 
+  it('reset password with webauthn', async () => {
+    jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'webauthn');
+    jest
+      .spyOn(auth, 'resetPassword')
+      .mockImplementation(() => new Promise(() => null));
+    jest
+      .spyOn(auth, 'resetPasswordWithWebauthn')
+      .mockImplementation(() => new Promise(() => null));
+
+    await act(async () => renderInvite());
+
+    // fill out input boxes and trigger submit
+    const pwdField = screen.getByPlaceholderText('Password');
+    const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
+    fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
+    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
+    fireEvent.click(screen.getByRole('button'));
+
+    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith(
+      '5182',
+      'pwd_value'
+    );
+  });
+
   it('reset password error', async () => {
     let reject;
     jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'off');
@@ -128,13 +152,13 @@ describe('teleport/components/Invite', () => {
     expect(screen.getByText('server_error')).toBeDefined();
   });
 
-  it('should render form with token requirement when auth2fatype is on', async () => {
-    const { container } = render(<AuthTfaOn />);
+  it('auth type "on" should render form with hardware key as first option in dropdown', async () => {
+    const { container } = render(<AuthMfaOn />);
     expect(container).toMatchSnapshot();
   });
 
-  it('should render form with token requirement when auth2fatype is optional', async () => {
-    const { container } = render(<AuthTfaOptional />);
+  it('auth type "optional" should render form with hardware key as first option in dropdown', async () => {
+    const { container } = render(<AuthMfaOptional />);
     expect(container).toMatchSnapshot();
   });
 });
