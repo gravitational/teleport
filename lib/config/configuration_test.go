@@ -1250,12 +1250,11 @@ func TestFIPS(t *testing.T) {
 
 func TestProxyKube(t *testing.T) {
 	tests := []struct {
-		desc          string
-		cfg           Proxy
-		version       string
-		newKubeConfig Kube
-		want          service.KubeProxyConfig
-		checkErr      require.ErrorAssertionFunc
+		desc     string
+		cfg      Proxy
+		version  string
+		want     service.KubeProxyConfig
+		checkErr require.ErrorAssertionFunc
 	}{
 		{
 			desc: "not configured",
@@ -1329,30 +1328,11 @@ func TestProxyKube(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
-			desc:    "v2 new format kube service enabled",
+			desc:    "v2 kube service should be enabled by default",
 			version: defaults.TeleportConfigVersionV2,
 			cfg:     Proxy{},
-			newKubeConfig: Kube{
-				Service: Service{
-					EnabledFlag: "true",
-				},
-			},
 			want: service.KubeProxyConfig{
 				Enabled: true,
-			},
-			checkErr: require.NoError,
-		},
-		{
-			desc:    "v2 new format kube service disabled",
-			version: defaults.TeleportConfigVersionV2,
-			cfg:     Proxy{},
-			newKubeConfig: Kube{
-				Service: Service{
-					EnabledFlag: "false",
-				},
-			},
-			want: service.KubeProxyConfig{
-				Enabled: false,
 			},
 			checkErr: require.NoError,
 		},
@@ -1362,7 +1342,6 @@ func TestProxyKube(t *testing.T) {
 			fc := &FileConfig{
 				Version: tt.version,
 				Proxy:   tt.cfg,
-				Kube:    tt.newKubeConfig,
 			}
 			cfg := &service.Config{
 				Version: tt.version,
@@ -1397,7 +1376,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				Enabled:             true,
 				EnableProxyProtocol: true,
 				Kube: service.KubeProxyConfig{
-					Enabled: false,
+					Enabled: true,
 				},
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
@@ -1421,6 +1400,9 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				Enabled:             true,
 				EnableProxyProtocol: true,
 				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
+				Kube: service.KubeProxyConfig{
+					Enabled: true,
+				},
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,

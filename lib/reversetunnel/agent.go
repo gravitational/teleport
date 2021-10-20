@@ -264,7 +264,9 @@ func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
 	pd := reverseTunnelDetails{TLSRoutingEnabled: false}
 	resp, err := webclient.Find(a.ctx, a.Addr.Addr, lib.IsInsecureDevMode(), nil)
 	if err != nil {
-		a.log.WithError(err).Errorf("Failed to ping web proxy %q addr.", a.Addr.Addr)
+		// If TLS Routing is disabled the address is the proxy reverse tunnel
+		// address the ping call will always fail.
+		a.log.Infof("Failed to ping web proxy %q addr: %v", a.Addr.Addr, err)
 	} else {
 		pd.TLSRoutingEnabled = resp.Proxy.TLSRoutingEnabled
 	}

@@ -753,12 +753,11 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.Kube.PublicAddrs = publicAddrs
 	case legacyKube && newKube:
 		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
-	case fc.Kube.Enabled() && fc.Version == defaults.TeleportConfigVersionV2:
-		// If new kube service was enabled but fc.Proxy.KubeAddr is missing from proxy configuration
-		// enabled kubernetes service. Kubernetes listener will be multiplexed by ALPN SNI listener.
-		cfg.Proxy.Kube.Enabled = true
 	case !legacyKube && !newKube:
-		// Nothing enabled, this is just for completeness.
+		if fc.Version == defaults.TeleportConfigVersionV2 {
+			// Always enable kube service if using config V2 (TLS routing is supported)
+			cfg.Proxy.Kube.Enabled = true
+		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
 		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
