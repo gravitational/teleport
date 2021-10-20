@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -85,13 +84,7 @@ func NewSuite(t *testing.T) *Suite {
 	})
 
 	router := NewRouter()
-	router.Add(HandlerDecs{
-		MatchFunc: MatchByProtocol(common.ProtocolDefault),
-		Handler: func(ctx context.Context, conn net.Conn) error {
-			t.Errorf("default handler called")
-			return nil
-		},
-	})
+
 	return &Suite{
 		tlsServer:      tlsServer,
 		authServer:     authServer,

@@ -55,6 +55,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindGithub, RW()),
 					types.NewRule(types.KindClusterAuditConfig, RW()),
 					types.NewRule(types.KindClusterAuthPreference, RW()),
+					types.NewRule(types.KindAuthConnector, RW()),
 					types.NewRule(types.KindClusterName, RW()),
 					types.NewRule(types.KindClusterNetworkingConfig, RW()),
 					types.NewRule(types.KindSessionRecordingConfig, RW()),

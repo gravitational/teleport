@@ -20,18 +20,18 @@ users of this role to see a list of active SSH sessions".
 
 ```yaml
 allow:
-    - resources: [session]
-      verbs: [list]
+  - resources: [session]
+    verbs: [list]
 ```
 
-If this rule was declared in the `deny` section of a role definition, it effectively 
-prohibits users from getting a list of trusted clusters and sessions. You can see
-all of the available resources and verbs under the `allow` section in the `admin` role configuration
-below.
+If this rule was declared in the `deny` section of a role definition, it
+would prohibit users from getting a list of trusted clusters and
+sessions. You can see all of the available resources and verbs under the `allow`
+section in the example role configuration below.
 
-To manage cluster roles, a Teleport administrator can use the Web UI or the command
-line using [tctl resource commands](../setup/reference/resources.mdx). To see the list of
-roles in a Teleport cluster, an administrator can execute:
+To manage cluster roles, a Teleport administrator can use the Web UI or the
+command line using [tctl resource commands](../setup/reference/resources.mdx).
+To see the list of roles in a Teleport cluster, an administrator can execute:
 
 ```code
 $ tctl get roles
@@ -39,13 +39,13 @@ $ tctl get roles
 
 (!docs/pages/includes/backup-warning.mdx!)
 
-By default there is always one role called `admin` which looks like this:
+A role definition looks like this:
 
 ```yaml
 kind: role
 version: v4
 metadata:
-  name: admin
+  name: example
 spec:
   # SSH options used for user sessions with default values:
   options:
@@ -79,6 +79,8 @@ spec:
     # The logins array defines the OS/UNIX logins a user is allowed to use.
     # a few special variables are supported here (see below)
     logins: [root, '{{internal.logins}}']
+    # Windows logins a user is allowed to use for desktop sessions.
+    windows_desktop_logins: [Administrator, '{{internal.logins}}']
     # If kubernetes integration is enabled, this setting configures which 
     # kubernetes groups the users of this role will be assigned to.
     # Note that you can refer to a SAML/OIDC trait via the "external" property bag.
@@ -133,7 +135,7 @@ spec:
   deny: {}
 ```
 
-The following variables can be used with `logins` field:
+The following variables can be used with `logins` and `windows_desktop_logins` fields:
 
 | Variable | Description |
 | - | - |
@@ -182,10 +184,20 @@ Teleport provides several pre-defined roles out-of-the-box:
 
 | Role | Description |
 | --- | --- |
-| `admin` | Allows complete control over cluster settings, resources, and events. |
 | `editor` | Allows editing of cluster configuration settings. |
 | `auditor`| Allows reading cluster events, audit logs, and playing back session records. | 
 | `access`| Allows access to cluster resources. |
+
+<Details title="Version Warning: Before 8.0" opened={false}> 
+Teleport versions prior to 8.0 also included a default `admin` role. This role
+has been deprecated in favor of smaller, more fine-grained roles like the
+presets mentioned above.
+
+Users installing a brand new Teleport cluster on version 8.0 or later will not
+see this `admin` role. Users who upgrade to Teleport 8 from an earlier version
+*will* continue to see the admin role, but are encouraged to migrate to roles
+that are more appropriately scoped.
+</Details>
 
 ### Role versions
 
