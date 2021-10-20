@@ -788,11 +788,11 @@ func TestBackendDefaults(t *testing.T) {
 	require.Equal(t, cfg.Auth.StorageConfig.Type, lite.GetName())
 	require.Equal(t, cfg.Auth.StorageConfig.Params[defaults.BackendPath], "/var/lib/teleport/mybackend")
 
-	// Kubernetes proxy is enabled by default.
+	// Kubernetes proxy is disabled by default.
 	cfg = read(`teleport:
      data_dir: /var/lib/teleport
 `)
-	require.True(t, cfg.Proxy.Kube.Enabled)
+	require.False(t, cfg.Proxy.Kube.Enabled)
 }
 
 // TestParseKey ensures that keys are parsed correctly if they are in
@@ -1250,30 +1250,18 @@ func TestFIPS(t *testing.T) {
 
 func TestProxyKube(t *testing.T) {
 	tests := []struct {
-		desc     string
-		cfg      Proxy
-		version  string
-		want     service.KubeProxyConfig
-		checkErr require.ErrorAssertionFunc
+		desc          string
+		cfg           Proxy
+		version       string
+		newKubeConfig Kube
+		want          service.KubeProxyConfig
+		checkErr      require.ErrorAssertionFunc
 	}{
 		{
-			// Kubernetes proxy should be enabled by default to support case when kubernetes proxy service
-			// is multiplexed by ALPN SNI proxy on the WebPort.
-			desc: "new and legacy k8 settings not configured - k8 should be enabled by default",
+			desc: "not configured",
 			cfg:  Proxy{},
 			want: service.KubeProxyConfig{
-				Enabled:    true,
-				ListenAddr: *defaults.KubeProxyListenAddr(),
-			},
-			checkErr: require.NoError,
-		},
-		{
-			desc:    "v2 config - k8 should be enabled but listener address should be empty",
-			cfg:     Proxy{},
-			version: defaults.TeleportConfigVersionV2,
-			want: service.KubeProxyConfig{
-				Enabled:    true,
-				ListenAddr: utils.NetAddr{},
+				Enabled: false,
 			},
 			checkErr: require.NoError,
 		},
@@ -1340,10 +1328,42 @@ func TestProxyKube(t *testing.T) {
 			},
 			checkErr: require.NoError,
 		},
+		{
+			desc:    "v2 new format kube service enabled",
+			version: defaults.TeleportConfigVersionV2,
+			cfg:     Proxy{},
+			newKubeConfig: Kube{
+				Service: Service{
+					EnabledFlag: "true",
+				},
+			},
+			want: service.KubeProxyConfig{
+				Enabled: true,
+			},
+			checkErr: require.NoError,
+		},
+		{
+			desc:    "v2 new format kube service disabled",
+			version: defaults.TeleportConfigVersionV2,
+			cfg:     Proxy{},
+			newKubeConfig: Kube{
+				Service: Service{
+					EnabledFlag: "false",
+				},
+			},
+			want: service.KubeProxyConfig{
+				Enabled: false,
+			},
+			checkErr: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			fc := &FileConfig{Proxy: tt.cfg}
+			fc := &FileConfig{
+				Version: tt.version,
+				Proxy:   tt.cfg,
+				Kube:    tt.newKubeConfig,
+			}
 			cfg := &service.Config{
 				Version: tt.version,
 			}
@@ -1377,7 +1397,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				Enabled:             true,
 				EnableProxyProtocol: true,
 				Kube: service.KubeProxyConfig{
-					Enabled: true,
+					Enabled: false,
 				},
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
@@ -1401,9 +1421,6 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				Enabled:             true,
 				EnableProxyProtocol: true,
 				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
-				Kube: service.KubeProxyConfig{
-					Enabled: true,
-				},
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
@@ -1430,8 +1447,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				},
 				WebAddr: *defaults.ProxyWebListenAddr(),
 				Kube: service.KubeProxyConfig{
-					Enabled:    true,
-					ListenAddr: *defaults.KubeProxyListenAddr(),
+					Enabled: false,
 				},
 				ReverseTunnelListenAddr: *defaults.ReverseTunnelListenAddr(),
 				SSHAddr:                 *defaults.ProxyListenAddr(),
