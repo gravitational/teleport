@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -38,6 +39,9 @@ type ClusterName interface {
 
 	// CheckAndSetDefaults checks and set default values for missing fields.
 	CheckAndSetDefaults() error
+
+	// Clone performs a deep copy.
+	Clone() ClusterName
 }
 
 // NewClusterName is a convenience wrapper to create a ClusterName resource.
@@ -128,6 +132,11 @@ func (c *ClusterNameV2) SetClusterName(n string) {
 // GetClusterName gets the name of the cluster.
 func (c *ClusterNameV2) GetClusterName() string {
 	return c.Spec.ClusterName
+}
+
+// Clone performs a deep copy.
+func (c *ClusterNameV2) Clone() ClusterName {
+	return proto.Clone(c).(*ClusterNameV2)
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.

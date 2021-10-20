@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -277,6 +278,10 @@ type Cache struct {
 
 	// collections is a map of registered collections by resource Kind/SubKind
 	collections map[resourceKind]collection
+
+	// fnCache is used to perform short ttl-based caching of the results of
+	// regularly called methods.
+	fnCache *fnCache
 
 	trustCache         services.Trust
 	clusterConfigCache services.ClusterConfiguration
@@ -557,6 +562,7 @@ func New(config Config) (*Cache, error) {
 		Config:             config,
 		generation:         atomic.NewUint64(0),
 		initC:              make(chan struct{}),
+		fnCache:            newFnCache(time.Second),
 		trustCache:         local.NewCAService(wrapper),
 		clusterConfigCache: local.NewClusterConfigurationService(wrapper),
 		provisionerCache:   local.NewProvisioningService(wrapper),
@@ -968,6 +974,10 @@ func (c *Cache) processEvent(ctx context.Context, event services.Event) error {
 	return nil
 }
 
+type getCertAuthorityCacheKey struct {
+	id types.CertAuthID
+}
+
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
 func (c *Cache) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
@@ -976,7 +986,23 @@ func (c *Cache) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, o
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...)
+
+	if !rg.IsCacheRead() && !loadSigningKeys {
+		ta := func(_ types.CertAuthority) {} // compile-time type assertion
+		ci, err := c.fnCache.Get(context.TODO(), getCertAuthorityCacheKey{id}, func() (interface{}, error) {
+			ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
+			ta(ca)
+			return ca, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedCA := ci.(types.CertAuthority)
+		ta(cachedCA)
+		return cachedCA.Clone(), nil
+	}
+
+	ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
@@ -989,6 +1015,10 @@ func (c *Cache) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, o
 	return ca, trace.Wrap(err)
 }
 
+type getCertAuthoritiesCacheKey struct {
+	caType types.CertAuthType
+}
+
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
 func (c *Cache) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error) {
@@ -997,7 +1027,25 @@ func (c *Cache) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.trust.GetCertAuthorities(caType, loadSigningKeys, services.AddOptions(opts, services.SkipValidation())...)
+	if !rg.IsCacheRead() && !loadSigningKeys {
+		ta := func(_ []types.CertAuthority) {} // compile-time type assertion
+		ci, err := c.fnCache.Get(context.TODO(), getCertAuthoritiesCacheKey{caType}, func() (interface{}, error) {
+			cas, err := rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
+			ta(cas)
+			return cas, trace.Wrap(err)
+		})
+		if err != nil || ci == nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedCAs := ci.([]types.CertAuthority)
+		ta(cachedCAs)
+		cas := make([]types.CertAuthority, 0, len(cachedCAs))
+		for _, ca := range cachedCAs {
+			cas = append(cas, ca.Clone())
+		}
+		return cas, nil
+	}
+	return rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -1041,6 +1089,10 @@ func (c *Cache) GetToken(ctx context.Context, name string) (services.ProvisionTo
 	return token, trace.Wrap(err)
 }
 
+type clusterConfigCacheKey struct {
+	kind string
+}
+
 // GetClusterConfig gets services.ClusterConfig from the backend.
 func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
 	rg, err := c.read()
@@ -1048,6 +1100,20 @@ func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (services.Clust
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+	if !rg.IsCacheRead() {
+		ta := func(_ services.ClusterConfig) {} // compile-time type assertion
+		ci, err := c.fnCache.Get(context.TODO(), clusterConfigCacheKey{"main"}, func() (interface{}, error) {
+			cfg, err := rg.clusterConfig.GetClusterConfig(services.AddOptions(opts, services.SkipValidation())...)
+			ta(cfg)
+			return cfg, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedCfg := ci.(services.ClusterConfig)
+		ta(cachedCfg)
+		return cachedCfg.Copy(), nil
+	}
 	return rg.clusterConfig.GetClusterConfig(services.AddOptions(opts, services.SkipValidation())...)
 }
 
@@ -1058,6 +1124,20 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (services.Cluster
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+	if !rg.IsCacheRead() {
+		ta := func(_ types.ClusterName) {} // compile-time type assertion
+		ci, err := c.fnCache.Get(context.TODO(), clusterConfigCacheKey{"name"}, func() (interface{}, error) {
+			cfg, err := rg.clusterConfig.GetClusterName(services.AddOptions(opts, services.SkipValidation())...)
+			ta(cfg)
+			return cfg, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedCfg := ci.(types.ClusterName)
+		ta(cachedCfg)
+		return cachedCfg.Clone(), nil
+	}
 	return rg.clusterConfig.GetClusterName(services.AddOptions(opts, services.SkipValidation())...)
 }
 
@@ -1111,6 +1191,10 @@ func (c *Cache) GetNamespaces() ([]services.Namespace, error) {
 	return rg.presence.GetNamespaces()
 }
 
+type getNodesCacheKey struct {
+	namespace string
+}
+
 // GetNodes is a part of auth.AccessPoint implementation
 func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	rg, err := c.read()
@@ -1118,17 +1202,82 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.presence.GetNodes(ctx, namespace, opts...)
+
+	if !rg.IsCacheRead() {
+		ta := func(_ []types.Server) {} // compile-time type assertion
+		ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
+			// use cache's close context instead of request context in order to ensure
+			// that we don't cache a context cancellation error.
+			nodes, err := rg.presence.GetNodes(c.ctx, namespace, services.AddOptions(opts, services.SkipValidation())...)
+			ta(nodes)
+			return nodes, err
+		})
+		if err != nil || ni == nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedNodes := ni.([]types.Server)
+		ta(cachedNodes)
+		nodes := make([]types.Server, 0, len(cachedNodes))
+		for _, node := range cachedNodes {
+			nodes = append(nodes, node.DeepCopy())
+		}
+		return nodes, nil
+	}
+
+	return rg.presence.GetNodes(ctx, namespace, services.AddOptions(opts, services.SkipValidation())...)
 }
 
 // ListNodes is a part of auth.AccessPoint implementation
 func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	rg, err := c.read()
+	// NOTE: we "fake" the ListNodes API here in order to take advantate of TTL-based caching of
+	// the GetNodes endpoint, since performing TTL-based caching on a paginated endpoint is nightmarish.
+
+	limit := int(req.Limit)
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive limit value")
+	}
+
+	nodes, err := c.GetNodes(ctx, req.Namespace)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	defer rg.Release()
-	return rg.presence.ListNodes(ctx, req)
+
+	// ensure nodes are sorted in lexographically ascending order.
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].GetName() < nodes[j].GetName()
+	})
+
+	// trim nodes that preced start key
+	if req.StartKey != "" {
+		pageStart := 0
+		for i, node := range nodes {
+			if node.GetName() < req.StartKey {
+				pageStart = i + 1
+			} else {
+				break
+			}
+		}
+		nodes = nodes[pageStart:]
+	}
+
+	// iterate and filter nodes, halting when we reach page limit
+	var filtered []types.Server
+	for _, node := range nodes {
+		if len(filtered) == limit {
+			break
+		}
+
+		if node.MatchAgainst(req.Labels) {
+			filtered = append(filtered, node)
+		}
+	}
+
+	var nextKey string
+	if len(filtered) == limit {
+		nextKey = backend.NextPaginationKey(filtered[len(filtered)-1])
+	}
+
+	return filtered, nextKey, nil
 }
 
 // GetAuthServers returns a list of registered servers
@@ -1161,6 +1310,10 @@ func (c *Cache) GetProxies() ([]services.Server, error) {
 	return rg.presence.GetProxies()
 }
 
+type remoteClustersCacheKey struct {
+	name string
+}
+
 // GetRemoteClusters returns a list of remote clusters
 func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
 	rg, err := c.read()
@@ -1168,6 +1321,24 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]services.Re
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+	if !rg.IsCacheRead() {
+		ta := func(_ []types.RemoteCluster) {} // compile-time type assertion
+		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{}, func() (interface{}, error) {
+			remotes, err := rg.presence.GetRemoteClusters(opts...)
+			ta(remotes)
+			return remotes, err
+		})
+		if err != nil || ri == nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedRemotes := ri.([]types.RemoteCluster)
+		ta(cachedRemotes)
+		remotes := make([]types.RemoteCluster, 0, len(cachedRemotes))
+		for _, remote := range cachedRemotes {
+			remotes = append(remotes, remote.Clone())
+		}
+		return remotes, nil
+	}
 	return rg.presence.GetRemoteClusters(opts...)
 }
 
@@ -1178,6 +1349,20 @@ func (c *Cache) GetRemoteCluster(clusterName string) (services.RemoteCluster, er
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+	if !rg.IsCacheRead() {
+		ta := func(_ types.RemoteCluster) {} // compile-time type assertion
+		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{clusterName}, func() (interface{}, error) {
+			remote, err := rg.presence.GetRemoteCluster(clusterName)
+			ta(remote)
+			return remote, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedRemote := ri.(types.RemoteCluster)
+		ta(cachedRemote)
+		return cachedRemote.Clone(), nil
+	}
 	return rg.presence.GetRemoteCluster(clusterName)
 }
 
