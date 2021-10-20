@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,3 +93,99 @@ spec:
   uri: "localhost:5432"
   ca_cert: |
 %v`
+
+// TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
+func TestDatabaseFromRDSInstance(t *testing.T) {
+	instance := &rds.DBInstance{
+		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:1234567890:db:instance-1"),
+		DBInstanceIdentifier:             aws.String("instance-1"),
+		DBClusterIdentifier:              aws.String("cluster-1"),
+		DbiResourceId:                    aws.String("resource-1"),
+		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+		Engine:                           aws.String(RDSEnginePostgres),
+		EngineVersion:                    aws.String("13.0"),
+		Endpoint: &rds.Endpoint{
+			Address: aws.String("localhost"),
+			Port:    aws.Int64(5432),
+		},
+		TagList: []*rds.Tag{{
+			Key:   aws.String("key"),
+			Value: aws.String("val"),
+		}},
+	}
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "instance-1",
+		Description: "RDS instance in us-west-1",
+		Labels: map[string]string{
+			types.OriginLabel:  types.OriginCloud,
+			labelAccountID:     "1234567890",
+			labelRegion:        "us-west-1",
+			labelEngine:        RDSEnginePostgres,
+			labelEngineVersion: "13.0",
+			"key":              "val",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-west-1",
+			RDS: types.RDS{
+				InstanceID: "instance-1",
+				ClusterID:  "cluster-1",
+				ResourceID: "resource-1",
+				IAMAuth:    true,
+			},
+		},
+	})
+	require.NoError(t, err)
+	actual, err := NewDatabaseFromRDSInstance(instance)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+// TestDatabaseFromRDSCluster tests converting an RDS cluster to a database resource.
+func TestDatabaseFromRDSCluster(t *testing.T) {
+	cluster := &rds.DBCluster{
+		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:1234567890:cluster:cluster-1"),
+		DBClusterIdentifier:              aws.String("cluster-1"),
+		DbClusterResourceId:              aws.String("resource-1"),
+		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+		Engine:                           aws.String(RDSEngineAuroraMySQL),
+		EngineVersion:                    aws.String("8.0.0"),
+		Endpoint:                         aws.String("localhost"),
+		Port:                             aws.Int64(3306),
+		TagList: []*rds.Tag{{
+			Key:   aws.String("key"),
+			Value: aws.String("val"),
+		}},
+	}
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "cluster-1",
+		Description: "Aurora cluster in us-east-1",
+		Labels: map[string]string{
+			types.OriginLabel:  types.OriginCloud,
+			labelAccountID:     "1234567890",
+			labelRegion:        "us-east-1",
+			labelEngine:        RDSEngineAuroraMySQL,
+			labelEngineVersion: "8.0.0",
+			"key":              "val",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			RDS: types.RDS{
+				ClusterID:  "cluster-1",
+				ResourceID: "resource-1",
+				IAMAuth:    true,
+			},
+		},
+	})
+	require.NoError(t, err)
+	actual, err := NewDatabaseFromRDSCluster(cluster)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}

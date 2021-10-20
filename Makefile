@@ -16,6 +16,8 @@ VERSION=8.0.0-alpha.1
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
+GOPATH ?= $(shell go env GOPATH)
+
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
@@ -26,7 +28,6 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
-GOPKGDIR ?= `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
@@ -275,7 +276,7 @@ ifneq ("$(OS)", "windows")
 endif
 
 #
-# make clean - Removed all build artifacts.
+# make clean - Removes all build artifacts.
 #
 .PHONY: clean
 clean:
@@ -284,7 +285,6 @@ clean:
 	rm -rf $(ER_BPF_BUILDDIR)
 	rm -rf $(RS_BPF_BUILDDIR)
 	-go clean -cache
-	rm -rf $(GOPKGDIR)
 	rm -rf teleport
 	rm -rf *.gz
 	rm -rf *.zip
@@ -440,8 +440,12 @@ test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
-	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
-	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
+	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+		| tee tests-unit.json \
+		| go run build.assets/render-tests/main.go
+	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover \
+		| tee -a tests-unit.json \
+		| go run build.assets/render-tests/main.go
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.

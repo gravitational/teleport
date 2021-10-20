@@ -1563,6 +1563,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appSessionID:      req.RouteToApp.SessionID,
 		appPublicAddr:     req.RouteToApp.PublicAddr,
 		appClusterName:    req.RouteToApp.ClusterName,
+		awsRoleARN:        req.RouteToApp.AWSRoleARN,
 		checker:           checker,
 		traits:            traits,
 		activeRequests: services.RequestIDs{
@@ -1905,7 +1906,7 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 	}
 	role, ok := a.context.Identity.(BuiltinRole)
 	if !ok || !role.IsServer() {
-		return trace.AccessDenied("this request can be only executed by proxy, node or auth")
+		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
 	err := events.ValidateServerMetadata(event, role.GetServerID())
 	if err != nil {
@@ -2960,11 +2961,11 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 	}
 
 	for _, kube := range s.GetKubernetesClusters() {
-		kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
+		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.context.Checker.CheckAccess(kV3, mfaParams); err != nil {
+		if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}
@@ -2991,11 +2992,11 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, 
 	for _, server := range servers {
 		filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 		for _, kube := range server.GetKubernetesClusters() {
-			kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
+			k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if err := a.context.Checker.CheckAccess(kV3, mfaParams); err != nil {
+			if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
@@ -3482,7 +3483,6 @@ func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.Wind
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return a.authServer.CreateWindowsDesktop(ctx, s)
 }
 
