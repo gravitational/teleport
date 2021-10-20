@@ -15,8 +15,15 @@ package bot
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
+	"net/url"
+	"path"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -84,7 +91,7 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 	// not carry over to when new changes are added. Github does
 	// not do this automatically, so we must dismiss the reviews
 	// manually.
-	if err = c.isValidMerge(ctx); err != nil {
+	if err = c.isValidGithubBranchUpdate(ctx); err != nil {
 		err = c.invalidateApprovals(ctx, obsoleteReviews)
 		if err != nil {
 			return trace.Wrap(err)
@@ -237,7 +244,50 @@ func dismissMessage(pr *environment.Metadata, required []string) string {
 	return sb.String()
 }
 
-func (c *Bot) isValidMerge(ctx context.Context) error {
+// isValidGithubBranchUpdate validates a merge into the current branch from master.
+func (c *Bot) isValidGithubBranchUpdate(ctx context.Context) error {
+	commits, err := c.getAllCommits(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	betweenCommits, err := c.getInBetweenCommits(ctx, commits)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Comparing all commits in between HEAD (in this case `web-flow`)and last non
+	// Github-committed commit to ensure an attacker didn't slip in a malicious commit.
+	for _, currCommit := range betweenCommits {
+		err = c.compareCommits(ctx, currCommit.SHA)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// compareCommits compares all of the files that have changes in the passed in commit to the one at the current commit (HEAD).
+// This is used for comparing files when Github makes a auto update branch commit to ensure the merge
+// didn't result in changes to the files already under review.
+func (c *Bot) compareCommits(ctx context.Context, otherSHA string) error {
+	clt := c.Environment.Client
+	pr := c.Environment.Metadata
+	// non Github-committed commit
+	nonGithubCommitted, _, err := clt.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, otherSHA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Github-committed commit
+	headCommit, _, err := clt.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, pr.HeadSHA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, headFile := range headCommit.Files {
+		for _, prFile := range nonGithubCommitted.Files {
+			if *headFile.Filename == *prFile.Filename || *headFile.SHA == *prFile.SHA {
+				return trace.BadParameter("detected file change")
+			}
+		}
+	}
 	return nil
 }
 
@@ -260,4 +310,108 @@ func (c *Bot) invalidateApprovals(ctx context.Context, reviews map[string]review
 		}
 	}
 	return nil
+}
+
+// getInBetweenCommits gets the commits in between the current HEAD commit and the last
+// commit that was not committed by Github's committer `web-flow` and the last commit not committed
+// by Github is included in the return.
+func (c *Bot) getInBetweenCommits(ctx context.Context, commits []githubCommit) ([]githubCommit, error) {
+	inBetweenCommits := []githubCommit{}
+
+	// Sorting commits by time from newest to oldest.
+	sort.Slice(commits, func(i, j int) bool {
+		time1, time2 := commits[i].Commit.Committer.Date, commits[j].Commit.Committer.Date
+		return time2.Before(time1)
+	})
+	if len(commits) < 2 {
+		return nil, trace.BadParameter("no commits to check against HEAD")
+	}
+	// Pop off HEAD (most recent commit) because we will be comparing the "in between" commits against it.
+	commits = commits[1:]
+
+	for _, commit := range commits {
+		if commit.Committer.Login != ci.WebFlowUserName {
+			// Include most recent non Github-committed commit beacause
+			// HEAD should also not have a diff against it.
+			inBetweenCommits = append(inBetweenCommits, commit)
+			return inBetweenCommits, nil
+		}
+		inBetweenCommits = append(inBetweenCommits, commit)
+	}
+	// If this method doesn't return in the loop that means the only type of commits in the
+	// PR are committed by `web-flow`.
+	return nil, trace.BadParameter("commits were only committed by web-flow")
+}
+
+// getAllCommits gets all the commits for the current pull request in context.
+func (c *Bot) getAllCommits(ctx context.Context) ([]githubCommit, error) {
+	pr := c.Environment.Metadata
+	clt := c.Environment.Client
+	pullRequestNumberString := strconv.Itoa(pr.Number)
+	commitsURL := url.URL{
+		Scheme: scheme,
+		Host:   githubAPIHostname,
+		Path:   path.Join("repos", pr.RepoOwner, pr.RepoName, "pulls", pullRequestNumberString, "commits"),
+	}
+	// Creating an HTTP request instead of using the `go-github` directly to list commits
+	// because they don't support a way to get all the commits for a pull request.
+	// It seems they only support getting as many commits as a the GH API can return per page.
+	// In this case, 100.
+	req, err := clt.NewRequest(http.MethodGet, commitsURL.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var allCommits githubCommits
+	currentPage := 1
+	// Using pagination in the event there is a pull request with many (>100) commits.
+	for currentPage != 0 {
+		pageNumberString := strconv.Itoa(currentPage)
+		req.URL.RawQuery = populateQuery(pr.BranchName, pageNumberString).Encode()
+
+		// BareDo() is a method on github.Client where the caller
+		// can handle the response instead of `go-github` handling it.
+		res, err := clt.BareDo(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer res.Body.Close()
+
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Unmarshalling the response and appending
+		// current page's commits to allCommits.
+		var currentList githubCommits
+		err = json.Unmarshal(body, &currentList)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		allCommits = append(allCommits, currentList...)
+		currentPage = res.NextPage
+	}
+	return allCommits, nil
+}
+
+func populateQuery(branchName, pageNumber string) url.Values {
+	return url.Values{
+		"ref":      []string{branchName},
+		"per_page": []string{"100"},
+		"page":     []string{pageNumber},
+	}
+}
+
+type githubCommits []githubCommit
+
+type githubCommit struct {
+	Committer struct {
+		Login string `json:"login"`
+	} `json:"committer"`
+	Commit struct {
+		Committer struct {
+			Name string    `json:"name"`
+			Date time.Time `json:"date"`
+		} `json:"committer"`
+	} `json:"commit"`
+	SHA string `json:"sha"`
 }
