@@ -1,7 +1,6 @@
 import React from 'react';
-import { Attempt } from 'shared/hooks/useAttemptNext';
-import { Auth2faType } from 'shared/services';
 import { NewMfaDevice } from './NewMfaDevice';
+import { State } from './useNewMfaDevice';
 
 export default {
   title: 'TeleportE/Recovery/Flow/Step 2/New MFA Device',
@@ -10,11 +9,20 @@ export default {
 export const LoadedMulti = () => <NewMfaDevice {...props} />;
 
 export const LoadedTotp = () => <NewMfaDevice {...props} auth2faType="otp" />;
-
 LoadedTotp.storyName = 'Loaded TOTP';
 
-export const LoadedU2f = () => <NewMfaDevice {...props} auth2faType="u2f" />;
+export const LoadedWebauthn = () => (
+  <NewMfaDevice {...props} auth2faType="webauthn" />
+);
 
+export const ProcessingWebauthn = () => (
+  <NewMfaDevice
+    {...props}
+    auth2faType="webauthn"
+    attempt={{ status: 'processing' }}
+  />
+);
+export const LoadedU2f = () => <NewMfaDevice {...props} auth2faType="u2f" />;
 LoadedU2f.storyName = 'Loaded U2F';
 
 export const ProcessingU2f = () => (
@@ -34,12 +42,14 @@ export const Failed = () => (
   />
 );
 
-const props = {
-  attempt: { status: '' } as Attempt,
+const props: State = {
+  attempt: { status: '' },
   clearSubmitAttempt: () => null,
   setNewTotpDevice: () => null,
   setNewU2fDevice: () => null,
-  auth2faType: 'on' as Auth2faType,
+  setNewWebauthnDevice: () => null,
+  auth2faType: 'on',
+  preferredMfaType: 'webauthn',
   qrCode:
     'iVBORw0KGgoAAAANSUhEUgAAAcgAAAHIEAAAAAC/Wvl1AAAJV0lEQVR4nOzdsW4jORZA0fbC///LXowV' +
     'TFIWmqAefUtzTrDJeEtltS+YPDx+fn39ASL+99svAPzr85//+fj47df4ycr5ff1bXD9h/2f3vcenTf0L' +

@@ -23,9 +23,11 @@ export function Login({
   attempt,
   onLogin,
   onLoginWithU2f,
+  onLoginWithWebauthn,
   onLoginWithSso,
   authProviders,
   auth2faType,
+  preferredMfaType,
   isLocalAuthEnabled,
   isRecoveryEnabled,
   onRecover,
@@ -38,9 +40,11 @@ export function Login({
         title={'Sign into Teleport'}
         authProviders={authProviders}
         auth2faType={auth2faType}
+        preferredMfaType={preferredMfaType}
         isLocalAuthEnabled={isLocalAuthEnabled}
         onLoginWithSso={onLoginWithSso}
         onLoginWithU2f={onLoginWithU2f}
+        onLoginWithWebauthn={onLoginWithWebauthn}
         onLogin={onLogin}
         attempt={attempt}
         clearAttempt={clearAttempt}

@@ -4,6 +4,7 @@ import * as WithMulti from './Multi.story';
 import * as WithPassword from './Password.story';
 import * as WithTotp from './Totp.story';
 import * as WithU2f from './U2f.story';
+import * as Webauthn from './Webauthn.story';
 
 test('render form for authenticating with password to recover mfa device', () => {
   const { container } = render(<WithPassword.Loaded />);
@@ -41,14 +42,26 @@ test('render failed state form for authenticating with u2f', () => {
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('render form for authenticating with either totp or u2f', () => {
+test('render form for authenticating with multi option', () => {
   const { container } = render(<WithMulti.Loaded />);
 
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('render failed state form for authenticating with either totp or u2f', () => {
+test('render failed state form for authenticating with multi option', () => {
   const { container } = render(<WithMulti.Failed />);
+
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('render form for authenticating with webauthn', () => {
+  const { container } = render(<Webauthn.Loaded />);
+
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('render failed state form for authenticating with webauthn', () => {
+  const { container } = render(<Webauthn.Failed />);
 
   expect(container.firstChild).toMatchSnapshot();
 });

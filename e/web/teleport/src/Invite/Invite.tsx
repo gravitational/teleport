@@ -15,11 +15,13 @@ export function Invite(props: State & Props) {
   const {
     passwordResetMode,
     auth2faType,
+    preferredMfaType,
     fetchAttempt,
     submitAttempt,
     clearSubmitAttempt,
     onSubmit,
     onSubmitWithU2f,
+    onSubmitWithWebauthn,
     passwordToken,
     recoveryCodes,
     redirect,
@@ -66,9 +68,11 @@ export function Invite(props: State & Props) {
         user={user}
         qr={qrCode}
         auth2faType={auth2faType}
+        preferredMfaType={preferredMfaType}
         attempt={submitAttempt}
         clearSubmitAttempt={clearSubmitAttempt}
         onSubmitWithU2f={onSubmitWithU2f}
+        onSubmitWithWebauthn={onSubmitWithWebauthn}
         onSubmit={onSubmit}
       />
     </>

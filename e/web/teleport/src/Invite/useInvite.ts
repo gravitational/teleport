@@ -47,6 +47,20 @@ export default function useInvite(tokenId: string) {
       .catch(submitAttempt.handleError);
   }
 
+  function onSubmitWithWebauthn(password: string) {
+    submitAttempt.setAttempt({ status: 'processing' });
+    auth
+      .resetPasswordWithWebauthn(tokenId, password)
+      .then(recoveryCodes => {
+        if (recoveryCodes?.length > 0) {
+          setRecoveryCodes(recoveryCodes);
+        } else {
+          redirect();
+        }
+      })
+      .catch(submitAttempt.handleError);
+  }
+
   function redirect() {
     history.push(cfg.oss.routes.root, true);
   }
@@ -57,11 +71,13 @@ export default function useInvite(tokenId: string) {
 
   return {
     auth2faType,
+    preferredMfaType: cfg.oss.getPreferredMfaType(),
     fetchAttempt: fetchAttempt.attempt,
     submitAttempt: submitAttempt.attempt,
     clearSubmitAttempt,
     onSubmit,
     onSubmitWithU2f,
+    onSubmitWithWebauthn,
     passwordToken,
     recoveryCodes,
     redirect,

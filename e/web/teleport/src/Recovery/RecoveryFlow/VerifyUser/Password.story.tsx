@@ -1,8 +1,7 @@
 import React from 'react';
-import { Attempt } from 'shared/hooks/useAttemptNext';
-import { Auth2faType } from 'shared/services';
 import { RecoveryToken } from 'e-teleport/services/recovery/types';
 import { VerifyUser } from './VerifyUser';
+import { State } from './useVerifyUser';
 
 export default {
   title: 'TeleportE/Recovery/Flow/Step 1/Verify Password',
@@ -21,14 +20,16 @@ export const Failed = () => (
   />
 );
 
-const props = {
+const props: State = {
   token: {
     username: 'joe@example.com',
     isRecoverPassword: false,
   } as RecoveryToken,
-  auth2faType: 'on' as Auth2faType,
-  attempt: { status: '' } as Attempt,
+  auth2faType: 'on',
+  preferredMfaType: '',
+  attempt: { status: '' },
   submitPasswordCreds: () => null,
   submitTotpCreds: () => null,
   submitU2fCreds: () => null,
+  submitWebauthnCreds: () => null,
 };

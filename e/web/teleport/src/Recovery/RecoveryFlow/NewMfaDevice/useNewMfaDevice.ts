@@ -31,6 +31,14 @@ export default function useNewMfaDevice({
       .catch(handleError);
   }
 
+  function setNewWebauthnDevice(deviceName: string) {
+    setAttempt({ status: 'processing' });
+    recoveryService
+      .setNewWebauthnDevice({ tokenId, deviceName })
+      .then(onNext)
+      .catch(handleError);
+  }
+
   function clearSubmitAttempt() {
     setAttempt({ status: '' });
   }
@@ -40,8 +48,10 @@ export default function useNewMfaDevice({
     clearSubmitAttempt,
     setNewTotpDevice,
     setNewU2fDevice,
+    setNewWebauthnDevice,
     qrCode,
     auth2faType,
+    preferredMfaType: cfg.oss.getPreferredMfaType(),
   };
 }
 

@@ -23,7 +23,7 @@ function getMethodDescription(auth2faType: Auth2faType) {
       return 'two-factor device';
     case 'otp':
       return 'authenticator app';
-    case 'u2f':
+    case 'u2f' || 'webauthn':
       return 'hardware key';
     default:
       return 'unknown device type';
@@ -36,7 +36,9 @@ export function VerifyUser({
   submitPasswordCreds,
   submitTotpCreds,
   submitU2fCreds,
+  submitWebauthnCreds,
   auth2faType,
+  preferredMfaType,
 }: State) {
   const [password, setPassword] = useState('');
   const [otpToken, setOtpToken] = useState('');
@@ -44,7 +46,7 @@ export function VerifyUser({
 
   const mfaOptions = useMemo<MfaOption[]>(() => {
     if (isRecoverPassword) {
-      return getMfaOptions(auth2faType);
+      return getMfaOptions(auth2faType, preferredMfaType);
     }
     return [];
   }, [isRecoverPassword]);
@@ -61,10 +63,16 @@ export function VerifyUser({
     }
 
     if (isRecoverPassword) {
-      if (mfaOption.value === 'otp') {
-        submitTotpCreds(otpToken);
-      } else if (mfaOption.value === 'u2f') {
-        submitU2fCreds();
+      switch (mfaOption.value) {
+        case 'otp':
+          submitTotpCreds(otpToken);
+          break;
+        case 'u2f':
+          submitU2fCreds();
+          break;
+        case 'webauthn':
+          submitWebauthnCreds();
+          break;
       }
     } else {
       submitPasswordCreds(password);

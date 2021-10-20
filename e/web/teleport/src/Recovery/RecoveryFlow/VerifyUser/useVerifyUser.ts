@@ -39,13 +39,23 @@ export default function useVerifyUser({ recoveryService, token, done }: Props) {
       .catch(handleError);
   }
 
+  function submitWebauthnCreds() {
+    setAttempt({ status: 'processing' });
+    recoveryService
+      .verifyUserWithWebautn(token.id, token.username)
+      .then(done)
+      .catch(handleError);
+  }
+
   return {
     attempt,
     token,
     submitPasswordCreds,
     submitTotpCreds,
     submitU2fCreds,
+    submitWebauthnCreds,
     auth2faType,
+    preferredMfaType: cfg.oss.getPreferredMfaType(),
   };
 }
 

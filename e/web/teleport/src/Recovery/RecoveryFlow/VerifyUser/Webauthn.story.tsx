@@ -4,7 +4,7 @@ import { VerifyUser } from './VerifyUser';
 import { State } from './useVerifyUser';
 
 export default {
-  title: 'TeleportE/Recovery/Flow/Step 1/Verify U2F',
+  title: 'TeleportE/Recovery/Flow/Step 1/Verify Webauthn',
 };
 
 export const Loaded = () => <VerifyUser {...props} />;
@@ -25,7 +25,7 @@ const props: State = {
     username: 'joe@example.com',
     isRecoverPassword: true,
   } as RecoveryToken,
-  auth2faType: 'u2f',
+  auth2faType: 'webauthn',
   preferredMfaType: '',
   attempt: { status: '' },
   submitPasswordCreds: () => null,
