@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -71,6 +72,9 @@ type ClusterNetworkingConfig interface {
 
 	// SetWebIdleTimeout sets the web idle timeout duration.
 	SetWebIdleTimeout(time.Duration)
+
+	// Clone performs a deep copy.
+	Clone() ClusterNetworkingConfig
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -227,6 +231,11 @@ func (c *ClusterNetworkingConfigV2) GetWebIdleTimeout() time.Duration {
 // SetWebIdleTimeout sets the web idle timeout.
 func (c *ClusterNetworkingConfigV2) SetWebIdleTimeout(ttl time.Duration) {
 	c.Spec.WebIdleTimeout = Duration(ttl)
+}
+
+// Clone performs a deep copy.
+func (c *ClusterNetworkingConfigV2) Clone() ClusterNetworkingConfig {
+	return proto.Clone(c).(*ClusterNetworkingConfigV2)
 }
 
 // setStaticFields sets static resource header and metadata fields.
