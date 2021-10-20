@@ -29,8 +29,8 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/v8/client/proto"
+	"github.com/gravitational/teleport/api/v8/constants"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"

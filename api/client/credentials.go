@@ -21,9 +21,9 @@ import (
 	"crypto/x509"
 	"io/ioutil"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/identityfile"
-	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/v8/constants"
+	"github.com/gravitational/teleport/api/v8/identityfile"
+	"github.com/gravitational/teleport/api/v8/profile"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"

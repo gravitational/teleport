@@ -23,9 +23,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/v8/types"
+	"github.com/gravitational/teleport/api/v8/types/events"
+	"github.com/gravitational/teleport/api/v8/types/wrappers"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"

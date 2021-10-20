@@ -25,9 +25,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/v8/constants"
+	"github.com/gravitational/teleport/api/v8/profile"
+	"github.com/gravitational/teleport/api/v8/utils/keypaths"
 	"github.com/gravitational/trace"
 )
 

@@ -21,9 +21,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/v8/client/webclient"
+	"github.com/gravitational/teleport/api/v8/constants"
+	"github.com/gravitational/teleport/api/v8/utils/sshutils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"

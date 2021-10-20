@@ -19,8 +19,8 @@ package desktop
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/v8/types"
+	"github.com/gravitational/teleport/api/v8/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"

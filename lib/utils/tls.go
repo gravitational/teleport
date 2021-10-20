@@ -28,7 +28,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/v8/constants"
 	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"

@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"

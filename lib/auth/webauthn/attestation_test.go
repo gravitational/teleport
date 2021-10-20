@@ -28,7 +28,7 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 

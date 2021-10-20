@@ -20,8 +20,8 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/defaults"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 

@@ -24,7 +24,7 @@ import (
 	"net/http"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/v8/types/events"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

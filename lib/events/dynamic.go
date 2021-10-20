@@ -17,9 +17,9 @@ limitations under the License.
 package events
 
 import (
-	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v8/types/events"
+	apievents "github.com/gravitational/teleport/api/v8/types/events"
+	apiutils "github.com/gravitational/teleport/api/v8/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 

@@ -20,7 +20,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 
 	"github.com/gravitational/trace"
 )

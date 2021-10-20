@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/api/v8/constants"
+	"github.com/gravitational/teleport/api/v8/utils/tlsutils"
 	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"

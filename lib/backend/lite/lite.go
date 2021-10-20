@@ -28,8 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v8/types"
+	"github.com/gravitational/teleport/api/v8/utils"
 	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/gravitational/trace"

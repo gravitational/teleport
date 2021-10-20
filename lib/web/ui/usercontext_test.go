@@ -17,9 +17,9 @@ package ui
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/v8/defaults"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/teleport/lib/services"
 	"gopkg.in/check.v1"
 )

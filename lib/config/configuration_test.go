@@ -30,10 +30,10 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v8/constants"
+	apidefaults "github.com/gravitational/teleport/api/v8/defaults"
+	"github.com/gravitational/teleport/api/v8/types"
+	apiutils "github.com/gravitational/teleport/api/v8/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"

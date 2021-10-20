@@ -16,7 +16,7 @@ limitations under the License.
 
 package services
 
-import "github.com/gravitational/teleport/api/types"
+import "github.com/gravitational/teleport/api/v8/types"
 
 // Trust is responsible for managing certificate authorities
 // Each authority is managing some domain, e.g. example.com

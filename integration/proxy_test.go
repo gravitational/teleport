@@ -30,7 +30,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"

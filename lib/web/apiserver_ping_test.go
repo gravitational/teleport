@@ -22,9 +22,9 @@ import (
 	"testing"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/client/webclient"
+	"github.com/gravitational/teleport/api/v8/constants"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/stretchr/testify/require"
 )

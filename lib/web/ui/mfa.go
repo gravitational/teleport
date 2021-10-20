@@ -17,7 +17,7 @@ package ui
 import (
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 )
 
 // MFADevice describes a mfa device

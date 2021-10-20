@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/v8"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"

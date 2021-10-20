@@ -24,11 +24,11 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/trace"
 
 	wan "github.com/duo-labs/webauthn/webauthn"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/api/v8/types/webauthn"
 	log "github.com/sirupsen/logrus"
 )
 

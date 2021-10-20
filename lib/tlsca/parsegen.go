@@ -32,7 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/v8/constants"
 	"github.com/gravitational/teleport/lib/utils"
 )
 

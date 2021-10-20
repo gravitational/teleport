@@ -31,7 +31,7 @@ import (
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/flynn/u2f/u2ftoken"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/v8/client/proto"
 	"github.com/gravitational/trace"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"

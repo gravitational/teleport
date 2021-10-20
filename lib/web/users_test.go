@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 
 	"github.com/gravitational/trace"
 

@@ -22,8 +22,8 @@ import (
 	"crypto/rsa"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/v8/types"
+	apisshutils "github.com/gravitational/teleport/api/v8/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"

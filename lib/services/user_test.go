@@ -20,14 +20,14 @@ import (
 	"encoding/json"
 	"fmt"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/v8/defaults"
 
 	"github.com/coreos/go-oidc/jose"
 	saml2 "github.com/russellhaering/gosaml2"
 	samltypes "github.com/russellhaering/gosaml2/types"
 	"gopkg.in/check.v1"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 )
 
 type UserSuite struct {

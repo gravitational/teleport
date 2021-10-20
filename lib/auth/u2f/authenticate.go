@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/flynn/u2f/u2ftoken"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"

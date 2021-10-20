@@ -18,10 +18,10 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
-import "github.com/gravitational/teleport/api/types/types.proto";
-import "github.com/gravitational/teleport/api/types/webauthn/webauthn.proto";
-import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
-import "github.com/gravitational/teleport/api/types/events/events.proto";
+import "github.com/gravitational/teleport/api/v8/types/types.proto";
+import "github.com/gravitational/teleport/api/v8/types/webauthn/webauthn.proto";
+import "github.com/gravitational/teleport/api/v8/types/wrappers/wrappers.proto";
+import "github.com/gravitational/teleport/api/v8/types/events/events.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -167,7 +167,7 @@ message HostCertsRequest {
     // Role is a system role assigned to the host.
     string Role = 3 [
         (gogoproto.jsontag) = "role",
-        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/v8/types.SystemRole"
     ];
     // AdditionalPrincipals is a list of additional principals
     // to include in OpenSSH and X509 certificates
@@ -326,7 +326,7 @@ message RequestStateSetter {
     wrappers.LabelValues Annotations = 5 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "annotations,omitempty",
-        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/v8/types/wrappers.Traits"
     ];
     // Roles, if present, overrides the existing set of roles associated
     // with the access request.
@@ -1175,7 +1175,7 @@ message WindowsDesktopCertResponse {
 message CertAuthorityRequest {
     // Type is either user or host certificate authority.
     string Type = 1
-        [ (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.CertAuthType" ];
+        [ (gogoproto.casttype) = "github.com/gravitational/teleport/api/v8/types.CertAuthType" ];
 }
 
 // CRL is the X.509 Certificate Revocation List.

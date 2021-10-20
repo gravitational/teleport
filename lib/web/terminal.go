@@ -32,8 +32,8 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
-	authproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
+	authproto "github.com/gravitational/teleport/api/v8/client/proto"
+	"github.com/gravitational/teleport/api/v8/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 
 	"github.com/gravitational/teleport/lib/auth"

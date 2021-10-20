@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/v8/defaults"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/datalog"
 	"github.com/gravitational/teleport/lib/service"

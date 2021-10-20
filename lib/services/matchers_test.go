@@ -19,7 +19,7 @@ package services
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/pborman/uuid"

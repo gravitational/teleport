@@ -20,7 +20,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/stretchr/testify/require"
 )
 

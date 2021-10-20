@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 )
 
 // MarshalConfig specifies marshalling options

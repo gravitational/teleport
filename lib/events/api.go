@@ -23,9 +23,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/v8/types"
+	apievents "github.com/gravitational/teleport/api/v8/types/events"
+	apiutils "github.com/gravitational/teleport/api/v8/utils"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"

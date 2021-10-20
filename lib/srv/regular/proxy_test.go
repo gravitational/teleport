@@ -17,7 +17,7 @@ limitations under the License.
 package regular
 
 import (
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/v8/defaults"
 	"github.com/gravitational/teleport/lib/srv"
 
 	"gopkg.in/check.v1"

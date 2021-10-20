@@ -23,14 +23,14 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/api/v8/types/webauthn"
 )
 
 func newIdentityService(t *testing.T) (*local.IdentityService, clockwork.Clock) {

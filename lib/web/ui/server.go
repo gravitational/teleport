@@ -19,8 +19,8 @@ package ui
 import (
 	"sort"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/constants"
+	"github.com/gravitational/teleport/api/v8/types"
 )
 
 // Label describes label for webapp

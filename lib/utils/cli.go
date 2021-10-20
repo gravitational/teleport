@@ -33,7 +33,7 @@ import (
 	"unicode"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/v8/constants"
 
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"

@@ -25,14 +25,14 @@ import (
 
 	"google.golang.org/genproto/googleapis/firestore/admin/v1"
 
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/v8/types"
+	apievents "github.com/gravitational/teleport/api/v8/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	apidefaults "github.com/gravitational/teleport/api/v8/defaults"
+	apiutils "github.com/gravitational/teleport/api/v8/utils"
 	firestorebk "github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"

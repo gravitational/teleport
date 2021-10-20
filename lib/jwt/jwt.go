@@ -23,7 +23,7 @@ import (
 	"crypto/rsa"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/v8/constants"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"

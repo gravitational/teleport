@@ -20,7 +20,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/trace"
 
 	wan "github.com/duo-labs/webauthn/webauthn"

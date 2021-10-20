@@ -18,7 +18,7 @@ package webauthn
 
 import (
 	"github.com/duo-labs/webauthn/protocol"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/v8/types"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	wan "github.com/duo-labs/webauthn/webauthn"

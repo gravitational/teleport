@@ -23,7 +23,7 @@ import (
 	"crypto/rsa"
 	"testing"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/v8/constants"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"

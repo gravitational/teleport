@@ -20,7 +20,7 @@ import (
 	"context"
 	"sync"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/v8/types/events"
 	"github.com/gravitational/teleport/lib/session"
 )
 

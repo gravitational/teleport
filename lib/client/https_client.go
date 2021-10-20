@@ -24,7 +24,7 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	apiutils "github.com/gravitational/teleport/api/v8/utils"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
 

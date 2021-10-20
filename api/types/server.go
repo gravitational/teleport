@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/v8/constants"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"

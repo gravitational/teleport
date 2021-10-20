@@ -16,7 +16,7 @@ limitations under the License.
 
 package services
 
-import "github.com/gravitational/teleport/api/types"
+import "github.com/gravitational/teleport/api/v8/types"
 
 // Services collects all services
 type Services interface {

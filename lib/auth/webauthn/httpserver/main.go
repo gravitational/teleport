@@ -25,11 +25,11 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/v8/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
+	apiclient "github.com/gravitational/teleport/api/v8/client"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	libclient "github.com/gravitational/teleport/lib/client"
 

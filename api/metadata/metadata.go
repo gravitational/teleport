@@ -19,7 +19,7 @@ package metadata
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/v8"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )

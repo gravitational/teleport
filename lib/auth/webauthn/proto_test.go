@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/api/v8/types/webauthn"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 

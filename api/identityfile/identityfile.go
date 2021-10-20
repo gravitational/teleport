@@ -28,8 +28,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/v8/utils/keypaths"
+	"github.com/gravitational/teleport/api/v8/utils/sshutils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"

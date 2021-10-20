@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/v8"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"

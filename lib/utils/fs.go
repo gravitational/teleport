@@ -22,7 +22,7 @@ import (
 	"runtime"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/v8/constants"
 	"github.com/gravitational/trace"
 )
 

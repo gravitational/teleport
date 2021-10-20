@@ -20,7 +20,7 @@ import (
 	"crypto/rsa"
 	"net"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/v8/constants"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"

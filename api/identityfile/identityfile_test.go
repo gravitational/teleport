@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/v8/identityfile"
 	"github.com/stretchr/testify/require"
 )
 

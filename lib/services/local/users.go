@@ -25,8 +25,8 @@ import (
 
 	"github.com/gokyle/hotp"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/v8/types"
+	wantypes "github.com/gravitational/teleport/api/v8/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"

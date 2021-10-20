@@ -29,7 +29,7 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
-	apievents "github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/v8/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 

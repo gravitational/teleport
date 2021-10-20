@@ -392,25 +392,25 @@ github.com/gravitational/reporting/types
 # github.com/gravitational/roundtrip v1.0.0
 ## explicit
 github.com/gravitational/roundtrip
-# github.com/gravitational/teleport/api v0.0.0 => ./api
+# github.com/gravitational/teleport/api/v8 v8.0.0 => ./api
 ## explicit
-github.com/gravitational/teleport/api
-github.com/gravitational/teleport/api/client
-github.com/gravitational/teleport/api/client/proto
-github.com/gravitational/teleport/api/client/webclient
-github.com/gravitational/teleport/api/constants
-github.com/gravitational/teleport/api/defaults
-github.com/gravitational/teleport/api/identityfile
-github.com/gravitational/teleport/api/metadata
-github.com/gravitational/teleport/api/profile
-github.com/gravitational/teleport/api/types
-github.com/gravitational/teleport/api/types/events
-github.com/gravitational/teleport/api/types/webauthn
-github.com/gravitational/teleport/api/types/wrappers
-github.com/gravitational/teleport/api/utils
-github.com/gravitational/teleport/api/utils/keypaths
-github.com/gravitational/teleport/api/utils/sshutils
-github.com/gravitational/teleport/api/utils/tlsutils
+github.com/gravitational/teleport/api/v8
+github.com/gravitational/teleport/api/v8/client
+github.com/gravitational/teleport/api/v8/client/proto
+github.com/gravitational/teleport/api/v8/client/webclient
+github.com/gravitational/teleport/api/v8/constants
+github.com/gravitational/teleport/api/v8/defaults
+github.com/gravitational/teleport/api/v8/identityfile
+github.com/gravitational/teleport/api/v8/metadata
+github.com/gravitational/teleport/api/v8/profile
+github.com/gravitational/teleport/api/v8/types
+github.com/gravitational/teleport/api/v8/types/events
+github.com/gravitational/teleport/api/v8/types/webauthn
+github.com/gravitational/teleport/api/v8/types/wrappers
+github.com/gravitational/teleport/api/v8/utils
+github.com/gravitational/teleport/api/v8/utils/keypaths
+github.com/gravitational/teleport/api/v8/utils/sshutils
+github.com/gravitational/teleport/api/v8/utils/tlsutils
 # github.com/gravitational/trace v1.1.16-0.20210617142343-5335ac7a6c19
 ## explicit
 github.com/gravitational/trace
@@ -1227,5 +1227,5 @@ sigs.k8s.io/structured-merge-diff/v4/value
 sigs.k8s.io/yaml
 # github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.5
 # github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
-# github.com/gravitational/teleport/api => ./api
+# github.com/gravitational/teleport/api/v8 => ./api
 # github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621

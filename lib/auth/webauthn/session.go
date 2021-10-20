@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	wan "github.com/duo-labs/webauthn/webauthn"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/api/v8/types/webauthn"
 )
 
 func sessionToPB(sd *wan.SessionData) (*wantypes.SessionData, error) {

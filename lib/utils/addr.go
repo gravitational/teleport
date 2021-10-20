@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
+	apiutils "github.com/gravitational/teleport/api/v8/utils"
 )
 
 // NetAddr is network address that includes network, optional path and
