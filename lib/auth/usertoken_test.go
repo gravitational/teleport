@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -475,6 +476,16 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "locked from webauthn attempts",
+			getReq: func() *proto.CreatePrivilegeTokenRequest {
+				return &proto.CreatePrivilegeTokenRequest{
+					ExistingMFAResponse: &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
+						Webauthn: &webauthn.CredentialAssertionResponse{},
+					}},
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -490,9 +501,16 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 			require.NoError(t, err)
 
 			// Test lock from max failed auth attempts.
-			for i := 0; i < defaults.MaxLoginAttempts; i++ {
+			for i := 1; i <= defaults.MaxLoginAttempts; i++ {
 				_, err := clt.CreatePrivilegeToken(ctx, tc.getReq())
 				require.True(t, trace.IsAccessDenied(err))
+
+				// Test last attempt returns locked error.
+				if i == defaults.MaxLoginAttempts {
+					require.Equal(t, err.Error(), MaxFailedAttemptsErrMsg)
+				} else {
+					require.NotEqual(t, err.Error(), MaxFailedAttemptsErrMsg)
+				}
 			}
 
 			// Test user is locked.
