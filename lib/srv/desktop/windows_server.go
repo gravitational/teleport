@@ -452,7 +452,7 @@ func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ld
 		return nil, trace.Wrap(err)
 	}
 
-	return types.NewWindowsDesktopV3(
+	desktop, err := types.NewWindowsDesktopV3(
 		hostname,
 		labels,
 		types.WindowsDesktopSpecV3{
@@ -460,6 +460,12 @@ func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ld
 			Domain: s.cfg.Domain,
 		},
 	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
+	return desktop, nil
 }
 
 // startStaticHostHeartbeats spawns heartbeat routines for all static hosts in
@@ -727,8 +733,8 @@ func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
 		host = addr
 	}
 	parts := strings.Split(s.cfg.Heartbeat.HostUUID, "-")
-	suffix := parts[len(parts)-1]
-	return "static-" + strings.ReplaceAll(host, ".", "-") + "-" + suffix, nil
+	prefix := parts[len(parts)-1]
+	return prefix + "-static-" + strings.ReplaceAll(host, ".", "-"), nil
 }
 
 func (s *WindowsService) updateCA(ctx context.Context) error {
