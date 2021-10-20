@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -330,8 +331,7 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 
 // Copy creates a copy of the resource and returns it.
 func (c *ClusterConfigV3) Copy() ClusterConfig {
-	out := *c
-	return &out
+	return proto.Clone(c).(*ClusterConfigV3)
 }
 
 // String represents a human readable version of the cluster name.

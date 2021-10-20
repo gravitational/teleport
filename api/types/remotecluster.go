@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/teleport/api/defaults"
 )
 
@@ -43,6 +44,9 @@ type RemoteCluster interface {
 
 	// SetMetadata sets remote cluster metatada
 	SetMetadata(Metadata)
+
+	// Clone performs a deep copy.
+	Clone() RemoteCluster
 }
 
 // NewRemoteCluster is a convenience way to create a RemoteCluster resource.
@@ -100,6 +104,11 @@ func (c *RemoteClusterV3) GetLastHeartbeat() time.Time {
 // SetLastHeartbeat sets last heartbeat of the cluster
 func (c *RemoteClusterV3) SetLastHeartbeat(t time.Time) {
 	c.Status.LastHeartbeat = t
+}
+
+// Clone performs a deep copy.
+func (c *RemoteClusterV3) Clone() RemoteCluster {
+	return proto.Clone(c).(*RemoteClusterV3)
 }
 
 // GetConnectionStatus returns connection status
