@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/oxy/forward"
@@ -192,7 +193,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 // rewriteHeaders applies headers rewrites from the application configuration.
 func (t *transport) rewriteHeaders(r *http.Request) {
 	for _, header := range t.c.rewrite.Headers {
-		if IsReservedHeader(header.Name) {
+		if common.IsReservedHeader(header.Name) {
 			t.c.log.Debugf("Not rewriting Teleport header %q.", header.Name)
 			continue
 		}
@@ -211,27 +212,6 @@ func (t *transport) rewriteHeaders(r *http.Request) {
 			}
 		}
 	}
-}
-
-// ReservedHeaders is a list of headers injected by Teleport.
-var ReservedHeaders = []string{
-	teleport.AppJWTHeader,
-	teleport.AppCFHeader,
-	forward.XForwardedFor,
-	forward.XForwardedHost,
-	forward.XForwardedProto,
-	forward.XForwardedServer,
-}
-
-// IsReservedHeader returns true if the provided header is one of headers
-// injected by Teleport.
-func IsReservedHeader(header string) bool {
-	for _, h := range ReservedHeaders {
-		if http.CanonicalHeaderKey(header) == http.CanonicalHeaderKey(h) {
-			return true
-		}
-	}
-	return false
 }
 
 // needsPathRedirect checks if the request should be redirected to a different path.

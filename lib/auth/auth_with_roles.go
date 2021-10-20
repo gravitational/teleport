@@ -1563,6 +1563,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appSessionID:      req.RouteToApp.SessionID,
 		appPublicAddr:     req.RouteToApp.PublicAddr,
 		appClusterName:    req.RouteToApp.ClusterName,
+		awsRoleARN:        req.RouteToApp.AWSRoleARN,
 		checker:           checker,
 		traits:            traits,
 		activeRequests: services.RequestIDs{
@@ -2960,11 +2961,11 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 	}
 
 	for _, kube := range s.GetKubernetesClusters() {
-		kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
+		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.context.Checker.CheckAccess(kV3, mfaParams); err != nil {
+		if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}
@@ -2991,11 +2992,11 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, 
 	for _, server := range servers {
 		filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 		for _, kube := range server.GetKubernetesClusters() {
-			kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
+			k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if err := a.context.Checker.CheckAccess(kV3, mfaParams); err != nil {
+			if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}

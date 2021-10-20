@@ -32,7 +32,7 @@ import (
 	"time"
 )
 
-var covPattern *regexp.Regexp = regexp.MustCompile(`^coverage: (\d+\.\d+)\% of statements`)
+var covPattern = regexp.MustCompile(`^coverage: (\d+\.\d+)\% of statements`)
 
 type TestEvent struct {
 	Time           time.Time // encodes as an RFC3339-format string
