@@ -76,6 +76,7 @@ const (
 	// Created is an event type that is triggered when a pull request review is created.
 	Created = "created"
 
-	// Github's committers username.
-	WebFlowUserName = "web-flow"
+	// AnyAuthor is the symbol used to get reviewers for external contributors/contrtibutors who 
+	// do not have designated reviewers. 
+	AnyAuthor = "*"
 )

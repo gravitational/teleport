@@ -47,18 +47,16 @@ type GithubClient struct {
 
 // New returns a new instance of  Bot
 func New(c Config) (*Bot, error) {
-	var bot Bot
 	err := c.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if c.Environment != nil {
-		bot.Environment = c.Environment
-	}
-	bot.GithubClient = GithubClient{
-		Client: c.GithubClient,
-	}
-	return &bot, nil
+	return &Bot{
+		Environment: c.Environment,
+		GithubClient: GithubClient{
+		  Client: c.GithubClient,
+		},
+	  }, nil
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults

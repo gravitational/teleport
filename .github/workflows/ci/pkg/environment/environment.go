@@ -120,7 +120,7 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	return &PullRequestEnvironment{
 		Client:           c.Client,
 		reviewers:        revs,
-		defaultReviewers: revs["*"],
+		defaultReviewers: revs[ci.AnyAuthor],
 		Metadata:         pr,
 	}, nil
 }
@@ -131,7 +131,6 @@ type githubUserGetter interface {
 
 // unmarshalReviewers converts the passed in string representing json object into a map.
 func unmarshalReviewers(ctx context.Context, str string, users githubUserGetter) (map[string][]string, error) {
-	var hasDefaultReviewers bool
 	if str == "" {
 		return nil, trace.NotFound("reviewers not found")
 	}
@@ -139,8 +138,9 @@ func unmarshalReviewers(ctx context.Context, str string, users githubUserGetter)
 
 	err := json.Unmarshal([]byte(str), &m)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
+	var hasDefaultReviewers bool
 	for author, requiredReviewers := range m {
 		for _, reviewer := range requiredReviewers {
 			_, err := userExists(ctx, reviewer, users)
@@ -148,7 +148,7 @@ func unmarshalReviewers(ctx context.Context, str string, users githubUserGetter)
 				return nil, trace.Wrap(err)
 			}
 		}
-		if author == "*" {
+		if author == ci.AnyAuthor {
 			hasDefaultReviewers = true
 			continue
 		}
@@ -191,7 +191,6 @@ func (e *PullRequestEnvironment) IsInternal(author string) bool {
 
 // GetMetadata gets the pull request metadata in the current context.
 func GetMetadata(path string) (*Metadata, error) {
-	var actionType action
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -201,6 +200,7 @@ func GetMetadata(path string) (*Metadata, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	var actionType action
 	err = json.Unmarshal(body, &actionType)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -249,68 +249,73 @@ func getMetadata(body []byte, action string) (*Metadata, error) {
 }
 
 func (r *ReviewEvent) toMetadata() (*Metadata, error) {
-	pr, err := validateData(r.PullRequest.Number,
-		r.PullRequest.Author.Login,
-		r.Repository.Owner.Name,
-		r.Repository.Name,
-		r.PullRequest.Head.SHA,
-		r.PullRequest.Base.SHA,
-		r.PullRequest.Head.BranchName,
-	)
-	if err != nil {
-		return &Metadata{}, err
+	m := &Metadata{
+		Number:     r.PullRequest.Number,
+		Author:     r.PullRequest.Author.Login,
+		RepoOwner:  r.Repository.Owner.Name,
+		RepoName:   r.Repository.Name,
+		HeadSHA:    r.PullRequest.Head.SHA,
+		BaseSHA:    r.PullRequest.Base.SHA,
+		BranchName: r.PullRequest.Head.BranchName,
+		Reviewer:   r.Review.User.Login,
 	}
-	if r.Review.User.Login == "" {
-		return &Metadata{}, trace.BadParameter("missing reviewer username")
+	if m.Reviewer == "" {
+		return nil, trace.BadParameter("missing reviewer username")
 	}
-	pr.Reviewer = r.Review.User.Login
-	return pr, nil
+	if err := m.validateFields(); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (p *PullRequestEvent) toMetadata() (*Metadata, error) {
-	return validateData(p.Number,
-		p.PullRequest.User.Login,
-		p.Repository.Owner.Name,
-		p.Repository.Name,
-		p.PullRequest.Head.SHA,
-		p.PullRequest.Base.SHA,
-		p.PullRequest.Head.BranchName,
-	)
+	m := &Metadata{
+		Number:     p.Number,
+		Author:     p.PullRequest.User.Login,
+		RepoOwner:  p.Repository.Owner.Name,
+		RepoName:   p.Repository.Name,
+		HeadSHA:    p.PullRequest.Head.SHA,
+		BaseSHA:    p.PullRequest.Base.SHA,
+		BranchName: p.PullRequest.Head.BranchName,
+	}
+	if err := m.validateFields(); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (s *PushEvent) toMetadata() (*Metadata, error) {
-	return validateData(s.Number,
-		s.PullRequest.User.Login,
-		s.Repository.Owner.Name,
-		s.Repository.Name,
-		s.CommitSHA,
-		s.BeforeSHA,
-		s.PullRequest.Head.BranchName,
-	)
+	m := &Metadata{
+		Number:     s.Number,
+		Author:     s.PullRequest.User.Login,
+		RepoOwner:  s.Repository.Owner.Name,
+		RepoName:   s.Repository.Name,
+		HeadSHA:    s.CommitSHA,
+		BaseSHA:    s.BeforeSHA,
+		BranchName: s.PullRequest.Head.BranchName,
+	}
+	if err := m.validateFields(); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
-func validateData(num int, login, owner, repoName, headSHA, baseSHA, branchName string) (*Metadata, error) {
+func (m *Metadata) validateFields() error {
 	switch {
-	case num == 0:
-		return &Metadata{}, trace.BadParameter("missing pull request number")
-	case login == "":
-		return &Metadata{}, trace.BadParameter("missing user login")
-	case owner == "":
-		return &Metadata{}, trace.BadParameter("missing repository owner")
-	case repoName == "":
-		return &Metadata{}, trace.BadParameter("missing repository name")
-	case headSHA == "":
-		return &Metadata{}, trace.BadParameter("missing head commit sha")
-	case baseSHA == "":
-		return &Metadata{}, trace.BadParameter("missing base commit sha")
-	case branchName == "":
-		return &Metadata{}, trace.BadParameter("missing branch name")
+	case m.Number == 0:
+		return trace.BadParameter("missing pull request number")
+	case m.Author == "":
+		return trace.BadParameter("missing user login")
+	case m.RepoOwner == "":
+		return trace.BadParameter("missing repository owner")
+	case m.RepoName == "":
+		return trace.BadParameter("missing repository name")
+	case m.HeadSHA == "":
+		return trace.BadParameter("missing head commit sha")
+	case m.BaseSHA == "":
+		return trace.BadParameter("missing base commit sha")
+	case m.BranchName == "":
+		return trace.BadParameter("missing branch name")
 	}
-	return &Metadata{Number: num,
-		Author:     login,
-		RepoOwner:  owner,
-		RepoName:   repoName,
-		HeadSHA:    headSHA,
-		BaseSHA:    baseSHA,
-		BranchName: branchName}, nil
+	return nil
 }
