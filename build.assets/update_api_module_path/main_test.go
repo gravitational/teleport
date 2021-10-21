@@ -37,7 +37,7 @@ import (
 )
 `
 
-	// Write go file to memory so we can run it through the update function
+	// Write go file to disk so we can run it through the update function
 	// Note: We use os.MkdirTemp here because "golang.org/x/tools/go/packages.Load"
 	// is unable to read from t.TempDir()
 	pkgDir, err := os.MkdirTemp("./", "pkg")
@@ -74,7 +74,7 @@ message Example {
 }
 `
 
-	// Write proto file to memory
+	// Write proto file to disk
 	rootDir := t.TempDir()
 	protoFilePath := filepath.Join(rootDir, "proto.proto")
 	err := os.WriteFile(protoFilePath, []byte(protoFile), fs.ModePerm)
@@ -96,7 +96,7 @@ message Example {
 func TestUpdateGoModulePath(t *testing.T) {
 	testUpdate := func(oldModPath, newModPath, newModVersion, oldModFile, expectedNewModFile string) func(t *testing.T) {
 		return func(t *testing.T) {
-			// Write mod file to memory so we can run it through the update function
+			// Write mod file to disk so we can run it through the update function
 			modDir := t.TempDir()
 			modFilePath := filepath.Join(modDir, "go.mod")
 			err := os.WriteFile(modFilePath, []byte(oldModFile), fs.ModePerm)
@@ -105,7 +105,7 @@ func TestUpdateGoModulePath(t *testing.T) {
 			err = updateGoModFile(modDir, oldModPath, newModPath, newModVersion)
 			require.NoError(t, err)
 
-			// Read the updated mod file from memory and compare it to the expected mod file
+			// Read the updated mod file from disk and compare it to the expected mod file
 			updatedModFile, err := os.ReadFile(modFilePath)
 			require.NoError(t, err)
 			require.Equal(t, expectedNewModFile, string(updatedModFile))
@@ -196,14 +196,14 @@ func allGoModStatements(path, version string) []string {
 func TestGetImportPaths(t *testing.T) {
 	testGetImportPaths := func(currentModPath, newVersion, expectedNewModPath string) func(t *testing.T) {
 		return func(t *testing.T) {
-			// Write mod file to memory
+			// Write mod file to disk
 			modDir := t.TempDir()
 			modFilePath := filepath.Join(modDir, "go.mod")
 			modFile := newGoModFileString(currentModPath)
 			err := os.WriteFile(modFilePath, []byte(modFile), fs.ModePerm)
 			require.NoError(t, err)
 
-			// Get import paths using the mod file in memory and compare to expected results
+			// Get import paths using the mod file in disk and compare to expected results
 			oldModPath, err := getModImportPath(modDir)
 			require.NoError(t, err)
 			require.Equal(t, currentModPath, oldModPath)
