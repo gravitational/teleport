@@ -25,7 +25,7 @@ import (
 
 // PipeNetConn implements net.Conn from io.Reader,io.Writer and io.Closer
 type PipeNetConn struct {
-	lock sync.Mutex
+	mu sync.RWMutex
 
 	reader     io.Reader
 	writer     io.Writer
@@ -34,8 +34,9 @@ type PipeNetConn struct {
 	remoteAddr net.Addr
 }
 
-// NewPipeNetConn returns a net.Conn like object
-// using Pipe as an underlying implementation over reader, writer and closer
+// NewPipeNetConn constructs a new PipeNetConn, providing a net.Conn
+// implementation synthesized from the supplied io.Reader, io.Writer &
+// io.Closer.
 func NewPipeNetConn(reader io.Reader,
 	writer io.Writer,
 	closer io.Closer,
@@ -52,18 +53,22 @@ func NewPipeNetConn(reader io.Reader,
 }
 
 func (nc *PipeNetConn) Read(buf []byte) (n int, e error) {
+	nc.mu.RLock()
+	defer nc.mu.RUnlock()
+
 	return nc.reader.Read(buf)
 }
 
 func (nc *PipeNetConn) Write(buf []byte) (n int, e error) {
-	nc.lock.Lock()
-	defer nc.lock.Unlock()
+	nc.mu.Lock()
+	defer nc.mu.Unlock()
+
 	return nc.writer.Write(buf)
 }
 
 func (nc *PipeNetConn) Close() error {
-	nc.lock.Lock()
-	defer nc.lock.Unlock()
+	nc.mu.Lock()
+	defer nc.mu.Unlock()
 
 	if nc.closer != nil {
 		return nc.closer.Close()
