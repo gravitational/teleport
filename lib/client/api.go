@@ -325,9 +325,9 @@ type Config struct {
 	// HomePath is where tsh stores profiles
 	HomePath string
 
-	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
-	// all proxy services are exposed on single TLS listener (Proxy Web Listener).
-	ALPNSNIListenerEnabled bool
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	TLSRoutingEnabled bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -785,7 +785,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.SSHProxyAddr = cp.SSHProxyAddr
 	c.PostgresProxyAddr = cp.PostgresProxyAddr
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
-	c.ALPNSNIListenerEnabled = cp.ALPNSNIListenerEnabled
+	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -818,7 +818,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.MySQLProxyAddr = c.MySQLProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
-	cp.ALPNSNIListenerEnabled = c.ALPNSNIListenerEnabled
+	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
@@ -2152,7 +2152,7 @@ func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientC
 }
 
 func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	if tc.Config.ALPNSNIListenerEnabled {
+	if tc.Config.TLSRoutingEnabled {
 		return makeProxySSHClientWithTLSWrapper(tc, sshConfig)
 	}
 	client, err := ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
@@ -2671,7 +2671,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 		tc.MySQLProxyAddr = net.JoinHostPort(tc.WebProxyHost(), strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
 	}
 
-	tc.ALPNSNIListenerEnabled = proxySettings.ALPNSNIListenerEnabled
+	tc.TLSRoutingEnabled = proxySettings.TLSRoutingEnabled
 
 	return nil
 }

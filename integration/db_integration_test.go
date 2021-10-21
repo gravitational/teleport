@@ -415,6 +415,8 @@ type databaseClusterPack struct {
 type testOptions struct {
 	clock             clockwork.Clock
 	instancePortsFunc func() *InstancePorts
+	rootConfig        func(config *service.Config)
+	leafConfig        func(config *service.Config)
 	nodeName          string
 }
 
@@ -447,6 +449,18 @@ func withNodeName(nodeName string) testOptionFunc {
 func withPortSetupDatabaseTest(portFn func() *InstancePorts) testOptionFunc {
 	return func(o *testOptions) {
 		o.instancePortsFunc = portFn
+	}
+}
+
+func withRootConfig(fn func(*service.Config)) testOptionFunc {
+	return func(o *testOptions) {
+		o.rootConfig = fn
+	}
+}
+
+func withLeafConfig(fn func(*service.Config)) testOptionFunc {
+	return func(o *testOptions) {
+		o.leafConfig = fn
 	}
 }
 
@@ -512,6 +526,9 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
+	if opts.rootConfig != nil {
+		opts.rootConfig(rcConf)
+	}
 
 	// Make leaf cluster config.
 	lcConf := service.MakeDefaultConfig()
@@ -521,6 +538,9 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
+	if opts.leafConfig != nil {
+		opts.rootConfig(lcConf)
+	}
 
 	// Establish trust b/w root and leaf.
 	err = p.root.cluster.CreateEx(t, p.leaf.cluster.Secrets.AsSlice(), rcConf)

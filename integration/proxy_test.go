@@ -287,6 +287,12 @@ func TestALPNSNIProxyKube(t *testing.T) {
 func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	pack := setupDatabaseTest(t,
 		withPortSetupDatabaseTest(singleProxyPortSetup),
+		withLeafConfig(func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withRootConfig(func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
 	)
 	pack.waitForLeaf(t)
 
@@ -439,6 +445,12 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	pack := setupWithOptions(t, appTestOptions{
 		rootClusterPorts: singleProxyPortSetup(),
 		leafClusterPorts: singleProxyPortSetup(),
+		rootConfig: func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		},
+		leafConfig: func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		},
 	})
 
 	sess := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
@@ -554,14 +566,14 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	tc.Stdout = output
 
 	// Try to connect to the separate proxy SSH listener.
-	tc.ALPNSNIListenerEnabled = false
+	tc.TLSRoutingEnabled = false
 	err = tc.SSH(ctx, cmd, false)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output.String())
 	output.Reset()
 
 	// Try to connect to the ALPN SNI Listener.
-	tc.ALPNSNIListenerEnabled = true
+	tc.TLSRoutingEnabled = true
 	err = tc.SSH(ctx, cmd, false)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output.String())
