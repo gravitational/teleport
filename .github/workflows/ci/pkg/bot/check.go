@@ -246,7 +246,20 @@ func dismissMessage(pr *environment.Metadata, required []string) string {
 
 // isValidGithubBranchUpdate validates a merge into the current branch from master.
 func (c *Bot) isValidGithubBranchUpdate(ctx context.Context) error {
-	// TODO: Pre-check if commiter is `web-flow` to save computation 
+	clt := c.Environment.Client
+	pr := c.Environment.Metadata
+	// Check if committer is even `web-flow`, no need to do a 
+	// branch update check if it's not. 
+	commit, _, err := clt.Repositories.GetCommit(ctx, pr.RepoOwner, pr.RepoName, pr.HeadSHA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if commit.Committer == nil || commit.Committer.Login == nil {
+		return trace.NotFound("committer for head commit not found")
+	}
+	if *commit.Committer.Login != ci.WebFlowUserName {
+		return nil 
+	}
 	commits, err := c.getAllCommits(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -313,7 +326,7 @@ func (c *Bot) invalidateApprovals(ctx context.Context, reviews map[string]review
 }
 
 // getInBetweenCommits gets the commits in between the current HEAD commit and the last
-// commit that was not committed by Github's committer `web-flow` and the last commit not committed
+// commit that was not committed by Github's committer, `web-flow`, and the last commit not committed
 // by Github is included in the return.
 func (c *Bot) getInBetweenCommits(commits []githubCommit) ([]githubCommit, error) {
 	inBetweenCommits := []githubCommit{}
@@ -327,7 +340,7 @@ func (c *Bot) getInBetweenCommits(commits []githubCommit) ([]githubCommit, error
 		return nil, trace.BadParameter("no commits to check against HEAD")
 	}
 	// Pop off HEAD (most recent commit) because we will be comparing the "in between" commits against it.
-	// If kept in, the commits (when later on checked) would have complete overlap. 
+	// If kept in, the commits (when later on checked) would have complete overlap.
 	commits = commits[1:]
 
 	for _, commit := range commits {
