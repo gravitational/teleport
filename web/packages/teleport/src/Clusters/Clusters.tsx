@@ -65,6 +65,7 @@ export function Clusters(props: ReturnType<typeof useClusters>) {
             showApps: enabledFeatures.apps,
             showDatabases: enabledFeatures.databases,
             showKubes: enabledFeatures.kubes,
+            showDesktops: enabledFeatures.desktops,
           }}
         />
       )}

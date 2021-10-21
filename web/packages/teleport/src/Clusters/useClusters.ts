@@ -55,6 +55,9 @@ function buildACL(ctx: Ctx) {
   const recordings = ctx.features.some(
     f => f instanceof Features.FeatureRecordings
   );
+  const desktops = ctx.features.some(
+    f => f instanceof Features.FeatureDesktops
+  );
 
   return {
     nodes,
@@ -63,5 +66,6 @@ function buildACL(ctx: Ctx) {
     apps,
     kubes,
     databases,
+    desktops,
   };
 }

@@ -163,6 +163,11 @@ function ActionCell(props: { flags: MenuFlags }) {
   if (props.flags.showDatabases) {
     $items.push(renderMenuItem('Databases', cfg.getDatabasesRoute(clusterId)));
   }
+  if (props.flags.showDesktops) {
+    $items.push(
+      renderMenuItem('Desktops (preview)', cfg.getDesktopsRoute(clusterId))
+    );
+  }
   if (props.flags.showAudit) {
     $items.push(renderMenuItem('Audit Log', cfg.getAuditRoute(clusterId)));
   }
@@ -206,6 +211,7 @@ type MenuFlags = {
   showApps: boolean;
   showDatabases: boolean;
   showKubes: boolean;
+  showDesktops: boolean;
 };
 
 const StyledTable = styled(Table)`
