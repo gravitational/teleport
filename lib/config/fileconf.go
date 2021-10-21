@@ -1314,6 +1314,8 @@ type WindowsDesktopService struct {
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig `yaml:"ldap"`
+	// Discovery configures desktop discovery via LDAP.
+	Discovery service.LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`

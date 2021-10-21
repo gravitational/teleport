@@ -36,6 +36,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -1183,6 +1184,14 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.WindowsDesktop.ListenAddr = *listenAddr
 	}
+
+	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
+		if _, err := ldap.CompileFilter(ldap.EscapeFilter(filter)); err != nil {
+			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
+		}
+	}
+	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
+
 	var err error
 	cfg.WindowsDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
 	if err != nil {
