@@ -24,6 +24,8 @@ import (
 	"github.com/google/go-github/v37/github"
 	"github.com/gravitational/teleport/.github/workflows/ci"
 	"github.com/gravitational/trace"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // DimissStaleWorkflowRuns dismisses stale workflow runs for external contributors.
@@ -45,11 +47,16 @@ func (c *Bot) DimissStaleWorkflowRuns(ctx context.Context) error {
 	for _, pull := range pullReqs {
 		err := validatePullRequestFields(pull)
 		if err != nil {
-			return trace.Wrap(err)
+			// We do not want to stop dismissing stale workflow runs for the remaining PRs if there 
+			// is a validation error, skip this iteration. Keep stale runs on PRs that have invalid fields in the event the
+			// invalid fields were malicious input. 
+			log.Error(err) 
+			continue
 		}
 		err = c.dismissStaleWorkflowRuns(ctx, *pull.Base.User.Login, *pull.Base.Repo.Name, *pull.Head.Ref)
 		if err != nil {
-			return trace.Wrap(err)
+			// Log the error, keep trying to dimiss remaining stale runs. 
+			log.Error(err)
 		}
 	}
 	return nil
