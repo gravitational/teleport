@@ -71,7 +71,7 @@ Role-specific enforcement only applies when accessing SSH nodes or Kubernetes cl
 
 #### Roles example
 
-Let's walk though an example of setting up per-session MFA checks for roles.
+Let's walk through an example of setting up per-session MFA checks for roles.
 
 Jerry is an engineer with access to the company infrastructure. The
 infrastructure is split into development and production environments. Security
@@ -92,6 +92,10 @@ spec:
       env: dev
     kubernetes_labels:
       env: dev
+    db_labels:
+      'env': dev
+    db_users:
+    - '*'
   deny: {}
 ---
 # access-prod.yaml
@@ -108,6 +112,10 @@ spec:
       env: prod
     kubernetes_labels:
       env: prod
+    db_labels:
+      'env': prod
+    db_users:
+    - '*'
   deny: {}
 ```
 
@@ -134,6 +142,32 @@ $ tsh ssh prod3.example.com
 If per-session MFA was enabled cluster-wide, Jerry would be prompted for MFA
 even when logging into `dev1.example.com`.
 
+
+## Database access MFA
+
+Database access supports per-connection MFA. When Jerry connects to the database
+`prod-mysql-instance` (with label `env: prod`), he gets
+promoted for an MFA check for each `tsh db connect` call:
+
+```
+$ tsh db connect prod-mysql-instance
+# Tap any security key
+
+# Welcome to the MySQL monitor.  Commands end with ; or \g.
+# Your MySQL connection id is 10002
+# Server version: 8.0.0-Teleport (Ubuntu)
+#
+# Copyright (c) 2000, 2021, Oracle and/or its affiliates.
+#
+# Oracle is a registered trademark of Oracle Corporation and/or its
+# affiliates. Other names may be trademarks of their respective
+# owners.
+#
+# Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+#
+# mysql>
+```
+
 ## Limitations
 
 Current limitations for this feature are:
@@ -142,7 +176,7 @@ Current limitations for this feature are:
 - Only `tsh ssh` supports per-session U2F authentication for SSH (OpenSSH `ssh`
   does not).
 - Only `kubectl` supports per-session U2F authentication for Kubernetes.
-- Database and Application access clients don't support per-session U2F
+- Application access clients don't support per-session U2F
   authentication yet, although cluster and role configuration applies to them.
   If you enable per-session U2F checks cluster-wide, you will not be able to
   use Database or Application access. We're working on integrating per-session
