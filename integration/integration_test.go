@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -1032,9 +1031,7 @@ type errorVerifier func(error) error
 func errorContains(text string) errorVerifier {
 	return func(err error) error {
 		if err == nil || !strings.Contains(err.Error(), text) {
-			return errors.New(
-				fmt.Sprintf("Expected error to contain %q, got: %v", text, err),
-			)
+			return fmt.Errorf("Expected error to contain %q, got: %v", text, err)
 		}
 		return nil
 	}
@@ -1231,8 +1228,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 					asyncErrors <- badErrorErr
 				}
 			} else if err != nil && !trace.IsEOF(err) && !isSSHError(err) {
-				asyncErrors <- errors.New(
-					fmt.Sprintf("expected EOF, ExitError, or nil, got %v instead", err))
+				asyncErrors <- fmt.Errorf("expected EOF, ExitError, or nil, got %v instead", err)
 				return
 			}
 		}
@@ -1299,7 +1295,7 @@ func enterInput(ctx context.Context, person *Terminal, command, pattern string) 
 			return nil
 		}
 		if time.Now().After(abortTime) {
-			return errors.New(fmt.Sprintf("failed to capture pattern %q in %q", pattern, output))
+			return fmt.Errorf("failed to capture pattern %q in %q", pattern, output)
 		}
 	}
 }
