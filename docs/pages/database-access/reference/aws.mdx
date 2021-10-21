@@ -1,0 +1,54 @@
+---
+title: Database Access AWS IAM Reference
+description: AWS IAM policies for Teleport database access.
+---
+
+Teleport automatically discovers and configures IAM for RDS and Aurora access
+given proper IAM permissions as described in the [RDS guide](../guides/rds.mdx).
+
+If you prefer to register RDS databases manually using [static configuration](./configuration.mdx)
+or [`tctl`](../guides/dynamic-registration.mdx) and manage IAM yourself, example
+IAM policies you'd need to create are shown below.
+
+## RDS or Aurora policy
+
+To connect to an RDS database, the database agent's IAM identity needs to have
+`rds-db:connect` permissions for it:
+
+<Details title="Example IAM policy document" opened={false}>
+```json
+{
+   "Version": "2012-10-17",
+   "Statement": [
+      {
+         "Effect": "Allow",
+         "Action": [
+             "rds-db:connect"
+         ],
+         "Resource": [
+             // Use db-XXX as a resource identifier for RDS databases.
+             "arn:aws:rds-db:us-east-2:1234567890:dbuser:db-ABCDEFGHIJKL01234/*",
+             // Use cluster-XXX as a resource identifier for Aurora clusters.
+             "arn:aws:rds-db:us-east-2:1234567890:dbuser:cluster-ABCDEFGHIJKL01234/*"
+         ]
+      }
+   ]
+}
+```
+</Details>
+
+The resource ARN in the policy has the following format:
+
+```
+arn:aws:rds-db:<region>:<account-id>:dbuser:<resource-id>/<db-user>
+```
+
+| Parameter     | Description |
+| ------------- | ----------- |
+| `region`      | AWS region where the database cluster is deployed. |
+| `account-id`  | AWS account ID the database cluster is deployed under. |
+| `resource-id` | Database AWS resource identifier: `db-XXX` for RDS, `cluster-XXX` for Aurora. Can be found under Configuration section in the RDS control panel. |
+| `db-user`     | Database user to associate with IAM authentication. Can be a wildcard. |
+
+See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
+for more information.
