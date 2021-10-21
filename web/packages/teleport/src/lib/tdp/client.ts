@@ -23,7 +23,7 @@ export default class Client extends EventEmitter {
   socketAddr: string;
   username: string;
   logger = Logger.create('TDPClient');
-  userDisconnected = false;
+  private disconnected = false;
 
   constructor(socketAddr: string, username: string) {
     super();
@@ -59,7 +59,7 @@ export default class Client extends EventEmitter {
       this.socket.onclose = null;
       this.socket = null;
 
-      if (this.userDisconnected) {
+      if (this.disconnected) {
         this.emit('disconnect');
       } else {
         this.handleError(new Error('websocket connection failed'));
@@ -123,7 +123,7 @@ export default class Client extends EventEmitter {
   // Called to cleanup websocket when the connection is intentionally
   // closed by the end user (customer). Causes 'disconnect' event to be emitted
   disconnect() {
-    this.userDisconnected = true;
+    this.disconnected = true;
     this.socket?.close();
   }
 
