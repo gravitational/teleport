@@ -76,6 +76,7 @@ auth_service:
   public_addr: ["auth.default.svc.cluster.local:3080"]
   disconnect_expired_cert: yes
   client_idle_timeout: 17s
+  routing_strategy: most_recent
 
 ssh_service:
   enabled: no
