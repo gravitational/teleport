@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -76,11 +77,11 @@ type ClusterNetworkingConfig interface {
 	// Clone performs a deep copy.
 	Clone() ClusterNetworkingConfig
 
-	// GetRouteToMostRecent gets the route to most recent setting.
-	GetRouteToMostRecent() bool
+	// GetRoutingStrategy gets the routing strategy setting.
+	GetRoutingStrategy() RoutingStrategy
 
-	// SetRouteToMostRecent sets the route to most recent setting.
-	SetRouteToMostRecent(bool)
+	// SetRoutingStrategy sets the routing strategy setting.
+	SetRoutingStrategy(strategy RoutingStrategy)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -251,14 +252,14 @@ func (c *ClusterNetworkingConfigV2) setStaticFields() {
 	c.Metadata.Name = MetaNameClusterNetworkingConfig
 }
 
-// GetRouteToMostRecent gets the route to most recent setting.
-func (c *ClusterNetworkingConfigV2) GetRouteToMostRecent() bool {
-	return c.Spec.RouteToMostRecent
+// GetRoutingStrategy gets the routing strategy setting.
+func (c *ClusterNetworkingConfigV2) GetRoutingStrategy() RoutingStrategy {
+	return c.Spec.RoutingStrategy
 }
 
-// SetRouteToMostRecent sets the route to most recent setting.
-func (c *ClusterNetworkingConfigV2) SetRouteToMostRecent(routeToMostRecent bool) {
-	c.Spec.RouteToMostRecent = routeToMostRecent
+// SetRoutingStrategy sets the routing strategy setting.
+func (c *ClusterNetworkingConfigV2) SetRoutingStrategy(strategy RoutingStrategy) {
+	c.Spec.RoutingStrategy = strategy
 }
 
 // CheckAndSetDefaults verifies the constraints for ClusterNetworkingConfig.
@@ -282,4 +283,57 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// MarshalYAML defines how a proxy listener mode should be marshalled to a string
+func (p ProxyListenerMode) MarshalYAML() (interface{}, error) {
+	return strings.ToLower(p.String()), nil
+}
+
+// UnmarshalYAML unmarshalls proxy listener mode from YAML value.
+func (p *ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var stringVar string
+	if err := unmarshal(&stringVar); err != nil {
+		return trace.Wrap(err)
+	}
+	for k, v := range ProxyListenerMode_value {
+		if strings.EqualFold(k, stringVar) {
+			*p = ProxyListenerMode(v)
+			return nil
+		}
+	}
+
+	available := make([]string, 0, len(ProxyListenerMode_value))
+	for k := range ProxyListenerMode_value {
+		available = append(available, strings.ToLower(k))
+	}
+	return trace.BadParameter(
+		"proxy listener mode must be one of %s; got %q", strings.Join(available, ","), stringVar)
+}
+
+// MarshalYAML defines how a routing strategy should be marshalled to a string
+func (s RoutingStrategy) MarshalYAML() (interface{}, error) {
+	return strings.ToLower(s.String()), nil
+}
+
+// UnmarshalYAML unmarshalls routing strategy from YAML value.
+func (s *RoutingStrategy) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var stringVar string
+	if err := unmarshal(&stringVar); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for k, v := range RoutingStrategy_value {
+		if strings.EqualFold(k, stringVar) {
+			*s = RoutingStrategy(v)
+			return nil
+		}
+	}
+
+	available := make([]string, 0, len(RoutingStrategy_value))
+	for k := range RoutingStrategy_value {
+		available = append(available, strings.ToLower(k))
+	}
+	return trace.BadParameter(
+		"routing strategy must be one of %s; got %q", strings.Join(available, ","), stringVar)
 }

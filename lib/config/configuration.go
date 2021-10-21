@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package 'config' provides facilities for configuring Teleport daemons
+// Package config provides facilities for configuring Teleport daemons
 // including
 //	- parsing YAML configuration
 //	- parsing CLI flags
@@ -545,6 +545,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
+		RoutingStrategy:          fc.Auth.RoutingStrategy,
 	})
 	if err != nil {
 		return trace.Wrap(err)
