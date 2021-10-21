@@ -443,7 +443,10 @@ test-go: $(VERSRC)
 	$(CGOFLAG) go test -p 4 -cover -count 1 -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee tests-unit.json \
 		| go run build.assets/render-tests/main.go
-		
+	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover \
+		| tee -a tests-unit.json \
+		| go run build.assets/render-tests/main.go
+
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
 #
