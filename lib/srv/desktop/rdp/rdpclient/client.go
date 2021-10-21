@@ -62,22 +62,41 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/sirupsen/logrus"
 )
 
 func init() {
-	// Call the init function in Rust, initializes their logger.
-	//
-	// TODO(zmb3): the Rust logger won't work unless RUST_LOG env var is set.
-	// Consider setting it here explicitly if not set, matching the logging
-	// level of Teleport.
+	// initialize the Rust logger by setting $RUST_LOG based
+	// on the logrus log level
+	// (unless RUST_LOG is already explicitly set, then we
+	// assume the user knows what they want)
+	if rl := os.Getenv("RUST_LOG"); rl != "" {
+		var rustLogLevel string
+		switch l := logrus.GetLevel(); l {
+		case logrus.TraceLevel:
+			rustLogLevel = "trace"
+		case logrus.DebugLevel:
+			rustLogLevel = "debug"
+		case logrus.InfoLevel:
+			rustLogLevel = "info"
+		case logrus.WarnLevel:
+			rustLogLevel = "warn"
+		default:
+			rustLogLevel = "error"
+		}
+
+		os.Setenv("RUST_LOG", rustLogLevel)
+	}
+
 	C.init()
 }
 
