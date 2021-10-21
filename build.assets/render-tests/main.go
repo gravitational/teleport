@@ -157,7 +157,7 @@ func main() {
 
 	if len(failedTests) == 0 {
 		fmt.Println("All tests pass. Yay!")
-		return
+		os.Exit(0)
 	}
 
 	names := make([]string, 0, len(failedTests))
@@ -178,4 +178,6 @@ func main() {
 			fmt.Print(l)
 		}
 	}
+
+	os.Exit(1)
 }
