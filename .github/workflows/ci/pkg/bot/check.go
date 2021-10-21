@@ -90,6 +90,10 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	} else {
+		// If there are no file changes between current commit and commit where all 
+		// reviewers have approved, then all most recent reviews are valid.
+		validReviews = mostRecentReviews
 	}
 	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
 	err = hasRequiredApprovals(validReviews, c.Environment.GetReviewersForAuthor(pr.Author))
