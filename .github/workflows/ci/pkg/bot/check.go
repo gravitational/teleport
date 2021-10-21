@@ -84,7 +84,7 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 	// contributions. As such reviews from previous pushes must
 	// not carry over to when new changes are added. Github does
 	// not do this automatically, so we must dismiss the reviews
-	// manually.
+	// manually if there is a file change.
 	if err = c.hasFileChangeFromLastApprovedReview(ctx); err != nil {
 		err = c.invalidateApprovals(ctx, obsoleteReviews)
 		if err != nil {
@@ -238,6 +238,8 @@ func dismissMessage(pr *environment.Metadata, required []string) string {
 	return sb.String()
 }
 
+// hasFileChangeFromLastApproved checks if there is a file change from the last commit all 
+// reviewers approved (if all reviewers approved at a commit) to the current HEAD. 
 func (c *Bot) hasFileChangeFromLastApprovedReview(ctx context.Context) error {
 	pr := c.Environment.Metadata
 	lastReviewCommitID, err := c.getLastApprovedReviewCommitID(ctx)
@@ -261,6 +263,7 @@ func (c *Bot) hasFileChangeFromLastApprovedReview(ctx context.Context) error {
 	return nil
 }
 
+// getLastApprovedReviewCommitID gets the last review's commit ID (last review where a commit was approved). 
 func (c *Bot) getLastApprovedReviewCommitID(ctx context.Context) (string, error) {
 	reviews := []*github.PullRequestReview{}
 	pr := c.Environment.Metadata
@@ -298,6 +301,7 @@ func (c *Bot) getLastApprovedReviewCommitID(ctx context.Context) (string, error)
 	return *lastApprovedReview.CommitID, nil
 }
 
+// hasFileDiff compares two commits and checks if there are changes. 
 func (c *Bot) hasFileDiff(ctx context.Context, base, head string) error {
 	pr := c.Environment.Metadata
 	clt := c.Environment.Client
