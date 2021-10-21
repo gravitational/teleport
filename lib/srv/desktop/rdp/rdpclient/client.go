@@ -151,8 +151,6 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	return c, nil
 }
 
-// TODO(zmb3): allow passing a ctx or otherwise configuring a timeout here
-// (if we cannot route to the host this will hang indefinitely)
 func (c *Client) readClientUsername() error {
 	for {
 		msg, err := c.cfg.InputMessage()
