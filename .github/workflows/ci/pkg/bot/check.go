@@ -246,11 +246,12 @@ func dismissMessage(pr *environment.Metadata, required []string) string {
 
 // isValidGithubBranchUpdate validates a merge into the current branch from master.
 func (c *Bot) isValidGithubBranchUpdate(ctx context.Context) error {
+	// TODO: Pre-check if commiter is `web-flow` to save computation 
 	commits, err := c.getAllCommits(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	betweenCommits, err := c.getInBetweenCommits(ctx, commits)
+	betweenCommits, err := c.getInBetweenCommits(commits)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -314,7 +315,7 @@ func (c *Bot) invalidateApprovals(ctx context.Context, reviews map[string]review
 // getInBetweenCommits gets the commits in between the current HEAD commit and the last
 // commit that was not committed by Github's committer `web-flow` and the last commit not committed
 // by Github is included in the return.
-func (c *Bot) getInBetweenCommits(ctx context.Context, commits []githubCommit) ([]githubCommit, error) {
+func (c *Bot) getInBetweenCommits(commits []githubCommit) ([]githubCommit, error) {
 	inBetweenCommits := []githubCommit{}
 
 	// Sorting commits by time from newest to oldest.
