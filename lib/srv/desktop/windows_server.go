@@ -430,12 +430,11 @@ func (s *WindowsService) startDiscoveredHostHeartbeats() error {
 // dynamicHostHeartbeatInfo generates the Windows Desktop resource
 // for heartbeating hosts discovered via LDAP
 func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.Resource, error) {
-	name := entry.GetAttributeValue(attrName)
 	hostname := entry.GetAttributeValue(attrDNSHostName)
 
 	labels := getHostLabels(hostname)
-	labels["teleport.dev/computer_name"] = name
 	labels["teleport.dev/dns_host_name"] = hostname
+	labels["teleport.dev/computer_name"] = entry.GetAttributeValue(attrName)
 	labels["teleport.dev/os"] = entry.GetAttributeValue(attrOS)
 	labels["teleport.dev/os_version"] = entry.GetAttributeValue(attrOSVersion)
 	labels["teleport.dev/windows_domain"] = s.cfg.Domain
@@ -453,7 +452,9 @@ func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ld
 	}
 
 	desktop, err := types.NewWindowsDesktopV3(
-		hostname,
+		// ensure no '.' in name, because we use SNI to route to the right
+		// desktop, and our cert is valid for *.desktop.teleport.cluster.local
+		strings.ReplaceAll(hostname, ".", "-"),
 		labels,
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),
