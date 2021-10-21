@@ -23,6 +23,7 @@ export default class Client extends EventEmitter {
   socketAddr: string;
   username: string;
   logger = Logger.create('TDPClient');
+  private connected = false;
   private disconnected = false;
 
   constructor(socketAddr: string, username: string) {
@@ -71,13 +72,17 @@ export default class Client extends EventEmitter {
   connect(initialWidth: number, initialHeight: number) {
     this.sendUsername(this.username);
     this.resize(initialWidth, initialHeight);
-    this.emit('connect');
   }
 
   processMessage(buffer: ArrayBuffer) {
     const messageType = this.codec.decodeMessageType(buffer);
     try {
       if (messageType === MessageType.PNG_FRAME) {
+        if (!this.connected) {
+          // The first png frame signals a successful connection.
+          this.connected = true;
+          this.emit('connect');
+        }
         this.processFrame(buffer);
       } else {
         this.handleError(

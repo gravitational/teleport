@@ -176,6 +176,7 @@ export const Performance = () => {
           startTime = performance.now();
         } else if (i === arrayBuf2260x1130.length - 1) {
           endTime = performance.now();
+          // eslint-disable-next-line no-console
           console.log(`Total time (ms): ${endTime - startTime}`);
         }
         i++;
