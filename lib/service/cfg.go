@@ -846,6 +846,10 @@ type WindowsDesktopConfig struct {
 	PublicAddrs []utils.NetAddr
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig
+
+	// Discovery configures automatic desktop discovery via LDAP.
+	Discovery LDAPDiscoveryConfig
+
 	// Hosts is an optional list of static Windows hosts to expose through this
 	// service.
 	Hosts []utils.NetAddr
@@ -853,6 +857,16 @@ type WindowsDesktopConfig struct {
 	ConnLimiter limiter.Config
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
 	HostLabels HostLabelRules
+}
+
+type LDAPDiscoveryConfig struct {
+	// BaseDN is the base DN to search for desktops.
+	// Use the value '*' to search from the root of the domain,
+	// or leave blank to disable desktop discovery.
+	BaseDN string `yaml:"base_dn"`
+	// Filters are additional LDAP filters to apply to the search.
+	// See: https://ldap.com/ldap-filters/
+	Filters []string `yaml:"filters"`
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
