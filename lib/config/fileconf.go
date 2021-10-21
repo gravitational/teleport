@@ -515,6 +515,9 @@ type Auth struct {
 
 	// CAKeyParams configures how CA private keys will be created and stored.
 	CAKeyParams *CAKeyParams `yaml:"ca_key_params,omitempty"`
+
+	// RoutingStrategy configures the routing strategy to nodes.
+	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
