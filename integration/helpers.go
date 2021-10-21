@@ -40,9 +40,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -581,7 +581,11 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		tconf.Proxy.MySQLAddr = utils.NetAddr{}
 		tconf.Proxy.SSHAddr = utils.NetAddr{}
 	} else {
-		tconf.Proxy.ReverseTunnelListenAddr.Addr = i.Secrets.TunnelAddr
+		tunAddr, err := utils.ParseAddr(i.Secrets.TunnelAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tconf.Proxy.ReverseTunnelListenAddr = *tunAddr
 		tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 		tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
 		tconf.Proxy.MySQLAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMySQL())
@@ -1182,19 +1186,19 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	cconf := &client.Config{
-		Username:               cfg.Login,
-		Host:                   cfg.Host,
-		HostPort:               cfg.Port,
-		HostLogin:              cfg.Login,
-		InsecureSkipVerify:     true,
-		KeysDir:                keyDir,
-		SiteName:               cfg.Cluster,
-		ForwardAgent:           fwdAgentMode,
-		Labels:                 cfg.Labels,
-		WebProxyAddr:           webProxyAddr,
-		SSHProxyAddr:           sshProxyAddr,
-		Interactive:            cfg.Interactive,
-		ALPNSNIListenerEnabled: i.isSinglePortSetup,
+		Username:           cfg.Login,
+		Host:               cfg.Host,
+		HostPort:           cfg.Port,
+		HostLogin:          cfg.Login,
+		InsecureSkipVerify: true,
+		KeysDir:            keyDir,
+		SiteName:           cfg.Cluster,
+		ForwardAgent:       fwdAgentMode,
+		Labels:             cfg.Labels,
+		WebProxyAddr:       webProxyAddr,
+		SSHProxyAddr:       sshProxyAddr,
+		Interactive:        cfg.Interactive,
+		TLSRoutingEnabled:  i.isSinglePortSetup,
 	}
 
 	// JumpHost turns on jump host mode
