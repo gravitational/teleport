@@ -246,6 +246,7 @@ func TestConfigReading(t *testing.T) {
 			LicenseFile:           "lic.pem",
 			DisconnectExpiredCert: services.Bool(true),
 			ClientIdleTimeout:     services.Duration(17 * time.Second),
+			RoutingStrategy:       types.RoutingStrategy_MOST_RECENT,
 		},
 		SSH: SSH{
 			Service: Service{
@@ -851,6 +852,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 		},
 		ClientIdleTimeout:     services.Duration(17 * time.Second),
 		DisconnectExpiredCert: true,
+		RoutingStrategy:       types.RoutingStrategy_MOST_RECENT,
 	}, cmp.AllowUnexported(Service{})))
 
 	policy, err := conf.CachePolicy.Parse()
@@ -913,6 +915,7 @@ func makeConfigFixture() string {
 	conf.Auth.LicenseFile = "lic.pem"
 	conf.Auth.ClientIdleTimeout = services.NewDuration(17 * time.Second)
 	conf.Auth.DisconnectExpiredCert = services.NewBool(true)
+	conf.Auth.RoutingStrategy = types.RoutingStrategy_MOST_RECENT
 
 	// ssh service:
 	conf.SSH.EnabledFlag = "true"

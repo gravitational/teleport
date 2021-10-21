@@ -700,6 +700,9 @@ type Auth struct {
 	// KeepAliveCountMax set the number of keep-alive messages that can be
 	// missed before the server disconnects the client.
 	KeepAliveCountMax int64 `yaml:"keep_alive_count_max,omitempty"`
+
+	// RoutingStrategy configures the routing strategy to nodes.
+	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key

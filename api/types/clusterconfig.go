@@ -101,6 +101,12 @@ type ClusterConfig interface {
 	// SetLocalAuth sets if local authentication is allowed.
 	SetLocalAuth(bool)
 
+	// GetRoutingStrategy gets the routing strategy setting.
+	GetRoutingStrategy() RoutingStrategy
+
+	// SetRoutingStrategy sets the routing strategy setting.
+	SetRoutingStrategy(strategy RoutingStrategy)
+
 	// Copy creates a copy of the resource and returns it.
 	Copy() ClusterConfig
 }
@@ -287,6 +293,16 @@ func (c *ClusterConfigV3) SetLocalAuth(b bool) {
 	c.Spec.LocalAuth = NewBool(b)
 }
 
+// GetRoutingStrategy gets the routing strategy setting.
+func (c *ClusterConfigV3) GetRoutingStrategy() RoutingStrategy {
+	return c.Spec.RoutingStrategy
+}
+
+// SetRoutingStrategy sets the routing strategy setting.
+func (c *ClusterConfigV3) SetRoutingStrategy(strategy RoutingStrategy) {
+	c.Spec.RoutingStrategy = strategy
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	if c.Metadata.Name == "" {
@@ -338,4 +354,31 @@ func (c *ClusterConfigV3) Copy() ClusterConfig {
 func (c *ClusterConfigV3) String() string {
 	return fmt.Sprintf("ClusterConfig(SessionRecording=%v, ClusterID=%v, ProxyChecksHostKeys=%v)",
 		c.Spec.SessionRecording, c.Spec.ClusterID, c.Spec.ProxyChecksHostKeys)
+}
+
+// MarshalYAML defines how a routing strategy should be marshalled to a string
+func (s RoutingStrategy) MarshalYAML() (interface{}, error) {
+	return strings.ToLower(s.String()), nil
+}
+
+// UnmarshalYAML unmarshalls routing strategy from YAML value.
+func (s *RoutingStrategy) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var stringVar string
+	if err := unmarshal(&stringVar); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for k, v := range RoutingStrategy_value {
+		if strings.EqualFold(k, stringVar) {
+			*s = RoutingStrategy(v)
+			return nil
+		}
+	}
+
+	available := make([]string, 0, len(RoutingStrategy_value))
+	for k := range RoutingStrategy_value {
+		available = append(available, strings.ToLower(k))
+	}
+	return trace.BadParameter(
+		"routing strategy must be one of %s; got %q", strings.Join(available, ","), stringVar)
 }
