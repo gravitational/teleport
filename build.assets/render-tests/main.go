@@ -82,7 +82,6 @@ func readInput(input io.Reader, ch chan<- TestEvent) {
 }
 
 func main() {
-
 	testOutput := make(map[string][]string)
 	failedTests := make(map[string][]string)
 	actionCounts := make(map[string]int)
@@ -179,6 +178,4 @@ func main() {
 			fmt.Print(l)
 		}
 	}
-
-	os.Exit(1)
 }
