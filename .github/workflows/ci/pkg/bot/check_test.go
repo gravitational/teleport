@@ -13,9 +13,7 @@ limitations under the License.
 package bot
 
 import (
-	"sort"
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/.github/workflows/ci/pkg/environment"
 
@@ -135,111 +133,42 @@ func TestHasRequiredApprovals(t *testing.T) {
 
 }
 
-func TestMostRecent(t *testing.T) {
-	time := time.Now()
-	timePlus10 := time.Add(10)
+func TestHasRequiredApprovalsFromLastCommit(t *testing.T) {
+
 	tests := []struct {
-		currentReviews []review
-		expectedOutput []review
+		commitSHA string
+		reviews   map[string]review
+		required  []string
+		desc      string
+		checkErr  require.ErrorAssertionFunc
 	}{
 		{
-			currentReviews: []review{
-				{name: "boo", submittedAt: &time},
-				{name: "boo", submittedAt: &timePlus10},
-				{name: "test", submittedAt: &time}},
-			expectedOutput: []review{
-				{name: "boo", submittedAt: &timePlus10},
-				{name: "test", submittedAt: &time}},
+			reviews: map[string]review{
+				"foo": {name: "foo", status: "APPROVED", commitID: "fe324c", id: 1},
+				"bar": {name: "bar", status: "Commented", commitID: "fe324c", id: 2},
+				"baz": {name: "baz", status: "APPROVED", commitID: "fe324c", id: 3},
+			},
+			commitSHA: "fe324c",
+			required:  []string{"foo", "baz"},
+			checkErr:  require.NoError,
+			desc:      "has required approvals at commit",
 		},
 		{
-			currentReviews: []review{
-				{name: "boo", submittedAt: &time},
-				{name: "boo", submittedAt: &timePlus10},
-				{name: "test", submittedAt: &time},
-				{name: "test", submittedAt: &timePlus10},
-				{name: "bar", submittedAt: &time},
+			reviews: map[string]review{
+				"foo": {name: "foo", status: "APPROVED", commitID: "fe324c", id: 1},
+				"bar": {name: "bar", status: "Commented", commitID: "fe324c", id: 2},
+				"baz": {name: "baz", status: "APPROVED", commitID: "fe324c", id: 3},
 			},
-
-			expectedOutput: []review{
-				{name: "bar", submittedAt: &time},
-				{name: "boo", submittedAt: &timePlus10},
-				{name: "test", submittedAt: &timePlus10},
-			},
+			commitSHA: "65fab3",
+			required:  []string{"foo", "baz"},
+			checkErr:  require.Error,
+			desc:      "has no approvals at commit, all required approvers reviewed",
 		},
 	}
 	for _, test := range tests {
-		t.Run("", func(t *testing.T) {
-			expected := test.expectedOutput
-			sort.Slice(expected, func(i, j int) bool {
-				return expected[i].name < expected[j].name
-			})
-
-			mapRevs := mostRecent(test.currentReviews)
-			revs := mapToSlice(mapRevs)
-			sort.Slice(revs, func(i, j int) bool {
-				return revs[i].name < revs[j].name
-			})
-			require.Equal(t, expected, revs)
+		t.Run(test.desc, func(t *testing.T) {
+			err := hasAllRequiredApprovalsAtCommit(test.commitSHA, test.reviews, test.required)
+			test.checkErr(t, err)
 		})
 	}
-}
-
-func mapToSlice(revs map[string]review) []review {
-	reviews := make([]review, 0, len(revs))
-	for _, v := range revs {
-		reviews = append(reviews, v)
-	}
-	return reviews
-}
-
-func TestInBetweenCommits(t *testing.T) {
-	nowTime := time.Now()
-	timePlus5 := nowTime.Add(5)
-	timePlus10 := nowTime.Add(10)
-
-	commit1 := githubCommit{}
-	commit1.Committer.Login = "web-flow"
-	commit1.Commit.Committer.Date = nowTime
-
-	commit2 := githubCommit{}
-	commit2.Committer.Login = "test"
-	commit2.Commit.Committer.Date = timePlus10
-
-	commit3 := githubCommit{}
-	commit3.Committer.Login = "test"
-	commit3.Commit.Committer.Date = timePlus5
-
-	commits := []githubCommit{commit1, commit2, commit3}
-	bot := &Bot{}
-
-	// Valid input, 1 commit inbetween HEAD and last non Github-committed commit.
-	result, err := bot.getInBetweenCommits(commits)
-	require.NoError(t, err)
-	require.Equal(t, "test", result[0].Committer.Login)
-	require.Equal(t, 1, len(result))
-
-	// There is only one commit, nothing to compare later, require error.
-	commits = []githubCommit{commit1}
-	result, err = bot.getInBetweenCommits(commits)
-	require.Error(t, err)
-
-	// All commit were created by `web-flow`, expecting error.
-	commit3.Committer.Login = "web-flow"
-	commits = []githubCommit{commit1, commit3}
-	result, err = bot.getInBetweenCommits(commits)
-	require.Error(t, err)
-
-	// Test multiple commits by webflow
-	nowTime = time.Now()
-	commit4 := githubCommit{}
-	commit4.Committer.Login = "web-flow"
-	commit3.Committer.Login = "test"
-	commit4.Commit.Committer.Date = nowTime.Add(20)
-	// Commit 1 is `web-flow`
-	commit1.Commit.Committer.Date = nowTime.Add(10)
-	commits = []githubCommit{commit4, commit3, commit1}
-	result, err = bot.getInBetweenCommits(commits)
-	require.NoError(t, err)
-	require.Equal(t, 2, len(result))
-
 }
