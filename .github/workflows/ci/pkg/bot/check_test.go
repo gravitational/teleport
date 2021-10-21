@@ -191,3 +191,55 @@ func mapToSlice(revs map[string]review) []review {
 	}
 	return reviews
 }
+
+func TestInBetweenCommits(t *testing.T) {
+	nowTime := time.Now()
+	timePlus5 := nowTime.Add(5)
+	timePlus10 := nowTime.Add(10)
+
+	commit1 := githubCommit{}
+	commit1.Committer.Login = "web-flow"
+	commit1.Commit.Committer.Date = nowTime
+
+	commit2 := githubCommit{}
+	commit2.Committer.Login = "test"
+	commit2.Commit.Committer.Date = timePlus10
+
+	commit3 := githubCommit{}
+	commit3.Committer.Login = "test"
+	commit3.Commit.Committer.Date = timePlus5
+
+	commits := []githubCommit{commit1, commit2, commit3}
+	bot := &Bot{}
+
+	// Valid input, 1 commit inbetween HEAD and last non Github-committed commit.
+	result, err := bot.getInBetweenCommits(commits)
+	require.NoError(t, err)
+	require.Equal(t, "test", result[0].Committer.Login)
+	require.Equal(t, 1, len(result))
+
+	// There is only one commit, nothing to compare later, require error.
+	commits = []githubCommit{commit1}
+	result, err = bot.getInBetweenCommits(commits)
+	require.Error(t, err)
+
+	// All commit were created by `web-flow`, expecting error.
+	commit3.Committer.Login = "web-flow"
+	commits = []githubCommit{commit1, commit3}
+	result, err = bot.getInBetweenCommits(commits)
+	require.Error(t, err)
+
+	// Test multiple commits by webflow
+	nowTime = time.Now()
+	commit4 := githubCommit{}
+	commit4.Committer.Login = "web-flow"
+	commit3.Committer.Login = "test"
+	commit4.Commit.Committer.Date = nowTime.Add(20)
+	// Commit 1 is `web-flow`
+	commit1.Commit.Committer.Date = nowTime.Add(10)
+	commits = []githubCommit{commit4, commit3, commit1}
+	result, err = bot.getInBetweenCommits(commits)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(result))
+
+}
