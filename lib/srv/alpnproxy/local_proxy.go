@@ -19,7 +19,6 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -68,8 +67,11 @@ type LocalProxyConfig struct {
 	SSHUserHost string
 	// SSHHostKeyCallback is the function type used for verifying server keys.
 	SSHHostKeyCallback ssh.HostKeyCallback
-	// SSHTrustedCluster allows to select trusted cluster ssh subsystem request.
+	// SSHTrustedCluster allows selecting trusted cluster ssh subsystem request.
 	SSHTrustedCluster string
+	// ClientTLSConfig is a client TLS configuration used during establishing
+	// connection to the RemoteProxyAddr.
+	ClientTLSConfig *tls.Config
 	// Certs are the client certificates used to connect to the remote Teleport Proxy.
 	Certs []tls.Certificate
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
@@ -107,11 +109,15 @@ func NewLocalProxy(cfg LocalProxyConfig) (*LocalProxy, error) {
 // SSHProxy is equivalent of `ssh -o 'ForwardAgent yes' -p port  %r@host -s proxy:%h:%p` but established SSH
 // connection to RemoteProxyAddr is wrapped with TLS protocol.
 func (l *LocalProxy) SSHProxy() error {
-	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
-		NextProtos:         []string{string(l.cfg.Protocol)},
-		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
-		ServerName:         l.cfg.SNI,
-	})
+	if l.cfg.ClientTLSConfig != nil {
+		return trace.BadParameter("client TLS config is missing")
+	}
+
+	clientTLSConfig := l.cfg.ClientTLSConfig.Clone()
+	clientTLSConfig.NextProtos = []string{string(l.cfg.Protocol)}
+	clientTLSConfig.InsecureSkipVerify = l.cfg.InsecureSkipVerify
+
+	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, clientTLSConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -209,7 +215,7 @@ func proxySession(ctx context.Context, sess *ssh.Session) error {
 		case <-ctx.Done():
 			return nil
 		case err := <-errC:
-			if err != nil && !errors.Is(err, io.EOF) {
+			if err != nil && !utils.IsOKNetworkError(err) {
 				errs = append(errs, err)
 			}
 		}
@@ -236,6 +242,9 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 		}
 		go func() {
 			if err := l.handleDownstreamConnection(ctx, conn, l.cfg.SNI); err != nil {
+				if utils.IsOKNetworkError(err) {
+					return
+				}
 				log.WithError(err).Errorf("Failed to handle connection.")
 			}
 		}()
@@ -282,7 +291,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		case <-ctx.Done():
 			return trace.NewAggregate(append(errs, ctx.Err())...)
 		case err := <-errC:
-			if err != nil && !errors.Is(err, io.EOF) {
+			if err != nil && !utils.IsOKNetworkError(err) {
 				errs = append(errs, err)
 			}
 		}
