@@ -169,12 +169,12 @@ func TestProxySubsys_getMatchingServer(t *testing.T) {
 	}
 
 	cases := []struct {
-		desc              string
-		req               proxySubsysRequest
-		routeToMostRecent bool
-		servers           []types.Server
-		expectError       require.ErrorAssertionFunc
-		expectServer      func(servers []types.Server) types.Server
+		desc         string
+		req          proxySubsysRequest
+		strategy     types.RoutingStrategy
+		servers      []types.Server
+		expectError  require.ErrorAssertionFunc
+		expectServer func(servers []types.Server) types.Server
 	}{
 		{
 			desc:        "No matches found",
@@ -280,8 +280,8 @@ func TestProxySubsys_getMatchingServer(t *testing.T) {
 			expectServer: func(servers []types.Server) types.Server {
 				return servers[1]
 			},
-			servers:           servers,
-			routeToMostRecent: true,
+			servers:  servers,
+			strategy: types.RoutingStrategy_MOST_RECENT,
 			req: proxySubsysRequest{
 				host: "localhost",
 			},
@@ -295,7 +295,7 @@ func TestProxySubsys_getMatchingServer(t *testing.T) {
 				srv:                &Server{},
 			}
 
-			server, err := subsystem.getMatchingServer(tt.servers, tt.routeToMostRecent)
+			server, err := subsystem.getMatchingServer(tt.servers, tt.strategy)
 			tt.expectError(t, err)
 			if tt.expectServer != nil {
 				require.Equal(t, tt.expectServer(tt.servers), server)
