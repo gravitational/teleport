@@ -362,6 +362,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	applyConfigVersion(fc, cfg)
+
 	// Apply configuration for "auth_service", "proxy_service", "ssh_service",
 	// and "app_service" if they are enabled.
 	if fc.Auth.Enabled() {
@@ -565,6 +567,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
+		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -751,7 +754,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	case legacyKube && newKube:
 		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
-		// Nothing enabled, this is just for completeness.
+		if fc.Version == defaults.TeleportConfigVersionV2 {
+			// Always enable kube service if using config V2 (TLS routing is supported)
+			cfg.Proxy.Kube.Enabled = true
+		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
 		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
@@ -809,7 +815,31 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
+	applyDefaultProxyListenerAddresses(cfg)
+
 	return nil
+}
+
+func applyDefaultProxyListenerAddresses(cfg *service.Config) {
+	if cfg.Version == defaults.TeleportConfigVersionV2 {
+		// For v2 configuration if an address is not provided don't fallback to the default values.
+		return
+	}
+
+	// For v1 configuration check if address was set in config file if
+	// not fallback to the default listener address.
+	if cfg.Proxy.WebAddr.IsEmpty() {
+		cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
+	}
+	if cfg.Proxy.SSHAddr.IsEmpty() {
+		cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
+	}
+	if cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
+		cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnelListenAddr()
+	}
+	if cfg.Proxy.Kube.ListenAddr.IsEmpty() && cfg.Proxy.Kube.Enabled {
+		cfg.Proxy.Kube.ListenAddr = *defaults.KubeProxyListenAddr()
+	}
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
@@ -1401,6 +1431,15 @@ func applyString(src string, target *string) bool {
 	return false
 }
 
+// applyConfigVersion applies config version from parsed file. If config version is not
+// present the v1 version will be used as default.
+func applyConfigVersion(fc *FileConfig, cfg *service.Config) {
+	cfg.Version = defaults.TeleportConfigVersionV1
+	if fc.Version != "" {
+		cfg.Version = fc.Version
+	}
+}
+
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags, cfg *service.Config) error {
@@ -1786,7 +1825,7 @@ func replaceHost(addr *utils.NetAddr, newHost string) {
 	addr.Addr = net.JoinHostPort(newHost, port)
 }
 
-// validateRoles makes sure that value upassed to --roles flag is valid
+// validateRoles makes sure that value passed to the --roles flag is valid
 func validateRoles(roles string) error {
 	for _, role := range splitRoles(roles) {
 		switch role {
@@ -1794,8 +1833,8 @@ func validateRoles(roles string) error {
 			defaults.RoleNode,
 			defaults.RoleProxy,
 			defaults.RoleApp,
-			defaults.RoleDatabase:
-			break
+			defaults.RoleDatabase,
+			defaults.RoleWindowsDesktop:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}

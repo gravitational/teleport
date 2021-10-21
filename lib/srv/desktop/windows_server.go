@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
-	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
@@ -431,10 +430,11 @@ func (s *WindowsService) startDiscoveredHostHeartbeats() error {
 // dynamicHostHeartbeatInfo generates the Windows Desktop resource
 // for heartbeating hosts discovered via LDAP
 func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.Resource, error) {
-	hostname := entry.GetAttributeValue("dNSHostName")
+	name := entry.GetAttributeValue(attrName)
+	hostname := entry.GetAttributeValue(attrDNSHostName)
 
 	labels := getHostLabels(hostname)
-	labels["teleport.dev/computer_name"] = entry.GetAttributeValue(attrName)
+	labels["teleport.dev/computer_name"] = name
 	labels["teleport.dev/dns_host_name"] = hostname
 	labels["teleport.dev/os"] = entry.GetAttributeValue(attrOS)
 	labels["teleport.dev/os_version"] = entry.GetAttributeValue(attrOSVersion)
@@ -446,20 +446,26 @@ func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ld
 		return nil, trace.WrapWithMessage(err, "couldn't resolve %q", hostname)
 	}
 
-	s.cfg.Log.Debugf("resolved %v => %v", hostname, addrs[0])
+	s.cfg.Log.Debugf("resolved %v => %v", hostname, addrs)
 	addr, err := utils.ParseHostPortAddr(addrs[0], defaults.RDPListenPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return types.NewWindowsDesktopV3(
-		entry.GetAttributeValue("name"),
+	desktop, err := types.NewWindowsDesktopV3(
+		hostname,
 		labels,
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),
 			Domain: s.cfg.Domain,
 		},
 	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
+	return desktop, nil
 }
 
 // startStaticHostHeartbeats spawns heartbeat routines for all static hosts in
@@ -721,7 +727,14 @@ func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
 			return d.GetName(), nil
 		}
 	}
-	return uuid.New().String(), nil
+
+	host, _, err := utils.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	parts := strings.Split(s.cfg.Heartbeat.HostUUID, "-")
+	prefix := parts[len(parts)-1]
+	return prefix + "-static-" + strings.ReplaceAll(host, ".", "-"), nil
 }
 
 func (s *WindowsService) updateCA(ctx context.Context) error {

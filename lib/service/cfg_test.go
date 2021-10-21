@@ -41,7 +41,6 @@ func TestDefaultConfig(t *testing.T) {
 	require.True(t, config.Proxy.Enabled)
 
 	localAuthAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3025"}
-	localProxyAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3023"}
 
 	// data dir, hostname and auth server
 	require.Equal(t, config.DataDir, defaults.DataDir)
@@ -88,7 +87,6 @@ func TestDefaultConfig(t *testing.T) {
 
 	// proxy section
 	proxy := config.Proxy
-	require.Equal(t, proxy.SSHAddr, localProxyAddr)
 	require.Equal(t, proxy.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
 	require.Equal(t, proxy.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
 }
