@@ -265,24 +265,23 @@ func (c *Bot) hasFileChangeFromLastApprovedReview(ctx context.Context) error {
 
 // getLastApprovedReviewCommitID gets the last review's commit ID (last review where a commit was approved). 
 func (c *Bot) getLastApprovedReviewCommitID(ctx context.Context) (string, error) {
-	reviews := []*github.PullRequestReview{}
 	pr := c.Environment.Metadata
 	clt := c.Environment.Client
-	revs, _, err := clt.PullRequests.ListReviews(ctx, pr.RepoOwner, pr.RepoName, pr.Number, &github.ListOptions{})
+	reviews, _, err := clt.PullRequests.ListReviews(ctx, pr.RepoOwner, pr.RepoName, pr.Number, &github.ListOptions{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if len(revs) == 0 {
+	if len(reviews) == 0 {
 		return "", trace.NotFound("pull request has no reviews")
 	}
-	reviews = revs
-	// sort reviews from newest to oldest
+
+	// Sort reviews from newest to oldest.
 	sort.Slice(reviews, func(i, j int) bool {
 		time1, time2 := reviews[i].SubmittedAt, reviews[j].SubmittedAt
 		return time2.Before(*time1)
 	})
 	var lastApprovedReview *github.PullRequestReview
-	// find last approved
+	// Find last approved review.
 	for _, review := range reviews {
 		if review.State == nil {
 			continue
