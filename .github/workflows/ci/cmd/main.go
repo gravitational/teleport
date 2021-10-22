@@ -52,6 +52,11 @@ func main() {
 		log.Fatalf("Subcommand required. %s\n", usage)
 	}
 	subcommand := os.Args[len(os.Args)-1]
+
+	// Cancel run if it takes longer than `workflowRunTimeout`. 
+	// Note: To re-run a job go to the Actions tab in the Github repo, 
+	// go to the run that failed, and click the `Re-run all jobs` button 
+	// in the top right corner. 
 	ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
 	defer cancel()
 
