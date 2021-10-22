@@ -253,7 +253,7 @@ func main() {
 
 	// Print the output of each failed package or test. Note that we only print
 	// the package output if there is no identifiable test that caused the
-	// failure, as it will probably swamp the individual test outpuy
+	// failure, as it will probably swamp the individual test output
 
 	for _, pkgName := range names {
 		pkg := failedPackages[pkgName]
