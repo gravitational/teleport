@@ -440,11 +440,11 @@ test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
-	$(CGOFLAG) go test -p 4 -cover -count 1 -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
-		| tee tests-unit.json \
+	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+		| tee --output-error=warn tests-unit.json \
 		| go run build.assets/render-tests/main.go
-	$(CGOFLAG) go test -p 4 -cover -count 1 -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
-		| tee -a tests-unit.json \
+	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
+		| tee --output-error=warn -a tests-unit.json \
 		| go run build.assets/render-tests/main.go
 
 #

@@ -1275,7 +1275,9 @@ func timeNow() string {
 	return time.Now().Format(time.StampMilli)
 }
 
-// enterInput
+// enterInput simulates entering user input into a terminal and awaiting a
+// response. Returns an error if the given response text doesn't match
+// the supplied regexp string.
 func enterInput(ctx context.Context, person *Terminal, command, pattern string) error {
 	person.Type(command)
 	abortTime := time.Now().Add(10 * time.Second)

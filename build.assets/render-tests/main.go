@@ -81,8 +81,43 @@ func readInput(input io.Reader, ch chan<- TestEvent) {
 	}
 }
 
+type packageOutput struct {
+	output     []string
+	testOutput map[string][]string
+}
+
+type outputMap map[string]*packageOutput
+
+func newOutputMap() outputMap {
+	return make(map[string]*packageOutput)
+}
+
+func (m outputMap) record(event TestEvent) {
+	var pkgOutput *packageOutput
+	var exists bool
+	if pkgOutput, exists = m[event.Package]; !exists {
+		pkgOutput = &packageOutput{testOutput: make(map[string][]string)}
+		m[event.Package] = pkgOutput
+	}
+
+	pkgOutput.output = append(pkgOutput.output, event.Output)
+
+	if event.Test != "" {
+		pkgOutput.testOutput[event.Test] = append(pkgOutput.testOutput[event.Test], event.Output)
+	}
+}
+
+func (m outputMap) playback(pkgName, testName string) []string {
+	pkg := m[pkgName]
+	if testName == "" {
+		return pkg.output
+	}
+
+	return pkg.testOutput[testName]
+}
+
 func main() {
-	testOutput := make(map[string][]string)
+	testOutput := newOutputMap()
 	failedTests := make(map[string][]string)
 	actionCounts := make(map[string]int)
 	coverage := make(map[string]float64)
@@ -117,7 +152,7 @@ func main() {
 					}
 					coverage[testName] = value
 				}
-				testOutput[testName] = append(testOutput[testName], event.Output)
+				testOutput.record(event)
 
 			case actionPass, actionFail, actionSkip:
 				// If this is a whole-package summary result
@@ -130,16 +165,17 @@ func main() {
 
 					// only display package results as progress messages
 					fmt.Printf("%s %s: %s\n", covText, event.Action, event.Package)
-				} else {
-					// packages results don't count towards our test count.
-					actionCounts[event.Action]++
-
-					// we want to preserve the log of our failed tests for
-					// later examination
-					if event.Action == actionFail {
-						failedTests[testName] = testOutput[testName]
-					}
 				}
+
+				// packages results don't count towards our test count.
+				actionCounts[event.Action]++
+
+				// we want to preserve the log of our failed tests for
+				// later examination
+				if event.Action == actionFail {
+					failedTests[testName] = testOutput.playback(event.Package, event.Test)
+				}
+
 				// we don't need the test output any more, it's either in the
 				// errors collection, or the test passed and we don't need to
 				// display it.
@@ -179,5 +215,6 @@ func main() {
 		}
 	}
 
+	fmt.Println("Exiting with error!")
 	os.Exit(1)
 }
