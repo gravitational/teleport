@@ -1329,13 +1329,15 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	return GetNodesWithLabels(ctx, c, namespace, nil)
 }
 
-type nodeClient interface {
+// NodeClient is an interface used by GetNodesWithLabels to abstract over implementations of
+// the ListNodes method.
+type NodeClient interface {
 	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
 }
 
 // GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  In addition to
 // iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
-func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
+func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
 	// Retrieve the complete list of nodes in chunks.
 	var (
 		nodes     []types.Server

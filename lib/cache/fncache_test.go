@@ -18,7 +18,6 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -27,8 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
-
-var _ = fmt.Printf
 
 // TestFnCacheSanity runs basic fnCache test cases.
 func TestFnCacheSanity(t *testing.T) {
@@ -118,10 +115,6 @@ func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration, msg
 
 	// verify that number of actual reads is within +/- 1 of the number of expected reads.
 	require.InDelta(t, approxReads, readCounter.Load(), 1, msg...)
-
-	// verify that we're performing approximately workers*rate*rounds get operations when unblocked. significant
-	// deviation might indicate a performance issue, or a programming error in the test.
-	//require.InDelta(t, float64(rounds)*portionUnblocked, float64(getCounter.Load())/float64(workers*rate), 1.5, msg...)
 }
 
 // TestFnCacheCancellation verifies expected cancellation behavior.  Specifically, we expect that
@@ -152,7 +145,8 @@ func TestFnCacheCancellation(t *testing.T) {
 	defer cancel()
 
 	v, err = cache.Get(ctx, "key", func() (interface{}, error) {
-		panic("this should never run!")
+		t.Fatal("this should never run!")
+		return nil, nil
 	})
 
 	require.NoError(t, err)
