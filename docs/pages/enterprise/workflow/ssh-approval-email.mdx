@@ -1,0 +1,339 @@
+---
+title: Teleport integration with Email
+description: This guide explains how to setup a Email plugin for Teleport for privilege elevation approval notification.
+h1: Teleport Email Plugin Setup
+---
+
+This guide will talk through how to setup Teleport with Email notification for Access Requests.
+
+
+## Setup
+
+### Prerequisites
+
+This guide assumes that you have:
+
+- A running Teleport Cluster
+- Admin privileges with access to `tctl`
+- Mailgun or SMTP credentials
+
+Teleport Cloud requires connecting through the proxy service (`mytenant.teleport.sh:443`).
+If you want the Email plugin to connect through the web port (`teleport.example.com:443`) follow the Teleport Cloud instructions.
+OpenSource and Enterprise installations can connect to the auth service (`auth.example.com:3025`) directly.
+
+#### Create User and Role for access
+
+<Tabs>
+  <TabItem label="OpenSource, Enterprise" scope={["oss","enterprise"]}>
+Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a
+new user and role that only has API access to the `access_request` API. The below script
+will create a yaml resource file for a new user and role.
+</TabItem>
+  <TabItem label="Cloud" scope={["cloud"]}>
+
+The Teleport Cloud requires authenticating with a role that has [`impersonation`](https://goteleport.com/docs/access-controls/guides/impersonation/) rights and can create the `access-plugin` role and user.
+Login in with `tsh` with a user that has this role or has a role with these allows.
+```
+kind: role
+version: v4
+metadata:
+  name: plugin-admin
+spec:
+  allow:
+    impersonate:
+      roles:
+      - access-plugin
+      users:
+      - access-plugin
+    rules:
+      - resources: ['roles']
+        verbs: ['create','update','read','list','delete']
+      - resources: ['user']
+        verbs: ['create','update','read','list','delete']
+
+```
+  </TabItem>
+
+</Tabs>
+
+
+Create a non-interactive bot `access-plugin` user and role.
+
+```yaml
+kind: user
+metadata:
+  name: access-plugin
+spec:
+  roles: ['access-plugin']
+version: v2
+---
+kind: role
+version: v4
+metadata:
+  name: access-plugin
+spec:
+  allow:
+    rules:
+      - resources: ['access_request']
+        verbs: ['list', 'read', 'update']
+```
+
+Here and below follow along and create yaml resources using `tctl create -f`:
+
+```
+$ tctl create -f access.yaml
+```
+
+<Admonition type="tip">
+  If you're using other plugins, you might want to create different users and roles for different plugins
+</Admonition>
+
+#### Export access-plugin Certificate
+
+Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign). You have the option of connecting through the proxy or auth server.  Teleport Cloud must use the proxy server.
+
+<Tabs>
+  <TabItem label="OpenSource, Enterprise" scope={["oss","enterprise"]}>
+```code
+$ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=2190h
+# ...
+```
+
+The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-teleport-email).
+</TabItem>
+  <TabItem label="Cloud" scope={["cloud"]}>
+```code
+$ tctl auth sign --user=access-plugin --out=auth.pem --ttl=2190h
+# ...
+```
+
+The above sequence should result in one PEM encoded file being generated: auth.pem.  We'll reference the auth.pem file later when [configuring the plugins](#configuring-teleport-email).
+
+  </TabItem>
+
+</Tabs>
+
+
+
+<Admonition
+  type="note"
+  title="Certificate Lifetime"
+>
+  By default, [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+</Admonition>
+
+## Installing the Teleport Email Plugin
+
+We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal
+location as plugins have a low memory footprint, and will require both public internet access
+and Teleport Auth access.  We currently only provide linux-amd64 binaries, you can also
+compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/email).
+
+**Install the plugin**
+
+<Tabs>
+<TabItem label="Download">
+  ```code
+  $ curl -L https://get.gravitational.com/teleport-access-email-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-email-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ cd teleport-access-email
+  $ ./install
+  ```
+</TabItem>
+<TabItem label="From Source">
+  To install from source you need `git` and `go >= (=teleport.golang=)` installed.
+
+  ```code
+  # Checkout teleport-plugins
+  $ git clone https://github.com/gravitational/teleport-plugins.git
+  $ cd teleport-plugins/access/email
+  $ make
+  ```
+</TabItem>
+</Tabs>
+
+
+Run `./install` in from `teleport-email` or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
+
+### Configuring Teleport Email
+
+Teleport Email uses a config file in TOML format. Generate a boilerplate config by
+running the following command:
+
+```code
+$ teleport-email configure > teleport-email.toml
+$ sudo mv teleport-email.toml /etc
+```
+
+Then, edit the config as needed.
+
+```conf
+# /etc/teleport-email.toml
+[teleport]
+auth_server = "example.com:3025"                               # Teleport Auth/Proxy/Tunnel Server Address
+
+# Identity file exported with tctl auth sign --format file
+identity = "/var/lib/teleport/plugins/email/auth_id"    # Identity file
+
+[mailgun]
+domain = "sandboxbd81caddef744a69be0e5b544ab0c3bd.mailgun.org" # Mailgun domain name
+private_key = "xoxb-11xx"                                      # Mailgun private key
+
+# As an alternative, you can use SMTP server credentials:
+#
+# [smtp]
+# host = "smtp.gmail.com"
+# port = 587
+# username = "username@gmail.com"
+# password = ""
+# password_file = "/var/lib/teleport/plugins/email/smtp_password"
+
+[users]
+sender = "noreply@example.com"   # From: email address
+recipients = ["all@example.com"] # These recipients will receive all review requests
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/email.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+```
+
+#### Editing the config file
+
+In the Teleport section, use the certificates you've generated with `tctl auth sign` before. The plugin installer creates a folder for those certificates in `/var/lib/teleport/plugins/email/` — so just move the certificates there and make sure the config points to them.
+
+In mailgun or smtp section set the credentials.  Set the delivery recipients.  Teleport will also use the reviewers if set in the request.
+
+<Tabs>
+  <TabItem label="OpenSource, Enterprise" scope={["oss","enterprise"]}>
+```conf
+# /etc/teleport-email.toml
+[teleport]
+auth_server = "example.com:3025"                               # Teleport Auth/Proxy/Tunnel Server Address
+
+[mailgun]
+domain = "sandboxbd81caddef744a69be0e5b544ab0c3bd.mailgun.org" # Mailgun domain name
+private_key = "xoxb-11xx"                                      # Mailgun private key
+
+# As an alternative, you can use SMTP server credentials:
+#
+# [smtp]
+# host = "smtp.gmail.com"
+# port = 587
+# username = "username@gmail.com"
+# password = ""
+# password_file = "/var/lib/teleport/plugins/email/smtp_password"
+
+[users]
+sender = "noreply@example.com"   # From: email address
+[delivery]
+recipients = ["all@example.com"] # These recipients will receive all review requests
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/email.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+```
+</TabItem>
+
+  <TabItem label="Cloud" scope={["cloud"]}>
+
+```conf
+# /etc/teleport-email.toml
+[teleport]
+
+# Identity file exported with tctl auth sign --format file
+identity = "/var/lib/teleport/plugins/email/auth_id"    # Identity file
+
+[mailgun]
+domain = "sandboxbd81caddef744a69be0e5b544ab0c3bd.mailgun.org" # Mailgun domain name
+private_key = "xoxb-11xx"                                      # Mailgun private key
+
+# As an alternative, you can use SMTP server credentials:
+#
+# [smtp]
+# host = "smtp.gmail.com"
+# port = 587
+# username = "username@gmail.com"
+# password = ""
+# password_file = "/var/lib/teleport/plugins/email/smtp_password"
+
+[users]
+sender = "noreply@example.com"   # From: email address
+[delivery]
+recipients = ["all@example.com"] # These recipients will receive all review requests
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/email.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+```
+</TabItem>
+</Tabs>
+
+## Test Run
+
+Assuming that Teleport is running, the email credentials are correct, the plugin config,
+and provided all the certificates — you can now run the plugin and test the notifications.
+
+```code
+$ teleport-email start
+```
+
+If everything works fine, the log output should look like this:
+
+```code
+$ teleport-email start
+INFO   Starting Teleport Access Email Plugin (): email/app.go:80
+INFO   Plugin is ready email/app.go:101
+```
+
+### Testing the email notification
+
+You can create a test permissions request with `tctl` and check if the plugin works as expected like this:
+
+#### Create a test permissions request behalf of a user
+
+```code
+# Replace USERNAME with a Teleport local user, and TARGET_ROLE with a Teleport Role
+$ tctl request create USERNAME --roles=TARGET_ROLE
+```
+
+A user can also try using `--request-roles` flag.
+
+```code
+# Example with a user trying to request a role DBA.
+$ tsh login --request-roles=dba
+```
+
+#### Email notifications
+
+The messages should automatically get sent to receipents in the recipients list.
+
+```code
+$ tctl request ls
+```
+
+### TSH User Login and Request Role
+
+You can also test the full workflow from the user's perspective using `tsh`:
+
+```code
+# tsh login --request-roles=REQUESTED_ROLE
+Seeking request approval... (id: 8f77d2d1-2bbf-4031-a300-58926237a807)
+```
+
+The messages should automatically get sent to receipents in the recipients list.
+
+### Setup with SystemD
+
+In production, we recommend starting teleport plugin daemon via an init system like systemd .
+Here's the recommended Teleport Plugin service unit file for systemd:
+
+```ini
+(!examples/systemd/plugins/teleport-email.service!)
+```
+
+Save this as `teleport-email.service`.
+
+
+## Feedback
+
+If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).
