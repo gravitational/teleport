@@ -22,8 +22,8 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -126,23 +126,7 @@ func (ca *CertAuthorityV2) SetSubKind(s string) {
 
 // Clone returns a copy of the cert authority object.
 func (ca *CertAuthorityV2) Clone() CertAuthority {
-	out := *ca
-	out.Spec.CheckingKeys = utils.CopyByteSlices(ca.Spec.CheckingKeys)
-	out.Spec.SigningKeys = utils.CopyByteSlices(ca.Spec.SigningKeys)
-	for i, kp := range ca.Spec.TLSKeyPairs {
-		out.Spec.TLSKeyPairs[i] = TLSKeyPair{
-			Key:  utils.CopyByteSlice(kp.Key),
-			Cert: utils.CopyByteSlice(kp.Cert),
-		}
-	}
-	for i, kp := range ca.Spec.JWTKeyPairs {
-		out.Spec.JWTKeyPairs[i] = JWTKeyPair{
-			PublicKey:  utils.CopyByteSlice(kp.PublicKey),
-			PrivateKey: utils.CopyByteSlice(kp.PrivateKey),
-		}
-	}
-	out.Spec.Roles = utils.CopyStrings(ca.Spec.Roles)
-	return &out
+	return proto.Clone(ca).(*CertAuthorityV2)
 }
 
 // GetRotation returns rotation state.

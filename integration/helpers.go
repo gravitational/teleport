@@ -695,10 +695,8 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.Token = "token"
 	tconf.UploadEventsC = i.UploadEventsC
-	var ttl time.Duration
 	tconf.CachePolicy = service.CachePolicy{
-		Enabled:   true,
-		RecentTTL: &ttl,
+		Enabled: true,
 	}
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
 		{
@@ -862,10 +860,8 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	tconf.Hostname = name
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.DataDir = dataDir
-	var ttl time.Duration
 	tconf.CachePolicy = service.CachePolicy{
-		Enabled:   true,
-		RecentTTL: &ttl,
+		Enabled: true,
 	}
 
 	tconf.Auth.Enabled = false
