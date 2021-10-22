@@ -25,6 +25,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -545,8 +548,78 @@ func (s *CacheSuite) TestInitStrategy(c *check.C) {
 	}
 }
 
-func (s *CacheSuite) initStrategy(c *check.C) {
+// TestListNodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
+// using ttl-based caching works as expected.
+func TestListNodesTTLVariant(t *testing.T) {
+	const nodeCount = 100
+	const pageSize = 10
+	var err error
+
 	ctx := context.Background()
+
+	p, err := newPackWithoutCache(t.TempDir(), ForAuth)
+	require.NoError(t, err)
+	defer p.Close()
+
+	p.cache, err = New(ForAuth(Config{
+		Context:       ctx,
+		Backend:       p.cacheBackend,
+		Events:        p.eventsS,
+		ClusterConfig: p.clusterConfigS,
+		Provisioner:   p.provisionerS,
+		Trust:         p.trustS,
+		Users:         p.usersS,
+		Access:        p.accessS,
+		DynamicAccess: p.dynamicAccessS,
+		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
+		WebSession:    p.webSessionS,
+		WebToken:      p.webTokenS,
+		RetryPeriod:   200 * time.Millisecond,
+		EventsC:       p.eventsC,
+		neverOK:       true, // ensure reads are never healthy
+	}))
+	require.NoError(t, err)
+
+	for i := 0; i < nodeCount; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	time.Sleep(time.Second * 2)
+
+	allNodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, allNodes, nodeCount)
+
+	var nodes []types.Server
+	var startKey string
+	for {
+		page, nextKey, err := p.cache.ListNodes(ctx, proto.ListNodesRequest{
+			Namespace: apidefaults.Namespace,
+			Limit:     int32(pageSize),
+			StartKey:  startKey,
+		})
+		require.NoError(t, err)
+
+		if nextKey != "" {
+			require.Len(t, page, pageSize)
+		}
+
+		nodes = append(nodes, page...)
+
+		startKey = nextKey
+
+		if startKey == "" {
+			break
+		}
+	}
+
+	require.Len(t, nodes, nodeCount)
+}
+
+func (s *CacheSuite) initStrategy(c *check.C) {
 	p := s.newPackWithoutCache(c, ForAuth)
 	defer p.Close()
 
