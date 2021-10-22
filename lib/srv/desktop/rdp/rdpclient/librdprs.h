@@ -64,7 +64,7 @@ struct ClientOrError connect_rdp(char *go_addr,
                                  uint16_t screen_width,
                                  uint16_t screen_height);
 
-CGOError read_rdp_output(struct Client *client_ptr, int64_t client_ref);
+CGOError read_rdp_output(struct Client *client_ptr, uintptr_t client_ref);
 
 CGOError write_rdp_pointer(struct Client *client_ptr, struct CGOMousePointerEvent pointer);
 
@@ -78,4 +78,4 @@ void free_rust_string(char *s);
 
 extern void free_go_string(char *s);
 
-extern CGOError handle_bitmap(int64_t client_ref, struct CGOBitmap b);
+extern CGOError handle_bitmap(uintptr_t client_ref, struct CGOBitmap b);

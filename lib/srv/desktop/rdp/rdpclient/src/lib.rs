@@ -315,7 +315,7 @@ fn wait_for_fd(fd: usize) -> bool {
 // read_rdp_output reads incoming RDP bitmap frames from client at client_ref and forwards them to
 // handle_bitmap. handle_bitmap *must not* free the memory of CGOBitmap.
 #[no_mangle]
-pub extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: i64) -> CGOError {
+pub extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: usize) -> CGOError {
     let client = unsafe { Client::from_ptr(client_ptr) };
     let client = match client {
         Some(client) => client,
@@ -330,7 +330,7 @@ pub extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: i64) -> C
     }
 }
 
-fn read_rdp_output_inner(client: &Client, client_ref: i64) -> Option<String> {
+fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
     let tcp_fd = client.tcp_fd;
     // Read incoming events.
     //
@@ -553,7 +553,7 @@ fn from_cgo_error(e: CGOError) -> String {
 // comments.
 extern "C" {
     fn free_go_string(s: *mut c_char);
-    fn handle_bitmap(client_ref: i64, b: CGOBitmap) -> CGOError;
+    fn handle_bitmap(client_ref: usize, b: CGOBitmap) -> CGOError;
 }
 
 // Payload is a generic type used to represent raw incoming RDP messages for parsing.

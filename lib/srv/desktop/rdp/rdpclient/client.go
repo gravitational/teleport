@@ -69,6 +69,7 @@ import (
 	"fmt"
 	"image"
 	"os"
+	"runtime/cgo"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -235,12 +236,12 @@ func (c *Client) start() {
 		defer c.Close()
 		defer c.cfg.Log.Info("RDP output streaming finished")
 
-		clientRef := registerClient(c)
-		defer unregisterClient(clientRef)
+		h := cgo.NewHandle(c)
+		defer h.Delete()
 
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
-		if err := cgoError(C.read_rdp_output(c.rustClient, C.int64_t(clientRef))); err != nil {
+		if err := cgoError(C.read_rdp_output(c.rustClient, C.uintptr_t(h))); err != nil {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
 		}
 	}()
@@ -356,8 +357,8 @@ func (c *Client) start() {
 }
 
 //export handle_bitmap
-func handle_bitmap(ci C.int64_t, cb C.CGOBitmap) C.CGOError {
-	return findClient(int64(ci)).handleBitmap(cb)
+func handle_bitmap(handle C.uintptr_t, cb C.CGOBitmap) C.CGOError {
+	return cgo.Handle(handle).Value().(*Client).handleBitmap(cb)
 }
 
 func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
@@ -437,33 +438,4 @@ func cgoError(s C.CGOError) error {
 //export free_go_string
 func free_go_string(s *C.char) {
 	C.free(unsafe.Pointer(s))
-}
-
-// Global registry of active clients. This allows Rust to reference a specific
-// client without sending actual objects around.
-// TODO(zmb3) replace this with cgo.Handle when we move to Go 1.17
-var (
-	clientsMu    = &sync.RWMutex{}
-	clients      = make(map[int64]*Client)
-	clientsIndex = int64(-1)
-)
-
-func registerClient(c *Client) int64 {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-	clientsIndex++
-	clients[clientsIndex] = c
-	return clientsIndex
-}
-
-func unregisterClient(i int64) {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-	delete(clients, i)
-}
-
-func findClient(i int64) *Client {
-	clientsMu.RLock()
-	defer clientsMu.RUnlock()
-	return clients[i]
 }
