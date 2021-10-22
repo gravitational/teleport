@@ -24,7 +24,7 @@ import (
 
 // fnCache is a helper for temporarily storing the results of regularly called functions. This helper is
 // used to limit the amount of backend reads that occur while the primary cache is unhealthy.  Most resources
-// do not require this treatment, but certain resources (cas, nodes, etc) cab be loaded on a per-request
+// do not require this treatment, but certain resources (cas, nodes, etc) can be loaded on a per-request
 // basis and can cause significant numbers of backend reads if the cache is unhealthy or taking a while to init.
 type fnCache struct {
 	ttl         time.Duration
@@ -33,7 +33,7 @@ type fnCache struct {
 	entries     map[interface{}]*fnCacheEntry
 }
 
-// cleanupMultiplier is an arbitrary multipler used to derive the schedule for
+// cleanupMultiplier is an arbitrary multiplier used to derive the schedule for
 // periodic lazy cleanup of expired entries.  This cache is meant to be used to
 // store a small number of regularly read keys, so most old values aught to be
 // removed upon subsequent reads of the same key.
@@ -47,16 +47,16 @@ func newFnCache(ttl time.Duration) *fnCache {
 }
 
 type fnCacheEntry struct {
-	v       interface{}
-	e       error
-	t       time.Time
-	loading chan struct{}
+	v      interface{}
+	e      error
+	t      time.Time
+	loaded chan struct{}
 }
 
-func (c *fnCache) removeExpired(now time.Time) {
+func (c *fnCache) removeExpiredLocked(now time.Time) {
 	for key, entry := range c.entries {
 		select {
-		case <-entry.loading:
+		case <-entry.loaded:
 			if now.After(entry.t.Add(c.ttl)) {
 				delete(c.entries, key)
 			}
@@ -78,7 +78,7 @@ func (c *fnCache) Get(ctx context.Context, key interface{}, loadfn func() (inter
 
 	// check if we need to perform periodic cleanup
 	if now.After(c.nextCleanup) {
-		c.removeExpired(now)
+		c.removeExpiredLocked(now)
 		c.nextCleanup = now.Add(c.ttl * cleanupMultiplier)
 	}
 
@@ -88,7 +88,7 @@ func (c *fnCache) Get(ctx context.Context, key interface{}, loadfn func() (inter
 
 	if entry != nil {
 		select {
-		case <-entry.loading:
+		case <-entry.loaded:
 			needsReload = now.After(entry.t.Add(c.ttl))
 		default:
 			// reload is already in progress
@@ -97,16 +97,16 @@ func (c *fnCache) Get(ctx context.Context, key interface{}, loadfn func() (inter
 	}
 
 	if needsReload {
-		// insert a new entry with a new loading channel.  this channel will
+		// insert a new entry with a new loaded channel.  this channel will
 		// block subsequent reads, and serve as a memory barrier for the results.
 		entry = &fnCacheEntry{
-			loading: make(chan struct{}),
+			loaded: make(chan struct{}),
 		}
 		c.entries[key] = entry
 		go func() {
 			entry.v, entry.e = loadfn()
 			entry.t = time.Now()
-			close(entry.loading)
+			close(entry.loaded)
 		}()
 	}
 
@@ -114,7 +114,7 @@ func (c *fnCache) Get(ctx context.Context, key interface{}, loadfn func() (inter
 
 	// wait for result to be loaded (this is also a memory barrier)
 	select {
-	case <-entry.loading:
+	case <-entry.loaded:
 		return entry.v, entry.e
 	case <-ctx.Done():
 		return nil, ctx.Err()
