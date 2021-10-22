@@ -280,7 +280,6 @@ func (r *accessRequest) processEvent(ctx context.Context, event types.Event) err
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		r.setTTL(resource)
 		if err := r.dynamicAccessCache.UpsertAccessRequest(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -345,7 +344,6 @@ func (c *tunnelConnection) processEvent(ctx context.Context, event types.Event) 
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.presenceCache.UpsertTunnelConnection(resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -410,7 +408,6 @@ func (c *remoteCluster) processEvent(ctx context.Context, event types.Event) err
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		err := c.presenceCache.DeleteRemoteCluster(event.Resource.GetName())
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -456,7 +453,6 @@ func (c *reverseTunnel) fetch(ctx context.Context) (apply func(ctx context.Conte
 			return trace.Wrap(err)
 		}
 		for _, resource := range resources {
-			c.setTTL(resource)
 			if err := c.presenceCache.UpsertReverseTunnel(resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -483,7 +479,6 @@ func (c *reverseTunnel) processEvent(ctx context.Context, event types.Event) err
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.presenceCache.UpsertReverseTunnel(resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -524,7 +519,6 @@ func (c *proxy) fetch(ctx context.Context) (apply func(ctx context.Context) erro
 		}
 
 		for _, resource := range resources {
-			c.setTTL(resource)
 			if err := c.presenceCache.UpsertProxy(resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -551,7 +545,6 @@ func (c *proxy) processEvent(ctx context.Context, event types.Event) error {
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.presenceCache.UpsertProxy(resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -592,7 +585,6 @@ func (c *authServer) fetch(ctx context.Context) (apply func(ctx context.Context)
 		}
 
 		for _, resource := range resources {
-			c.setTTL(resource)
 			if err := c.presenceCache.UpsertAuthServer(resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -619,7 +611,6 @@ func (c *authServer) processEvent(ctx context.Context, event types.Event) error 
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.presenceCache.UpsertAuthServer(resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -658,7 +649,6 @@ func (c *node) fetch(ctx context.Context) (apply func(ctx context.Context) error
 			return trace.Wrap(err)
 		}
 		for _, resource := range resources {
-			c.setTTL(resource)
 			if _, err := c.presenceCache.UpsertNode(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -685,7 +675,6 @@ func (c *node) processEvent(ctx context.Context, event types.Event) error {
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if _, err := c.presenceCache.UpsertNode(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -724,7 +713,6 @@ func (c *namespace) fetch(ctx context.Context) (apply func(ctx context.Context) 
 			return trace.Wrap(err)
 		}
 		for _, resource := range resources {
-			c.setTTL(&resource)
 			if err := c.presenceCache.UpsertNamespace(resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -751,7 +739,6 @@ func (c *namespace) processEvent(ctx context.Context, event types.Event) error {
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.presenceCache.UpsertNamespace(*resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -835,7 +822,6 @@ func (c *certAuthority) fetchCertAuthorities(caType types.CertAuthType) (apply f
 			}
 		}
 		for _, resource := range authorities {
-			c.setTTL(resource)
 			if err := c.trustCache.UpsertCertAuthority(resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -865,7 +851,6 @@ func (c *certAuthority) processEvent(ctx context.Context, event types.Event) err
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.trustCache.UpsertCertAuthority(resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -913,7 +898,6 @@ func (c *staticTokens) fetch(ctx context.Context) (apply func(ctx context.Contex
 			}
 			return nil
 		}
-		c.setTTL(staticTokens)
 		err = c.clusterConfigCache.SetStaticTokens(staticTokens)
 		if err != nil {
 			return trace.Wrap(err)
@@ -940,7 +924,6 @@ func (c *staticTokens) processEvent(ctx context.Context, event types.Event) erro
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.clusterConfigCache.SetStaticTokens(resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -979,7 +962,6 @@ func (c *provisionToken) fetch(ctx context.Context) (apply func(ctx context.Cont
 			return trace.Wrap(err)
 		}
 		for _, resource := range tokens {
-			c.setTTL(resource)
 			if err := c.provisionerCache.UpsertToken(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -1006,7 +988,6 @@ func (c *provisionToken) processEvent(ctx context.Context, event types.Event) er
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.provisionerCache.UpsertToken(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1065,20 +1046,15 @@ func (c *clusterConfig) storeDerivedResources(clusterConfig types.ClusterConfig,
 		if err := services.UpdateAuthPreferenceWithLegacyClusterConfig(clusterConfig, authPref); err != nil {
 			return trace.Wrap(err)
 		}
-
-		c.setTTL(derivedResources.ClusterAuditConfig)
 		if err := c.clusterConfigCache.SetClusterAuditConfig(ctx, derivedResources.ClusterAuditConfig); err != nil {
 			return trace.Wrap(err)
 		}
-		c.setTTL(derivedResources.ClusterNetworkingConfig)
 		if err := c.clusterConfigCache.SetClusterNetworkingConfig(ctx, derivedResources.ClusterNetworkingConfig); err != nil {
 			return trace.Wrap(err)
 		}
-		c.setTTL(derivedResources.SessionRecordingConfig)
 		if err := c.clusterConfigCache.SetSessionRecordingConfig(ctx, derivedResources.SessionRecordingConfig); err != nil {
 			return trace.Wrap(err)
 		}
-		c.setTTL(authPref)
 		if err := c.clusterConfigCache.SetAuthPreference(ctx, authPref); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1166,7 +1142,6 @@ func (c *clusterName) fetch(ctx context.Context) (apply func(ctx context.Context
 			}
 			return nil
 		}
-		c.setTTL(clusterName)
 		if err := c.clusterConfigCache.UpsertClusterName(clusterName); err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1194,7 +1169,6 @@ func (c *clusterName) processEvent(ctx context.Context, event types.Event) error
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.clusterConfigCache.UpsertClusterName(resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1233,7 +1207,6 @@ func (c *user) fetch(ctx context.Context) (apply func(ctx context.Context) error
 			return trace.Wrap(err)
 		}
 		for _, resource := range resources {
-			c.setTTL(resource)
 			if err := c.usersCache.UpsertUser(resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -1261,7 +1234,6 @@ func (c *user) processEvent(ctx context.Context, event types.Event) error {
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.usersCache.UpsertUser(resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1300,7 +1272,6 @@ func (c *role) fetch(ctx context.Context) (apply func(ctx context.Context) error
 			return trace.Wrap(err)
 		}
 		for _, resource := range resources {
-			c.setTTL(resource)
 			if err := c.accessCache.UpsertRole(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -1327,7 +1298,6 @@ func (c *role) processEvent(ctx context.Context, event types.Event) error {
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.accessCache.UpsertRole(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1364,7 +1334,6 @@ func (s *databaseServer) fetch(ctx context.Context) (apply func(ctx context.Cont
 			return trace.Wrap(err)
 		}
 		for _, resource := range resources {
-			s.setTTL(resource)
 			if _, err := s.presenceCache.UpsertDatabaseServer(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -1393,7 +1362,6 @@ func (s *databaseServer) processEvent(ctx context.Context, event types.Event) er
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		s.setTTL(resource)
 		if _, err := s.presenceCache.UpsertDatabaseServer(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1432,7 +1400,6 @@ func (a *appServer) fetch(ctx context.Context) (apply func(ctx context.Context) 
 			return trace.Wrap(err)
 		}
 		for _, resource := range resources {
-			a.setTTL(resource)
 			if _, err := a.presenceCache.UpsertAppServer(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -1458,7 +1425,6 @@ func (a *appServer) processEvent(ctx context.Context, event types.Event) error {
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		a.setTTL(resource)
 		if _, err := a.presenceCache.UpsertAppServer(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1496,7 +1462,6 @@ func (a *appSession) fetch(ctx context.Context) (apply func(ctx context.Context)
 			return trace.Wrap(err)
 		}
 		for _, resource := range resources {
-			a.setTTL(resource)
 			if err := a.appSessionCache.UpsertAppSession(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -1524,7 +1489,6 @@ func (a *appSession) processEvent(ctx context.Context, event types.Event) error 
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		a.setTTL(resource)
 		if err := a.appSessionCache.UpsertAppSession(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1561,7 +1525,6 @@ func (r *webSession) fetch(ctx context.Context) (apply func(ctx context.Context)
 			return trace.Wrap(err)
 		}
 		for _, resource := range resources {
-			r.setTTL(resource)
 			if err := r.webSessionCache.Upsert(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -1589,7 +1552,6 @@ func (r *webSession) processEvent(ctx context.Context, event types.Event) error 
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		r.setTTL(resource)
 		if err := r.webSessionCache.Upsert(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1626,7 +1588,6 @@ func (r *webToken) fetch(ctx context.Context) (apply func(ctx context.Context) e
 			return trace.Wrap(err)
 		}
 		for _, resource := range resources {
-			r.setTTL(resource)
 			if err := r.webTokenCache.Upsert(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -1654,7 +1615,6 @@ func (r *webToken) processEvent(ctx context.Context, event types.Event) error {
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		r.setTTL(resource)
 		if err := r.webTokenCache.Upsert(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1693,7 +1653,6 @@ func (c *kubeService) fetch(ctx context.Context) (apply func(ctx context.Context
 		}
 
 		for _, resource := range resources {
-			c.setTTL(resource)
 			if err := c.presenceCache.UpsertKubeService(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -1717,7 +1676,6 @@ func (c *kubeService) processEvent(ctx context.Context, event types.Event) error
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.presenceCache.UpsertKubeService(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1764,7 +1722,6 @@ func (c *authPreference) fetch(ctx context.Context) (apply func(ctx context.Cont
 			return nil
 		}
 
-		c.setTTL(resource)
 		if err := c.clusterConfigCache.SetAuthPreference(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1787,7 +1744,6 @@ func (c *authPreference) processEvent(ctx context.Context, event types.Event) er
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.clusterConfigCache.SetAuthPreference(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1834,7 +1790,6 @@ func (c *clusterAuditConfig) fetch(ctx context.Context) (apply func(ctx context.
 			return nil
 		}
 
-		c.setTTL(resource)
 		if err := c.clusterConfigCache.SetClusterAuditConfig(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1857,7 +1812,6 @@ func (c *clusterAuditConfig) processEvent(ctx context.Context, event types.Event
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.clusterConfigCache.SetClusterAuditConfig(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1904,7 +1858,6 @@ func (c *clusterNetworkingConfig) fetch(ctx context.Context) (apply func(ctx con
 			return nil
 		}
 
-		c.setTTL(resource)
 		if err := c.clusterConfigCache.SetClusterNetworkingConfig(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1927,7 +1880,6 @@ func (c *clusterNetworkingConfig) processEvent(ctx context.Context, event types.
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.clusterConfigCache.SetClusterNetworkingConfig(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1974,7 +1926,6 @@ func (c *sessionRecordingConfig) fetch(ctx context.Context) (apply func(ctx cont
 			return nil
 		}
 
-		c.setTTL(resource)
 		if err := c.clusterConfigCache.SetSessionRecordingConfig(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1997,7 +1948,6 @@ func (c *sessionRecordingConfig) processEvent(ctx context.Context, event types.E
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.clusterConfigCache.SetSessionRecordingConfig(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -2053,7 +2003,6 @@ func (r *networkRestrictions) processEvent(ctx context.Context, event types.Even
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		r.setTTL(resource)
 		return trace.Wrap(r.restrictionsCache.SetNetworkRestrictions(ctx, resource))
 	default:
 		r.Warnf("Skipping unsupported event type %v.", event.Type)
@@ -2088,7 +2037,6 @@ func (c *lock) fetch(ctx context.Context) (apply func(ctx context.Context) error
 			return trace.Wrap(err)
 		}
 		for _, resource := range resources {
-			c.setTTL(resource)
 			if err := c.accessCache.UpsertLock(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -2110,7 +2058,6 @@ func (c *lock) processEvent(ctx context.Context, event types.Event) error {
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		c.setTTL(resource)
 		if err := c.accessCache.UpsertLock(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
