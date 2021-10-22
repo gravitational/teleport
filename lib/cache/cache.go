@@ -520,13 +520,6 @@ type Config struct {
 	// EventsC is a channel for event notifications,
 	// used in tests
 	EventsC chan Event
-	// OnlyRecent configures cache behavior that always uses
-	// recent values, see OnlyRecent for details
-	OnlyRecent OnlyRecent
-	// PreferRecent configures cache behavior that prefer recent values
-	// when available, but falls back to stale data, see PreferRecent
-	// for details
-	PreferRecent PreferRecent
 	// Clock can be set to control time,
 	// uses runtime clock by default
 	Clock clockwork.Clock
@@ -538,36 +531,6 @@ type Config struct {
 	QueueSize int
 }
 
-// OnlyRecent defines cache behavior always
-// using recent data and failing otherwise.
-// Used by auth servers and other systems
-// having direct access to the backend.
-type OnlyRecent struct {
-	// Enabled enables cache behavior
-	Enabled bool
-}
-
-// PreferRecent defined cache behavior
-// that always prefers recent data, but will
-// serve stale data in case if disconnect is detected
-type PreferRecent struct {
-	// Enabled enables cache behavior
-	Enabled bool
-	// MaxTTL sets maximum TTL the cache keeps the value
-	// in case if there is no connection to auth servers
-	MaxTTL time.Duration
-	// NeverExpires if set, never expires stale cache values
-	NeverExpires bool
-}
-
-// CheckAndSetDefaults checks parameters and sets default values
-func (p *PreferRecent) CheckAndSetDefaults() error {
-	if p.MaxTTL == 0 {
-		p.MaxTTL = defaults.CacheTTL
-	}
-	return nil
-}
-
 // CheckAndSetDefaults checks parameters and sets default values
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Events == nil {
@@ -575,15 +538,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Backend == nil {
 		return trace.BadParameter("missing Backend parameter")
-	}
-	if c.OnlyRecent.Enabled && c.PreferRecent.Enabled {
-		return trace.BadParameter("either one of OnlyRecent or PreferRecent should be enabled at a time")
-	}
-	if !c.OnlyRecent.Enabled && !c.PreferRecent.Enabled {
-		c.OnlyRecent.Enabled = true
-	}
-	if err := c.PreferRecent.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
 	}
 	if c.Context == nil {
 		c.Context = context.Background()
@@ -690,9 +644,7 @@ func New(config Config) (*Cache, error) {
 	err = cs.wrapper.Delete(ctx, tombstoneKey())
 	switch {
 	case err == nil:
-		if !cs.OnlyRecent.Enabled {
-			cs.setReadOK(true)
-		}
+		cs.setReadOK(true)
 	case trace.IsNotFound(err):
 		// do nothing
 	default:
@@ -713,10 +665,6 @@ func New(config Config) (*Cache, error) {
 
 	select {
 	case <-cs.initC:
-		if cs.initErr != nil && cs.OnlyRecent.Enabled {
-			cs.Close()
-			return nil, trace.Wrap(cs.initErr)
-		}
 		if cs.initErr == nil {
 			cs.Infof("Cache %q first init succeeded.", cs.Config.target)
 		} else {
@@ -726,10 +674,6 @@ func New(config Config) (*Cache, error) {
 		cs.Close()
 		return nil, trace.Wrap(ctx.Err(), "context closed during cache init")
 	case <-time.After(cs.Config.CacheInitTimeout):
-		if cs.OnlyRecent.Enabled {
-			cs.Close()
-			return nil, trace.ConnectionProblem(nil, "timeout waiting for cache init")
-		}
 		cs.Warningf("Cache init is taking too long, will continue in background.")
 	}
 	return cs, nil
@@ -772,9 +716,6 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		}
 		if err != nil {
 			c.Warningf("Re-init the cache on error: %v.", err)
-			if c.OnlyRecent.Enabled {
-				c.setReadOK(false)
-			}
 		}
 		// events cache should be closed as well
 		c.Debugf("Reloading %v.", retry)
@@ -803,23 +744,6 @@ func (c *Cache) writeTombstone(ctx context.Context) {
 	} else {
 		c.notify(ctx, Event{Type: TombstoneWritten})
 	}
-}
-
-// setTTL overrides TTL supplied by the resource
-// based on the cache behavior:
-// - for "only recent", does nothing
-// - for "prefer recent", honors TTL set on the resource, otherwise
-//   sets TTL to max TTL
-func (c *Cache) setTTL(r types.Resource) {
-	if c.OnlyRecent.Enabled || (c.PreferRecent.Enabled && c.PreferRecent.NeverExpires) {
-		return
-	}
-	// honor expiry set in the resource
-	if !r.Expiry().IsZero() {
-		return
-	}
-	// set max TTL on the resources
-	r.SetExpiry(c.Clock.Now().UTC().Add(c.PreferRecent.MaxTTL))
 }
 
 func (c *Cache) notify(ctx context.Context, event Event) {
