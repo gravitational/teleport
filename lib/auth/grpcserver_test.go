@@ -261,7 +261,7 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 				checkAuthErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
-					require.Equal(t, codes.InvalidArgument, status.Code(err))
+					require.Equal(t, codes.PermissionDenied, status.Code(err))
 				},
 			},
 		},

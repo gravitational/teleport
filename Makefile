@@ -16,6 +16,8 @@ VERSION=8.0.0-alpha.1
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
+GOPATH ?= $(shell go env GOPATH)
+
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
@@ -26,7 +28,6 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
-GOPKGDIR ?= `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
@@ -275,7 +276,7 @@ ifneq ("$(OS)", "windows")
 endif
 
 #
-# make clean - Removed all build artifacts.
+# make clean - Removes all build artifacts.
 #
 .PHONY: clean
 clean:
@@ -284,7 +285,6 @@ clean:
 	rm -rf $(ER_BPF_BUILDDIR)
 	rm -rf $(RS_BPF_BUILDDIR)
 	-go clean -cache
-	rm -rf $(GOPKGDIR)
 	rm -rf teleport
 	rm -rf *.gz
 	rm -rf *.zip
