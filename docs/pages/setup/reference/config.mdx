@@ -222,7 +222,7 @@ auth_service:
             # websites and proxies from requesting U2F challenges on behalf of
             # the legitimate proxy.
             facets:
-            - https://localhost:3080
+            - https://localhost:3080 # app_id should always also be listed as a facet
             - https://localhost
             - localhost:3080
             - localhost

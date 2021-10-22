@@ -31,8 +31,8 @@ auth_service:
     u2f:
        app_id: https://example.com
        facets:
+       - 'https://example.com'      # app_id should always also be listed as a facet
        - https://example.com:443
-       - https://example.com
        - example.com:443
        - example.com
        device_attestation_cas:
