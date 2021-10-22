@@ -1089,6 +1089,7 @@ func makeConfigFixture() string {
 		},
 	}
 
+	// Windows Desktop Service
 	conf.WindowsDesktop = WindowsDesktopService{
 		Service: Service{
 			EnabledFlag:   "yes",
