@@ -19,7 +19,6 @@ package cache
 import (
 	"context"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -902,6 +901,8 @@ type getCertAuthorityCacheKey struct {
 	id types.CertAuthID
 }
 
+var _ map[getCertAuthorityCacheKey]struct{} // compile-time hashability check
+
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
 func (c *Cache) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
@@ -942,6 +943,8 @@ func (c *Cache) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, o
 type getCertAuthoritiesCacheKey struct {
 	caType types.CertAuthType
 }
+
+var _ map[getCertAuthoritiesCacheKey]struct{} // compile-time hashability check
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
@@ -1016,6 +1019,8 @@ func (c *Cache) GetToken(ctx context.Context, name string) (services.ProvisionTo
 type clusterConfigCacheKey struct {
 	kind string
 }
+
+var _ map[clusterConfigCacheKey]struct{} // compile-time hashability check
 
 // GetClusterConfig gets services.ClusterConfig from the backend.
 func (c *Cache) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
@@ -1119,6 +1124,8 @@ type getNodesCacheKey struct {
 	namespace string
 }
 
+var _ map[getNodesCacheKey]struct{} // compile-time hashability check
+
 // GetNodes is a part of auth.AccessPoint implementation
 func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	rg, err := c.read()
@@ -1153,7 +1160,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 
 // ListNodes is a part of auth.AccessPoint implementation
 func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	// NOTE: we "fake" the ListNodes API here in order to take advantate of TTL-based caching of
+	// NOTE: we "fake" the ListNodes API here in order to take advantage of TTL-based caching of
 	// the GetNodes endpoint, since performing TTL-based caching on a paginated endpoint is nightmarish.
 
 	limit := int(req.Limit)
@@ -1166,12 +1173,7 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 		return nil, "", trace.Wrap(err)
 	}
 
-	// ensure nodes are sorted in lexographically ascending order.
-	sort.Slice(nodes, func(i, j int) bool {
-		return nodes[i].GetName() < nodes[j].GetName()
-	})
-
-	// trim nodes that preced start key
+	// trim nodes that precede start key
 	if req.StartKey != "" {
 		pageStart := 0
 		for i, node := range nodes {
@@ -1237,6 +1239,8 @@ func (c *Cache) GetProxies() ([]services.Server, error) {
 type remoteClustersCacheKey struct {
 	name string
 }
+
+var _ map[remoteClustersCacheKey]struct{} // compile-time hashability check
 
 // GetRemoteClusters returns a list of remote clusters
 func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
