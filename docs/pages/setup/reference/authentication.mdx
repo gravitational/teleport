@@ -19,7 +19,7 @@ connector. There are several possible values (types) of 2FA:
   or [Authy](https://www.authy.com/) or any other TOTP client.
 - `u2f` implements the [U2F](https://en.wikipedia.org/wiki/Universal\_2nd_Factor)
   standard for utilizing hardware (USB) keys for the second factor. You can use [YubiKeys](https://www.yubico.com/),
-  [SoloKeys](https://solokeys.com/) or any other hardware token which implements the FIDO U2F standard.
+  [SoloKeys](https://solokeys.com/) or any other hardware token which implements the FIDO U2F standard. See our [Second Factor - U2F](https://goteleport.com/docs/access-controls/guides/u2f/) guide for detailed instructions on setting up U2F for Teleport.
 - `on` enables both TOTP and U2F, and all local users are required to have at least one 2FA device registered.
 - `optional` enables both TOTP and U2F but makes it optional for users. Local users that register a 2FA device will be prompted for it during login. This option is useful when you need to gradually enable 2FA usage before switching the value to `on`.
 - `off` turns off second-factor authentication.
