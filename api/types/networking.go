@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -78,6 +79,9 @@ type ClusterNetworkingConfig interface {
 
 	// SetProxyListenerMode sets the proxy listener mode.
 	SetProxyListenerMode(ProxyListenerMode)
+
+	// Clone performs a deep copy.
+	Clone() ClusterNetworkingConfig
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -244,6 +248,11 @@ func (c *ClusterNetworkingConfigV2) GetProxyListenerMode() ProxyListenerMode {
 // SetProxyListenerMode sets the proxy listener mode.
 func (c *ClusterNetworkingConfigV2) SetProxyListenerMode(mode ProxyListenerMode) {
 	c.Spec.ProxyListenerMode = mode
+}
+
+// Clone performs a deep copy.
+func (c *ClusterNetworkingConfigV2) Clone() ClusterNetworkingConfig {
+	return proto.Clone(c).(*ClusterNetworkingConfigV2)
 }
 
 // setStaticFields sets static resource header and metadata fields.
