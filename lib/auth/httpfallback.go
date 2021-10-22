@@ -618,8 +618,8 @@ func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, l
 
 	var filtered []types.Server
 
-	// perform client-side filtering in case we're dealing with an older auth server which
-	// does not support server-side filtering.
+	// we had to fallback to a method that does not perform server-side filtering,
+	// so filter here instead.
 	for _, node := range nodes {
 		if node.MatchAgainst(labels) {
 			filtered = append(filtered, node)
