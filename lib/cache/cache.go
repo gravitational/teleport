@@ -308,6 +308,11 @@ func (c *Cache) setInitError(err error) {
 // setReadOK updates Cache.ok, which determines whether the
 // cache is accessible for reads.
 func (c *Cache) setReadOK(ok bool) {
+	if c.neverOK {
+		// we are running inside of a test where the cache
+		// needs to pretend that it never becomes healthy.
+		return
+	}
 	if ok == c.getReadOK() {
 		return
 	}
@@ -449,6 +454,10 @@ type Config struct {
 	MetricComponent string
 	// QueueSize is a desired queue Size
 	QueueSize int
+	// neverOK is used in tests to create a cache that appears to never
+	// becomes healthy, meaning that it will always end up hitting the
+	// real backend and the ttl cache.
+	neverOK bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
