@@ -48,9 +48,6 @@ const (
 
 	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
 	ProtocolAuth Protocol = "teleport-auth@"
-
-	// ProtocolAWSCLI allows accessing the AWS API by AWS CLI.
-	ProtocolAWSCLI = "teleport-aws-cli"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
