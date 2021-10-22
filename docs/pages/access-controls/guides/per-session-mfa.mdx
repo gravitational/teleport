@@ -96,6 +96,8 @@ spec:
       'env': dev
     db_users:
     - '*'
+    db_names:
+    - '*'
   deny: {}
 ---
 # access-prod.yaml
@@ -115,6 +117,8 @@ spec:
     db_labels:
       'env': prod
     db_users:
+    - '*'
+    db_names:
     - '*'
   deny: {}
 ```
@@ -147,9 +151,9 @@ even when logging into `dev1.example.com`.
 
 Database access supports per-connection MFA. When Jerry connects to the database
 `prod-mysql-instance` (with label `env: prod`), he gets
-promoted for an MFA check for each `tsh db connect` call:
+prompted for an MFA check for each `tsh db connect` call:
 
-```
+```code
 $ tsh db connect prod-mysql-instance
 # Tap any security key
 
@@ -179,5 +183,5 @@ Current limitations for this feature are:
 - Application access clients don't support per-session U2F
   authentication yet, although cluster and role configuration applies to them.
   If you enable per-session U2F checks cluster-wide, you will not be able to
-  use Database or Application access. We're working on integrating per-session
+  use Application access. We're working on integrating per-session
   U2F checks for these clients.
