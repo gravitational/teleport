@@ -386,14 +386,6 @@ type CachePolicy struct {
 	TTL string `yaml:"ttl,omitempty"`
 }
 
-func isNever(v string) bool {
-	switch v {
-	case "never", "no", "0":
-		return true
-	}
-	return false
-}
-
 // Enabled determines if a given "_service" section has been set to 'true'
 func (c *CachePolicy) Enabled() bool {
 	if c.EnabledFlag == "" {
@@ -403,26 +395,11 @@ func (c *CachePolicy) Enabled() bool {
 	return enabled
 }
 
-// NeverExpires returns if cache never expires by itself
-func (c *CachePolicy) NeverExpires() bool {
-	return isNever(c.TTL)
-}
-
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 	out := service.CachePolicy{
-		Type:         c.Type,
-		Enabled:      c.Enabled(),
-		NeverExpires: c.NeverExpires(),
-	}
-	if !out.NeverExpires {
-		var err error
-		if c.TTL != "" {
-			out.TTL, err = time.ParseDuration(c.TTL)
-			if err != nil {
-				return nil, trace.BadParameter("cache.ttl invalid duration: %v, accepted format '10h'", c.TTL)
-			}
-		}
+		Type:    c.Type,
+		Enabled: c.Enabled(),
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -560,6 +537,9 @@ type Auth struct {
 
 	// ProxyListenerMode is a listener mode user by the proxy.
 	ProxyListenerMode types.ProxyListenerMode `yaml:"proxy_listener_mode,omitempty"`
+
+	// RoutingStrategy configures the routing strategy to nodes.
+	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -1314,6 +1294,8 @@ type WindowsDesktopService struct {
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig `yaml:"ldap"`
+	// Discovery configures desktop discovery via LDAP.
+	Discovery service.LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`
