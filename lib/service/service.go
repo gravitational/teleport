@@ -1598,20 +1598,6 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}))
 }
 
-// setupCachePolicy sets up cache policy based on teleport configuration,
-// it is a wrapper function, that sets up configuration
-func (process *TeleportProcess) setupCachePolicy(in cache.SetupConfigFn) cache.SetupConfigFn {
-	return func(c cache.Config) cache.Config {
-		config := in(c)
-		config.PreferRecent = cache.PreferRecent{
-			Enabled:      process.Config.CachePolicy.Enabled,
-			NeverExpires: process.Config.CachePolicy.NeverExpires,
-			MaxTTL:       process.Config.CachePolicy.TTL,
-		}
-		return config
-	}
-}
-
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
 func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
 	return process.newLocalCache(clt, cache.ForProxy, cacheName)
@@ -1640,7 +1626,7 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cach
 	cache, err := process.newAccessCache(accessCacheConfig{
 		inMemory:  process.Config.CachePolicy.Type == memory.GetName(),
 		services:  clt,
-		setup:     process.setupCachePolicy(setupConfig),
+		setup:     setupConfig,
 		cacheName: cacheName,
 	})
 	if err != nil {
@@ -3255,7 +3241,6 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 			MatchFunc: alpnproxy.MatchByProtocol(
 				alpncommon.ProtocolHTTP,
 				alpncommon.ProtocolHTTP2,
-				alpncommon.ProtocolAWSCLI,
 				acme.ALPNProto,
 			),
 			Handler:    webWrapper.HandleConnection,

@@ -305,19 +305,6 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 			ClientNextProtos:    nil,
 			wantProtocolHandler: string(common.ProtocolHTTP),
 		},
-		{
-			name: "all client protocols are unsupported - default http handler should be called",
-			handlers: []HandlerDecs{
-				makeHandler(common.ProtocolHTTP),
-				makeHandler(common.ProtocolProxySSH),
-			},
-			ClientNextProtos: []string{
-				"unknown-protocol1",
-				"unknown-protocol2",
-				"unknown-protocol3",
-			},
-			wantProtocolHandler: string(common.ProtocolHTTP),
-		},
 	}
 
 	for _, tc := range tests {

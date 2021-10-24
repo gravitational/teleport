@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package 'config' provides facilities for configuring Teleport daemons
+// Package config provides facilities for configuring Teleport daemons
 // including
 //	- parsing YAML configuration
 //	- parsing CLI flags
@@ -36,6 +36,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -292,6 +293,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	//
 	// Logging configuration has already been validated above
 	_ = applyLogConfig(fc.Logger, log.StandardLogger())
+
+	if fc.CachePolicy.TTL != "" {
+		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
 
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
@@ -568,6 +573,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
+		RoutingStrategy:          fc.Auth.RoutingStrategy,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1183,6 +1189,14 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.WindowsDesktop.ListenAddr = *listenAddr
 	}
+
+	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
+		if _, err := ldap.CompileFilter(ldap.EscapeFilter(filter)); err != nil {
+			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
+		}
+	}
+	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
+
 	var err error
 	cfg.WindowsDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
 	if err != nil {
