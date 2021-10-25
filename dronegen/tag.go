@@ -310,7 +310,7 @@ func tagCopyPackageArtifactCommands(b buildType, packageType string) []string {
 // createReleaseAssetCommands generates a set of commands to create release & asset in release management service
 func tagCreateReleaseAssetCommands(b buildType) []string {
 	commands := []string{
-		`WORKSPACE_DIR=${WORKSPACE_DIR-/}`,
+		`WORKSPACE_DIR=${WORKSPACE_DIR:-/}`,
 		`VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)`,
 		fmt.Sprintf(`RELEASES_HOST=%v`, releasesHost),
 		`echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt`,
