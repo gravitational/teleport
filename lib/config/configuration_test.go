@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -69,26 +70,22 @@ func writeTestConfigs() error {
 	}
 	// create a good config file fixture
 	testConfigs.configFile = filepath.Join(testConfigs.tempDir, "good-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFile, []byte(makeConfigFixture()), 0660); err != nil {
+	if err = os.WriteFile(testConfigs.configFile, []byte(makeConfigFixture()), 0660); err != nil {
 		return err
 	}
 	// create a static config file fixture
 	testConfigs.configFileStatic = filepath.Join(testConfigs.tempDir, "static-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFileStatic, []byte(StaticConfigString), 0660); err != nil {
+	if err = os.WriteFile(testConfigs.configFileStatic, []byte(StaticConfigString), 0660); err != nil {
 		return err
 	}
 	// create an empty config file
 	testConfigs.configFileNoContent = filepath.Join(testConfigs.tempDir, "empty-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFileNoContent, []byte(""), 0660); err != nil {
+	if err = os.WriteFile(testConfigs.configFileNoContent, []byte(""), 0660); err != nil {
 		return err
 	}
 	// create a bad config file fixture
 	testConfigs.configFileBadContent = filepath.Join(testConfigs.tempDir, "bad-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFileBadContent, []byte("bad-data!"), 0660); err != nil {
-		return err
-	}
-
-	return nil
+	return os.WriteFile(testConfigs.configFileBadContent, []byte("bad-data!"), 0660)
 }
 
 func (tc testConfigFiles) cleanup() {
@@ -122,7 +119,7 @@ func TestConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, sfc)
 		fn := filepath.Join(t.TempDir(), "default-config.yaml")
-		err = ioutil.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
+		err = os.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
 		require.NoError(t, err)
 
 		// make sure it could be parsed:
@@ -218,6 +215,7 @@ func TestConfigReading(t *testing.T) {
 	conf, err = ReadFromFile(testConfigs.configFile)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(conf, &FileConfig{
+		Version: defaults.TeleportConfigVersionV1,
 		Global: Global{
 			NodeName:    NodeName,
 			AuthServers: []string{"auth0.server.example.org:3024", "auth1.server.example.org:3024"},
@@ -249,6 +247,7 @@ func TestConfigReading(t *testing.T) {
 			DisconnectExpiredCert: types.NewBoolOption(true),
 			ClientIdleTimeout:     types.Duration(17 * time.Second),
 			WebIdleTimeout:        types.Duration(19 * time.Second),
+			RoutingStrategy:       types.RoutingStrategy_MOST_RECENT,
 		},
 		SSH: SSH{
 			Service: Service{
@@ -569,7 +568,7 @@ teleport:
 func TestApplyConfig(t *testing.T) {
 	tempDir := t.TempDir()
 	tokenPath := filepath.Join(tempDir, "small-config-token")
-	err := ioutil.WriteFile(tokenPath, []byte("join-token"), 0644)
+	err := os.WriteFile(tokenPath, []byte("join-token"), 0644)
 	require.NoError(t, err)
 
 	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(SmallConfigString, tokenPath)))
@@ -838,12 +837,11 @@ func TestParseCachePolicy(t *testing.T) {
 		out *service.CachePolicy
 		err error
 	}{
-		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, NeverExpires: true, Type: lite.GetName()}},
-		{in: &CachePolicy{EnabledFlag: "yes", TTL: "10h"}, out: &service.CachePolicy{Enabled: true, NeverExpires: false, TTL: 10 * time.Hour, Type: lite.GetName()}},
-		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "false", TTL: "10h"}, out: &service.CachePolicy{Enabled: false, NeverExpires: false, TTL: 10 * time.Hour, Type: memory.GetName()}},
-		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, NeverExpires: true, Type: memory.GetName()}},
+		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, Type: lite.GetName()}},
+		{in: &CachePolicy{EnabledFlag: "yes", TTL: "10h"}, out: &service.CachePolicy{Enabled: true, Type: lite.GetName()}},
+		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "false", TTL: "10h"}, out: &service.CachePolicy{Enabled: false, Type: memory.GetName()}},
+		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, Type: memory.GetName()}},
 		{in: &CachePolicy{EnabledFlag: "no"}, out: &service.CachePolicy{Type: lite.GetName(), Enabled: false}},
-		{in: &CachePolicy{EnabledFlag: "false", TTL: "zap"}, err: trace.BadParameter("bad format")},
 		{in: &CachePolicy{Type: "memsql"}, err: trace.BadParameter("unsupported backend")},
 	}
 	for i, tc := range tcs {
@@ -936,13 +934,12 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 		},
 		ClientIdleTimeout:     types.Duration(17 * time.Second),
 		DisconnectExpiredCert: types.NewBoolOption(true),
+		RoutingStrategy:       types.RoutingStrategy_MOST_RECENT,
 	}, cmp.AllowUnexported(Service{})))
 
 	policy, err := conf.CachePolicy.Parse()
 	require.NoError(t, err)
 	require.True(t, policy.Enabled)
-	require.False(t, policy.NeverExpires)
-	require.Equal(t, policy.TTL, 20*time.Hour)
 }
 
 var (
@@ -1002,6 +999,7 @@ func makeConfigFixture() string {
 	conf.Auth.ClientIdleTimeout = types.NewDuration(17 * time.Second)
 	conf.Auth.WebIdleTimeout = types.NewDuration(19 * time.Second)
 	conf.Auth.DisconnectExpiredCert = types.NewBoolOption(true)
+	conf.Auth.RoutingStrategy = types.RoutingStrategy_MOST_RECENT
 
 	// ssh service:
 	conf.SSH.EnabledFlag = "true"
@@ -1091,6 +1089,7 @@ func makeConfigFixture() string {
 		},
 	}
 
+	// Windows Desktop Service
 	conf.WindowsDesktop = WindowsDesktopService{
 		Service: Service{
 			EnabledFlag:   "yes",
@@ -1250,13 +1249,16 @@ func TestProxyKube(t *testing.T) {
 	tests := []struct {
 		desc     string
 		cfg      Proxy
+		version  string
 		want     service.KubeProxyConfig
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
-			desc:     "not configured",
-			cfg:      Proxy{},
-			want:     service.KubeProxyConfig{},
+			desc: "not configured",
+			cfg:  Proxy{},
+			want: service.KubeProxyConfig{
+				Enabled: false,
+			},
 			checkErr: require.NoError,
 		},
 		{
@@ -1322,14 +1324,122 @@ func TestProxyKube(t *testing.T) {
 			},
 			checkErr: require.NoError,
 		},
+		{
+			desc:    "v2 kube service should be enabled by default",
+			version: defaults.TeleportConfigVersionV2,
+			cfg:     Proxy{},
+			want: service.KubeProxyConfig{
+				Enabled: true,
+			},
+			checkErr: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			fc := &FileConfig{Proxy: tt.cfg}
-			cfg := &service.Config{}
+			fc := &FileConfig{
+				Version: tt.version,
+				Proxy:   tt.cfg,
+			}
+			cfg := &service.Config{
+				Version: tt.version,
+			}
 			err := applyProxyConfig(fc, cfg)
 			tt.checkErr(t, err)
 			require.Empty(t, cmp.Diff(cfg.Proxy.Kube, tt.want, cmpopts.EquateEmpty()))
+		})
+	}
+}
+
+// Test default values generated by v1 and v2 configuration versions.
+func TestProxyConfigurationVersion(t *testing.T) {
+	tests := []struct {
+		desc     string
+		fc       FileConfig
+		want     service.ProxyConfig
+		checkErr require.ErrorAssertionFunc
+	}{
+		{
+			desc: "v2 config with default web address",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV2,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+				},
+			},
+			want: service.ProxyConfig{
+				WebAddr:             *utils.MustParseAddr("0.0.0.0:3080"),
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				Kube: service.KubeProxyConfig{
+					Enabled: true,
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+			checkErr: require.NoError,
+		},
+		{
+			desc: "v2 config with custom web address",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV2,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+					WebAddr: "0.0.0.0:9999",
+				},
+			},
+			want: service.ProxyConfig{
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
+				Kube: service.KubeProxyConfig{
+					Enabled: true,
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+			checkErr: require.NoError,
+		},
+		{
+			desc: "v1 config should generate default listener addresses",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV1,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+				},
+			},
+			want: service.ProxyConfig{
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+				WebAddr: *defaults.ProxyWebListenAddr(),
+				Kube: service.KubeProxyConfig{
+					Enabled: false,
+				},
+				ReverseTunnelListenAddr: *defaults.ReverseTunnelListenAddr(),
+				SSHAddr:                 *defaults.ProxyListenAddr(),
+			},
+			checkErr: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+			err := ApplyFileConfig(&tt.fc, cfg)
+			tt.checkErr(t, err)
+			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
 		})
 	}
 }
@@ -1641,7 +1751,7 @@ db_service:
 func TestDatabaseCLIFlags(t *testing.T) {
 	// Prepare test CA certificate used to configure some databases.
 	testCertPath := filepath.Join(t.TempDir(), "cert.pem")
-	err := ioutil.WriteFile(testCertPath, fixtures.LocalhostCert, 0644)
+	err := os.WriteFile(testCertPath, fixtures.LocalhostCert, 0644)
 	require.NoError(t, err)
 	tests := []struct {
 		inFlags     CommandLineFlags

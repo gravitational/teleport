@@ -581,10 +581,11 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					MaxSessionTTL: types.MaxDuration(),
 				},
 				Allow: types.RoleConditions{
-					Namespaces:    []string{types.Wildcard},
-					Logins:        []string{},
-					NodeLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
-					ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Namespaces:           []string{types.Wildcard},
+					Logins:               []string{},
+					NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+					ClusterLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 					},

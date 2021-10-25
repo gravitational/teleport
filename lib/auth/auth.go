@@ -79,6 +79,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
+const (
+	ErrFieldKeyUserMaxedAttempts = "maxed-attempts"
+
+	// MaxFailedAttemptsErrMsg is a user friendly error message that tells a user that they are locked.
+	MaxFailedAttemptsErrMsg = "too many incorrect attempts, please try again later"
+)
+
 // ServerOption allows setting options as functional arguments to Server
 type ServerOption func(*Server)
 
@@ -1027,12 +1034,20 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	status := user.GetStatus()
 	if status.IsLocked {
 		if status.RecoveryAttemptLockExpires.After(a.clock.Now().UTC()) {
-			return trace.AccessDenied("%v exceeds %v failed account recovery attempts, locked until %v",
+			log.Debugf("%v exceeds %v failed account recovery attempts, locked until %v",
 				user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
+
+			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
+			return err
 		}
 		if status.LockExpires.After(a.clock.Now().UTC()) {
-			return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
+			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+
+			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
+			return err
 		}
 	}
 	fnErr := authenticateFn()
@@ -1066,16 +1081,18 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		return trace.Wrap(fnErr)
 	}
 	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
-	message := fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
-		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
-	log.Debug(message)
+	log.Debug(fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
+		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(lockUntil)))
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	err = a.Identity.UpsertUser(user)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
 	}
-	return trace.AccessDenied(message)
+
+	retErr := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+	retErr.AddField(ErrFieldKeyUserMaxedAttempts, true)
+	return retErr
 }
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
@@ -1135,8 +1152,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if err := a.WithUserLock(username, func() error {
 			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
-			log.Error(trace.DebugReport(err))
-			return nil, trace.AccessDenied("invalid password or username")
+			return nil, trace.Wrap(err)
 		}
 
 	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
@@ -2698,17 +2714,17 @@ func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...service
 }
 
 // ListNodes is a part of auth.AccessPoint implementation
-func (a *Server) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
-	return a.GetCache().ListNodes(ctx, namespace, limit, startKey)
+func (a *Server) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
+	return a.GetCache().ListNodes(ctx, req)
 }
 
 // NodePageFunc is a function to run on each page iterated over.
 type NodePageFunc func(next []types.Server) (stop bool, err error)
 
 // IterateNodePages can be used to iterate over pages of nodes.
-func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit int, startKey string, f NodePageFunc) (string, error) {
+func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesRequest, f NodePageFunc) (string, error) {
 	for {
-		nextPage, nextKey, err := a.ListNodes(ctx, namespace, limit, startKey)
+		nextPage, nextKey, err := a.ListNodes(ctx, req)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -2724,7 +2740,7 @@ func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit i
 			return nextKey, nil
 		}
 
-		startKey = nextKey
+		req.StartKey = nextKey
 	}
 }
 
@@ -3101,11 +3117,11 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if cluster == nil || server == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
-		kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), cluster)
+		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), cluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		noMFAAccessErr = checker.CheckAccess(kV3, services.AccessMFAParams{})
+		noMFAAccessErr = checker.CheckAccess(k8sV3, services.AccessMFAParams{})
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
@@ -3297,7 +3313,11 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 			Webauthn: webConfig,
 			Identity: a.Identity,
 		}
-		return webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
+		dev, err := webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
+		if err != nil {
+			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
+		}
+		return dev, nil
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}

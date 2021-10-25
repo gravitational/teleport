@@ -10,7 +10,7 @@ type: kubernetes
 name: test
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
   UID: "1000"
 trigger:
   event:
@@ -355,7 +355,7 @@ type: kubernetes
 name: push-build-linux-amd64
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
   UID: "1000"
 trigger:
   event:
@@ -457,7 +457,7 @@ type: kubernetes
 name: push-build-linux-386
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
   UID: "1000"
 trigger:
   event:
@@ -559,7 +559,7 @@ type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
   UID: "1000"
 trigger:
   event:
@@ -665,7 +665,7 @@ type: kubernetes
 name: push-build-windows-amd64
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
   UID: "1000"
 trigger:
   event:
@@ -864,7 +864,7 @@ type: kubernetes
 name: push-build-linux-arm
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
   UID: "1000"
 trigger:
   event:
@@ -966,7 +966,7 @@ type: kubernetes
 name: push-build-linux-arm64
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
   UID: "1000"
 trigger:
   event:
@@ -1325,7 +1325,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
 trigger:
   event:
     include:
@@ -1458,7 +1458,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
 trigger:
   event:
     include:
@@ -1591,7 +1591,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos6
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
 trigger:
   event:
     include:
@@ -2337,7 +2337,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
 trigger:
   event:
     include:
@@ -3244,7 +3244,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
 trigger:
   event:
     include:
@@ -3377,7 +3377,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
 trigger:
   event:
     include:
@@ -4126,7 +4126,7 @@ kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
 trigger:
   event:
     include:
@@ -4582,7 +4582,7 @@ type: kubernetes
 name: build-buildboxes
 environment:
   GID: "1000"
-  RUNTIME: go1.16.2
+  RUNTIME: go1.17.2
   UID: "1000"
 trigger:
   event:
@@ -4990,6 +4990,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: f5ac6f050a5a2c0c94ac2e30ffc60d030461e3105211b43163b183b1438cdd09
+hmac: cad9109e221cb7f53acac8ae02b74fb902412567815852cdfc0b5a589b82ee85
 
 ...

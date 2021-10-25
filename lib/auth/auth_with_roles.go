@@ -725,34 +725,43 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 }
 
 // ListNodes returns a paginated list of nodes filtered by user access.
-func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
-	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
+func (a *ServerWithRoles) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
+	if err := a.action(req.Namespace, types.KindNode, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return a.filterAndListNodes(ctx, namespace, limit, startKey)
+	return a.filterAndListNodes(ctx, req)
 }
 
-func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
+	limit := int(req.Limit)
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive parameter limit")
 	}
 
+	// move labels out of request so that we can perform label-based filtering *after* RBAC filtering.
+	realLabels := req.Labels
+	req.Labels = nil
+
 	page = make([]types.Server, 0, limit)
-	nextKey, err = a.authServer.IterateNodePages(ctx, namespace, limit, startKey, func(nextPage []types.Server) (bool, error) {
+	nextKey, err = a.authServer.IterateNodePages(ctx, req, func(nextPage []types.Server) (bool, error) {
 		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
 		filteredPage, err := a.filterNodes(nextPage)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 
-		// We have more than enough nodes to fill the page, cut it to size.
-		if len(filteredPage) > limit-len(page) {
-			filteredPage = filteredPage[:limit-len(page)]
+		// add all matching nodes to page
+		for _, node := range filteredPage {
+			if len(page) == limit {
+				// page is filled, stop processing
+				break
+			}
+			if node.MatchAgainst(realLabels) {
+				page = append(page, node)
+			}
 		}
 
-		// Add filteredPage and break out of iterator if the page is now full.
-		page = append(page, filteredPage...)
 		return len(page) == limit, nil
 	})
 	if err != nil {
@@ -2961,11 +2970,11 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 	}
 
 	for _, kube := range s.GetKubernetesClusters() {
-		kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
+		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.context.Checker.CheckAccess(kV3, mfaParams); err != nil {
+		if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
 			return utils.OpaqueAccessDenied(err)
 		}
 	}
@@ -2992,11 +3001,11 @@ func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, 
 	for _, server := range servers {
 		filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 		for _, kube := range server.GetKubernetesClusters() {
-			kV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
+			k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if err := a.context.Checker.CheckAccess(kV3, mfaParams); err != nil {
+			if err := a.context.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
@@ -3483,7 +3492,6 @@ func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.Wind
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return a.authServer.CreateWindowsDesktop(ctx, s)
 }
 

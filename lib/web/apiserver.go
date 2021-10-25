@@ -117,6 +117,10 @@ func SetClock(clock clockwork.Clock) HandlerOption {
 	}
 }
 
+type proxySettingsGetter interface {
+	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
+}
+
 // Config represents web handler configuration parameters
 type Config struct {
 	// PluginRegistry handles plugin registration
@@ -139,9 +143,6 @@ type Config struct {
 
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
-
-	// ProxySettings is a settings communicated to proxy
-	ProxySettings webclient.ProxySettings
 
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
@@ -170,6 +171,9 @@ type Config struct {
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
+
+	// ProxySettings allows fetching the current proxy settings.
+	ProxySettings proxySettingsGetter
 }
 
 type RewritingHandler struct {
@@ -481,6 +485,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	}
 
+	resp, err := h.cfg.ProxySettings.GetProxySettings(cfg.Context)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create application specific handler. This handler handles sessions and
 	// forwarding for application access.
 	appHandler, err := app.NewHandler(cfg.Context, &app.HandlerConfig{
@@ -489,7 +498,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		AccessPoint:   cfg.AccessPoint,
 		ProxyClient:   cfg.Proxy,
 		CipherSuites:  cfg.CipherSuites,
-		WebPublicAddr: cfg.ProxySettings.SSH.PublicAddr,
+		WebPublicAddr: resp.SSH.PublicAddr,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -723,17 +732,26 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return webclient.PingResponse{
 		Auth:             defaultSettings,
-		Proxy:            h.cfg.ProxySettings,
+		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 	}, nil
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return webclient.PingResponse{
-		Proxy:            h.cfg.ProxySettings,
+		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 	}, nil
@@ -748,8 +766,12 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	response := &webclient.PingResponse{
-		Proxy:         h.cfg.ProxySettings,
+		Proxy:         *proxyConfig,
 		ServerVersion: teleport.Version,
 	}
 
@@ -2570,8 +2592,8 @@ func makeResponse(items interface{}) (interface{}, error) {
 
 // makeTeleportClientConfig creates default teleport client configuration
 // that is used to initiate an SSH terminal session or SCP file transfer
-func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
-	agent, cert, err := ctx.GetAgent()
+func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*client.Config, error) {
+	agent, cert, err := sesCtx.GetAgent()
 	if err != nil {
 		return nil, trace.BadParameter("failed to get user credentials: %v", err)
 	}
@@ -2581,27 +2603,33 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		return nil, trace.BadParameter("failed to get user credentials: %v", err)
 	}
 
-	tlsConfig, err := ctx.ClientTLSConfig()
+	tlsConfig, err := sesCtx.ClientTLSConfig()
 	if err != nil {
 		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
 	}
 
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
-			GetHostCheckers: ctx.getCheckers,
+			GetHostCheckers: sesCtx.getCheckers,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	proxyListenerMode, err := sesCtx.GetProxyListenerMode(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config := &client.Config{
-		Username:         ctx.user,
-		Agent:            agent,
-		SkipLocalAuth:    true,
-		TLS:              tlsConfig,
-		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-		DefaultPrincipal: cert.ValidPrincipals[0],
-		HostKeyCallback:  callback,
+		Username:          sesCtx.user,
+		Agent:             agent,
+		SkipLocalAuth:     true,
+		TLS:               tlsConfig,
+		AuthMethods:       []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		DefaultPrincipal:  cert.ValidPrincipals[0],
+		HostKeyCallback:   callback,
+		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 	}
 
 	return config, nil
