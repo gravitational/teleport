@@ -36,14 +36,14 @@ import (
 	"other/mod/path"
 )
 `
-
 	// Create a dummy go module with go.mod and main.go file
 	pkgDir := t.TempDir()
 	writeFile(t, pkgDir, "go.mod", newGoModFileString("pkg"))
 	goFilePath := writeFile(t, pkgDir, "main.go", goFile)
+	addRollBack := testRollBack(t, goFilePath, goFile)
 
 	// Run main.go file through the update function
-	err := updateGoPkgs(pkgDir, "mod/path", "updated/mod/path", nil)
+	err := updateGoPkgs(pkgDir, "mod/path", "updated/mod/path", nil, addRollBack)
 	require.NoError(t, err)
 
 	// Read the updated file and expect all instances of "mod/path" to be replaced with "updated/mod/path"
@@ -58,20 +58,20 @@ import "mod/path/types.proto";
 
 message Example {
 	types.Type field = 6 [
-        (gogoproto.customtype) = "mod/path/types.Traits"
-    ];
+		(gogoproto.customtype) = "mod/path/types.Traits"
+	];
 }
 `
-
 	// Write proto file to disk
 	dir := t.TempDir()
 	protoFilePath := writeFile(t, dir, "proto.proto", protoFile)
+	addRollBack := testRollBack(t, protoFilePath, protoFile)
 
-	// run proto file through update function
-	err := updateProtoFiles(dir, "mod/path", "updated/mod/path")
+	// Run proto file through update function
+	err := updateProtoFiles(dir, "mod/path", "updated/mod/path", addRollBack)
 	require.NoError(t, err)
 
-	// read the updated file and expect all instances of "mod/path" to be replaced with "updated/mod/path"
+	// Read the updated file and expect all instances of "mod/path" to be replaced with "updated/mod/path"
 	readAndCompareFile(t, protoFilePath, strings.ReplaceAll(protoFile, "mod/path", "updated/mod/path"))
 }
 
@@ -82,8 +82,10 @@ func TestUpdateGoModulePath(t *testing.T) {
 			modDir := t.TempDir()
 			modFilePath := writeFile(t, modDir, "go.mod", oldModFile)
 
+			addRollBack := testRollBack(t, modFilePath, oldModFile)
+
 			// Run the mod file through the update function
-			err := updateGoModFile(modDir, oldModPath, newModPath, newModVersion)
+			err := updateGoModFile(modDir, oldModPath, newModPath, newModVersion, addRollBack)
 			require.NoError(t, err)
 
 			// Read the updated mod file from disk and compare it to the expected mod file
@@ -163,6 +165,17 @@ func readAndCompareFile(t *testing.T, path, expectedData string) {
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.Equal(t, expectedData, string(data))
+}
+
+// Setup and test rollback functionality
+func testRollBack(t *testing.T, filePath, expectedData string) addRollBackFunc {
+	return func(rollBack rollBackFunc) {
+		t.Cleanup(func() {
+			err := rollBack()
+			require.NoError(t, err)
+			readAndCompareFile(t, filePath, expectedData)
+		})
+	}
 }
 
 // Create a go mod file as a string for testing

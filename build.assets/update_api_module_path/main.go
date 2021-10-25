@@ -53,7 +53,7 @@ func main() {
 	// get the current api module import path
 	currentModPath, err := getModImportPath("./api")
 	if err != nil {
-		exitWithError(trace.Wrap(err, "failed to get current mod path"))
+		exitWithError(trace.Wrap(err, "failed to get current mod path"), nil)
 	}
 
 	// get the new api module import path, and exit if the path hasn't changed
@@ -62,32 +62,35 @@ func main() {
 		exitWithMessage("the api module path has not changed, continue without updating")
 	}
 
+	rollBackFuncs := []rollBackFunc{}
+	addRollBack := func(r rollBackFunc) { rollBackFuncs = append(rollBackFuncs, r) }
+
 	// update go files within the teleport/api and teleport modules to use the new import path
 	log.Info("Updating teleport/api module...")
-	if err := updateGoModule("./api", currentModPath, newPath, newVersion, buildFlags); err != nil {
-		exitWithError(trace.Wrap(err, "failed to update teleport/api module"))
+	if err := updateGoModule("./api", currentModPath, newPath, newVersion, buildFlags, addRollBack); err != nil {
+		exitWithError(trace.Wrap(err, "failed to update teleport/api module"), rollBackFuncs)
 	}
 	log.Info("Updating teleport module...")
-	if err := updateGoModule("./", currentModPath, newPath, newVersion, buildFlags); err != nil {
-		exitWithError(trace.Wrap(err, "failed to update teleport module"))
+	if err := updateGoModule("./", currentModPath, newPath, newVersion, buildFlags, addRollBack); err != nil {
+		exitWithError(trace.Wrap(err, "failed to update teleport module"), rollBackFuncs)
 	}
 
 	// Update .proto files in teleport/api to use the new import path
 	log.Info("Updating .proto files...")
-	if err := updateProtoFiles("./api", currentModPath, newPath); err != nil {
-		exitWithError(trace.Wrap(err, "failed to update teleport mod file"))
+	if err := updateProtoFiles("./api", currentModPath, newPath, addRollBack); err != nil {
+		exitWithError(trace.Wrap(err, "failed to update teleport mod file"), rollBackFuncs)
 	}
 }
 
 // updateGoModule updates instances of the currentPath with the newPath in the given go module.
-func updateGoModule(modulePath, currentPath, newPath, newVersion string, buildFlags []string) error {
+func updateGoModule(modulePath, currentPath, newPath, newVersion string, buildFlags []string, addRollBack addRollBackFunc) error {
 	log.Info("    Updating go files...")
-	if err := updateGoPkgs(modulePath, currentPath, newPath, buildFlags); err != nil {
+	if err := updateGoPkgs(modulePath, currentPath, newPath, buildFlags, addRollBack); err != nil {
 		return trace.Wrap(err, "failed to update mod file for module")
 	}
 
 	log.Info("    Updating go.mod...")
-	if err := updateGoModFile(modulePath, currentPath, newPath, newVersion); err != nil {
+	if err := updateGoModFile(modulePath, currentPath, newPath, newVersion, addRollBack); err != nil {
 		return trace.Wrap(err, "failed to update mod file for module")
 	}
 
@@ -95,7 +98,7 @@ func updateGoModule(modulePath, currentPath, newPath, newVersion string, buildFl
 }
 
 // updateGoPkgs updates instances of the currentPath with the newPath in go pkgs in the given module.
-func updateGoPkgs(rootDir, currentPath, newPath string, buildFlags []string) error {
+func updateGoPkgs(rootDir, currentPath, newPath string, buildFlags []string, addRollBack addRollBackFunc) error {
 	mode := packages.NeedTypes | packages.NeedSyntax
 	cfg := &packages.Config{Mode: mode, Tests: true, Dir: rootDir, BuildFlags: buildFlags}
 	pkgs, err := packages.Load(cfg, "./...")
@@ -103,11 +106,9 @@ func updateGoPkgs(rootDir, currentPath, newPath string, buildFlags []string) err
 		return trace.Wrap(err)
 	}
 
-	fmt.Println(pkgs)
-
 	var errs []error
 	packages.Visit(pkgs, func(pkg *packages.Package) bool {
-		if err = updateGoImports(pkg, currentPath, newPath); err != nil {
+		if err = updateGoImports(pkg, currentPath, newPath, addRollBack); err != nil {
 			errs = append(errs, err)
 			return false
 		}
@@ -117,7 +118,7 @@ func updateGoPkgs(rootDir, currentPath, newPath string, buildFlags []string) err
 }
 
 // updateGoImports updates instances of the currentPath with the newPath in the given package.
-func updateGoImports(p *packages.Package, currentPath, newPath string) error {
+func updateGoImports(p *packages.Package, currentPath, newPath string, addRollBack addRollBackFunc) error {
 	for _, syn := range p.Syntax {
 		var rewritten bool
 		for _, i := range syn.Imports {
@@ -133,16 +134,29 @@ func updateGoImports(p *packages.Package, currentPath, newPath string) error {
 			continue
 		}
 
-		goFileName := p.Fset.File(syn.Pos()).Name()
-		f, err := os.OpenFile(goFileName, os.O_RDWR, 0660)
+		goFilePath := p.Fset.File(syn.Pos()).Name()
+		data, err := os.ReadFile(goFilePath)
 		if err != nil {
-			return trace.Wrap(err, "could not open go file %v", goFileName)
+			return trace.Wrap(err, "could not read go file %v", goFilePath)
 		}
-		defer f.Close()
 
-		if err = format.Node(f, p.Fset, syn); err != nil {
-			return trace.Wrap(err, "could not rewrite go file %v", goFileName)
+		// Format updated go file and write to disk
+		updatedData := bytes.NewBuffer([]byte{})
+		if err = format.Node(updatedData, p.Fset, syn); err != nil {
+			return trace.Wrap(err, "could not rewrite go file %v", goFilePath)
 		}
+		info, err := os.Stat(goFilePath)
+		if err != nil {
+			return trace.Wrap(err, "failed to get go file info")
+		}
+		if err = os.WriteFile(goFilePath, updatedData.Bytes(), info.Mode().Perm()); err != nil {
+			return trace.Wrap(err, "failed to rewrite go file")
+		}
+
+		addRollBack(func() error {
+			err := os.WriteFile(goFilePath, data, info.Mode().Perm())
+			return trace.Wrap(err, "failed to rollback changes to go file %v", goFilePath)
+		})
 	}
 
 	return nil
@@ -150,11 +164,17 @@ func updateGoImports(p *packages.Package, currentPath, newPath string) error {
 
 // updateGoModFile updates instances of oldPath to newPath in a go.mod file.
 // The modFile is updated in place by updating the syntax fields directly.
-func updateGoModFile(dir, oldPath, newPath, newVersion string) error {
-	modFile, err := getModFile(dir)
+func updateGoModFile(dir, oldPath, newPath, newVersion string, addRollBackFunc addRollBackFunc) error {
+	modFilePath := filepath.Join(dir, "go.mod")
+	data, err := os.ReadFile(modFilePath)
 	if err != nil {
-		return trace.Wrap(err, "failed to get mod file")
+		return trace.Wrap(err)
 	}
+	modFile, err := modfile.Parse(modFilePath, data, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Update mod name if needed
 	if modFile.Module.Syntax.Token[1] == oldPath {
 		modFile.Module.Syntax.Token[1] = newPath
@@ -190,24 +210,30 @@ func updateGoModFile(dir, oldPath, newPath, newVersion string) error {
 		}
 	}
 
-	// Format and save mod file
-	bytes, err := modFile.Format()
+	// Format updated go mod file and write to disk
+	updatedData, err := modFile.Format()
 	if err != nil {
 		return trace.Wrap(err, "failed to format go.mod file with new import path")
 	}
-	info, err := os.Stat(filepath.Join(dir, "go.mod"))
+	info, err := os.Stat(modFilePath)
 	if err != nil {
-		return trace.Wrap(err, "failed to go.mod file info")
+		return trace.Wrap(err, "failed to get go.mod file info")
 	}
-	if err = os.WriteFile(filepath.Join(dir, "go.mod"), bytes, info.Mode().Perm()); err != nil {
+	if err = os.WriteFile(modFilePath, updatedData, info.Mode().Perm()); err != nil {
 		return trace.Wrap(err, "failed to rewrite go.mod file")
 	}
+
+	addRollBackFunc(func() error {
+		err := os.WriteFile(modFilePath, data, info.Mode().Perm())
+		return trace.Wrap(err, "failed to rollback changes to go mod file %v", modFilePath)
+	})
+
 	return nil
 }
 
 // updateProtoFiles updates instances of the currentPath with
 // the newPath in .proto files within the given directory
-func updateProtoFiles(rootDir, currentPath, newPath string) error {
+func updateProtoFiles(rootDir, currentPath, newPath string, addRollBackFunc addRollBackFunc) error {
 	return filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return trace.Wrap(err)
@@ -217,10 +243,17 @@ func updateProtoFiles(rootDir, currentPath, newPath string) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			data = bytes.ReplaceAll(data, []byte(currentPath), []byte(newPath))
-			if err := os.WriteFile(path, data, d.Type().Perm()); err != nil {
+
+			updatedData := bytes.ReplaceAll(data, []byte(currentPath), []byte(newPath))
+			fileMode := d.Type().Perm()
+			if err := os.WriteFile(path, updatedData, fileMode); err != nil {
 				return trace.Wrap(err)
 			}
+
+			addRollBackFunc(func() error {
+				err := os.WriteFile(path, data, fileMode)
+				return trace.Wrap(err, "failed to rollback changes to proto file %v", path)
+			})
 		}
 		return nil
 	})
@@ -273,13 +306,27 @@ func isPreRelease(version string) bool {
 	return semver.New(version).PreRelease != ""
 }
 
-func exitWithError(err error) {
+// rollBackFuncs are used to revert changes if the program fails with an error.
+type rollBackFunc func() error
+type addRollBackFunc func(rollBackFunc)
+
+// log error, rollback any changes made, and exit with non-zero status code
+func exitWithError(err error, rollBackFuncs []rollBackFunc) {
 	if err != nil {
 		log.WithError(err).Error()
+	}
+	if rollBackFuncs != nil {
+		log.Info("Rolling back changes...")
+		for _, r := range rollBackFuncs {
+			if err := r(); err != nil {
+				log.WithError(err).Error()
+			}
+		}
 	}
 	os.Exit(1)
 }
 
+// log message and exit with non-zero status code
 func exitWithMessage(format string, args ...interface{}) {
 	log.Infof(format, args...)
 	os.Exit(1)
