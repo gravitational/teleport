@@ -856,3 +856,26 @@ and non interactive tsh bench loads.
   - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
 - [ ] Kubernetes access:
   - [ ] Verify kubernetes access through proxy running in `multiplex` mode
+
+## Desktop Access
+
+- [ ] Can connect to desktop defined in static `hosts` section.
+- [ ] Can connect to desktop discovered via LDAP
+- [ ] Verify all keys are processed correctly by entering
+  `abcdefghijklmnopqrstuvwxyz1234567890-=!@#$%^&*()_+[]\{}|;':",./<>?~` in a
+  text field. Verify backspace, return, and moving cursor around with arrow
+  keys.
+- [ ] Left click and right click register as Windows clicks. (Right click on the
+  desktop should show a Windows menu, not a browser context menu)
+- [ ] All desktops have `teleport.dev/origin` label.
+- [ ] Dynamic desktops have additional `teleport.dev` labels for OS, OS Version,
+  DNS hostname.
+- [ ] Verify that placing a user lock terminates an active desktop session.
+- [ ] Verify desktop session start/end audit events.
+- [ ] Regexp-based host labeling applies across all desktops, regardless of
+  origin.
+- [ ] RBAC denies access to a Windows desktop due to labels
+- [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
+- [ ] Multiple sessions as different users on the same desktop are allowed.
+- [ ] Connect multiple `windows_desktop_service`s to the same Teleport cluster,
+  verify that connections to desktops on different AD domains works.
