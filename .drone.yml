@@ -1408,6 +1408,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -1537,6 +1541,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -1669,6 +1677,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -1708,7 +1720,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:398
+# Generated at dronegen/tag.go:402
 ################################################
 
 kind: pipeline
@@ -1821,6 +1833,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -1865,7 +1881,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:398
+# Generated at dronegen/tag.go:402
 ################################################
 
 kind: pipeline
@@ -1975,6 +1991,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -2019,7 +2039,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:398
+# Generated at dronegen/tag.go:402
 ################################################
 
 kind: pipeline
@@ -2123,6 +2143,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -2162,7 +2186,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:398
+# Generated at dronegen/tag.go:402
 ################################################
 
 kind: pipeline
@@ -2263,6 +2287,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -2392,6 +2420,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -2431,7 +2463,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:398
+# Generated at dronegen/tag.go:402
 ################################################
 
 kind: pipeline
@@ -2544,6 +2576,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -2588,7 +2624,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:398
+# Generated at dronegen/tag.go:402
 ################################################
 
 kind: pipeline
@@ -2692,6 +2728,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -2823,6 +2863,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -2985,6 +3029,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -3147,6 +3195,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -3275,6 +3327,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -3404,6 +3460,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -3443,7 +3503,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:398
+# Generated at dronegen/tag.go:402
 ################################################
 
 kind: pipeline
@@ -3547,6 +3607,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -3586,7 +3650,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:398
+# Generated at dronegen/tag.go:402
 ################################################
 
 kind: pipeline
@@ -3690,6 +3754,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -3729,7 +3797,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:398
+# Generated at dronegen/tag.go:402
 ################################################
 
 kind: pipeline
@@ -3842,6 +3910,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -3886,7 +3958,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:398
+# Generated at dronegen/tag.go:402
 ################################################
 
 kind: pipeline
@@ -3999,6 +4071,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -4136,6 +4212,10 @@ steps:
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
       status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
@@ -4910,6 +4990,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: ac2766e61fe2b12d4fa5d621114089581865e335b2acaa6b76dc92256e1abb08
+hmac: f5ac6f050a5a2c0c94ac2e30ffc60d030461e3105211b43163b183b1438cdd09
 
 ...

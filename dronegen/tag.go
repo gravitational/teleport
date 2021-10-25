@@ -320,6 +320,10 @@ func tagCreateReleaseAssetCommands(b buildType) []string {
 		`which curl || apk add --no-cache curl`,
 		fmt.Sprintf(`cd $WORKSPACE_DIR/go/artifacts
 for file in $(find . -type f ! -iname '*.sha256'); do
+  # Skip files that are not results of this build
+  # (e.g. tarballs from which OS packages are made)
+  [ -f "$file.sha256" ] || continue
+
   product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
   shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
   status_code=$(curl $CREDENTIALS -o $WORKSPACE_DIR/curl_out.txt -w "%%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
