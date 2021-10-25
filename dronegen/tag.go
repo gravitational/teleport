@@ -310,19 +310,20 @@ func tagCopyPackageArtifactCommands(b buildType, packageType string) []string {
 // createReleaseAssetCommands generates a set of commands to create release & asset in release management service
 func tagCreateReleaseAssetCommands(b buildType) []string {
 	commands := []string{
-		`VERSION=$(cat /go/.version.txt)`,
+		`WORKSPACE_DIR=$${WORKSPACE_DIR:-/}`,
+		`VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)`,
 		fmt.Sprintf(`RELEASES_HOST=%v`, releasesHost),
-		`echo $RELEASES_CERT | base64 -d > /releases.crt`,
-		`echo $RELEASES_KEY | base64 -d > /releases.key`,
+		`echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt`,
+		`echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key`,
 		`trap "rm -f /releases.crt /releases.key" EXIT`,
-		`CREDENTIALS="--cert /releases.crt --key /releases.key"`,
-		`apk add --no-cache curl`,
-		fmt.Sprintf(`cd /go/artifacts
+		`CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"`,
+		`which curl || apk add --no-cache curl`,
+		fmt.Sprintf(`cd $WORKSPACE_DIR/go/artifacts
 for file in $(find . -type f ! -iname '*.sha256'); do
   product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
   shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-  status_code=$(curl -o /tmp/curl_out.txt -w "%%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-  [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+  status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+  [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
   curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="%s" -F arch="%s" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
 done`,
 			b.os, b.arch /* TODO: fips */),

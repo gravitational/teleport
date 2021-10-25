@@ -1397,20 +1397,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -1525,20 +1526,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -1656,20 +1658,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -1705,7 +1708,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:397
+# Generated at dronegen/tag.go:398
 ################################################
 
 kind: pipeline
@@ -1807,20 +1810,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -1861,7 +1865,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:397
+# Generated at dronegen/tag.go:398
 ################################################
 
 kind: pipeline
@@ -1960,20 +1964,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -2014,7 +2019,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:397
+# Generated at dronegen/tag.go:398
 ################################################
 
 kind: pipeline
@@ -2107,20 +2112,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -2156,7 +2162,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:397
+# Generated at dronegen/tag.go:398
 ################################################
 
 kind: pipeline
@@ -2246,20 +2252,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -2374,20 +2381,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -2423,7 +2431,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:397
+# Generated at dronegen/tag.go:398
 ################################################
 
 kind: pipeline
@@ -2525,20 +2533,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -2579,7 +2588,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:397
+# Generated at dronegen/tag.go:398
 ################################################
 
 kind: pipeline
@@ -2672,20 +2681,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -2799,6 +2809,31 @@ steps:
   - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
     $FILE > $FILE.sha256; done && ls -l
   environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Register artifacts
+  commands:
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
+  - trap "rm -f /releases.crt /releases.key" EXIT
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
+  - |-
+    cd $WORKSPACE_DIR/go/artifacts
+    for file in $(find . -type f ! -iname '*.sha256'); do
+      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="darwin" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+    done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Upload to S3
   commands:
@@ -2937,6 +2972,31 @@ steps:
     $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
+- name: Register artifacts
+  commands:
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
+  - trap "rm -f /releases.crt /releases.key" EXIT
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
+  - |-
+    cd $WORKSPACE_DIR/go/artifacts
+    for file in $(find . -type f ! -iname '*.sha256'); do
+      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="darwin" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+    done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
 - name: Upload to S3
   commands:
   - set -u
@@ -3074,6 +3134,31 @@ steps:
     $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
+- name: Register artifacts
+  commands:
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+  - RELEASES_HOST=https://releases-staging.platform.teleport.sh
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
+  - trap "rm -f /releases.crt /releases.key" EXIT
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
+  - |-
+    cd $WORKSPACE_DIR/go/artifacts
+    for file in $(find . -type f ! -iname '*.sha256'); do
+      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
+      curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="darwin" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
+    done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Upload to S3
   commands:
   - set -u
@@ -3179,20 +3264,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -3307,20 +3393,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -3356,7 +3443,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:397
+# Generated at dronegen/tag.go:398
 ################################################
 
 kind: pipeline
@@ -3449,20 +3536,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -3498,7 +3586,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:397
+# Generated at dronegen/tag.go:398
 ################################################
 
 kind: pipeline
@@ -3591,20 +3679,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -3640,7 +3729,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:397
+# Generated at dronegen/tag.go:398
 ################################################
 
 kind: pipeline
@@ -3742,20 +3831,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -3796,7 +3886,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:397
+# Generated at dronegen/tag.go:398
 ################################################
 
 kind: pipeline
@@ -3898,20 +3988,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -4034,20 +4125,21 @@ steps:
 - name: Register artifacts
   image: docker
   commands:
-  - VERSION=$(cat /go/.version.txt)
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
-  - echo $RELEASES_CERT | base64 -d > /releases.crt
-  - echo $RELEASES_KEY | base64 -d > /releases.key
+  - echo $RELEASES_CERT | base64 -d > $WORKSPACE_DIR/releases.crt
+  - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
-  - CREDENTIALS="--cert /releases.crt --key /releases.key"
-  - apk add --no-cache curl
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
   - |-
-    cd /go/artifacts
+    cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
       product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl -o /tmp/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
-      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat /tmp/curl_out.txt)
+      status_code=$(curl -o $WORKSPACE_DIR/curl_out.txt -w "%{http_code}" -F product=$product -F version=$VERSION -F notesMd="# Teleport $VERSION" -F status=draft $RELEASES_HOST/releases)
+      [ $status_code = 200 ] || [ $status_code = 409 ] || (echo "curl HTTP status: $status_code"; cat $WORKSPACE_DIR/curl_out.txt)
       curl $CREDENTIALS -o /dev/null -F description="TODO" -F os="windows" -F arch="amd64" -F file=@$file -F sha256="$shasum" -F releaseId="$product@$VERSION" $RELEASES_HOST/assets;
     done
   environment:
@@ -4818,6 +4910,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 2393c8039445f5455d31a7075c13d9b683946b23abaa5d7f1f0026dfe72a4ea8
+hmac: f7fa5e55fc9b97286c5bd1209388404a74fe7c34abfd650767d18caa2c430f7b
 
 ...
