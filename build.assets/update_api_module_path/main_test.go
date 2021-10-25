@@ -37,28 +37,17 @@ import (
 )
 `
 
-	// Write go file to disk so we can run it through the update function
-	// Note: We use os.MkdirTemp here because "golang.org/x/tools/go/packages.Load"
-	// is unable to read from t.TempDir()
-	pkgDir, err := os.MkdirTemp("./", "pkg")
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, os.RemoveAll(pkgDir)) })
+	// Create a dummy go module with go.mod and main.go file
+	pkgDir := t.TempDir()
+	writeFile(t, pkgDir, "go.mod", newGoModFileString("pkg"))
+	goFilePath := writeFile(t, pkgDir, "main.go", goFile)
 
-	goFilePath := filepath.Join(pkgDir, "main.go")
-	err = os.WriteFile(goFilePath, []byte(goFile), fs.ModePerm)
+	// Run main.go file through the update function
+	err := updateGoPkgs(pkgDir, "mod/path", "updated/mod/path", nil)
 	require.NoError(t, err)
 
-	// run go file through update function
-	err = updateGoPkgs(pkgDir, "mod/path", "updated/mod/path", nil)
-	require.NoError(t, err)
-
-	// read go file
-	updatedGoFile, err := os.ReadFile(goFilePath)
-	require.NoError(t, err)
-
-	// compare result with expected result
-	expectedGoFile := strings.ReplaceAll(goFile, "\"mod/path\"", "\"updated/mod/path\"")
-	require.Equal(t, expectedGoFile, string(updatedGoFile))
+	// Read the updated file and expect all instances of "mod/path" to be replaced with "updated/mod/path"
+	readAndCompareFile(t, goFilePath, strings.ReplaceAll(goFile, "\"mod/path\"", "\"updated/mod/path\""))
 }
 
 func TestUpdateProtoFiles(t *testing.T) {
@@ -75,40 +64,30 @@ message Example {
 `
 
 	// Write proto file to disk
-	rootDir := t.TempDir()
-	protoFilePath := filepath.Join(rootDir, "proto.proto")
-	err := os.WriteFile(protoFilePath, []byte(protoFile), fs.ModePerm)
-	require.NoError(t, err)
+	dir := t.TempDir()
+	protoFilePath := writeFile(t, dir, "proto.proto", protoFile)
 
 	// run proto file through update function
-	err = updateProtoFiles(rootDir, "mod/path", "updated/mod/path")
+	err := updateProtoFiles(dir, "mod/path", "updated/mod/path")
 	require.NoError(t, err)
 
-	// read proto file
-	updatedProtoFile, err := os.ReadFile(protoFilePath)
-	require.NoError(t, err)
-
-	// compare result with expected result
-	expectedProtoFile := strings.ReplaceAll(protoFile, "mod/path", "updated/mod/path")
-	require.Equal(t, expectedProtoFile, string(updatedProtoFile))
+	// read the updated file and expect all instances of "mod/path" to be replaced with "updated/mod/path"
+	readAndCompareFile(t, protoFilePath, strings.ReplaceAll(protoFile, "mod/path", "updated/mod/path"))
 }
 
 func TestUpdateGoModulePath(t *testing.T) {
 	testUpdate := func(oldModPath, newModPath, newModVersion, oldModFile, expectedNewModFile string) func(t *testing.T) {
 		return func(t *testing.T) {
-			// Write mod file to disk so we can run it through the update function
+			// Write mod file to disk
 			modDir := t.TempDir()
-			modFilePath := filepath.Join(modDir, "go.mod")
-			err := os.WriteFile(modFilePath, []byte(oldModFile), fs.ModePerm)
-			require.NoError(t, err)
+			modFilePath := writeFile(t, modDir, "go.mod", oldModFile)
 
-			err = updateGoModFile(modDir, oldModPath, newModPath, newModVersion)
+			// Run the mod file through the update function
+			err := updateGoModFile(modDir, oldModPath, newModPath, newModVersion)
 			require.NoError(t, err)
 
 			// Read the updated mod file from disk and compare it to the expected mod file
-			updatedModFile, err := os.ReadFile(modFilePath)
-			require.NoError(t, err)
-			require.Equal(t, expectedNewModFile, string(updatedModFile))
+			readAndCompareFile(t, modFilePath, expectedNewModFile)
 		}
 	}
 
@@ -145,13 +124,54 @@ func TestUpdateGoModulePath(t *testing.T) {
 	t.Run("v2 to v0", testUpdateAllStatements("mod/path/v2", "2.3.4", "0.0.0"))
 }
 
+func TestGetImportPaths(t *testing.T) {
+	testGetImportPaths := func(currentModPath, newVersion, expectedNewModPath string) func(t *testing.T) {
+		return func(t *testing.T) {
+			// Write mod file to disk
+			modDir := t.TempDir()
+			writeFile(t, modDir, "go.mod", newGoModFileString(currentModPath))
+
+			// Get import paths using the mod file in disk
+			oldModPath, err := getModImportPath(modDir)
+			require.NoError(t, err)
+			newModPath := getNewModImportPath(oldModPath, newVersion)
+
+			// Compare paths to expected results
+			require.Equal(t, currentModPath, oldModPath)
+			require.Equal(t, expectedNewModPath, newModPath)
+		}
+	}
+
+	t.Run("v0 to v0", testGetImportPaths("mod/path", "0.0.0", "mod/path"))
+	t.Run("v0 to v1", testGetImportPaths("mod/path", "1.2.3", "mod/path"))
+	t.Run("v0 to v1", testGetImportPaths("mod/path", "1.2.3", "mod/path"))
+	t.Run("v0 to v2", testGetImportPaths("mod/path", "2.3.4", "mod/path/v2"))
+	t.Run("v2 to v3", testGetImportPaths("mod/path/v2", "3.4.5", "mod/path/v3"))
+	t.Run("v1 to v0", testGetImportPaths("mod/path", "0.0.0", "mod/path"))
+	t.Run("v2 to v0", testGetImportPaths("mod/path/v2", "0.0.0", "mod/path"))
+}
+
+// Write a file to disk and return the file path for testing
+func writeFile(t *testing.T, dir, name, data string) string {
+	path := filepath.Join(dir, name)
+	require.NoError(t, os.WriteFile(path, []byte(data), fs.ModePerm))
+	return path
+}
+
+// Read a file and compare it to some expected file data for testing
+func readAndCompareFile(t *testing.T, path, expectedData string) {
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, expectedData, string(data))
+}
+
 // Create a go mod file as a string for testing
 func newGoModFileString(modPath string, goModStatements ...string) string {
 	header := fmt.Sprintf("module %v\n\ngo 1.15", modPath)
 	return strings.Join(append([]string{header}, goModStatements...), "\n\n") + "\n"
 }
 
-// Helper functions for creating go mod statements
+// Helper functions for creating go mod statements for testing
 func requireStatement(path, version string) string {
 	return fmt.Sprintf("require %v v%v", path, version)
 }
@@ -191,32 +211,4 @@ func allGoModStatements(path, version string) []string {
 			replaceVersion(path, version),
 		}),
 	}
-}
-
-func TestGetImportPaths(t *testing.T) {
-	testGetImportPaths := func(currentModPath, newVersion, expectedNewModPath string) func(t *testing.T) {
-		return func(t *testing.T) {
-			// Write mod file to disk
-			modDir := t.TempDir()
-			modFilePath := filepath.Join(modDir, "go.mod")
-			modFile := newGoModFileString(currentModPath)
-			err := os.WriteFile(modFilePath, []byte(modFile), fs.ModePerm)
-			require.NoError(t, err)
-
-			// Get import paths using the mod file in disk and compare to expected results
-			oldModPath, err := getModImportPath(modDir)
-			require.NoError(t, err)
-			require.Equal(t, currentModPath, oldModPath)
-			newModPath := getNewModImportPath(oldModPath, newVersion)
-			require.Equal(t, expectedNewModPath, newModPath)
-		}
-	}
-
-	t.Run("v0 to v0", testGetImportPaths("mod/path", "0.0.0", "mod/path"))
-	t.Run("v0 to v1", testGetImportPaths("mod/path", "1.2.3", "mod/path"))
-	t.Run("v0 to v1", testGetImportPaths("mod/path", "1.2.3", "mod/path"))
-	t.Run("v0 to v2", testGetImportPaths("mod/path", "2.3.4", "mod/path/v2"))
-	t.Run("v2 to v3", testGetImportPaths("mod/path/v2", "3.4.5", "mod/path/v3"))
-	t.Run("v1 to v0", testGetImportPaths("mod/path", "0.0.0", "mod/path"))
-	t.Run("v2 to v0", testGetImportPaths("mod/path/v2", "0.0.0", "mod/path"))
 }
