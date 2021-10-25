@@ -317,7 +317,7 @@ func tagCreateReleaseAssetCommands(b buildType) []string {
 		`echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key`,
 		`trap "rm -f /releases.crt /releases.key" EXIT`,
 		`CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"`,
-		`apk add --no-cache curl`,
+		`which curl || apk add --no-cache curl`,
 		fmt.Sprintf(`cd $WORKSPACE_DIR/go/artifacts
 for file in $(find . -type f ! -iname '*.sha256'); do
   product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*//')" # extract part before -vX.Y.Z

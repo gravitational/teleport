@@ -1404,7 +1404,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1533,7 +1533,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1665,7 +1665,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1817,7 +1817,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -1971,7 +1971,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2119,7 +2119,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2259,7 +2259,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2388,7 +2388,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2540,7 +2540,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2688,7 +2688,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2819,7 +2819,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -2981,7 +2981,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3143,7 +3143,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3271,7 +3271,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3400,7 +3400,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3543,7 +3543,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3686,7 +3686,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3838,7 +3838,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -3995,7 +3995,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -4132,7 +4132,7 @@ steps:
   - echo $RELEASES_KEY | base64 -d > $WORKSPACE_DIR/releases.key
   - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - apk add --no-cache curl
+  - which curl || apk add --no-cache curl
   - |-
     cd $WORKSPACE_DIR/go/artifacts
     for file in $(find . -type f ! -iname '*.sha256'); do
@@ -4910,6 +4910,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 79a0677656d9ea092798e8fd4901a1e6b10d20ed2642cf4c561143ecd45ada56
+hmac: 86018389eca620145492bc2e39b0cb3d57a13d6f114b90d9a536fd76356483d2
 
 ...
