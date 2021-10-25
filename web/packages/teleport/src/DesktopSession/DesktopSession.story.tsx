@@ -19,7 +19,7 @@ import { DesktopSession } from './DesktopSession';
 import { State } from './useDesktopSession';
 import TdpClient, { ImageData } from 'teleport/lib/tdp/client';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import arrayBuf2260x1130 from './fixtures';
+import { arrayBuf2260x1130 } from '../lib/tdp/fixtures';
 
 export default {
   title: 'Teleport/DesktopSession',

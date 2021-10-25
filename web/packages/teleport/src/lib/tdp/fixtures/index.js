@@ -44,6 +44,7 @@
 // ]
 
 import uint82260x1130 from './2260x1130.json';
+import uint8first2pngs from './first2pngs.json';
 
 function convert2ArrayBuf(data) {
   const arrayBuf = [];
@@ -55,6 +56,5 @@ function convert2ArrayBuf(data) {
   return arrayBuf;
 }
 
-const arrayBuf2260x1130 = convert2ArrayBuf(uint82260x1130);
-
-export default arrayBuf2260x1130;
+export const arrayBuf2260x1130 = convert2ArrayBuf(uint82260x1130);
+export const arrayBufFirst2Pngs = convert2ArrayBuf(uint8first2pngs);
