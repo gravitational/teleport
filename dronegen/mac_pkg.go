@@ -20,6 +20,10 @@ import (
 )
 
 func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
+	b := buildType{
+		arch: "amd64",
+		os:   "darwin",
+	}
 	p := newDarwinPipeline(name)
 	p.Trigger = triggerTag
 	p.DependsOn = []string{"build-darwin-amd64"}
@@ -54,8 +58,8 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
 				"OSS_TARBALL_PATH":  {raw: "/tmp/build-darwin-amd64-pkg/go/artifacts"},
 				"ENT_TARBALL_PATH":  {raw: "/tmp/build-darwin-amd64-pkg/go/artifacts"},
-				"OS":                {raw: "darwin"},
-				"ARCH":              {raw: "amd64"},
+				"OS":                {raw: b.os},
+				"ARCH":              {raw: b.arch},
 			},
 			Commands: darwinTagPackageCommands(makeTarget),
 		},
@@ -65,6 +69,15 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
 			Commands: darwinTagCopyPkgArtifactCommands(pkgGlobs),
+		},
+		{
+			Name:     "Register artifacts",
+			Image:    "docker",
+			Commands: tagCreateReleaseAssetCommands(b),
+			Environment: map[string]value{
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY"},
+			},
 		},
 		{
 			Name: "Upload to S3",
