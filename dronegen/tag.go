@@ -314,6 +314,7 @@ func tagCreateReleaseAssetCommands(b buildType) []string {
 		fmt.Sprintf(`RELEASES_HOST=%v`, releasesHost),
 		`echo $RELEASES_CERT | base64 -d > /releases.crt`,
 		`echo $RELEASES_KEY | base64 -d > /releases.key`,
+		`trap EXIT "rm -f /releases.crt /releases.key"`,
 		`CREDENTIALS="--cert /releases.crt --key /releases.key"`,
 		`apk add --no-cache curl`,
 		fmt.Sprintf(`cd /go/artifacts
