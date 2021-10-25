@@ -1401,7 +1401,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -1529,7 +1529,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -1660,7 +1660,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -1811,7 +1811,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -1964,7 +1964,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -2111,7 +2111,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -2250,7 +2250,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -2378,7 +2378,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -2529,7 +2529,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -2676,7 +2676,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3183,7 +3183,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3311,7 +3311,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3453,7 +3453,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3595,7 +3595,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3746,7 +3746,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -3902,7 +3902,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -4038,7 +4038,7 @@ steps:
   - RELEASES_HOST=https://releases-staging.platform.teleport.sh
   - echo $RELEASES_CERT | base64 -d > /releases.crt
   - echo $RELEASES_KEY | base64 -d > /releases.key
-  - trap EXIT "rm -f /releases.crt /releases.key"
+  - trap "rm -f /releases.crt /releases.key" EXIT
   - CREDENTIALS="--cert /releases.crt --key /releases.key"
   - apk add --no-cache curl
   - |-
@@ -4818,6 +4818,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 042afea54993116fad42ab5e83941351da04c0c3b792178378585fe253f503d1
+hmac: 2393c8039445f5455d31a7075c13d9b683946b23abaa5d7f1f0026dfe72a4ea8
 
 ...
