@@ -146,11 +146,11 @@ func (m *outputMap) record(event TestEvent) {
 	}
 }
 
-func (m *outputMap) get(pkgName string) *packageOutput {
+func (m *outputMap) getPkg(pkgName string) *packageOutput {
 	return m.pkgs[pkgName]
 }
 
-func (m *outputMap) delete(pkgName string) {
+func (m *outputMap) deletePkg(pkgName string) {
 	delete(m.pkgs, pkgName)
 }
 
@@ -196,7 +196,7 @@ func main() {
 
 				case actionFail:
 					// cache the failed test output
-					failedPackages[event.Package] = testOutput.get(event.Package)
+					failedPackages[event.Package] = testOutput.getPkg(event.Package)
 					fallthrough
 
 				case actionPass, actionSkip:
@@ -210,7 +210,7 @@ func main() {
 					fmt.Printf("%s %s: %s\n", covText, event.Action, event.Package)
 
 					// Don't need this no more
-					testOutput.delete(event.Package)
+					testOutput.deletePkg(event.Package)
 				}
 			}
 		}
@@ -230,7 +230,6 @@ func main() {
 
 	// Generate a sorted list of package names, so that we present the
 	// packages that fail in a repeatable order.
-
 	names := make([]string, 0, len(failedPackages))
 	for k := range failedPackages {
 		names = append(names, k)
@@ -238,7 +237,6 @@ func main() {
 	sort.Strings(names)
 
 	// Print a summary list of the failed tests and packages.
-
 	for _, pkgName := range names {
 		pkg := failedPackages[pkgName]
 
@@ -253,8 +251,7 @@ func main() {
 
 	// Print the output of each failed package or test. Note that we only print
 	// the package output if there is no identifiable test that caused the
-	// failure, as it will probably swamp the individual test outpuy
-
+	// failure, as it will probably swamp the individual test output.
 	for _, pkgName := range names {
 		pkg := failedPackages[pkgName]
 

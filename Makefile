@@ -281,6 +281,7 @@ endif
 .PHONY: clean
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
+	rm -rf build.assets/build
 	rm -rf $(BUILDDIR)
 	rm -rf $(ER_BPF_BUILDDIR)
 	rm -rf $(RS_BPF_BUILDDIR)
