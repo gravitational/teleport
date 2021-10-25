@@ -10,7 +10,6 @@ BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)'
 CGOFLAG ?= CGO_ENABLED=1
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 BINARIES ?= $(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
-HOUSTON_DIR := "vendor/github.com/gravitational/houston/"
 
 ifeq ("$(OS)","linux")
 # ARM builds need to specify the correct C compiler
@@ -167,8 +166,6 @@ clean:
 	@echo "---> Cleaning up Enterprise build artifacts."
 	rm -rf $(BUILDDIR)
 	rm -rf *gz
-	-rm build_houston
-	-rm start_houston
 
 # make release - Produces a binary release tarball.
 .PHONY:
@@ -252,46 +249,6 @@ endif
 test:
 	go test -v ./lib/... && \
 	go vet ./lib/...
-
-.PHONY: integration
-integration: start-houston
-	go test -v ./integration/... -check.v
-	$(MAKE) stop-houston
-
-build-houston:
-	sudo $(MAKE) -C $(HOUSTON_DIR) image
-	@touch build-houston
-
-start-houston: build-houston
-	@docker run -d --rm=true \
-		-e HOUSTON_API_HOST="localhost" \
-		-e HOUSTON_WEB_HOST="web.localhost" \
-		-e HOUSTON_STRIPE_SECRET_KEY="$(HOUSTON_STRIPE_SECRET_KEY)" \
-		-e HOUSTON_STRIPE_PUBLIC_KEY="$(HOUSTON_STRIPE_PUBLIC_KEY)" \
-		-e HOUSTON_AUTH0_CLIENT_ID="$(HOUSTON_AUTH0_CLIENT_ID)" \
-		-e HOUSTON_AUTH0_CLIENT_SECRET="$(HOUSTON_AUTH0_CLIENT_SECRET)" \
-		-e HOUSTON_AUTH0_AUDIENCE="$(HOUSTON_AUTH0_AUDIENCE)" \
-		-e HOUSTON_AUTH0_ISSUER="$(HOUSTON_AUTH0_ISSUER)" \
-		-e HOUSTON_AUTH0_AUTH_API_URL="$(HOUSTON_AUTH0_AUTH_API_URL)" \
-		-e HOUSTON_AUTH0_MGMT_API_URL="$(HOUSTON_AUTH0_MGMT_API_URL)" \
-		-e HOUSTON_AUTH0_REDIRECT_URL="$(HOUSTON_AUTH0_REDIRECT_URL)" \
-		-e HOUSTON_ZENDESK_API_USER="$(HOUSTON_ZENDESK_API_USER)" \
-		-e HOUSTON_ZENDESK_API_TOKEN="$(HOUSTON_ZENDESK_API_TOKEN)" \
-		-e HOUSTON_ZENDESK_API_URL="$(HOUSTON_ZENDESK_API_URL)" \
-		-e HOUSTON_GITHUB_USERNAME="$(HOUSTON_GITHUB_USERNAME)" \
-		-e HOUSTON_GITHUB_ACCESS_TOKEN="$(HOUSTON_GITHUB_ACCESS_TOKEN)" \
-		-e HOUSTON_SALESFORCE_CLIENT_ID="$(HOUSTON_SALESFORCE_CLIENT_ID)" \
-		-e HOUSTON_SALESFORCE_CLIENT_SECRET="$(HOUSTON_SALESFORCE_CLIENT_SECRET)" \
-		-e HOUSTON_SALESFORCE_USERNAME="$(HOUSTON_SALESFORCE_USERNAME)" \
-		-e HOUSTON_SALESFORCE_PASSWORD="$(HOUSTON_SALESFORCE_PASSWORD)" \
-		-p 10000:10000 \
-	       	houston:0.0.1 /opt/houston/houston
-	@touch start-houston
-
-.PHONY: stop-houston
-stop-houston:
-	docker stop $$(docker ps -q --filter ancestor=houston:0.0.1)
-	@rm start-houston
 
 # Dockerized build: useful for making Linux binaries on OSX
 .PHONY:docker-binaries

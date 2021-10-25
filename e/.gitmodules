@@ -1,3 +1,0 @@
-[submodule "vendor/github.com/gravitational/houston"]
-	path = vendor/github.com/gravitational/houston
-	url = git@github.com:gravitational/houston.git
