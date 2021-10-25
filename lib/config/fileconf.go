@@ -537,6 +537,9 @@ type Auth struct {
 
 	// ProxyListenerMode is a listener mode user by the proxy.
 	ProxyListenerMode types.ProxyListenerMode `yaml:"proxy_listener_mode,omitempty"`
+
+	// RoutingStrategy configures the routing strategy to nodes.
+	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
