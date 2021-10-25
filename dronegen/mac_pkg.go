@@ -72,7 +72,6 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 		},
 		{
 			Name:     "Register artifacts",
-			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b),
 			Environment: map[string]value{
 				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT"},

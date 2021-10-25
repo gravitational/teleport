@@ -2811,7 +2811,6 @@ steps:
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Register artifacts
-  image: docker
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
@@ -2973,7 +2972,6 @@ steps:
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
 - name: Register artifacts
-  image: docker
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
@@ -3135,7 +3133,6 @@ steps:
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Register artifacts
-  image: docker
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
@@ -4910,6 +4907,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 40f6f6c6411d8a5ca5ac3aafd9c4a53c945119538b7ba17a4b05f4ef20b39091
+hmac: 8a894a933e20406c446d347a5d4fdba4bfa8e0f84da8d0101e6dff963c1f71c9
 
 ...
