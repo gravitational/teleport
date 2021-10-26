@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout master branch 
-        uses: actions/checkout@master
+        uses: actions/checkout@v2
         with:
           ref: master 
       - name: Installing the latest version of Go.
