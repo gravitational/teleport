@@ -758,15 +758,15 @@ version: v2`
 func TestInit_bootstrap(t *testing.T) {
 	t.Parallel()
 
-	hostCA := resourceFromYAML(t, hostCAYAML)
-	userCA := resourceFromYAML(t, userCAYAML)
-	jwtCA := resourceFromYAML(t, jwtCAYAML)
+	hostCA := resourceFromYAML(t, hostCAYAML).(types.CertAuthority)
+	userCA := resourceFromYAML(t, userCAYAML).(types.CertAuthority)
+	jwtCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 
-	invalidHostCA := resourceFromYAML(t, hostCAYAML)
+	invalidHostCA := resourceFromYAML(t, hostCAYAML).(types.CertAuthority)
 	invalidHostCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
-	invalidUserCA := resourceFromYAML(t, userCAYAML)
+	invalidUserCA := resourceFromYAML(t, userCAYAML).(types.CertAuthority)
 	invalidUserCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
-	invalidJWTCA := resourceFromYAML(t, jwtCAYAML)
+	invalidJWTCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.ActiveKeys.JWT = nil
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.JWTKeyPairs = nil
 
@@ -779,27 +779,27 @@ func TestInit_bootstrap(t *testing.T) {
 			// Issue https://github.com/gravitational/teleport/issues/7853.
 			name: "OK bootstrap CAs",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA, userCA, jwtCA)
+				cfg.Resources = append(cfg.Resources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone())
 			},
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, invalidHostCA, userCA, jwtCA)
+				cfg.Resources = append(cfg.Resources, invalidHostCA.Clone(), userCA.Clone(), jwtCA.Clone())
 			},
 			wantErr: true,
 		},
 		{
 			name: "NOK bootstrap User CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA, invalidUserCA, jwtCA)
+				cfg.Resources = append(cfg.Resources, hostCA.Clone(), invalidUserCA.Clone(), jwtCA.Clone())
 			},
 			wantErr: true,
 		},
 		{
 			name: "NOK bootstrap JWT CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA, userCA, invalidJWTCA)
+				cfg.Resources = append(cfg.Resources, hostCA.Clone(), userCA.Clone(), invalidJWTCA.Clone())
 			},
 			wantErr: true,
 		},
