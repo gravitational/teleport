@@ -1394,6 +1394,19 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -1423,19 +1436,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -1527,6 +1527,19 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -1556,19 +1569,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -1663,6 +1663,19 @@ steps:
   - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -1692,19 +1705,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -1819,6 +1819,19 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -1848,19 +1861,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -1977,6 +1977,19 @@ steps:
   - cd /go/src/github.com/gravitational/teleport
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -2006,19 +2019,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -2129,6 +2129,19 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -2158,19 +2171,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -2273,6 +2273,19 @@ steps:
   - cd /go/src/github.com/gravitational/teleport
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -2302,19 +2315,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -2406,6 +2406,19 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -2435,19 +2448,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -2562,6 +2562,19 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -2591,19 +2604,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -2714,6 +2714,19 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -2743,19 +2756,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -2850,6 +2850,20 @@ steps:
     $FILE > $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Upload to S3
+  commands:
+  - set -u
+  - cd $WORKSPACE_DIR/go/artifacts
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Register artifacts
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
@@ -2878,20 +2892,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
-- name: Upload to S3
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/artifacts
-  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Clean up exec runner storage (post)
   commands:
@@ -3016,6 +3016,20 @@ steps:
     $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
+- name: Upload to S3
+  commands:
+  - set -u
+  - cd $WORKSPACE_DIR/go/artifacts
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
 - name: Register artifacts
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
@@ -3044,20 +3058,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-- name: Upload to S3
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/artifacts
-  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
 - name: Clean up exec runner storage (post)
   commands:
@@ -3182,6 +3182,20 @@ steps:
     $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
+- name: Upload to S3
+  commands:
+  - set -u
+  - cd $WORKSPACE_DIR/go/artifacts
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Register artifacts
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
@@ -3210,20 +3224,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
-- name: Upload to S3
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/artifacts
-  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Clean up exec runner storage (post)
   commands:
@@ -3313,6 +3313,19 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -3342,19 +3355,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -3446,6 +3446,19 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -3475,19 +3488,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -3593,6 +3593,19 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -3622,19 +3635,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -3740,6 +3740,19 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -3769,19 +3782,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -3896,6 +3896,19 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -3925,19 +3938,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -4057,6 +4057,19 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -4086,19 +4099,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -4198,6 +4198,19 @@ steps:
   - cp /go/artifacts/teleport-v$${VERSION}-windows-amd64-bin.zip /go/artifacts/teleport-ent-v$${VERSION}-windows-amd64-bin.zip
   - cd /go/artifacts && for FILE in teleport*.zip; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+- name: Upload to S3
+  image: plugins/s3
+  settings:
+    access_key:
+      from_secret: AWS_ACCESS_KEY_ID
+    bucket:
+      from_secret: AWS_S3_BUCKET
+    region: us-west-2
+    secret_key:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    source: /go/artifacts/*
+    strip_prefix: /go/artifacts/
+    target: teleport/tag/${DRONE_TAG##v}
 - name: Register artifacts
   image: docker
   commands:
@@ -4227,19 +4240,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
 services:
 - name: Start Docker
   image: docker:dind
@@ -4990,6 +4990,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: cad9109e221cb7f53acac8ae02b74fb902412567815852cdfc0b5a589b82ee85
+hmac: 075c9b9e736b830cdfd3c35b9acda17d37b4efa3076747962ee8500d276a75df
 
 ...

@@ -119,15 +119,6 @@ func darwinTagPipeline() pipeline {
 			Commands: darwinTagCopyPackageArtifactCommands(),
 		},
 		{
-			Name:     "Register artifacts",
-			Commands: tagCreateReleaseAssetCommands(b),
-			Environment: map[string]value{
-				"WORKSPACE_DIR": {raw: p.Workspace.Path},
-				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT"},
-				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY"},
-			},
-		},
-		{
 			Name: "Upload to S3",
 			Environment: map[string]value{
 				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
@@ -137,6 +128,15 @@ func darwinTagPipeline() pipeline {
 				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
 			},
 			Commands: darwinUploadToS3Commands(),
+		},
+		{
+			Name:     "Register artifacts",
+			Commands: tagCreateReleaseAssetCommands(b),
+			Environment: map[string]value{
+				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY"},
+			},
 		},
 		cleanUpExecStorageStep(p.Workspace.Path),
 	}

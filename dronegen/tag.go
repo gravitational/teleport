@@ -252,6 +252,12 @@ func tagPipeline(b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyArtifactCommands(b),
 		},
+		uploadToS3Step(s3Settings{
+			region:      "us-west-2",
+			source:      "/go/artifacts/*",
+			target:      "teleport/tag/${DRONE_TAG##v}",
+			stripPrefix: "/go/artifacts/",
+		}),
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
@@ -261,12 +267,6 @@ func tagPipeline(b buildType) pipeline {
 				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY"},
 			},
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
-		}),
 	}
 	return p
 }
@@ -440,6 +440,12 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyPackageArtifactCommands(b, packageType),
 		},
+		uploadToS3Step(s3Settings{
+			region:      "us-west-2",
+			source:      "/go/artifacts/*",
+			target:      "teleport/tag/${DRONE_TAG##v}",
+			stripPrefix: "/go/artifacts/",
+		}),
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
@@ -449,12 +455,6 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY"},
 			},
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
-		}),
 	}
 	return p
 }
