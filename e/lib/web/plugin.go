@@ -6,6 +6,7 @@ import (
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/gravitational/trace"
@@ -138,9 +139,14 @@ func (p *Plugin) withCloudAuth(fn CloudHandler) httprouter.Handle {
 	})
 }
 
-// withCloud provides an initiliazed instance of the cloud client API for public requests.
+// withCloud checks against CSRF attacks and provides an initiliazed instance of the cloud client API for public requests.
 func (p *Plugin) withCloud(fn cloudPublicHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+		if err := csrf.VerifyHTTPHeader(r); err != nil {
+			p.Log.Warnf("unable to validate CSRF token %v", err)
+			return nil, trace.AccessDenied("access denied")
+		}
+
 		proxyClient := p.h.GetProxyClient()
 		client, ok := proxyClient.(*auth.Client)
 		if !ok {

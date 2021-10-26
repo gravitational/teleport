@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -289,26 +288,12 @@ func (p *Plugin) createAccountRecoveryCodesHandle(w http.ResponseWriter, r *http
 }
 
 func getIPAddress(r *http.Request) (string, error) {
-	originatingIPAddr := ""
-
-	// If load balancing is used.
-	ips := strings.Split(r.Header.Get("x-forwarded-for"), ", ")
-	if len(ips) > 0 {
-		// First ip address in list is the ip address of the original request.
-		// The rest are addresses of proxies.
-		originatingIPAddr = ips[0]
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 
-	// Fallback if load balancer wasn't used.
-	if originatingIPAddr == "" {
-		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		originatingIPAddr = ip
-	}
-
-	return originatingIPAddr, nil
+	return ip, nil
 }
 
 func (p *Plugin) getAccountRecoveryCodesMetadataHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
