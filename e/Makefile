@@ -71,16 +71,23 @@ ROLETESTER_ENT_MESSAGE := "without access tester"
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
+CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
+CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
+CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
+CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
+CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
+
+CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
+
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
 with_roletester := yes
 ROLETESTER_ENT_MESSAGE := "with access tester"
 ROLETESTER_TAG := roletester
-ROLETESTER_BUILDDIR := ../lib/datalog/roletester/Cargo.toml
 endif
 endif
 
-# Reproducible builds are only availalbe on select targets, and only when OS=linux.
+# Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
 ifneq ("$(OS)","linux")
 REPRODUCIBLE = no
@@ -138,7 +145,7 @@ endif
 ifeq ("$(with_roletester)", "yes")
 .PHONY: roletester
 roletester:
-	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release
+	cargo build --manifest-path=../lib/datalog/roletester/Cargo.toml --release $(CARGO_TARGET)
 else
 .PHONY: roletester
 roletester:
