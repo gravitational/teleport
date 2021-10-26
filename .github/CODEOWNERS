@@ -7,3 +7,6 @@
 # Frontend Engineering.
 /lib/web/ @alex-kovoy @russjones @r0mant
 /webassets/ @alex-kovoy @russjones @r0mant
+
+# Repository Management 
+/.github/workflows/ @russjones @r0mant @zmb3
