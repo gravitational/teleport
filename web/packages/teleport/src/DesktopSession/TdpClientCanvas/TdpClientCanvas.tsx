@@ -81,10 +81,12 @@ export default function TdpClientCanvas(props: Props) {
 
     // Key controls.
     const onkeydown = (e: KeyboardEvent) => {
+      e.preventDefault();
       onKeyDown(tdpClient, e);
     };
     canvas.onkeydown = onkeydown;
     const onkeyup = (e: KeyboardEvent) => {
+      e.preventDefault();
       onKeyUp(tdpClient, e);
     };
     canvas.onkeyup = onkeyup;
