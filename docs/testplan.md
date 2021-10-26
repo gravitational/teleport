@@ -795,6 +795,15 @@ and non interactive tsh bench loads.
 
 ## TLS Routing
 
+- [ ]Verify that teleport proxy `v2` configuration starts only a single listener.
+  ```
+  version: v2
+  teleporot:
+    proxy_service:
+      enabled: "yes"
+      public_addr: ['root.example.com']
+      web_listen_addr: 0.0.0.0:3080
+  ```
 - [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
   - [ ] Trusted cluster
     - [ ] Setup trusted clusters using single port setup `web_proxy_addr == tunnel_addr`
@@ -821,12 +830,3 @@ and non interactive tsh bench loads.
   - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
 - [ ] Kubernetes access:
   - [ ] Verify kubernetes access through proxy running in `multiplex` mode
-- [ ] Verify that teleport proxy `v2` configuration starts only single listener in no additional listener addresses are provided.
-  ```
-  version: v2
-  teleporot:
-    proxy_service:
-      enabled: "yes"
-      public_addr: ['root.example.com']
-      web_listen_addr: 0.0.0.0:3080
-  ```
