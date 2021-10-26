@@ -34,6 +34,8 @@ jobs:
     steps:
       - name: Checkout master branch 
         uses: actions/checkout@master
+        with:
+          ref: master 
       - name: Installing the latest version of Go.
         uses: actions/setup-go@v2
         # Run "dismiss-runs" subcommand on bot.
