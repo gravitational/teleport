@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.2.16
+
+This release of teleport contains performance improvements and a feature.
+
+* Improved cache and label-based operations performance. [#8670](https://github.com/gravitational/teleport/pull/8670)
+
+* Added support for custom `routing_strategy` configuration. [#8567](https://github.com/gravitational/teleport/pull/8567)
+
+*note*: The `routing_strategy` feature works slightly differently in `v6` than it does in `v7` and later.  If a custom
+routing strategy is set, proxies may temporarily revert to the default routing strategy while upgrading from `v6` to
+`v7`.
+
 ## 6.2.15
 
 This release of Teleport contains a feature.
