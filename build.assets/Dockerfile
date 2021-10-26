@@ -19,11 +19,14 @@ ENV LANGUAGE="en_US.UTF-8" \
 
 # Install packages.
 # We install curl first to allow setting up the Google SDK as part of the same layer.
+# Note: we install gcc-multilib and enable the i386 architecture so we can cross compile
+# for i386.
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -y --no-install-recommends apt-utils ca-certificates curl gnupg && \
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
+    dpkg --add-architecture i386 && \
     apt-get -y update && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
@@ -40,6 +43,7 @@ RUN apt-get update -y --fix-missing && \
         libelf-dev \
         libpam-dev \
         libsqlite3-0 \
+        libssl-dev:i386 \
         llvm-10 \
         locales \
         make \
@@ -67,6 +71,36 @@ ARG UID
 ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
+
+# Install Rust
+#
+# Rust installation based on official rust image Dockerfile here:
+#   https://github.com/rust-lang/docker-rust/blob/master/1.56.0/bullseye/Dockerfile
+#
+# The original Rust docker image uses a script to install `rustup`, and from
+# there rustc and associated tools.
+#
+# Rather than execute an arbitrary `rustup` installation script, we are cherry-
+# picking the appropriate files off the official docker image and then installing
+# the extra tooling/targets we need.
+
+ ENV RUSTUP_HOME=/usr/local/rustup \
+     CARGO_HOME=/usr/local/cargo \
+     PATH=/usr/local/cargo/bin:$PATH \
+     RUST_VERSION=1.56.0
+
+ COPY --from=rust:1.56.0 /usr/local/rustup /usr/local/rustup
+ COPY --from=rust:1.56.0 /usr/local/cargo /usr/local/cargo
+ RUN set -eux \
+     rustup component add rustfmt clippy; \
+     chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
+     rustup --version; \
+     cargo --version; \
+     rustup target add i686-unknown-linux-gnu; \
+     rustup target add arm-unknown-linux-gnueabihf; \
+     rustup target add aarch64-unknown-linux-gnu; \
+     rustup target list | grep installed; \
+     rustc --version;
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
