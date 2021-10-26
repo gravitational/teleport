@@ -273,7 +273,10 @@ func (p *Proxy) Serve(ctx context.Context) error {
 				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
 					p.log.WithError(cerr).Warnf("Failed to close client connection.")
 				}
-				if !utils.IsOKNetworkError(err) {
+
+				if trace.IsBadParameter(err) {
+					p.log.Warnf("Failed to handle client connection: %v", err)
+				} else if !utils.IsOKNetworkError(err) {
 					p.log.WithError(err).Warnf("Failed to handle client connection.")
 				}
 			}
@@ -445,9 +448,12 @@ func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHe
 
 // getHandleDescBasedOnALPNVal returns the HandlerDesc base on ALPN field read from ClientHelloInfo message.
 func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
-	// Add the HTTP protocol as a default protocol. If the server doesn't support any of client protocol or
-	// clientHelloInfo.SupportedProtos list is empty the default HTTP handler will be returned.
-	clientProtocols := append(clientHelloInfo.SupportedProtos, string(common.ProtocolHTTP))
+	// Add the HTTP protocol as a default protocol. If client supported
+	// list is empty the default HTTP handler will be returned.
+	clientProtocols := clientHelloInfo.SupportedProtos
+	if len(clientProtocols) == 0 {
+		clientProtocols = []string{string(common.ProtocolHTTP)}
+	}
 
 	for _, v := range clientProtocols {
 		protocol := common.Protocol(v)

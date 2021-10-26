@@ -1042,6 +1042,29 @@ Kubernetes Tolerations to set for pod assignment.
   </TabItem>
 </Tabs>
 
+## `priorityClassName`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `string` | `""` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+
+Kubernetes PriorityClass to set for pod.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  priorityClassName: "system-cluster-critical"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set priorityClassName=system-cluster-critical
+  ```
+  </TabItem>
+</Tabs>
+
 ## ---
 
 ## `teleport-kube-agent`

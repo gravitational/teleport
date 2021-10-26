@@ -48,6 +48,12 @@ windows_desktop_service:
     # Plain text file containing the LDAP password for authentication.
     # This is usually the same password you use to login to the Domain Controller.
     password_file: /var/lib/ldap-pass
+  # (optional) settings for enabling automatic desktop discovery via LDAP
+  discovery:
+    # currently supported values:
+    # '*' to search from the root of the domain
+    # ''  to disable desktop discovery
+    base_dn: '*'
   # Rules for applying labels to Windows hosts based on regular expressions
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.

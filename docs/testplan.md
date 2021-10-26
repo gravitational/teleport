@@ -734,6 +734,13 @@ and non interactive tsh bench loads.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
 - [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
+- [ ] Verify AWS console access.
+  - [ ] Can log into AWS web console through the web UI.
+  - [ ] Can interact with AWS using `tsh aws` commands.
+- [ ] Verify dynamic registration.
+  - [ ] Can register a new app using `tctl create`.
+  - [ ] Can update registered app using `tctl create -f`.
+  - [ ] Can delete registered app using `tctl rm`.
 - [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all apps registered are shown
   - [ ] Verify that clicking on the app icon takes you to another tab
@@ -745,6 +752,7 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MongoDB.
+  - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
@@ -754,6 +762,7 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MongoDB.
+  - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
@@ -770,6 +779,14 @@ and non interactive tsh bench loads.
     - [ ] `db.session.start` is emitted when connection attempt is denied.
   - [ ] _(MongoDB only)_ Can only execute commands in databases from `db_names`.
     - [ ] `db.session.query` is emitted when command fails due to permissions.
+  - [ ] Can configure per-session MFA.
+    - [ ] MFA tap is required on each `tsh db connect`.
+- [ ] Verify dynamic registration.
+  - [ ] Can register a new database using `tctl create`.
+  - [ ] Can update registered database using `tctl create -f`.
+  - [ ] Can delete registered database using `tctl rm`.
+- [ ] Verify discovery.
+  - [ ] Can detect and register RDS instances and Aurora clusters.
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
