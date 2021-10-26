@@ -15,6 +15,33 @@ limitations under the License.
 */
 
 import makeUserContext from 'teleport/services/user/makeUserContext';
+import { Access, Acl } from 'teleport/services/user/types';
+
+const fullAccess: Access = {
+  list: true,
+  read: true,
+  edit: true,
+  create: true,
+  remove: true,
+};
+
+export const fullAcl: Acl = {
+  sshLogins: ['dev', 'root'],
+  windowsLogins: ['Administrator'],
+  tokens: fullAccess,
+  appServers: fullAccess,
+  kubeServers: fullAccess,
+  sessions: fullAccess,
+  authConnectors: fullAccess,
+  roles: fullAccess,
+  users: fullAccess,
+  trustedClusters: fullAccess,
+  events: fullAccess,
+  accessRequests: fullAccess,
+  billing: fullAccess,
+  dbServers: fullAccess,
+  desktops: fullAccess,
+};
 
 export const userContext = makeUserContext({
   authType: 'sso',
@@ -23,83 +50,7 @@ export const userContext = makeUserContext({
     suggestedReviewers: ['george_washington@gmail.com', 'chad'],
     requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],
   },
-  userAcl: {
-    tokens: {
-      list: true,
-      read: true,
-      create: true,
-    },
-    appServers: {
-      list: true,
-      read: true,
-    },
-    kubeServers: {
-      list: true,
-      read: true,
-      edit: false,
-      create: false,
-      remove: false,
-    },
-    sessions: {
-      list: true,
-      read: true,
-      edit: false,
-      create: false,
-      remove: false,
-    },
-    authConnectors: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      remove: true,
-    },
-    roles: { list: true, read: true, edit: true, create: true, remove: true },
-    users: { list: true, read: true, edit: true, create: true, remove: true },
-    trustedClusters: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      remove: true,
-    },
-    events: {
-      list: true,
-      read: true,
-      edit: false,
-      create: false,
-      remove: false,
-    },
-    accessRequests: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      remove: true,
-    },
-    sshLogins: ['dev', 'root'],
-    billing: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      remove: true,
-    },
-    dbServers: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      remove: true,
-    },
-    desktops: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      remove: true,
-    },
-  },
+  userAcl: fullAcl,
   cluster: {
     name: 'aws',
     lastConnected: '2020-09-26T17:30:23.512876876Z',

@@ -29,7 +29,7 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   const { attempt, run, setAttempt } = useAttempt('processing');
   const [isAddNodeVisible, setIsAddNodeVisible] = useState(false);
   const canCreate = ctx.storeUser.getTokenAccess().create;
-  const logins = ctx.storeUser.getLogins();
+  const logins = ctx.storeUser.getSshLogins();
 
   useEffect(() => {
     run(() => ctx.nodeService.fetchNodes(clusterId).then(setNodes));

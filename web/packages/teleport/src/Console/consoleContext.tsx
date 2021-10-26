@@ -148,7 +148,7 @@ export default class ConsoleContext {
     ]).then(values => {
       const [user, nodes] = values;
       return {
-        logins: user.acl.logins,
+        logins: user.acl.sshLogins,
         nodes,
       };
     });
