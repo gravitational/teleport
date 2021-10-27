@@ -1,6 +1,6 @@
 ---
 authors: Alan Parra (alan.parra@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 40 - WebAuthn Support
@@ -95,8 +95,7 @@ WebAuthn is backwards compatible with U2F in the sense that FIDO/CTAP1 devices,
 ie U2F-capable devices, are still supported. The main difference in
 implementations lies in the definition of the App ID / Relying Party ID (ie,
 "https://example.com:3080" vs "example.com"). The "appid" extension is the
-solution for this problem and seems to be well-supported for browsers
-(__TODO(codingllama):__ Verify for Firefox and Safari).
+solution for this problem and seems to be well-supported for browsers.
 
 Unfortunately, the appid extension is not without its issues.
 [As the standard itself says in item 2](https://www.w3.org/TR/webauthn/#sctn-appid-extension),
@@ -146,6 +145,10 @@ auth_service:
       attestation_allowed_cas: []
       # Optional.
       attestation_denied_cas:  []
+      # Disables WebAuthn for second_factor modes "on" and "optional", allowing
+      # a fallback to U2F.
+      # Optional.
+      disabled: false
 ```
 
 Changes to the `cluster_auth_preference` resource follow suite (no new resources
@@ -183,8 +186,8 @@ settings:
 			AuthenticatorAttachment: "",
 			// Not aiming at "usernameless"/"first-factor" authentication _yet_.
 			RequireResidentKey: false,
-			// User presence is what we're aiming at, verification is a bonus.
-			UserVerification: "preferred",
+			// Do not ask for verification, users already go through password authn.
+			UserVerification: "discouraged",
 		},
 
 		// General timeout for flows, defaults to 60s.
@@ -528,6 +531,11 @@ to safely talk to older Proxies (at least for a few releases).
 gRPC backwards compatibility is not a concern.
 
 #### WebAuthn user handle
+
+Implementation note: user handles are mainly used for resident keys, a WebAuthn
+feature we don't take advantage of (yet). This section is kept in the
+design/implementation for its future relevance, but user handles could be
+ignored by the current implementation without any downsides.
 
 WebAuthn requires the server to return a user handle (aka user ID) along with
 both registration and login challenges. The user handle is used by the
