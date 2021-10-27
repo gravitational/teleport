@@ -62,7 +62,7 @@ type AgentPool struct {
 	agents map[utils.NetAddr][]*Agent
 
 	// waitResult is a value that will be returned to the caller of Wait
-	result error
+	waitResult error
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -190,10 +190,13 @@ func (m *AgentPool) Wait() error {
 		return nil
 	}
 	<-m.ctx.Done()
-	return m.result
+	return m.waitResult
 }
 
-// processSeekEvents
+// processSeekEvents receives acquisition messages from the ProxyTracker
+// (i.e. "I've found a proxy that you may not know about") and routes the
+// new proxy address to the AgentPool, which will manage the connection
+// to that address.
 func (m *AgentPool) processSeekEvents() {
 	limiter := m.spawnLimiter.Clone()
 	for {
@@ -280,7 +283,6 @@ func (m *AgentPool) getReverseTunnelDetails(addr utils.NetAddr) *reverseTunnelDe
 	}
 	return agents[0].reverseTunnelDetails
 }
-
 
 // addAgent adds a new agent to the pool. Note that ownership of the lease
 // transfers into the AgentPool, and will be released whet the AgentPool

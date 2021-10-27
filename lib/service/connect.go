@@ -465,7 +465,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 		// If we have had a *lot* of failures very recently, then it's likely that our
 		// route to the auth server is gone. If we're using a tunnel then it's possible
 		// that the proxy has been reconfigured and the tunnel address has moved.
-		if count := errors.Push(); count > defaults.MaxConnectionErrorsBeforeRestart {
+		if count := errors.Increment(); count > defaults.MaxConnectionErrorsBeforeRestart {
 			// signal quit
 			process.log.Errorf("%d connection errors in %v. Triggering restart", count,
 				defaults.ConnectionErrorMeasurementPeriod)

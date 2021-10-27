@@ -24,7 +24,7 @@ import (
 
 // TimedCounted counts events that happen over a period of time, e.g. have there been
 // more than 4 errors in the last 30 seconds. Automatically expires old events so they
-// are not included in the count.
+// are not included in the count. Not safe for concurrent use.
 type TimedCounter struct {
 	clock   clockwork.Clock
 	timeout time.Duration
@@ -32,16 +32,16 @@ type TimedCounter struct {
 }
 
 // TimedCounted creates a new timed counter with the specified timeout
-func NewTimedCounter(clock clockwork.Clock, timeout time.Duration) TimedCounter {
-	return TimedCounter{
+func NewTimedCounter(clock clockwork.Clock, timeout time.Duration) *TimedCounter {
+	return &TimedCounter{
 		clock:   clock,
 		timeout: timeout,
 		events:  nil,
 	}
 }
 
-// Push adds a new item into the counter, returning the current count.
-func (c *TimedCounter) Push() int {
+// Increment adds a new item into the counter, returning the current count.
+func (c *TimedCounter) Increment() int {
 	c.trim()
 	c.events = append(c.events, c.clock.Now())
 	return len(c.events)
@@ -54,10 +54,15 @@ func (c *TimedCounter) Count() int {
 
 func (c *TimedCounter) trim() {
 	deadline := c.clock.Now().Add(-c.timeout)
-	for len(c.events) > 0 {
-		if c.events[0].After(deadline) {
+	lastExpiredEvent := -1
+	for i := range c.events {
+		if c.events[i].After(deadline) {
 			break
 		}
-		c.events = c.events[1:]
+		lastExpiredEvent = i
+	}
+
+	if lastExpiredEvent > -1 {
+		c.events = c.events[lastExpiredEvent+1:]
 	}
 }
