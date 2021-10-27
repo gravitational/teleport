@@ -306,7 +306,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		}
 	}
 	var opts []ConnectCommandFunc
-	if tc.ALPNSNIListenerEnabled {
+	if tc.TLSRoutingEnabled {
 		lp, err := startLocalALPNSNIProxy(cf, tc, database.Protocol)
 		if err != nil {
 			return trace.Wrap(err)

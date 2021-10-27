@@ -1329,6 +1329,13 @@ func triggerLoginLock(t *testing.T, srv *Server, username string) {
 			OTP:      &OTPCreds{},
 		})
 		require.True(t, trace.IsAccessDenied(err))
+
+		// Test last attempt returns locked error.
+		if i == defaults.MaxLoginAttempts {
+			require.Equal(t, err.Error(), MaxFailedAttemptsErrMsg)
+		} else {
+			require.NotEqual(t, err.Error(), MaxFailedAttemptsErrMsg)
+		}
 	}
 }
 

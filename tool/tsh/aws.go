@@ -129,10 +129,6 @@ func genAndSetAWSCredentials() (*credentials.Credentials, error) {
 }
 
 func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *credentials.Credentials, localCerts tls.Certificate) (*alpnproxy.LocalProxy, error) {
-	if !tc.ALPNSNIListenerEnabled {
-		return nil, trace.NotFound("remote Teleport Proxy doesn't support AWS CLI access protocol")
-	}
-
 	awsApp, err := pickActiveAWSApp(cf)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -159,7 +155,7 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocol:           alpncommon.ProtocolAWSCLI,
+		Protocol:           alpncommon.ProtocolHTTP,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
