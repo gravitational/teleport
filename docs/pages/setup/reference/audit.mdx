@@ -78,22 +78,73 @@ format:
 
 The possible event types are:
 
-| Event Type | Description |
-| - | - |
-| auth | Authentication attempt. Adds the following fields: `{"success": "false", "error": "access denied"}` |
-| session.start | Started an interactive shell session. |
-| session.end | An interactive shell session has ended. |
-| session.join | A new user has joined the existing interactive shell session. |
-| session.leave | A user has left the session. |
-| session.disk | A list of files opened during the session. *Requires Enhanced Session Recording*. |
-| session.network | A list of network connections made during the session.  *Requires Enhanced Session Recording*. |
-| session.command | A list of commands ran during the session.  *Requires Enhanced Session Recording*. |
-| exec | Remote command has been executed via SSH, like `tsh ssh root@node ls /`. The following fields will be logged: `{"command": "ls /", "exitCode": 0, "exitError": ""}` |
-| scp | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }` |
-| resize | Terminal has been resized. |
-| user.login | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}` . |
-| app.session.start | A user accessed an application |
-| app.session.chunk | A record of activity during an app session |
+| Event Type                    | Description |
+|-------------------------------|-------------|
+| access_request.create         | An Access Request has been created. |
+| access_request.review         | An Access Request reviewer has submitted approval or denial. |
+| access_request.update         | Access Request state has been updated, for example from `PENDING` to `APPROVED`.|
+| app.create                    | A web application has been added to Application Access. |
+| app.delete                    | A web application has been deleted from Application Access. |
+| app.session.chunk             | A record of activity during an app session. |
+| app.session.request           | A web application request and response has been proxied. |
+| app.session.start             | A user accessed an application. |
+| app.update                    | A web application has been updated in Application Access. |
+| auth                          | Authentication attempt. Adds the following fields: `{"success": "false", "error": "access denied"}` |
+| billing.create_card           | A credit card has been added added to a Teleport Cloud account. |
+| billing.delete_card           | A credit card has been deleted from a Teleport Cloud account. |
+| billing.update_card           | A credit card has been updated in a Teleport Cloud account. |
+| billing.update_info           | Billing account information for a Teleport Cloud account has been updated. |
+| client.disconnect             | Emitted when a client is disconnected by the server due to inactivity or any other reason. |
+| db.create                     | A database has been added to Database Access. |
+| db.delete                     | A database has been deleted from Database Access. |
+| db.session.end                | Client has disconnected from a database. |
+| db.session.query              | Client has executed a query against a database. |
+| db.session.query.failed       | Client has executed a database query/command that was unsuccessful. |
+| db.session.start              | Client has connected to a database. |
+| db.update                     | A database has been updaed in Database Access. |
+| exec                          | Remote command has been executed via SSH, like `tsh ssh root@node ls /`. The following fields will be logged: `{"command": "ls /", "exitCode": 0, "exitError": ""}` |
+| github.created                | A [GitHub connector](https://goteleport.com/resources/guides/using-github-for-sso/) has been created. |
+| github.deleted                | A [GitHub connector](https://goteleport.com/resources/guides/using-github-for-sso/) has been deleted. |
+| kube.request                  | Client has issued a generic (non `kubectl exec`) Kubernetes Access request. |
+| lock.created                  | A [session or identity lock](https://goteleport.com/docs/access-controls/guides/locking/) has been created. |
+| lock.deleted                  | A [session or identity lock](https://goteleport.com/docs/access-controls/guides/locking/) has been deleted. |
+| mfa.add                       | A MFA device has been added to a user. |
+| mfa.delete                    | A MFA device has been removed from a user. |
+| oidc.created                  | A [OIDC connector](https://goteleport.com/docs/enterprise/sso/oidc/) has been created. |
+| oidc.deleted                  | A [OIDC connector](https://goteleport.com/docs/enterprise/sso/oidc/) has been deleted. |
+| port                          | Client has requested SSH port forwarding. |
+| privilege_token.create        | A user privilege token has been created. |
+| recovery_code.generated       | A recovery token has been generated. |
+| recovery_code.used            | A recovery token has been used. |
+| recovery_token.create         | A recovery code has been created.|
+| reset_password_token.create   | A password reset token has been created. |
+| resize                        | Terminal has been resized. |
+| role.created                  | A role has been added within Teleport. |
+| role.deleted                  | A role has been deleted within Teleport. |
+| saml.created                  | A [SAML connector](https://goteleport.com/docs/enterprise/sso/okta/) has been added. |
+| saml.deleted                  | A [SAML connector](https://goteleport.com/docs/enterprise/sso/okta/) has been deleted. |
+| scp                           | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }` |
+| session.command               | A list of commands ran during the session.  *Requires Enhanced Session Recording*. |
+| session.data                  | Emitted at the end of a session, contains how much data was transmitted and received during the session. |
+| session.disk                  | A list of files opened during the session. *Requires Enhanced Session Recording*. |
+| session.end                   | An interactive shell session has ended.  |
+| session.join                  | A new user has joined the existing interactive shell session. |
+| session.leave                 | A user has left the session. |
+| session.network               | A list of network connections made during the session.  *Requires Enhanced Session Recording*. |
+| session.start                 | Started an interactive shell session. |
+| session.upload                | Emitted when a session recording upload to an external service is complete. |
+| session.rejected              | Emitted when a user's attempts to create an session has been rejected due to [session control limits](https://goteleport.com/blog/ssh-session-control/). |
+| subsystem                     | A SSH subsystem request has been handled. An example subsystem request would be `sftp`. |
+| trusted_cluster.create        | A [Trusted Cluser](https://goteleport.com/docs/setup/admin/trustedclusters/) has been created. |
+| trusted_cluster.delete        | A [Trusted Cluser](https://goteleport.com/docs/setup/admin/trustedclusters/) has been deleted. |
+| trusted_cluster_token.create  | A [Trusted Cluser](https://goteleport.com/docs/setup/admin/trustedclusters/) join token has been created. |
+| user.create                   | A user has been created within Teleport. |
+| user.delete                   | A user has been deleted within Teleport.  |
+| user.login                    | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}`. |
+| user.password_change          | A non-SSO users password has changed. |
+| user.update                   | A user has been updated within Teleport.  |
+| windows.desktop.session.end   | A Windows Desktop Access session has ended. |
+| windows.desktop.session.start | A Windows Desktop Access session has started. |
 
 ## Recorded sessions
 
