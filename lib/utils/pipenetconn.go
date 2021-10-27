@@ -19,11 +19,20 @@ package utils
 import (
 	"io"
 	"net"
+	"sync"
 	"time"
 )
 
-// PipeNetConn implemetns net.Conn from io.Reader,io.Writer and io.Closer
+// PipeNetConn implements net.Conn from a provided io.Reader,io.Writer and
+// io.Closer
 type PipeNetConn struct {
+	// Locks writing and closing the connection. If both writer & closer refer
+	// to the same underlying object, simultaneous write and close operations
+	// introduce a data race (*especially* if that object is a
+	// `x/crypto/ssh.channel`), so we will use this mutex to serialize write
+	// and close operations.
+	mu sync.Mutex
+
 	reader     io.Reader
 	writer     io.Writer
 	closer     io.Closer
@@ -31,8 +40,9 @@ type PipeNetConn struct {
 	remoteAddr net.Addr
 }
 
-// NewPipeNetConn returns a net.Conn like object
-// using Pipe as an underlying implementation over reader, writer and closer
+// NewPipeNetConn constructs a new PipeNetConn, providing a net.Conn
+// implementation synthesized from the supplied io.Reader, io.Writer &
+// io.Closer.
 func NewPipeNetConn(reader io.Reader,
 	writer io.Writer,
 	closer io.Closer,
@@ -53,10 +63,16 @@ func (nc *PipeNetConn) Read(buf []byte) (n int, e error) {
 }
 
 func (nc *PipeNetConn) Write(buf []byte) (n int, e error) {
+	nc.mu.Lock()
+	defer nc.mu.Unlock()
+
 	return nc.writer.Write(buf)
 }
 
 func (nc *PipeNetConn) Close() error {
+	nc.mu.Lock()
+	defer nc.mu.Unlock()
+
 	if nc.closer != nil {
 		return nc.closer.Close()
 	}
