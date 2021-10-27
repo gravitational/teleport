@@ -1,0 +1,15 @@
+on:
+  push:
+    # Trigger the workflow on push only to the master branch. 
+    branches:
+      - master
+    # Trigger the workflow on push only with changes to docs. 
+    paths: 
+      - docs
+jobs:
+  backport-tester:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Backport Docs Event
+        run: cat ${{ github.GITHUB_EVENT_PATH }}
