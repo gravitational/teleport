@@ -8,6 +8,7 @@ export enum MessageType {
   KEYBOARD_BUTTON = 5,
   CLIPBOARD_DATA = 6,
   CLIENT_USERNAME = 7,
+  MOUSE_WHEEL_SCROLL = 8,
 }
 
 // 0 is left button, 1 is middle button, 2 is right button
@@ -16,6 +17,11 @@ export type MouseButton = 0 | 1 | 2;
 export enum ButtonState {
   UP = 0,
   DOWN = 1,
+}
+
+export enum ScrollAxis {
+  VERTICAL = 0,
+  HORIZONTAL = 1,
 }
 
 // Region represents a rectangular region of a screen in pixel coordinates via
@@ -261,6 +267,19 @@ export default class Codec {
       view.setUint8(offset++, byte);
     });
 
+    return buffer;
+  }
+
+  // encodeMouseWheelScroll encodes a mouse wheel scroll event.
+  // on vertical axis, positive delta is up, negative delta is down
+  // on horizontal axis, positive delta is left, negative delta is right
+  // | message type (8) | axis byte | delta int16
+  encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message {
+    const buffer = new ArrayBuffer(4);
+    const view = new DataView(buffer);
+    view.setUint8(0, MessageType.MOUSE_WHEEL_SCROLL);
+    view.setUint8(1, axis);
+    view.setUint16(2, delta);
     return buffer;
   }
 

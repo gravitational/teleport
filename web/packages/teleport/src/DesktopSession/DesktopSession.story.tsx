@@ -66,6 +66,7 @@ const props: State = {
   onMouseMove: (cli: TdpClient, canvas: HTMLCanvasElement, e: MouseEvent) => {},
   onMouseDown: (cli: TdpClient, e: MouseEvent) => {},
   onMouseUp: (cli: TdpClient, e: MouseEvent) => {},
+  onMouseWheelScroll: (cli: TdpClient, e: WheelEvent) => {},
 };
 
 export const Processing = () => (

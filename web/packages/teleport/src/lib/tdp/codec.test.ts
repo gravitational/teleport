@@ -1,5 +1,10 @@
 const { TextEncoder } = require('util');
-import Codec, { MessageType, ButtonState, MouseButton } from './codec';
+import Codec, {
+  MessageType,
+  ButtonState,
+  MouseButton,
+  ScrollAxis,
+} from './codec';
 
 // Use nodejs TextEncoder until jsdom adds support for TextEncoder (https://github.com/jsdom/jsdom/issues/2524)
 window.TextEncoder = window.TextEncoder || TextEncoder;
@@ -99,6 +104,16 @@ test('encodes utf8 characters correctly up to 3 bytes for username and password'
   first3RangesUTF8.forEach(byte => {
     expect(view.getUint8(offset++)).toEqual(byte);
   });
+});
+
+test('encodes mouse wheel scroll event', () => {
+  const axis = ScrollAxis.VERTICAL;
+  const delta = 860;
+  const message = codec.encodeMouseWheelScroll(axis, delta);
+  const view = new DataView(message);
+  expect(view.getUint8(0)).toEqual(MessageType.MOUSE_WHEEL_SCROLL);
+  expect(view.getUint8(1)).toEqual(axis);
+  expect(view.getUint16(2)).toEqual(delta);
 });
 
 function makeBufView(type: MessageType, size = 100) {

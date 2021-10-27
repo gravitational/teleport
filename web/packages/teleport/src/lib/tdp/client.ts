@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import { EventEmitter } from 'events';
-import Codec, { MessageType, MouseButton, ButtonState } from './codec';
+import Codec, {
+  MessageType,
+  MouseButton,
+  ButtonState,
+  ScrollAxis,
+} from './codec';
 import Logger from 'shared/libs/logger';
 
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
@@ -113,6 +118,10 @@ export default class Client extends EventEmitter {
 
   sendMouseButton(button: MouseButton, state: ButtonState) {
     this.socket.send(this.codec.encodeMouseButton(button, state));
+  }
+
+  sendMouseWheelScroll(axis: ScrollAxis, delta: number) {
+    this.socket.send(this.codec.encodeMouseWheelScroll(axis, delta));
   }
 
   sendKeyboardInput(code: string, state: ButtonState) {
