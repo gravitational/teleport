@@ -798,7 +798,7 @@ and non interactive tsh bench loads.
 - [ ]Verify that teleport proxy `v2` configuration starts only a single listener.
   ```
   version: v2
-  teleporot:
+  teleport:
     proxy_service:
       enabled: "yes"
       public_addr: ['root.example.com']
