@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package 'config' provides facilities for configuring Teleport daemons
+// Package config provides facilities for configuring Teleport daemons
 // including
 //	- parsing YAML configuration
 //	- parsing CLI flags
@@ -36,6 +36,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -293,6 +294,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	// Logging configuration has already been validated above
 	_ = applyLogConfig(fc.Logger, log.StandardLogger())
 
+	if fc.CachePolicy.TTL != "" {
+		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
+
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
 	if err != nil {
@@ -361,6 +366,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			})
 		}
 	}
+
+	applyConfigVersion(fc, cfg)
 
 	// Apply configuration for "auth_service", "proxy_service", "ssh_service",
 	// and "app_service" if they are enabled.
@@ -565,6 +572,8 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
+		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
+		RoutingStrategy:          fc.Auth.RoutingStrategy,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -751,7 +760,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	case legacyKube && newKube:
 		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
-		// Nothing enabled, this is just for completeness.
+		if fc.Version == defaults.TeleportConfigVersionV2 {
+			// Always enable kube service if using config V2 (TLS routing is supported)
+			cfg.Proxy.Kube.Enabled = true
+		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
 		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
@@ -809,7 +821,31 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
+	applyDefaultProxyListenerAddresses(cfg)
+
 	return nil
+}
+
+func applyDefaultProxyListenerAddresses(cfg *service.Config) {
+	if cfg.Version == defaults.TeleportConfigVersionV2 {
+		// For v2 configuration if an address is not provided don't fallback to the default values.
+		return
+	}
+
+	// For v1 configuration check if address was set in config file if
+	// not fallback to the default listener address.
+	if cfg.Proxy.WebAddr.IsEmpty() {
+		cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
+	}
+	if cfg.Proxy.SSHAddr.IsEmpty() {
+		cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
+	}
+	if cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
+		cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnelListenAddr()
+	}
+	if cfg.Proxy.Kube.ListenAddr.IsEmpty() && cfg.Proxy.Kube.Enabled {
+		cfg.Proxy.Kube.ListenAddr = *defaults.KubeProxyListenAddr()
+	}
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
@@ -1153,6 +1189,14 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.WindowsDesktop.ListenAddr = *listenAddr
 	}
+
+	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
+		if _, err := ldap.CompileFilter(ldap.EscapeFilter(filter)); err != nil {
+			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
+		}
+	}
+	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
+
 	var err error
 	cfg.WindowsDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
 	if err != nil {
@@ -1399,6 +1443,15 @@ func applyString(src string, target *string) bool {
 		return true
 	}
 	return false
+}
+
+// applyConfigVersion applies config version from parsed file. If config version is not
+// present the v1 version will be used as default.
+func applyConfigVersion(fc *FileConfig, cfg *service.Config) {
+	cfg.Version = defaults.TeleportConfigVersionV1
+	if fc.Version != "" {
+		cfg.Version = fc.Version
+	}
 }
 
 // Configure merges command line arguments with what's in a configuration file

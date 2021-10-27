@@ -1,0 +1,42 @@
+# Workflow will trigger on all pull request (except draft), pull request review, and commit push to a 
+# pull request (synchronize) event types
+# 
+# NOTE: pull_request_target behaves the same as pull_request except it grants a
+# read/write token to workflows running on a pull request from a fork. While this 
+# may seem unsafe, we are limiting the permissions of the Github token below.
+name: Check
+on: 
+  pull_request_review:
+    type: [submitted, edited, dismissed]
+  pull_request_target: 
+    types: [assigned, opened, reopened, ready_for_review, synchronize]
+# Limit the permissions on the GitHub token for this workflow to the subset
+# that is required. In this case, the check workflow needs to invalidate
+# reviews and delete workflow runs, so it needs write access to "actions" and
+# "pull-requests", nothing else.
+permissions:  
+    actions: write
+    pull-requests: write
+    checks: none
+    contents: none
+    deployments: none
+    issues: none
+    packages: none
+    repository-projects: none
+    security-events: none
+    statuses: none
+
+jobs: 
+  check-reviews:
+    name: Checking reviewers 
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout master branch of Teleport repository. This is to prevent an
+      # attacker from submitting their own review assignment logic. 
+      - name: Checkout master branch 
+        uses: actions/checkout@master
+      - name: Installing the latest version of Go.
+        uses: actions/setup-go@v2
+        # Run "check-reviewers" subcommand on bot.
+      - name: Checking reviewers
+        run: cd .github/workflows/ci && go run cmd/main.go --token=${{ secrets.GITHUB_TOKEN }} --reviewers=${{ secrets.reviewers }} check-reviewers

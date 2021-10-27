@@ -82,44 +82,81 @@ func readInput(input io.Reader, ch chan<- TestEvent) {
 }
 
 type packageOutput struct {
-	output     []string
-	testOutput map[string][]string
+	output         []string
+	subtestOutput  map[string][]string
+	failedSubtests map[string][]string
 }
 
-type outputMap map[string]*packageOutput
-
-func newOutputMap() outputMap {
-	return make(map[string]*packageOutput)
+func (pkg *packageOutput) FailedTests() []string {
+	result := []string{}
+	for testName := range pkg.failedSubtests {
+		result = append(result, testName)
+	}
+	sort.Strings(result)
+	return result
 }
 
-func (m outputMap) record(event TestEvent) {
+type outputMap struct {
+	pkgs         map[string]*packageOutput
+	actionCounts map[string]int
+}
+
+func newOutputMap() *outputMap {
+	return &outputMap{
+		pkgs:         make(map[string]*packageOutput),
+		actionCounts: make(map[string]int),
+	}
+}
+
+func (m *outputMap) record(event TestEvent) {
+	m.actionCounts[event.Action]++
+
 	var pkgOutput *packageOutput
 	var exists bool
-	if pkgOutput, exists = m[event.Package]; !exists {
-		pkgOutput = &packageOutput{testOutput: make(map[string][]string)}
-		m[event.Package] = pkgOutput
+	if pkgOutput, exists = m.pkgs[event.Package]; !exists {
+		pkgOutput = &packageOutput{
+			subtestOutput:  make(map[string][]string),
+			failedSubtests: make(map[string][]string),
+		}
+		m.pkgs[event.Package] = pkgOutput
 	}
 
-	pkgOutput.output = append(pkgOutput.output, event.Output)
+	switch event.Action {
+	case actionOutput:
+		pkgOutput.output = append(pkgOutput.output, event.Output)
+		if event.Test != "" {
+			pkgOutput.subtestOutput[event.Test] = append(pkgOutput.subtestOutput[event.Test], event.Output)
+		}
 
-	if event.Test != "" {
-		pkgOutput.testOutput[event.Test] = append(pkgOutput.testOutput[event.Test], event.Output)
+	case actionFail:
+		// If this is a single test result
+		if event.Test != "" {
+			pkgOutput.failedSubtests[event.Test] = pkgOutput.subtestOutput[event.Test]
+		} else {
+			// If this is a package result, we only want to preserve the package output if
+			// there are no failed subtests
+			if len(pkgOutput.failedSubtests) > 0 {
+				pkgOutput.output = nil
+			}
+		}
+		fallthrough
+
+	case actionPass, actionSkip:
+		delete(pkgOutput.subtestOutput, event.Test)
 	}
 }
 
-func (m outputMap) playback(pkgName, testName string) []string {
-	pkg := m[pkgName]
-	if testName == "" {
-		return pkg.output
-	}
+func (m *outputMap) getPkg(pkgName string) *packageOutput {
+	return m.pkgs[pkgName]
+}
 
-	return pkg.testOutput[testName]
+func (m *outputMap) deletePkg(pkgName string) {
+	delete(m.pkgs, pkgName)
 }
 
 func main() {
 	testOutput := newOutputMap()
-	failedTests := make(map[string][]string)
-	actionCounts := make(map[string]int)
+	failedPackages := make(map[string]*packageOutput)
 	coverage := make(map[string]float64)
 
 	events := make(chan TestEvent)
@@ -143,20 +180,26 @@ func main() {
 
 			testName := event.FullName()
 
-			switch event.Action {
-			case actionOutput:
-				if matches := covPattern.FindStringSubmatch(event.Output); len(matches) != 0 {
-					value, err := strconv.ParseFloat(matches[1], 64)
-					if err != nil {
-						panic("Malformed coverage value: " + err.Error())
-					}
-					coverage[testName] = value
-				}
-				testOutput.record(event)
+			testOutput.record(event)
 
-			case actionPass, actionFail, actionSkip:
-				// If this is a whole-package summary result
-				if event.Test == "" {
+			// if this is whole-package summary result
+			if event.Test == "" {
+				switch event.Action {
+				case actionOutput:
+					if matches := covPattern.FindStringSubmatch(event.Output); len(matches) != 0 {
+						value, err := strconv.ParseFloat(matches[1], 64)
+						if err != nil {
+							panic("Malformed coverage value: " + err.Error())
+						}
+						coverage[testName] = value
+					}
+
+				case actionFail:
+					// cache the failed test output
+					failedPackages[event.Package] = testOutput.getPkg(event.Package)
+					fallthrough
+
+				case actionPass, actionSkip:
 					// extract and format coverage value
 					covText := "------"
 					if covValue, ok := coverage[testName]; ok {
@@ -165,21 +208,10 @@ func main() {
 
 					// only display package results as progress messages
 					fmt.Printf("%s %s: %s\n", covText, event.Action, event.Package)
+
+					// Don't need this no more
+					testOutput.deletePkg(event.Package)
 				}
-
-				// packages results don't count towards our test count.
-				actionCounts[event.Action]++
-
-				// we want to preserve the log of our failed tests for
-				// later examination
-				if event.Action == actionFail {
-					failedTests[testName] = testOutput.playback(event.Package, event.Test)
-				}
-
-				// we don't need the test output any more, it's either in the
-				// errors collection, or the test passed and we don't need to
-				// display it.
-				delete(testOutput, testName)
 			}
 		}
 	}
@@ -187,34 +219,60 @@ func main() {
 	fmt.Println(separator)
 
 	fmt.Printf("%d tests passed. %d failed, %d skipped\n",
-		actionCounts[actionPass], actionCounts[actionFail], actionCounts[actionSkip])
+		testOutput.actionCounts[actionPass], testOutput.actionCounts[actionFail], testOutput.actionCounts[actionSkip])
 
 	fmt.Println(separator)
 
-	if len(failedTests) == 0 {
+	if len(failedPackages) == 0 {
 		fmt.Println("All tests pass. Yay!")
 		os.Exit(0)
 	}
 
-	names := make([]string, 0, len(failedTests))
-	for k := range failedTests {
+	// Generate a sorted list of package names, so that we present the
+	// packages that fail in a repeatable order.
+	names := make([]string, 0, len(failedPackages))
+	for k := range failedPackages {
 		names = append(names, k)
 	}
 	sort.Strings(names)
 
-	for _, testName := range names {
-		fmt.Printf("FAIL: %s\n", testName)
-	}
+	// Print a summary list of the failed tests and packages.
+	for _, pkgName := range names {
+		pkg := failedPackages[pkgName]
 
-	for _, testName := range names {
-		fmt.Println(separator)
-		fmt.Printf("TEST %s OUTPUT\n", testName)
-		fmt.Println(separator)
-		for _, l := range failedTests[testName] {
-			fmt.Print(l)
+		fmt.Printf("FAIL: %s\n", pkgName)
+
+		for testName := range pkg.failedSubtests {
+			fmt.Printf("FAIL: %s.%s\n", pkgName, testName)
 		}
 	}
 
-	fmt.Println("Exiting with error!")
+	fmt.Println(separator)
+
+	// Print the output of each failed package or test. Note that we only print
+	// the package output if there is no identifiable test that caused the
+	// failure, as it will probably swamp the individual test output.
+	for _, pkgName := range names {
+		pkg := failedPackages[pkgName]
+
+		if len(pkg.failedSubtests) == 0 {
+			fmt.Printf("OUTPUT %s\n", pkgName)
+			fmt.Println(separator)
+			for _, l := range pkg.output {
+				fmt.Print(l)
+			}
+			fmt.Println(separator)
+		} else {
+			for _, testName := range pkg.FailedTests() {
+				fmt.Printf("OUTPUT %s.%s\n", pkgName, testName)
+				fmt.Println(separator)
+				for _, l := range pkg.failedSubtests[testName] {
+					fmt.Print(l)
+				}
+				fmt.Println(separator)
+			}
+		}
+	}
+
 	os.Exit(1)
 }

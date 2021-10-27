@@ -638,6 +638,9 @@ type appTestOptions struct {
 	userTraits       map[string][]string
 	rootClusterPorts *InstancePorts
 	leafClusterPorts *InstancePorts
+
+	rootConfig func(config *service.Config)
+	leafConfig func(config *service.Config)
 }
 
 // setup configures all clusters and servers needed for a test.
@@ -801,6 +804,9 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.Apps.Enabled = false
+	if opts.rootConfig != nil {
+		opts.rootConfig(rcConf)
+	}
 
 	lcConf := service.MakeDefaultConfig()
 	lcConf.Console = nil
@@ -815,6 +821,9 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.SSH.Enabled = false
 	lcConf.Apps.Enabled = false
+	if opts.rootConfig != nil {
+		opts.rootConfig(lcConf)
+	}
 
 	err = p.leafCluster.CreateEx(t, p.rootCluster.Secrets.AsSlice(), lcConf)
 	require.NoError(t, err)

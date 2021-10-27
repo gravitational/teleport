@@ -545,24 +545,11 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 	if namespace == "" {
 		return nil, trace.BadParameter(auth.MissingNamespaceError)
 	}
-	nodes := make([]types.Server, 0)
 	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	siteNodes, err := site.GetNodes(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// look at every node on this site and see which ones match:
-	for _, node := range siteNodes {
-		if node.MatchAgainst(labels) {
-			nodes = append(nodes, node)
-		}
-	}
-	return nodes, nil
+	return auth.GetNodesWithLabels(ctx, site, namespace, labels)
 }
 
 // GetAppServers returns a list of application servers.
@@ -726,9 +713,9 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
-	// If proxy supports ALPN SNI listener dial root/leaf cluster auth service via ALPN Proxy
+	// If proxy supports multiplex listener mode dial root/leaf cluster auth service via ALPN Proxy
 	// directly without using SSH tunnels.
-	if proxy.teleportClient.ALPNSNIListenerEnabled {
+	if proxy.teleportClient.TLSRoutingEnabled {
 		clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)

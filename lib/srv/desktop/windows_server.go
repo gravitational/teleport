@@ -116,6 +116,10 @@ type WindowsServiceConfig struct {
 	HostLabelsFn func(host string) map[string]string
 	// LDAPConfig contains parameters for connecting to an LDAP server.
 	LDAPConfig
+	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
+	// Desktop discovery is disabled if this field is empty.
+	DiscoveryBaseDN string
+	// TODO(zmb3): add support for LDAP filters as defined in RFD #34
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -323,9 +327,17 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.startDiscoveredHostHeartbeats(); err != nil {
-		s.Close()
-		return nil, trace.Wrap(err)
+	// for now, the only valid base DN is '*'
+	// TODO(zmb3): allow further customizing the search
+	if s.cfg.DiscoveryBaseDN == types.Wildcard {
+		if err := s.startDiscoveredHostHeartbeats(); err != nil {
+			s.Close()
+			return nil, trace.Wrap(err)
+		}
+	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 {
+		s.cfg.Log.Warnln("desktop discovery via LDAP is disabled, and no hosts are defined in the configuration; there will be no Windows desktops available to connect")
+	} else {
+		s.cfg.Log.Infoln("desktop discovery via LDAP is disabled, set 'base_dn: *' to enable")
 	}
 
 	return s, nil
@@ -430,12 +442,11 @@ func (s *WindowsService) startDiscoveredHostHeartbeats() error {
 // dynamicHostHeartbeatInfo generates the Windows Desktop resource
 // for heartbeating hosts discovered via LDAP
 func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.Resource, error) {
-	name := entry.GetAttributeValue(attrName)
 	hostname := entry.GetAttributeValue(attrDNSHostName)
 
 	labels := getHostLabels(hostname)
-	labels["teleport.dev/computer_name"] = name
 	labels["teleport.dev/dns_host_name"] = hostname
+	labels["teleport.dev/computer_name"] = entry.GetAttributeValue(attrName)
 	labels["teleport.dev/os"] = entry.GetAttributeValue(attrOS)
 	labels["teleport.dev/os_version"] = entry.GetAttributeValue(attrOSVersion)
 	labels["teleport.dev/windows_domain"] = s.cfg.Domain
@@ -453,7 +464,9 @@ func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ld
 	}
 
 	desktop, err := types.NewWindowsDesktopV3(
-		hostname,
+		// ensure no '.' in name, because we use SNI to route to the right
+		// desktop, and our cert is valid for *.desktop.teleport.cluster.local
+		strings.ReplaceAll(hostname, ".", "-"),
 		labels,
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),
