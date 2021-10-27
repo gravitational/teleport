@@ -66,10 +66,14 @@ endif
 endif
 
 # Check if rust and cargo are installed before compiling
-with_roletester := no
-ROLETESTER_ENT_MESSAGE := "without access tester"
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
+
+with_roletester := no
+ROLETESTER_ENT_MESSAGE := "without access tester"
+
+with_rdpclient := no
+RDPCLIENT_ENT_MESSAGE := "without Windows RDP client"
 
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
@@ -84,6 +88,10 @@ ifneq ($(CHECK_CARGO),)
 with_roletester := yes
 ROLETESTER_ENT_MESSAGE := "with access tester"
 ROLETESTER_TAG := roletester
+
+with_rdpclient := yes
+RDPCLIENT_ENT_MESSAGE := "with Windows RDP client"
+RDPCLIENT_TAG := desktop_access_rdp
 endif
 endif
 
@@ -99,7 +107,7 @@ ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
-RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_ENT_MESSAGE) and $(FIPS_ENT_MESSAGE) and $(BPF_ENT_MESSAGE) and $(ROLETESTER_ENT_MESSAGE)."
+RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_ENT_MESSAGE) and $(FIPS_ENT_MESSAGE) and $(BPF_ENT_MESSAGE) and $(ROLETESTER_ENT_MESSAGE) and $(RDPCLIENT_ENT_MESSAGE)."
 
 # All build Enterprise version of "teleport" and "tctl" binaries and copy
 # over tsh from OSS.
@@ -119,7 +127,7 @@ $(BUILDDIR)/tctl: roletester
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: bpf-bytecode-e ensure-webassets-e teleport-fips-check
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
