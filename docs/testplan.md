@@ -795,7 +795,7 @@ and non interactive tsh bench loads.
 
 ## TLS Routing
 
-- [ ]Verify that teleport proxy `v2` configuration starts only a single listener.
+- [ ] Verify that teleport proxy `v2` configuration starts only a single listener.
   ```
   version: v2
   teleport:
