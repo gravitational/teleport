@@ -281,6 +281,7 @@ endif
 .PHONY: clean
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
+	rm -rf build.assets/build
 	rm -rf $(BUILDDIR)
 	rm -rf $(ER_BPF_BUILDDIR)
 	rm -rf $(RS_BPF_BUILDDIR)
@@ -441,10 +442,8 @@ test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
 	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
-		| tee tests-unit.json \
 		| go run build.assets/render-tests/main.go
-	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover \
-		| tee -a tests-unit.json \
+	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(DESKTOP_ACCESS_BETA_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| go run build.assets/render-tests/main.go
 
 #
