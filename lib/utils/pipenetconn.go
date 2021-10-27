@@ -23,9 +23,15 @@ import (
 	"time"
 )
 
-// PipeNetConn implements net.Conn from io.Reader,io.Writer and io.Closer
+// PipeNetConn implements net.Conn from a provided io.Reader,io.Writer and
+// io.Closer
 type PipeNetConn struct {
-	mu sync.RWMutex
+	// Locks writing and closing the connection. If both writer & closer refer
+	// to the same underlying object, simultaneous write and close operations
+	// introduce a data race (*especially* if that object is a
+	// `x/crypto/ssh.channel`), so we will use this mutex to serialize write
+	// and close operations.
+	mu sync.Mutex
 
 	reader     io.Reader
 	writer     io.Writer
@@ -53,9 +59,6 @@ func NewPipeNetConn(reader io.Reader,
 }
 
 func (nc *PipeNetConn) Read(buf []byte) (n int, e error) {
-	nc.mu.RLock()
-	defer nc.mu.RUnlock()
-
 	return nc.reader.Read(buf)
 }
 
