@@ -60,9 +60,6 @@ type AgentPool struct {
 
 	mu     sync.Mutex
 	agents map[utils.NetAddr][]*Agent
-
-	// waitResult is a value that will be returned to the caller of Wait
-	waitResult error
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -185,12 +182,11 @@ func (m *AgentPool) Stop() {
 }
 
 // Wait returns when agent pool is closed
-func (m *AgentPool) Wait() error {
+func (m *AgentPool) Wait() {
 	if m == nil {
-		return nil
+		return
 	}
 	<-m.ctx.Done()
-	return m.waitResult
 }
 
 // processSeekEvents receives acquisition messages from the ProxyTracker
@@ -261,7 +257,6 @@ func filterAndClose(agents []*Agent, matchAgent matchAgentFn) []*Agent {
 func (m *AgentPool) pollAndSyncAgents() {
 	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-m.ctx.Done():
