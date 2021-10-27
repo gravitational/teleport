@@ -1,11 +1,13 @@
+name: Testing Docs Backport
+
 on:
   push:
     # Trigger the workflow on push only to the master branch. 
     branches:
       - master
     # Trigger the workflow on push only with changes to docs. 
-    paths: 
-      - docs
+    # paths: 
+    #   - docs
 jobs:
   backport-tester:
     runs-on: ubuntu-latest
