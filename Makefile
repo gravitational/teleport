@@ -295,6 +295,8 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf $(ER_BPF_BUILDDIR)
 	rm -rf $(RS_BPF_BUILDDIR)
+	rm -rf lib/srv/desktop/rdp/rdpclient/target
+	rm -rf lib/datalog/roletester/target
 	-go clean -cache
 	rm -rf teleport
 	rm -rf *.gz
