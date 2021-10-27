@@ -17,14 +17,17 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"fmt"
 	"net"
+	"os"
+	"text/template"
 
 	"github.com/gravitational/trace"
 
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -41,7 +44,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    client.WebProxyAddr,
-		Protocol:           alpnproxy.ProtocolProxySSH,
+		Protocol:           alpncommon.ProtocolProxySSH,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
@@ -83,7 +86,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			log.WithError(err).Warnf("Failed to close listener.")
 		}
 	}()
-	lp, err := mkLocalProxy(cf.Context, client.WebProxyAddr, database.Protocol, listener)
+	lp, err := mkLocalProxy(cf, client.WebProxyAddr, database.Protocol, listener)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -92,7 +95,21 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	fmt.Printf("Started DB proxy on %s\n", listener.Addr())
+	profile, err := libclient.StatusCurrent("", cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = dbProxyTpl.Execute(os.Stdout, map[string]string{
+		"database": database.ServiceName,
+		"address":  listener.Addr().String(),
+		"ca":       profile.CACertPath(),
+		"cert":     profile.DatabaseCertPath(database.ServiceName),
+		"key":      profile.KeyPath(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	defer lp.Close()
 	if err := lp.Start(cf.Context); err != nil {
@@ -101,7 +118,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	return nil
 }
 
-func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, listener net.Listener) (*alpnproxy.LocalProxy, error) {
+func mkLocalProxy(cf *CLIConf, remoteProxyAddr string, protocol string, listener net.Listener) (*alpnproxy.LocalProxy, error) {
 	alpnProtocol, err := toALPNProtocol(protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -111,11 +128,12 @@ func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, 
 		return nil, trace.Wrap(err)
 	}
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr: remoteProxyAddr,
-		Protocol:        alpnProtocol,
-		Listener:        listener,
-		ParentContext:   ctx,
-		SNI:             address.Host(),
+		InsecureSkipVerify: cf.InsecureSkipVerify,
+		RemoteProxyAddr:    remoteProxyAddr,
+		Protocol:           alpnProtocol,
+		Listener:           listener,
+		ParentContext:      cf.Context,
+		SNI:                address.Host(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -123,15 +141,24 @@ func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, 
 	return lp, nil
 }
 
-func toALPNProtocol(dbProtocol string) (alpnproxy.Protocol, error) {
+func toALPNProtocol(dbProtocol string) (alpncommon.Protocol, error) {
 	switch dbProtocol {
 	case defaults.ProtocolMySQL:
-		return alpnproxy.ProtocolMySQL, nil
-	case defaults.ProtocolPostgres:
-		return alpnproxy.ProtocolPostgres, nil
+		return alpncommon.ProtocolMySQL, nil
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
+		return alpncommon.ProtocolPostgres, nil
 	case defaults.ProtocolMongoDB:
-		return alpnproxy.ProtocolMongoDB, nil
+		return alpncommon.ProtocolMongoDB, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
 }
+
+// dbProxyTpl is the message that gets printed to a user when a database proxy is started.
+var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
+
+Use following credentials to connect to the {{.database}} proxy:
+  ca_file={{.ca}}
+  cert_file={{.cert}}
+  key_file={{.key}}
+`))

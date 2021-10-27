@@ -48,11 +48,10 @@ translates the Teleport desktop protocol into RDP:
 It can also talk to `localhost` RDP service, if installed on a Windows machine
 in agent mode (described below).
 
-If configured with Active Directory Domain Controller credentials,
-`windows_desktop_service` also discovers all available Windows hosts from
-Active Directory and registers them in Teleport as `WindowsDesktop` objects.
-Without Domain Controller credentials, `windows_desktop_service` uses a static
-list of Windows hosts provided in `teleport.yaml`.
+`windows_desktop_service` has the ability to automatically discover available
+Windows hosts from Active Directory by performing an LDAP search. In addition,
+`windows_desktop_service` can use a static list of Windows hosts provided in
+`teleport.yaml`.
 
 ### Supported versions
 
@@ -160,10 +159,10 @@ Smart card authentication and emulator are described in more detail in RFD 35.
 
 #### Username/password
 
-Username and password are most universal and Teleport should support these
-interactively as a fallback, when other methods are not available. This will
-allow users to replace their existing RDP client software, while providing RBAC
-and session recording, despite weaker authentication and worse UX.
+Although username and password are the most universal, a major part of
+Teleport's value is to provide strong autentication using short-lived
+certificates. Supporting username and password authentication would weaken the
+overall security of the system and as such will not be implemented.
 
 #### Kerberos tickets
 
@@ -182,12 +181,29 @@ connect to. Internally, Teleport tracks known Windows hosts using
 
 There are 3 ways that `windows_desktop_service` discovers Windows hosts to
 register:
-- hardcoded list of standalone hosts provided in the config file (see
+- hardcoded list of hosts provided in the config file (see
   [configuration](#configuration))
 - list of Active Directory-enrolled hosts obtained from AD via LDAPS (LDAP over
   SSL)
   - LDAP library: https://pkg.go.dev/github.com/go-ldap/ldap/v3
 - local host, when running on a Windows machine in agent mode
+
+By default, Teleport will only register hosts that are provided in the
+configuration file. To enable host discovery over LDAP, additional configuration
+is necessary (see [configuration](#configuration)).
+
+#### Automatic Host Labels
+
+Teleport will automatically apply the following host labels to hosts which are
+discovered from Active Directory.
+
+| Label | LDAP Attribute | Example |
+| ----- | -------------- | ------- |
+| `teleport.dev/computer_name` | `name` | `WIN-I5G06B8RT33`
+| `teleport.dev/dns_host_name` | [`dNSHostName`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-dnshostname) | `WIN-I5G06B8RT33.example.com`
+| `teleport.dev/os` | [`operatingSystem`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystem) | `Windows Server 2012`
+| `teleport.dev/os_version`| [`osVersion`](https://docs.microsoft.com/en-us/windows/win32/adschema/a-operatingsystemversion) | `4.0`
+| `teleport.dev/windows_domain`| Sourced from config | `example.com`
 
 ### Concurrent sessions
 
@@ -209,7 +225,7 @@ windows_desktop_service:
   enabled: yes # default false
   # listen_addr can share the port with the proxy web port using SNI.
   listen_addr: 0.0.0.0:3080
-  public_addrs: [rdp.example.com:3080]
+  public_addr: [rdp.example.com:3080]
   mode: "gateway" # or "agent"
   # (optional) ldap contains hostname and credentials for the LDAP server on
   # the Active Directory domain controller.
@@ -230,19 +246,28 @@ windows_desktop_service:
   - win1.example.com
   - win2.example.com
   - ...
+  # (optional) settings for enabling automatic desktop discovery via LDAP
+  discovery:
+    base_dn: '*' # wildcard searches from the root, leave empty to disable discovery
+    filters:  # additional LDAP filters: https://ldap.com/ldap-filters/
+    - filter1 # note: multiple filters are combined into an AND filter
+    - filter2
   # (optional) host_labels applies labels to windows hosts for RBAC.
   # Each entry maps to a subset of hosts by regexp and applies a group of labels.
   # A host can match multiple regexps and will get a union of all the labels.
+  # The regexp is matched against the host's DNS name, for example:
+  # WIN-I5G06B8RT33.example.com (where example.com is the domain name)
   host_labels:
   - match: ".*"
     labels:
-    - env: prod
+      env: prod
   - match: "^db.*"
     labels:
-    - type: database
+      type: database
+      kind: postgres
   - match: "^dc\.example\.com$"
     labels:
-    - type: domain_controller
+      type: domain_controller
 ```
 
 ### Security concerns

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -107,10 +108,6 @@ func (s *CacheSuite) newPackForProxy(c *check.C) *testPack {
 	return s.newPack(c, ForProxy)
 }
 
-func (s *CacheSuite) newPackForOldRemoteProxy(c *check.C) *testPack {
-	return s.newPack(c, ForOldRemoteProxy)
-}
-
 func (s *CacheSuite) newPackForNode(c *check.C) *testPack {
 	return s.newPack(c, ForNode)
 }
@@ -161,7 +158,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
-	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend, p.clusterConfigS.GetClusterConfig)}
+	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend)}
 	p.presenceS = local.NewPresenceService(p.backend)
 	p.usersS = local.NewIdentityService(p.backend)
 	p.accessS = local.NewAccessService(p.backend)
@@ -251,90 +248,6 @@ func (s *CacheSuite) TestCA(c *check.C) {
 
 	_, err = p.cache.GetCertAuthority(ca.GetID(), false)
 	fixtures.ExpectNotFound(c, err)
-}
-
-// TestOnlyRecentInit makes sure init fails
-// with "only recent" cache strategy
-func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
-	ctx := context.Background()
-	p := s.newPackWithoutCache(c, ForAuth)
-	defer p.Close()
-
-	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
-	_, err := New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	fixtures.ExpectConnectionProblem(c, err)
-}
-
-// TestOnlyRecentDisconnect tests that cache
-// with "only recent" cache strategy will not serve
-// stale data during disconnects
-func (s *CacheSuite) TestOnlyRecentDisconnect(c *check.C) {
-	for i := 0; i < utils.GetIterations(); i++ {
-		s.onlyRecentDisconnect(c)
-	}
-}
-
-func (s *CacheSuite) onlyRecentDisconnect(c *check.C) {
-	p := s.newPackForAuth(c)
-	defer p.Close()
-
-	ca := suite.NewTestCA(types.UserCA, "example.com")
-	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
-	}
-
-	// event has arrived, now close the watchers and the backend
-	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
-	p.eventsS.closeWatchers()
-
-	// wait for the watcher to fail
-	waitForEvent(c, p.eventsC, WatcherFailed)
-
-	// backend is out, so no service is available
-	_, err := p.cache.GetCertAuthority(ca.GetID(), false)
-	fixtures.ExpectConnectionProblem(c, err)
-
-	// add modification and expect the resource to recover
-	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
-	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
-
-	// now, recover the backend and make sure the
-	// service is back
-	p.backend.SetReadError(nil)
-
-	// wait for watcher to restart
-	waitForRestart(c, p.eventsC)
-
-	// new value is available now
-	out, err := p.cache.GetCertAuthority(ca.GetID(), false)
-	c.Assert(err, check.IsNil)
-	ca.SetResourceID(out.GetResourceID())
-	types.RemoveCASecrets(ca)
-	fixtures.DeepCompare(c, ca, out)
 }
 
 // TestWatchers tests watchers connected to the cache,
@@ -502,9 +415,6 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 			WindowsDesktops: p.windowsDesktops,
 			RetryPeriod:     200 * time.Millisecond,
 			EventsC:         p.eventsC,
-			PreferRecent: PreferRecent{
-				Enabled: true,
-			},
 		}))
 		c.Assert(err, check.IsNil)
 
@@ -563,9 +473,6 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
 		EventsC:         p.eventsC,
-		PreferRecent: PreferRecent{
-			Enabled: true,
-		},
 	}))
 	c.Assert(err, check.IsNil)
 
@@ -629,9 +536,6 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
 		EventsC:         p.eventsC,
-		PreferRecent: PreferRecent{
-			Enabled: true,
-		},
 	}))
 	c.Assert(err, check.IsNil)
 
@@ -667,9 +571,6 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
 		EventsC:         p.eventsC,
-		PreferRecent: PreferRecent{
-			Enabled: true,
-		},
 	}))
 	c.Assert(err, check.IsNil)
 
@@ -680,17 +581,90 @@ func (s *CacheSuite) TestTombstones(c *check.C) {
 	c.Assert(len(cas), check.Equals, caCount)
 }
 
-// TestPreferRecent makes sure init proceeds
-// with "prefer recent" cache strategy
-// even if the backend is unavailable
-// then recovers against failures and serves data during failures
-func (s *CacheSuite) TestPreferRecent(c *check.C) {
+// TestInitStrategy verifies that cache uses expected init strategy
+// of serving backend state when init is taking too long.
+func (s *CacheSuite) TestInitStrategy(c *check.C) {
 	for i := 0; i < utils.GetIterations(); i++ {
-		s.preferRecent(c)
+		s.initStrategy(c)
 	}
 }
 
-func (s *CacheSuite) preferRecent(c *check.C) {
+// TestListNodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
+// using ttl-based caching works as expected.
+func TestListNodesTTLVariant(t *testing.T) {
+	const nodeCount = 100
+	const pageSize = 10
+	var err error
+
+	ctx := context.Background()
+
+	p, err := newPackWithoutCache(t.TempDir(), ForAuth)
+	require.NoError(t, err)
+	defer p.Close()
+
+	p.cache, err = New(ForAuth(Config{
+		Context:         ctx,
+		Backend:         p.cacheBackend,
+		Events:          p.eventsS,
+		ClusterConfig:   p.clusterConfigS,
+		Provisioner:     p.provisionerS,
+		Trust:           p.trustS,
+		Users:           p.usersS,
+		Access:          p.accessS,
+		DynamicAccess:   p.dynamicAccessS,
+		Presence:        p.presenceS,
+		AppSession:      p.appSessionS,
+		WebSession:      p.webSessionS,
+		WebToken:        p.webTokenS,
+		Restrictions:    p.restrictions,
+		Apps:            p.apps,
+		Databases:       p.databases,
+		WindowsDesktops: p.windowsDesktops,
+		RetryPeriod:     200 * time.Millisecond,
+		EventsC:         p.eventsC,
+		neverOK:         true, // ensure reads are never healthy
+	}))
+	require.NoError(t, err)
+
+	for i := 0; i < nodeCount; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	time.Sleep(time.Second * 2)
+
+	allNodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, allNodes, nodeCount)
+
+	var nodes []types.Server
+	var startKey string
+	for {
+		page, nextKey, err := p.cache.ListNodes(ctx, proto.ListNodesRequest{
+			Namespace: apidefaults.Namespace,
+			Limit:     int32(pageSize),
+			StartKey:  startKey,
+		})
+		require.NoError(t, err)
+
+		if nextKey != "" {
+			require.Len(t, page, pageSize)
+		}
+
+		nodes = append(nodes, page...)
+
+		startKey = nextKey
+
+		if startKey == "" {
+			break
+		}
+	}
+
+	require.Len(t, nodes, nodeCount)
+}
+
+func (s *CacheSuite) initStrategy(c *check.C) {
 	ctx := context.Background()
 	p := s.newPackWithoutCache(c, ForAuth)
 	defer p.Close()
@@ -717,9 +691,6 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 		WindowsDesktops: p.windowsDesktops,
 		RetryPeriod:     200 * time.Millisecond,
 		EventsC:         p.eventsC,
-		PreferRecent: PreferRecent{
-			Enabled: true,
-		},
 	}))
 	c.Assert(err, check.IsNil)
 
@@ -736,12 +707,17 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	// wait for watcher to restart
 	waitForRestart(c, p.eventsC)
 
+	normalizeCA := func(ca types.CertAuthority) types.CertAuthority {
+		ca = ca.Clone()
+		ca.SetResourceID(0)
+		ca.SetExpiry(time.Time{})
+		types.RemoveCASecrets(ca)
+		return ca
+	}
+
 	out, err := p.cache.GetCertAuthority(ca.GetID(), false)
 	c.Assert(err, check.IsNil)
-	ca.SetResourceID(out.GetResourceID())
-	ca.SetExpiry(out.Expiry())
-	types.RemoveCASecrets(ca)
-	fixtures.DeepCompare(c, ca, out)
+	fixtures.DeepCompare(c, normalizeCA(ca), normalizeCA(out))
 
 	// fail again, make sure last recent data is still served
 	// on errors
@@ -753,11 +729,10 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	waitForEvent(c, p.eventsC, WatcherFailed, EventProcessed)
 
 	// backend is out, but old value is available
-	out, err = p.cache.GetCertAuthority(ca.GetID(), false)
-	log.Debugf("Resource ID after fail: %v vs the one ca has %v", out.GetResourceID(), ca.GetResourceID())
-	ca.SetExpiry(out.Expiry())
+	out2, err := p.cache.GetCertAuthority(ca.GetID(), false)
 	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, ca, out)
+	c.Assert(out.GetResourceID(), check.Equals, out2.GetResourceID())
+	fixtures.DeepCompare(c, normalizeCA(ca), normalizeCA(out))
 
 	// add modification and expect the resource to recover
 	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
@@ -774,9 +749,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ca.GetID(), false)
 	c.Assert(err, check.IsNil)
-	ca.SetExpiry(out.Expiry())
-	ca.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, ca, out)
+	fixtures.DeepCompare(c, normalizeCA(ca), normalizeCA(out))
 }
 
 // TestRecovery tests error recovery scenario
@@ -1028,81 +1001,6 @@ func (s *CacheSuite) TestClusterName(c *check.C) {
 	fixtures.DeepCompare(c, outName, clusterName)
 }
 
-// TestClusterConfig tests cluster configuration
-// DELETE IN 8.0.0
-func (s *CacheSuite) TestClusterConfig(c *check.C) {
-	ctx := context.Background()
-	p := s.newPackForOldRemoteProxy(c)
-	defer p.Close()
-
-	// Since changes to configuration-related resources trigger ClusterConfig events
-	// for backward compatibility reasons, ignore these additional events while waiting
-	// for expected resource updates to propagate.
-	waitForEventIgnoreClusterConfig := func(resourceKind string) {
-		timeC := time.After(5 * time.Second)
-		for {
-			select {
-			case event := <-p.eventsC:
-				c.Assert(event.Type, check.Equals, EventProcessed)
-				if event.Event.Resource.GetKind() == types.KindClusterConfig {
-					continue
-				}
-				c.Assert(event.Event.Resource.GetKind(), check.Equals, resourceKind)
-				return
-			case <-timeC:
-				c.Fatalf("Timeout waiting for update to resource %v", resourceKind)
-			}
-		}
-	}
-
-	err := p.clusterConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterNetworkingConfig)
-
-	err = p.clusterConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterAuthPreference)
-
-	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindSessionRecordingConfig)
-
-	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
-	})
-	c.Assert(err, check.IsNil)
-	err = p.clusterConfigS.SetClusterAuditConfig(ctx, auditConfig)
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterAuditConfig)
-
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: "example.com",
-	})
-	c.Assert(err, check.IsNil)
-	err = p.clusterConfigS.SetClusterName(clusterName)
-	c.Assert(err, check.IsNil)
-	waitForEventIgnoreClusterConfig(types.KindClusterName)
-
-	err = p.clusterConfigS.SetClusterConfig(types.DefaultClusterConfig())
-	c.Assert(err, check.IsNil)
-
-	clusterConfig, err := p.clusterConfigS.GetClusterConfig()
-	c.Assert(err, check.IsNil)
-
-	select {
-	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
-		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterConfig)
-	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetClusterConfig()
-	c.Assert(err, check.IsNil)
-	clusterConfig.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, clusterConfig, out)
-}
-
 // TestNamespaces tests caching of namespaces
 func (s *CacheSuite) TestNamespaces(c *check.C) {
 	p := s.newPackForProxy(c)
@@ -1190,7 +1088,7 @@ func (s *CacheSuite) TestUsers(c *check.C) {
 	fixtures.DeepCompare(c, user, out)
 
 	// update user's roles
-	user.SetRoles([]string{"admin"})
+	user.SetRoles([]string{"access"})
 	c.Assert(err, check.IsNil)
 	err = p.usersS.UpsertUser(user)
 	c.Assert(err, check.IsNil)
@@ -1259,7 +1157,7 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 	fixtures.DeepCompare(c, role, out)
 
 	// update role
-	role.SetLogins(services.Allow, []string{"admin"})
+	role.SetLogins(types.Allow, []string{"admin"})
 	c.Assert(err, check.IsNil)
 	err = p.accessS.UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)

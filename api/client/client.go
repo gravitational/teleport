@@ -638,16 +638,6 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
 func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	if secrets, err := c.grpc.RotateUserTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
-		TokenID: tokenID,
-	}, c.callOpts...); err != nil {
-		if !trace.IsNotImplemented(trail.FromGRPC(err)) {
-			return nil, trail.FromGRPC(err)
-		}
-	} else {
-		return secrets, nil
-	}
-
 	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
@@ -1182,6 +1172,12 @@ func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteM
 	return stream, nil
 }
 
+// AddMFADeviceSync adds a new MFA device (nonstream).
+func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	res, err := c.grpc.AddMFADeviceSync(ctx, in, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
 // DeleteMFADeviceSync deletes a users MFA device (nonstream).
 func (c *Client) DeleteMFADeviceSync(ctx context.Context, in *proto.DeleteMFADeviceSyncRequest) error {
 	_, err := c.grpc.DeleteMFADeviceSync(ctx, in, c.callOpts...)
@@ -1457,18 +1453,31 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
-	}
+	return GetNodesWithLabels(ctx, c, namespace, nil)
+}
 
+// NodeClient is an interface used by GetNodesWithLabels to abstract over implementations of
+// the ListNodes method.
+type NodeClient interface {
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+}
+
+// GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  In addition to
+// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
 	// Retrieve the complete list of nodes in chunks.
 	var (
 		nodes     []types.Server
 		startKey  string
-		chunkSize = defaults.DefaultChunkSize
+		chunkSize = int32(defaults.DefaultChunkSize)
 	)
 	for {
-		resp, nextKey, err := c.ListNodes(ctx, namespace, chunkSize, startKey)
+		resp, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
+			Namespace: namespace,
+			Limit:     chunkSize,
+			StartKey:  startKey,
+			Labels:    labels,
+		})
 		if trace.IsLimitExceeded(err) {
 			// Cut chunkSize in half if gRPC max message size is exceeded.
 			chunkSize = chunkSize / 2
@@ -1481,7 +1490,14 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 			return nil, trail.FromGRPC(err)
 		}
 
-		nodes = append(nodes, resp...)
+		// perform client-side filtering in case we're dealing with an older auth server which
+		// does not support server-side filtering.
+		for _, node := range resp {
+			if node.MatchAgainst(labels) {
+				nodes = append(nodes, node)
+			}
+		}
+
 		startKey = nextKey
 		if startKey == "" {
 			return nodes, nil
@@ -1492,19 +1508,15 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 // ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
 // nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
 // ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
-func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error) {
-	if namespace == "" {
+func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
+	if req.Namespace == "" {
 		return nil, "", trace.BadParameter("missing parameter namespace")
 	}
-	if limit <= 0 {
+	if req.Limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive parameter limit")
 	}
 
-	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
-		Namespace: namespace,
-		Limit:     int32(limit),
-		StartKey:  startKey,
-	}, c.callOpts...)
+	resp, err := c.grpc.ListNodes(ctx, &req, c.callOpts...)
 	if err != nil {
 		return nil, "", trail.FromGRPC(err)
 	}
@@ -2100,6 +2112,15 @@ func (c *Client) DeleteAllWindowsDesktops(ctx context.Context) error {
 	return nil
 }
 
+// GenerateWindowsDesktopCert generates client certificate for Windows RDP authentication.
+func (c *Client) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+	resp, err := c.grpc.GenerateWindowsDesktopCert(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
 // ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
 // Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
 func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
@@ -2115,17 +2136,17 @@ func (c *Client) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 	return res, trail.FromGRPC(err)
 }
 
-// ApproveAccountRecovery creates a recovery approved token after successful verification of users password or second factor
+// VerifyAccountRecovery creates a recovery approved token after successful verification of users password or second factor
 // (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
 // Represents step 2 of the account recovery process after RPC StartAccountRecovery.
-func (c *Client) ApproveAccountRecovery(ctx context.Context, req *proto.ApproveAccountRecoveryRequest) (types.UserToken, error) {
-	res, err := c.grpc.ApproveAccountRecovery(ctx, req, c.callOpts...)
+func (c *Client) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAccountRecoveryRequest) (types.UserToken, error) {
+	res, err := c.grpc.VerifyAccountRecovery(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
 
 // CompleteAccountRecovery sets a new password or adds a new mfa device,
 // allowing user to regain access to their account using the new credentials.
-// Represents the last step in the account recovery process after RPC's StartAccountRecovery and ApproveAccountRecovery.
+// Represents the last step in the account recovery process after RPC's StartAccountRecovery and VerifyAccountRecovery.
 func (c *Client) CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error {
 	_, err := c.grpc.CompleteAccountRecovery(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
@@ -2144,8 +2165,32 @@ func (c *Client) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 	return res, trail.FromGRPC(err)
 }
 
+// GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
+func (c *Client) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	res, err := c.grpc.GetAccountRecoveryCodes(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
 // CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
 func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	resp, err := c.grpc.CreateAuthenticateChallenge(ctx, in, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	resp, err := c.grpc.CreatePrivilegeToken(ctx, req, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	resp, err := c.grpc.CreateRegisterChallenge(ctx, in, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
+	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req)
 	return resp, trail.FromGRPC(err)
 }

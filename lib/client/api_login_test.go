@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -297,11 +298,18 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	})
 	require.NoError(t, err)
 	tokenID := token.GetName()
-	registerReq, err := authServer.CreateSignupU2FRegisterRequest(tokenID)
+	res, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:    tokenID,
+		DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
+	})
 	require.NoError(t, err)
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
-	registerResp, err := device.RegisterResponse(registerReq)
+	registerResp, err := device.RegisterResponse(&u2f.RegisterChallenge{
+		Version:   res.GetU2F().GetVersion(),
+		Challenge: res.GetU2F().GetChallenge(),
+		AppID:     res.GetU2F().GetAppID(),
+	})
 	require.NoError(t, err)
 	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     tokenID,

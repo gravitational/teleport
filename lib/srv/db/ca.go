@@ -55,7 +55,7 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		return trace.Wrap(err, "CA certificate for %v doesn't appear to be a valid x509 certificate: %s",
 			database, bytes)
 	}
-	database.SetCA(string(bytes))
+	database.SetStatusCA(string(bytes))
 	return nil
 }
 

@@ -52,7 +52,7 @@ var (
 
 	certificateMismatchCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: teleport.MetricCertificateMistmatch,
+			Name: teleport.MetricCertificateMismatch,
 			Help: "Number of times there was a certificate mismatch",
 		},
 	)
@@ -60,7 +60,7 @@ var (
 	prometheusCollectors = []prometheus.Collector{failedLoginCount, certificateMismatchCount}
 )
 
-// HandlerConfig is the configuration for an application handler.
+// AuthHandlerConfig is the configuration for an application handler.
 type AuthHandlerConfig struct {
 	// Server is the services.Server in the backend.
 	Server Server
@@ -285,6 +285,15 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	permissions.Extensions[utils.CertTeleportClusterName] = clusterName.GetClusterName()
 	permissions.Extensions[utils.CertTeleportUserCertificate] = string(ssh.MarshalAuthorizedKey(cert))
 
+	switch cert.CertType {
+	case ssh.UserCert:
+		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeUser
+	case ssh.HostCert:
+		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeHost
+	default:
+		log.Warnf("Unexpected cert type: %v", cert.CertType)
+	}
+
 	if h.isProxy() {
 		return permissions, nil
 	}
@@ -417,7 +426,11 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// check if roles allow access to server
-	if err := roles.CheckAccessToServer(osUser, h.c.Server.GetInfo(), mfaParams); err != nil {
+	if err := roles.CheckAccess(
+		h.c.Server.GetInfo(),
+		mfaParams,
+		services.NewLoginMatcher(osUser),
+	); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			teleportUser, ca.GetClusterName(), osUser, clusterName, err)
 	}

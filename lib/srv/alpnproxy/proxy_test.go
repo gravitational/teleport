@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,7 @@ func TestProxySSHHandler(t *testing.T) {
 	suite := NewSuite(t)
 
 	suite.router.Add(HandlerDecs{
-		MatchFunc:  MatchByProtocol(ProtocolProxySSH),
+		MatchFunc:  MatchByProtocol(common.ProtocolProxySSH),
 		ForwardTLS: false,
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			defer conn.Close()
@@ -51,7 +52,7 @@ func TestProxySSHHandler(t *testing.T) {
 	suite.Start(t)
 
 	conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-		NextProtos: []string{string(ProtocolProxySSH)},
+		NextProtos: []string{string(common.ProtocolProxySSH)},
 		ServerName: "localhost",
 		RootCAs:    suite.GetCertPool(),
 	})
@@ -88,7 +89,7 @@ func TestProxyKubeHandler(t *testing.T) {
 	suite.Start(t)
 
 	conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-		NextProtos: []string{string(ProtocolHTTP2)},
+		NextProtos: []string{string(common.ProtocolHTTP2)},
 		ServerName: kubeSNI,
 		RootCAs:    suite.GetCertPool(),
 	})
@@ -126,6 +127,19 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 		require.NoError(t, err)
 		return nil
 	})
+
+	// Add HTTP handler to support empty values of NextProtos during DB connection.
+	// Default handler needs to be returned because Databased routing is evaluated
+	// after TLS termination.
+	suite.router.Add(HandlerDecs{
+		MatchFunc: MatchByProtocol(common.ProtocolHTTP),
+		Handler: func(ctx context.Context, conn net.Conn) error {
+			defer conn.Close()
+			_, err := fmt.Fprint(conn, string(common.ProtocolHTTP))
+			require.NoError(t, err)
+			return nil
+		},
+	})
 	suite.Start(t)
 
 	t.Run("legacy tls database connection", func(t *testing.T) {
@@ -144,7 +158,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 
 	t.Run("tls database connection wrapped with ALPN value", func(t *testing.T) {
 		conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-			NextProtos: []string{string(ProtocolMongoDB)},
+			NextProtos: []string{string(common.ProtocolMongoDB)},
 			RootCAs:    suite.GetCertPool(),
 			ServerName: "localhost",
 		})
@@ -174,7 +188,7 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 
 	suite := NewSuite(t)
 	suite.router.Add(HandlerDecs{
-		MatchFunc: MatchByProtocol(ProtocolPostgres),
+		MatchFunc: MatchByProtocol(common.ProtocolPostgres),
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			defer conn.Close()
 			_, err := fmt.Fprint(conn, databaseHandleResponse)
@@ -188,7 +202,7 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 	require.NoError(t, err)
 	localProxyConfig := LocalProxyConfig{
 		RemoteProxyAddr:    suite.GetServerAddress(),
-		Protocol:           ProtocolPostgres,
+		Protocol:           common.ProtocolPostgres,
 		Listener:           localProxyListener,
 		SNI:                "localhost",
 		ParentContext:      context.Background(),
@@ -221,7 +235,7 @@ func TestProxyHTTPConnection(t *testing.T) {
 
 	suite.router = NewRouter()
 	suite.router.Add(HandlerDecs{
-		MatchFunc: MatchByProtocol(ProtocolHTTP2, ProtocolHTTP, ProtocolDefault),
+		MatchFunc: MatchByProtocol(common.ProtocolHTTP2, common.ProtocolHTTP),
 		Handler:   lw.HandleConnection,
 	})
 	suite.Start(t)
@@ -236,4 +250,83 @@ func TestProxyHTTPConnection(t *testing.T) {
 	}
 
 	mustSuccessfullyCallHTTPSServer(t, suite.GetServerAddress(), client)
+}
+
+// TestProxyALPNProtocolsRouting tests the routing based on client TLS NextProtos values.
+func TestProxyALPNProtocolsRouting(t *testing.T) {
+	t.Parallel()
+
+	makeHandler := func(protocol common.Protocol) HandlerDecs {
+		return HandlerDecs{
+			MatchFunc: MatchByProtocol(protocol),
+			Handler: func(ctx context.Context, conn net.Conn) error {
+				defer conn.Close()
+				_, err := fmt.Fprint(conn, string(protocol))
+				require.NoError(t, err)
+				return nil
+			},
+		}
+	}
+
+	tests := []struct {
+		name                string
+		handlers            []HandlerDecs
+		ClientNextProtos    []string
+		wantProtocolHandler string
+	}{
+		{
+			name: "one element - supported known protocol handler should be called",
+			handlers: []HandlerDecs{
+				makeHandler(common.ProtocolHTTP),
+				makeHandler(common.ProtocolProxySSH),
+			},
+			ClientNextProtos:    []string{string(common.ProtocolProxySSH)},
+			wantProtocolHandler: string(common.ProtocolProxySSH),
+		},
+		{
+			name: "supported protocol as last element",
+			handlers: []HandlerDecs{
+				makeHandler(common.ProtocolHTTP),
+				makeHandler(common.ProtocolProxySSH),
+			},
+			ClientNextProtos: []string{
+				"unknown-protocol1",
+				"unknown-protocol2",
+				"unknown-protocol3",
+				string(common.ProtocolProxySSH)},
+			wantProtocolHandler: string(common.ProtocolProxySSH),
+		},
+		{
+			name: "nil client next protos - default http handler should be called",
+			handlers: []HandlerDecs{
+				makeHandler(common.ProtocolHTTP),
+				makeHandler(common.ProtocolProxySSH),
+			},
+			ClientNextProtos:    nil,
+			wantProtocolHandler: string(common.ProtocolHTTP),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			suite := NewSuite(t)
+			router := NewRouter()
+			for _, r := range tc.handlers {
+				router.Add(r)
+			}
+			suite.router = router
+			suite.Start(t)
+
+			conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
+				NextProtos: tc.ClientNextProtos,
+				ServerName: "localhost",
+				RootCAs:    suite.GetCertPool(),
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			mustReadFromConnection(t, conn, tc.wantProtocolHandler)
+			mustCloseConnection(t, conn)
+		})
+	}
 }

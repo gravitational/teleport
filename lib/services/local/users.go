@@ -286,8 +286,8 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 	return nil, trace.NotFound("user with identity %q not found", &id)
 }
 
-// GetUserBySAMLCIdentity returns a user by it's specified OIDC Identity, returns first
-// user specified with this identity
+// GetUserBySAMLIdentity returns a user by it's specified OIDC Identity, returns
+// first user specified with this identity.
 func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (types.User, error) {
 	users, err := s.GetUsers(false)
 	if err != nil {
@@ -1124,7 +1124,7 @@ func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets b
 	return connectors, nil
 }
 
-// GetGithubConnectot returns a particular Github connector
+// GetGithubConnector returns a particular Github connector.
 func (s *IdentityService) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
@@ -1194,7 +1194,7 @@ func (s *IdentityService) GetGithubAuthRequest(stateToken string) (*services.Git
 }
 
 // GetRecoveryCodes returns user's recovery codes.
-func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string) (*types.RecoveryCodesV1, error) {
+func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string, withSecrets bool) (*types.RecoveryCodesV1, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing parameter user")
 	}
@@ -1204,12 +1204,16 @@ func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string) (*t
 		return nil, trace.Wrap(err)
 	}
 
-	var tokens types.RecoveryCodesV1
-	if err := json.Unmarshal(item.Value, &tokens); err != nil {
+	var rc types.RecoveryCodesV1
+	if err := json.Unmarshal(item.Value, &rc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &tokens, nil
+	if !withSecrets {
+		rc.Spec.Codes = nil
+	}
+
+	return &rc, nil
 }
 
 // UpsertRecoveryCodes creates or updates user's account recovery codes.
@@ -1262,7 +1266,7 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 	return trace.Wrap(err)
 }
 
-// GetUserRecoveryAttempt returns users recovery attempts.
+// GetUserRecoveryAttempts returns users recovery attempts.
 func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing parameter user")
@@ -1335,10 +1339,4 @@ const (
 	webauthnSessionData     = "webauthnsessiondata"
 	recoveryCodesPrefix     = "recoverycodes"
 	recoveryAttemptsPrefix  = "recoveryattempts"
-
-	// DELETE IN 7.0: these prefixes are migrated to mfaDevicePrefix in 6.0 on
-	// first startup.
-	totpPrefix                   = "totp"
-	u2fRegistrationPrefix        = "u2fregistration"
-	u2fRegistrationCounterPrefix = "u2fregistrationcounter"
 )

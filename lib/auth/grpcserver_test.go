@@ -102,7 +102,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "fail-dev",
-					Type:       proto.AddMFADeviceRequestInit_U2F,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.Len(t, req.U2F, 1)
@@ -135,7 +135,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "fail-dev",
-					Type:       proto.AddMFADeviceRequestInit_U2F,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, req.TOTP)
@@ -159,7 +159,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "fail-dev",
-					Type:       proto.AddMFADeviceRequestInit_U2F,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
 				},
 				authHandler:  devs.u2fAuthHandler,
 				checkAuthErr: require.NoError,
@@ -188,7 +188,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "fail-dev",
-					Type:       proto.AddMFADeviceRequestInit_TOTP,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 				},
 				authHandler:  devs.totpAuthHandler,
 				checkAuthErr: require.NoError,
@@ -219,7 +219,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: webDev2Name,
-					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
 				authHandler:  devs.webAuthHandler,
 				checkAuthErr: require.NoError,
@@ -241,7 +241,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "webauthn-1512000",
-					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
 				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, challenge.WebauthnChallenge) // webauthn enabled
@@ -261,7 +261,7 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 				checkAuthErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
-					require.Equal(t, codes.InvalidArgument, status.Code(err))
+					require.Equal(t, codes.PermissionDenied, status.Code(err))
 				},
 			},
 		},
@@ -270,7 +270,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "webauthn-1512000",
-					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
 				authHandler:  devs.webAuthHandler,
 				checkAuthErr: require.NoError,
@@ -565,7 +565,7 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: totpName,
-					Type:       proto.AddMFADeviceRequestInit_TOTP,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					// Empty for first device.
@@ -606,7 +606,7 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: u2fName,
-					Type:       proto.AddMFADeviceRequestInit_U2F,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
 				},
 				authHandler:  devs.totpAuthHandler,
 				checkAuthErr: require.NoError,
@@ -649,7 +649,7 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: webName,
-					Type:       proto.AddMFADeviceRequestInit_Webauthn,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
 				authHandler:  devs.totpAuthHandler,
 				checkAuthErr: require.NoError,
@@ -1583,34 +1583,52 @@ func TestNodesCRUD(t *testing.T) {
 		t.Run("List Nodes", func(t *testing.T) {
 			t.Parallel()
 			// list nodes one at a time, last page should be empty
-			nodes, nextKey, err := clt.ListNodes(ctx, apidefaults.Namespace, 1, "")
+			nodes, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+			})
 			require.NoError(t, err)
 			require.Len(t, nodes, 1)
 			require.Empty(t, cmp.Diff([]types.Server{node1}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.Equal(t, backend.NextPaginationKey(node1), nextKey)
 
-			nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+				StartKey:  nextKey,
+			})
 			require.NoError(t, err)
 			require.Len(t, nodes, 1)
 			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.Equal(t, backend.NextPaginationKey(node2), nextKey)
 
-			nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+				StartKey:  nextKey,
+			})
 			require.NoError(t, err)
 			require.Empty(t, nodes)
 			require.Equal(t, "", nextKey)
 
 			// ListNodes should fail if namespace isn't provided
-			_, _, err = clt.ListNodes(ctx, "", 1, "")
+			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+				Limit: 1,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
 			// ListNodes should fail if limit is nonpositive
-			_, _, err = clt.ListNodes(ctx, apidefaults.Namespace, 0, "")
+			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
-			_, _, err = clt.ListNodes(ctx, apidefaults.Namespace, -1, "")
+			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     -1,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 		})
 		t.Run("GetNodes", func(t *testing.T) {
@@ -2061,13 +2079,6 @@ func TestCustomRateLimiting(t *testing.T) {
 		fn   func(*Client) error
 	}{
 		{
-			name: "RPC ApproveAccountRecovery",
-			fn: func(clt *Client) error {
-				_, err := clt.ApproveAccountRecovery(context.Background(), &proto.ApproveAccountRecoveryRequest{})
-				return err
-			},
-		},
-		{
 			name: "RPC ChangeUserAuthentication",
 			fn: func(clt *Client) error {
 				_, err := clt.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{})
@@ -2085,6 +2096,13 @@ func TestCustomRateLimiting(t *testing.T) {
 			name: "RPC StartAccountRecovery",
 			fn: func(clt *Client) error {
 				_, err := clt.StartAccountRecovery(context.Background(), &proto.StartAccountRecoveryRequest{})
+				return err
+			},
+		},
+		{
+			name: "RPC VerifyAccountRecovery",
+			fn: func(clt *Client) error {
+				_, err := clt.VerifyAccountRecovery(context.Background(), &proto.VerifyAccountRecoveryRequest{})
 				return err
 			},
 		},

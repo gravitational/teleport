@@ -15,8 +15,6 @@
           ]
         },
         { "title": "Installation", "slug": "/installation/" },
-        { "title": "User Manual", "slug": "/user-manual/" },
-        { "title": "Production Guide", "slug": "/production/" },
         { "title": "FAQ", "slug": "/faq/" },
         { "title": "Changelog", "slug": "/changelog/" }
       ]
@@ -65,7 +63,8 @@
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
             { "title": "Docker", "slug": "/setup/guides/docker/" },
             { "title": "Fluentd", "slug": "/setup/guides/fluentd/" },
-            { "title": "EC2 tags", "slug": "/setup/guides/ec2-tags/" }
+            { "title": "EC2 tags", "slug": "/setup/guides/ec2-tags/" },
+            { "title": "Joining Nodes in AWS", "slug": "/setup/guides/joining-nodes-aws/" }
           ]
         },
         {
@@ -73,7 +72,7 @@
           "slug": "/setup/reference/",
           "entries": [
             { "title": "Config File", "slug": "/setup/reference/config/" },
-            { "title": "Config Resources", "slug": "/setup/reference/resources/" },            
+            { "title": "Config Resources", "slug": "/setup/reference/resources/" },
             { "title": "Command Line", "slug": "/setup/reference/cli/" },
             { "title": "Metrics", "slug": "/setup/reference/metrics/" },
             { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" },
@@ -118,6 +117,7 @@
           "entries": [
             { "title": "Ansible", "slug": "/server-access/guides/ansible/" },
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
+            { "title": "Using TSH", "slug": "/server-access/guides/tsh/" },
             { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
             {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"},
             {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"},
@@ -183,6 +183,7 @@
             { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
             { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
             { "title": "Self-Hosted MongoDB", "slug": "/database-access/guides/mongodb-self-hosted/" },
+            { "title": "Self-Hosted CockroachDB", "slug": "/database-access/guides/cockroachdb-self-hosted/" },
             { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" },
             { "title": "High Availability", "slug": "/database-access/guides/ha/" }
           ]
@@ -199,6 +200,16 @@
           ]
         },
         { "title": "FAQ", "slug": "/database-access/faq/" }
+      ]
+    },
+    {
+      "icon": "desktop",
+      "title": "Desktop Access",
+      "entries": [
+        { "title": "Introduction", "slug": "/desktop-access/introduction/" },
+        { "title": "Getting Started", "slug": "/desktop-access/getting-started/" },
+        { "title": "Reference", "slug": "/desktop-access/reference/" },
+        { "title": "Troubleshooting", "slug": "/desktop-access/troubleshooting/" }
       ]
     },
     {
@@ -231,7 +242,7 @@
         {"title": "Getting Started", "slug": "/api/getting-started/"},
         {"title": "Architecture", "slug": "/api/architecture/"}
       ]
-    },    
+    },
     {
       "icon": "wand",
       "title": "Preview",
@@ -268,6 +279,10 @@
         {
           "title": "SOC2",
           "slug": "/enterprise/soc2/"
+        },
+        {
+          "title": "HSM",
+          "slug": "/enterprise/hsm/"
         }
       ]
     },
@@ -283,7 +298,7 @@
           "entries": [
             { "title": "U2f", "slug": "/cloud/guides/u2f/" }
           ]
-        },        
+        },
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
       ]
@@ -366,6 +381,16 @@
   },
   "redirects": [
     {
+      "source": "/user-manual/",
+      "destination": "/server-access/guides/tsh/",
+      "permanent": true
+    },
+    {
+      "source": "/production/",
+      "destination": "/setup/deployments/",
+      "permanent": true
+    },
+    {
       "source": "/admin-guide/",
       "destination": "/setup/admin/",
       "permanent": true
@@ -389,7 +414,7 @@
       "source": "/reference/api/introduction/",
       "destination": "/api/introduction/",
       "permanent": true
-    },    
+    },
     {
       "source": "/metrics-logs-reference/",
       "destination": "/setup/reference/metrics/",
@@ -399,7 +424,7 @@
       "source": "/config-reference/",
       "destination": "/setup/reference/config/",
       "permanent": true
-    },    
+    },
     {
       "source": "/cli-docs/",
       "destination": "/setup/reference/cli/",
@@ -449,7 +474,7 @@
       "source": "/gcp-guide/",
       "destination": "/setup/deployments/gcp/",
       "permanent": true
-    },    
+    },
     {
       "source": "/ibm-cloud-guide/",
       "destination": "/setup/deployments/ibm/",

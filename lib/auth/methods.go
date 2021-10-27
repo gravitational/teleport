@@ -43,7 +43,7 @@ type AuthenticateUserRequest struct {
 	U2F *U2FSignResponseCreds `json:"u2f,omitempty"`
 	// Webauthn is a signed credential assertion used to authenticate via WebAuthn
 	// or U2F devices.
-	Webauthn *wanlib.CredentialAssertionResponse
+	Webauthn *wanlib.CredentialAssertionResponse `json:"webauthn,omitempty"`
 	// OTP is a password and second factor, used in two factor authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
@@ -175,6 +175,10 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		switch {
 		case err != nil:
 			log.Debugf("User %v failed to authenticate: %v.", user, err)
+			if fieldErr := getErrorByTraceField(err); fieldErr != nil {
+				return nil, trace.Wrap(fieldErr)
+			}
+
 			return nil, trace.AccessDenied(failMsg)
 		case dev == nil:
 			log.Debugf(
@@ -222,6 +226,9 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	if err = s.WithUserLock(user, func() error {
 		return s.checkPasswordWOToken(user, req.Pass.Password)
 	}); err != nil {
+		if fieldErr := getErrorByTraceField(err); fieldErr != nil {
+			return nil, trace.Wrap(fieldErr)
+		}
 		// provide obscure message on purpose, while logging the real
 		// error server side
 		log.Debugf("User %v failed to authenticate: %v.", user, err)
@@ -458,6 +465,19 @@ func (s *Server) createUserWebSession(ctx context.Context, user types.User) (typ
 		Traits:    user.GetTraits(),
 		LoginTime: s.clock.Now().UTC(),
 	})
+}
+
+func getErrorByTraceField(err error) error {
+	traceErr, ok := err.(trace.Error)
+	switch {
+	case !ok:
+		log.WithError(err).Warn("Unexpected error type, wanted TraceError")
+		return trace.AccessDenied("an error has occurred")
+	case traceErr.GetFields()[ErrFieldKeyUserMaxedAttempts] != nil:
+		return trace.AccessDenied(MaxFailedAttemptsErrMsg)
+	}
+
+	return nil
 }
 
 const noLocalAuth = "local auth disabled"

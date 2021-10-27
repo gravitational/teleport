@@ -19,18 +19,22 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httputil"
 	"os"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 )
@@ -48,7 +52,7 @@ type LocalProxyConfig struct {
 	// RemoteProxyAddr is the downstream destination address of remote ALPN proxy service.
 	RemoteProxyAddr string
 	// Protocol set for the upstream TLS connection.
-	Protocol Protocol
+	Protocol common.Protocol
 	// Insecure turns off verification for x509 upstream ALPN proxy service certificate.
 	InsecureSkipVerify bool
 	// Listener is listener running on local machine.
@@ -63,8 +67,15 @@ type LocalProxyConfig struct {
 	SSHUserHost string
 	// SSHHostKeyCallback is the function type used for verifying server keys.
 	SSHHostKeyCallback ssh.HostKeyCallback
-	// SSHTrustedCluster allows to select trusted cluster ssh subsystem request.
+	// SSHTrustedCluster allows selecting trusted cluster ssh subsystem request.
 	SSHTrustedCluster string
+	// ClientTLSConfig is a client TLS configuration used during establishing
+	// connection to the RemoteProxyAddr.
+	ClientTLSConfig *tls.Config
+	// Certs are the client certificates used to connect to the remote Teleport Proxy.
+	Certs []tls.Certificate
+	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
+	AWSCredentials *credentials.Credentials
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -98,11 +109,15 @@ func NewLocalProxy(cfg LocalProxyConfig) (*LocalProxy, error) {
 // SSHProxy is equivalent of `ssh -o 'ForwardAgent yes' -p port  %r@host -s proxy:%h:%p` but established SSH
 // connection to RemoteProxyAddr is wrapped with TLS protocol.
 func (l *LocalProxy) SSHProxy() error {
-	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
-		NextProtos:         []string{string(l.cfg.Protocol)},
-		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
-		ServerName:         l.cfg.SNI,
-	})
+	if l.cfg.ClientTLSConfig != nil {
+		return trace.BadParameter("client TLS config is missing")
+	}
+
+	clientTLSConfig := l.cfg.ClientTLSConfig.Clone()
+	clientTLSConfig.NextProtos = []string{string(l.cfg.Protocol)}
+	clientTLSConfig.InsecureSkipVerify = l.cfg.InsecureSkipVerify
+
+	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, clientTLSConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -200,7 +215,7 @@ func proxySession(ctx context.Context, sess *ssh.Session) error {
 		case <-ctx.Done():
 			return nil
 		case err := <-errC:
-			if err != nil && !errors.Is(err, io.EOF) {
+			if err != nil && !utils.IsOKNetworkError(err) {
 				errs = append(errs, err)
 			}
 		}
@@ -227,6 +242,9 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 		}
 		go func() {
 			if err := l.handleDownstreamConnection(ctx, conn, l.cfg.SNI); err != nil {
+				if utils.IsOKNetworkError(err) {
+					return
+				}
 				log.WithError(err).Errorf("Failed to handle connection.")
 			}
 		}()
@@ -246,6 +264,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		NextProtos:         []string{string(l.cfg.Protocol)},
 		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 		ServerName:         serverName,
+		Certificates:       l.cfg.Certs,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -272,7 +291,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		case <-ctx.Done():
 			return trace.NewAggregate(append(errs, ctx.Err())...)
 		case err := <-errC:
-			if err != nil && !errors.Is(err, io.EOF) {
+			if err != nil && !utils.IsOKNetworkError(err) {
 				errs = append(errs, err)
 			}
 		}
@@ -299,6 +318,37 @@ func (l *LocalProxy) Close() error {
 		if err := l.cfg.Listener.Close(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	return nil
+}
+
+// StartAWSAccessProxy starts the local AWS CLI proxy.
+func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			NextProtos:         []string{string(l.cfg.Protocol)},
+			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
+			ServerName:         l.cfg.SNI,
+			Certificates:       l.cfg.Certs,
+		},
+	}
+	proxy := &httputil.ReverseProxy{
+		Director: func(outReq *http.Request) {
+			outReq.URL.Scheme = "https"
+			outReq.URL.Host = l.cfg.RemoteProxyAddr
+		},
+		Transport: tr,
+	}
+	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if err := appaws.VerifyAWSSignature(req, l.cfg.AWSCredentials); err != nil {
+			log.WithError(err).Errorf("AWS signature verification failed.")
+			rw.WriteHeader(http.StatusForbidden)
+			return
+		}
+		proxy.ServeHTTP(rw, req)
+	}))
+	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		return trace.Wrap(err)
 	}
 	return nil
 }

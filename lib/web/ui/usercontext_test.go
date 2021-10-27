@@ -39,8 +39,8 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 
 	// set some rules
 	role1 := &types.RoleV4{}
-	role1.SetNamespaces(services.Allow, []string{apidefaults.Namespace})
-	role1.SetRules(services.Allow, []types.Rule{
+	role1.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
+	role1.SetRules(types.Allow, []types.Rule{
 		{
 			Resources: []string{types.KindAuthConnector},
 			Verbs:     services.RW(),
@@ -48,7 +48,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	})
 
 	// not setting the rule, or explicitly denying, both denies access
-	role1.SetRules(services.Deny, []types.Rule{
+	role1.SetRules(types.Deny, []types.Rule{
 		{
 			Resources: []string{types.KindEvent},
 			Verbs:     services.RW(),
@@ -56,8 +56,8 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	})
 
 	role2 := &types.RoleV4{}
-	role2.SetNamespaces(services.Allow, []string{apidefaults.Namespace})
-	role2.SetRules(services.Allow, []types.Rule{
+	role2.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
+	role2.SetRules(types.Allow, []types.Rule{
 		{
 			Resources: []string{types.KindTrustedCluster},
 			Verbs:     services.RW(),
@@ -69,9 +69,14 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	})
 
 	// set some logins
-	role1.SetLogins(services.Allow, []string{"a", "b"})
-	role1.SetLogins(services.Deny, []string{"c"})
-	role2.SetLogins(services.Allow, []string{"d"})
+	role1.SetLogins(types.Allow, []string{"a", "b"})
+	role1.SetLogins(types.Deny, []string{"c"})
+	role2.SetLogins(types.Allow, []string{"d"})
+
+	// set some windows desktop logins
+	role1.SetWindowsLogins(types.Allow, []string{"a", "b"})
+	role1.SetWindowsLogins(types.Deny, []string{"c"})
+	role2.SetWindowsLogins(types.Allow, []string{"d"})
 
 	roleSet := []types.Role{role1, role2}
 	userContext, err := NewUserContext(user, roleSet, proto.Features{})
@@ -94,7 +99,9 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.ACL.Tokens, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Nodes, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.AccessRequests, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Desktops, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.SSHLogins, check.DeepEquals, []string{"a", "b", "d"})
+	c.Assert(userContext.ACL.WindowsLogins, check.DeepEquals, []string{"a", "b", "d"})
 	c.Assert(userContext.AccessStrategy, check.DeepEquals, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",

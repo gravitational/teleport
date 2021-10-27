@@ -36,7 +36,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -353,6 +352,15 @@ func (c *SessionContext) GetUserRoles() (services.RoleSet, error) {
 	return roleset, nil
 }
 
+// GetProxyListenerMode returns cluster proxy listener mode form cluster networking config.
+func (c *SessionContext) GetProxyListenerMode(ctx context.Context) (types.ProxyListenerMode, error) {
+	resp, err := c.unsafeCachedAuthClient.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return types.ProxyListenerMode_Separate, trace.Wrap(err)
+	}
+	return resp.GetProxyListenerMode(), nil
+}
+
 // GetIdentity returns identity parsed from the session's TLS certificate.
 func (c *SessionContext) GetIdentity() (*tlsca.Identity, error) {
 	cert, err := c.GetX509Certificate()
@@ -580,8 +588,8 @@ func (s *sessionCache) AuthenticateWebUser(req *client.AuthenticateWebUserReques
 			SignResponse: *req.U2FSignResponse,
 		}
 	}
-	if req.WebauthnChallengeResponse != nil {
-		authReq.Webauthn = req.WebauthnChallengeResponse
+	if req.WebauthnAssertionResponse != nil {
+		authReq.Webauthn = req.WebauthnAssertionResponse
 	}
 	return s.proxyClient.AuthenticateWebUser(authReq)
 }
@@ -656,10 +664,6 @@ func (s *sessionCache) AuthenticateSSHUser(c client.AuthenticateSSHUserRequest) 
 // Ping gets basic info about the auth server.
 func (s *sessionCache) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return s.proxyClient.Ping(ctx)
-}
-
-func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
-	return s.proxyClient.GetSignupU2FRegisterRequest(token)
 }
 
 func (s *sessionCache) ValidateTrustedCluster(validateRequest *auth.ValidateTrustedClusterRequest) (*auth.ValidateTrustedClusterResponse, error) {

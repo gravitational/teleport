@@ -1,7 +1,11 @@
 issues:
   exclude-rules:
-    - linters: gosimple
+    - linters:
+      - gosimple
       text: "S1002: should omit comparison to bool constant"
+    - linters:
+      - revive
+      text: "exported: exported const"
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -12,11 +16,11 @@ linters:
     - bodyclose
     - deadcode
     - goimports
-    - golint
     - gosimple
     - govet
     - ineffassign
     - misspell
+    - revive
     - staticcheck
     - structcheck
     - typecheck
