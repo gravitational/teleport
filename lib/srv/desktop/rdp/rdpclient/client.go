@@ -1,5 +1,5 @@
-//go:build desktop_access_beta
-// +build desktop_access_beta
+//go:build desktop_access_rdp
+// +build desktop_access_rdp
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -52,8 +52,14 @@ package rdpclient
 
 /*
 // Flags to include the static Rust library.
-#cgo linux LDFLAGS: -L${SRCDIR}/target/release -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/release -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
+#cgo linux,386 LDFLAGS: -L${SRCDIR}/target/i686-unknown-linux-gnu/release
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/target/x86_64-unknown-linux-gnu/release
+#cgo linux,arm LDFLAGS: -L${SRCDIR}/target/arm-unknown-linux-gnueabihf/release
+#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/target/aarch64-unknown-linux-gnu/release
+#cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/target/x86_64-apple-darwin/release
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/target/aarch64-apple-darwin/release
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
 #include <librdprs.h>
 */
 import "C"
@@ -151,8 +157,6 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	return c, nil
 }
 
-// TODO(zmb3): allow passing a ctx or otherwise configuring a timeout here
-// (if we cannot route to the host this will hang indefinitely)
 func (c *Client) readClientUsername() error {
 	for {
 		msg, err := c.cfg.InputMessage()

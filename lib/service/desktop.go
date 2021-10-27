@@ -227,7 +227,8 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				}
 			},
 		},
-		LDAPConfig: desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		LDAPConfig:      desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		DiscoveryBaseDN: cfg.WindowsDesktop.Discovery.BaseDN,
 	})
 	if err != nil {
 		return trace.Wrap(err)
