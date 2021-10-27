@@ -126,7 +126,7 @@ $(BUILDDIR)/tctl: roletester
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: bpf-bytecode-e ensure-webassets-e teleport-fips-check
+$(BUILDDIR)/teleport: bpf-bytecode-e ensure-webassets-e teleport-fips-check rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
@@ -159,6 +159,17 @@ else
 roletester:
 endif
 
+ifeq ("$(with_rdpclient)", "yes")
+.PHONY: rdpclient
+rdpclient:
+	cargo build --manifest-path=../lib/srv/desktop/rdp/rdpclient/Cargo.toml --release $(CARGO_TARGET)
+	cargo install cbindgen
+	cbindgen --crate rdp-client --output ../lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c ../lib/srv/desktop/rdp/rdpclient/
+else
+.PHONY: rdpclient
+rdpclient:
+endif
+
 # If FIPS mode was requested, first compile an extra Teleport binary with symbols included and check that it contains BoringCrypto references.
 .PHONY: teleport-fips-check
 teleport-fips-check:
@@ -180,6 +191,8 @@ teleport-fips-check:
 clean:
 	@echo "---> Cleaning up Enterprise build artifacts."
 	rm -rf $(BUILDDIR)
+	rm -rf ../lib/srv/desktop/rdp/rdpclient/target
+	rm -rf ../lib/datalog/roletester/target
 	rm -rf *gz
 
 # make release - Produces a binary release tarball.
