@@ -792,3 +792,41 @@ and non interactive tsh bench loads.
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
+
+## TLS Routing
+
+- [ ] Verify that teleport proxy `v2` configuration starts only a single listener.
+  ```
+  version: v2
+  teleport:
+    proxy_service:
+      enabled: "yes"
+      public_addr: ['root.example.com']
+      web_listen_addr: 0.0.0.0:3080
+  ```
+- [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
+  - [ ] Trusted cluster
+    - [ ] Setup trusted clusters using single port setup `web_proxy_addr == tunnel_addr`
+    ```
+    kind: trusted_cluster
+    spec:
+      ...
+      web_proxy_addr: root.example.com:443
+      tunnel_addr: root.example.com:443
+      ...
+    ```
+- [ ] Database Access
+  - [ ] Verify that `tsh db connect` works through proxy running in `multiplex` mode
+    - [ ] Postgres
+    - [ ] MySQL
+    - [ ] MongoDB
+    - [ ] CockroachDB
+  - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
+- [ ] Application Access
+  - [ ] Verify app access through proxy running in `multiplex` mode
+- [ ] SSH Access
+  - [ ] Connect to a OpenSSH server through a local ssh proxy `ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh" user@host.example.com`
+  - [ ] Connect to a OpenSSH server on leaf-cluster through a local ssh proxy`ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf-cluster %h:%p" user@node.foo.com`
+  - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
+- [ ] Kubernetes access:
+  - [ ] Verify kubernetes access through proxy running in `multiplex` mode
