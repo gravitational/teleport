@@ -19,14 +19,11 @@ ENV LANGUAGE="en_US.UTF-8" \
 
 # Install packages.
 # We install curl first to allow setting up the Google SDK as part of the same layer.
-# Note: we install gcc-multilib and enable the i386 architecture so we can cross compile
-# for i386.
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -y --no-install-recommends apt-utils ca-certificates curl gnupg && \
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
-    dpkg --add-architecture i386 && \
     apt-get -y update && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
@@ -43,7 +40,6 @@ RUN apt-get update -y --fix-missing && \
         libelf-dev \
         libpam-dev \
         libsqlite3-0 \
-        libssl-dev:i386 \
         llvm-10 \
         locales \
         make \
