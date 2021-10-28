@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"net/http"
 	"testing"
 	"time"
 
@@ -11,17 +10,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
-
-func TestGetIPAddress(t *testing.T) {
-	r := &http.Request{
-		Header: http.Header{},
-	}
-
-	r.RemoteAddr = "test:"
-	addr, err := getIPAddress(r)
-	require.NoError(t, err)
-	require.Equal(t, "test", addr)
-}
 
 func TestGetAccountRecoveryCodes(t *testing.T) {
 	t.Parallel()

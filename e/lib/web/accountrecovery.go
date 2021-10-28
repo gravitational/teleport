@@ -85,7 +85,9 @@ func (p *Plugin) startAccountRecoveryHandle(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		if err.Error() == auth.MaxFailedAttemptsFromStartRecoveryErrMsg {
 			if _, emailErr := client.SendAccountLocked(r.Context(), &v1.SendAccountLockedRequest{
-				Email: req.Username,
+				Email:     req.Username,
+				IpAddr:    p.getIPAddress(r),
+				UserAgent: r.UserAgent(),
 			}); emailErr != nil {
 				p.Log.WithError(trail.FromGRPC(emailErr)).Warnf("Failed to email user %v that their account got locked.", req.Username)
 			}
@@ -93,23 +95,15 @@ func (p *Plugin) startAccountRecoveryHandle(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	failedToEmailErrMsg := "unable to email account recovery link, please try again with a new recovery code or contact your system administrator"
-
-	ipAddr, err := getIPAddress(r)
-	if err != nil {
-		p.Log.WithError(err).Errorf("Failed to email user %v their recovery link(%v).", req.Username, token.GetURL())
-		return nil, trace.BadParameter(failedToEmailErrMsg)
-	}
-
 	if _, err := client.SendAccountRecoveryLink(r.Context(), &v1.SendAccountRecoveryLinkRequest{
 		Email:     token.GetUser(),
 		Url:       token.GetURL(),
 		CreatedAt: time.Now().UTC().Unix(),
-		IpAddr:    ipAddr,
+		IpAddr:    p.getIPAddress(r),
 		UserAgent: r.UserAgent(),
 	}); err != nil {
 		p.Log.WithError(trail.FromGRPC(err)).Errorf("Failed to email user %v their recovery link(%v).", req.Username, token.GetURL())
-		return nil, trace.BadParameter(failedToEmailErrMsg)
+		return nil, trace.BadParameter("unable to email account recovery link, please try again with a new recovery code or contact your system administrator")
 	}
 
 	return web.OK(), nil
@@ -171,7 +165,9 @@ func (p *Plugin) verifyAccountRecoveryHandle(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		if err.Error() == auth.MaxFailedAttemptsFromVerifyRecoveryErrMsg {
 			if _, emailErr := client.SendAccountLocked(r.Context(), &v1.SendAccountLockedRequest{
-				Email: req.Username,
+				Email:     req.Username,
+				IpAddr:    p.getIPAddress(r),
+				UserAgent: r.UserAgent(),
 			}); emailErr != nil {
 				p.Log.WithError(trail.FromGRPC(emailErr)).Warnf("Failed to email user %v that their account got locked.", req.Username)
 			}
@@ -248,16 +244,10 @@ func (p *Plugin) completeAccountRecoveryHandle(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	ipAddr, err := getIPAddress(r)
-	if err != nil {
-		p.Log.WithError(trail.FromGRPC(err)).Warnf("Failed to email user %q that their account was successfully recovered", token.GetUser())
-		return web.OK(), nil
-	}
-
 	if _, err := client.SendAccountRecovered(r.Context(), &v1.SendAccountRecoveredRequest{
 		Email:       token.GetUser(),
 		RecoveredAt: time.Now().UTC().Unix(),
-		IpAddr:      ipAddr,
+		IpAddr:      p.getIPAddress(r),
 		UserAgent:   r.UserAgent(),
 	}); err != nil {
 		p.Log.WithError(trail.FromGRPC(err)).Warnf("Failed to email user %q that their account was successfully recovered", token.GetUser())
@@ -287,13 +277,14 @@ func (p *Plugin) createAccountRecoveryCodesHandle(w http.ResponseWriter, r *http
 	return res.GetRecoveryCodes(), nil
 }
 
-func getIPAddress(r *http.Request) (string, error) {
+func (p *Plugin) getIPAddress(r *http.Request) string {
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return "", trace.Wrap(err)
+		p.Log.WithError(err).Warnf("Failed to split host from port for remote address %s", r.RemoteAddr)
+		return r.RemoteAddr
 	}
 
-	return ip, nil
+	return ip
 }
 
 func (p *Plugin) getAccountRecoveryCodesMetadataHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
