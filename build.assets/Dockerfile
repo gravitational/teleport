@@ -155,7 +155,9 @@ RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gog
      git reset --hard ${GOGO_PROTO_TAG} && \
      make install)
 
-ENV PROTO_INCLUDE "/usr/local/include":"${GOPATH}/src":"${GOPATH}/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf":"${GOPATH}/src/github.com/gravitational/teleport/lib/services"
+# Note: protoc reads the proto files from /vendor/.../teleport/api/vX rather than
+# /api because protoc does not understand go modules, and reads vX as a directory.
+ENV PROTO_INCLUDE "/usr/local/include":"/go/src/github.com/gravitational/teleport/vendor":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/

@@ -64,6 +64,10 @@ func (s *Suite) TestSanitizeBucket(c *check.C) {
 			inKey:    RangeEnd([]byte("Malformed \xf0\x90\x28\xbc UTF8")),
 			outError: true,
 		},
+		{
+			inKey:    []byte("test+subaddr@example.com"),
+			outError: false,
+		},
 	}
 
 	for i, tt := range tests {
