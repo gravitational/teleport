@@ -18,8 +18,8 @@ metadata:
   {{- end }}
 spec:
   type: LoadBalancer
-  {{- if .Values.loadBalancerIP }}
-  loadBalancerIP: {{ .Values.loadBalancerIP }}
+  {{- if .Values.service.spec.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.service.spec.loadBalancerIP }}
   {{- end }}
   ports:
   - name: https
