@@ -2,8 +2,8 @@ package ui
 
 import "time"
 
-// AccountRecoveryCode describes AccountRecoveryCode UI object.
-type AccountRecoveryCode struct {
+// RecoveryCodes describes RecoveryCodes UI object.
+type RecoveryCodes struct {
 	// Codes are user's new recovery codes.
 	Codes []string `json:"codes,omitempty"`
 	// Created is when the codes were created.

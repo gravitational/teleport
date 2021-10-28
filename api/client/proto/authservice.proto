@@ -1214,7 +1214,7 @@ message ChangeUserAuthenticationResponse {
     // requirements to receive recovery codes:
     //  - cloud feature is enabled
     //  - username is in valid email format
-    AccountRecoveryCode Recovery = 2 [ (gogoproto.jsontag) = "recovery,omitempty" ];
+    RecoveryCodes Recovery = 2 [ (gogoproto.jsontag) = "recovery,omitempty" ];
 }
 
 // StartAccountRecoveryRequest defines a request to create a recovery start token for a user who is
@@ -1274,9 +1274,9 @@ message CompleteAccountRecoveryRequest {
     }
 }
 
-// AccountRecoveryCode describes account recovery fields. Used as a RPC
+// RecoveryCodes describes account recovery fields. Used as a RPC
 // response or as part of a RPC response that requires any of these fields.
-message AccountRecoveryCode {
+message RecoveryCodes {
     // Codes holds the list of recovery phrase words.
     // Field is only used when new recovery codes are generated and returned to user.
     repeated string Codes = 1 [ (gogoproto.jsontag) = "codes,omitempty" ];
@@ -1791,7 +1791,7 @@ service AuthService {
     // CreateAccountRecoveryCodes (exclusive to cloud users) creates new set of recovery codes for a
     // user, replacing and invalidating any previously owned codes. Users can only get recovery
     // codes if their username is in a valid email format.
-    rpc CreateAccountRecoveryCodes(CreateAccountRecoveryCodesRequest) returns (AccountRecoveryCode);
+    rpc CreateAccountRecoveryCodes(CreateAccountRecoveryCodesRequest) returns (RecoveryCodes);
     // GetAccountRecoveryToken (exclusive to cloud users) returns a user token resource after
     // verifying that the token requested has not expired and is of the correct recovery kind.
     // Besides checking for validity of a token ID, it is also used to get basic information from
@@ -1801,7 +1801,7 @@ service AuthService {
     // GetAccountRecoveryCodes (exclusive to cloud users) is a request to return the user in context
     // their recovery codes. This request will not return any secrets (the values of recovery
     // codes), but instead returns non-sensitive data eg. when the recovery codes were created.
-    rpc GetAccountRecoveryCodes(GetAccountRecoveryCodesRequest) returns (AccountRecoveryCode);
+    rpc GetAccountRecoveryCodes(GetAccountRecoveryCodesRequest) returns (RecoveryCodes);
 
     // CreatePrivilegeToken returns a new privilege token after a logged in user successfully
     // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and

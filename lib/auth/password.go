@@ -66,7 +66,7 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	recoveryAllowed := s.isAccountRecoveryAllowed(ctx) == nil
 	createRecoveryCodes := hasEmail && hasMFA && recoveryAllowed
 
-	var newRecovery *proto.AccountRecoveryCode
+	var newRecovery *proto.RecoveryCodes
 	if createRecoveryCodes {
 		newRecovery, err = s.generateAndUpsertRecoveryCodes(ctx, user.GetName())
 		if err != nil {

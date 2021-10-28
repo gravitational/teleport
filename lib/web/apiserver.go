@@ -1541,10 +1541,10 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	if res.GetRecovery() == nil {
-		return &ui.AccountRecoveryCode{}, nil
+		return &ui.RecoveryCodes{}, nil
 	}
 
-	return &ui.AccountRecoveryCode{
+	return &ui.RecoveryCodes{
 		Codes:   res.Recovery.Codes,
 		Created: &res.Recovery.Created,
 	}, nil
