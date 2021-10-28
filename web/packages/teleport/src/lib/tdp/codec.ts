@@ -164,8 +164,10 @@ export default class Codec {
     LaunchApp2: 0xe021,
     MediaPlayPause: 0xe022,
     MediaStop: 0xe024,
-    AudioVolumeDown: 0xe02e,
-    AudioVolumeUp: 0xe030,
+    AudioVolumeDown: 0xe02e, // Chromium, Gecko
+    VolumeDown: 0xe02e, // Firefox
+    AudioVolumeUp: 0xe030, // Chromium, Gecko
+    VolumeUp: 0xe030, // Firefox
     BrowserHome: 0xe032,
     NumpadDivide: 0xe035,
     PrintScreen: 0xe037,
@@ -181,8 +183,10 @@ export default class Codec {
     PageDown: 0xe051,
     Insert: 0xe052,
     Delete: 0xe053,
-    MetaLeft: 0xe05b,
-    MetaRight: 0xe05c,
+    MetaLeft: 0xe05b, // Chromium
+    OSLeft: 0xe05b, // Firefox, Gecko
+    MetaRight: 0xe05c, // Chromium
+    OSRight: 0xe05c, // Firefox, Gecko
     ContextMenu: 0xe05d,
     Power: 0xe05e,
     BrowserSearch: 0xe065,
