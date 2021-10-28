@@ -23,11 +23,11 @@ use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
 use std::io::{Cursor, Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
-use std::{mem, ptr, slice};
+use std::{mem, ptr, slice, time};
 
 #[no_mangle]
 pub extern "C" fn init() {
@@ -116,6 +116,7 @@ pub extern "C" fn connect_rdp(
 enum ConnectError {
     TCP(IoError),
     RDP(RdpError),
+    InvalidAddr(),
 }
 
 impl From<IoError> for ConnectError {
@@ -130,6 +131,8 @@ impl From<RdpError> for ConnectError {
     }
 }
 
+const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
+
 fn connect_rdp_inner(
     addr: &str,
     username: String,
@@ -139,7 +142,11 @@ fn connect_rdp_inner(
     screen_height: u16,
 ) -> Result<Client, ConnectError> {
     // Connect and authenticate.
-    let tcp = TcpStream::connect(addr)?;
+    let addr = addr
+        .to_socket_addrs()?
+        .next()
+        .ok_or(ConnectError::InvalidAddr())?;
+    let tcp = TcpStream::connect_timeout(&addr, RDP_CONNECT_TIMEOUT)?;
     let tcp_fd = tcp.as_raw_fd() as usize;
     // Domain name "." means current domain.
     let domain = ".";

@@ -322,7 +322,10 @@ func TestListNodes(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// listing nodes 0-4 should list first 5 nodes
-	nodes, _, err := clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	nodes, _, err := clt.ListNodes(ctx, proto.ListNodesRequest{
+		Namespace: defaults.Namespace,
+		Limit:     5,
+	})
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes := testNodes[:5]
@@ -333,7 +336,10 @@ func TestListNodes(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// listing nodes 0-4 should skip the third node and add the fifth to the end.
-	nodes, _, err = clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	nodes, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+		Namespace: defaults.Namespace,
+		Limit:     5,
+	})
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = append(testNodes[:3], testNodes[4:6]...)

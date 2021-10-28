@@ -79,6 +79,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
+const (
+	ErrFieldKeyUserMaxedAttempts = "maxed-attempts"
+
+	// MaxFailedAttemptsErrMsg is a user friendly error message that tells a user that they are locked.
+	MaxFailedAttemptsErrMsg = "too many incorrect attempts, please try again later"
+)
+
 // ServerOption allows setting options as functional arguments to Server
 type ServerOption func(*Server)
 
@@ -1027,12 +1034,20 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	status := user.GetStatus()
 	if status.IsLocked {
 		if status.RecoveryAttemptLockExpires.After(a.clock.Now().UTC()) {
-			return trace.AccessDenied("%v exceeds %v failed account recovery attempts, locked until %v",
+			log.Debugf("%v exceeds %v failed account recovery attempts, locked until %v",
 				user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
+
+			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
+			return err
 		}
 		if status.LockExpires.After(a.clock.Now().UTC()) {
-			return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
+			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
+
+			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
+			return err
 		}
 	}
 	fnErr := authenticateFn()
@@ -1066,16 +1081,18 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		return trace.Wrap(fnErr)
 	}
 	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
-	message := fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
-		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
-	log.Debug(message)
+	log.Debug(fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
+		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(lockUntil)))
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	err = a.Identity.UpsertUser(user)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
 	}
-	return trace.AccessDenied(message)
+
+	retErr := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+	retErr.AddField(ErrFieldKeyUserMaxedAttempts, true)
+	return retErr
 }
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
@@ -1135,8 +1152,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if err := a.WithUserLock(username, func() error {
 			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
-			log.Error(trace.DebugReport(err))
-			return nil, trace.AccessDenied("invalid password or username")
+			return nil, trace.Wrap(err)
 		}
 
 	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
@@ -2143,50 +2159,6 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 	return true
 }
 
-// RegisterUsingTokenRequest is a request to register with
-// auth server using authentication token
-type RegisterUsingTokenRequest struct {
-	// HostID is a unique host ID, usually a UUID
-	HostID string `json:"hostID"`
-	// NodeName is a node name
-	NodeName string `json:"node_name"`
-	// Role is a system role, e.g. Proxy
-	Role types.SystemRole `json:"role"`
-	// Token is an authentication token
-	Token string `json:"token"`
-	// AdditionalPrincipals is a list of additional principals
-	AdditionalPrincipals []string `json:"additional_principals"`
-	// DNSNames is a list of DNS names to include in the x509 client certificate
-	DNSNames []string `json:"dns_names"`
-	// PublicTLSKey is a PEM encoded public key
-	// used for TLS setup
-	PublicTLSKey []byte `json:"public_tls_key"`
-	// PublicSSHKey is a SSH encoded public key,
-	// if present will be signed as a return value
-	// otherwise, new public/private key pair will be generated
-	PublicSSHKey []byte `json:"public_ssh_key"`
-	// RemoteAddr is the remote address of the host requesting a host certificate.
-	// It is used to replace 0.0.0.0 in the list of additional principals.
-	RemoteAddr string `json:"remote_addr"`
-	// EC2IdentityDocument is used for Simplified Node Joining to prove the
-	// identity of a joining EC2 instance.
-	EC2IdentityDocument []byte `json:"ec2_id"`
-}
-
-// CheckAndSetDefaults checks for errors and sets defaults
-func (r *RegisterUsingTokenRequest) CheckAndSetDefaults() error {
-	if r.HostID == "" {
-		return trace.BadParameter("missing parameter HostID")
-	}
-	if r.Token == "" {
-		return trace.BadParameter("missing parameter Token")
-	}
-	if err := r.Role.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // RegisterUsingToken adds a new node to the Teleport cluster using previously issued token.
 // A node must also request a specific role (and the role must match one of the roles
 // the token was generated for).
@@ -2194,7 +2166,7 @@ func (r *RegisterUsingTokenRequest) CheckAndSetDefaults() error {
 // If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
 // If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
 // after a successful registration.
-func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs, error) {
+func (a *Server) RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
 
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -2698,17 +2670,17 @@ func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...service
 }
 
 // ListNodes is a part of auth.AccessPoint implementation
-func (a *Server) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
-	return a.GetCache().ListNodes(ctx, namespace, limit, startKey)
+func (a *Server) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
+	return a.GetCache().ListNodes(ctx, req)
 }
 
 // NodePageFunc is a function to run on each page iterated over.
 type NodePageFunc func(next []types.Server) (stop bool, err error)
 
 // IterateNodePages can be used to iterate over pages of nodes.
-func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit int, startKey string, f NodePageFunc) (string, error) {
+func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesRequest, f NodePageFunc) (string, error) {
 	for {
-		nextPage, nextKey, err := a.ListNodes(ctx, namespace, limit, startKey)
+		nextPage, nextKey, err := a.ListNodes(ctx, req)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -2724,7 +2696,7 @@ func (a *Server) IterateNodePages(ctx context.Context, namespace string, limit i
 			return nextKey, nil
 		}
 
-		startKey = nextKey
+		req.StartKey = nextKey
 	}
 }
 
@@ -3297,7 +3269,11 @@ func (a *Server) validateMFAAuthResponse(ctx context.Context, user string, resp 
 			Webauthn: webConfig,
 			Identity: a.Identity,
 		}
-		return webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
+		dev, err := webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
+		if err != nil {
+			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
+		}
+		return dev, nil
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}

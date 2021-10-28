@@ -252,7 +252,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient, error) {
-	clientConfig, err := makeTeleportClientConfig(t.ctx)
+	clientConfig, err := makeTeleportClientConfig(ws.Request().Context(), t.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

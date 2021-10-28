@@ -48,11 +48,10 @@ translates the Teleport desktop protocol into RDP:
 It can also talk to `localhost` RDP service, if installed on a Windows machine
 in agent mode (described below).
 
-If configured with Active Directory Domain Controller credentials,
-`windows_desktop_service` also discovers all available Windows hosts from
-Active Directory and registers them in Teleport as `WindowsDesktop` objects.
-Without Domain Controller credentials, `windows_desktop_service` uses a static
-list of Windows hosts provided in `teleport.yaml`.
+`windows_desktop_service` has the ability to automatically discover available
+Windows hosts from Active Directory by performing an LDAP search. In addition,
+`windows_desktop_service` can use a static list of Windows hosts provided in
+`teleport.yaml`.
 
 ### Supported versions
 
@@ -182,12 +181,16 @@ connect to. Internally, Teleport tracks known Windows hosts using
 
 There are 3 ways that `windows_desktop_service` discovers Windows hosts to
 register:
-- hardcoded list of standalone hosts provided in the config file (see
+- hardcoded list of hosts provided in the config file (see
   [configuration](#configuration))
 - list of Active Directory-enrolled hosts obtained from AD via LDAPS (LDAP over
   SSL)
   - LDAP library: https://pkg.go.dev/github.com/go-ldap/ldap/v3
 - local host, when running on a Windows machine in agent mode
+
+By default, Teleport will only register hosts that are provided in the
+configuration file. To enable host discovery over LDAP, additional configuration
+is necessary (see [configuration](#configuration)).
 
 #### Automatic Host Labels
 
@@ -243,6 +246,12 @@ windows_desktop_service:
   - win1.example.com
   - win2.example.com
   - ...
+  # (optional) settings for enabling automatic desktop discovery via LDAP
+  discovery:
+    base_dn: '*' # wildcard searches from the root, leave empty to disable discovery
+    filters:  # additional LDAP filters: https://ldap.com/ldap-filters/
+    - filter1 # note: multiple filters are combined into an AND filter
+    - filter2
   # (optional) host_labels applies labels to windows hosts for RBAC.
   # Each entry maps to a subset of hosts by regexp and applies a group of labels.
   # A host can match multiple regexps and will get a union of all the labels.

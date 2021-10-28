@@ -1,5 +1,5 @@
-//go:build desktop_access_beta
-// +build desktop_access_beta
+//go:build desktop_access_rdp
+// +build desktop_access_rdp
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -52,8 +52,14 @@ package rdpclient
 
 /*
 // Flags to include the static Rust library.
-#cgo linux LDFLAGS: -L${SRCDIR}/target/release -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/release -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
+#cgo linux,386 LDFLAGS: -L${SRCDIR}/target/i686-unknown-linux-gnu/release
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/target/x86_64-unknown-linux-gnu/release
+#cgo linux,arm LDFLAGS: -L${SRCDIR}/target/arm-unknown-linux-gnueabihf/release
+#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/target/aarch64-unknown-linux-gnu/release
+#cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/target/x86_64-apple-darwin/release
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/target/aarch64-apple-darwin/release
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
 #include <librdprs.h>
 */
 import "C"
@@ -62,22 +68,41 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/sirupsen/logrus"
 )
 
 func init() {
-	// Call the init function in Rust, initializes their logger.
-	//
-	// TODO(zmb3): the Rust logger won't work unless RUST_LOG env var is set.
-	// Consider setting it here explicitly if not set, matching the logging
-	// level of Teleport.
+	// initialize the Rust logger by setting $RUST_LOG based
+	// on the logrus log level
+	// (unless RUST_LOG is already explicitly set, then we
+	// assume the user knows what they want)
+	if rl := os.Getenv("RUST_LOG"); rl != "" {
+		var rustLogLevel string
+		switch l := logrus.GetLevel(); l {
+		case logrus.TraceLevel:
+			rustLogLevel = "trace"
+		case logrus.DebugLevel:
+			rustLogLevel = "debug"
+		case logrus.InfoLevel:
+			rustLogLevel = "info"
+		case logrus.WarnLevel:
+			rustLogLevel = "warn"
+		default:
+			rustLogLevel = "error"
+		}
+
+		os.Setenv("RUST_LOG", rustLogLevel)
+	}
+
 	C.init()
 }
 
@@ -132,8 +157,6 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	return c, nil
 }
 
-// TODO(zmb3): allow passing a ctx or otherwise configuring a timeout here
-// (if we cannot route to the host this will hang indefinitely)
 func (c *Client) readClientUsername() error {
 	for {
 		msg, err := c.cfg.InputMessage()
