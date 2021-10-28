@@ -1,0 +1,117 @@
+---
+title: Getting started with Teleport on DigitalOcean
+description: How to install Teleport on DigitalOcean?
+videoBanner: voHQlSX_czE
+---
+
+This tutorial will guide you through quickly getting started with Teleport on DigitalOcean with Teleport 1-Click Droplet app.
+ 
+<Admonition
+  type="note"
+  title="Note"
+>
+  This tutorial covers getting started with Teleport using DigitalOcean 1-Click droplet app. If you are looking for a manual installation, refer to our [Linux installation guide](./linux-server.mdx). 
+
+</Admonition>
+
+Prerequisites
+- A Fully Qualified Domain Name (this will be used as a [clustername](../setup/admin/trustedclusters.mdx#introduction) for Teleport).
+- A two-factor authenticator app(e.g., [Google Authenticator](https://www.google.com/landing/2step/)).
+- An SSH client like OpenSSH.
+
+## Step 1/4. Install Teleport with 1-Click
+
+Head over to Teleport page on [DigitalOcean marketplace](https://marketplace.digitalocean.com/apps/teleport) and click “Create a Droplet” button:
+
+![Teleport 1-Click Droplet Page](../../img/quickstart/digitalocean/1click-droplet-page.png)
+
+Once you click the button, DigitalOcean redirects you to the control panel where you can select VPS type, region, and set up SSH auth method. Teleport server is very lightweight, and if you are just trying out Teleport, you can select $5 droplet. Make sure you select SSH keys as the SSH authentication method as it is more secure than a password.
+
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  Teleport supports certificate-based auth for SSH, which is more secure than both keys and passwords. 
+</Admonition>
+
+
+It will take a few minutes before our newly created Teleport droplet is ready. Once the droplet is ready, use the public IP address of the droplet as an IP for A record in your DNS setting. For example,  refer to the image below; we use the domain name `teleporters.dev`. The resulting domain we are using as an FQDN is `dodemo.teleporters.dev`, pointing to our Teleport droplet IP `159.223.92.161`.
+
+![Setup FQDN](../../img/quickstart/digitalocean/fqdn.png)
+
+## Step 2/4. Configure Teleport
+When you are ready with your FQDN, SSH to your droplet, a setup wizard will guide you through the initial Teleport set up in your first SSH login to the droplet.
+
+```
+$ ssh root@teleport_host
+*********************************************************
+**              Configuring Teleport                   **
+*********************************************************
+___
+• Enter Teleport cluster name (FQDN): dodemo.teleporters.dev
+• Enter your email address to retrieve TLS certificate from Lets Encrypt: dodemo@teleporters.dev
+• Enter a username for the initial Teleport user: tadmin
+
+Initializing...
+[+] Generating new host UUID...
+[+] Updating cluster networking configuration...
+[+] Generating user and host certificate authority...
+[+] Enabling RBAC in OSS Teleport. Migrating users, roles and trusted clusters...
+[+] Starting Auth and Proxy services...
+[+] Final Checks...
+
+***************************************************************************
+**                             ---
+**    Teleport is configured and user tadmin has been created
+**    but requires a password. Open the URL link below to complete the
+**    setup. The link is valid for 1h:
+**
+**    https://dodemo.teleporters.dev:443/web/invite/992a29e8ef845d2f0189dee316f92939
+**
+**                             ---
+**                     HAPPY TELEPORTING :)
+***************************************************************************
+```
+
+Copy the URL link printed in this step:
+`https://dodemo.teleporters.dev:443/web/invite/992a29e8ef845d2f0189dee316f92939`
+
+This link opens up Teleport Web UI, where you will need to set a password and configure two-factor authentication to complete the user setup process.
+
+## Step 3/4. Complete user setup and login to Teleport UI
+Open the link copied in the previous step in the browser to complete the setup process. When the web page is ready:
+1. Scan the QR code with two-factor authentication app (e.g., Google Authenticator)
+2. Set a password and enter TOTP code generated from the two-factor Authentication app.
+![Setup User](../../img/quickstart/digitalocean/setup-user.png)
+
+Once you setup a password and provide a valid TOTP code, the user setup process will be complete, and you will be redirected to WebUI:
+
+![Teleport WebUI](../../img/quickstart/digitalocean/webui.png)
+
+Congrats! You've completed setting up Teleport! Finally, you are a step closer to managing secure access to your infrastructure hosted in DigitalOcean. 
+
+## Step 4/4. Protect access to DigitalOcean Services with Teleport!
+
+The next step for you should be to protect direct SSH access to your droplets using Teleport. You can also secure access to Database, Marketplace apps, and Kubernetes Cluster using Teleport. Below are the links to get started further:
+
+
+<TileSet>
+ <Tile icon="bolt" title="tsh" href="../server-access/guides/tsh.mdx">
+   Learn about Teleport SSH CLI tool.
+  </Tile>
+  <Tile icon="server" title="Server Access" href="../server-access/getting-started.mdx">
+    Single Sign-On, short-lived certificates, and audit for SSH servers.
+  </Tile>
+  <Tile icon="window" title="Application Access" href="../application-access/getting-started.mdx">
+    Secure access to internal dashboards and web applications.
+  </Tile>
+  <Tile icon="kubernetes" title="Kubernetes Access" href="../kubernetes-access/getting-started.mdx">
+    Single Sign-On, audit and unified access for Kubernetes clusters.
+  </Tile>
+  <Tile icon="database" title="Database Access" href="../database-access/getting-started.mdx">
+    Secure access to PostgreSQL, MySQL and MongoDB databases.
+  </Tile>
+  <Tile icon="desktop" title="Desktop Access" href="../desktop-access/getting-started.mdx">
+    Secure access to Windows Server.
+  </Tile>
+</TileSet>
