@@ -111,7 +111,7 @@ $ POD=$(kubectl --namespace=teleport-cluster get pod -l app=teleport-cluster -o 
 $ kubectl --namespace=teleport-cluster exec -i ${POD?} -- tctl create -f < member.yaml
 ```
 
-#### Assign "member" role to user "tadmin".
+#### Assign "member" role to user "tadmin"
 Now we will assign Teleport user **tadmin** with this role. The example below shows a process using Teleport WebUI:
 First, lets select user edit menu:
 ![Edit User](../../../../img/helm/digitalocean/edit-user.png)
