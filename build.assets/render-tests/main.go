@@ -20,6 +20,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -34,6 +35,7 @@ import (
 
 var covPattern = regexp.MustCompile(`^coverage: (\d+\.\d+)\% of statements`)
 
+// TestEvent is a JSON test event record (see `go help test2json`)
 type TestEvent struct {
 	Time           time.Time // encodes as an RFC3339-format string
 	Action         string
@@ -58,23 +60,48 @@ const (
 	actionOutput = "output"
 )
 
+// testEventReadResult combines a TestEvent and a possible read/decode
+// error, allowing the input stream reader to communicate failures
+// to the main program
+type testEventReadResult struct {
+	TestEvent
+	err error
+}
+
 // separator for console output
 const separator = "==================================================="
 
-func readInput(input io.Reader, ch chan<- TestEvent) {
+func handleDecodeFailure(input io.Reader) testEventReadResult {
+	result := testEventReadResult{}
+	scanner := bufio.NewScanner(input)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		result.err = fmt.Errorf("failed parsing JSON record: %v", line)
+		return result
+	}
+
+	result.err = errors.New("no input")
+	return result
+}
+
+func readInput(input io.Reader, ch chan<- testEventReadResult) {
 	decoder := json.NewDecoder(input)
 	for {
-		event := TestEvent{}
+		event := testEventReadResult{}
 
-		err := decoder.Decode(&event)
+		err := decoder.Decode(&event.TestEvent)
 		if errors.Is(err, io.EOF) {
 			close(ch)
 			break
 		}
 
 		if err != nil {
-			fmt.Printf("Error parsing JSON test record: %v\n", err)
-			continue
+			ch <- handleDecodeFailure(decoder.Buffered())
+			return
 		}
 
 		ch <- event
@@ -108,7 +135,7 @@ func newOutputMap() *outputMap {
 	}
 }
 
-func (m *outputMap) record(event TestEvent) {
+func (m *outputMap) record(event *TestEvent) {
 	m.actionCounts[event.Action]++
 
 	var pkgOutput *packageOutput
@@ -159,14 +186,14 @@ func main() {
 	failedPackages := make(map[string]*packageOutput)
 	coverage := make(map[string]float64)
 
-	events := make(chan TestEvent)
+	events := make(chan testEventReadResult)
 	go readInput(os.Stdin, events)
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 
 	keepGoing := true
-	event := TestEvent{}
+	event := testEventReadResult{}
 
 	for keepGoing {
 		select {
@@ -178,9 +205,14 @@ func main() {
 				continue
 			}
 
+			if event.err != nil {
+				fmt.Printf("ERROR: %s\n", event.err)
+				os.Exit(2)
+			}
+
 			testName := event.FullName()
 
-			testOutput.record(event)
+			testOutput.record(&event.TestEvent)
 
 			// if this is whole-package summary result
 			if event.Test == "" {
