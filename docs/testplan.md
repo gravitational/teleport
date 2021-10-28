@@ -734,6 +734,13 @@ and non interactive tsh bench loads.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
 - [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
+- [ ] Verify AWS console access.
+  - [ ] Can log into AWS web console through the web UI.
+  - [ ] Can interact with AWS using `tsh aws` commands.
+- [ ] Verify dynamic registration.
+  - [ ] Can register a new app using `tctl create`.
+  - [ ] Can update registered app using `tctl create -f`.
+  - [ ] Can delete registered app using `tctl rm`.
 - [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all apps registered are shown
   - [ ] Verify that clicking on the app icon takes you to another tab
@@ -745,6 +752,7 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MongoDB.
+  - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
@@ -754,6 +762,7 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MongoDB.
+  - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
@@ -770,8 +779,54 @@ and non interactive tsh bench loads.
     - [ ] `db.session.start` is emitted when connection attempt is denied.
   - [ ] _(MongoDB only)_ Can only execute commands in databases from `db_names`.
     - [ ] `db.session.query` is emitted when command fails due to permissions.
+  - [ ] Can configure per-session MFA.
+    - [ ] MFA tap is required on each `tsh db connect`.
+- [ ] Verify dynamic registration.
+  - [ ] Can register a new database using `tctl create`.
+  - [ ] Can update registered database using `tctl create -f`.
+  - [ ] Can delete registered database using `tctl rm`.
+- [ ] Verify discovery.
+  - [ ] Can detect and register RDS instances and Aurora clusters.
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
+
+## TLS Routing
+
+- [ ] Verify that teleport proxy `v2` configuration starts only a single listener.
+  ```
+  version: v2
+  teleport:
+    proxy_service:
+      enabled: "yes"
+      public_addr: ['root.example.com']
+      web_listen_addr: 0.0.0.0:3080
+  ```
+- [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
+  - [ ] Trusted cluster
+    - [ ] Setup trusted clusters using single port setup `web_proxy_addr == tunnel_addr`
+    ```
+    kind: trusted_cluster
+    spec:
+      ...
+      web_proxy_addr: root.example.com:443
+      tunnel_addr: root.example.com:443
+      ...
+    ```
+- [ ] Database Access
+  - [ ] Verify that `tsh db connect` works through proxy running in `multiplex` mode
+    - [ ] Postgres
+    - [ ] MySQL
+    - [ ] MongoDB
+    - [ ] CockroachDB
+  - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
+- [ ] Application Access
+  - [ ] Verify app access through proxy running in `multiplex` mode
+- [ ] SSH Access
+  - [ ] Connect to a OpenSSH server through a local ssh proxy `ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh" user@host.example.com`
+  - [ ] Connect to a OpenSSH server on leaf-cluster through a local ssh proxy`ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf-cluster %h:%p" user@node.foo.com`
+  - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
+- [ ] Kubernetes access:
+  - [ ] Verify kubernetes access through proxy running in `multiplex` mode
