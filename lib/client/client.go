@@ -164,14 +164,7 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	case p.RouteToDatabase.ServiceName != "":
 		// Database means a request for a TLS certificate for access to a
 		// specific database, as specified by RouteToDatabase.
-
-		// DELETE IN 7.0
-		// Database certs have to be requested with CertUsage All because
-		// pre-7.0 servers do not accept usage-restricted certificates.
-		//
-		// In 7.0 clients, we can expect the server to be 7.0+ and set this to
-		// proto.UserCertsRequest_Database again.
-		return proto.UserCertsRequest_All
+		return proto.UserCertsRequest_Database
 	case p.RouteToApp.Name != "":
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
@@ -552,24 +545,11 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 	if namespace == "" {
 		return nil, trace.BadParameter(auth.MissingNamespaceError)
 	}
-	nodes := make([]types.Server, 0)
 	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	siteNodes, err := site.GetNodes(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// look at every node on this site and see which ones match:
-	for _, node := range siteNodes {
-		if node.MatchAgainst(labels) {
-			nodes = append(nodes, node)
-		}
-	}
-	return nodes, nil
+	return auth.GetNodesWithLabels(ctx, site, namespace, labels)
 }
 
 // GetAppServers returns a list of application servers.
@@ -733,9 +713,9 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
-	// If proxy supports ALPN SNI listener dial root/leaf cluster auth service via ALPN Proxy
+	// If proxy supports multiplex listener mode dial root/leaf cluster auth service via ALPN Proxy
 	// directly without using SSH tunnels.
-	if proxy.teleportClient.ALPNSNIListenerEnabled {
+	if proxy.teleportClient.TLSRoutingEnabled {
 		clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)

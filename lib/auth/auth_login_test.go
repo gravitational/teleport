@@ -27,6 +27,7 @@ import (
 	"github.com/tstranex/u2f"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
@@ -136,22 +137,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 				require.Empty(t, challenge.GetU2F())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 				require.Equal(t, "myexplicitid", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
-			},
-		},
-		{
-			name: "OK second_factor:webauthn (derived from U2F)",
-			spec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorWebauthn,
-				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
-				},
-			},
-			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
-				require.Empty(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
-				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 		{
@@ -382,7 +367,7 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 
 			switch {
 			case tc.wantErr:
-				require.True(t, trace.IsAccessDenied(err))
+				require.Error(t, err)
 			default:
 				require.NoError(t, err)
 				require.NotNil(t, res.GetTOTP())
@@ -390,6 +375,32 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 				require.NotEmpty(t, res.GetWebauthnChallenge())
 			}
 		})
+	}
+}
+
+func TestCreateAuthenticateChallenge_WithUserCredentials_WithLock(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
+		_, err = srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+				Username: u.username,
+				Password: []byte("invalid-password"),
+			}},
+		})
+		require.Error(t, err)
+
+		// Test last attempt returns locked error.
+		if i == defaults.MaxLoginAttempts {
+			require.Equal(t, err.Error(), MaxFailedAttemptsErrMsg)
+		} else {
+			require.NotEqual(t, err.Error(), MaxFailedAttemptsErrMsg)
+		}
 	}
 }
 

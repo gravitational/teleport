@@ -50,17 +50,17 @@ type AccessCapabilities struct {
 }
 
 type userACL struct {
-	// Sessions defines access to recorded sessions
+	// Sessions defines access to recorded sessions.
 	Sessions access `json:"sessions"`
-	// AuthConnectors defines access to auth.connectors
+	// AuthConnectors defines access to auth.connectors.
 	AuthConnectors access `json:"authConnectors"`
-	// Roles defines access to roles
+	// Roles defines access to roles.
 	Roles access `json:"roles"`
 	// Users defines access to users.
 	Users access `json:"users"`
-	// TrustedClusters defines access to trusted clusters
+	// TrustedClusters defines access to trusted clusters.
 	TrustedClusters access `json:"trustedClusters"`
-	// Events defines access to audit logs
+	// Events defines access to audit logs.
 	Events access `json:"events"`
 	// Tokens defines access to tokens.
 	Tokens access `json:"tokens"`
@@ -72,11 +72,15 @@ type userACL struct {
 	DBServers access `json:"dbServers"`
 	// KubeServers defines access to kubernetes servers.
 	KubeServers access `json:"kubeServers"`
-	// SSH defines access to servers
+	// Desktops defines access to desktops.
+	Desktops access `json:"desktops"`
+	// SSHLogins defines access to servers.
 	SSHLogins []string `json:"sshLogins"`
-	// AccessRequests defines access to access requests
+	// WindowsLogins defines access to logins on windows desktop servers.
+	WindowsLogins []string `json:"windowsLogins"`
+	// AccessRequests defines access to access requests.
 	AccessRequests access `json:"accessRequests"`
-	// Billing defines access to billing information
+	// Billing defines access to billing information.
 	Billing access `json:"billing"`
 }
 
@@ -107,21 +111,40 @@ func getLogins(roleSet services.RoleSet) []string {
 	allowed := []string{}
 	denied := []string{}
 	for _, role := range roleSet {
-		denied = append(denied, role.GetLogins(services.Deny)...)
-		allowed = append(allowed, role.GetLogins(services.Allow)...)
+		denied = append(denied, role.GetLogins(types.Deny)...)
+		allowed = append(allowed, role.GetLogins(types.Allow)...)
 	}
 
 	allowed = apiutils.Deduplicate(allowed)
 	denied = apiutils.Deduplicate(denied)
 	userLogins := []string{}
 	for _, login := range allowed {
-		loginMatch, _ := services.MatchLogin(denied, login)
-		if !loginMatch {
+		if isDenied := apiutils.SliceContainsStr(denied, login); !isDenied {
 			userLogins = append(userLogins, login)
 		}
 	}
 
 	return userLogins
+}
+
+func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
+	allowed := []string{}
+	denied := []string{}
+	for _, role := range roleSet {
+		denied = append(denied, role.GetWindowsLogins(types.Deny)...)
+		allowed = append(allowed, role.GetWindowsLogins(types.Allow)...)
+	}
+
+	allowed = apiutils.Deduplicate(allowed)
+	denied = apiutils.Deduplicate(denied)
+	desktopLogins := []string{}
+	for _, login := range allowed {
+		if isDenied := apiutils.SliceContainsStr(denied, login); !isDenied {
+			desktopLogins = append(desktopLogins, login)
+		}
+	}
+
+	return desktopLogins
 }
 
 func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, verbs ...string) bool {
@@ -186,6 +209,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
+	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 
 	var billingAccess access
 	if features.Cloud {
@@ -194,18 +218,21 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
+	windowsLogins := getWindowsDesktopLogins(userRoles)
 
 	acl := userACL{
 		AccessRequests:  requestAccess,
 		AppServers:      appServerAccess,
 		DBServers:       dbServerAccess,
 		KubeServers:     kubeServerAccess,
+		Desktops:        desktopAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,
 		Roles:           roleAccess,
 		Events:          eventAccess,
 		SSHLogins:       logins,
+		WindowsLogins:   windowsLogins,
 		Users:           userAccess,
 		Tokens:          tokenAccess,
 		Nodes:           nodeAccess,

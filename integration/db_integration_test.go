@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -319,6 +318,42 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 	})
 }
 
+// TestDatabaseAccessUnspecifiedHostname tests DB agent reverse tunnel connection in case where host address is
+// unspecified thus is not present in the valid principal list. The DB agent should replace unspecified address (0.0.0.0)
+// with localhost and successfully establish reverse tunnel connection.
+func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
+	pack := setupDatabaseTest(t,
+		withNodeName("0.0.0.0"),
+	)
+
+	// Connect to the database service in root cluster.
+	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.postgresService.Name,
+			Protocol:    pack.root.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
+	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+	// Disconnect.
+	err = client.Close(context.Background())
+	require.NoError(t, err)
+}
+
 func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
 	max := time.Second
 	timeout := time.After(max)
@@ -380,6 +415,9 @@ type databaseClusterPack struct {
 type testOptions struct {
 	clock             clockwork.Clock
 	instancePortsFunc func() *InstancePorts
+	rootConfig        func(config *service.Config)
+	leafConfig        func(config *service.Config)
+	nodeName          string
 }
 
 type testOptionFunc func(*testOptions)
@@ -391,6 +429,9 @@ func (o *testOptions) setDefaultIfNotSet() {
 	if o.instancePortsFunc == nil {
 		o.instancePortsFunc = standardPortSetup
 	}
+	if o.nodeName == "" {
+		o.nodeName = Host
+	}
 }
 
 func withClock(clock clockwork.Clock) testOptionFunc {
@@ -399,9 +440,27 @@ func withClock(clock clockwork.Clock) testOptionFunc {
 	}
 }
 
+func withNodeName(nodeName string) testOptionFunc {
+	return func(o *testOptions) {
+		o.nodeName = nodeName
+	}
+}
+
 func withPortSetupDatabaseTest(portFn func() *InstancePorts) testOptionFunc {
 	return func(o *testOptions) {
 		o.instancePortsFunc = portFn
+	}
+}
+
+func withRootConfig(fn func(*service.Config)) testOptionFunc {
+	return func(o *testOptions) {
+		o.rootConfig = fn
+	}
+}
+
+func withLeafConfig(fn func(*service.Config)) testOptionFunc {
+	return func(o *testOptions) {
+		o.leafConfig = fn
 	}
 }
 
@@ -441,7 +500,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p.root.cluster = NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New(),
-		NodeName:    Host,
+		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
 		log:         log,
@@ -452,7 +511,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p.leaf.cluster = NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New(),
-		NodeName:    Host,
+		NodeName:    opts.nodeName,
 		Ports:       opts.instancePortsFunc(),
 		Priv:        privateKey,
 		Pub:         publicKey,
@@ -467,6 +526,9 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
+	if opts.rootConfig != nil {
+		opts.rootConfig(rcConf)
+	}
 
 	// Make leaf cluster config.
 	lcConf := service.MakeDefaultConfig()
@@ -476,6 +538,9 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
+	if opts.leafConfig != nil {
+		opts.rootConfig(lcConf)
+	}
 
 	// Establish trust b/w root and leaf.
 	err = p.root.cluster.CreateEx(t, p.leaf.cluster.Secrets.AsSlice(), rcConf)
@@ -669,16 +734,16 @@ func (p *databasePack) setupUsersAndRoles(t *testing.T) {
 	p.root.user, p.root.role, err = auth.CreateUserAndRole(p.root.cluster.Process.GetAuthServer(), "root-user", nil)
 	require.NoError(t, err)
 
-	p.root.role.SetDatabaseUsers(services.Allow, []string{types.Wildcard})
-	p.root.role.SetDatabaseNames(services.Allow, []string{types.Wildcard})
+	p.root.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+	p.root.role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
 	err = p.root.cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.root.role)
 	require.NoError(t, err)
 
 	p.leaf.user, p.leaf.role, err = auth.CreateUserAndRole(p.root.cluster.Process.GetAuthServer(), "leaf-user", nil)
 	require.NoError(t, err)
 
-	p.leaf.role.SetDatabaseUsers(services.Allow, []string{types.Wildcard})
-	p.leaf.role.SetDatabaseNames(services.Allow, []string{types.Wildcard})
+	p.leaf.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+	p.leaf.role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
 	err = p.leaf.cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.leaf.role)
 	require.NoError(t, err)
 }

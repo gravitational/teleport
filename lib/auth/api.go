@@ -20,6 +20,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -109,7 +110,7 @@ type ReadAccessPoint interface {
 	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
 
 	// ListNodes returns a paginated list of registered servers for this cluster.
-	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
@@ -212,6 +213,9 @@ type AccessPoint interface {
 
 	// DeleteTunnelConnection deletes tunnel connection
 	DeleteTunnelConnection(clusterName, connName string) error
+
+	// GenerateCertAuthority returns an empty CRL for a CA.
+	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -388,6 +392,12 @@ func (w *Wrapper) CreateWindowsDesktop(ctx context.Context, d types.WindowsDeskt
 // UpdateWindowsDesktop updates a Windows desktop host.
 func (w *Wrapper) UpdateWindowsDesktop(ctx context.Context, d types.WindowsDesktop) error {
 	return w.NoCache.UpdateWindowsDesktop(ctx, d)
+}
+
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (w *Wrapper) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	crl, err := w.NoCache.GenerateCertAuthorityCRL(ctx, caType)
+	return crl, trace.Wrap(err)
 }
 
 // NewCachingAcessPoint returns new caching access point using

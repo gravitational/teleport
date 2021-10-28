@@ -1,4 +1,5 @@
-//+build !desktop_access_beta
+//go:build !desktop_access_rdp
+// +build !desktop_access_rdp
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -17,38 +18,23 @@ limitations under the License.
 */
 
 // This file lets us compile /lib/srv/desktop without including the real RDP
-// implementation yet. Use the desktop_access_beta build tag to include the
+// implementation. Use the desktop_access_rdp build tag to include the
 // real implementation.
 
 package rdpclient
 
 import (
+	"context"
 	"errors"
-
-	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
+	"time"
 )
-
-// Config for creating a new Client.
-type Config struct {
-	// Addr is the network address of the RDP server, in the form host:port.
-	Addr string
-	// InputMessage is called to receive a message from the client for the RDP
-	// server. This function should block until there is a message.
-	InputMessage func() (deskproto.Message, error)
-	// OutputMessage is called to send a message from RDP server to the client.
-	OutputMessage func(deskproto.Message) error
-	// Log is the logger for status messages.
-	Log logrus.FieldLogger
-}
 
 // Client is the dummy RDP client.
 type Client struct {
 }
 
 // New creates and connects a new Client based on opts.
-func New(cfg Config) (*Client, error) {
+func New(ctx context.Context, cfg Config) (*Client, error) {
 	return &Client{}, errors.New("the real rdpclient.Client implementation was not included in this build")
 }
 
@@ -56,3 +42,15 @@ func New(cfg Config) (*Client, error) {
 func (c *Client) Wait() error {
 	return errors.New("the real rdpclient.Client implementation was not included in this build")
 }
+
+// Close shuts down the client and closes any existing connections.
+func (c *Client) Close() {
+}
+
+// GetClientLastActive returns the time of the last recorded activity.
+func (c *Client) GetClientLastActive() time.Time {
+	return time.Now().UTC()
+}
+
+// UpdateClientActivity updates the client activity timestamp.
+func (c *Client) UpdateClientActivity() {}

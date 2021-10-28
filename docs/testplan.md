@@ -38,20 +38,24 @@ With every user combination, try to login and signup with invalid second factor,
   - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users U2F
+  - [ ] Adding Users WebAuthn
   - [ ] Managing MFA devices
     - [ ] Add an OTP device with `tsh mfa add`
     - [ ] Add a U2F device with `tsh mfa add`
+    - [ ] Verify that the U2F device works under WebAuthn
+    - [ ] Add a WebAuthn device with `tsh mfa add`
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
     - [ ] Remove a U2F device with `tsh mfa rm`
+    - [ ] Remove a WebAuthn device with `tsh mfa rm`
     - [ ] Attempt removing the last MFA device on the user
       - [ ] with `second_factor: on` in `auth_service`, should fail
       - [ ] with `second_factor: optional` in `auth_service`, should succeed
   - [ ] Login Password Only
   - [ ] Login with MFA
-    - [ ] Add 2 OTP and 2 U2F devices with `tsh mfa add`
+    - [ ] Add 2 OTP and 2 WebAuthn devices with `tsh mfa add`
     - [ ] Login via OTP
-    - [ ] Login via U2F
+    - [ ] Login via WebAuthn
   - [ ] Login OIDC
   - [ ] Login SAML
   - [ ] Login GitHub
@@ -275,7 +279,7 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 ## WEB UI
 
 ## Main
-For main, test with admin role that has access to all resources.
+For main, test with a role that has access to all resources.
 
 #### Top Nav
 - [ ] Verify that cluster selector displays all (root + leaf) clusters
@@ -530,6 +534,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify that invite works with 2FA disabled
 - [ ] Verify that invite works with OTP enabled
 - [ ] Verify that invite works with U2F enabled
+- [ ] Verify that invite works with WebAuthn enabled
 - [ ] Verify that error message is shown if an invite is expired/invalid
 
 ## Login Form
@@ -540,36 +545,36 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify that changing passwords works for OTP enabled
 - [ ] Verify that login works with U2F enabled
 - [ ] Verify that changing passwords works for U2F enabled
+- [ ] Verify that login works with WebAuthn enabled
+- [ ] Verify that changing passwords works for WebAuthn enabled
 - [ ] Verify that login works for Github/SAML/OIDC
 - [ ] Verify that account is locked after several unsuccessful attempts
 - [ ] Verify that redirect to original URL works after successful login
 
 ## Multi-factor Authentication (mfa)
 Create/modify `teleport.yaml` and set the following authentication settings under `auth_service`
-```
+
+```yaml
 authentication:
   type: local
   second_factor: optional
   require_session_mfa: yes
-  u2f:
-    app_id: https://example.com:443
-    facets:
-    - https://example.com:443
-    - https://example.com
-    - example.com:443
-    - example.com
+  webauthn:
+    rp_id: example.com
 ```
+
 #### MFA create, login, password reset
 - [ ] Verify when creating a user, and setting password, required 2nd factor is `totp` (TODO: temporary hack, ideally want to allow user to select)
-- [ ] Verify at login page, there is a mfa dropdown menu (none, u2f, otp), and can login with `otp`
+- [ ] Verify at login page, there is a mfa dropdown menu (none, webauthn, otp), and can login with `otp`
+- [ ] Verify at login page that the dropdown changes to (none, u2f, otp) if the second_factor is changed to `u2f`
 - [ ] Verify at reset password page, there is the same dropdown to select your mfa, and can reset with `otp`
 
 #### MFA require auth
-Through the CLI, `tsh login` and register a u2f key with `tsh mfa add` (not supported in UI yet).
+Through the CLI, `tsh login` and register a WebAuthn key with `tsh mfa add` (not supported in UI yet).
 
 Using the same user as above:
-- [ ] Verify logging in with registered u2f key works
-- [ ] Verify connecting to a ssh node prompts you to tap your registered u2f key
+- [ ] Verify logging in with registered WebAuthn key works
+- [ ] Verify connecting to a ssh node prompts you to tap your registered WebAuthn key
 - [ ] Verify in the web terminal, you can scp upload/download files
 
 ## RBAC
@@ -729,6 +734,13 @@ and non interactive tsh bench loads.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
 - [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
+- [ ] Verify AWS console access.
+  - [ ] Can log into AWS web console through the web UI.
+  - [ ] Can interact with AWS using `tsh aws` commands.
+- [ ] Verify dynamic registration.
+  - [ ] Can register a new app using `tctl create`.
+  - [ ] Can update registered app using `tctl create -f`.
+  - [ ] Can delete registered app using `tctl rm`.
 - [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all apps registered are shown
   - [ ] Verify that clicking on the app icon takes you to another tab
@@ -740,6 +752,7 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MongoDB.
+  - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
@@ -749,6 +762,7 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MongoDB.
+  - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
@@ -765,8 +779,54 @@ and non interactive tsh bench loads.
     - [ ] `db.session.start` is emitted when connection attempt is denied.
   - [ ] _(MongoDB only)_ Can only execute commands in databases from `db_names`.
     - [ ] `db.session.query` is emitted when command fails due to permissions.
+  - [ ] Can configure per-session MFA.
+    - [ ] MFA tap is required on each `tsh db connect`.
+- [ ] Verify dynamic registration.
+  - [ ] Can register a new database using `tctl create`.
+  - [ ] Can update registered database using `tctl create -f`.
+  - [ ] Can delete registered database using `tctl rm`.
+- [ ] Verify discovery.
+  - [ ] Can detect and register RDS instances and Aurora clusters.
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
+
+## TLS Routing
+
+- [ ] Verify that teleport proxy `v2` configuration starts only a single listener.
+  ```
+  version: v2
+  teleport:
+    proxy_service:
+      enabled: "yes"
+      public_addr: ['root.example.com']
+      web_listen_addr: 0.0.0.0:3080
+  ```
+- [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
+  - [ ] Trusted cluster
+    - [ ] Setup trusted clusters using single port setup `web_proxy_addr == tunnel_addr`
+    ```
+    kind: trusted_cluster
+    spec:
+      ...
+      web_proxy_addr: root.example.com:443
+      tunnel_addr: root.example.com:443
+      ...
+    ```
+- [ ] Database Access
+  - [ ] Verify that `tsh db connect` works through proxy running in `multiplex` mode
+    - [ ] Postgres
+    - [ ] MySQL
+    - [ ] MongoDB
+    - [ ] CockroachDB
+  - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
+- [ ] Application Access
+  - [ ] Verify app access through proxy running in `multiplex` mode
+- [ ] SSH Access
+  - [ ] Connect to a OpenSSH server through a local ssh proxy `ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh" user@host.example.com`
+  - [ ] Connect to a OpenSSH server on leaf-cluster through a local ssh proxy`ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf-cluster %h:%p" user@node.foo.com`
+  - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
+- [ ] Kubernetes access:
+  - [ ] Verify kubernetes access through proxy running in `multiplex` mode

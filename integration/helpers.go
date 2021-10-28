@@ -40,9 +40,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -263,7 +263,7 @@ func (s *InstanceSecrets) GetRoles(t *testing.T) []types.Role {
 			continue
 		}
 		role := services.RoleForCertAuthority(ca)
-		role.SetLogins(services.Allow, s.AllowedLogins())
+		role.SetLogins(types.Allow, s.AllowedLogins())
 		roles = append(roles, role)
 	}
 	return roles
@@ -415,7 +415,7 @@ func SetupUser(process *service.TeleportProcess, username string, roles []types.
 	}
 	if len(roles) == 0 {
 		role := services.RoleForUser(teleUser)
-		role.SetLogins(services.Allow, []string{username})
+		role.SetLogins(types.Allow, []string{username})
 
 		// allow tests to forward agent, still needs to be passed in client
 		roleOptions := role.GetOptions()
@@ -581,7 +581,11 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		tconf.Proxy.MySQLAddr = utils.NetAddr{}
 		tconf.Proxy.SSHAddr = utils.NetAddr{}
 	} else {
-		tconf.Proxy.ReverseTunnelListenAddr.Addr = i.Secrets.TunnelAddr
+		tunAddr, err := utils.ParseAddr(i.Secrets.TunnelAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tconf.Proxy.ReverseTunnelListenAddr = *tunAddr
 		tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 		tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
 		tconf.Proxy.MySQLAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMySQL())
@@ -639,7 +643,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 		teleUser.SetTraits(map[string][]string{"testing": {"integration"}})
 		if len(user.Roles) == 0 {
 			role := services.RoleForUser(teleUser)
-			role.SetLogins(services.Allow, user.AllowedLogins)
+			role.SetLogins(types.Allow, user.AllowedLogins)
 
 			// allow tests to forward agent, still needs to be passed in client
 			roleOptions := role.GetOptions()
@@ -706,10 +710,8 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.Token = "token"
 	tconf.UploadEventsC = i.UploadEventsC
-	var ttl time.Duration
 	tconf.CachePolicy = service.CachePolicy{
-		Enabled:   true,
-		RecentTTL: &ttl,
+		Enabled: true,
 	}
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
 		{
@@ -873,10 +875,8 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	tconf.Hostname = name
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.DataDir = dataDir
-	var ttl time.Duration
 	tconf.CachePolicy = service.CachePolicy{
-		Enabled:   true,
-		RecentTTL: &ttl,
+		Enabled: true,
 	}
 
 	tconf.Auth.Enabled = false
@@ -1182,19 +1182,19 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	cconf := &client.Config{
-		Username:               cfg.Login,
-		Host:                   cfg.Host,
-		HostPort:               cfg.Port,
-		HostLogin:              cfg.Login,
-		InsecureSkipVerify:     true,
-		KeysDir:                keyDir,
-		SiteName:               cfg.Cluster,
-		ForwardAgent:           fwdAgentMode,
-		Labels:                 cfg.Labels,
-		WebProxyAddr:           webProxyAddr,
-		SSHProxyAddr:           sshProxyAddr,
-		Interactive:            cfg.Interactive,
-		ALPNSNIListenerEnabled: i.isSinglePortSetup,
+		Username:           cfg.Login,
+		Host:               cfg.Host,
+		HostPort:           cfg.Port,
+		HostLogin:          cfg.Login,
+		InsecureSkipVerify: true,
+		KeysDir:            keyDir,
+		SiteName:           cfg.Cluster,
+		ForwardAgent:       fwdAgentMode,
+		Labels:             cfg.Labels,
+		WebProxyAddr:       webProxyAddr,
+		SSHProxyAddr:       sshProxyAddr,
+		Interactive:        cfg.Interactive,
+		TLSRoutingEnabled:  i.isSinglePortSetup,
 	}
 
 	// JumpHost turns on jump host mode

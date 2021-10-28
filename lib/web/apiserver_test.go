@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
@@ -302,7 +303,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// Expired sessions are purged immediately
-	var sessionLingeringThreshold time.Duration = 0
+	var sessionLingeringThreshold time.Duration
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	c.Assert(err, IsNil)
 	handler, err := NewHandler(Config{
@@ -317,6 +318,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Emitter:                         s.proxyClient,
 		StaticFS:                        fs,
 		cachedSessionLingeringThreshold: &sessionLingeringThreshold,
+		ProxySettings:                   &mockProxySettings{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	c.Assert(err, IsNil)
 
@@ -446,7 +448,7 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	teleUser, err := types.NewUser(user)
 	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
-	role.SetLogins(services.Allow, []string{login})
+	role.SetLogins(types.Allow, []string{login})
 	options := role.GetOptions()
 	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
@@ -497,7 +499,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	role.SetLogins(services.Allow, []string{s.user})
+	role.SetLogins(types.Allow, []string{s.user})
 	err = s.server.Auth().UpsertRole(s.ctx, role)
 	c.Assert(err, IsNil)
 
@@ -1010,6 +1012,134 @@ func (s *WebSuite) TestTerminal(c *C) {
 
 	err = waitForOutput(stream, "vinsong")
 	c.Assert(err, IsNil)
+}
+
+func TestTerminalRequireSessionMfa(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "llama")
+
+	clt, err := env.server.NewClient(auth.TestUser("llama"))
+	require.NoError(t, err)
+
+	cases := []struct {
+		name                      string
+		getAuthPreference         func() types.AuthPreference
+		registerDevice            func() *auth.TestDevice
+		getChallengeResponseBytes func(chals *auth.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte
+	}{
+		{
+			name: "with webauthn",
+			getAuthPreference: func() types.AuthPreference {
+				ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorWebauthn,
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
+					},
+					RequireSessionMFA: true,
+				})
+				require.NoError(t, err)
+
+				return ap
+			},
+			registerDevice: func() *auth.TestDevice {
+				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+				require.NoError(t, err)
+
+				return webauthnDev
+			},
+			getChallengeResponseBytes: func(chals *auth.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
+				res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+					WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
+				})
+				require.Nil(t, err)
+
+				webauthnResBytes, err := json.Marshal(wanlib.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+				require.Nil(t, err)
+
+				return webauthnResBytes
+			},
+		},
+		{
+			name: "with u2f",
+			getAuthPreference: func() types.AuthPreference {
+				ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorU2F,
+					U2F: &types.U2F{
+						AppID:  "https://localhost",
+						Facets: []string{"https://localhost"},
+					},
+					RequireSessionMFA: true,
+				})
+				require.NoError(t, err)
+
+				return ap
+			},
+			registerDevice: func() *auth.TestDevice {
+				u2fDev, err := auth.RegisterTestDevice(ctx, clt, "u2f", apiProto.DeviceType_DEVICE_TYPE_U2F, nil /* authenticator */)
+				require.NoError(t, err)
+
+				return u2fDev
+			},
+			getChallengeResponseBytes: func(chals *auth.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
+				res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+					U2F: []*apiProto.U2FChallenge{{
+						KeyHandle: chals.U2FChallenges[0].KeyHandle,
+						Challenge: chals.U2FChallenges[0].Challenge,
+						AppID:     chals.U2FChallenges[0].AppID,
+						Version:   chals.U2FChallenges[0].Version,
+					}},
+				})
+				require.NoError(t, err)
+
+				u2fResBytes, err := json.Marshal(&u2f.AuthenticateChallengeResponse{
+					KeyHandle:     res.GetU2F().KeyHandle,
+					SignatureData: res.GetU2F().Signature,
+					ClientData:    res.GetU2F().ClientData,
+				})
+				require.NoError(t, err)
+
+				return u2fResBytes
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err = env.server.Auth().SetAuthPreference(ctx, tc.getAuthPreference())
+			require.NoError(t, err)
+
+			dev := tc.registerDevice()
+
+			// Open a terminal to a new session.
+			ws := proxy.makeTerminal(t, pack, session.NewID())
+
+			// Wait for websocket authn challenge event.
+			var raw []byte
+			require.Nil(t, websocket.Message.Receive(ws, &raw))
+			var env Envelope
+			require.Nil(t, proto.Unmarshal(raw, &env))
+
+			chals := &auth.MFAAuthenticateChallenge{}
+			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
+
+			// Send response over ws.
+			termHandler := newTerminalHandler()
+			_, err := termHandler.write(tc.getChallengeResponseBytes(chals, dev), ws)
+			require.Nil(t, err)
+
+			// Test we can write.
+			stream := termHandler.asTerminalStream(ws)
+			_, err = io.WriteString(stream, "echo alpacas\r\n")
+			require.Nil(t, err)
+			require.Nil(t, waitForOutput(stream, "alpacas"))
+
+			require.Nil(t, ws.Close())
+		})
+	}
 }
 
 func (s *WebSuite) TestWebsocketPingLoop(c *C) {
@@ -1994,6 +2124,133 @@ func TestCreatePrivilegeToken(t *testing.T) {
 	require.NotEmpty(t, privilegeToken)
 }
 
+func TestAddMFADevice(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	// Enable second factor.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "https://localhost",
+			Facets: []string{"https://localhost"},
+		},
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Get a totp code to re-auth.
+	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	// Obtain a privilege token.
+	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
+		SecondFactorToken: totpCode,
+	})
+	require.NoError(t, err)
+	var privilegeToken string
+	require.NoError(t, json.Unmarshal(re.Bytes(), &privilegeToken))
+
+	tests := []struct {
+		name            string
+		deviceName      string
+		getTOTPCode     func() string
+		getU2FResp      func() *u2f.RegisterChallengeResponse
+		getWebauthnResp func() *wanlib.CredentialCreationResponse
+	}{
+		{
+			name:       "new TOTP device",
+			deviceName: "new-totp",
+			getTOTPCode: func() string {
+				// Create totp secrets.
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+					TokenID:    privilegeToken,
+					DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+				})
+				require.NoError(t, err)
+
+				_, regRes, err := auth.NewTestDeviceFromChallenge(res, auth.WithTestDeviceClock(env.clock))
+				require.NoError(t, err)
+
+				return regRes.GetTOTP().Code
+			},
+		},
+		{
+			name:       "new U2F device",
+			deviceName: "new-u2f",
+			getU2FResp: func() *u2f.RegisterChallengeResponse {
+				// Get u2f register challenge.
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+					TokenID:    privilegeToken,
+					DeviceType: apiProto.DeviceType_DEVICE_TYPE_U2F,
+				})
+				require.NoError(t, err)
+
+				_, regRes, err := auth.NewTestDeviceFromChallenge(res)
+				require.NoError(t, err)
+
+				return &u2f.RegisterChallengeResponse{
+					RegistrationData: regRes.GetU2F().RegistrationData,
+					ClientData:       regRes.GetU2F().ClientData,
+				}
+			},
+		},
+		{
+			name:       "new Webauthn device",
+			deviceName: "new-webauthn",
+			getWebauthnResp: func() *wanlib.CredentialCreationResponse {
+				// Get webauthn register challenge.
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+					TokenID:    privilegeToken,
+					DeviceType: apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+				})
+				require.NoError(t, err)
+
+				_, regRes, err := auth.NewTestDeviceFromChallenge(res)
+				require.NoError(t, err)
+
+				return wanlib.CredentialCreationResponseFromProto(regRes.GetWebauthn())
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var totpCode string
+			var u2fRegResp *u2f.RegisterChallengeResponse
+			var webauthnRegResp *wanlib.CredentialCreationResponse
+
+			switch {
+			case tc.getU2FResp != nil:
+				u2fRegResp = tc.getU2FResp()
+			case tc.getWebauthnResp != nil:
+				webauthnRegResp = tc.getWebauthnResp()
+			default:
+				totpCode = tc.getTOTPCode()
+			}
+
+			// Add device.
+			endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
+			_, err := pack.clt.PostJSON(ctx, endpoint, addMFADeviceRequest{
+				PrivilegeTokenID:         privilegeToken,
+				DeviceName:               tc.deviceName,
+				SecondFactorToken:        totpCode,
+				U2FRegisterResponse:      u2fRegResp,
+				WebauthnRegisterResponse: webauthnRegResp,
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestGetMFADevicesWithAuth(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
@@ -2097,11 +2354,10 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 		reqBody client.MFAChallengeRequest
 	}{
 		{
-			name: "/webapi/u2f/password/changerequest",
+			name: "/webapi/mfa/authenticatechallenge/password",
 			clt:  authnClt,
-			ep:   []string{"webapi", "u2f", "password", "changerequest"},
+			ep:   []string{"webapi", "mfa", "authenticatechallenge", "password"},
 			reqBody: client.MFAChallengeRequest{
-				User: authPack.user,
 				Pass: authPack.password,
 			},
 		},
@@ -3035,6 +3291,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostUUID:         proxyID,
 		Emitter:          client,
 		StaticFS:         fs,
+		ProxySettings:    &mockProxySettings{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -3187,7 +3444,7 @@ func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass,
 	require.NoError(t, err)
 
 	role := services.RoleForUser(teleUser)
-	role.SetLogins(services.Allow, []string{login})
+	role.SetLogins(types.Allow, []string{login})
 	options := role.GetOptions()
 	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
@@ -3286,4 +3543,11 @@ func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
 
 	err = waitForOutput(stream, "foo")
 	require.NoError(t, err)
+}
+
+type mockProxySettings struct {
+}
+
+func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
+	return &webclient.ProxySettings{}, nil
 }

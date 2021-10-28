@@ -17,6 +17,7 @@ limitations under the License.
 package integration
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -26,12 +27,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/service"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -40,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testlog"
 )
 
 // TestALPNSNIProxyMultiCluster tests SSH connection in multi-cluster setup with.
@@ -96,7 +100,7 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 				}),
 				withRootClusterPorts(tc.mainClusterPortSetup),
 				withLeafClusterPorts(tc.secondClusterPortSetup),
-				withRootAndLeafClusterRoles(createAdminRole(username)),
+				withRootAndLeafClusterRoles(createTestRole(username)),
 				withStandardRoleMapping(),
 			)
 			// Run command in root.
@@ -216,7 +220,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterPorts(singleProxyPortSetup()),
 		withLeafClusterPorts(singleProxyPortSetup()),
-		withRootAndLeafClusterRoles(createAdminRole(username)),
+		withRootAndLeafClusterRoles(createTestRole(username)),
 		withStandardRoleMapping(),
 	)
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
@@ -283,6 +287,12 @@ func TestALPNSNIProxyKube(t *testing.T) {
 func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	pack := setupDatabaseTest(t,
 		withPortSetupDatabaseTest(singleProxyPortSetup),
+		withLeafConfig(func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withRootConfig(func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
 	)
 	pack.waitForLeaf(t)
 
@@ -435,6 +445,12 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	pack := setupWithOptions(t, appTestOptions{
 		rootClusterPorts: singleProxyPortSetup(),
 		leafClusterPorts: singleProxyPortSetup(),
+		rootConfig: func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		},
+		leafConfig: func(config *service.Config) {
+			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		},
 	})
 
 	sess := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
@@ -494,4 +510,71 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	require.Equal(t, "leaf.example.com", pr.ClusterName)
 	err = leafAuthClient.Close()
 	require.NoError(t, err)
+}
+
+// TestALPNProxyDialProxySSHWithoutInsecureMode tests dialing to the localhost with teleport-proxy-ssh
+// protocol without using insecure mode in order to check if establishing connection to localhost works properly.
+func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	rc := NewInstance(InstanceConfig{
+		ClusterName: "root.example.com",
+		HostID:      uuid.New(),
+		NodeName:    Loopback,
+		Priv:        privateKey,
+		Pub:         publicKey,
+		log:         testlog.FailureOnly(t),
+		Ports:       standardPortSetup(),
+	})
+	username := mustGetCurrentUser(t).Username
+	rc.AddUser(username, []string{username})
+
+	// Make root cluster config.
+	rcConf := service.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.Auth.Enabled = true
+	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Proxy.Enabled = true
+	rcConf.Proxy.DisableWebInterface = true
+
+	err = rc.CreateEx(t, nil, rcConf)
+	require.NoError(t, err)
+
+	err = rc.Start()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		rc.StopAll()
+	})
+
+	// Disable insecure mode to make sure that dialing to localhost works.
+	lib.SetInsecureDevMode(false)
+	cfg := ClientConfig{
+		Login:   username,
+		Cluster: rc.Secrets.SiteName,
+		Host:    "localhost",
+	}
+
+	ctx := context.Background()
+	output := &bytes.Buffer{}
+	cmd := []string{"echo", "hello world"}
+	tc, err := rc.NewClient(t, cfg)
+	require.NoError(t, err)
+	tc.Stdout = output
+
+	// Try to connect to the separate proxy SSH listener.
+	tc.TLSRoutingEnabled = false
+	err = tc.SSH(ctx, cmd, false)
+	require.NoError(t, err)
+	require.Equal(t, "hello world\n", output.String())
+	output.Reset()
+
+	// Try to connect to the ALPN SNI Listener.
+	tc.TLSRoutingEnabled = true
+	err = tc.SSH(ctx, cmd, false)
+	require.NoError(t, err)
+	require.Equal(t, "hello world\n", output.String())
 }

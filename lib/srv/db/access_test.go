@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -92,7 +93,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "no access to databases",
@@ -102,7 +103,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{types.Wildcard},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "no access to users",
@@ -112,7 +113,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "access allowed to specific user/database",
@@ -131,7 +132,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{"alice"},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 	}
 
@@ -196,7 +197,7 @@ func TestAccessMySQL(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{},
 			dbUser:       "root",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "access allowed to specific user",
@@ -211,7 +212,7 @@ func TestAccessMySQL(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
 			dbUser:       "root",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 	}
 
@@ -279,7 +280,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -290,7 +291,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{types.Wildcard},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -301,7 +302,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -324,7 +325,7 @@ func TestAccessMongoDB(t *testing.T) {
 			dbName:       "metrics",
 			dbUser:       "alice",
 			connectErr:   "",
-			queryErr:     "access to database denied",
+			queryErr:     "access to db denied",
 		},
 	}
 
@@ -823,8 +824,8 @@ type agentParams struct {
 	Databases types.Databases
 	// HostID is an optional host id.
 	HostID string
-	// Selectors are optional database resource selectors.
-	Selectors []services.Selector
+	// ResourceMatchers are optional database resource matchers.
+	ResourceMatchers []services.ResourceMatcher
 	// GetServerInfoFn overrides heartbeat's server info function.
 	GetServerInfoFn func(database types.Database) func() (types.Resource, error)
 	// OnReconcile sets database resource reconciliation callback.
@@ -869,19 +870,19 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
-		Clock:           clockwork.NewFakeClockAt(time.Now()),
-		DataDir:         t.TempDir(),
-		AuthClient:      c.authClient,
-		AccessPoint:     c.authClient,
-		StreamEmitter:   c.authClient,
-		Authorizer:      dbAuthorizer,
-		Hostname:        constants.APIDomain,
-		HostID:          p.HostID,
-		TLSConfig:       tlsConfig,
-		Auth:            testAuth,
-		Databases:       p.Databases,
-		Selectors:       p.Selectors,
-		GetServerInfoFn: p.GetServerInfoFn,
+		Clock:            clockwork.NewFakeClockAt(time.Now()),
+		DataDir:          t.TempDir(),
+		AuthClient:       c.authClient,
+		AccessPoint:      c.authClient,
+		StreamEmitter:    c.authClient,
+		Authorizer:       dbAuthorizer,
+		Hostname:         constants.APIDomain,
+		HostID:           p.HostID,
+		TLSConfig:        tlsConfig,
+		Auth:             testAuth,
+		Databases:        p.Databases,
+		ResourceMatchers: p.ResourceMatchers,
+		GetServerInfoFn:  p.GetServerInfoFn,
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
@@ -897,6 +898,12 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		},
 		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
+		CloudClients: &common.TestCloudClients{
+			STS:      &cloud.STSMock{},
+			RDS:      &cloud.RDSMock{},
+			Redshift: &cloud.RedshiftMock{},
+			IAM:      &cloud.IAMMock{},
+		},
 	})
 	require.NoError(t, err)
 

@@ -18,11 +18,6 @@ package auth
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
@@ -33,13 +28,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -153,7 +146,7 @@ func TestBadIdentity(t *testing.T) {
 		HostID:        "example.com",
 		NodeName:      "",
 		ClusterName:   "id1",
-		Role:          types.SystemRole("bad role"),
+		Role:          "bad role",
 		TTL:           0,
 	})
 	require.NoError(t, err)
@@ -496,102 +489,6 @@ func TestCASigningAlg(t *testing.T) {
 	verifyCAs(auth, ssh.SigAlgoRSA)
 }
 
-func TestMigrateMFADevices(t *testing.T) {
-	ctx := context.Background()
-	as := newTestAuthServer(ctx, t)
-	clock := clockwork.NewFakeClock()
-	as.SetClock(clock)
-
-	// Fake credentials and MFA secrets for migration.
-	fakePasswordHash := []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
-	totpKey := "totp-key"
-	u2fPrivKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	u2fPubKey := u2fPrivKey.PublicKey
-	u2fPubKeyBin, err := x509.MarshalPKIXPublicKey(&u2fPubKey)
-	require.NoError(t, err)
-	u2fKeyHandle := []byte("dummy handle")
-
-	// Create un-migrated users.
-	for name, localAuth := range map[string]*backend.Item{
-		"no-mfa-user": nil,
-		// Insert MFA data in the legacy format by manually writing to the
-		// backend. All the code for writing these in lib/services/local was
-		// removed.
-		"totp-user": {
-			Key:   []byte("/web/users/totp-user/totp"),
-			Value: []byte(totpKey),
-		},
-		"u2f-user": {
-			Key: []byte("/web/users/u2f-user/u2fregistration"),
-			Value: []byte(fmt.Sprintf(`{"keyhandle":%q,"marshalled_pubkey":%q}`,
-				base64.StdEncoding.EncodeToString(u2fKeyHandle),
-				base64.StdEncoding.EncodeToString(u2fPubKeyBin),
-			)),
-		},
-	} {
-		u, err := types.NewUser(name)
-		require.NoError(t, err)
-		// Set a fake but valid bcrypt password hash.
-		u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: fakePasswordHash})
-		err = as.CreateUser(ctx, u)
-		require.NoError(t, err)
-
-		if localAuth != nil {
-			_, err = as.bk.Put(ctx, *localAuth)
-			require.NoError(t, err)
-		}
-	}
-
-	// Run the migration.
-	err = migrateMFADevices(ctx, as)
-	require.NoError(t, err)
-
-	// Generate expected users with migrated MFA.
-	requireNewDevice := func(d *types.MFADevice, err error) []*types.MFADevice {
-		require.NoError(t, err)
-		return []*types.MFADevice{d}
-	}
-	wantUsers := []types.User{
-		newUserWithAuth(t, "no-mfa-user", &types.LocalAuthSecrets{PasswordHash: fakePasswordHash}),
-		newUserWithAuth(t, "totp-user", &types.LocalAuthSecrets{
-			PasswordHash: fakePasswordHash,
-			TOTPKey:      totpKey,
-			MFA:          requireNewDevice(services.NewTOTPDevice("totp", totpKey, clock.Now())),
-		}),
-		newUserWithAuth(t, "u2f-user", &types.LocalAuthSecrets{
-			PasswordHash: fakePasswordHash,
-			U2FRegistration: &types.U2FRegistrationData{
-				KeyHandle: u2fKeyHandle,
-				PubKey:    u2fPubKeyBin,
-			},
-			MFA: requireNewDevice(u2f.NewDevice("u2f", &u2f.Registration{
-				KeyHandle: u2fKeyHandle,
-				PubKey:    u2fPubKey,
-			}, clock.Now())),
-		}),
-	}
-	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
-		cmpopts.IgnoreFields(types.MFADevice{}, "Id"),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		cmpopts.SortSlices(func(a, b types.User) bool { return a.GetName() < b.GetName() }),
-	}
-
-	// Check the actual users from the backend.
-	users, err := as.GetUsers(true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(users, wantUsers, cmpOpts...))
-
-	// A second migration should be a noop.
-	err = migrateMFADevices(ctx, as)
-	require.NoError(t, err)
-
-	users, err = as.GetUsers(true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(users, wantUsers, cmpOpts...))
-}
-
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
@@ -645,192 +542,6 @@ func TestPresets(t *testing.T) {
 	})
 }
 
-// TestMigrateOSS tests migration of OSS users, github connectors
-// and trusted clusters
-func TestMigrateOSS(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("EmptyCluster", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
-
-		// create non-migrated admin role
-		err := as.CreateRole(services.NewAdminRole())
-		require.NoError(t, err)
-
-		err = migrateOSS(ctx, as)
-		require.NoError(t, err)
-
-		// Second call should not fail
-		err = migrateOSS(ctx, as)
-		require.NoError(t, err)
-
-		// OSS user role was updated
-		role, err := as.GetRole(ctx, teleport.AdminRoleName)
-		require.NoError(t, err)
-		require.Equal(t, types.True, role.GetMetadata().Labels[teleport.OSSMigratedV6])
-	})
-
-	t.Run("User", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
-
-		// create non-migrated admin role to kick off migration
-		err := as.CreateRole(services.NewAdminRole())
-		require.NoError(t, err)
-
-		user, _, err := CreateUserAndRole(as, "alice", []string{"alice"})
-		require.NoError(t, err)
-
-		err = migrateOSS(ctx, as)
-		require.NoError(t, err)
-
-		out, err := as.GetUser(user.GetName(), false)
-		require.NoError(t, err)
-		require.Equal(t, []string{teleport.AdminRoleName}, out.GetRoles())
-		require.Equal(t, types.True, out.GetMetadata().Labels[teleport.OSSMigratedV6])
-
-		err = migrateOSS(ctx, as)
-		require.NoError(t, err)
-	})
-
-	t.Run("TrustedCluster", func(t *testing.T) {
-		clusterName := "test.localhost"
-		as := newTestAuthServer(ctx, t, clusterName)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
-
-		// create non-migrated admin role to kick off migration
-		err := as.CreateRole(services.NewAdminRole())
-		require.NoError(t, err)
-
-		foo, err := types.NewTrustedCluster("foo", types.TrustedClusterSpecV2{
-			Enabled:              false,
-			Token:                "qux",
-			ProxyAddress:         "quux",
-			ReverseTunnelAddress: "quuz",
-		})
-		require.NoError(t, err)
-
-		value, err := services.MarshalTrustedCluster(foo)
-		require.NoError(t, err)
-
-		_, err = as.bk.Put(ctx, backend.Item{
-			Key:   []byte("/trustedclusters/foo"),
-			Value: value,
-		})
-		require.NoError(t, err)
-
-		for _, name := range []string{clusterName, foo.GetName()} {
-			for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
-				causer := suite.NewTestCA(catype, name)
-				err = as.UpsertCertAuthority(causer)
-				require.NoError(t, err)
-			}
-		}
-
-		err = migrateOSS(ctx, as)
-		require.NoError(t, err)
-
-		out, err := as.GetTrustedCluster(ctx, foo.GetName())
-		require.NoError(t, err)
-		mapping := types.RoleMap{{Remote: teleport.AdminRoleName, Local: []string{teleport.AdminRoleName}}}
-		require.Equal(t, mapping, out.GetRoleMap())
-
-		for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
-			ca, err := as.GetCertAuthority(types.CertAuthID{Type: catype, DomainName: foo.GetName()}, true)
-			require.NoError(t, err)
-			require.Equal(t, mapping, ca.GetRoleMap())
-			require.Equal(t, types.True, ca.GetMetadata().Labels[teleport.OSSMigratedV6])
-		}
-
-		// root cluster CA are not updated
-		for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
-			ca, err := as.GetCertAuthority(types.CertAuthID{Type: catype, DomainName: clusterName}, true)
-			require.NoError(t, err)
-			_, found := ca.GetMetadata().Labels[teleport.OSSMigratedV6]
-			require.False(t, found)
-		}
-
-		err = migrateOSS(ctx, as)
-		require.NoError(t, err)
-	})
-
-	t.Run("GithubConnector", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
-
-		// create non-migrated admin role to kick off migration
-		err := as.CreateRole(services.NewAdminRole())
-		require.NoError(t, err)
-
-		connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
-			ClientID:     "aaa",
-			ClientSecret: "bbb",
-			RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
-			Display:      "Github",
-			TeamsToLogins: []types.TeamMapping{
-				{
-					Organization: "gravitational",
-					Team:         "admins",
-					Logins:       []string{"admin", "dev"},
-					KubeGroups:   []string{"system:masters", "kube-devs"},
-					KubeUsers:    []string{"alice@example.com"},
-				},
-				{
-					Organization: "gravitational",
-					Team:         "devs",
-					Logins:       []string{"dev", "test"},
-					KubeGroups:   []string{"kube-devs"},
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		err = as.CreateGithubConnector(connector)
-		require.NoError(t, err)
-
-		err = migrateOSS(ctx, as)
-		require.NoError(t, err)
-
-		out, err := as.GetGithubConnector(ctx, connector.GetName(), false)
-		require.NoError(t, err)
-		require.Equal(t, types.True, out.GetMetadata().Labels[teleport.OSSMigratedV6])
-
-		// Teams to logins mapping were converted to roles
-		mappings := out.GetTeamsToLogins()
-		require.Len(t, mappings, 2)
-		require.Len(t, mappings[0].Logins, 1)
-
-		r, err := as.GetRole(ctx, mappings[0].Logins[0])
-		require.NoError(t, err)
-		require.Equal(t, connector.GetTeamsToLogins()[0].Logins, r.GetLogins(types.Allow))
-		require.Equal(t, connector.GetTeamsToLogins()[0].KubeGroups, r.GetKubeGroups(types.Allow))
-		require.Equal(t, connector.GetTeamsToLogins()[0].KubeUsers, r.GetKubeUsers(types.Allow))
-		require.Len(t, mappings[0].KubeGroups, 0)
-		require.Len(t, mappings[0].KubeUsers, 0)
-
-		require.Len(t, mappings[1].Logins, 1)
-		r2, err := as.GetRole(ctx, mappings[1].Logins[0])
-		require.NoError(t, err)
-		require.Equal(t, connector.GetTeamsToLogins()[1].Logins, r2.GetLogins(types.Allow))
-		require.Equal(t, connector.GetTeamsToLogins()[1].KubeGroups, r2.GetKubeGroups(types.Allow))
-		require.Len(t, mappings[1].KubeGroups, 0)
-		require.Len(t, mappings[1].KubeUsers, 0)
-
-		// Second run should not recreate the role or alter its mappings.
-		err = migrateOSS(ctx, as)
-		require.NoError(t, err)
-
-		out, err = as.GetGithubConnector(ctx, connector.GetName(), false)
-		require.NoError(t, err)
-		require.Equal(t, mappings, out.GetTeamsToLogins())
-	})
-}
-
 func setupConfig(t *testing.T) InitConfig {
 	tempDir := t.TempDir()
 
@@ -856,13 +567,6 @@ func setupConfig(t *testing.T) InitConfig {
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
 	}
-}
-
-func newUserWithAuth(t *testing.T, name string, auth *types.LocalAuthSecrets) types.User {
-	u, err := types.NewUser(name)
-	require.NoError(t, err)
-	u.SetLocalAuth(auth)
-	return u
 }
 
 func newU2FAuthPreferenceFromConfigFile(t *testing.T) types.AuthPreference {

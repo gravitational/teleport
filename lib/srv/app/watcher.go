@@ -26,10 +26,43 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// startWatcher starts watching changes to application resources and registers /
-// unregisters the proxied applications accordingly.
-func (s *Server) startWatcher(ctx context.Context) (*services.AppWatcher, error) {
-	if len(s.c.Selectors) == 0 {
+// startReconciler starts reconciler that registers/unregisters proxied
+// apps according to the up-to-date list of application resources.
+func (s *Server) startReconciler(ctx context.Context) error {
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig{
+		Matcher:             s.matcher,
+		GetCurrentResources: s.getResources,
+		GetNewResources:     s.monitoredApps.get,
+		OnCreate:            s.onCreate,
+		OnUpdate:            s.onUpdate,
+		OnDelete:            s.onDelete,
+		Log:                 s.log,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go func() {
+		for {
+			select {
+			case <-s.reconcileCh:
+				if err := reconciler.Reconcile(ctx); err != nil {
+					s.log.WithError(err).Error("Failed to reconcile.")
+				} else if s.c.OnReconcile != nil {
+					s.c.OnReconcile(s.getApps())
+				}
+			case <-ctx.Done():
+				s.log.Debug("Reconciler done.")
+				return
+			}
+		}
+	}()
+	return nil
+}
+
+// startResourceWatcher starts watching changes to application resources and
+// registers/unregisters the proxied applications accordingly.
+func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher, error) {
+	if len(s.c.ResourceMatchers) == 0 {
 		s.log.Debug("Not initializing application resource watcher.")
 		return nil, nil
 	}
@@ -49,10 +82,11 @@ func (s *Server) startWatcher(ctx context.Context) (*services.AppWatcher, error)
 		for {
 			select {
 			case apps := <-watcher.AppsC:
-				if err := s.reconciler.Reconcile(ctx, apps.AsResources()); err != nil {
-					s.log.WithError(err).Errorf("Failed to reconcile %v.", apps)
-				} else if s.c.OnReconcile != nil {
-					s.c.OnReconcile(s.getApps())
+				s.monitoredApps.setResources(apps)
+				select {
+				case s.reconcileCh <- struct{}{}:
+				case <-ctx.Done():
+					return
 				}
 			case <-ctx.Done():
 				s.log.Debug("Application resource watcher done.")
@@ -61,17 +95,6 @@ func (s *Server) startWatcher(ctx context.Context) (*services.AppWatcher, error)
 		}
 	}()
 	return watcher, nil
-}
-
-func (s *Server) getReconciler() (*services.Reconciler, error) {
-	return services.NewReconciler(services.ReconcilerConfig{
-		Selectors:    s.c.Selectors,
-		GetResources: s.getResources,
-		OnCreate:     s.onCreate,
-		OnUpdate:     s.onUpdate,
-		OnDelete:     s.onDelete,
-		Log:          s.log,
-	})
 }
 
 func (s *Server) getResources() (resources types.ResourcesWithLabels) {
@@ -96,4 +119,12 @@ func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels
 
 func (s *Server) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
 	return s.unregisterApp(ctx, resource.GetName())
+}
+
+func (s *Server) matcher(resource types.ResourceWithLabels) bool {
+	app, ok := resource.(types.Application)
+	if !ok {
+		return false
+	}
+	return services.MatchResourceLabels(s.c.ResourceMatchers, app)
 }

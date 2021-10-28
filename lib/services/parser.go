@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 
 	"github.com/gravitational/trace"
@@ -38,8 +39,6 @@ import (
 type RuleContext interface {
 	// GetIdentifier returns identifier defined in a context
 	GetIdentifier(fields []string) (interface{}, error)
-	// String returns human friendly representation of a context
-	String() string
 	// GetResource returns resource if specified in the context,
 	// if unspecified, returns error.
 	GetResource() (types.Resource, error)
@@ -176,6 +175,9 @@ type Context struct {
 	// Resource is an optional resource, in case if the rule
 	// checks access to the resource
 	Resource types.Resource
+	// Session is an optional session.end event. These events hold information
+	// about session recordings.
+	Session *events.SessionEnd
 }
 
 // String returns user friendly representation of this context
@@ -188,6 +190,8 @@ const (
 	UserIdentifier = "user"
 	// ResourceIdentifier represents resource registered identifier in the rules
 	ResourceIdentifier = "resource"
+	// SessionIdentifier refers to a session (recording) in the rules.
+	SessionIdentifier = "session"
 	// ImpersonateRoleIdentifier is a role to impersonate
 	ImpersonateRoleIdentifier = "impersonate_role"
 	// ImpersonateUserIdentifier is a user to impersonate
@@ -221,7 +225,13 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		} else {
 			resource = ctx.Resource
 		}
-		return predicate.GetFieldByTag(resource, "json", fields[1:])
+		return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
+	case SessionIdentifier:
+		session := &events.SessionEnd{}
+		if ctx.Session != nil {
+			session = ctx.Session
+		}
+		return predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
 	}
@@ -350,4 +360,110 @@ func NewJSONBoolParser(ctx interface{}) (BoolPredicateParser, error) {
 		return nil, trace.Wrap(err)
 	}
 	return boolPredicateParser{Parser: p}, nil
+}
+
+// newParserForIdentifierSubcondition returns a parser customized for
+// extracting the largest admissible subexpression of a `where` condition that
+// involves the given identifier.
+//
+// For example, consider the `where` condition
+// `contains(session.participants, "user") && equals(user.metadata.name, "user")`.
+// Given a RuleContext where user.metadata.name is equal to "user", its largest
+// admissible subcondition involving the identifier "session" is
+// `contains(session.participants, "user")`. With another RuleContext the
+// largest such subcondition is the empty expression.
+func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (predicate.Parser, error) {
+	binaryPred := func(predFn func(a, b interface{}) predicate.BoolPredicate, exprFn func(a, b types.WhereExpr) types.WhereExpr) func(a, b interface{}) types.WhereExpr {
+		return func(a, b interface{}) types.WhereExpr {
+			an, aOK := a.(types.WhereExpr)
+			if !aOK {
+				an = types.WhereExpr{Literal: a}
+			}
+			bn, bOK := b.(types.WhereExpr)
+			if !bOK {
+				bn = types.WhereExpr{Literal: b}
+			}
+			if an.Literal != nil && bn.Literal != nil {
+				return types.WhereExpr{Literal: predFn(an.Literal, bn.Literal)()}
+			}
+			return exprFn(an, bn)
+		}
+	}
+	return predicate.NewParser(predicate.Def{
+		Operators: predicate.Operators{
+			AND: func(a, b types.WhereExpr) types.WhereExpr {
+				aVal, aOK := a.Literal.(bool)
+				bVal, bOK := b.Literal.(bool)
+				switch {
+				case aOK && bOK:
+					return types.WhereExpr{Literal: aVal && bVal}
+				case aVal:
+					return b
+				case bVal:
+					return a
+				case aOK || bOK:
+					return types.WhereExpr{Literal: false}
+				default:
+					return types.WhereExpr{And: types.WhereExpr2{L: &a, R: &b}}
+				}
+			},
+			OR: func(a, b types.WhereExpr) types.WhereExpr {
+				aVal, aOK := a.Literal.(bool)
+				bVal, bOK := b.Literal.(bool)
+				switch {
+				case aOK && bOK:
+					return types.WhereExpr{Literal: aVal || bVal}
+				case aVal || bVal:
+					return types.WhereExpr{Literal: true}
+				case aOK:
+					return b
+				case bOK:
+					return a
+				default:
+					return types.WhereExpr{Or: types.WhereExpr2{L: &a, R: &b}}
+				}
+			},
+			NOT: func(expr types.WhereExpr) types.WhereExpr {
+				if val, ok := expr.Literal.(bool); ok {
+					return types.WhereExpr{Literal: !val}
+				}
+				return types.WhereExpr{Not: &expr}
+			},
+		},
+		Functions: map[string]interface{}{
+			"equals": binaryPred(predicate.Equals, func(a, b types.WhereExpr) types.WhereExpr {
+				return types.WhereExpr{Equals: types.WhereExpr2{L: &a, R: &b}}
+			}),
+			"contains": binaryPred(predicate.Contains, func(a, b types.WhereExpr) types.WhereExpr {
+				return types.WhereExpr{Contains: types.WhereExpr2{L: &a, R: &b}}
+			}),
+		},
+		GetIdentifier: func(fields []string) (interface{}, error) {
+			if fields[0] == identifier {
+				// TODO: Session events have only one level of attributes. Support for
+				// more nested levels may be added when needed for other objects.
+				if len(fields) != 2 {
+					return nil, trace.BadParameter("only exactly two fields are supported with identifier %q, got %d: %v", identifier, len(fields), fields)
+				}
+				return types.WhereExpr{Field: fields[1]}, nil
+			}
+			lit, err := ctx.GetIdentifier(fields)
+			return types.WhereExpr{Literal: lit}, trace.Wrap(err)
+		},
+		GetProperty: func(mapVal, keyVal interface{}) (interface{}, error) {
+			mapExpr, mapOK := mapVal.(types.WhereExpr)
+			if !mapOK {
+				mapExpr = types.WhereExpr{Literal: mapVal}
+			}
+			keyExpr, keyOK := keyVal.(types.WhereExpr)
+			if !keyOK {
+				keyExpr = types.WhereExpr{Literal: keyVal}
+			}
+			if mapExpr.Literal == nil || keyExpr.Literal == nil {
+				// TODO: Add support for general WhereExpr.
+				return nil, trace.BadParameter("GetProperty is implemented only for literals")
+			}
+			return GetStringMapValue(mapExpr.Literal, keyExpr.Literal)
+		},
+	})
 }

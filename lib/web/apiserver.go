@@ -117,6 +117,10 @@ func SetClock(clock clockwork.Clock) HandlerOption {
 	}
 }
 
+type proxySettingsGetter interface {
+	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
+}
+
 // Config represents web handler configuration parameters
 type Config struct {
 	// PluginRegistry handles plugin registration
@@ -139,9 +143,6 @@ type Config struct {
 
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
-
-	// ProxySettings is a settings communicated to proxy
-	ProxySettings webclient.ProxySettings
 
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
@@ -170,6 +171,9 @@ type Config struct {
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
+
+	// ProxySettings allows fetching the current proxy settings.
+	ProxySettings proxySettingsGetter
 }
 
 type RewritingHandler struct {
@@ -309,6 +313,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                               // search site events
+	h.GET("/webapi/sites/:site/sessions/search", h.WithClusterAuth(h.clusterSearchSessionEvents))                      // search site session events
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
 
@@ -342,11 +347,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// U2F related APIs
 	// DELETE IN 9.x, superseded by /mfa/ endpoints (codingllama)
-	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
-	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.u2fChangePasswordRequest))
-	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.mfaLoginBegin))
-	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.mfaLoginFinishSession))
-	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.mfaLoginFinish))
+	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))                 // replaced with /webapi/mfa/token/:token/registerchallenge
+	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.createAuthenticateChallengeWithPassword)) // replaced with /webapi/mfa/authenticatechallenge/password
+	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.mfaLoginBegin))                             // replaced with /webapi/mfa/login/begin
+	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.mfaLoginFinishSession))                        // replaced with /webapi/mfa/login/finishsession
+	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.mfaLoginFinish))                                  // replaced with /webapi/mfa/login/finish
 
 	// MFA public endpoints.
 	h.POST("/webapi/mfa/login/begin", httplib.MakeHandler(h.mfaLoginBegin))
@@ -360,6 +365,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// MFA private endpoints.
 	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
 	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
+	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
+	h.POST("/webapi/mfa/authenticatechallenge/password", h.WithAuth(h.createAuthenticateChallengeWithPassword))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
@@ -478,6 +485,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	}
 
+	resp, err := h.cfg.ProxySettings.GetProxySettings(cfg.Context)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create application specific handler. This handler handles sessions and
 	// forwarding for application access.
 	appHandler, err := app.NewHandler(cfg.Context, &app.HandlerConfig{
@@ -486,7 +498,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		AccessPoint:   cfg.AccessPoint,
 		ProxyClient:   cfg.Proxy,
 		CipherSuites:  cfg.CipherSuites,
-		WebPublicAddr: cfg.ProxySettings.SSH.PublicAddr,
+		WebPublicAddr: resp.SSH.PublicAddr,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -573,20 +585,27 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
-		Type:         constants.Local,
-		SecondFactor: cap.GetSecondFactor(),
+		Type:              constants.Local,
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 
 	// U2F settings.
-	if u2f, _ := cap.GetU2F(); u2f != nil {
+	switch u2f, err := cap.GetU2F(); {
+	case err == nil:
 		as.U2F = &webclient.U2FSettings{AppID: u2f.AppID}
+	case !trace.IsNotFound(err):
+		log.WithError(err).Warnf("Error reading U2F settings")
 	}
 
 	// Webauthn settings.
-	if webConfig, _ := cap.GetWebauthn(); webConfig != nil {
+	switch webConfig, err := cap.GetWebauthn(); {
+	case err == nil:
 		as.Webauthn = &webclient.Webauthn{
 			RPID: webConfig.RPID,
 		}
+	case !trace.IsNotFound(err):
+		log.WithError(err).Warnf("Error reading WebAuthn settings")
 	}
 
 	return as, nil
@@ -713,17 +732,26 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return webclient.PingResponse{
 		Auth:             defaultSettings,
-		Proxy:            h.cfg.ProxySettings,
+		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 	}, nil
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return webclient.PingResponse{
-		Proxy:            h.cfg.ProxySettings,
+		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 	}, nil
@@ -738,8 +766,12 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	response := &webclient.PingResponse{
-		Proxy:         h.cfg.ProxySettings,
+		Proxy:         *proxyConfig,
 		ServerVersion: teleport.Version,
 	}
 
@@ -847,10 +879,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	authSettings := ui.WebConfigAuthSettings{
-		Providers:        authProviders,
-		SecondFactor:     secondFactor,
-		LocalAuthEnabled: localAuth,
-		AuthType:         authType,
+		Providers:         authProviders,
+		SecondFactor:      secondFactor,
+		LocalAuthEnabled:  localAuth,
+		AuthType:          authType,
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 
 	webCfg := ui.WebConfig{
@@ -1453,8 +1486,8 @@ type changeUserAuthenticationRequest struct {
 	Password []byte `json:"password"`
 	// U2FRegisterResponse is U2F registration challenge response.
 	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
-	// WebauthnRegisterResponse is the signed credential creation response.
-	WebauthnRegisterResponse *wanlib.CredentialCreationResponse `json:"webauthn_register_response"`
+	// WebauthnCreationResponse is the signed credential creation response.
+	WebauthnCreationResponse *wanlib.CredentialCreationResponse `json:"webauthnCreationResponse"`
 }
 
 func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1468,10 +1501,10 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		NewPassword: req.Password,
 	}
 	switch {
-	case req.WebauthnRegisterResponse != nil:
+	case req.WebauthnCreationResponse != nil:
 		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{
 			Response: &proto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
+				Webauthn: wanlib.CredentialCreationResponseToProto(req.WebauthnCreationResponse),
 			},
 		}
 	case req.U2FRegisterResponse != nil:
@@ -2014,6 +2047,40 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
 
+	var eventTypes []string
+	if include := values.Get("include"); include != "" {
+		eventTypes = strings.Split(include, ",")
+	}
+
+	searchEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+		return clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, order, startKey)
+	}
+	return clusterEventsList(ctx, site, r.URL.Query(), searchEvents)
+}
+
+// clusterSearchSessionEvents returns session events matching the criteria.
+//
+// GET /v1/webapi/sites/:site/sessions/search
+//
+// Query parameters:
+//   "from"    : date range from, encoded as RFC3339
+//   "to"      : date range to, encoded as RFC3339
+//   "limit"   : optional maximum number of events to return on each fetch
+//   "startKey": resume events search from the last event received,
+//               empty string means start search from beginning
+//   "order":    optional ordering of events. Can be either "asc" or "desc"
+//               for ascending and descending respectively.
+//               If no order is provided it defaults to descending.
+func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	searchSessionEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+		return clt.SearchSessionEvents(from, to, limit, order, startKey, nil)
+	}
+	return clusterEventsList(ctx, site, r.URL.Query(), searchSessionEvents)
+}
+
+// clusterEventsList returns a list of audit events obtained using the provided
+// searchEvents method.
+func clusterEventsList(ctx *SessionContext, site reversetunnel.RemoteSite, values url.Values, searchEvents func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (interface{}, error) {
 	from, err := queryTime(values, "from", time.Now().UTC().AddDate(0, -1, 0))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2034,18 +2101,14 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
+	startKey := values.Get("startKey")
+
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var eventTypes []string
-	if include := values.Get("include"); include != "" {
-		eventTypes = strings.Split(include, ",")
-	}
-
-	startKey := values.Get("startKey")
-	rawEvents, lastKey, err := clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, order, startKey)
+	rawEvents, lastKey, err := searchEvents(clt, from, to, limit, order, startKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2266,18 +2329,18 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 // hostCredentials sends a registration token and metadata to the Auth Server
 // and gets back SSH and TLS certificates.
 func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req auth.RegisterUsingTokenRequest
+	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	authClient := h.cfg.ProxyClient
-	packedKeys, err := authClient.RegisterUsingToken(req)
+	certs, err := authClient.RegisterUsingToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return packedKeys, nil
+	return auth.LegacyCertsFromProto(certs), nil
 }
 
 // createSSHCert is a web call that generates new SSH certificate based
@@ -2529,8 +2592,8 @@ func makeResponse(items interface{}) (interface{}, error) {
 
 // makeTeleportClientConfig creates default teleport client configuration
 // that is used to initiate an SSH terminal session or SCP file transfer
-func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
-	agent, cert, err := ctx.GetAgent()
+func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*client.Config, error) {
+	agent, cert, err := sesCtx.GetAgent()
 	if err != nil {
 		return nil, trace.BadParameter("failed to get user credentials: %v", err)
 	}
@@ -2540,27 +2603,33 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		return nil, trace.BadParameter("failed to get user credentials: %v", err)
 	}
 
-	tlsConfig, err := ctx.ClientTLSConfig()
+	tlsConfig, err := sesCtx.ClientTLSConfig()
 	if err != nil {
 		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
 	}
 
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
-			GetHostCheckers: ctx.getCheckers,
+			GetHostCheckers: sesCtx.getCheckers,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	proxyListenerMode, err := sesCtx.GetProxyListenerMode(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config := &client.Config{
-		Username:         ctx.user,
-		Agent:            agent,
-		SkipLocalAuth:    true,
-		TLS:              tlsConfig,
-		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-		DefaultPrincipal: cert.ValidPrincipals[0],
-		HostKeyCallback:  callback,
+		Username:          sesCtx.user,
+		Agent:             agent,
+		SkipLocalAuth:     true,
+		TLS:               tlsConfig,
+		AuthMethods:       []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		DefaultPrincipal:  cert.ValidPrincipals[0],
+		HostKeyCallback:   callback,
+		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 	}
 
 	return config, nil

@@ -23,6 +23,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 
 	"github.com/gravitational/trace"
 )
@@ -127,6 +128,9 @@ func NewKeyStore(cfg Config) (KeyStore, error) {
 	}
 	if cfg.Path == "" {
 		return NewRawKeyStore(&RawConfig{cfg.RSAKeyPairSource}), nil
+	}
+	if !modules.GetModules().Features().HSM {
+		return nil, trace.AccessDenied("HSM support is only available with an enterprise license")
 	}
 	return NewHSMKeyStore(&HSMConfig{
 		Path:       cfg.Path,

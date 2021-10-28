@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/trace"
 )
@@ -38,16 +37,13 @@ import (
 // UserCommand implements `tctl users` set of commands
 // It implements CLICommand interface
 type UserCommand struct {
-	config        *service.Config
-	login         string
-	allowedLogins []string
-	createRoles   []string
-	kubeUsers     string
-	kubeGroups    string
-
-	// DELETE IN (7.0)
-	// We keep legacy flags used in tctl users add --k8s-users command
-	legacyAllowedLogins string
+	config               *service.Config
+	login                string
+	allowedLogins        []string
+	allowedWindowsLogins []string
+	createRoles          []string
+	kubeUsers            string
+	kubeGroups           string
 
 	ttl time.Duration
 
@@ -74,24 +70,9 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix)
 	u.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 
-	u.userAdd.Flag("logins", "List of allowed logins for the new user").StringsVar(&u.allowedLogins)
-
-	// DELETE IN (7.x)
-	// Delete these legacy flags after OSS migration to RBAC
-	if modules.GetModules().BuildType() == modules.BuildOSS {
-		// Roles flag is not required in OSS
-		u.userAdd.Flag("roles", "List of roles for the new user to assume").StringsVar(&u.createRoles)
-
-		u.userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
-			Default("").StringVar(&u.legacyAllowedLogins)
-		u.userAdd.Flag("k8s-users", "Kubernetes users to assign to a user.").
-			Default("").StringVar(&u.kubeUsers)
-		u.userAdd.Flag("k8s-groups", "Kubernetes groups to assign to a user.").
-			Default("").StringVar(&u.kubeGroups)
-	} else {
-		// Roles flag is required in Enterprise
-		u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.createRoles)
-	}
+	u.userAdd.Flag("logins", "List of allowed SSH logins for the new user").StringsVar(&u.allowedLogins)
+	u.userAdd.Flag("windows-logins", "List of allowed Windows logins for the new user").StringsVar(&u.allowedWindowsLogins)
+	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.createRoles)
 
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.SignupTokenTTL, defaults.MaxSignupTokenTTL)).
@@ -205,36 +186,9 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, format stri
 // Add implements `tctl users add` for the enterprise edition. Unlike the OSS
 // version, this one requires --roles flag to be set
 func (u *UserCommand) Add(client auth.ClientI) error {
-	// DELETE IN (7.x)
-	// Delete these legacy flags after OSS migration to RBAC.
-	if modules.GetModules().BuildType() == modules.BuildOSS {
-		switch {
-		case u.legacyAllowedLogins != "":
-			// A caller has attempted to mix legacy and new format.
-			if len(u.allowedLogins) != 0 || len(u.createRoles) != 0 {
-				return trace.BadParameter(
-					`please use --roles and --logins flags instead of deprecated positional arguments.`)
-			}
-			return u.legacyAdd(client)
-
-			// This is a legacy OSS scenario: `tctl users add bob`
-			// with no other arguments. In this case, CLI assumed allowed logins
-			// to be `bob` as well.
-		case len(u.allowedLogins) == 0 && len(u.createRoles) == 0:
-			return u.legacyAdd(client)
-		}
-	}
-
-	// --roles is required argument, we are not using Required() modifier
-	// to merge multiple CLI flag combinations, make it required again
-	// and make it required on a server too
-	// DELETE IN (7.0)
-	if len(u.createRoles) == 0 {
-		return trace.BadParameter("please use --roles to assign a user to roles")
-	}
-
 	u.createRoles = flattenSlice(u.createRoles)
 	u.allowedLogins = flattenSlice(u.allowedLogins)
+	u.allowedWindowsLogins = flattenSlice(u.allowedWindowsLogins)
 
 	// Validate roles (server does not do this yet).
 	for _, roleName := range u.createRoles {
@@ -244,9 +198,10 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	}
 
 	traits := map[string][]string{
-		teleport.TraitLogins:     u.allowedLogins,
-		teleport.TraitKubeUsers:  flattenSlice([]string{u.kubeUsers}),
-		teleport.TraitKubeGroups: flattenSlice([]string{u.kubeGroups}),
+		teleport.TraitLogins:        u.allowedLogins,
+		teleport.TraitWindowsLogins: u.allowedWindowsLogins,
+		teleport.TraitKubeUsers:     flattenSlice([]string{u.kubeUsers}),
+		teleport.TraitKubeGroups:    flattenSlice([]string{u.kubeGroups}),
 	}
 
 	user, err := types.NewUser(u.login)
@@ -259,7 +214,6 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 
 	if err := client.CreateUser(context.TODO(), user); err != nil {
 		return trace.Wrap(err)
-
 	}
 
 	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
@@ -273,65 +227,6 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 
 	if err := u.PrintResetPasswordTokenAsInvite(token, u.format); err != nil {
 		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// addLegacy creates a new sign-up token and prints a token URL to stdout.
-// A user is not created until they visit the sign-up URL and completes the
-// process
-func (u *UserCommand) legacyAdd(client auth.ClientI) error {
-	fmt.Printf(`NOTE: Teleport 6.0 added RBAC in Open Source edition.
-
-In the future, please create a role and use a new format with --roles flag:
-
-$ tctl users add "%v" --roles=[add your role here]
-
-We will deprecate the old format in the next release of Teleport.
-Meanwhile we are going to assign user %q to role %q created during migration.
-
-`, u.login, u.login, teleport.AdminRoleName)
-
-	// If no local logins were specified, default to 'login' for SSH and k8s
-	// logins.
-	if u.legacyAllowedLogins == "" {
-		u.legacyAllowedLogins = u.login
-	}
-	if u.kubeUsers == "" {
-		u.kubeUsers = u.login
-	}
-
-	user, err := types.NewUser(u.login)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	traits := map[string][]string{
-		teleport.TraitLogins:     flattenSlice([]string{u.legacyAllowedLogins}),
-		teleport.TraitKubeUsers:  flattenSlice([]string{u.kubeUsers}),
-		teleport.TraitKubeGroups: flattenSlice([]string{u.kubeGroups}),
-	}
-
-	user.SetTraits(traits)
-	user.AddRole(teleport.AdminRoleName)
-	err = client.CreateUser(context.TODO(), user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
-		Name: u.login,
-		TTL:  u.ttl,
-		Type: auth.UserTokenTypeResetPasswordInvite,
-	})
-	if err != nil {
-		return err
-	}
-
-	err = u.PrintResetPasswordTokenAsInvite(token, u.format)
-	if err != nil {
-		return err
 	}
 
 	return nil
