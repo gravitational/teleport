@@ -75,11 +75,12 @@ ROLETESTER_ENT_MESSAGE := "without access tester"
 with_rdpclient := no
 RDPCLIENT_ENT_MESSAGE := "without Windows RDP client"
 
-CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
-CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
+CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
+CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
 CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
-CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
+CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
+CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 
 CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
 
@@ -164,7 +165,7 @@ ifeq ("$(with_rdpclient)", "yes")
 rdpclient:
 	cargo build --manifest-path=../lib/srv/desktop/rdp/rdpclient/Cargo.toml --release $(CARGO_TARGET)
 	cargo install cbindgen
-	cbindgen --crate rdp-client --output ../lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c ../lib/srv/desktop/rdp/rdpclient/
+	cbindgen --quiet --crate rdp-client --output ../lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c ../lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
 rdpclient:

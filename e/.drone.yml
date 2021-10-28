@@ -689,6 +689,27 @@ steps:
       - rm -rf $WORKSPACE_DIR/.ssh
       - mkdir -p $WORKSPACE_DIR/go/cache
 
+  - name: Install Go Toolchain
+    environment:
+      RUNTIME: go1.17.2
+    commands:
+      - set -u
+      - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+      - curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz
+      - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
+      - rm -rf $RUNTIME.darwin-amd64.tar.gz
+
+  - name: Install Rust Toolchain
+    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-e
+    commands:
+      - set -u
+      - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+      - export PATH=/Users/build/.cargo/bin:$PATH
+      - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)
+      - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+      - export RUST_HOME=$CARGO_HOME
+      - rustup toolchain install $RUST_VERSION
+
   - name: Build Mac artifacts
     environment:
       GOPATH: /tmp/push-build-darwin-amd64-e/go
@@ -698,8 +719,32 @@ steps:
       WORKSPACE_DIR: /tmp/push-build-darwin-amd64-e
     commands:
       - set -u
+      - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)
+      - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+      - export RUST_HOME=$CARGO_HOME
+      - export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - rustup override set $RUST_VERSION
+      - which cargo
+      - cargo --version
       - make clean release OS=$OS ARCH=$ARCH
+
+  - name: Clean up toolchains (post)
+    environment:
+      WORKSPACE_DIR: /tmp/push-build-darwin-amd64-e
+    commands:
+      - set -u
+      - export PATH=/Users/build/.cargo/bin:$PATH
+      - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+      - export RUST_HOME=$CARGO_HOME
+      - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)
+      - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+      - rustup override unset # clean up even though we're about to wipe out the directory, so we don't leave a broken link
+      - rustup toolchain uninstall $RUST_VERSION
+      - rm -rf ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+    when:
+      - success
+      - failure
 
   - name: Clean up exec runner storage (post)
     environment:
@@ -940,6 +985,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 5546028d345eb5309dcfdfefe0766c33cd2b4659f6ddc7431d6e8562233edd87
+hmac: 29ab2f1ad4df812be16a673e5b28ab70f144ff3aa2ceddcbb007a8c94e7383c1
 
 ...
