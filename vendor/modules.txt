@@ -417,7 +417,7 @@ github.com/gravitational/oxy/utils
 github.com/gravitational/reporting
 github.com/gravitational/reporting/client
 github.com/gravitational/reporting/types
-# github.com/gravitational/roundtrip v1.0.0
+# github.com/gravitational/roundtrip v1.0.1
 ## explicit
 github.com/gravitational/roundtrip
 # github.com/gravitational/teleport/api v0.0.0 => ./api
