@@ -182,6 +182,13 @@ annotations:
   # highAvailability.certManager.enabled is true
   certSecret: {}
 
+# Options for the Teleport service
+service:
+  type: LoadBalancer
+  # Additional entries here will be added to the service spec.
+  spec: {}
+    # loadBalancerIP: "1.2.3.4"
+
 # Extra arguments to pass to 'teleport start' for the main Teleport pod
 extraArgs: []
 
