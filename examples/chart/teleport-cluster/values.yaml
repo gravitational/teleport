@@ -182,9 +182,11 @@ annotations:
   # highAvailability.certManager.enabled is true
   certSecret: {}
 
-# Specify the loadBalancerIP
-# https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer
-loadBalancerIP: ""
+# Options for the Teleport service
+service:
+  # Additional entries here will be added to the service spec.
+  spec: {}
+    # loadBalancerIP: "1.2.3.4"
 
 # Extra arguments to pass to 'teleport start' for the main Teleport pod
 extraArgs: []
