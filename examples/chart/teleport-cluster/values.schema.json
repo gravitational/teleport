@@ -299,6 +299,25 @@
                 }
             }
         },
+        "service": {
+            "$id": "#/properties/service",
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "type": {
+                    "$id": "#properties/service/type",
+                    "type": "string",
+                    "default": "LoadBalancer"
+                },
+                "spec": {
+                    "$id": "#/properties/service/spec",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
         "extraArgs": {
             "$id": "#/properties/extraArgs",
             "type": "array",
