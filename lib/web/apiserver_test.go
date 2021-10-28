@@ -2798,7 +2798,7 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	require.Empty(t, re.RecoveryCodes)
+	require.Nil(t, re.Recovery)
 
 	// Create a user that is valid for recovery.
 	teleUser, err = types.NewUser("valid-username@example.com")
@@ -2827,7 +2827,8 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	require.Len(t, re.RecoveryCodes, 3)
+	require.Len(t, re.Recovery.Codes, 3)
+	require.NotEmpty(t, re.Recovery.Created)
 }
 
 type authProviderMock struct {
