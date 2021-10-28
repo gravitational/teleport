@@ -18,6 +18,9 @@ metadata:
   {{- end }}
 spec:
   type: LoadBalancer
+  {{- if .Values.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.loadBalancerIP }}
+  {{- end }}
   ports:
   - name: https
     port: 443
