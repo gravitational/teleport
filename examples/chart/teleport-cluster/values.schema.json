@@ -352,6 +352,11 @@
             "$id": "#/properties/tolerations",
             "type": "array",
             "default": []
+        },
+        "priorityClassName": {
+            "$id": "#/properties/priorityClassName",
+            "type": "string",
+            "default": ""
         }
     }
 }

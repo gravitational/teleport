@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package 'config' provides facilities for configuring Teleport daemons
+// Package config provides facilities for configuring Teleport daemons
 // including
 //	- parsing YAML configuration
 //	- parsing CLI flags
@@ -294,6 +294,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	// Logging configuration has already been validated above
 	_ = applyLogConfig(fc.Logger, log.StandardLogger())
 
+	if fc.CachePolicy.TTL != "" {
+		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
+
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
 	if err != nil {
@@ -569,6 +573,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
+		RoutingStrategy:          fc.Auth.RoutingStrategy,
 	})
 	if err != nil {
 		return trace.Wrap(err)
