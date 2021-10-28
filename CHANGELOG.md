@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.3.2
+
+This release of Teleport contains a feature and a fix.
+
+* Fixed issue that could cause `kubectl exec` to fail. [#8601](https://github.com/gravitational/teleport/pull/8601)
+* Added email notification plugin, see [Teleport Plugins 7.3.1](https://github.com/gravitational/teleport-plugins/releases/tag/v7.3.0) for more details.
+
 ## 7.3.0
 
 This release of Teleport contains a feature and a fix.
