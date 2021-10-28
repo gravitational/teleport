@@ -617,6 +617,24 @@ version: $(VERSRC)
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
+	# Update api module path, but don't fail on error.
+	$(MAKE) update-api-module-path || true
+
+# This rule updates the api module path to be in sync with the current api release version.
+# e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
+#
+# It will immediately fail if:
+#  1. A suffix is present in the version - e.g. "v7.0.0-alpha"
+#  2. The major version suffix in the api module path hasn't changed. e.g:
+#    - v7.0.0 -> v7.1.0 - both use version suffix "/v7" - github.com/gravitational/teleport/api/v7
+#    - v0.0.0 -> v1.0.0 - both have no version suffix - github.com/gravitational/teleport/api
+#
+# Note: any build flags needed to compile go files (such as build tags) should be provided below.
+.PHONY: update-api-module-path
+update-api-module-path:
+	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_beta"
+	$(MAKE) update-vendor
+	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -689,7 +707,7 @@ enter:
 # grpc generates GRPC stubs from service definitions
 .PHONY: grpc
 grpc:
-	make -C build.assets grpc
+	$(MAKE) -C build.assets grpc
 
 # buildbox-grpc generates GRPC stubs inside buildbox
 .PHONY: buildbox-grpc
@@ -883,6 +901,7 @@ init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
 
+# Update go.mod and vendor files.
 .PHONY: update-vendor
 update-vendor:
 	# update modules in api/
@@ -890,10 +909,22 @@ update-vendor:
 	# update modules in root directory
 	go mod tidy
 	go mod vendor
-	# delete the vendored api package. In its place
-	# create a symlink to the the original api package
-	rm -r vendor/github.com/gravitational/teleport/api
-	cd vendor/github.com/gravitational/teleport && ln -s ../../../../api api
+	$(MAKE) vendor-api
+
+# When teleport vendors its dependencies, Go also vendors the local api sub module. To get
+# around this issue, we replace the vendored api package with a symlink to the
+# local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
+.PHONY: vendor-api
+vendor-api: API_VENDOR_PATH := vendor/$(shell head -1 api/go.mod | awk '{print $$2;}')
+vendor-api:
+	rm -rf vendor/github.com/gravitational/teleport/api
+	mkdir -p $(shell dirname $(API_VENDOR_PATH))
+	# make a relative link to the true api dir (without using `ln -r` for non-linux OS compatibility)
+	if [ -d $(shell dirname $(API_VENDOR_PATH))/../../../../../api/ ]; then \
+		ln -s ../../../../../api $(API_VENDOR_PATH); \
+	else \
+		ln -s ../../../../api $(API_VENDOR_PATH); \
+	fi;
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.
