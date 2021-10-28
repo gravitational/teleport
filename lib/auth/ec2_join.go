@@ -263,7 +263,7 @@ func dbExists(ctx context.Context, presence services.Presence, hostID string) (b
 // only allow the roles which will actually be used by all expected instances so
 // that a stolen IID could not be used to join the cluster with a different
 // role.
-func (a *Server) checkInstanceUnique(ctx context.Context, req RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
+func (a *Server) checkInstanceUnique(ctx context.Context, req types.RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
 	requestedHostID := req.HostID
 	expectedHostID := NodeIDFromIID(iid)
 	if requestedHostID != expectedHostID {
@@ -309,7 +309,7 @@ func (a *Server) checkInstanceUnique(ctx context.Context, req RegisterUsingToken
 // If the request does not include an Instance Identity Document, and the
 // token does not include any allow rules, this method returns nil and the
 // normal token checking logic resumes.
-func (a *Server) CheckEC2Request(ctx context.Context, req RegisterUsingTokenRequest) error {
+func (a *Server) CheckEC2Request(ctx context.Context, req types.RegisterUsingTokenRequest) error {
 	requestIncludesIID := req.EC2IdentityDocument != nil
 	tokenName := req.Token
 	provisionToken, err := a.GetCache().GetToken(ctx, tokenName)
