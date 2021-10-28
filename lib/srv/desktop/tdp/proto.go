@@ -327,8 +327,8 @@ const (
 // MouseWheel is the mouse wheel scroll message.
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#8---mouse-wheel
 type MouseWheel struct {
-	Delta int16
 	Axis  MouseWheelAxis
+	Delta int16
 }
 
 func (w MouseWheel) Encode() ([]byte, error) {
