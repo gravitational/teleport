@@ -88,7 +88,9 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
 	resp, err := webclient.Find(ctx, t.ProxyAddr, lib.IsInsecureDevMode(), nil)
 	if err != nil {
-		t.Log.WithError(err).Errorf("Failed to ping web proxy %q addr.", t.ProxyAddr)
+		// If TLS Routing is disabled the address is the proxy reverse tunnel
+		// address thus the ping call will always fail.
+		t.Log.WithError(err).Debugf("Failed to ping web proxy %q addr: %v", t.ProxyAddr, err)
 	} else if resp.Proxy.TLSRoutingEnabled {
 		opts = append(opts, proxy.WithALPNDialer())
 	}
