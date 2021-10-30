@@ -1418,7 +1418,7 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	return &userAuthCreds{
 		username:      username,
 		password:      password,
-		recoveryCodes: res.GetRecovery().Codes,
+		recoveryCodes: res.GetRecovery().GetCodes(),
 		totpDev:       totpDev,
 		webDev:        webDev,
 	}, nil

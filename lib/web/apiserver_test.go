@@ -1531,9 +1531,10 @@ func (s *WebSuite) TestChangePasswordAndAddTOTPDeviceWithToken(c *C) {
 	c.Assert(err, IsNil)
 
 	// Test that no recovery codes are returned b/c cloud feature isn't enabled.
-	var recoveryCodes []string
-	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
-	c.Assert(recoveryCodes, HasLen, 0)
+	var response ui.RecoveryCodes
+	c.Assert(json.Unmarshal(re.Bytes(), &response), IsNil)
+	c.Assert(response.Codes, IsNil)
+	c.Assert(response.Created, IsNil)
 }
 
 func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
@@ -1588,9 +1589,10 @@ func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
 	c.Assert(err, IsNil)
 
 	// Test that no recovery codes are returned b/c cloud is not turned on.
-	var recoveryCodes []string
-	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
-	c.Assert(recoveryCodes, HasLen, 0)
+	var response ui.RecoveryCodes
+	c.Assert(json.Unmarshal(re.Bytes(), &response), IsNil)
+	c.Assert(response.Codes, IsNil)
+	c.Assert(response.Created, IsNil)
 }
 
 // TestEmptyMotD ensures that responses returned by both /webapi/ping and
