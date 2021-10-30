@@ -10,7 +10,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/api/cloud"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
-	"github.com/gravitational/teleport/e/lib/web/ui"
+	enterpriseui "github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/web/ui"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -32,7 +34,7 @@ func (p *Plugin) getAccountRecoveryTokenHandle(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	uiToken := ui.RecoveryToken{
+	uiToken := enterpriseui.RecoveryToken{
 		User:              token.GetUser(),
 		IsRecoverPassword: token.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
 		IsApproved:        token.GetSubKind() == auth.UserTokenTypeRecoveryApproved,
@@ -175,7 +177,7 @@ func (p *Plugin) verifyAccountRecoveryHandle(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.RecoveryToken{
+	return enterpriseui.RecoveryToken{
 		TokenID:           token.GetName(),
 		IsRecoverPassword: token.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
 	}, nil
@@ -274,7 +276,10 @@ func (p *Plugin) createAccountRecoveryCodesHandle(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	return res.GetRecoveryCodes(), nil
+	return &ui.RecoveryCodes{
+		Codes:   res.Codes,
+		Created: &res.Created,
+	}, nil
 }
 
 func (p *Plugin) getIPAddress(r *http.Request) string {
@@ -296,21 +301,21 @@ func (p *Plugin) getAccountRecoveryCodesMetadataHandle(w http.ResponseWriter, r 
 	return getAccountRecoveryCodesMetadata(r.Context(), clt)
 }
 
-func getAccountRecoveryCodesMetadata(ctx context.Context, clt accountRecoveryAPIGetter) (*ui.AccountRecoveryCodesMetadata, error) {
+func getAccountRecoveryCodesMetadata(ctx context.Context, clt accountRecoveryAPIGetter) (*ui.RecoveryCodes, error) {
 	response, err := clt.GetAccountRecoveryCodes(ctx, &proto.GetAccountRecoveryCodesRequest{})
 	switch {
 	case trace.IsNotFound(err):
-		return &ui.AccountRecoveryCodesMetadata{}, nil
+		return &ui.RecoveryCodes{}, nil
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}
 
-	return &ui.AccountRecoveryCodesMetadata{
-		Created: &response.Spec.Created,
+	return &ui.RecoveryCodes{
+		Created: &response.Created,
 	}, nil
 }
 
 type accountRecoveryAPIGetter interface {
 	// GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
-	GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error)
+	GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error)
 }

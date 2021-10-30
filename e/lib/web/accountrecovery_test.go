@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +16,7 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 	m := &mockedAccountRecoveryAPIGetter{}
 
 	// Test not found error returns empty metadata object.
-	m.mockGetAccountRecoveryCodes = func(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	m.mockGetAccountRecoveryCodes = func(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 		return nil, trace.NotFound("")
 	}
 	res, err := getAccountRecoveryCodesMetadata(ctx, m)
@@ -25,15 +24,15 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 	require.Empty(t, res)
 
 	// Test other errors than NotFound returns error as is.
-	m.mockGetAccountRecoveryCodes = func(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+	m.mockGetAccountRecoveryCodes = func(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 		return nil, trace.BadParameter("")
 	}
 	_, err = getAccountRecoveryCodesMetadata(ctx, m)
 	require.True(t, trace.IsBadParameter(err))
 
 	// Test non nil returns no error.
-	m.mockGetAccountRecoveryCodes = func(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
-		return &types.RecoveryCodesV1{Spec: types.RecoveryCodesSpecV1{Created: time.Unix(int64(1605139200), 0)}}, nil
+	m.mockGetAccountRecoveryCodes = func(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
+		return &proto.RecoveryCodes{Created: time.Unix(int64(1605139200), 0)}, nil
 	}
 	res, err = getAccountRecoveryCodesMetadata(ctx, m)
 	require.Nil(t, err)
@@ -41,10 +40,10 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 }
 
 type mockedAccountRecoveryAPIGetter struct {
-	mockGetAccountRecoveryCodes func(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error)
+	mockGetAccountRecoveryCodes func(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error)
 }
 
-func (m *mockedAccountRecoveryAPIGetter) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+func (m *mockedAccountRecoveryAPIGetter) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 	if m.mockGetAccountRecoveryCodes != nil {
 		return m.mockGetAccountRecoveryCodes(ctx, req)
 	}
