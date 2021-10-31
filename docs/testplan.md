@@ -334,19 +334,13 @@ For main, test with a role that has access to all resources.
 - [ ] Verify search by username, roles, and type works
 
 #### Auth Connectors
+- [ ] Verify when there are no connectors, empty state renders
 - [ ] Verify that creating OIDC/SAML/GITHUB connectors works
 - [ ] Verify that editing  OIDC/SAML/GITHUB connectors works
 - [ ] Verify that error is shown when saving an invalid YAML
 - [ ] Verify that correct hint text is shown on the right side
 - [ ] Verify that encrypted SAML assertions work with an identity provider that supports it (Azure).
-
-#### Auth Connectors Card Icons
-- [ ] Verify that GITHUB card has github icon
-- [ ] Verify that SAML card has SAML icon
-- [ ] Verify that OIDC card has OIDC icon
-- [ ] Verify when there are no connectors, empty state renders
-
-
+- [ ] Verify that created github, saml, oidc card has their icons
 #### Roles
 - [ ] Verify that roles are shown
 - [ ] Verify that "Create New Role" dialog works
@@ -356,7 +350,7 @@ For main, test with a role that has access to all resources.
 
 #### Managed Clusters
 - [ ] Verify that it displays a list of clusters (root + leaf)
-- [ ] Verify that every menu item works: nodes, apps, audit events, session recordings.
+- [ ] Verify that every menu item works: nodes, apps, audit events, session recordings, etc.
 
 #### Help & Support
 - [ ] Verify that all URLs work and correct (no 404)
@@ -392,7 +386,7 @@ version: v3
 ```
 kind: role
 metadata:
-  name: allow-users
+  name: allow-users-short-ttl
 spec:
   allow:
     rules:
@@ -425,11 +419,10 @@ spec:
     max_session_ttl: 8h0m0s
 version: v3
 ```
-- [ ] Verify that creating a new request works
 - [ ] Verify that under requestable roles, only `allow-roles` and `allow-users` are listed
 - [ ] Verify input validation requires at least one role to be selected
 - [ ] Verify you can select/input/modify reviewers
-- [ ] Verify after creating, requests are listed in pending states
+- [ ] Verify after creating a request, requests are listed in pending states
 - [ ] Verify you can't review own requests
 
 ### Viewing & Approving/Denying Requests
@@ -445,7 +438,7 @@ spec:
       roles: ['*']
 ```
 - [ ] Verify you can view access request from request list
-- [ ] Verify there is list of reviewers you selected (empty list if none selected AND none wasn't defined in roles)
+- [ ] Verify there is list of reviewers you selected (empty list if none selected AND suggested_reviewers wasn't defined)
 - [ ] Verify threshold name is there (it will be `default` if thresholds weren't defined in role, or blank if not named)
 - [ ] Verify you can approve a request with message, and immediately see updated state with your review stamp (green checkmark) and message box
 - [ ] Verify you can deny a request, and immediately see updated state with your review stamp (red cross)
@@ -455,10 +448,10 @@ spec:
 - [ ] Verify assume buttons are only present for approved request and for logged in user
 - [ ] Verify that assuming `allow-roles` allows you to see roles screen and ssh into nodes
 - [ ] Verify that after clicking on the assume button, it is disabled in both the list and in viewing
-- [ ] After assuming `allow-roles`, verify that assuming `allow-users` allows you to see users screen, and denies access to nodes
+- [ ] After assuming `allow-roles`, verify that assuming `allow-users-short-ttl` allows you to see users screen, and denies access to nodes
   - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
   - [ ] Verify `switching back` goes back to your default static role
-  - [ ] Verify after re-assuming this role, the user is automatically logged out after the expiry is met (4 minutes)
+  - [ ] Verify after re-assuming `allow-users-short-ttl` role, the user is automatically logged out after the expiry is met (4 minutes)
 - [ ] Verify that after logging out (or getting logged out automatically) and relogging in, permissions are reset to `default`, and requests that are not expired and are approved are assumable again
 
 ## Access Request Waiting Room
@@ -467,7 +460,7 @@ Create the following role:
 ```
 kind: role
 metadata:
-  name: restrict
+  name: waiting-room
 spec:
   allow:
     request:
@@ -486,7 +479,7 @@ version: v3
 
 #### Strategy Always
 With the previous role you created from `Strategy Reason`, change `request_access` to `always`:
-- [ ] Verify after login, pending dialogue is rendered
+- [ ] Verify after login, pending dialogue is auto rendered
 - [ ] Verify after approving a request, dashboard is rendered
 - [ ] Verify after denying a request, access denied dialogue is rendered
 - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
@@ -494,8 +487,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 
 #### Strategy Optional
 With the previous role you created from `Strategy Reason`, change `request_access` to `optional`:
-- [ ] Verify after login, dashboard is rendered
-- [ ] Verify switchback button says `Switch Back` and clicking goes back to the login screen
+- [ ] Verify after login, dashboard is rendered as normal
 
 ## Terminal
 - [ ] Verify that top nav has a user menu (Main and Logout)
@@ -529,7 +521,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify when resizing player to a small screen, scroller appears and is working
 - [ ] Verify that error message is displayed (enter a invalid SID in the URL)
 
-## Invite Form
+## Invite and Reset Form
 - [ ] Verify that input validates
 - [ ] Verify that invite works with 2FA disabled
 - [ ] Verify that invite works with OTP enabled
@@ -537,7 +529,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify that invite works with WebAuthn enabled
 - [ ] Verify that error message is shown if an invite is expired/invalid
 
-## Login Form
+## Login Form and Change Password
 - [ ] Verify that input validates
 - [ ] Verify that login works with 2FA disabled
 - [ ] Verify that changing passwords works for 2FA disabled
@@ -548,8 +540,9 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify that login works with WebAuthn enabled
 - [ ] Verify that changing passwords works for WebAuthn enabled
 - [ ] Verify that login works for Github/SAML/OIDC
-- [ ] Verify that account is locked after several unsuccessful attempts
 - [ ] Verify that redirect to original URL works after successful login
+- [ ] Verify that account is locked after several unsuccessful login attempts
+- [ ] Verify that account is locked after several unsuccessful change password attempts
 
 ## Multi-factor Authentication (mfa)
 Create/modify `teleport.yaml` and set the following authentication settings under `auth_service`
@@ -563,11 +556,12 @@ authentication:
     rp_id: example.com
 ```
 
-#### MFA create, login, password reset
-- [ ] Verify when creating a user, and setting password, required 2nd factor is `totp` (TODO: temporary hack, ideally want to allow user to select)
-- [ ] Verify at login page, there is a mfa dropdown menu (none, webauthn, otp), and can login with `otp`
-- [ ] Verify at login page that the dropdown changes to (none, u2f, otp) if the second_factor is changed to `u2f`
-- [ ] Verify at reset password page, there is the same dropdown to select your mfa, and can reset with `otp`
+#### MFA invite, login, password reset, change password
+- [ ] Verify during invite/reset, second factor list all auth types: none, hardware key, and authenticator app
+- [ ] Verify registration works with all option types
+- [ ] Verify login with all option types
+- [ ] Verify changing password with all option types
+- [ ] Change `second_factor` type to `on` and verify that mfa is required (no option `none` in dropdown)
 
 #### MFA require auth
 Through the CLI, `tsh login` and register a WebAuthn key with `tsh mfa add` (not supported in UI yet).
@@ -577,12 +571,44 @@ Using the same user as above:
 - [ ] Verify connecting to a ssh node prompts you to tap your registered WebAuthn key
 - [ ] Verify in the web terminal, you can scp upload/download files
 
+#### MFA Management
+TODO(yassine)
+
+## Cloud
+From your cloud staging account, change the field `teleportVersion` to the test version.
+```
+$ kubectl -n <namespace> edit tenant
+```
+
+#### Recovery Code Management
+TODO(yassine)
+
+#### Invite/Reset
+- [ ] Verify email as usernames, renders recovery codes dialog
+- [ ] Verify non email usernames, does not render recovery codes dialog
+
+#### Recovery Flow: Add new mfa device
+- [ ] Verify recovering (adding) a new hardware key device with password
+- [ ] Verify recovering (adding) a new otp device with password
+- [ ] Verify viewing and deleting any old device (but not the one just added)
+- [ ] Verify new recovery codes are rendered at the end of flow
+
+#### Recovery Flow: Change password
+- [ ] Verify recovering password with any mfa device
+- [ ] Verify new recovery codes are rendered at the end of flow
+
+#### Recovery Email
+- [ ] Verify receiving email for link to start recovery
+- [ ] Verify receiving email for successfully recovering
+- [ ] Verify email link is invalid after successful recovery
+- [ ] Verify receiving email for locked account when max attempts reached
+
 ## RBAC
 Create a role, with no `allow.rules` defined:
 ```
 kind: role
 metadata:
-  name: test
+  name: rbac
 spec:
   allow:
     app_labels:
@@ -597,7 +623,7 @@ version: v3
 ```
 - [ ] Verify that a user has access only to: "Servers", "Applications", "Databases", "Kubernetes", "Active Sessions", "Access Requests" and "Manage Clusters"
 - [ ] Verify there is no `Add Server, Application, Databases, Kubernetes` button in each respective view
-- [ ] Verify only `Nodes`, `Apps`, `Databases`, and `Kubernetes` are listed under `options` button in `Manage Clusters`
+- [ ] Verify only `Servers`, `Apps`, `Databases`, and `Kubernetes` are listed under `options` button in `Manage Clusters`
 
 Note: User has read/create access_request access to their own requests, despite resource settings
 
