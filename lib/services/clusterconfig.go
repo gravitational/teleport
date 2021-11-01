@@ -105,7 +105,7 @@ const ClusterConfigSpecSchemaTemplate = `{
 		"anyOf": [{"type": "string"}, { "type": "boolean"}]
 	  },
 	  "routing_strategy": {
-	  	"type": "string"
+		"type": "number"
 	  },
 	  "audit": {
 		"type": "object",
