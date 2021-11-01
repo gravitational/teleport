@@ -34,12 +34,19 @@ func newWebAuthn(cfg *types.Webauthn, rpID, origin string) (*wan.WebAuthn, error
 	if len(cfg.AttestationAllowedCAs) > 0 || len(cfg.AttestationDeniedCAs) > 0 {
 		attestation = protocol.PreferDirectAttestation
 	}
+	rrk := false
 	return wan.New(&wan.Config{
 		RPID:                  rpID,
 		RPOrigin:              origin,
 		RPDisplayName:         defaultDisplayName,
 		RPIcon:                defaultIcon,
 		AttestationPreference: attestation,
-		Timeout:               int(defaults.WebauthnChallengeTimeout.Milliseconds()),
+		AuthenticatorSelection: protocol.AuthenticatorSelection{
+			RequireResidentKey: &rrk,
+			// Do not ask for PIN (or other verifications), users already go through
+			// password authn.
+			UserVerification: protocol.VerificationDiscouraged,
+		},
+		Timeout: int(defaults.WebauthnChallengeTimeout.Milliseconds()),
 	})
 }
