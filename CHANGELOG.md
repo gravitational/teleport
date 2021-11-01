@@ -1,5 +1,9 @@
 # Changelog
 
+## 6.2.18
+
+* Fix type error in config validation when using `routing_strategy` config option.
+
 ## 6.2.16
 
 This release of teleport contains performance improvements and a feature.
