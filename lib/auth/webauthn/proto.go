@@ -36,6 +36,7 @@ func CredentialAssertionToProto(assertion *CredentialAssertion) *wantypes.Creden
 			RpId:             assertion.Response.RelyingPartyID,
 			AllowCredentials: credentialDescriptorsToProto(assertion.Response.AllowedCredentials),
 			Extensions:       inputExtensionsToProto(assertion.Response.Extensions),
+			UserVerification: string(assertion.Response.UserVerification),
 		},
 	}
 }
@@ -67,14 +68,15 @@ func CredentialCreationToProto(cc *CredentialCreation) *wantypes.CredentialCreat
 	}
 	return &wantypes.CredentialCreation{
 		PublicKey: &wantypes.PublicKeyCredentialCreationOptions{
-			Challenge:            cc.Response.Challenge,
-			Rp:                   rpEntityToProto(cc.Response.RelyingParty),
-			User:                 userEntityToProto(cc.Response.User),
-			CredentialParameters: credentialParametersToProto(cc.Response.Parameters),
-			TimeoutMs:            int64(cc.Response.Timeout),
-			ExcludeCredentials:   credentialDescriptorsToProto(cc.Response.CredentialExcludeList),
-			Attestation:          string(cc.Response.Attestation),
-			Extensions:           inputExtensionsToProto(cc.Response.Extensions),
+			Challenge:              cc.Response.Challenge,
+			Rp:                     rpEntityToProto(cc.Response.RelyingParty),
+			User:                   userEntityToProto(cc.Response.User),
+			CredentialParameters:   credentialParametersToProto(cc.Response.Parameters),
+			TimeoutMs:              int64(cc.Response.Timeout),
+			ExcludeCredentials:     credentialDescriptorsToProto(cc.Response.CredentialExcludeList),
+			Attestation:            string(cc.Response.Attestation),
+			Extensions:             inputExtensionsToProto(cc.Response.Extensions),
+			AuthenticatorSelection: authenticatorSelectionToProto(cc.Response.AuthenticatorSelection),
 		},
 	}
 }
@@ -153,6 +155,14 @@ func CredentialCreationResponseFromProto(ccr *wantypes.CredentialCreationRespons
 			Extensions: outputExtensionsFromProto(ccr.Extensions),
 		},
 		AttestationResponse: authenticatorAttestationResponseFromProto(ccr.Response),
+	}
+}
+
+func authenticatorSelectionToProto(a protocol.AuthenticatorSelection) *wantypes.AuthenticatorSelection {
+	return &wantypes.AuthenticatorSelection{
+		AuthenticatorAttachment: string(a.AuthenticatorAttachment),
+		RequireResidentKey:      a.RequireResidentKey != nil && *a.RequireResidentKey,
+		UserVerification:        string(a.UserVerification),
 	}
 }
 
@@ -245,6 +255,18 @@ func authenticatorAttestationResponseFromProto(resp *wantypes.AuthenticatorAttes
 	}
 }
 
+func authenticatorSelectionFromProto(a *wantypes.AuthenticatorSelection) protocol.AuthenticatorSelection {
+	if a == nil {
+		return protocol.AuthenticatorSelection{}
+	}
+	rrk := a.RequireResidentKey
+	return protocol.AuthenticatorSelection{
+		AuthenticatorAttachment: protocol.AuthenticatorAttachment(a.AuthenticatorAttachment),
+		RequireResidentKey:      &rrk,
+		UserVerification:        protocol.UserVerificationRequirement(a.UserVerification),
+	}
+}
+
 func credentialDescriptorsFromProto(creds []*wantypes.CredentialDescriptor) []protocol.CredentialDescriptor {
 	var res []protocol.CredentialDescriptor
 	for _, cred := range creds {
@@ -298,14 +320,15 @@ func publicKeyCredentialCreationOptionsFromProto(pubKey *wantypes.PublicKeyCrede
 		return protocol.PublicKeyCredentialCreationOptions{}
 	}
 	return protocol.PublicKeyCredentialCreationOptions{
-		Challenge:             pubKey.Challenge,
-		RelyingParty:          rpEntityFromProto(pubKey.Rp),
-		User:                  userEntityFromProto(pubKey.User),
-		Parameters:            credentialParametersFromProto(pubKey.CredentialParameters),
-		Timeout:               int(pubKey.TimeoutMs),
-		CredentialExcludeList: credentialDescriptorsFromProto(pubKey.ExcludeCredentials),
-		Extensions:            inputExtensionsFromProto(pubKey.Extensions),
-		Attestation:           protocol.ConveyancePreference(pubKey.Attestation),
+		Challenge:              pubKey.Challenge,
+		RelyingParty:           rpEntityFromProto(pubKey.Rp),
+		User:                   userEntityFromProto(pubKey.User),
+		Parameters:             credentialParametersFromProto(pubKey.CredentialParameters),
+		Timeout:                int(pubKey.TimeoutMs),
+		CredentialExcludeList:  credentialDescriptorsFromProto(pubKey.ExcludeCredentials),
+		Extensions:             inputExtensionsFromProto(pubKey.Extensions),
+		Attestation:            protocol.ConveyancePreference(pubKey.Attestation),
+		AuthenticatorSelection: authenticatorSelectionFromProto(pubKey.AuthenticatorSelection),
 	}
 }
 
@@ -319,6 +342,7 @@ func publicKeyCredentialRequestOptionsFromProto(pubKey *wantypes.PublicKeyCreden
 		RelyingPartyID:     pubKey.RpId,
 		AllowedCredentials: credentialDescriptorsFromProto(pubKey.AllowCredentials),
 		Extensions:         inputExtensionsFromProto(pubKey.Extensions),
+		UserVerification:   protocol.UserVerificationRequirement(pubKey.UserVerification),
 	}
 }
 
