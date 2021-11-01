@@ -865,6 +865,7 @@ and non interactive tsh bench loads.
 [special configuration](https://social.technet.microsoft.com/Forums/en-US/784b2bbe-353f-412e-ac9a-193d81f306b6/remote-desktop-for-mac-f11-key-not-working-on-macbook-pro-touchbar?forum=winRDc) on MacOS.
 - [ ] Left click and right click register as Windows clicks. (Right click on the
   desktop should show a Windows menu, not a browser context menu)
+- [ ] Vertical and horizontal scroll work. [Horizontal Scroll Test](https://codepen.io/jaemskyle/pen/inbmB)
 - [ ] All desktops have `teleport.dev/origin` label.
 - [ ] Dynamic desktops have additional `teleport.dev` labels for OS, OS Version,
   DNS hostname.
