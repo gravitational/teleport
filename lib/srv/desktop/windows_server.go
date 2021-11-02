@@ -795,9 +795,15 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	return nil
 }
 
+// updateCAInNTAuthStore records the Teleport user CA in the Windows store which records
+// CAs that are eligible to issue smart card login certificates and perform client
+// private key archival.
+//
+// This is equivalent to running `certutil –dspublish –f <PathToCertFile.cer> NTAuthCA`
 func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, caDER []byte) error {
 	// Check if our CA is already in the store. The LDAP entry for NTAuth store
 	// is constant and it should always exist.
+	// TODO(zmb3): NTAuthCertificates may not exist, create it if necessary.
 	ntauthPath := ldapPath{"Configuration", "Services", "Public Key Services", "NTAuthCertificates"}
 	entries, err := s.lc.read(ntauthPath, "certificationAuthority", []string{"cACertificate"})
 	if err != nil {

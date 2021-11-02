@@ -36,7 +36,12 @@ func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
 	// TODO(zmb3): should we get a CA cert for the LDAP cert validation? Active
 	// Directory Certificate Services (their managed CA thingy) seems to be
 	// issuing those.
-	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
+	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(&tls.Config{
+		InsecureSkipVerify: true,
+		// TODO(zmb3): is this necessary?
+		MinVersion: tls.VersionTLS12,
+		MaxVersion: tls.VersionTLS12,
+	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
