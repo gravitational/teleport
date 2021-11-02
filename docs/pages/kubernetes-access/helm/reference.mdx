@@ -899,7 +899,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
   ```yaml
   extraVolumeMounts:
   - name: myvolume
-    path: /path/to/mount/volume
+    mountPath: /path/to/mount/volume
   ```
   </TabItem>
   <TabItem label="--set">
@@ -1979,7 +1979,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
   ```yaml
   extraVolumeMounts:
   - name: myvolume
-    path: /path/to/mount/volume
+    mountPath: /path/to/mount/volume
   ```
   </TabItem>
   <TabItem label="--set">

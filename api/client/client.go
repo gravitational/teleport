@@ -2153,7 +2153,7 @@ func (c *Client) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 }
 
 // CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
-func (c *Client) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
+func (c *Client) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 	res, err := c.grpc.CreateAccountRecoveryCodes(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
@@ -2166,7 +2166,7 @@ func (c *Client) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 }
 
 // GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
-func (c *Client) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+func (c *Client) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 	res, err := c.grpc.GetAccountRecoveryCodes(ctx, req, c.callOpts...)
 	return res, trail.FromGRPC(err)
 }
