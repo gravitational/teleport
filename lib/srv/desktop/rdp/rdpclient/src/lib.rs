@@ -553,12 +553,18 @@ pub unsafe extern "C" fn free_rust_string(s: *mut c_char) {
     let _ = CString::from_raw(s);
 }
 
-fn from_go_string(s: *mut c_char) -> String {
-    unsafe { CStr::from_ptr(s).to_string_lossy().into_owned() }
+/// # Safety
+///
+/// s must be a C-style null terminated string.
+unsafe fn from_go_string(s: *mut c_char) -> String {
+    CStr::from_ptr(s).to_string_lossy().into_owned()
 }
 
-fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
-    unsafe { slice::from_raw_parts(ptr, len as usize).to_vec() }
+/// # Safety
+///
+/// ptr must be a valid buffer of len bytes.
+unsafe fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
+    slice::from_raw_parts(ptr, len as usize).to_vec()
 }
 
 /// CGOError is an alias for a C string pointer, for C API clarity.
@@ -572,11 +578,13 @@ fn to_cgo_error(s: String) -> CGOError {
 }
 
 /// from_cgo_error copies CGOError into a String and frees the underlying Go memory.
-fn from_cgo_error(e: CGOError) -> String {
+/// 
+/// # Safety
+/// 
+/// The pointer inside the CGOError must point to a valid null terminated Go string.
+unsafe fn from_cgo_error(e: CGOError) -> String {
     let s = from_go_string(e);
-    unsafe {
-        free_go_string(e);
-    }
+    free_go_string(e);
     s
 }
 
