@@ -338,7 +338,7 @@ func TestIAMJoin(t *testing.T) {
 				Token:              "test-token",
 				HostID:             "test-node",
 				Role:               types.RoleNode,
-				STSIdentityRequest: []byte(identityRequest),
+				STSIdentityRequest: identityRequest,
 			}
 
 			err = a.checkIAMRequest(ctx, tc.stsClient, tc.givenChallenge, req)
