@@ -58,6 +58,45 @@ func (errorSTSClient) Do(req *http.Request) (*http.Response, error) {
 	}, nil
 }
 
+const identityRequestTemplate = `POST / HTTP/1.1
+Host: sts.amazonaws.com
+User-Agent: aws-sdk-go/1.37.17 (go1.17.1; darwin; amd64)
+Content-Length: 43
+Accept: application/json
+Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211102/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token;x-teleport-challenge, Signature=1111111111111111111111111111111111111111111111111111111111111111
+Content-Type: application/x-www-form-urlencoded; charset=utf-8
+X-Amz-Date: 20211102T204300Z
+X-Amz-Security-Token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=
+X-Teleport-Challenge: %s
+
+Action=GetCallerIdentity&Version=2011-06-15`
+
+const wrongHostTemplate = `POST / HTTP/1.1
+Host: sts.example.com
+User-Agent: aws-sdk-go/1.37.17 (go1.17.1; darwin; amd64)
+Content-Length: 43
+Accept: application/json
+Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211102/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token;x-teleport-challenge, Signature=1111111111111111111111111111111111111111111111111111111111111111
+Content-Type: application/x-www-form-urlencoded; charset=utf-8
+X-Amz-Date: 20211102T204300Z
+X-Amz-Security-Token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=
+X-Teleport-Challenge: %s
+
+Action=GetCallerIdentity&Version=2011-06-15`
+
+const unsignedChallengeTemplate = `POST / HTTP/1.1
+Host: sts.amazonaws.com
+User-Agent: aws-sdk-go/1.37.17 (go1.17.1; darwin; amd64)
+Content-Length: 43
+Accept: application/json
+Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211102/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token, Signature=1111111111111111111111111111111111111111111111111111111111111111
+Content-Type: application/x-www-form-urlencoded; charset=utf-8
+X-Amz-Date: 20211102T204300Z
+X-Amz-Security-Token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=
+X-Teleport-Challenge: %s
+
+Action=GetCallerIdentity&Version=2011-06-15`
+
 func TestIAMJoin(t *testing.T) {
 	a := newAuthServer(t)
 
@@ -71,9 +110,10 @@ func TestIAMJoin(t *testing.T) {
 	testCases := []struct {
 		desc              string
 		tokenSpec         types.ProvisionTokenSpecV2
+		stsClient         stsClient
 		givenChallenge    string
 		responseChallenge string
-		stsClient         stsClient
+		requestTemplate   string
 		expectError       func(error) bool
 	}{
 		{
@@ -96,6 +136,7 @@ func TestIAMJoin(t *testing.T) {
 			},
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
+			requestTemplate:   identityRequestTemplate,
 			expectError:       isNil,
 		},
 		{
@@ -118,6 +159,7 @@ func TestIAMJoin(t *testing.T) {
 			},
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
+			requestTemplate:   identityRequestTemplate,
 			expectError:       isNil,
 		},
 		{
@@ -140,6 +182,7 @@ func TestIAMJoin(t *testing.T) {
 			},
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
+			requestTemplate:   identityRequestTemplate,
 			expectError:       isNil,
 		},
 		{
@@ -162,6 +205,7 @@ func TestIAMJoin(t *testing.T) {
 			},
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
+			requestTemplate:   identityRequestTemplate,
 			expectError:       trace.IsAccessDenied,
 		},
 		{
@@ -184,6 +228,7 @@ func TestIAMJoin(t *testing.T) {
 			},
 			givenChallenge:    "test-challenge",
 			responseChallenge: "wrong-challenge",
+			requestTemplate:   identityRequestTemplate,
 			expectError:       trace.IsAccessDenied,
 		},
 		{
@@ -206,6 +251,7 @@ func TestIAMJoin(t *testing.T) {
 			},
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
+			requestTemplate:   identityRequestTemplate,
 			expectError:       trace.IsAccessDenied,
 		},
 		{
@@ -223,6 +269,53 @@ func TestIAMJoin(t *testing.T) {
 			stsClient:         errorSTSClient{},
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
+			requestTemplate:   identityRequestTemplate,
+			expectError:       trace.IsAccessDenied,
+		},
+		{
+			desc: "wrong sts host",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: "1234",
+						AWSARN:     "arn:aws::1111",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: mockSTSClient{
+				nodeIdentity: awsIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1111",
+				},
+			},
+			givenChallenge:    "test-challenge",
+			responseChallenge: "test-challenge",
+			requestTemplate:   wrongHostTemplate,
+			expectError:       trace.IsAccessDenied,
+		},
+		{
+			desc: "unsigned challenge header",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					&types.TokenRule{
+						AWSAccount: "1234",
+						AWSARN:     "arn:aws::1111",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: mockSTSClient{
+				nodeIdentity: awsIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1111",
+				},
+			},
+			givenChallenge:    "test-challenge",
+			responseChallenge: "test-challenge",
+			requestTemplate:   unsignedChallengeTemplate,
 			expectError:       trace.IsAccessDenied,
 		},
 	}
@@ -239,13 +332,13 @@ func TestIAMJoin(t *testing.T) {
 			require.NoError(t, a.UpsertToken(ctx, token))
 			t.Cleanup(func() { require.NoError(t, a.DeleteToken(ctx, token.GetName())) })
 
-			signedRequest, err := createSignedSTSIdentityRequest(tc.responseChallenge)
-			require.NoError(t, err)
+			identityRequest := []byte(fmt.Sprintf(tc.requestTemplate, tc.responseChallenge))
+
 			req := &types.RegisterUsingTokenRequest{
 				Token:              "test-token",
 				HostID:             "test-node",
 				Role:               types.RoleNode,
-				STSIdentityRequest: signedRequest,
+				STSIdentityRequest: []byte(identityRequest),
 			}
 
 			err = a.checkIAMRequest(ctx, tc.stsClient, tc.givenChallenge, req)
