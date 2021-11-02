@@ -257,7 +257,7 @@ ifeq ("$(with_rdpclient)", "yes")
 rdpclient:
 	cargo build --manifest-path=lib/srv/desktop/rdp/rdpclient/Cargo.toml --release $(CARGO_TARGET)
 	cargo install cbindgen
-	cbindgen --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
+	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
 rdpclient:
