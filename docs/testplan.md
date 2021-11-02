@@ -861,7 +861,7 @@ and non interactive tsh bench loads.
 
 - [ ] Can connect to desktop defined in static `hosts` section.
 - [ ] Can connect to desktop discovered via LDAP
-- [ ] Download [Keyboard Key Info](https://dennisbabkin.com/kbdkeyinfo/) and verify all keys are processed correctly in each supported browser. Known issues: F11 cannot be captured by the browser without 
+- [ ] Download [Keyboard Key Info](https://dennisbabkin.com/kbdkeyinfo/) and verify all keys are processed correctly in each supported browser. Known issues: F11 cannot be captured by the browser without
 [special configuration](https://social.technet.microsoft.com/Forums/en-US/784b2bbe-353f-412e-ac9a-193d81f306b6/remote-desktop-for-mac-f11-key-not-working-on-macbook-pro-touchbar?forum=winRDc) on MacOS.
 - [ ] Left click and right click register as Windows clicks. (Right click on the
   desktop should show a Windows menu, not a browser context menu)
