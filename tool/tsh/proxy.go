@@ -17,6 +17,8 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
@@ -32,26 +34,43 @@ import (
 )
 
 func onProxyCommandSSH(cf *CLIConf) error {
-	client, err := makeClient(cf, false)
+	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	address, err := utils.ParseAddr(client.WebProxyAddr)
+	address, err := utils.ParseAddr(tc.WebProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	key, err := tc.LocalAgent().GetKey(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pool := x509.NewCertPool()
+	for _, caPEM := range key.TLSCAs() {
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return trace.BadParameter("failed to parse TLS CA certificate")
+		}
+	}
+
+	tlsConfig := &tls.Config{
+		RootCAs: pool,
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:    client.WebProxyAddr,
+		RemoteProxyAddr:    tc.WebProxyAddr,
 		Protocol:           alpncommon.ProtocolProxySSH,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
-		SSHUser:            cf.Username,
+		SSHUser:            tc.HostLogin,
 		SSHUserHost:        cf.UserHost,
-		SSHHostKeyCallback: client.HostKeyCallback,
+		SSHHostKeyCallback: tc.HostKeyCallback,
 		SSHTrustedCluster:  cf.SiteName,
+		ClientTLSConfig:    tlsConfig,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -109,13 +109,14 @@ func NewLocalProxy(cfg LocalProxyConfig) (*LocalProxy, error) {
 // SSHProxy is equivalent of `ssh -o 'ForwardAgent yes' -p port  %r@host -s proxy:%h:%p` but established SSH
 // connection to RemoteProxyAddr is wrapped with TLS protocol.
 func (l *LocalProxy) SSHProxy() error {
-	if l.cfg.ClientTLSConfig != nil {
+	if l.cfg.ClientTLSConfig == nil {
 		return trace.BadParameter("client TLS config is missing")
 	}
 
 	clientTLSConfig := l.cfg.ClientTLSConfig.Clone()
 	clientTLSConfig.NextProtos = []string{string(l.cfg.Protocol)}
 	clientTLSConfig.InsecureSkipVerify = l.cfg.InsecureSkipVerify
+	clientTLSConfig.ServerName = l.cfg.SNI
 
 	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, clientTLSConfig)
 	if err != nil {
