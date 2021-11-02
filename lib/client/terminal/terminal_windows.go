@@ -272,6 +272,10 @@ func (t *Terminal) Stderr() io.Writer {
 	return t.stderr
 }
 
+func (t *Terminal) Clear() error {
+	return nil
+}
+
 // Close closes the Terminal, restoring the console to its original state.
 // Potentially blocks on cleanup tasks.
 func (t *Terminal) Close() error {
