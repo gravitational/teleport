@@ -521,7 +521,7 @@ lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
 lint-rdp:
 	cd lib/srv/desktop/rdp/rdpclient \
 		&& cargo fmt -- --check \
-		&& cargo clippy cargo clippy --all-targets -- -D warnings
+		&& cargo clippy --all-targets -- -D warnings
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
