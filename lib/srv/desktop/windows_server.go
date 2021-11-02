@@ -582,13 +582,13 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 		return
 	}
 
-	// Fetch the target desktop info. UUID of the desktop is passed via SNI.
-	desktopUUID := strings.TrimSuffix(tlsConn.ConnectionState().ServerName, SNISuffix)
-	log = log.WithField("desktop-uuid", desktopUUID)
+	// Fetch the target desktop info. Name of the desktop is passed via SNI.
+	desktopName := strings.TrimSuffix(tlsConn.ConnectionState().ServerName, SNISuffix)
+	log = log.WithField("desktop-name", desktopName)
 
-	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopUUID)
+	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopName)
 	if err != nil {
-		log.WithError(err).Warning("Failed to fetch desktop by UUID")
+		log.WithError(err).Warning("Failed to fetch desktop by name")
 		return
 	}
 
@@ -653,7 +653,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		LockTargets:       services.LockTargetsFromTLSIdentity(identity),
 		Tracker:           rdpc,
 		TeleportUser:      identity.Username,
-		ServerID:          desktop.GetName(),
+		ServerID:          s.cfg.Heartbeat.HostUUID,
 	}
 	shouldDisconnectExpiredCert := authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
 	if shouldDisconnectExpiredCert && !identity.Expires.IsZero() {
