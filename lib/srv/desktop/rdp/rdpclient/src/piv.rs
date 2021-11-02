@@ -38,10 +38,7 @@ pub struct Card<const S: usize> {
 impl<const S: usize> Card<S> {
     pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8]) -> RdpResult<Self> {
         let piv_auth_key = Rsa::private_key_from_der(key_der).map_err(|e| {
-            invalid_data_error(&format!(
-                "failed to parse private key from DER: {:?}",
-                e
-            ))
+            invalid_data_error(&format!("failed to parse private key from DER: {:?}", e))
         })?;
 
         Ok(Self {
@@ -263,12 +260,7 @@ impl<const S: usize> Card<S> {
         // TODO(zmb3): support non-RSA keys, if needed.
         self.piv_auth_key
             .private_decrypt(challenge, &mut signed_challenge, Padding::NONE)
-            .map_err(|e| {
-                invalid_data_error(&format!(
-                    "failed to sign challenge: {:?}",
-                    e
-                ))
-            })?;
+            .map_err(|e| invalid_data_error(&format!("failed to sign challenge: {:?}", e)))?;
 
         // Return signed challenge.
         let resp = tlv(
@@ -386,21 +378,13 @@ const TLV_TAG_CHALLENGE: u8 = 0x81;
 const TLV_TAG_RESPONSE: u8 = 0x82;
 
 fn tlv(tag: u8, value: Value) -> RdpResult<Tlv> {
-    Tlv::new(tlv_tag(tag)?, value).map_err(|e| {
-        invalid_data_error(&format!(
-            "TLV with tag {:#X} invalid: {:?}",
-            tag, e
-        ))
-    })
+    Tlv::new(tlv_tag(tag)?, value)
+        .map_err(|e| invalid_data_error(&format!("TLV with tag {:#X} invalid: {:?}", tag, e)))
 }
 
 fn tlv_tag(val: u8) -> RdpResult<Tag> {
-    Tag::try_from(val).map_err(|e| {
-        invalid_data_error(&format!(
-            "TLV tag {:#X} invalid: {:?}",
-            val, e
-        ))
-    })
+    Tag::try_from(val)
+        .map_err(|e| invalid_data_error(&format!("TLV tag {:#X} invalid: {:?}", val, e)))
 }
 
 fn hex_data<const S: usize>(cmd: &Command<S>) -> String {

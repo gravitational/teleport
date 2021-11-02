@@ -381,7 +381,7 @@ fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
             return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
         };
         if err != CGO_OK {
-            let err_str = from_cgo_error(err);
+            let err_str = unsafe { from_cgo_error(err) };
             return Some(format!("failed forwarding RDP bitmap frame: {}", err_str));
         }
     }
@@ -578,9 +578,9 @@ fn to_cgo_error(s: String) -> CGOError {
 }
 
 /// from_cgo_error copies CGOError into a String and frees the underlying Go memory.
-/// 
+///
 /// # Safety
-/// 
+///
 /// The pointer inside the CGOError must point to a valid null terminated Go string.
 unsafe fn from_cgo_error(e: CGOError) -> String {
     let s = from_go_string(e);
