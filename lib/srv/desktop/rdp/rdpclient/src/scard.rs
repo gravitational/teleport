@@ -223,11 +223,11 @@ impl Client {
         // Decode the card command before sending it to piv.rs.
         // In retrospect, piv.rs should probably handle this decoding.
         let cmd =
-            CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&req.send_buffer).or_else(|err| {
-                Err(invalid_data_error(&format!(
+            CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&req.send_buffer).map_err(|err| {
+                invalid_data_error(&format!(
                     "failed to parse smartcard command {:?}: {:?}",
                     &req.send_buffer, err
-                )))
+                ))
             })?;
 
         let card = self
