@@ -33,17 +33,14 @@ type ldapClient struct {
 // newLDAPClient connects to an LDAP server, authenticates and returns the
 // client connection. Caller must close the client after using it.
 func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
-	con, err := ldap.Dial("tcp", cfg.Addr)
+	// TODO(zmb3): should we get a CA cert for the LDAP cert validation? Active
+	// Directory Certificate Services (their managed CA thingy) seems to be
+	// issuing those.
+	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(awly): should we get a CA cert for the LDAP cert validation? Active
-	// Directory Certificate Services (their managed CA thingy) seems to be
-	// issuing those.
-	if err := con.StartTLS(&tls.Config{InsecureSkipVerify: true}); err != nil {
-		con.Close()
-		return nil, trace.Wrap(err)
-	}
+
 	// TODO(zmb3): Active Directory, theoretically, supports cert-based
 	// authentication. Figure out the right certificate format and generate it
 	// with Teleport CA for authn here.

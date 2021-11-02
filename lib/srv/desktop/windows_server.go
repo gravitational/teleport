@@ -125,7 +125,7 @@ type WindowsServiceConfig struct {
 // LDAPConfig contains parameters for connecting to an LDAP server.
 type LDAPConfig struct {
 	// Addr is the LDAP server address in the form host:port.
-	// Standard port is 389.
+	// Standard port is 636 for LDAPS.
 	Addr string
 	// Domain is an Active Directory domain name, like "example.com".
 	Domain string
