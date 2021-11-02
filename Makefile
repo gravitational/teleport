@@ -517,7 +517,7 @@ integration-root:
 .PHONY: lint
 lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
 
-.PHONY: lint-gdp
+.PHONY: lint-rdp
 lint-rdp:
 	cd lib/srv/desktop/rdp/rdpclient \
 		&& cargo fmt -- --check \
