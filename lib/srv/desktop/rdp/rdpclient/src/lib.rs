@@ -194,7 +194,7 @@ fn connect_rdp_inner(
     let rdp_client = RdpClient { mcs, global, rdpdr };
     Ok(Client {
         rdp_client: Arc::new(Mutex::new(rdp_client)),
-        tcp_fd: tcp_fd,
+        tcp_fd,
     })
 }
 
