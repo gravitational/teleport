@@ -279,13 +279,8 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 		// Database certs have to be requested with CertUsage All because
 		// pre-7.0 servers do not accept usage-restricted certificates.
 		if params.RouteToDatabase.ServiceName != "" {
-			switch params.RouteToDatabase.Protocol {
-			case defaults.ProtocolMongoDB:
-				// MongoDB expects certificate and key pair in the same pem file.
-				key.DBTLSCerts[params.RouteToDatabase.ServiceName] = append(certs.TLS, key.Priv...)
-			default:
-				key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
-			}
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
+				params.RouteToDatabase.Protocol, certs.TLS, key.Priv)
 		}
 
 	case proto.UserCertsRequest_SSH:
@@ -293,17 +288,23 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 	case proto.UserCertsRequest_App:
 		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
 	case proto.UserCertsRequest_Database:
-		switch params.RouteToDatabase.Protocol {
-		case defaults.ProtocolMongoDB:
-			// MongoDB expects certificate and key pair in the same pem file.
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = append(certs.TLS, key.Priv...)
-		default:
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
-		}
+		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
+			params.RouteToDatabase.Protocol, certs.TLS, key.Priv)
 	case proto.UserCertsRequest_Kubernetes:
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
 	}
 	return key, nil
+}
+
+// makeDatabaseClientPEM returns appropriate client PEM file contents for the
+// specified database type. Some databases only need certificate in the PEM
+// file, others both certificate and key.
+func makeDatabaseClientPEM(proto string, cert, key []byte) []byte {
+	// MongoDB expects certificate and key pair in the same pem file.
+	if proto == defaults.ProtocolMongoDB {
+		return append(cert, key...)
+	}
+	return cert
 }
 
 // PromptMFAChallengeHandler is a handler for MFA challenges.
@@ -434,7 +435,8 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		case proto.UserCertsRequest_Kubernetes:
 			key.KubeTLSCerts[initReq.KubernetesCluster] = crt.TLS
 		case proto.UserCertsRequest_Database:
-			key.DBTLSCerts[initReq.RouteToDatabase.ServiceName] = crt.TLS
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
+				params.RouteToDatabase.Protocol, crt.TLS, key.Priv)
 		default:
 			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", initReq.Usage)
 		}
