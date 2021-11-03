@@ -755,10 +755,13 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 	accessPoint, err := site.CachingAccessPoint()
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	for {
 		select {
 		case <-time.Tick(500 * time.Millisecond):
-			servers, err := accessPoint.GetDatabaseServers(context.Background(), apidefaults.Namespace)
+			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
 				logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue
@@ -772,7 +775,7 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 				continue
 			}
 			return
-		case <-time.After(10 * time.Second):
+		case <-ctx.Done():
 			t.Fatal("Leaf cluster access point is unavailable.")
 		}
 	}
