@@ -152,8 +152,9 @@ func (t *Terminal) Stderr() io.Writer {
 	return t.stderr
 }
 
+// Clear clears the terminal, including scrollback.
 func (t *Terminal) Clear() error {
-	const resetPattern = "\x1b[3J\x1b\x63\n" // clear scrollback and current screen
+	const resetPattern = "\x1b[3J\x1b\x63\n"
 	if _, err := t.Stdout().Write([]byte(resetPattern)); err != nil {
 		return trace.Wrap(err)
 	}
