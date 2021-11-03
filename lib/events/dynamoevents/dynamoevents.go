@@ -106,8 +106,8 @@ type Config struct {
 	ReadCapacityUnits int64 `json:"read_capacity_units"`
 	// WriteCapacityUnits is Dynamodb write capacity units
 	WriteCapacityUnits int64 `json:"write_capacity_units"`
-	// RetentionPeriod is a default retention period for events
-	RetentionPeriod time.Duration
+	// RetentionPeriod is a default retention period for events in seconds.
+	RetentionPeriod int64 `json:"audit_retention_period"`
 	// Clock is a clock interface, used in tests
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
@@ -233,9 +233,9 @@ const (
 	// DefaultWriteCapacityUnits specifies default value for write capacity units
 	DefaultWriteCapacityUnits = 10
 
-	// DefaultRetentionPeriod is a default data retention period in events table
-	// default is 1 year
-	DefaultRetentionPeriod = 365 * 24 * time.Hour
+	// DefaultRetentionPeriod is a default data retention period in events table in seconds.
+	// The default is 1 year.
+	DefaultRetentionPeriod = 365 * 24 * 60 * 60
 )
 
 // New returns new instance of DynamoDB backend.
@@ -585,7 +585,9 @@ func (l *Log) setExpiry(e *event) {
 	if l.RetentionPeriod == 0 {
 		return
 	}
-	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(l.RetentionPeriod).Unix())
+
+	duration := time.Duration(l.RetentionPeriod) * time.Second
+	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(duration).Unix())
 }
 
 // PostSessionSlice sends chunks of recorded session to the event log

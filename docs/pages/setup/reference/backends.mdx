@@ -378,6 +378,11 @@ teleport:
 
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
+
+    # Teleport by default stores stores audit events with an AWS TTL of 1 year.
+    # This value can be configured as shown below and can be set to any integer number
+    # representing seconds. If set to 0, TTL is disabled.
+    audit_retention_period: 365 * 24 * 60 * 60
 ```
 
 - Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
@@ -390,8 +395,6 @@ teleport:
   bucket, i.e. both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file system for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
-- If DynamoDB is used for the audit log, the logged events will be stored with a
-  TTL of 1 year. Currently, this TTL is not configurable.
 
 <Admonition
   type="warning"
