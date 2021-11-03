@@ -64,7 +64,8 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	user := "fake@fake.com"
 	rc, err := srv.Auth().generateAndUpsertRecoveryCodes(ctx, user)
 	require.NoError(t, err)
-	require.Len(t, rc, numOfRecoveryCodes)
+	require.Len(t, rc.Codes, numOfRecoveryCodes)
+	require.NotEmpty(t, rc.Created)
 
 	// Test codes are not marked used.
 	recovery, err := srv.Auth().GetRecoveryCodes(ctx, user, true /* withSecrets */)
@@ -74,7 +75,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	}
 
 	// Test each codes are of correct format and used.
-	for _, code := range rc {
+	for _, code := range rc.Codes {
 		s := strings.Split(code, "-")
 
 		// 9 b/c 1 for prefix, 8 for words.
@@ -94,7 +95,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	}
 
 	// Test with a used code returns error.
-	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(rc[0]))
+	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(rc.Codes[0]))
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Test with invalid recovery code returns error.
@@ -102,7 +103,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Test with non-existing user returns error.
-	err = srv.Auth().verifyRecoveryCode(ctx, "doesnotexist", []byte(rc[0]))
+	err = srv.Auth().verifyRecoveryCode(ctx, "doesnotexist", []byte(rc.Codes[0]))
 	require.True(t, trace.IsAccessDenied(err))
 }
 
@@ -116,21 +117,21 @@ func TestRecoveryCodeEventsEmitted(t *testing.T) {
 	user := "fake@fake.com"
 
 	// Test generated recovery codes event.
-	tc, err := srv.Auth().generateAndUpsertRecoveryCodes(ctx, user)
+	rc, err := srv.Auth().generateAndUpsertRecoveryCodes(ctx, user)
 	require.NoError(t, err)
 	event := mockEmitter.LastEvent()
 	require.Equal(t, events.RecoveryCodeGeneratedEvent, event.GetType())
 	require.Equal(t, events.RecoveryCodesGenerateCode, event.GetCode())
 
 	// Test used recovery code event.
-	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(tc[0]))
+	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(rc.Codes[0]))
 	require.NoError(t, err)
 	event = mockEmitter.LastEvent()
 	require.Equal(t, events.RecoveryCodeUsedEvent, event.GetType())
 	require.Equal(t, events.RecoveryCodeUseSuccessCode, event.GetCode())
 
 	// Re-using the same token emits failed event.
-	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(tc[0]))
+	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(rc.Codes[0]))
 	require.Error(t, err)
 	event = mockEmitter.LastEvent()
 	require.Equal(t, events.RecoveryCodeUsedEvent, event.GetType())
@@ -1275,7 +1276,8 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 
 			default:
 				require.NoError(t, err)
-				require.Len(t, res.GetRecoveryCodes(), numOfRecoveryCodes)
+				require.Len(t, res.GetCodes(), numOfRecoveryCodes)
+				require.NotEmpty(t, res.GetCreated())
 
 				// Check token is deleted after success.
 				_, err = srv.Auth().Identity.GetUserToken(ctx, req.TokenID)
@@ -1318,8 +1320,8 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 
 	rc, err := clt.GetAccountRecoveryCodes(ctx, &proto.GetAccountRecoveryCodesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, rc.Spec.Codes)
-	require.NotEmpty(t, rc.Spec.Created)
+	require.Empty(t, rc.Codes)
+	require.NotEmpty(t, rc.Created)
 }
 
 func triggerLoginLock(t *testing.T, srv *Server, username string) {
@@ -1416,7 +1418,7 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	return &userAuthCreds{
 		username:      username,
 		password:      password,
-		recoveryCodes: res.GetRecoveryCodes(),
+		recoveryCodes: res.GetRecovery().GetCodes(),
 		totpDev:       totpDev,
 		webDev:        webDev,
 	}, nil

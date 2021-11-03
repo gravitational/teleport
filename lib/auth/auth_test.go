@@ -576,7 +576,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// unsuccessful registration (wrong role)
-	certs, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	certs, err := s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:        tok,
 		HostID:       "bad-host-id",
 		NodeName:     "bad-node-name",
@@ -609,7 +609,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// use it twice:
-	certs, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	certs, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:                multiUseToken,
 		HostID:               "once",
 		NodeName:             "node-name",
@@ -626,7 +626,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	comment := Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
 	c.Assert(apiutils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
 
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:        multiUseToken,
 		HostID:       "twice",
 		NodeName:     "node-name",
@@ -638,7 +638,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 
 	// try to use after TTL:
 	s.a.SetClock(clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1)))
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:        multiUseToken,
 		HostID:       "late.bird",
 		NodeName:     "node-name",
@@ -664,7 +664,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 	err = s.a.SetStaticTokens(st)
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:        "static-token-value",
 		HostID:       "static.host",
 		NodeName:     "node-name",
@@ -673,7 +673,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		PublicSSHKey: pub,
 	})
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
+	_, err = s.a.RegisterUsingToken(types.RegisterUsingTokenRequest{
 		Token:        "static-token-value",
 		HostID:       "wrong.role",
 		NodeName:     "node-name",

@@ -1540,7 +1540,14 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return res.RecoveryCodes, nil
+	if res.GetRecovery() == nil {
+		return &ui.RecoveryCodes{}, nil
+	}
+
+	return &ui.RecoveryCodes{
+		Codes:   res.Recovery.Codes,
+		Created: &res.Recovery.Created,
+	}, nil
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
@@ -2329,7 +2336,7 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 // hostCredentials sends a registration token and metadata to the Auth Server
 // and gets back SSH and TLS certificates.
 func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req auth.RegisterUsingTokenRequest
+	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
