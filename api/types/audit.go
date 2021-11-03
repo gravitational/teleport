@@ -69,7 +69,7 @@ type ClusterAuditConfig interface {
 	// WriteTargetValue is the ratio of consumed write to provisioned capacity.
 	WriteTargetValue() float64
 	// RetentionPeriod is the retention period for audit events.
-	RetentionPeriod() *time.Duration
+	RetentionPeriod() *Duration
 	// Clone performs a deep copy.
 	Clone() ClusterAuditConfig
 }
@@ -231,8 +231,8 @@ func (c *ClusterAuditConfigV2) WriteTargetValue() float64 {
 }
 
 // RetentionPeriod is the retention period for audit events.
-func (c *ClusterAuditConfigV2) RetentionPeriod() *time.Duration {
-	value := c.Spec.RetentionPeriod.Value()
+func (c *ClusterAuditConfigV2) RetentionPeriod() *Duration {
+	value := c.Spec.RetentionPeriod
 	return &value
 }
 

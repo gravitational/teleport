@@ -380,9 +380,8 @@ teleport:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
 
     # Teleport by default stores stores audit events with an AWS TTL of 1 year.
-    # This value can be configured as shown below and can be set to any integer number
-    # representing seconds. If set to 0, TTL is disabled.
-    audit_retention_period: 365 * 24 * 60 * 60
+    # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
+    audit_retention_period: 60m
 ```
 
 - Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`

@@ -107,7 +107,7 @@ type Config struct {
 	// WriteCapacityUnits is Dynamodb write capacity units
 	WriteCapacityUnits int64 `json:"write_capacity_units"`
 	// RetentionPeriod is a default retention period for events.
-	RetentionPeriod *time.Duration `json:"audit_retention_period"`
+	RetentionPeriod *types.Duration `json:"audit_retention_period"`
 	// Clock is a clock interface, used in tests
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
@@ -158,7 +158,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
 	}
 	if cfg.RetentionPeriod == nil {
-		duration := DefaultRetentionPeriod
+		duration := types.Duration(DefaultRetentionPeriod)
 		cfg.RetentionPeriod = &duration
 	}
 	if cfg.Clock == nil {
@@ -583,11 +583,11 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 }
 
 func (l *Log) setExpiry(e *event) {
-	if *l.RetentionPeriod == 0 {
+	if l.RetentionPeriod.Value() == 0 {
 		return
 	}
 
-	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(*l.RetentionPeriod).Unix())
+	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(l.RetentionPeriod.Value()).Unix())
 }
 
 // PostSessionSlice sends chunks of recorded session to the event log
