@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
+// TestProxySSHDial verifies "tsh proxy ssh" command.
 func TestProxySSHDial(t *testing.T) {
 	// Setup ssh agent.
 	sockPath, err := createAgent(t)
@@ -45,7 +46,7 @@ func TestProxySSHDial(t *testing.T) {
 	})
 
 	connector := mockConnector(t)
-	populist, err := types.NewRole("ssh-login", types.RoleSpecV4{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{"alice"},
 		},
@@ -56,7 +57,7 @@ func TestProxySSHDial(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access", "ssh-login"})
 
-	authProcess, proxyProcess := makeTestServers(t, connector, alice, populist)
+	authProcess, proxyProcess := makeTestServers(t, connector, alice, sshLoginRole)
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -112,7 +113,7 @@ func createAgent(t *testing.T) (string, error) {
 		return teleagent.NopCloser(keyring), nil
 	})
 
-	// start the SSH agent
+	// Start the SSH agent.
 	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
 	if err != nil {
 		return "", trace.Wrap(err)
