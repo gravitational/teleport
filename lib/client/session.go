@@ -639,11 +639,3 @@ func (ns *NodeSession) Close() error {
 	}
 	return nil
 }
-
-func (ns *NodeSession) ClearTerminal() {
-	const resetPattern = "\x1b[3J\x1b\x63\n" // clear scrollback and current screen
-
-	if _, err := ns.terminal.Stdout().Write([]byte(resetPattern)); err != nil {
-		log.Debugf("Failed to clear screen: %v.", err)
-	}
-}
