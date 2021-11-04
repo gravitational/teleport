@@ -1,0 +1,48 @@
+syntax = "proto3";
+package api;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+
+// NodeTrackerService is used to track proxies and connected nodes in iot mode
+service NodeTrackerService {
+    // AddNode stores the proxy connected to the node in the request
+    rpc AddNode(AddNodeRequest) returns (AddNodeResponse) {}
+
+    // GetNode finds the proxy connected to the node in the request
+    rpc GetProxies(GetProxiesRequest) returns (GetProxiesResponse) {}
+
+    // RemoveNode removes the node in the request
+    rpc RemoveNode(RemoveNodeRequest) returns (RemoveNodeResponse) {}
+}
+
+message AddNodeRequest {
+    string node_id = 1 [ (gogoproto.customname) = "NodeID" ];
+    string proxy_id = 2 [ (gogoproto.customname) = "ProxyID" ];
+    string cluster_name = 3 [ (gogoproto.customname) = "ClusterName" ];
+    string addr = 4 [ (gogoproto.customname) = "Addr" ];
+}
+
+message AddNodeResponse {}
+
+message GetProxiesRequest { string node_id = 1 [ (gogoproto.customname) = "NodeID" ]; }
+
+message GetProxiesResponse {
+    repeated ProxyDetails proxy_details = 1
+        [ (gogoproto.nullable) = false, (gogoproto.customname) = "ProxyDetails" ];
+}
+
+message ProxyDetails {
+    string id = 1 [ (gogoproto.customname) = "ID" ];
+    string cluster_name = 2 [ (gogoproto.customname) = "ClusterName" ];
+    string addr = 3 [ (gogoproto.customname) = "Addr" ];
+    google.protobuf.Timestamp updated_at = 4 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.customname) = "UpdatedAt"
+    ];
+}
+
+message RemoveNodeRequest { string node_id = 1 [ (gogoproto.customname) = "NodeID" ]; }
+
+message RemoveNodeResponse {}

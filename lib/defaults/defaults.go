@@ -70,6 +70,9 @@ const (
 	// implemented.
 	WindowsDesktopListenPort = 3028
 
+	// NodeTrackerListenPort is the default listen port for the node tracker service.
+	NodeTrackerListenPort = 3029
+
 	// RDPListenPort is the standard port for RDP servers.
 	RDPListenPort = 3389
 
@@ -617,6 +620,11 @@ func ReverseTunnelListenAddr() *utils.NetAddr {
 // MetricsServiceListenAddr returns the default listening address for the metrics service
 func MetricsServiceListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, MetricsListenPort)
+}
+
+// NodeTrackerServiceListenAddr returns the default listening address for the node tracker service
+func NodeTrackerServiceListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, NodeTrackerListenPort)
 }
 
 func makeAddr(host string, port int16) *utils.NetAddr {

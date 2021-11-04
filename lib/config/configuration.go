@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
@@ -221,6 +222,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.WindowsDesktop.Disabled() {
 		cfg.WindowsDesktop.Enabled = false
+	}
+	if fc.NodeTracker.Disabled() {
+		cfg.NodeTracker.Enabled = false
 	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
@@ -411,6 +415,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.WindowsDesktop.Enabled() {
 		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.NodeTracker.Enabled() {
+		if err := applyNodeTrackerConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -786,6 +795,14 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.TunnelPublicAddrs = addrs
 	}
+	if len(fc.Proxy.NodeTrackerAddr) != 0 {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.NodeTrackerAddr, int(defaults.NodeTrackerListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.NodeTrackerAddr = addr
+	}
+
 	if len(fc.Proxy.PostgresPublicAddr) != 0 {
 		// Postgres proxy is multiplexed on the web proxy port. If the port is
 		// not specified here explicitly, prefer defaults in the following
@@ -1241,6 +1258,27 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			Regexp: r,
 			Labels: rule.Labels,
 		})
+	}
+
+	return nil
+}
+
+// applyNodeTrackerConfig applies file configuration for the "node_tracker_service" section.
+func applyNodeTrackerConfig(fc *FileConfig, cfg *service.Config) error {
+	cfg.NodeTracker.Enabled = true
+
+	if fc.NodeTracker.ListenAddress != "" {
+		listenAddr, err := utils.ParseHostPortAddr(fc.NodeTracker.ListenAddress, int(defaults.NodeTrackerListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.NodeTracker.ListenAddr = *listenAddr
+	}
+
+	if fc.NodeTracker.ProxyKeepAliveInterval == 0 {
+		cfg.NodeTracker.ProxyKeepAliveInterval = types.NewDuration(apidefaults.KeepAliveInterval)
+	} else {
+		cfg.NodeTracker.ProxyKeepAliveInterval = fc.NodeTracker.ProxyKeepAliveInterval
 	}
 
 	return nil

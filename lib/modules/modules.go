@@ -53,6 +53,8 @@ type Features struct {
 	Cloud bool
 	// HSM enables PKCS#11 HSM support
 	HSM bool
+	// NodeTracker enables the node tracker service
+	NodeTracker bool
 }
 
 // ToProto converts Features into proto.Features
@@ -67,6 +69,7 @@ func (f Features) ToProto() *proto.Features {
 		AdvancedAccessWorkflows: f.AdvancedAccessWorkflows,
 		Cloud:                   f.Cloud,
 		HSM:                     f.HSM,
+		NodeTracker:             f.NodeTracker,
 	}
 }
 
@@ -144,9 +147,10 @@ func (p *defaultModules) PrintVersion() {
 // Features returns supported features
 func (p *defaultModules) Features() Features {
 	return Features{
-		Kubernetes: true,
-		DB:         true,
-		App:        true,
+		Kubernetes:  true,
+		DB:          true,
+		App:         true,
+		NodeTracker: true, // This might be moved to teleport/e or somewhere else private
 	}
 }
 

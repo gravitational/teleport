@@ -389,6 +389,8 @@ message Features {
     bool Cloud = 8 [ (gogoproto.jsontag) = "cloud" ];
     // HSM enables PKCS#11 HSM support
     bool HSM = 9 [ (gogoproto.jsontag) = "hsm" ];
+    // NodeTracker enables the node tracker service
+    bool NodeTracker = 10 [ (gogoproto.jsontag) = "node_tracker" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.

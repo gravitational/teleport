@@ -42,6 +42,7 @@ var (
 	listenerProxyMySQL        = listenerType(teleport.Component(teleport.ComponentProxy, "mysql"))
 	listenerMetrics           = listenerType(teleport.ComponentMetrics)
 	listenerWindowsDesktop    = listenerType(teleport.ComponentWindowsDesktop)
+	listenerNodeTracker       = listenerType(teleport.ComponentNodeTracker)
 )
 
 // AuthSSHAddr returns auth server SSH endpoint, if configured and started.

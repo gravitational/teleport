@@ -83,6 +83,10 @@ type FileConfig struct {
 	// WindowsDesktop is the "windows_desktop_service" that defines the
 	// configuration for Windows Desktop Access.
 	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
+
+	// NodeTracker is the "node_tracker_service" section in Teleport configuration file
+	// that defines the Node Tracker service.
+	NodeTracker NodeTrackerService `yaml:"node_tracker_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -1066,6 +1070,9 @@ type Proxy struct {
 	// principals on the SSH certificate.
 	TunnelPublicAddr apiutils.Strings `yaml:"tunnel_public_addr,omitempty"`
 
+	// NodeTrackerAddr is the address of a node tracker service.
+	NodeTrackerAddr string `yaml:"node_tracker_addr,omitempty"`
+
 	// KeyPairs is a list of x509 key pairs the proxy will load.
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
 
@@ -1325,4 +1332,13 @@ type LDAPConfig struct {
 	Username string `yaml:"username"`
 	// PasswordFile is a text file containing the password for LDAP authentication.
 	PasswordFile string `yaml:"password_file"`
+}
+
+// NodeTrackerService contains configuration for node_tracker_service.
+type NodeTrackerService struct {
+	Service `yaml:",inline"`
+
+	// ProxyKeepAliveInterval set the keep-alive interval for a proxy in the
+	// node tracker
+	ProxyKeepAliveInterval types.Duration `yaml:"proxy_keep_alive_interval,omitempty"`
 }

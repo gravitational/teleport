@@ -119,6 +119,9 @@ type Config struct {
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 
+	// NodeTracker defines the node tracker service configuration.
+	NodeTracker NodeTrackerConfig
+
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
@@ -357,6 +360,9 @@ type ProxyConfig struct {
 	// for the tunnel endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	TunnelPublicAddrs []utils.NetAddr
+
+	// NodeTrackerAddr is the address of a  node tracker server.
+	NodeTrackerAddr *utils.NetAddr
 
 	// PostgresPublicAddrs is a list of the public addresses the proxy
 	// advertises for Postgres clients.
@@ -879,6 +885,19 @@ type LDAPConfig struct {
 	Password string
 }
 
+// NodeTrackerConfig specifies configuration for the node tracker service
+type NodeTrackerConfig struct {
+	// Enabled turns the node tracker service on or off for this process
+	Enabled bool
+
+	// ListenAddr is the address to listen on for incoming node tracking requests.
+	ListenAddr utils.NetAddr
+
+	// ProxyKeepAliveInterval set the keep-alive interval for a proxy in the
+	// node tracker
+	ProxyKeepAliveInterval types.Duration
+}
+
 // Rewrite is a list of rewriting rules to apply to requests and responses.
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
@@ -1016,6 +1035,10 @@ func ApplyDefaults(cfg *Config) {
 	// Windows desktop service is disabled by default.
 	cfg.WindowsDesktop.Enabled = false
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
+
+	// NodeTracker service defaults.
+	cfg.NodeTracker.Enabled = false
+	cfg.NodeTracker.ListenAddr = *defaults.NodeTrackerServiceListenAddr()
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

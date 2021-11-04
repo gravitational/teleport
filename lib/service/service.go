@@ -175,6 +175,10 @@ const (
 	// service is ready to start accepting connections.
 	WindowsDesktopReady = "WindowsDesktopReady"
 
+	// NodeTrackerReady is generated when the Teleport node tracker is ready to
+	// start accepting connections.
+	NodeTrackerReady = "NodeTrackerReady"
+
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
 	TeleportExitEvent = "TeleportExit"
@@ -754,6 +758,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if cfg.WindowsDesktop.Enabled {
 		eventMapping.In = append(eventMapping.In, WindowsDesktopReady)
 	}
+	if cfg.NodeTracker.Enabled {
+		eventMapping.In = append(eventMapping.In, NodeTrackerReady)
+	}
+
 	process.RegisterEventMapping(eventMapping)
 
 	if cfg.Auth.Enabled {
@@ -817,6 +825,13 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentWindowsDesktop), process.log)
+	}
+
+	if cfg.NodeTracker.Enabled {
+		process.initNodeTracker()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentNodeTracker), process.log)
 	}
 
 	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
