@@ -600,12 +600,11 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 
-		appSessionID := appSession.GetName()
 		routeToApp = proto.RouteToApp{
 			Name:        a.appName,
 			PublicAddr:  server.GetApp().GetPublicAddr(),
 			ClusterName: a.leafCluster,
-			SessionID:   appSessionID,
+			SessionID:   appSession.GetName(),
 		}
 		certUsage = proto.UserCertsRequest_App
 	}
