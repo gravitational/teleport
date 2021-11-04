@@ -17,9 +17,10 @@ metadata:
     {{- end }}
   {{- end }}
 spec:
-  type: LoadBalancer
-  {{- if .Values.service.spec.loadBalancerIP }}
-  loadBalancerIP: {{ .Values.service.spec.loadBalancerIP }}
+  {{- $type := default "LoadBalancer" .Values.service.type }}
+  type: {{- $type }}
+  {{- with .Values.service.spec }}
+  {{- toYaml . | nindent 4 }}
   {{- end }}
   ports:
   - name: https
