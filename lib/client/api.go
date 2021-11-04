@@ -1167,18 +1167,6 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 	return nil
 }
 
-// accessPoint returns access point based on the cache policy
-func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string, clusterName string) (auth.AccessPoint, error) {
-	// If no caching policy was set or on Windows (where Teleport does not
-	// support file locking at the moment), return direct access to the access
-	// point.
-	if tc.CachePolicy == nil || runtime.GOOS == constants.WindowsOS {
-		log.Debugf("not using caching access point")
-		return clt, nil
-	}
-	return clt, nil
-}
-
 // LocalAgent is a getter function for the client's local agent
 func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 	return tc.localAgent

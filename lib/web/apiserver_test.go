@@ -144,6 +144,10 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	c.Assert(s.mockU2F, NotNil)
 }
 
+func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+	return clt, nil
+}
+
 func (s *WebSuite) SetUpTest(c *C) {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
@@ -273,7 +277,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
 		Emitter:               s.proxyClient,
-		NewCachingAccessPoint: auth.NoCache,
+		NewCachingAccessPoint: noCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
 		LockWatcher:           proxyLockWatcher,
@@ -291,7 +295,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer),
+		regular.SetProxyMode(revTunServer, s.proxyClient),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -3251,7 +3255,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		LocalAuthClient:       client,
 		LocalAccessPoint:      client,
 		Emitter:               client,
-		NewCachingAccessPoint: auth.NoCache,
+		NewCachingAccessPoint: noCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: authServer.ClusterName(), Client: client}},
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
@@ -3268,7 +3272,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer),
+		regular.SetProxyMode(revTunServer, client),
 		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
