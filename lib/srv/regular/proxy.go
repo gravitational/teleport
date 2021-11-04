@@ -318,11 +318,11 @@ func (t *proxySubsys) proxyToHost(
 		servers  []types.Server
 		err      error
 	)
-	localCluster, _ := t.srv.authService.GetClusterName()
-	// going to "local" CA? let's use the caching 'auth service' directly and avoid
+	localCluster, _ := t.srv.proxyAccessPoint.GetClusterName()
+	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localCluster.GetName() {
-		servers, err = t.srv.authService.GetNodes(ctx.CancelContext(), t.namespace)
+		servers, err = t.srv.proxyAccessPoint.GetNodes(ctx.CancelContext(), t.namespace)
 		if err != nil {
 			t.log.Warn(err)
 		}
