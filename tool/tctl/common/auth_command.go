@@ -586,22 +586,9 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	var certUsage proto.UserCertsRequest_CertUsage
 
 	if a.appName != "" {
-		var server types.AppServer
-		var serverFound bool
-
-		servers, err := clusterAPI.GetApplicationServers(context.TODO(), apidefaults.Namespace)
+		server, err := getApplicationServer(context.TODO(), clusterAPI, a.appName)
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		for _, s := range servers {
-			if s.GetName() == a.appName {
-				server = s
-				serverFound = true
-				break
-			}
-		}
-		if !serverFound {
-			return trace.NotFound("app '%v' not found", a.appName)
 		}
 
 		appSession, err := clusterAPI.CreateAppSession(context.TODO(), types.CreateAppSessionRequest{
@@ -612,6 +599,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		appSessionID := appSession.GetName()
 		routeToApp = proto.RouteToApp{
 			Name:        a.appName,
@@ -621,6 +609,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		}
 		certUsage = proto.UserCertsRequest_App
 	}
+
 	// Request signed certs from `auth` server.
 	certs, err := clusterAPI.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
 		PublicKey:         key.Pub,
@@ -788,4 +777,18 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) 
 	}
 	allowedLogins, _ := roles.GetLoginsForTTL(defaults.MinCertDuration + time.Second)
 	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
+}
+
+func getApplicationServer(ctx context.Context, clusterAPI auth.ClientI, appName string) (types.AppServer, error) {
+	servers, err := clusterAPI.GetApplicationServers(context.TODO(), apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, s := range servers {
+		if s.GetName() == appName {
+			return s, nil
+		}
+	}
+	return nil, trace.NotFound("app %q not found", appName)
 }
