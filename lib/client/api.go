@@ -2995,13 +2995,8 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 // function.
 var passwordFromConsoleFn = passwordFromConsole
 
-// passwordFromConsole reads from stdin without echoing typed characters to stdout
-func passwordFromConsole() (string, error) {
-	// syscall.Stdin is not an int on windows. The linter will complain only on
-	// linux where syscall.Stdin is an int.
-	//
-	// nolint:unconvert
-	fd := int(syscall.Stdin)
+// handles Ctrl+C and restores the terminal
+func handleSigterm(fd int, consoleFunction func(int) (string, error)) (string, error) {
 	state, err := term.GetState(fd)
 
 	// intercept Ctr+C and restore terminal
@@ -3024,14 +3019,36 @@ func passwordFromConsole() (string, error) {
 		close(closeCh)
 	}()
 
-	bytes, err := term.ReadPassword(fd)
-	return string(bytes), err
+	result, err := consoleFunction(fd)
+	return result, err
+}
+
+// passwordFromConsole reads from stdin without echoing typed characters to stdout
+func passwordFromConsole() (string, error) {
+	// syscall.Stdin is not an int on windows. The linter will complain only on
+	// linux where syscall.Stdin is an int.
+	//
+	// nolint:unconvert
+	fd := int(syscall.Stdin)
+	pfc := func(fd int) (string, error) {
+		bytes, err := term.ReadPassword(fd)
+		return string(bytes), err
+	}
+	return handleSigterm(fd, pfc)
 }
 
 // lineFromConsole reads a line from stdin
 func lineFromConsole() (string, error) {
-	bytes, _, err := bufio.NewReader(os.Stdin).ReadLine()
-	return string(bytes), err
+	// syscall.Stdin is not an int on windows. The linter will complain only on
+	// linux where syscall.Stdin is an int.
+	//
+	// nolint:unconvert
+	fd := int(syscall.Stdin)
+	lfc := func(int) (string, error) {
+		bytes, _, err := bufio.NewReader(os.Stdin).ReadLine()
+		return string(bytes), err
+	}
+	return handleSigterm(fd, lfc)
 }
 
 // ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
