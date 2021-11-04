@@ -149,7 +149,7 @@ type Config struct {
 	FIPS bool
 
 	// AccessPoint holds a cache to the Auth Server.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ProxyAccessPoint
 
 	// Emitter is event emitter
 	Emitter events.StreamEmitter

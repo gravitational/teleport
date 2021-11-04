@@ -105,7 +105,7 @@ type WindowsServiceConfig struct {
 	// TLS is the TLS server configuration.
 	TLS *tls.Config
 	// AccessPoint is the Auth API client (with caching).
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.WindowsDesktopAccessPoint
 	// AuthClient is the Auth API client (without caching).
 	AuthClient auth.ClientI
 	// ConnLimiter limits the number of active connections per client IP.
