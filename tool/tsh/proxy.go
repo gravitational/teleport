@@ -18,7 +18,6 @@ package main
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
@@ -44,18 +43,10 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	key, err := tc.LocalAgent().GetKey(tc.SiteName)
+	pool, err := tc.LocalAgent().ClientCertPool(tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	pool := x509.NewCertPool()
-	for _, caPEM := range key.TLSCAs() {
-		if !pool.AppendCertsFromPEM(caPEM) {
-			return trace.BadParameter("failed to parse TLS CA certificate")
-		}
-	}
-
 	tlsConfig := &tls.Config{
 		RootCAs: pool,
 	}

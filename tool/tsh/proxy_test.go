@@ -24,7 +24,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -100,13 +99,9 @@ func createAgent(t *testing.T) (string, error) {
 	sockPath := filepath.Join(sockDir, "agent.sock")
 
 	uid, err := strconv.Atoi(user.Uid)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	require.NoError(t, err)
 	gid, err := strconv.Atoi(user.Gid)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	keyring := agent.NewKeyring()
 	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
@@ -115,9 +110,7 @@ func createAgent(t *testing.T) (string, error) {
 
 	// Start the SSH agent.
 	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	require.NoError(t, err)
 	go teleAgent.Serve()
 	t.Cleanup(func() {
 		teleAgent.Close()
