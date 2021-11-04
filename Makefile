@@ -520,9 +520,8 @@ lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
 .PHONY: lint-rdp
 lint-rdp:
 	cd lib/srv/desktop/rdp/rdpclient \
-		&& cargo check --locked \
-		&& cargo fmt -- --check \
-		&& cargo clippy --all-targets -- -D warnings
+		&& cargo clippy --locked --all-targets -- -D warnings \
+		&& cargo fmt -- --check 
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
