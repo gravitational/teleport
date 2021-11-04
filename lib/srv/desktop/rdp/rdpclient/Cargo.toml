@@ -13,7 +13,6 @@ lto = "off"
 
 [profile.release]
 debug = 1
-lto = "thin"
 codegen-units = 1
 
 [dependencies]
