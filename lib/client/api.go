@@ -2136,8 +2136,14 @@ func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientC
 		return nil, trace.Wrap(err)
 	}
 
+	addr, err := utils.ParseAddr(cfg.WebProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clientTLSConf.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
 	clientTLSConf.InsecureSkipVerify = cfg.InsecureSkipVerify
+	clientTLSConf.ServerName = addr.Host()
 
 	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, clientTLSConf)
 	if err != nil {

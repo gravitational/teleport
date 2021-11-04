@@ -247,7 +247,7 @@ func TestExtract(t *testing.T) {
 			require.True(t, (tc.hostPort == "") == (err != nil))
 			require.Equal(t, tc.hostPort, hostPort)
 
-			host, err := extractHost(tc.addr)
+			host, err := ExtractHost(tc.addr)
 			// Expect err if expected value is empty
 			require.True(t, (tc.host == "") == (err != nil))
 			require.Equal(t, tc.host, host)

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
@@ -103,13 +104,18 @@ func New(ctx context.Context, cfg Config) (clt *Client, err error) {
 }
 
 // newClient constructs a new client.
-func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client {
-	return &Client{
-		c:          cfg,
-		dialer:     dialer,
-		tlsConfig:  ConfigureALPN(tlsConfig, cfg.ALPNSNIAuthDialClusterName),
-		closedFlag: new(int32),
+func newClient(params connectParams, dialer ContextDialer) (*Client, error) {
+	tls, err := ConfigureALPN(params.tlsConfig, params.cfg.ALPNSNIAuthDialClusterName, params.addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+
 	}
+	return &Client{
+		tlsConfig:  tls,
+		c:          params.cfg,
+		dialer:     dialer,
+		closedFlag: new(int32),
+	}, nil
 }
 
 // connectInBackground connects the client to the server in the background.
@@ -287,7 +293,10 @@ type connectParams struct {
 
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	dialer := NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
-	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	clt, err := newClient(params, dialer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
 	}
@@ -299,7 +308,10 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
 	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
-	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	clt, err := newClient(params, dialer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", params.addr)
 	}
@@ -311,7 +323,11 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
 	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
-	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	clt, err := newClient(params, dialer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
 	}
@@ -325,7 +341,11 @@ func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 		}
 		params.dialer = params.cfg.Dialer
 	}
-	clt := newClient(params.cfg, params.dialer, params.tlsConfig)
+	clt, err := newClient(params, params.dialer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := clt.dialGRPC(ctx, constants.APIDomain); err != nil {
 		return nil, trace.Wrap(err, "failed to connect using pre-defined dialer")
 	}
@@ -361,17 +381,27 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 // ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
-func ConfigureALPN(tlsConfig *tls.Config, clusterName string) *tls.Config {
+func ConfigureALPN(tlsConfig *tls.Config, clusterName string, address string) (*tls.Config, error) {
 	if tlsConfig == nil {
-		return nil
+		return nil, nil
 	}
 	if clusterName == "" {
-		return tlsConfig
+		return tlsConfig, nil
 	}
+
 	out := tlsConfig.Clone()
 	routeInfo := fmt.Sprintf("%s%s", constants.ALPNSNIAuthProtocol, utils.EncodeClusterName(clusterName))
 	out.NextProtos = append([]string{routeInfo}, out.NextProtos...)
-	return out
+
+	if address != "" {
+		host, err := webclient.ExtractHost(address)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out.ServerName = host
+	}
+
+	return out, nil
 }
 
 // grpcDialer wraps the client's dialer with a grpcDialer.

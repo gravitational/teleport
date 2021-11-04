@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -3661,22 +3662,49 @@ func isHTTPS(u string) error {
 	return nil
 }
 
+func getClusterName(info *tls.ClientHelloInfo) (string, error) {
+	// In case of dialing auth server with TLS Routing the ServerName is set to the public address
+	// and cluster name is encoded into ALPN.
+	// For example: 'teleport-auth@6963652d626572672e646576.teleport.cluster.local"
+	for _, protocol := range info.SupportedProtos {
+		if !strings.HasPrefix(protocol, string(common.ProtocolAuth)) {
+			continue
+		}
+		encodedClusterName := strings.TrimPrefix(protocol, string(common.ProtocolAuth))
+		clusterName, err := apiutils.DecodeClusterName(encodedClusterName)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return clusterName, nil
+	}
+
+	// Old behavior - teleport-auth@ ALPN prefix not found. Cluster name is encoded in ServerName.
+	if info.ServerName != "" {
+		// Newer clients will set SNI that encodes the cluster name.
+		clusterName, err := apiutils.DecodeClusterName(info.ServerName)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return clusterName, nil
+	}
+
+	return "", nil
+}
+
 // WithClusterCAs returns a TLS hello callback that returns a copy of the provided
 // TLS config with client CAs pool of the specified cluster.
 func WithClusterCAs(tlsConfig *tls.Config, ap AccessPoint, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
-		if info.ServerName != "" {
-			// Newer clients will set SNI that encodes the cluster name.
-			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Ignoring unsupported cluster name name %q.", info.ServerName)
-					clusterName = ""
-				}
+		clusterName, err = getClusterName(info)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				log.Debugf("Ignoring unsupported cluster name name %q.", info.ServerName)
+				clusterName = ""
 			}
 		}
+
 		pool, err := ClientCertPool(ap, clusterName)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)

@@ -144,7 +144,10 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 	tls.NextProtos = []string{teleport.HTTPNextProtoTLS}
 	// Configure ALPN SNI direct dial TLS routing information used by ALPN SNI proxy in order to
 	// dial auth service without using SSH tunnels.
-	tls = client.ConfigureALPN(tls, cfg.ALPNSNIAuthDialClusterName)
+	tls, err := client.ConfigureALPN(tls, cfg.ALPNSNIAuthDialClusterName, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed
