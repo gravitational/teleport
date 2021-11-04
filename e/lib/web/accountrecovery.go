@@ -94,7 +94,8 @@ func (p *Plugin) startAccountRecoveryHandle(w http.ResponseWriter, r *http.Reque
 				p.Log.WithError(trail.FromGRPC(emailErr)).Warnf("Failed to email user %v that their account got locked.", req.Username)
 			}
 		}
-		return nil, trace.Wrap(err)
+		p.Log.WithError(err).Warnf("Start account recovery denied for user %q.", req.Username)
+		return nil, trace.AccessDenied("invalid username or recovery code")
 	}
 
 	if _, err := client.SendAccountRecoveryLink(r.Context(), &v1.SendAccountRecoveryLinkRequest{
