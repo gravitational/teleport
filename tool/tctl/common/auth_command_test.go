@@ -581,11 +581,15 @@ func TestGenerateAppCertificates(t *testing.T) {
 			if err != nil {
 				return
 			}
+
+			expectedRouteToApp := proto.RouteToApp{
+				Name:        tc.appName,
+				SessionID:   sessionID,
+				PublicAddr:  publicAddr,
+				ClusterName: clusterNameStr,
+			}
 			require.Equal(t, proto.UserCertsRequest_App, authClient.userCertsReq.Usage)
-			require.Equal(t, tc.appName, authClient.userCertsReq.RouteToApp.Name)
-			require.Equal(t, sessionID, authClient.userCertsReq.RouteToApp.SessionID)
-			require.Equal(t, publicAddr, authClient.userCertsReq.RouteToApp.PublicAddr)
-			require.Equal(t, clusterNameStr, authClient.userCertsReq.RouteToApp.ClusterName)
+			require.Equal(t, expectedRouteToApp, authClient.userCertsReq.RouteToApp)
 
 			certBytes, err := ioutil.ReadFile(filepath.Join(tc.outDir, tc.outFileBase+".crt"))
 			require.NoError(t, err)
