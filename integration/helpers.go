@@ -75,11 +75,14 @@ const (
 )
 
 // SetTestTimeouts affects global timeouts inside Teleport, making connections
-// work faster but consuming more CPU (useful for integration testing)
+// work faster but consuming more CPU (useful for integration testing).
+// NOTE: The function modifies global values for timeouts, etc. If your tests
+// call this function, they MUST NOT BE RUN IN PARALLEL, as they may stomp on
+// other tests.
 func SetTestTimeouts(t time.Duration) {
-	apidefaults.KeepAliveInterval = t
+	apidefaults.SetTestTimeouts(t, t)
+
 	defaults.ResyncInterval = t
-	apidefaults.ServerKeepAliveTTL = t
 	defaults.SessionRefreshPeriod = t
 	defaults.HeartbeatCheckPeriod = t
 	defaults.CachePollPeriod = t

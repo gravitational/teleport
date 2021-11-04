@@ -292,7 +292,7 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 
 	// Set the keep-alive interval and max missed keep-alives.
 	if c.Spec.KeepAliveInterval.Duration() == 0 {
-		c.Spec.KeepAliveInterval = NewDuration(defaults.KeepAliveInterval)
+		c.Spec.KeepAliveInterval = NewDuration(defaults.KeepAliveInterval())
 	}
 	if c.Spec.KeepAliveCountMax == 0 {
 		c.Spec.KeepAliveCountMax = int64(defaults.KeepAliveCountMax)
