@@ -36,7 +36,7 @@ type proxySettings struct {
 	// proxy listener address to a random port (e.g. `127.0.0.1:0`).
 	proxySSHAddr utils.NetAddr
 	// accessPoint is the caching client connected to the auth server.
-	accessPoint auth.AccessPoint
+	accessPoint auth.ProxyAccessPoint
 }
 
 // GetProxySettings allows returns current proxy configuration.

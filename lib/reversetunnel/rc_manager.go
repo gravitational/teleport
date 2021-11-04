@@ -60,7 +60,7 @@ type RemoteClusterTunnelManagerConfig struct {
 	AuthClient auth.ClientI
 	// AccessPoint is a lightweight access point that can optionally cache some
 	// values.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ProxyAccessPoint
 	// HostSigners is a signer for the host private key.
 	HostSigner ssh.Signer
 	// HostUUID is a unique ID of this host
