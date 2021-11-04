@@ -182,19 +182,19 @@ Role specification consists of two sections: `allow` and `deny`. They are identi
 |         `kubernetes_users`| string list | List of Kubernetes users to impersonate                         |
 |                   `logins`| string list | Logins is a list of *nix system logins                          |
 |               `app_labels`|         set | Application labels                                              |
-|          `app_labels.name`|      string | Application name                                                |
+|           `app_labels.key`|      string | Application name                                                |
 |        `app_labels.values`| string list | List of labels                                                  |
 |           `cluster_labels`|         set | Cluster labels                                                  |
-|      `cluster_labels.name`|      string | Cluster name                                                    | 
+|       `cluster_labels.key`|      string | Cluster name                                                    | 
 |    `cluster_labels.values`| string list | List of labels                                                  |
 |                `db_labels`|         set | Database labels                                                 |
-|           `db_labels.name`|      string | Database name                                                   | 
+|            `db_labels.key`|      string | Database name                                                   | 
 |         `db_labels.values`| string list | List of labels                                                  |
 |        `kubernetes_labels`|         set | Kubernetes labels                                               |
-|   `kubernetes_labels.name`|      string | Kubernetes cluster name                                         |
+|    `kubernetes_labels.key`|      string | Kubernetes cluster name                                         |
 | `kubernetes_labels.values`| string list | List of labels                                                  |
 |              `node_labels`|         set | Node labels                                                     |
-|         `node_labels.name`|      string | Node name                                                       | 
+|          `node_labels.key`|      string | Node name                                                       | 
 |       `node_labels.values`| string list | List of labels                                                  |
 |              `impersonate`|      object | Specifies whether users are allowed  to issue certificates for other users or groups |
 |        `impersonate.roles`| string list | list of roles this role is allowed to impersonate               | 
