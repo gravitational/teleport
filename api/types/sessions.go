@@ -53,9 +53,9 @@ type Session interface {
 
 	GetLogin() string
 
-	GetParticipants() []Participant
+	GetParticipants() []*Participant
 
-	AddParticipant(Participant)
+	AddParticipant(*Participant)
 
 	RemoveParticipant(string) error
 }
@@ -130,69 +130,86 @@ func (s *SessionV3) CheckAndSetDefaults() error {
 }
 
 func (s *SessionV3) GetID() string {
-	panic("unimplemented")
+	return s.Spec.SessionID
 }
 
 func (s *SessionV3) GetNamespace() string {
-	panic("unimplemented")
+	return s.Spec.Namespace
 }
 
 func (s *SessionV3) GetType() SessionType {
-	panic("unimplemented")
+	return s.Spec.Type
 }
 
 func (s *SessionV3) GetState() SessionState {
-	panic("unimplemented")
+	return s.Spec.State
 }
 
 func (s *SessionV3) SetState(state SessionState) error {
-	panic("unimplemented")
+	switch state {
+	default:
+		return trace.BadParameter("invalid session state: %v", state)
+	case SessionState_SessionStateRunning:
+		fallthrough
+	case SessionState_SessionStatePending:
+		fallthrough
+	case SessionState_SessionStateTerminated:
+		s.Spec.State = state
+		return nil
+	}
 }
 
 func (s *SessionV3) GetCreated() time.Time {
-	panic("unimplemented")
+	return s.Spec.Created
 }
 
 func (s *SessionV3) GetExpires() time.Time {
-	panic("unimplemented")
+	return s.Spec.Expires
 }
 
 func (s *SessionV3) GetReason() string {
-	panic("unimplemented")
+	return s.Spec.Reason
 }
 
 func (s *SessionV3) GetInvited() []string {
-	panic("unimplemented")
+	return s.Spec.Invited
 }
 
 func (s *SessionV3) GetLastActive() time.Time {
-	panic("unimplemented")
+	return s.Spec.LastActive
 }
 
 func (s *SessionV3) GetHostname() string {
-	panic("unimplemented")
+	return s.Spec.Hostname
 }
 
 func (s *SessionV3) GetAddress() string {
-	panic("unimplemented")
+	return s.Spec.Address
 }
 
 func (s *SessionV3) GetClustername() string {
-	panic("unimplemented")
+	return s.Spec.ClusterName
 }
 
 func (s *SessionV3) GetLogin() string {
-	panic("unimplemented")
+	return s.Spec.Login
 }
 
-func (s *SessionV3) GetParticipants() []Participant {
-	panic("unimplemented")
+func (s *SessionV3) GetParticipants() []*Participant {
+	return s.Spec.Participants
 }
 
-func (s *SessionV3) AddParticipant(participant Participant) {
-	panic("unimplemented")
+func (s *SessionV3) AddParticipant(participant *Participant) {
+	s.Spec.Participants = append(s.Spec.Participants, participant)
 }
 
 func (s *SessionV3) RemoveParticipant(id string) error {
-	panic("unimplemented")
+	for i, participant := range s.Spec.Participants {
+		if participant.ID == id {
+			s.Spec.Participants = append(s.Spec.Participants[:i], s.Spec.Participants[i+1:]...)
+			return nil
+		}
+	}
+
+	return trace.BadParameter("participant %v not found", id)
 }
