@@ -45,7 +45,7 @@ type TLSServerConfig struct {
 	// LimiterConfig is limiter config
 	LimiterConfig limiter.Config
 	// AccessPoint is caching access point
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ReadKubernetesAccessPoint
 	// OnHeartbeat is a callback for kubernetes_service heartbeats.
 	OnHeartbeat func(error)
 	// Log is the logger.
