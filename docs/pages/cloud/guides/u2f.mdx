@@ -49,8 +49,8 @@ spec:
   u2f:
     app_id: 'https://example.teleport.sh'
     facets:
+    - 'https://example.teleport.sh'      # app_id should always also be listed as a facet
     - 'https://example.teleport.sh:443'
-    - 'https://example.teleport.sh'
     - 'example.teleport.sh:443'
     - 'example.teleport.sh'
 version: v2
