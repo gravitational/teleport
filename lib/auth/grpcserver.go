@@ -3505,7 +3505,13 @@ func (g *GRPCServer) CreateSession(ctx context.Context, req *proto.CreateSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return session, nil
+
+	defined, ok := session.(*types.SessionV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", session)
+	}
+
+	return defined, nil
 }
 
 func (g *GRPCServer) GetActiveSessions(ctx context.Context, req *empty.Empty) (*proto.GetActiveSessionsResponse, error) {
@@ -3517,7 +3523,18 @@ func (g *GRPCServer) GetActiveSessions(ctx context.Context, req *empty.Empty) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &proto.GetActiveSessionsResponse{Sessions: sessions}, nil
+
+	var definedArr []*types.SessionV3
+	for _, session := range sessions {
+		defined, ok := session.(*types.SessionV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected session type %T", session)
+		}
+
+		definedArr = append(definedArr, defined)
+	}
+
+	return &proto.GetActiveSessionsResponse{Sessions: definedArr}, nil
 }
 
 func (g *GRPCServer) RemoveSession(ctx context.Context, req *proto.RemoveSessionRequest) (*empty.Empty, error) {

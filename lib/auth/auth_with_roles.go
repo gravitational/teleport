@@ -236,6 +236,34 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 	return ok
 }
 
+func (a *ServerWithRoles) CreateSessionV2(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
+	panic("unimplemented")
+}
+
+func (a *ServerWithRoles) GetActiveSessionsV2(ctx context.Context) ([]types.Session, error) {
+	panic("unimplemented")
+}
+
+func (a *ServerWithRoles) RemoveSessionV2(ctx context.Context, session string) error {
+	panic("unimplemented")
+}
+
+func (a *ServerWithRoles) UpdateSessionStateV2(ctx context.Context, req *proto.UpdateSessionStateRequest) error {
+	panic("unimplemented")
+}
+
+func (a *ServerWithRoles) SessionActivityUpdateV2(ctx context.Context, req *proto.SessionActivityUpdateRequest) error {
+	panic("unimplemented")
+}
+
+func (a *ServerWithRoles) SessionAddParticipantV2(ctx context.Context, req *proto.SessionAddParticipantRequest) error {
+	panic("unimplemented")
+}
+
+func (a *ServerWithRoles) SessionRemoveParticipantV2(ctx context.Context, req *proto.SessionRemoveParticipantRequest) error {
+	panic("unimplemented")
+}
+
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // in case authentication is successful
 func (a *ServerWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
