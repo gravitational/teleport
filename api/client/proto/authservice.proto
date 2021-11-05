@@ -1438,11 +1438,10 @@ message CreateSessionRequest {
     ];
 }
 
-// CreateSessionResponse is the response yielded by the auth server after creating a session
-// resource.
-message CreateSessionResponse {
-    // SessionID is unique identifier of this session.
-    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
+// GetActiveSessionsResponse is a response containing active sessions.
+message GetActiveSessionsResponse {
+    // Sessions is a list of active sessions.
+    repeated types.SessionV3 Sessions = 1;
 }
 
 // RemoveSessionRequest is a request to remove a session.
@@ -1451,8 +1450,8 @@ message RemoveSessionRequest {
     string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
 }
 
-// UpdateStateSession is a message containing data to update the activity state of a session.
-message UpdateStateSessionRequest {
+// UpdateSessionStateRequest is a message containing data to update the activity state of a session.
+message UpdateSessionStateRequest {
     // SessionID is unique identifier of this session.
     string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
 
@@ -1460,9 +1459,9 @@ message UpdateStateSessionRequest {
     types.SessionState State = 2 [ (gogoproto.jsontag) = "state,omitempty" ];
 }
 
-// SessionActivityUpdate is a message containing the data needed to update
+// SessionActivityUpdateRequest is a message containing the data needed to update
 // the last active metadata of a session.
-message SessionActivityUpdate {
+message SessionActivityUpdateRequest {
     // SessionID is unique identifier of this session.
     string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
 
@@ -1470,8 +1469,8 @@ message SessionActivityUpdate {
     string ParticipantID = 2 [ (gogoproto.jsontag) = "participant_id,omitempty" ];
 }
 
-// SessionAddParticipant is a request to add a participant to a session.
-message SessionAddParticipant {
+// SessionAddParticipantRequest is a request to add a participant to a session.
+message SessionAddParticipantRequest {
     // SessionID is unique identifier of this session.
     string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
 
@@ -1479,8 +1478,8 @@ message SessionAddParticipant {
     types.Participant Participant = 2 [ (gogoproto.jsontag) = "participant,omitempty" ];
 }
 
-// SessionRemoveParticipant is a request to remove a participant from a session.
-message SessionRemoveParticipant {
+// SessionRemoveParticipantRequest is a request to remove a participant from a session.
+message SessionRemoveParticipantRequest {
     // SessionID is unique identifier of this session.
     string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
 
@@ -1490,6 +1489,27 @@ message SessionRemoveParticipant {
 
 // AuthService is authentication/authorization service implementation
 service AuthService {
+    // CreateSession creates a new session resource.
+    rpc CreateSession(CreateSessionRequest) returns (types.SessionV3);
+
+    // GetActiveSessions returns a list of active sessions.
+    rpc GetActiveSessions(google.protobuf.Empty) returns (GetActiveSessionsResponse);
+
+    // RemoveSession removes a session resource.
+    rpc RemoveSession(RemoveSessionRequest) returns (google.protobuf.Empty);
+
+    // UpdateSessionState updates the state of a session resource.
+    rpc UpdateSessionState(UpdateSessionStateRequest) returns (google.protobuf.Empty);
+
+    // SessionActivityUpdate updates the last active metadata of a session resource.
+    rpc SessionActivityUpdate(SessionActivityUpdateRequest) returns (google.protobuf.Empty);
+
+    // SessionAddParticipant adds a participant to a session resource.
+    rpc SessionAddParticipant(SessionAddParticipantRequest) returns (google.protobuf.Empty);
+
+    // SessionRemoveParticipant removes a participant from a session resource.
+    rpc SessionRemoveParticipant(SessionRemoveParticipantRequest) returns (google.protobuf.Empty);
+
     // SendKeepAlives allows node to send a stream of keep alive requests
     rpc SendKeepAlives(stream types.KeepAlive) returns (google.protobuf.Empty);
     // WatchEvents returns a new stream of cluster events
