@@ -134,7 +134,7 @@ type Server struct {
 	macAlgorithms []string
 
 	authClient      auth.ClientI
-	authService     auth.AccessPoint
+	authService     srv.AccessPoint
 	sessionRegistry *srv.SessionRegistry
 	sessionServer   session.Service
 	dataDir         string
@@ -372,8 +372,8 @@ func (s *Server) PermitUserEnvironment() bool {
 	return false
 }
 
-// GetAccessPoint returns an auth.AccessPoint for this cluster.
-func (s *Server) GetAccessPoint() auth.AccessPoint {
+// GetAccessPoint returns a srv.AccessPoint for this cluster.
+func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 

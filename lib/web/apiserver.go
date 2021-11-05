@@ -149,7 +149,7 @@ type Config struct {
 	FIPS bool
 
 	// AccessPoint holds a cache to the Auth Server.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ProxyAccessPoint
 
 	// Emitter is event emitter
 	Emitter events.StreamEmitter
@@ -1540,7 +1540,14 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return res.RecoveryCodes, nil
+	if res.GetRecovery() == nil {
+		return &ui.RecoveryCodes{}, nil
+	}
+
+	return &ui.RecoveryCodes{
+		Codes:   res.Recovery.Codes,
+		Created: &res.Recovery.Created,
+	}, nil
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.

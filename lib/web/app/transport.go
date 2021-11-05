@@ -40,7 +40,7 @@ import (
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
 	proxyClient  reversetunnel.Tunnel
-	accessPoint  auth.AccessPoint
+	accessPoint  auth.ReadProxyAccessPoint
 	cipherSuites []uint16
 	identity     *tlsca.Identity
 	server       types.AppServer

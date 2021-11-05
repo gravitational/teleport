@@ -98,7 +98,8 @@
             { "title": "Connecting Apps", "slug": "/application-access/guides/connecting-apps/" },
             { "title": "Integrating with JWT", "slug": "/application-access/guides/jwt/" },
             { "title": "API Access", "slug": "/application-access/guides/api-access/" },
-            { "title": "AWS Console Access", "slug": "/application-access/guides/aws-console/" }
+            { "title": "AWS Console Access", "slug": "/application-access/guides/aws-console/" },
+            { "title": "Dynamic Registration", "slug": "/application-access/guides/dynamic-registration/" }
           ]
         },
         { "title": "Access Controls", "slug": "/application-access/controls/" },
@@ -174,8 +175,7 @@
           "title": "Guides",
           "slug": "/database-access/guides/",
           "entries": [
-            { "title": "AWS RDS/Aurora PostgreSQL", "slug": "/database-access/guides/postgres-aws/" },
-            { "title": "AWS RDS/Aurora MySQL", "slug": "/database-access/guides/mysql-aws/" },
+            { "title": "AWS RDS & Aurora", "slug": "/database-access/guides/rds/" },
             { "title": "AWS Redshift", "slug": "/database-access/guides/postgres-redshift/" },
             { "title": "GCP Cloud SQL PostgreSQL", "slug": "/database-access/guides/postgres-cloudsql/" },
             { "title": "GCP Cloud SQL MySQL", "slug": "/database-access/guides/mysql-cloudsql/" },
@@ -185,6 +185,7 @@
             { "title": "Self-Hosted MongoDB", "slug": "/database-access/guides/mongodb-self-hosted/" },
             { "title": "Self-Hosted CockroachDB", "slug": "/database-access/guides/cockroachdb-self-hosted/" },
             { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" },
+            { "title": "Dynamic Registration", "slug": "/database-access/guides/dynamic-registration/" },
             { "title": "High Availability", "slug": "/database-access/guides/ha/" }
           ]
         },
@@ -196,7 +197,8 @@
           "entries": [
             { "title": "Configuration", "slug": "/database-access/reference/configuration/" },
             { "title": "CLI", "slug": "/database-access/reference/cli/" },
-            { "title": "Audit Events", "slug": "/database-access/reference/audit/" }
+            { "title": "Audit Events", "slug": "/database-access/reference/audit/" },
+            { "title": "AWS IAM", "slug": "/database-access/reference/aws/" }
           ]
         },
         { "title": "FAQ", "slug": "/database-access/faq/" }
@@ -558,6 +560,16 @@
     {
       "source": "/quickstart-docker/",
       "destination": "/setup/guides/docker/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/postgres-aws/",
+      "destination": "/database-access/guides/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/mysql-aws/",
+      "destination": "/database-access/guides/rds/",
       "permanent": true
     }
   ]

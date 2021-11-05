@@ -99,7 +99,7 @@ type localSite struct {
 	client auth.ClientI
 	// accessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
-	accessPoint auth.AccessPoint
+	accessPoint auth.RemoteProxyAccessPoint
 
 	// certificateCache caches host certificates for the forwarding server.
 	certificateCache *certificateCache
@@ -123,8 +123,8 @@ func (s *localSite) GetTunnelsCount() int {
 	return len(s.remoteConns)
 }
 
-// CachingAccessPoint returns a auth.AccessPoint for this cluster.
-func (s *localSite) CachingAccessPoint() (auth.AccessPoint, error) {
+// CachingAccessPoint returns an auth.RemoteProxyAccessPoint for this cluster.
+func (s *localSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	return s.accessPoint, nil
 }
 
@@ -311,13 +311,15 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 
 	s.log.WithError(tunnelErr).WithField("address", dreq.Address).Debug("Error occurred while dialing through a tunnel.")
 
-	tunnelMsg := fmt.Sprintf(`Teleport proxy failed to connect to %q agent %q over reverse tunnel:
+	errorMessageTemplate := `Teleport proxy failed to connect to %q agent %q over %s:
 
   %v
 
 This usually means that the agent is offline or has disconnected. Check the
 agent logs and, if the issue persists, try restarting it or re-registering it
-with the cluster.`, params.ConnType, dreq.Address, tunnelErr)
+with the cluster.`
+
+	tunnelMsg := fmt.Sprintf(errorMessageTemplate, params.ConnType, dreq.Address, "reverse tunnel", tunnelErr)
 
 	// Connections to application and database servers should never occur
 	// over a direct dial, return right away.
@@ -336,9 +338,10 @@ with the cluster.`, params.ConnType, dreq.Address, tunnelErr)
 	dialer := proxy.DialerFromEnvironment(params.To.String())
 	conn, directErr := dialer.DialTimeout(params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
 	if directErr != nil {
+		directMsg := fmt.Sprintf(errorMessageTemplate, params.ConnType, dreq.Address, "direct dial", directErr)
 		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")
 		aggregateErr := trace.NewAggregate(tunnelErr, directErr)
-		return nil, false, trace.ConnectionProblem(aggregateErr, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(aggregateErr, directMsg)
 	}
 
 	// Return a direct dialed connection.
@@ -352,7 +355,6 @@ func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.C
 	rconn := newRemoteConn(&connConfig{
 		conn:             conn,
 		sconn:            sconn,
-		accessPoint:      s.accessPoint,
 		tunnelType:       string(connType),
 		proxyName:        s.srv.ID,
 		clusterName:      s.domainName,
