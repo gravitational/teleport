@@ -214,6 +214,9 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	var billingAccess access
 	if features.Cloud {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
+
+		// disable access to preview features
+		desktopAccess = access{}
 	}
 
 	logins := getLogins(userRoles)
