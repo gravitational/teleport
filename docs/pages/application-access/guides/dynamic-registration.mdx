@@ -1,0 +1,83 @@
+---
+title: Dynamic App Registration
+description: Register/unregister apps without restarting Teleport.
+---
+
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["oss", "enterprise"]}
+  scopeOnly={true}
+  min="8.0"
+>
+  Dynamic app registration is available starting from Teleport `8.0`.
+</Details>
+
+Dynamic app registration allows Teleport administrators to register new apps
+(or update/unregister existing ones) without having to update the static
+configuration and restarting the app agents.
+
+To enable dynamic registration, include a `resources` section in your app
+agent configuration with a list of resource label selectors you'd like this
+agent to monitor:
+
+```yaml
+app_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "*": "*"
+```
+
+You can use a wildcard selector to monitor all app resources in the cluster,
+or provide a specific set of labels to monitor a subset:
+
+```yaml
+resources:
+- labels:
+    "env": "prod"
+- labels:
+    "env": "test"
+```
+
+Next define an application resource:
+
+```yaml
+kind: app
+version: v3
+metadata:
+  name: example
+  description: "Example app"
+  labels:
+    env: test
+spec:
+  uri: http://localhost:4321
+  public_addr: test.example.com
+```
+
+See the full app resource spec [reference](../reference.mdx#application-resource).
+
+To create an application resource, run:
+
+```code
+$ tctl create app.yaml
+```
+
+After the resource has been created, it will appear among the list of available
+apps (in `tsh app ls` or UI) as long as at least one application agent picks it
+up according to its label selectors.
+
+To update an existing application resource, run:
+
+```code
+$ tctl create -f app.yaml
+```
+
+If the updated resource's labels no longer match a particular app agent, it
+will unregister and stop proxying it.
+
+To delete an application resource, run:
+
+```code
+$ tctl rm app/example
+```
