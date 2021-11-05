@@ -35,8 +35,7 @@ import (
 // TestProxySSHDial verifies "tsh proxy ssh" command.
 func TestProxySSHDial(t *testing.T) {
 	// Setup ssh agent.
-	sockPath, err := createAgent(t)
-	require.NoError(t, err)
+	sockPath := createAgent(t)
 	os.Setenv("SSH_AUTH_SOCK", sockPath)
 
 	os.RemoveAll(profile.FullProfilePath(""))
@@ -89,7 +88,7 @@ func TestProxySSHDial(t *testing.T) {
 	require.Contains(t, err.Error(), "subsystem request failed")
 }
 
-func createAgent(t *testing.T) (string, error) {
+func createAgent(t *testing.T) string {
 	user, err := user.Current()
 	require.NoError(t, err)
 
@@ -116,5 +115,5 @@ func createAgent(t *testing.T) (string, error) {
 		teleAgent.Close()
 	})
 
-	return sockPath, nil
+	return sockPath
 }
