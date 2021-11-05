@@ -510,12 +510,18 @@ integration-root:
 	$(CGOFLAG) go test -p 4 -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
-# Lint the Go code.
+# Lint the source code.
 # By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
+
+.PHONY: lint-rdp
+lint-rdp:
+	cd lib/srv/desktop/rdp/rdpclient \
+		&& cargo clippy --locked --all-targets -- -D warnings \
+		&& cargo fmt -- --check
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -584,7 +590,6 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore '**/*.html' \
 		-ignore '**/*.js' \
 		-ignore '**/*.py' \
-		-ignore '**/*.rs' \
 		-ignore '**/*.sh' \
 		-ignore '**/*.tf' \
 		-ignore '**/*.yaml' \
