@@ -17,7 +17,7 @@ limitations under the License.
 package reversetunnel
 
 import (
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -25,12 +25,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ClusterGetter is an interface that defines GetRemoteCluster method
+type ClusterGetter interface {
+	// GetRemoteCluster returns a remote cluster by name
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+}
+
 // NewTunnelWithRoles returns new authorizing tunnel
-func NewTunnelWithRoles(tunnel Tunnel, roles services.RoleSet, ap auth.AccessPoint) *TunnelWithRoles {
+func NewTunnelWithRoles(tunnel Tunnel, roles services.RoleSet, access ClusterGetter) *TunnelWithRoles {
 	return &TunnelWithRoles{
 		tunnel: tunnel,
 		roles:  roles,
-		ap:     ap,
+		access: access,
 	}
 }
 
@@ -41,7 +47,7 @@ type TunnelWithRoles struct {
 	// roles is a set of roles used to check RBAC permissions.
 	roles services.RoleSet
 
-	ap auth.AccessPoint
+	access ClusterGetter
 }
 
 // GetSites returns a list of connected remote sites
@@ -56,7 +62,7 @@ func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
 			out = append(out, cluster)
 			continue
 		}
-		rc, err := t.ap.GetRemoteCluster(cluster.GetName())
+		rc, err := t.access.GetRemoteCluster(cluster.GetName())
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -84,7 +90,7 @@ func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
 	if _, ok := cluster.(*localSite); ok {
 		return cluster, nil
 	}
-	rc, err := t.ap.GetRemoteCluster(clusterName)
+	rc, err := t.access.GetRemoteCluster(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

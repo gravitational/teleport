@@ -571,8 +571,8 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("Test %d: %s", i, strings.Fields(tt.inCommand)[0]), func(t *testing.T) {
 			// create new teleport client
 			cl, err := teleport.NewClient(t, ClientConfig{Login: suite.me.Username, Cluster: Site, Host: Host, Port: teleport.GetPortSSHInt()})
 			require.NoError(t, err)
@@ -1147,8 +1147,8 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run("", func(t *testing.T) {
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("Test %d", i), func(t *testing.T) {
 			runDisconnectTest(t, suite, tc)
 		})
 	}
@@ -4752,7 +4752,7 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
+		t.Run(tt.desc, func(t *testing.T) {
 			// Create temporary directory where cgroup2 hierarchy will be mounted.
 			dir := t.TempDir()
 
