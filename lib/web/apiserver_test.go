@@ -541,7 +541,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	c.Assert(err, IsNil)
 
 	// we got a redirect
-	urlPattern := regexp.MustCompile(`window.location = '([^']*)'`)
+	urlPattern := regexp.MustCompile(`URL='([^']*)'`)
 	locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
 	u, err := url.Parse(locationURL)
 	c.Assert(err, IsNil)

@@ -328,17 +328,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
-	h.GET("/webapi/oidc/callback", h.WithJavascriptRedirect(h.oidcCallback))
+	h.GET("/webapi/oidc/callback", h.WithMetaRedirect(h.oidcCallback))
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
 
 	// SAML 2.0 handlers
 	h.POST("/webapi/saml/acs", h.WithRedirect(h.samlACS))
-	h.GET("/webapi/saml/sso", h.WithJavascriptRedirect(h.samlSSO))
+	h.GET("/webapi/saml/sso", h.WithMetaRedirect(h.samlSSO))
 	h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlSSOConsole))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
-	h.GET("/webapi/github/callback", h.WithJavascriptRedirect(h.githubCallback))
+	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
 	h.POST("/webapi/github/login/console", httplib.MakeHandler(h.githubLoginConsole))
 
 	// U2F related APIs
@@ -2479,11 +2479,11 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	}
 }
 
-// WithJavascriptRedirect is a handler that redirects to the path specified
-// using Javascript rather than HTTP. This is needed for redirects that can
+// WithMetaRedirect is a handler that redirects to the path specified
+// using HTML rather than HTTP. This is needed for redirects that can
 // have a header size larger than 8kb, which some middlewares will drop.
 // See https://github.com/gravitational/teleport/issues/7467.
-func (h *Handler) WithJavascriptRedirect(fn redirectHandlerFunc) httprouter.Handle {
+func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		httplib.SetNoCacheHeaders(w.Header())
 		nonce, err := utils.CryptoRandomHex(auth.TokenLenBytes)
@@ -2500,19 +2500,18 @@ func (h *Handler) WithJavascriptRedirect(fn redirectHandlerFunc) httprouter.Hand
 			redirectURL = client.LoginFailedRedirectURL
 		}
 
-		const js = `
+		const html = `
 <!DOCTYPE html>
 <html lang="en">
 	<head>
 		<title>Teleport Redirection Service</title>
-		<script nonce="%v">
-			window.location = '%s';
-		</script>
+		<meta http-equiv="cache-control" content="no-cache"/>
+		<meta http-equiv="refresh" content="0;URL='%s'" />
 	</head>
 	<body></body>
 </html>
 `
-		fmt.Fprintf(w, js, nonce, strings.ReplaceAll(redirectURL, "'", "\\'"))
+		fmt.Fprintf(w, html, strings.ReplaceAll(redirectURL, "'", "\\'"))
 	}
 }
 
