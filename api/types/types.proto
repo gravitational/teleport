@@ -2723,7 +2723,7 @@ message SessionV3 {
 // SessionSpecV3 is the specification for a live session.
 message SessionSpecV3 {
     // SessionID is unique identifier of this session.
-    string SessionID = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
 
     // Namespace is a session namespace, separating sessions from each other.
     string Namespace = 2 [ (gogoproto.jsontag) = "namespace,omitempty" ];

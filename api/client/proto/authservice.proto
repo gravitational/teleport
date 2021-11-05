@@ -1399,6 +1399,95 @@ message ListResourcesResponse {
     string NextKey = 2 [ (gogoproto.jsontag) = "next_key,omitempty" ];
 }
 
+// CreateSessionRequest is a request to create a new session.
+message CreateSessionRequest {
+    // Namespace is a session namespace, separating sessions from each other.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace,omitempty" ];
+
+    // Type describes what type of session this is.
+    types.SessionType Type = 2 [ (gogoproto.jsontag) = "type,omitempty" ];
+
+    // Reason is an arbitrary string that may be used to describe the session and/or it's
+    // purpose.
+    string Reason = 3 [ (gogoproto.jsontag) = "reason,omitempty" ];
+
+    // Invited is a list of invited users, this field is interpreted by different
+    // clients on a best-effort basis and used for delivering notifications to invited users.
+    repeated string Invited = 4 [ (gogoproto.jsontag) = "invited,omitempty" ];
+
+    // Hostname is the address of the target this session is connected to.
+    string Hostname = 5 [ (gogoproto.jsontag) = "target_hostname,omitempty" ];
+
+    // Address is the address of the target this session is connected to.
+    string Address = 6 [ (gogoproto.jsontag) = "target_address,omitempty" ];
+
+    // ClusterName is the name of cluster that this session belongs to.
+    string ClusterName = 7 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
+
+    // Login is the local login/user on the target used by the session.
+    string Login = 8 [ (gogoproto.jsontag) = "login,omitempty" ];
+
+    // Initiator is the participant that initiated the session.
+    types.Participant Initiator = 9 [ (gogoproto.jsontag) = "initiator,omitempty" ];
+
+    // Expires encodes the time at which this session expires and becomes invalid.
+    google.protobuf.Timestamp Expires = 10 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires,omitempty"
+    ];
+}
+
+// CreateSessionResponse is the response yielded by the auth server after creating a session
+// resource.
+message CreateSessionResponse {
+    // SessionID is unique identifier of this session.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
+}
+
+// RemoveSessionRequest is a request to remove a session.
+message RemoveSessionRequest {
+    // SessionID is unique identifier of this session.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
+}
+
+// UpdateStateSession is a message containing data to update the activity state of a session.
+message UpdateStateSessionRequest {
+    // SessionID is unique identifier of this session.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
+
+    // State is the new state of the session.
+    types.SessionState State = 2 [ (gogoproto.jsontag) = "state,omitempty" ];
+}
+
+// SessionActivityUpdate is a message containing the data needed to update
+// the last active metadata of a session.
+message SessionActivityUpdate {
+    // SessionID is unique identifier of this session.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
+
+    // ParticipantID is unique identifier of the participant.
+    string ParticipantID = 2 [ (gogoproto.jsontag) = "participant_id,omitempty" ];
+}
+
+// SessionAddParticipant is a request to add a participant to a session.
+message SessionAddParticipant {
+    // SessionID is unique identifier of this session.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
+
+    // Participant is the participant to be added to the session.
+    types.Participant Participant = 2 [ (gogoproto.jsontag) = "participant,omitempty" ];
+}
+
+// SessionRemoveParticipant is a request to remove a participant from a session.
+message SessionRemoveParticipant {
+    // SessionID is unique identifier of this session.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
+
+    // ParticipantID is unique identifier of the participant.
+    string ParticipantID = 2 [ (gogoproto.jsontag) = "participant_id,omitempty" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
