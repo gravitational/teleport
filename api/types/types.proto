@@ -2698,3 +2698,126 @@ message RecoveryCode {
     // IsUsed determines if this recovery code was used.
     bool IsUsed = 2 [ (gogoproto.jsontag) = "is_used" ];
 }
+
+// SessionV3 represents a live session resource.
+message SessionV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+
+    // Metadata is resource metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+
+    // Spec is a role specification
+    SessionSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// SessionSpecV3 is the specification for a live session.
+message SessionSpecV3 {
+    // SessionID is unique identifier of this session.
+    string SessionID = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
+
+    // Namespace is a session namespace, separating sessions from each other.
+    string Namespace = 2 [ (gogoproto.jsontag) = "namespace,omitempty" ];
+
+    // Type describes what type of session this is.
+    SessionType Type = 3 [ (gogoproto.jsontag) = "type,omitempty" ];
+
+    // State is the current state of this session.
+    SessionState State = 4 [ (gogoproto.jsontag) = "state,omitempty" ];
+
+    // Created encodes the time at which the session was registered with the auth
+    // server.
+    google.protobuf.Timestamp Created = 5 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created,omitempty"
+    ];
+
+    // Expires encodes the time at which this session expires and becomes invalid.
+    google.protobuf.Timestamp Expires = 6 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires,omitempty"
+    ];
+
+    // AttachedData is arbitrary attached JSON serialized metadata.
+    string AttachedData = 7 [ (gogoproto.jsontag) = "attached,omitempty" ];
+
+    // Reason is an arbitrary string that may be used to describe the session and/or it's
+    // purpose.
+    string Reason = 8 [ (gogoproto.jsontag) = "reason,omitempty" ];
+
+    // Invited is a list of invited users, this field is interpreted by different
+    // clients on a best-effort basis and used for delivering notifications to invited users.
+    repeated string Invited = 9 [ (gogoproto.jsontag) = "invited,omitempty" ];
+
+    // LastActive holds the information about when the session
+    // was last active
+    google.protobuf.Timestamp LastActive = 10 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "last_active,omitempty"
+    ];
+
+    // Hostname is the address of the target this session is connected to.
+    string Hostname = 12 [ (gogoproto.jsontag) = "target_hostname,omitempty" ];
+
+    // Address is the address of the target this session is connected to.
+    string Address = 13 [ (gogoproto.jsontag) = "target_address,omitempty" ];
+
+    // ClusterName is the name of cluster that this session belongs to.
+    string ClusterName = 14 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
+
+    // Login is the local login/user on the target used by the session.
+    string Login = 15 [ (gogoproto.jsontag) = "login,omitempty" ];
+
+    // Participants is a list of session participants.
+    repeated Participant Participants = 16 [ (gogoproto.jsontag) = "participants,omitempty" ];
+}
+
+// Participant stores information about a participant in the session.
+message Participant {
+    // ID is a unique UUID of this participant for a given session.
+    string ID = 1 [ (gogoproto.jsontag) = "id,omitempty" ];
+
+    // User is the canonical name of the Teleport user controlling this participant.
+    string User = 2 [ (gogoproto.jsontag) = "user,omitempty" ];
+
+    // LastActive is the last time this party was active in the session.
+    string LastActive = 3 [ (gogoproto.jsontag) = "id,omitempty" ];
+}
+
+// SessionType encodes different types of sessions.
+enum SessionType {
+    // SessionTypeNone is a placeholder variant and isn't valid.
+    SessionTypeNone = 0;
+
+    // SessionTypeKubernetes means a session initiated via Kubernetes Access.
+    SessionTypeKubernetes = 1;
+
+    // SessionTypeSSH means a standard SSH session initiated via `tsh` or web.
+    SessionTypeSSH = 2;
+}
+
+// SessionState represents the state of a session.
+enum SessionState {
+    // Pending variant represents a session that is waiting on participants to fulfill the criteria
+    // to start the session.
+    SessionStatePending = 0;
+
+    // Running variant represents a session that has had it's criteria for starting
+    // fulfilled at least once and has transitioned to a RUNNING state.
+    SessionStateRunning = 1;
+
+    // Terminated variant represents a session that is no longer running and due for removal.
+    SessionStateTerminated = 2;
+}
