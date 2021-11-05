@@ -48,6 +48,7 @@ type kubeCommands struct {
 	credentials *kubeCredentialsCommand
 	ls          *kubeLSCommand
 	login       *kubeLoginCommand
+	sessions    *kubeSessionsCommand
 }
 
 func newKubeCommand(app *kingpin.Application) kubeCommands {
@@ -56,8 +57,25 @@ func newKubeCommand(app *kingpin.Application) kubeCommands {
 		credentials: newKubeCredentialsCommand(kube),
 		ls:          newKubeLSCommand(kube),
 		login:       newKubeLoginCommand(kube),
+		sessions:    newKubeSessionsCommand(kube),
 	}
 	return cmds
+}
+
+type kubeSessionsCommand struct {
+	*kingpin.CmdClause
+}
+
+func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
+	c := &kubeSessionsCommand{
+		CmdClause: parent.Command("sessions", "Get a list of active kubernetes sessions."),
+	}
+
+	return c
+}
+
+func (c *kubeSessionsCommand) run(cf *CLIConf) error {
+	panic("unimplemented")
 }
 
 type kubeCredentialsCommand struct {
