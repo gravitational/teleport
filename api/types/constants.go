@@ -193,6 +193,9 @@ const (
 	// MetaNameStaticTokens is the name of a configuration resource for static tokens.
 	MetaNameStaticTokens = "static-tokens"
 
+	// MetaNameSessionTracker is the prefix of resources used to track live sessions.
+	MetaNameSessionTracker = "session-tracker"
+
 	// KindTrustedCluster is a resource that contains trusted cluster configuration.
 	KindTrustedCluster = "trusted_cluster"
 
@@ -245,6 +248,9 @@ const (
 
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
+
+	// KindSessionTracker is a resource that tracks a live session.
+	KindSessionTracker = "session_tracker"
 
 	// V4 is the fourth version of resources.
 	V4 = "v4"

@@ -126,7 +126,15 @@ func (c *SessionV3) SetSubKind(sk string) {
 }
 
 func (s *SessionV3) CheckAndSetDefaults() error {
-	panic("unimplemented")
+	s.Kind = KindSessionTracker
+	s.Version = V3
+	s.Metadata.Name = MetaNameSessionTracker
+
+	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (s *SessionV3) GetID() string {
