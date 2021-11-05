@@ -52,6 +52,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -3268,6 +3269,12 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		tlsConfig = m.TLSConfig()
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
+
+		// If ACME protocol was enabled add all known TLS Routing protocols.
+		// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
+		// the TLS handshake will fail.
+		supportedProtocols := alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)
+		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, supportedProtocols...))
 	}
 
 	for _, pair := range process.Config.Proxy.KeyPairs {
