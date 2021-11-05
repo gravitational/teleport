@@ -462,7 +462,7 @@ type mockReverseTunnelServer struct {
 
 func TestSetupProxyTLSConfig(t *testing.T) {
 	testCases := []struct {
-		name          string
+		name           string
 		acmeEnabled    bool
 		wantNextProtos []string
 	}{
