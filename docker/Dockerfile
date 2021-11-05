@@ -1,6 +1,6 @@
 # The base image (buildbox:latest) is built by running `make -C build.assets`
 # from the base repo directory $GOPATH/gravitational.com/teleport
-FROM quay.io/gravitational/teleport-buildbox:go1.17.2
+FROM quay.io/gravitational/teleport-buildbox:go1.17.3
 
 # DEBUG=1 is needed for the Web UI to be loaded from static assets instead
 # of the binary
