@@ -61,7 +61,7 @@ type Config struct {
 	AuthClient *auth.Client
 
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.AppsAccessPoint
 
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config

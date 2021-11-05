@@ -133,7 +133,7 @@ type transport struct {
 	component    string
 	log          logrus.FieldLogger
 	closeContext context.Context
-	authClient   auth.AccessPoint
+	authClient   auth.ProxyAccessPoint
 	channel      ssh.Channel
 	requestCh    <-chan *ssh.Request
 

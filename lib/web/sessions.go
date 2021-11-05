@@ -69,7 +69,7 @@ type SessionContext struct {
 	// This access point should only be used if the identity of the caller will
 	// not affect the result of the RPC. For example, never use it to call
 	// "GetNodes".
-	unsafeCachedAuthClient auth.ReadAccessPoint
+	unsafeCachedAuthClient auth.ReadProxyAccessPoint
 
 	parent *sessionCache
 	// resources is persistent resource store this context is bound to.
@@ -341,7 +341,7 @@ func (c *SessionContext) GetUserRoles() (services.RoleSet, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, traits, err := services.ExtractFromCertificate(c.clt, cert)
+	roles, traits, err := services.ExtractFromCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -457,7 +457,7 @@ const cachedSessionLingeringThreshold = 2 * time.Minute
 
 type sessionCacheOptions struct {
 	proxyClient  auth.ClientI
-	accessPoint  auth.ReadAccessPoint
+	accessPoint  auth.ReadProxyAccessPoint
 	servers      []utils.NetAddr
 	cipherSuites []uint16
 	clock        clockwork.Clock
@@ -499,7 +499,7 @@ type sessionCache struct {
 	log         logrus.FieldLogger
 	proxyClient auth.ClientI
 	authServers []utils.NetAddr
-	accessPoint auth.ReadAccessPoint
+	accessPoint auth.ReadProxyAccessPoint
 	closer      *utils.CloseBroadcaster
 	clusterName string
 	clock       clockwork.Clock
