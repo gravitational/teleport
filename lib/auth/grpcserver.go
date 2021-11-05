@@ -3497,31 +3497,87 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 }
 
 func (g *GRPCServer) CreateSession(ctx context.Context, req *proto.CreateSessionRequest) (*types.SessionV3, error) {
-	panic("unimplemented")
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	session, err := auth.ServerWithRoles.CreateSessionV2(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
 }
 
 func (g *GRPCServer) GetActiveSessions(ctx context.Context, req *empty.Empty) (*proto.GetActiveSessionsResponse, error) {
-	panic("unimplemented")
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessions, err := auth.ServerWithRoles.GetActiveSessionsV2(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.GetActiveSessionsResponse{Sessions: sessions}, nil
 }
 
 func (g *GRPCServer) RemoveSession(ctx context.Context, req *proto.RemoveSessionRequest) (*empty.Empty, error) {
-	panic("unimplemented")
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.ServerWithRoles.RemoveSessionV2(ctx, req.SessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
 }
 
 func (g *GRPCServer) UpdateSessionState(ctx context.Context, req *proto.UpdateSessionStateRequest) (*empty.Empty, error) {
-	panic("unimplemented")
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.ServerWithRoles.UpdateSessionStateV2(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
 }
 
 func (g *GRPCServer) SessionActivityUpdate(ctx context.Context, req *proto.SessionActivityUpdateRequest) (*empty.Empty, error) {
-	panic("unimplemented")
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.ServerWithRoles.SessionActivityUpdateV2(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
 }
 
 func (g *GRPCServer) SessionAddParticipant(ctx context.Context, req *proto.SessionAddParticipantRequest) (*empty.Empty, error) {
-	panic("unimplemented")
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.ServerWithRoles.SessionAddParticipantV2(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
 }
 
 func (g *GRPCServer) SessionRemoveParticipant(ctx context.Context, req *proto.SessionRemoveParticipantRequest) (*empty.Empty, error) {
-	panic("unimplemented")
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.ServerWithRoles.SessionRemoveParticipantV2(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration
