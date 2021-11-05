@@ -26,11 +26,11 @@ This guide requires you to have:
   installed in the domain
 - Access to a Domain Controller
 - An existing Teleport cluster and user, version 8.0 or newer
-  - see [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport
+  - See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport
 - A Linux server to run the Teleport Desktop Access service on
-  - you can reuse an existing server running any other Teleport instance
+  - You can reuse an existing server running any other Teleport instance
 
-## Step 1/5: Create a Service Account User, Group, and Group Policy Object
+## Step 1/5: Create a User, Group, and Group Policy Object
 
 Teleport requires a service account to connect to your Active Directory domain. In theory any account with the required permissions can be used;
 we recommend creating a dedicated service account with the restrictive permissions (described below) for maximal security.
@@ -40,15 +40,15 @@ we recommend creating a dedicated service account with the restrictive permissio
 From the start menu of your Domain Controller, search for “Active Directory Users and Computers” and open the corresponding program.
 
 Find your domain in the side menu, and right click the folder you want the service account to live in (typically Users). From the context
-menu, select `New > User` and fill out the fields for your Teleport LDAP Service Account. Make a note of what value you put for user logon name.
-On the password screen, unselect “User must change password at next login” and select “Password never expires”, make note of your password, and
-click through the rest of the wizard.
+menu, select `New > User` and fill out the fields for your Teleport LDAP Service Account. On the password screen, unselect 
+“User must change password at next login” and select “Password never expires”. Make a note of what values you put for user logon name and password,
+which will be used in your `teleport.yaml` configuration file later, and then click through the rest of the wizard.
 
 <Admonition
   type="note"
   title="Default User Permissions"
 >
-  By default, domain users have Read and List Contents throughout Active Directory. If you have configured
+  By default, domain users have Read and List permissions throughout Active Directory. If you have configured
   any restrictions to Domain Users, you may have to adjust which groups this account is a member of.
 </Admonition>
 
@@ -57,22 +57,22 @@ click through the rest of the wizard.
 </Figure>
 
 Now right click the same folder you did before, and select `New > Group`. Choose a Group name and ensure that “Global”
-is selected for “Group scope”, and “Security” for “Group type”, then hit Ok. Make note of the Group name you chose, as it will
-be used later on for the PowerShell variable `$TeleportLDAPGroupName`.
+is selected for “Group scope”, and “Security” for “Group type”, then hit "OK". Make note of the Group name you chose, as it will
+be used later for the PowerShell variable `$TeleportLDAPGroupName`.
 
 Finally, add the User to the Group you just made by right clicking the User and selecting `Add to group`. Type the name of the Group, and confirm correctness
-by clicking the “Check Names” button, then click “Ok”. You should see a dialog saying “The Add to Group operation was successfully completed.”
+by clicking the “Check Names” button, then click “OK”. You should see a dialog saying “The Add to Group operation was successfully completed.”
 
 ### Create and Apply Group Policy Object
 
-Next, open "Start" menu and run "Group Policy Management". On the left pane, navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`,
+Next, open the "Start" menu and run "Group Policy Management". On the left pane, navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`,
 selecting your forest and domain names respectively. Right click `Group Policy Objects` and select `New` from the context menu. Give your GPO
 a name and ensure "(none)" is selected for "Source Starter GPO", then hit "OK".
 
 Lastly, apply this new Group Policy Object to the Group by first clicking on its just-created entry in the left pane. In the primary pane, select the
 "Delegation" tab, and then click the "Add" button. Type the name of the Group you created in the previous step, and ensure that the Group
 (and not the User) is selected when you click "Check Names". Click "OK", and in the subsequent popup confirm that "Permissions" is set to "Read",
-and hit "OK" again.
+then hit "OK" again.
 
 <Figure align="left" bordered caption="Apply GPO">
   ![Apply GPO](../../img/desktop-access/apply-gpo.png)
