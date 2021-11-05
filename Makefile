@@ -521,7 +521,7 @@ lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
 lint-rdp:
 	cd lib/srv/desktop/rdp/rdpclient \
 		&& cargo clippy --locked --all-targets -- -D warnings \
-		&& cargo fmt -- --check 
+		&& cargo fmt -- --check
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -590,7 +590,6 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore '**/*.html' \
 		-ignore '**/*.js' \
 		-ignore '**/*.py' \
-		-ignore '**/*.rs' \
 		-ignore '**/*.sh' \
 		-ignore '**/*.tf' \
 		-ignore '**/*.yaml' \
