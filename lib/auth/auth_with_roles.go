@@ -244,23 +244,23 @@ func (a *ServerWithRoles) GetActiveSessionsV2(ctx context.Context) ([]types.Sess
 	panic("unimplemented")
 }
 
-func (a *ServerWithRoles) RemoveSessionV2(ctx context.Context, session string) error {
+func (a *ServerWithRoles) RemoveSessionV2(ctx context.Context, sessionID string) error {
 	panic("unimplemented")
 }
 
-func (a *ServerWithRoles) UpdateSessionStateV2(ctx context.Context, req *proto.UpdateSessionStateRequest) error {
+func (a *ServerWithRoles) UpdateSessionStateV2(ctx context.Context, sessionID string, state types.SessionState) error {
 	panic("unimplemented")
 }
 
-func (a *ServerWithRoles) SessionActivityUpdateV2(ctx context.Context, req *proto.SessionActivityUpdateRequest) error {
+func (a *ServerWithRoles) SessionActivityUpdateV2(ctx context.Context, sessionID, participantID string) error {
 	panic("unimplemented")
 }
 
-func (a *ServerWithRoles) SessionAddParticipantV2(ctx context.Context, req *proto.SessionAddParticipantRequest) error {
+func (a *ServerWithRoles) SessionAddParticipantV2(ctx context.Context, sessionID string, participant *types.Participant) error {
 	panic("unimplemented")
 }
 
-func (a *ServerWithRoles) SessionRemoveParticipantV2(ctx context.Context, req *proto.SessionRemoveParticipantRequest) error {
+func (a *ServerWithRoles) SessionRemoveParticipantV2(ctx context.Context, sessionID, participantID string) error {
 	panic("unimplemented")
 }
 

@@ -3554,7 +3554,7 @@ func (g *GRPCServer) UpdateSessionState(ctx context.Context, req *proto.UpdateSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.ServerWithRoles.UpdateSessionStateV2(ctx, req)
+	err = auth.ServerWithRoles.UpdateSessionStateV2(ctx, req.SessionID, req.State)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3566,7 +3566,7 @@ func (g *GRPCServer) SessionActivityUpdate(ctx context.Context, req *proto.Sessi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.ServerWithRoles.SessionActivityUpdateV2(ctx, req)
+	err = auth.ServerWithRoles.SessionActivityUpdateV2(ctx, req.SessionID, req.ParticipantID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3578,7 +3578,7 @@ func (g *GRPCServer) SessionAddParticipant(ctx context.Context, req *proto.Sessi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.ServerWithRoles.SessionAddParticipantV2(ctx, req)
+	err = auth.ServerWithRoles.SessionAddParticipantV2(ctx, req.SessionID, req.Participant)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3590,7 +3590,7 @@ func (g *GRPCServer) SessionRemoveParticipant(ctx context.Context, req *proto.Se
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.ServerWithRoles.SessionRemoveParticipantV2(ctx, req)
+	err = auth.ServerWithRoles.SessionRemoveParticipantV2(ctx, req.SessionID, req.ParticipantID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
