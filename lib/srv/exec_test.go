@@ -426,7 +426,7 @@ func (f *fakeTerminal) SetTermType(string) {
 type fakeServer struct {
 	auditLog events.IAuditLog
 	events.MockEmitter
-	accessPoint auth.AccessPoint
+	accessPoint AccessPoint
 	id          string
 }
 
@@ -458,7 +458,7 @@ func (f *fakeServer) PermitUserEnvironment() bool {
 	return true
 }
 
-func (f *fakeServer) GetAccessPoint() auth.AccessPoint {
+func (f *fakeServer) GetAccessPoint() AccessPoint {
 	return f.accessPoint
 }
 

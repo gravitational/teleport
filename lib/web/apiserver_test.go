@@ -144,6 +144,10 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	c.Assert(s.mockU2F, NotNil)
 }
 
+func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+	return clt, nil
+}
+
 func (s *WebSuite) SetUpTest(c *C) {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
@@ -273,7 +277,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
 		Emitter:               s.proxyClient,
-		NewCachingAccessPoint: auth.NoCache,
+		NewCachingAccessPoint: noCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
 		LockWatcher:           proxyLockWatcher,
@@ -291,7 +295,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer),
+		regular.SetProxyMode(revTunServer, s.proxyClient),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -1531,9 +1535,10 @@ func (s *WebSuite) TestChangePasswordAndAddTOTPDeviceWithToken(c *C) {
 	c.Assert(err, IsNil)
 
 	// Test that no recovery codes are returned b/c cloud feature isn't enabled.
-	var recoveryCodes []string
-	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
-	c.Assert(recoveryCodes, HasLen, 0)
+	var response ui.RecoveryCodes
+	c.Assert(json.Unmarshal(re.Bytes(), &response), IsNil)
+	c.Assert(response.Codes, IsNil)
+	c.Assert(response.Created, IsNil)
 }
 
 func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
@@ -1588,9 +1593,10 @@ func (s *WebSuite) TestChangePasswordAndAddU2FDeviceWithToken(c *C) {
 	c.Assert(err, IsNil)
 
 	// Test that no recovery codes are returned b/c cloud is not turned on.
-	var recoveryCodes []string
-	c.Assert(json.Unmarshal(re.Bytes(), &recoveryCodes), IsNil)
-	c.Assert(recoveryCodes, HasLen, 0)
+	var response ui.RecoveryCodes
+	c.Assert(json.Unmarshal(re.Bytes(), &response), IsNil)
+	c.Assert(response.Codes, IsNil)
+	c.Assert(response.Created, IsNil)
 }
 
 // TestEmptyMotD ensures that responses returned by both /webapi/ping and
@@ -2798,7 +2804,7 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	require.Empty(t, re.RecoveryCodes)
+	require.Nil(t, re.Recovery)
 
 	// Create a user that is valid for recovery.
 	teleUser, err = types.NewUser("valid-username@example.com")
@@ -2827,7 +2833,8 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	require.Len(t, re.RecoveryCodes, 3)
+	require.Len(t, re.Recovery.Codes, 3)
+	require.NotEmpty(t, re.Recovery.Created)
 }
 
 type authProviderMock struct {
@@ -3248,7 +3255,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		LocalAuthClient:       client,
 		LocalAccessPoint:      client,
 		Emitter:               client,
-		NewCachingAccessPoint: auth.NoCache,
+		NewCachingAccessPoint: noCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: authServer.ClusterName(), Client: client}},
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
@@ -3265,7 +3272,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer),
+		regular.SetProxyMode(revTunServer, client),
 		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
