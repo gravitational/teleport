@@ -72,6 +72,15 @@ type NodeClient struct {
 	TC        *TeleportClient
 }
 
+func (proxy *ProxyClient) GetActiveSessions(ctx context.Context) ([]types.Session, error) {
+	_, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	panic("not implemented")
+}
+
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 //

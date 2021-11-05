@@ -3361,3 +3361,13 @@ func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
 	}
 	return databases, nil
 }
+
+func (tc *TeleportClient) GetActiveSessions(ctx context.Context) ([]types.Session, error) {
+	proxy, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer proxy.Close()
+	return proxy.GetActiveSessions(ctx)
+}

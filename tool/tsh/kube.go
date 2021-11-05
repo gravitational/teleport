@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -75,7 +76,28 @@ func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 }
 
 func (c *kubeSessionsCommand) run(cf *CLIConf) error {
-	panic("unimplemented")
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessions, err := tc.GetActiveSessions(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	printSessions(sessions)
+	return nil
+}
+
+func printSessions(sessions []types.Session) {
+	table := asciitable.MakeTable([]string{"ID", "State", "Created", "Hostname", "Address", "Login", "Reason"})
+	for _, s := range sessions {
+		table.AddRow([]string{s.GetID(), s.GetState().String(), s.GetCreated().Format(time.RFC3339), s.GetHostname(), s.GetAddress(), s.GetLogin(), s.GetReason()})
+	}
+
+	output := table.AsBuffer().String()
+	print(output)
 }
 
 type kubeCredentialsCommand struct {
