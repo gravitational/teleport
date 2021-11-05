@@ -3496,6 +3496,34 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 	return resp, nil
 }
 
+func (g *GRPCServer) CreateSession(ctx context.Context, req *proto.CreateSessionRequest) (*types.SessionV3, error) {
+	panic("unimplemented")
+}
+
+func (g *GRPCServer) GetActiveSessions(ctx context.Context, req *empty.Empty) (*proto.GetActiveSessionsResponse, error) {
+	panic("unimplemented")
+}
+
+func (g *GRPCServer) RemoveSession(ctx context.Context, req *proto.RemoveSessionRequest) (*empty.Empty, error) {
+	panic("unimplemented")
+}
+
+func (g *GRPCServer) UpdateSessionState(ctx context.Context, req *proto.UpdateSessionStateRequest) (*empty.Empty, error) {
+	panic("unimplemented")
+}
+
+func (g *GRPCServer) SessionActivityUpdate(ctx context.Context, req *proto.SessionActivityUpdateRequest) (*empty.Empty, error) {
+	panic("unimplemented")
+}
+
+func (g *GRPCServer) SessionAddParticipant(ctx context.Context, req *proto.SessionAddParticipantRequest) (*empty.Empty, error) {
+	panic("unimplemented")
+}
+
+func (g *GRPCServer) SessionRemoveParticipant(ctx context.Context, req *proto.SessionRemoveParticipantRequest) (*empty.Empty, error) {
+	panic("unimplemented")
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
