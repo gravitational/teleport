@@ -16,6 +16,6 @@ spec:
     kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" .Values.highAvailability.certManager.issuerKind }}
   {{- with .Values.annotations.certSecret }}
   secretTemplate:
-    annotations: {{ toYaml . | nindent 6 }}
+    annotations: {{- toYaml . | nindent 6 }}
   {{- end }}
 {{- end }}
