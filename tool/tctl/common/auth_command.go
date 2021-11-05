@@ -779,7 +779,7 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) 
 }
 
 func getApplicationServer(ctx context.Context, clusterAPI auth.ClientI, appName string) (types.AppServer, error) {
-	servers, err := clusterAPI.GetApplicationServers(context.TODO(), apidefaults.Namespace)
+	servers, err := clusterAPI.GetApplicationServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
