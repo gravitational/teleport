@@ -2506,12 +2506,16 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	<head>
 		<title>Teleport Redirection Service</title>
 		<meta http-equiv="cache-control" content="no-cache"/>
-		<meta http-equiv="refresh" content="0;URL='%s'" />
+		<meta http-equiv="refresh" content="0;URL='{{.}}'" />
 	</head>
 	<body></body>
 </html>
 `
-		fmt.Fprintf(w, html, strings.ReplaceAll(redirectURL, "'", "\\'"))
+		templ := template.Must(template.New("meta-redirect").Parse(html))
+		err = templ.Execute(w, redirectURL)
+		if err != nil {
+			h.log.WithError(err).Warn("Failed to execute template.")
+		}
 	}
 }
 
