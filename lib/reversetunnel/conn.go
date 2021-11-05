@@ -28,8 +28,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -88,9 +86,6 @@ type connConfig struct {
 
 	// sconn is the underlying SSH connection.
 	sconn ssh.Conn
-
-	// accessPoint provides access to the Auth Server API.
-	accessPoint auth.AccessPoint
 
 	// tunnelType is the type of tunnel connection, either proxy or node.
 	tunnelType string

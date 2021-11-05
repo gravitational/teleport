@@ -361,6 +361,13 @@ func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMF
 				})
 			}
 			chal = &auth.MFAAuthenticateChallenge{
+				AuthenticateChallenge: &u2f.AuthenticateChallenge{
+					// Get the common challenge fields from the first item.
+					// All of these fields should be identical for all u2fChals.
+					Challenge: u2fChals[0].Challenge,
+					AppID:     u2fChals[0].AppID,
+					Version:   u2fChals[0].Version,
+				},
 				U2FChallenges: u2fChals,
 			}
 		default:

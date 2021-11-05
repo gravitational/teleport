@@ -69,7 +69,7 @@ type AgentConfig struct {
 	// Client is a client to the local auth servers
 	Client auth.ClientI
 	// AccessPoint is a caching access point to the local auth servers
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.AccessCache
 	// Context is a parent context
 	Context context.Context
 	// Username is the name of this client used to authenticate on SSH

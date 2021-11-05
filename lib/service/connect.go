@@ -895,7 +895,7 @@ func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, tlsConf
 	// get the underlying error.
 	_, err = clt.GetLocalClusterName()
 	if err != nil {
-		if err2 := clt.Close(); err != nil {
+		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close Auth Server tunnel client.")
 		}
 		return nil, trace.Unwrap(err)
