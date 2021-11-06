@@ -310,6 +310,11 @@
                     "$id": "#properties/service/type",
                     "type": "string",
                     "default": "LoadBalancer"
+                },
+                "spec": {
+                    "$id": "#/properties/service/spec",
+                    "type": "object",
+                    "default": {}
                 }
             }
         },
