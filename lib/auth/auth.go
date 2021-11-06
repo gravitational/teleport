@@ -2894,6 +2894,22 @@ func (a *Server) GetApp(ctx context.Context, name string) (types.Application, er
 	return a.GetCache().GetApp(ctx, name)
 }
 
+func (a *Server) CreateSessionV2(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
+	panic("unimplemented")
+}
+
+func (a *Server) GetActiveSessionsV2(ctx context.Context) ([]types.Session, error) {
+	panic("not implemented")
+}
+
+func (a *Server) RemoveSessionV2(ctx context.Context, sessionID string) error {
+	panic("unimplemented")
+}
+
+func (a *Server) UpdateSessionV2(ctx context.Context, req *proto.UpdateSessionRequest) error {
+	panic("unimplemented")
+}
+
 // GetDatabaseServers returns all registers database proxy servers.
 func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
