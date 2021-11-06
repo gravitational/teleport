@@ -236,20 +236,24 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 	return ok
 }
 
+// TODO(joel): check access
 func (a *ServerWithRoles) CreateSessionV2(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
-	panic("unimplemented")
+	return a.authServer.CreateSessionV2(ctx, req)
 }
 
+// TODO(joel): filter out sessions based on RBAC rules
 func (a *ServerWithRoles) GetActiveSessionsV2(ctx context.Context) ([]types.Session, error) {
-	panic("unimplemented")
+	return a.authServer.GetActiveSessionsV2(ctx)
 }
 
+// TODO(joel): check access
 func (a *ServerWithRoles) RemoveSessionV2(ctx context.Context, sessionID string) error {
-	panic("unimplemented")
+	return a.authServer.RemoveSessionV2(ctx, sessionID)
 }
 
+// TODO(joel): check access
 func (a *ServerWithRoles) UpdateSessionV2(ctx context.Context, req *proto.UpdateSessionRequest) error {
-	panic("unimplemented")
+	return a.authServer.UpdateSessionV2(ctx, req)
 }
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session
