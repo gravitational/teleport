@@ -3549,48 +3549,12 @@ func (g *GRPCServer) RemoveSession(ctx context.Context, req *proto.RemoveSession
 	return &empty.Empty{}, nil
 }
 
-func (g *GRPCServer) UpdateSessionState(ctx context.Context, req *proto.UpdateSessionStateRequest) (*empty.Empty, error) {
+func (g *GRPCServer) UpdateSession(ctx context.Context, req *proto.UpdateSessionRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.ServerWithRoles.UpdateSessionStateV2(ctx, req.SessionID, req.State)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &empty.Empty{}, nil
-}
-
-func (g *GRPCServer) SessionActivityUpdate(ctx context.Context, req *proto.SessionActivityUpdateRequest) (*empty.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.ServerWithRoles.SessionActivityUpdateV2(ctx, req.SessionID, req.ParticipantID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &empty.Empty{}, nil
-}
-
-func (g *GRPCServer) SessionAddParticipant(ctx context.Context, req *proto.SessionAddParticipantRequest) (*empty.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.ServerWithRoles.SessionAddParticipantV2(ctx, req.SessionID, req.Participant)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &empty.Empty{}, nil
-}
-
-func (g *GRPCServer) SessionRemoveParticipant(ctx context.Context, req *proto.SessionRemoveParticipantRequest) (*empty.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.ServerWithRoles.SessionRemoveParticipantV2(ctx, req.SessionID, req.ParticipantID)
+	err = auth.ServerWithRoles.UpdateSessionV2(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

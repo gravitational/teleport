@@ -1450,41 +1450,38 @@ message RemoveSessionRequest {
     string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
 }
 
-// UpdateSessionStateRequest is a message containing data to update the activity state of a session.
-message UpdateSessionStateRequest {
-    // SessionID is unique identifier of this session.
-    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
-
+message UpdateState {
     // State is the new state of the session.
     types.SessionState State = 2 [ (gogoproto.jsontag) = "state,omitempty" ];
 }
 
-// SessionActivityUpdateRequest is a message containing the data needed to update
-// the last active metadata of a session.
-message SessionActivityUpdateRequest {
-    // SessionID is unique identifier of this session.
-    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
-
+message UpdateActivity {
     // ParticipantID is unique identifier of the participant.
     string ParticipantID = 2 [ (gogoproto.jsontag) = "participant_id,omitempty" ];
 }
 
-// SessionAddParticipantRequest is a request to add a participant to a session.
-message SessionAddParticipantRequest {
-    // SessionID is unique identifier of this session.
-    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
-
+message AddParticipant {
     // Participant is the participant to be added to the session.
     types.Participant Participant = 2 [ (gogoproto.jsontag) = "participant,omitempty" ];
 }
 
-// SessionRemoveParticipantRequest is a request to remove a participant from a session.
-message SessionRemoveParticipantRequest {
+message RemoveParticipant {
+    // ParticipantID is unique identifier of the participant.
+    string ParticipantID = 2 [ (gogoproto.jsontag) = "participant_id,omitempty" ];
+}
+
+// UpdateSessionRequest is a request to update some state of a session.
+message UpdateSessionRequest {
     // SessionID is unique identifier of this session.
     string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
 
-    // ParticipantID is unique identifier of the participant.
-    string ParticipantID = 2 [ (gogoproto.jsontag) = "participant_id,omitempty" ];
+    oneof Update {
+        UpdateState UpdateState = 2 [ (gogoproto.jsontag) = "update_state,omitempty" ];
+        UpdateActivity UpdateActivity = 3 [ (gogoproto.jsontag) = "update_activity,omitempty" ];
+        AddParticipant AddParticipant = 4 [ (gogoproto.jsontag) = "add_participant,omitempty" ];
+        RemoveParticipant RemoveParticipant = 5
+            [ (gogoproto.jsontag) = "remove_participant,omitempty" ];
+    }
 }
 
 // AuthService is authentication/authorization service implementation
@@ -1498,17 +1495,8 @@ service AuthService {
     // RemoveSession removes a session resource.
     rpc RemoveSession(RemoveSessionRequest) returns (google.protobuf.Empty);
 
-    // UpdateSessionState updates the state of a session resource.
-    rpc UpdateSessionState(UpdateSessionStateRequest) returns (google.protobuf.Empty);
-
-    // SessionActivityUpdate updates the last active metadata of a session resource.
-    rpc SessionActivityUpdate(SessionActivityUpdateRequest) returns (google.protobuf.Empty);
-
-    // SessionAddParticipant adds a participant to a session resource.
-    rpc SessionAddParticipant(SessionAddParticipantRequest) returns (google.protobuf.Empty);
-
-    // SessionRemoveParticipant removes a participant from a session resource.
-    rpc SessionRemoveParticipant(SessionRemoveParticipantRequest) returns (google.protobuf.Empty);
+    // UpdateSession updates some state of a session.
+    rpc UpdateSession(UpdateSessionRequest) returns (google.protobuf.Empty);
 
     // SendKeepAlives allows node to send a stream of keep alive requests
     rpc SendKeepAlives(stream types.KeepAlive) returns (google.protobuf.Empty);
