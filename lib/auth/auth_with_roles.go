@@ -655,8 +655,8 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.List
 	}
 
 	// move labels out of request so that we can perform label-based filtering *after* RBAC filtering.
-	realLabels := req.Labels
-	req.Labels = nil
+	//realLabels := req.Labels
+	//req.Labels = nil
 
 	page = make([]types.Server, 0, limit)
 	nextKey, err = a.authServer.IterateNodePages(ctx, req, func(nextPage []types.Server) (bool, error) {
@@ -672,9 +672,9 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.List
 				// page is filled, stop processing
 				break
 			}
-			if node.MatchAgainst(realLabels) {
-				page = append(page, node)
-			}
+			//if node.MatchAgainst(realLabels) {
+			page = append(page, node)
+			//}
 		}
 
 		return len(page) == limit, nil

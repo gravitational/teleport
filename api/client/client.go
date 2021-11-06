@@ -38,6 +38,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
@@ -1242,10 +1243,16 @@ type NodeClient interface {
 func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
 	// Retrieve the complete list of nodes in chunks.
 	var (
-		nodes     []types.Server
-		startKey  string
-		chunkSize = int32(defaults.DefaultChunkSize)
+		nodes      []types.Server
+		startKey   string
+		chunkSize  = int32(defaults.DefaultChunkSize)
+		unfiltered bool
 	)
+	defer func() {
+		if unfiltered {
+			log.Warn("[label-debug] Server-side filtering was not performed.")
+		}
+	}()
 	for {
 		resp, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
 			Namespace: namespace,
@@ -1270,6 +1277,8 @@ func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, l
 		for _, node := range resp {
 			if node.MatchAgainst(labels) {
 				nodes = append(nodes, node)
+			} else {
+				unfiltered = true
 			}
 		}
 

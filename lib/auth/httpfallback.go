@@ -613,6 +613,8 @@ func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, l
 		return nodes, trace.Wrap(err)
 	}
 
+	log.Warn("[label-debug] ListNodes endpoint is not implemented, falling back to GetNodes.")
+
 	nodes, err = clt.GetNodes(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
