@@ -83,10 +83,10 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
  ENV RUSTUP_HOME=/usr/local/rustup \
      CARGO_HOME=/usr/local/cargo \
      PATH=/usr/local/cargo/bin:$PATH \
-     RUST_VERSION=1.56.0
+     RUST_VERSION=1.56.1
 
- COPY --from=rust:1.56.0 /usr/local/rustup /usr/local/rustup
- COPY --from=rust:1.56.0 /usr/local/cargo /usr/local/cargo
+ COPY --from=rust:1.56.1 /usr/local/rustup /usr/local/rustup
+ COPY --from=rust:1.56.1 /usr/local/cargo /usr/local/cargo
  RUN set -eux \
      rustup component add rustfmt clippy; \
      chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
