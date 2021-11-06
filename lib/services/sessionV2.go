@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // SessionV2 is a realtime session service that has information about
@@ -55,4 +57,62 @@ func (s *sessionV2) UpdateSession(ctx context.Context, req *proto.UpdateSessionR
 
 func (s *sessionV2) RemoveSession(ctx context.Context, sessionID string) error {
 	panic("unimplemented")
+}
+
+// unmarshalSession unmarshals the Session resource from JSON.
+func unmarshalSession(bytes []byte, opts ...MarshalOption) (types.Session, error) {
+	var session types.SessionV3
+
+	if len(bytes) == 0 {
+		return nil, trace.BadParameter("missing resource data")
+	}
+
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := utils.FastUnmarshal(bytes, &session); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+
+	if err := session.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if cfg.ID != 0 {
+		session.SetResourceID(cfg.ID)
+	}
+
+	if !cfg.Expires.IsZero() {
+		session.SetExpiry(cfg.Expires)
+	}
+
+	return &session, nil
+}
+
+// marshalSession marshals the Session resource to JSON.
+func marshalSession(session types.Session, opts ...MarshalOption) ([]byte, error) {
+	if err := session.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch session := session.(type) {
+	case *types.SessionV3:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *session
+			copy.SetResourceID(0)
+			session = &copy
+		}
+		return utils.FastMarshal(session)
+	default:
+		return nil, trace.BadParameter("unrecognized session version %T", session)
+	}
 }
