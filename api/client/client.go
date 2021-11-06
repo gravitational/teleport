@@ -2315,3 +2315,32 @@ func (c *Client) GetResources(ctx context.Context, namespace, resourceType strin
 
 	return resources, nil
 }
+
+func (c *Client) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
+	resp, err := c.grpc.CreateSession(ctx, req)
+	return resp, trail.FromGRPC(err)
+}
+
+func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error) {
+	resp, err := c.grpc.GetActiveSessions(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	sessions := make([]types.Session, len(resp.Sessions))
+	for i, s := range resp.Sessions {
+		sessions[i] = s
+	}
+
+	return sessions, nil
+}
+
+func (c *Client) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	_, err := c.grpc.RemoveSession(ctx, &proto.RemoveSessionRequest{SessionID: sessionID})
+	return trail.FromGRPC(err)
+}
+
+func (c *Client) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionRequest) error {
+	_, err := c.grpc.UpdateSession(ctx, req)
+	return trail.FromGRPC(err)
+}

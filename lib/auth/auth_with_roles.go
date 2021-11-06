@@ -237,23 +237,23 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 }
 
 // TODO(joel): check access
-func (a *ServerWithRoles) CreateSessionV2(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
-	return a.authServer.CreateSessionV2(ctx, req)
+func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
+	return a.authServer.CreateSessionTracker(ctx, req)
 }
 
 // TODO(joel): filter out sessions based on RBAC rules
-func (a *ServerWithRoles) GetActiveSessionsV2(ctx context.Context) ([]types.Session, error) {
-	return a.authServer.GetActiveSessionsV2(ctx)
+func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error) {
+	return a.authServer.GetActiveSessionTrackers(ctx)
 }
 
 // TODO(joel): check access
-func (a *ServerWithRoles) RemoveSessionV2(ctx context.Context, sessionID string) error {
-	return a.authServer.RemoveSessionV2(ctx, sessionID)
+func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	return a.authServer.RemoveSessionTracker(ctx, sessionID)
 }
 
 // TODO(joel): check access
-func (a *ServerWithRoles) UpdateSessionV2(ctx context.Context, req *proto.UpdateSessionRequest) error {
-	return a.authServer.UpdateSessionV2(ctx, req)
+func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionRequest) error {
+	return a.authServer.UpdateSessionTracker(ctx, req)
 }
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session

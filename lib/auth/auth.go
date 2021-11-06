@@ -2899,20 +2899,20 @@ func (a *Server) GetApp(ctx context.Context, name string) (types.Application, er
 	return a.GetCache().GetApp(ctx, name)
 }
 
-func (a *Server) CreateSessionV2(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
-	return a.SessionV2.CreateSession(ctx, req)
+func (a *Server) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
+	return a.SessionV2.CreateSessionTracker(ctx, req)
 }
 
-func (a *Server) GetActiveSessionsV2(ctx context.Context) ([]types.Session, error) {
-	return a.SessionV2.GetActiveSessions(ctx)
+func (a *Server) GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error) {
+	return a.SessionV2.GetActiveSessionTrackers(ctx)
 }
 
-func (a *Server) RemoveSessionV2(ctx context.Context, sessionID string) error {
-	return a.SessionV2.RemoveSession(ctx, sessionID)
+func (a *Server) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	return a.SessionV2.RemoveSessionTracker(ctx, sessionID)
 }
 
-func (a *Server) UpdateSessionV2(ctx context.Context, req *proto.UpdateSessionRequest) error {
-	return a.SessionV2.UpdateSession(ctx, req)
+func (a *Server) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionRequest) error {
+	return a.SessionV2.UpdateSessionTracker(ctx, req)
 }
 
 // GetDatabaseServers returns all registers database proxy servers.

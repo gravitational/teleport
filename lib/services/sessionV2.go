@@ -29,10 +29,10 @@ import (
 // SessionV2 is a realtime session service that has information about
 // sessions that are in-flight in the cluster at the moment.
 type SessionV2 interface {
-	GetActiveSessions(ctx context.Context) ([]types.Session, error)
-	CreateSession(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error)
-	UpdateSession(ctx context.Context, req *proto.UpdateSessionRequest) error
-	RemoveSession(ctx context.Context, sessionID string) error
+	GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error)
+	CreateSessionTracker(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error)
+	UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionRequest) error
+	RemoveSessionTracker(ctx context.Context, sessionID string) error
 }
 
 type sessionV2 struct {
@@ -43,19 +43,19 @@ func NewSessionV2Service(bk backend.Backend) SessionV2 {
 	return &sessionV2{bk}
 }
 
-func (s *sessionV2) GetActiveSessions(ctx context.Context) ([]types.Session, error) {
+func (s *sessionV2) GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error) {
 	panic("unimplemented")
 }
 
-func (s *sessionV2) CreateSession(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
+func (s *sessionV2) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
 	panic("unimplemented")
 }
 
-func (s *sessionV2) UpdateSession(ctx context.Context, req *proto.UpdateSessionRequest) error {
+func (s *sessionV2) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionRequest) error {
 	panic("unimplemented")
 }
 
-func (s *sessionV2) RemoveSession(ctx context.Context, sessionID string) error {
+func (s *sessionV2) RemoveSessionTracker(ctx context.Context, sessionID string) error {
 	panic("unimplemented")
 }
 
