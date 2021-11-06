@@ -145,6 +145,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
+	if cfg.SessionV2 == nil {
+		cfg.SessionV2 = services.NewSessionV2Service(cfg.Backend)
+	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
 		cfg.KeyStoreConfig.RSAKeyPairSource = cfg.Authority.GenerateKeyPair
 	}
@@ -192,6 +195,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
 			WindowsDesktops:      cfg.WindowsDesktops,
+			SessionV2:            cfg.SessionV2,
 		},
 		keyStore: keyStore,
 	}
@@ -217,6 +221,7 @@ type Services struct {
 	services.Apps
 	services.Databases
 	services.WindowsDesktops
+	services.SessionV2
 	types.Events
 	events.IAuditLog
 }
@@ -2895,19 +2900,19 @@ func (a *Server) GetApp(ctx context.Context, name string) (types.Application, er
 }
 
 func (a *Server) CreateSessionV2(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
-	panic("unimplemented")
+	return a.SessionV2.CreateSession(ctx, req)
 }
 
 func (a *Server) GetActiveSessionsV2(ctx context.Context) ([]types.Session, error) {
-	panic("not implemented")
+	return a.SessionV2.GetActiveSessions(ctx)
 }
 
 func (a *Server) RemoveSessionV2(ctx context.Context, sessionID string) error {
-	panic("unimplemented")
+	return a.SessionV2.RemoveSession(ctx, sessionID)
 }
 
 func (a *Server) UpdateSessionV2(ctx context.Context, req *proto.UpdateSessionRequest) error {
-	panic("unimplemented")
+	return a.SessionV2.UpdateSession(ctx, req)
 }
 
 // GetDatabaseServers returns all registers database proxy servers.
