@@ -26,6 +26,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	sessionV2Prefix = "session_v2"
+	sessionV2List   = "list"
+)
+
 // SessionV2 is a realtime session service that has information about
 // sessions that are in-flight in the cluster at the moment.
 type SessionV2 interface {
@@ -44,7 +49,27 @@ func NewSessionV2Service(bk backend.Backend) SessionV2 {
 }
 
 func (s *sessionV2) GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error) {
-	panic("unimplemented")
+	sessionList, err := s.getSessionList(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions := make([]types.Session, len(sessionList))
+	for i, sessionID := range sessionList {
+		sessionJSON, err := s.bk.Get(ctx, backend.Key(sessionV2Prefix, sessionID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		session, err := unmarshalSession(sessionJSON.Value)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		sessions[i] = session
+	}
+
+	return sessions, nil
 }
 
 func (s *sessionV2) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
@@ -60,6 +85,11 @@ func (s *sessionV2) CreateSessionTracker(ctx context.Context, req *proto.CreateS
 		return nil, trace.Wrap(err)
 	}
 
+	err = s.addSessionToList(ctx, session.GetID())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	item := backend.Item{Key: backend.Key(sessionV2Prefix, session.GetID()), Value: json}
 	_, err = s.bk.Create(ctx, item)
 	if err != nil {
@@ -70,11 +100,123 @@ func (s *sessionV2) CreateSessionTracker(ctx context.Context, req *proto.CreateS
 }
 
 func (s *sessionV2) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionRequest) error {
-	panic("unimplemented")
+	sessionItem, err := s.bk.Get(ctx, backend.Key(sessionV2Prefix, req.SessionID))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session, err := unmarshalSession(sessionItem.Value)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch session := session.(type) {
+	case *types.SessionV3:
+		switch update := req.Update.(type) {
+		case *proto.UpdateSessionRequest_UpdateState:
+			session.SetState(update.UpdateState.State)
+		case *proto.UpdateSessionRequest_UpdateActivity:
+			session.SetLastActive(update.UpdateActivity.ParticipantID)
+		case *proto.UpdateSessionRequest_AddParticipant:
+			session.AddParticipant(update.AddParticipant.Participant)
+		case *proto.UpdateSessionRequest_RemoveParticipant:
+			session.RemoveParticipant(update.RemoveParticipant.ParticipantID)
+		}
+	default:
+		return trace.BadParameter("unrecognized session version %T", session)
+	}
+
+	sessionJSON, err := marshalSession(session)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{Key: backend.Key(sessionV2Prefix, req.SessionID), Value: sessionJSON}
+	_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
+	if trace.IsCompareFailed(err) {
+		return s.UpdateSessionTracker(ctx, req)
+	} else {
+		return trace.Wrap(err)
+	}
 }
 
 func (s *sessionV2) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	err := s.removeSessionFromList(ctx, sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return trace.Wrap(s.bk.Delete(ctx, backend.Key(sessionV2Prefix, sessionID)))
+}
+
+// TODO(joel): handle concurrency and list doesn't exist
+func (s *sessionV2) addSessionToList(ctx context.Context, sessionID string) error {
+	listItem, err := s.bk.Get(ctx, backend.Key(sessionV2Prefix, sessionV2List))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var list []string
+	err = utils.FastUnmarshal(listItem.Value, &list)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	list = append(list, sessionID)
+	listJSON, err := utils.FastMarshal(list)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newListItem := backend.Item{Key: backend.Key(sessionV2Prefix, sessionV2List), Value: listJSON}
+	_, err = s.bk.Update(ctx, newListItem)
+	return trace.Wrap(err)
+}
+
+func (s *sessionV2) removeSessionFromList(ctx context.Context, sessionID string) error {
+	listItem, err := s.bk.Get(ctx, backend.Key(sessionV2Prefix, sessionV2List))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var list []string
+	err = utils.FastUnmarshal(listItem.Value, &list)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	found := false
+	for i, id := range list {
+		if id == sessionID {
+			list = append(list[:i], list[i+1:]...)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return trace.BadParameter("session %v not found in list", sessionID)
+	}
+
+	listJSON, err := utils.FastMarshal(list)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newListItem := backend.Item{Key: backend.Key(sessionV2Prefix, sessionV2List), Value: listJSON}
+	_, err = s.bk.Update(ctx, newListItem)
+	return trace.Wrap(err)
+}
+
+func (s *sessionV2) getSessionList(ctx context.Context) ([]string, error) {
+	listItem, err := s.bk.Get(ctx, backend.Key(sessionV2Prefix, sessionV2List))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var list []string
+	err = utils.FastUnmarshal(listItem.Value, &list)
+	return list, trace.Wrap(err)
 }
 
 // unmarshalSession unmarshals the Session resource from JSON.
@@ -123,8 +265,6 @@ func marshalSession(session types.Session, opts ...MarshalOption) ([]byte, error
 	switch session := session.(type) {
 	case *types.SessionV3:
 		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
 			copy := *session
 			copy.SetResourceID(0)
 			session = &copy
@@ -134,7 +274,3 @@ func marshalSession(session types.Session, opts ...MarshalOption) ([]byte, error
 		return nil, trace.BadParameter("unrecognized session version %T", session)
 	}
 }
-
-const (
-	sessionV2Prefix = "session_v2"
-)

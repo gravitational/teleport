@@ -2790,7 +2790,11 @@ message Participant {
     string User = 2 [ (gogoproto.jsontag) = "user,omitempty" ];
 
     // LastActive is the last time this party was active in the session.
-    string LastActive = 3 [ (gogoproto.jsontag) = "id,omitempty" ];
+    google.protobuf.Timestamp LastActive = 3 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "last_active,omitempty"
+    ];
 }
 
 // SessionType encodes different types of sessions.
