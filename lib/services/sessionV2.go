@@ -48,7 +48,25 @@ func (s *sessionV2) GetActiveSessionTrackers(ctx context.Context) ([]types.Sessi
 }
 
 func (s *sessionV2) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
-	panic("unimplemented")
+	spec := types.SessionSpecV3{}
+
+	session, err := types.NewSession(spec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	json, err := marshalSession(session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{Key: backend.Key(sessionV2Prefix, session.GetID()), Value: json}
+	_, err = s.bk.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
 }
 
 func (s *sessionV2) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionRequest) error {
@@ -56,7 +74,7 @@ func (s *sessionV2) UpdateSessionTracker(ctx context.Context, req *proto.UpdateS
 }
 
 func (s *sessionV2) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	panic("unimplemented")
+	return trace.Wrap(s.bk.Delete(ctx, backend.Key(sessionV2Prefix, sessionID)))
 }
 
 // unmarshalSession unmarshals the Session resource from JSON.
@@ -116,3 +134,7 @@ func marshalSession(session types.Session, opts ...MarshalOption) ([]byte, error
 		return nil, trace.BadParameter("unrecognized session version %T", session)
 	}
 }
+
+const (
+	sessionV2Prefix = "session_v2"
+)
