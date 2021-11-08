@@ -33,7 +33,7 @@ This guide requires you to have:
 ## Step 1/5: Create a User, Group, and Group Policy Object
 
 Teleport requires a service account to connect to your Active Directory domain. In theory any account with the required permissions can be used;
-we recommend creating a dedicated service account with the restrictive permissions (described below) for maximal security.
+we recommend creating a dedicated service account with restrictive permissions (described below) for maximal security.
 
 ### Create User and Group
 
@@ -65,13 +65,27 @@ by clicking the “Check Names” button, then click “OK”. You should see a 
 
 ### Create and Apply Group Policy Object
 
-Next, open the "Start" menu and run "Group Policy Management". On the left pane, navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`,
-selecting your forest and domain names respectively. Right click `Group Policy Objects` and select `New` from the context menu. Give your GPO
-a name like `svc-teleport-gpo` and ensure "(none)" is selected for "Source Starter GPO", then hit "OK".
+Next, open the "Start" menu and run "Group Policy Management". On the left pane, navigate to `$FOREST > Domains > $DOMAIN`,
+selecting your forest and domain names respectively. Right click `$DOMAIN` and select `Create a GPO in this domain, and Link it here...` from the context menu. 
+Give your GPO a name like `svc-teleport-gpo` and ensure "(none)" is selected for "Source Starter GPO", then hit "OK".
 
-Lastly, apply this new Group Policy Object to the Group by first clicking on its just-created entry in the left pane. In the primary pane, select the
-"Delegation" tab, and then click the "Add" button. Type the name of the Group you created in the previous step (`svc-teleport-group`), and click "Check Names"
-to confirm. Click "OK", and in the subsequent popup confirm that "Permissions" is set to "Read", then hit "OK" again.
+<Figure align="left" bordered caption="Create and Link GPO">
+  ![Create and Link GPO](../../img/desktop-access/create-and-link-gpo.png)
+</Figure>
+
+Now, in the left pane navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects` and click on the GPO you just created (`svc-teleport-gpo`). In the "Scope" tab
+under "Security Filtering", select `Authenticated Users` and then click the "Remove" button and hit "OK".
+
+<Figure align="left" bordered caption="Remove Authenticated">
+  ![Remove Authenticated](../../img/desktop-access/remove-authenticated.png)
+</Figure>
+
+The "Remove" step prevents the GPO from being applied to all authenticated users in this domain, since we only want it to apply to members 
+of the security Group created above (`svc-teleport-group`), of which only the User created above is a member (`svc-teleport`). 
+
+To make that the case, in the same "Security Filtering" pane select "Add...", and enter the name of the Group (`svc-teleport-group`)
+in the resultant popup, clicking "Check Names" to confirm the spelling before pressing "OK". After this step, only the `svc-teleport-group`
+should be displayed in the "Security Filtering" pane:
 
 <Figure align="left" bordered caption="Apply GPO">
   ![Apply GPO](../../img/desktop-access/apply-gpo.png)
@@ -102,7 +116,7 @@ $ tctl auth export --type=windows > user-ca.cer
 Transfer the `user-ca.cer` file to your Domain Controller.
 
 Then, on your Domain Controller, again open the "Group Policy Management" window. On the left pane, navigate to
-`$FOREST > Domains > $DOMAIN > Group Policy Objects`, right click on the Group Policy Object you made in step 1, and select "Edit...".
+`$FOREST > Domains > $DOMAIN > Group Policy Objects`, right click on the Group Policy Object you made in step 1 (`svc-teleport-gpo`), and select "Edit...".
 
 ### Import Teleport CA
 
@@ -313,7 +327,7 @@ guide for instructions on how to create or update a user with a given role.
 
 ### Connect to Your Desktop
 
-At this point everything is nearly ready for Desktop Access connections. Open
+At this point everything is ready for Desktop Access connections. Open
 the Teleport web UI and log in with a user with the role created above.
 
 On the left pane, select `Desktops (preview)`. You should see the list of all computers
