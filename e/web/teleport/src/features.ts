@@ -5,7 +5,7 @@ import cfg from 'e-teleport/config';
 import Workflow from 'e-teleport/Workflow';
 import AuthConnectors from 'e-teleport/AuthConnectors';
 import Billing from 'e-teleport/Billing';
-
+import AccountE from 'e-teleport/Account';
 class FeatureAuthConnectors {
   getTopNavTitle() {
     return 'Team';
@@ -91,6 +91,14 @@ class FeatureBilling {
   }
 }
 
+class FeatureAccount extends OSS.FeatureAccount {
+  route = {
+    title: 'Account Settings',
+    path: cfg.oss.routes.account,
+    component: AccountE,
+  };
+}
+
 export default function getFeatures() {
   return [
     new OSS.FeatureNodes(),
@@ -107,7 +115,7 @@ export default function getFeatures() {
     new OSS.FeatureClusters(),
     new OSS.FeatureTrust(),
     new OSS.FeatureHelpAndSupport(),
-    new OSS.FeatureAccount(),
+    new FeatureAccount(),
     new FeatureWorkflow(),
     new FeatureBilling(),
   ];

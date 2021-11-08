@@ -14,6 +14,8 @@ const cfg = {
     billingAccount: '/web/billing/account',
     billingInvoices: '/web/billing/invoices',
 
+    accountRecovery: '/web/account/recovery',
+
     recovery: '/web/recovery/',
     recoveryForgotPassword: '/web/recovery/forgot/password',
     recoveryForgotDevice: '/web/recovery/forgot/device',
@@ -41,7 +43,7 @@ const cfg = {
     recoveryVerifyUserPath: '/v1/enterprise/cloud/recovery/verify',
     recoveryNewCredentialsPath: '/v1/enterprise/cloud/recovery/newcredentials',
     recoveryTokenPath: '/v1/enterprise/cloud/recovery/token/:tokenId',
-    recoveryNewCodesPath: '/v1/enterprise/cloud/recovery/codes',
+    recoveryCodesPath: '/v1/enterprise/cloud/recovery/codes',
   },
 
   getAccessRequestRoute(requestId?: string) {

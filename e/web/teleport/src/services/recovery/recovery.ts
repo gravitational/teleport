@@ -6,6 +6,7 @@ import auth, {
 } from 'teleport/services/auth';
 import cfg from 'e-teleport/config';
 import makeRecoveryToken from './makeRecoveryToken';
+import makeRecoveryCodesMetadata from './makeRecoveryCodesMetadata';
 import {
   RecoveryToken,
   StartRecoveryRequest,
@@ -61,7 +62,7 @@ class RecoveryService {
     });
   }
 
-  verifyUserWithWebautn(tokenId: string, username: string) {
+  verifyUserWithWebauthn(tokenId: string, username: string) {
     return auth
       .checkWebauthnSupport()
       .then(() => auth.createMfaAuthnChallengeWithToken(tokenId))
@@ -121,8 +122,12 @@ class RecoveryService {
 
   generateRecoveryCodes(tokenId: string) {
     return api
-      .post(cfg.api.recoveryNewCodesPath, { tokenId })
+      .post(cfg.api.recoveryCodesPath, { tokenId })
       .then(res => res || []);
+  }
+
+  fetchRecoveryCodesMetadata() {
+    return api.get(cfg.api.recoveryCodesPath).then(makeRecoveryCodesMetadata);
   }
 }
 

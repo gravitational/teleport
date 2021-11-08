@@ -351,6 +351,7 @@ exports[`render device list 1`] = `
               <button
                 class="c11"
                 kind="border"
+                title=""
               >
                 Remove
               </button>
@@ -382,6 +383,7 @@ exports[`render device list 1`] = `
               <button
                 class="c11"
                 kind="border"
+                title=""
               >
                 Remove
               </button>
@@ -413,6 +415,7 @@ exports[`render device list 1`] = `
               <button
                 class="c11"
                 kind="border"
+                title=""
               >
                 Remove
               </button>
@@ -522,6 +525,7 @@ exports[`render device removal dialog 1`] = `
   font-size: 28px;
   line-height: 32px;
   margin: 0px;
+  margin-bottom: 8px;
 }
 
 .c6 {
@@ -532,7 +536,6 @@ exports[`render device removal dialog 1`] = `
   line-height: 32px;
   margin: 0px;
   margin-bottom: 40px;
-  margin-top: 8px;
 }
 
 .c7 {

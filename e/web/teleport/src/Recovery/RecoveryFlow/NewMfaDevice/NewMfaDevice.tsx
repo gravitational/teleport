@@ -10,7 +10,8 @@ import {
 } from 'shared/components/Validation/rules';
 import { getMfaOptions, MfaOption } from 'teleport/services/mfa/utils';
 import useNewMfaDevice, { State, Props } from './useNewMfaDevice';
-import u2fGraphic from './assets';
+
+const u2fGraphic = require('design/assets/images/u2f-graphic.svg');
 
 export default function Container(props: Props) {
   const state = useNewMfaDevice(props);
@@ -66,9 +67,11 @@ export function NewMfaDevice({
     mfaOption.value === 'otp' ? `data:image/png;base64,${qrCode}` : u2fGraphic;
 
   let hardwareInstructions = 'Enter a name for your hardware key.';
-  if (mfaOption.value === 'u2f' && attempt.status === 'processing') {
+  if (attempt.status === 'processing') {
     hardwareInstructions =
-      'Insert your new hardware key and press the button on the key.';
+      mfaOption.value === 'u2f'
+        ? 'Insert your new hardware key and press the button on the key.'
+        : 'Follow the prompts from your browser.';
   }
 
   return (

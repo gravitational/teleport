@@ -1,0 +1,297 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render failed state for recovery tab in account settings 1`] = `
+.c0 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-all;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+  width: 900px;
+}
+
+.c0 a {
+  color: #FFFFFF;
+}
+
+<div
+  class="c0"
+  kind="danger"
+  width="900px"
+>
+  failed to fetch date of codes generation
+</div>
+`;
+
+exports[`render screen for first timer recovery tab in account settings 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  width: 900px;
+  background-color: #222C59;
+  border-radius: 8px;
+}
+
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+<div
+  class="c0"
+  width="900px"
+>
+  <div
+    class="c1"
+  >
+    Generate Recovery Codes
+  </div>
+  <div
+    class="c2"
+  >
+    Recovery codes are one-time use passcodes. You can use each code once if you lose your second factor authenticator or password. You haven’t generated any codes yet. Please generate them now and store them in a safe offline place.
+  </div>
+  <button
+    class="c3"
+    kind="primary"
+  >
+    Generate recovery codes
+  </button>
+   
+</div>
+`;
+
+exports[`render screen for recovery tab for users without a valid email as username 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  width: 900px;
+  background-color: #222C59;
+  border-radius: 8px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 32px;
+  margin: 0px;
+  text-align: center;
+}
+
+<div
+  class="c0"
+  width="900px"
+>
+  <div
+    class="c1"
+  >
+    Account recovery is only available for local users with a valid email as their username.
+  </div>
+</div>
+`;
+
+exports[`render screen for recovery tab in account settings 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  width: 900px;
+  background-color: #222C59;
+  border-radius: 8px;
+}
+
+.c5 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+}
+
+.c5:active {
+  opacity: 0.56;
+}
+
+.c5:hover,
+.c5:focus {
+  background: #651FFF;
+}
+
+.c5:active {
+  background: #354AA4;
+}
+
+.c5:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  font-size: 16px;
+  margin: 0px;
+  margin-bottom: 40px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+<div
+  class="c0"
+  width="900px"
+>
+  <div
+    class="c1"
+  >
+    Generate New Recovery Codes
+  </div>
+  <div
+    class="c2"
+  >
+    When you generate new recovery codes, your old ones will no longer work. Please make sure to save the new codes in a safe offline place. You can use each code once if you lose your second factor authenticator or password.
+  </div>
+  <div
+    class="c3"
+    font-size="3"
+  >
+    Recovery codes were last generated on:
+     
+    <span
+      class="c4"
+    >
+      10/9/2020
+    </span>
+  </div>
+  <button
+    class="c5"
+    kind="primary"
+  >
+    Generate new recovery codes
+  </button>
+   
+</div>
+`;

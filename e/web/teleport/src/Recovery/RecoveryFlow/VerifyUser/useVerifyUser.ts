@@ -42,7 +42,7 @@ export default function useVerifyUser({ recoveryService, token, done }: Props) {
   function submitWebauthnCreds() {
     setAttempt({ status: 'processing' });
     recoveryService
-      .verifyUserWithWebautn(token.id, token.username)
+      .verifyUserWithWebauthn(token.id, token.username)
       .then(done)
       .catch(handleError);
   }

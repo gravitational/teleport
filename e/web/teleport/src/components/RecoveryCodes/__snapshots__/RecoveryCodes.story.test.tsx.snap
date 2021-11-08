@@ -325,7 +325,7 @@ exports[`render correct dialog after creating a new account 1`] = `
         <div
           class="c7"
         >
-          You can use each token once if you lose your second factor authenticator or password.
+          You can use each code once if you lose your second factor authenticator or password.
         </div>
       </div>
       <div
@@ -741,7 +741,7 @@ exports[`render correct dialog after resetting account 1`] = `
         <div
           class="c7"
         >
-          You can use each token once if you lose your second factor authenticator or password.
+          You can use each code once if you lose your second factor authenticator or password.
         </div>
       </div>
       <div

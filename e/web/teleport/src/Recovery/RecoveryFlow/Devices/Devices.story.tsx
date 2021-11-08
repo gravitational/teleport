@@ -28,7 +28,7 @@ export const RemoveDeviceDialog = () => (
   <RemoveDialog
     name="yubikey"
     onRemove={() => Promise.reject(new Error('server error'))}
-    onCancel={() => null}
+    onClose={() => null}
   />
 );
 

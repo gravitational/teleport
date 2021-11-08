@@ -53,7 +53,7 @@ export default function RecoveryCodes({
               Please save these account recovery codes in a safe offline place.
             </Text>
             <Text>
-              You can use each token once if you lose your second factor
+              You can use each code once if you lose your second factor
               authenticator or password.
             </Text>
           </Box>

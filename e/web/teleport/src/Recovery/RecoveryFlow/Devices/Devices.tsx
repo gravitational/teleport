@@ -76,7 +76,7 @@ export function Devices({
       </Box>
       {deviceToRemove && (
         <RemoveDialog
-          onCancel={closeDialog}
+          onClose={closeDialog}
           onRemove={removeDevice}
           name={deviceToRemove.name}
         />
