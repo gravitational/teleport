@@ -46,6 +46,8 @@ const cfg = {
     support: '/web/support',
     settings: '/web/settings',
     account: '/web/account',
+    accountPassword: '/web/account/password',
+    accountMfaDevices: '/web/account/twofactor',
     roles: '/web/roles',
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
@@ -108,6 +110,7 @@ const cfg = {
 
     usersPath: '/v1/webapi/users',
     usersDelete: '/v1/webapi/users/:username',
+    createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
     rolesPath: '/v1/webapi/roles/:name?',
     githubConnectorsPath: '/v1/webapi/github/:name?',
@@ -120,11 +123,17 @@ const cfg = {
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
     mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
+
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
+
+    mfaRegisterChallengeWithTokenPath:
+      '/v1/webapi/mfa/token/:tokenId/registerchallenge',
+    mfaAuthnChallengePath: '/v1/webapi/mfa/authenticatechallenge',
     mfaAuthnChallengeWithTokenPath:
       '/v1/webapi/mfa/token/:tokenId/authenticatechallenge',
-    mfaDeviceListPath: '/v1/webapi/mfa/token/:tokenId/devices',
+    mfaDevicesWithTokenPath: '/v1/webapi/mfa/token/:tokenId/devices',
+    mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
   },
 
@@ -339,8 +348,8 @@ const cfg = {
     });
   },
 
-  getMfaDeviceListUrl(tokenId: string) {
-    return generatePath(cfg.api.mfaDeviceListPath, { tokenId });
+  getMfaDevicesWithTokenUrl(tokenId: string) {
+    return generatePath(cfg.api.mfaDevicesWithTokenPath, { tokenId });
   },
 
   getMfaDeviceUrl(tokenId: string, deviceName: string) {

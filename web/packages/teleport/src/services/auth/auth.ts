@@ -249,6 +249,68 @@ const auth = {
       });
   },
 
+  createPrivilegeTokenWithTotp(secondFactorToken: string) {
+    return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
+  },
+
+  createPrivilegeTokenWithWebauthn() {
+    return auth
+      .checkWebauthnSupport()
+      .then(() =>
+        api
+          .post(cfg.api.mfaAuthnChallengePath)
+          .then(makeMfaAuthenticateChallenge)
+      )
+      .then(res =>
+        navigator.credentials.get({
+          publicKey: res.webauthnPublicKey,
+        })
+      )
+      .then(res =>
+        api.post(cfg.api.createPrivilegeTokenPath, {
+          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+        })
+      );
+  },
+
+  createPrivilegeTokenWithU2f() {
+    const err = auth.u2fBrowserSupported();
+    if (err) {
+      return Promise.reject(err);
+    }
+
+    return api.post(cfg.api.mfaAuthnChallengePath).then(data => {
+      return new Promise((resolve, reject) => {
+        let devices = [data];
+
+        if (data.u2f_challenges) {
+          devices = data.u2f_challenges;
+        }
+
+        window['u2f'].sign(data.appId, data.challenge, devices, res => {
+          if (res.errorCode) {
+            const err = auth._getU2fErr(res.errorCode);
+            reject(err);
+            return;
+          }
+
+          api
+            .post(cfg.api.createPrivilegeTokenPath, {
+              u2fSignResponse: res,
+            })
+            .then(resolve)
+            .catch(err => {
+              reject(err);
+            });
+        });
+      });
+    });
+  },
+
+  createRestrictedPrivilegeToken() {
+    return api.post(cfg.api.createPrivilegeTokenPath, {});
+  },
+
   _resetPassword(tokenId: string, psw: string, hotpToken: string, u2fResponse) {
     const request = {
       password: base64EncodeUnicode(psw),

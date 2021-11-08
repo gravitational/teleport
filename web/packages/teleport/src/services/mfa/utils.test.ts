@@ -85,4 +85,9 @@ describe('test retrieving mfa options', () => {
       expect(vals).toEqual(tc.expect);
     });
   });
+
+  test('no "none" option if requireMfa=true', () => {
+    const vals = getMfaOptions('optional', 'webauthn', true).map(o => o.value);
+    expect(vals).toEqual(['webauthn', 'otp']);
+  });
 });

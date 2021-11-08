@@ -240,6 +240,7 @@ export const Tags = makeFontIcon('Tags', 'icon-tags');
 export const Terminal = makeFontIcon('Terminal', 'icon-cli');
 export const Trash = makeFontIcon('Trash', 'icon-trash2');
 export const Twitter = makeFontIcon('Twitter', 'icon-twitter');
+export const UsbDrive = makeFontIcon('UsbDrive', 'icon-usb-drive');
 export const Unarchive = makeFontIcon('Unarchive', 'icon-unarchive');
 export const Unlock = makeFontIcon('Unlock', 'icon-unlock');
 export const Upload = makeFontIcon('Upload', 'icon-file_upload');

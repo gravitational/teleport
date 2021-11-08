@@ -1,0 +1,876 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render device dashboard 1`] = `
+.c0 {
+  box-sizing: border-box;
+  width: 900px;
+}
+
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+}
+
+.c9:active {
+  opacity: 0.56;
+}
+
+.c9:hover,
+.c9:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c9:active {
+  opacity: 0.24;
+}
+
+.c9:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c7 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  background-color: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.c4 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c4 > thead > tr > th,
+.c4 > tbody > tr > th,
+.c4 > tfoot > tr > th,
+.c4 > thead > tr > td,
+.c4 > tbody > tr > td,
+.c4 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c4 > thead > tr > th:first-child,
+.c4 > tbody > tr > th:first-child,
+.c4 > tfoot > tr > th:first-child,
+.c4 > thead > tr > td:first-child,
+.c4 > tbody > tr > td:first-child,
+.c4 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c4 > thead > tr > th:last-child,
+.c4 > tbody > tr > th:last-child,
+.c4 > tfoot > tr > th:last-child,
+.c4 > thead > tr > td:last-child,
+.c4 > tbody > tr > td:last-child,
+.c4 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c4 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c4 > thead > tr > th .c6 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c4 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c4 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c4 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c4 tbody > tr:last-child td:first-child {
+  border-bottom-left-radius: 8px;
+}
+
+.c4 tbody > tr:last-child td:last-child {
+  border-bottom-right-radius: 8px;
+}
+
+.c5 > tbody > tr td {
+  vertical-align: middle;
+  height: 32px;
+}
+
+<div
+  class="c0"
+  width="900px"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Two-Factor Devices
+    </div>
+    <button
+      class="c3"
+      kind="primary"
+      title=""
+    >
+      Add two-factor device
+    </button>
+  </div>
+  <table
+    class="c4 c5"
+    style="border-top-right-radius: 0px; border-top-left-radius: 0px;"
+  >
+    <thead>
+      <tr>
+        <th>
+          Type
+        </th>
+        <th>
+          Device Name
+        </th>
+        <th>
+          <a>
+            Registered
+            <span
+              class="c6 c7 icon icon-chevron-up "
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Last Used
+            <span
+              class="c6 c7 icon icon-chevrons-expand-vertical "
+              color="light"
+            />
+          </a>
+        </th>
+        <th />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          Authenticator App
+        </td>
+        <td
+          title="iphone 12"
+        >
+          <div
+            class="c8"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            iphone 12
+          </div>
+        </td>
+        <td>
+          2021-08-12
+        </td>
+        <td>
+          2021-08-12
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c9"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="solokey"
+        >
+          <div
+            class="c8"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            solokey
+          </div>
+        </td>
+        <td>
+          2021-06-15
+        </td>
+        <td>
+          2021-06-18
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c9"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="backup yubikey"
+        >
+          <div
+            class="c8"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            backup yubikey
+          </div>
+        </td>
+        <td>
+          2021-04-18
+        </td>
+        <td>
+          2021-07-16
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c9"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="yubikey"
+        >
+          <div
+            class="c8"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            yubikey
+          </div>
+        </td>
+        <td>
+          2021-02-05
+        </td>
+        <td>
+          2021-02-28
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c9"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+exports[`render failed state for creating restricted privilege token 1`] = `
+.c1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-all;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c1 a {
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+  width: 900px;
+}
+
+.c4 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c4:active {
+  opacity: 0.56;
+}
+
+.c4:hover,
+.c4:focus {
+  background: #651FFF;
+}
+
+.c4:active {
+  background: #354AA4;
+}
+
+.c4:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+}
+
+.c10:active {
+  opacity: 0.56;
+}
+
+.c10:hover,
+.c10:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c10:active {
+  opacity: 0.24;
+}
+
+.c10:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c8 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c2 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  background-color: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.c5 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c5 > thead > tr > th,
+.c5 > tbody > tr > th,
+.c5 > tfoot > tr > th,
+.c5 > thead > tr > td,
+.c5 > tbody > tr > td,
+.c5 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c5 > thead > tr > th:first-child,
+.c5 > tbody > tr > th:first-child,
+.c5 > tfoot > tr > th:first-child,
+.c5 > thead > tr > td:first-child,
+.c5 > tbody > tr > td:first-child,
+.c5 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c5 > thead > tr > th:last-child,
+.c5 > tbody > tr > th:last-child,
+.c5 > tfoot > tr > th:last-child,
+.c5 > thead > tr > td:last-child,
+.c5 > tbody > tr > td:last-child,
+.c5 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c5 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c5 > thead > tr > th .c7 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c5 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c5 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c5 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c5 tbody > tr:last-child td:first-child {
+  border-bottom-left-radius: 8px;
+}
+
+.c5 tbody > tr:last-child td:last-child {
+  border-bottom-right-radius: 8px;
+}
+
+.c6 > tbody > tr td {
+  vertical-align: middle;
+  height: 32px;
+}
+
+<div
+  class="c0"
+  width="900px"
+>
+  <div
+    class="c1"
+    kind="danger"
+  >
+    failed to create privilege token
+  </div>
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+    >
+      Two-Factor Devices
+    </div>
+    <button
+      class="c4"
+      kind="primary"
+      title=""
+    >
+      Add two-factor device
+    </button>
+  </div>
+  <table
+    class="c5 c6"
+    style="border-top-right-radius: 0px; border-top-left-radius: 0px;"
+  >
+    <thead>
+      <tr>
+        <th>
+          Type
+        </th>
+        <th>
+          Device Name
+        </th>
+        <th>
+          <a>
+            Registered
+            <span
+              class="c7 c8 icon icon-chevron-up "
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Last Used
+            <span
+              class="c7 c8 icon icon-chevrons-expand-vertical "
+              color="light"
+            />
+          </a>
+        </th>
+        <th />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          Authenticator App
+        </td>
+        <td
+          title="iphone 12"
+        >
+          <div
+            class="c9"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            iphone 12
+          </div>
+        </td>
+        <td>
+          2021-08-12
+        </td>
+        <td>
+          2021-08-12
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c10"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="solokey"
+        >
+          <div
+            class="c9"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            solokey
+          </div>
+        </td>
+        <td>
+          2021-06-15
+        </td>
+        <td>
+          2021-06-18
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c10"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="backup yubikey"
+        >
+          <div
+            class="c9"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            backup yubikey
+          </div>
+        </td>
+        <td>
+          2021-04-18
+        </td>
+        <td>
+          2021-07-16
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c10"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="yubikey"
+        >
+          <div
+            class="c9"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            yubikey
+          </div>
+        </td>
+        <td>
+          2021-02-05
+        </td>
+        <td>
+          2021-02-28
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c10"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+exports[`render failed state for fetching devices 1`] = `
+.c1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-all;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c1 a {
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+  width: 900px;
+}
+
+<div
+  class="c0"
+  width="900px"
+>
+  <div
+    class="c1"
+    kind="danger"
+  >
+    failed to fetch devices
+  </div>
+</div>
+`;

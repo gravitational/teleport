@@ -148,7 +148,7 @@ export class FeatureAudit {
 
 export class FeatureAccount {
   getTopNavTitle() {
-    return 'Account';
+    return 'Account Settings';
   }
 
   route = {

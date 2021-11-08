@@ -23,7 +23,8 @@ export type MfaOption = {
 
 export function getMfaOptions(
   mfa: Auth2faType,
-  preferredMfa: PreferredMfaType
+  preferredMfa: PreferredMfaType,
+  requireMfa = false
 ) {
   const mfaOptions: MfaOption[] = [];
 
@@ -47,7 +48,7 @@ export function getMfaOptions(
     mfaOptions.push({ value: 'otp', label: 'Authenticator App' });
   }
 
-  if (mfa === 'optional') {
+  if (!requireMfa && mfa === 'optional') {
     mfaOptions.push({ value: 'optional', label: 'None' });
   }
 

@@ -89,10 +89,43 @@ const AppHorizontalSplit = styled.div`
   width: 100%;
 `;
 
+const TabItem = styled.button`
+  color: ${props => props.theme.colors.text.secondary};
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 14px;
+  padding: 12px 40px;
+  position: relative;
+  text-decoration: none;
+  font-weight: 500;
+
+  &:hover {
+    background: ${props =>
+      props.active
+        ? props.theme.colors.primary.light
+        : 'rgba(255, 255, 255, .06)'};
+  }
+
+  &.active {
+    color: ${props => props.theme.colors.light};
+  }
+
+  &.active:after {
+    background-color: ${props => props.theme.colors.accent};
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+  }
+`;
+
 export {
   AppHorizontalSplit,
   AppVerticalSplit,
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
+  TabItem,
 };

@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,45 +15,41 @@ limitations under the License.
 */
 
 import React from 'react';
+import { Box } from 'design';
 import cfg from 'teleport/config';
-import PasswordForm from 'shared/components/FormPassword';
-import { FeatureBox } from 'teleport/components/Layout';
-import authService from 'teleport/services/auth';
+import { Route, Switch, NavLink, Redirect } from 'teleport/components/Router';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+  TabItem,
+} from 'teleport/components/Layout';
+import ChangePassword from './ChangePassword';
+import ManageDevices from './ManageDevices';
 
-export default function Container() {
-  const state = useAccount();
-  return <Account {...state} />;
-}
-
-export function Account(props: ReturnType<typeof useAccount>) {
-  const {
-    auth2faType,
-    preferredMfaType,
-    changePass,
-    changePassWithU2f,
-    changePassWithWebauthn,
-  } = props;
+export default function Account() {
   return (
-    <FeatureBox pt="4">
-      <PasswordForm
-        auth2faType={auth2faType}
-        preferredMfaType={preferredMfaType}
-        onChangePass={changePass}
-        onChangePassWithU2f={changePassWithU2f}
-        onChangePassWithWebauthn={changePassWithWebauthn}
-      />
+    <FeatureBox>
+      <FeatureHeader alignItems="center">
+        <FeatureHeaderTitle>
+          <TabItem as={NavLink} to={cfg.routes.accountPassword}>
+            Password
+          </TabItem>
+          <TabItem as={NavLink} to={cfg.routes.accountMfaDevices}>
+            Two-Factor Devices
+          </TabItem>
+        </FeatureHeaderTitle>
+      </FeatureHeader>
+      <Box mt={3}>
+        <Switch>
+          <Route path={cfg.routes.accountPassword} component={ChangePassword} />
+          <Route
+            path={cfg.routes.accountMfaDevices}
+            component={ManageDevices}
+          />
+          <Redirect to={cfg.routes.accountPassword} />
+        </Switch>
+      </Box>
     </FeatureBox>
   );
-}
-
-function useAccount() {
-  return {
-    auth2faType: cfg.getAuth2faType(),
-    preferredMfaType: cfg.getPreferredMfaType(),
-    changePass: authService.changePassword.bind(authService),
-    changePassWithU2f: authService.changePasswordWithU2f.bind(authService),
-    changePassWithWebauthn: authService.changePasswordWithWebauthn.bind(
-      authService
-    ),
-  };
 }
