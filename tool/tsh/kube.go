@@ -106,6 +106,13 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 		CmdClause: parent.Command("exec", "Execute a command in a kubernetes pod"),
 	}
 
+	c.Flag("target", "Pod or deployment name").Required().StringVar(&c.target)
+	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").StringVar(&c.container)
+	c.Flag("filename", "to use to exec into the resource").StringVar(&c.filename)
+	c.Flag("quiet", "Only print output from the remote session").BoolVar(&c.quiet)
+	c.Flag("stdin", "Pass stdin to the container").BoolVar(&c.stdin)
+	c.Flag("tty", "Stdin is a TTY").BoolVar(&c.tty)
+	c.Flag("command", "Command to execute in the container").StringsVar(&c.command)
 	return c
 }
 
@@ -113,6 +120,7 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	cmdStrings := kubeExecCommandAssembler(c)
 	cmd := exec.Command(cmdStrings[0], cmdStrings[1:]...)
 	return trace.Wrap(cmd.Run())
+	return nil
 }
 
 type kubeSessionsCommand struct {
