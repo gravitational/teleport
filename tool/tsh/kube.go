@@ -65,9 +65,27 @@ func newKubeCommand(app *kingpin.Application) kubeCommands {
 	return cmds
 }
 
-// TODO(joel): assemble command
 func kubeExecCommandAssembler(c *kubeExecCommand) []string {
-	return nil
+	var cmd []string
+	cmd = append(cmd, "kubectl", "exec", c.target)
+	if c.container != "" {
+		cmd = append(cmd, "-c", c.container)
+	}
+	if c.filename != "" {
+		cmd = append(cmd, "-f", c.filename)
+	}
+	if c.quiet {
+		cmd = append(cmd, "-q")
+	}
+	if c.stdin {
+		cmd = append(cmd, "-i")
+	}
+	if c.tty {
+		cmd = append(cmd, "-t")
+	}
+	cmd = append(cmd, "--")
+	cmd = append(cmd, c.command...)
+	return cmd
 }
 
 type kubeExecCommand struct {
@@ -78,6 +96,7 @@ type kubeExecCommand struct {
 	quiet     bool
 	stdin     bool
 	tty       bool
+	command   []string
 }
 
 // TODO(joel): impl params
