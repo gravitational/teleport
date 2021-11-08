@@ -70,9 +70,8 @@ selecting your forest and domain names respectively. Right click `Group Policy O
 a name like `svc-teleport-gpo` and ensure "(none)" is selected for "Source Starter GPO", then hit "OK".
 
 Lastly, apply this new Group Policy Object to the Group by first clicking on its just-created entry in the left pane. In the primary pane, select the
-"Delegation" tab, and then click the "Add" button. Type the name of the Group you created in the previous step, and ensure that the Group
-(and not the User) is selected when you click "Check Names". Click "OK", and in the subsequent popup confirm that "Permissions" is set to "Read",
-then hit "OK" again.
+"Delegation" tab, and then click the "Add" button. Type the name of the Group you created in the previous step (`svc-teleport-group`), and click "Check Names"
+to confirm. Click "OK", and in the subsequent popup confirm that "Permissions" is set to "Read", then hit "OK" again.
 
 <Figure align="left" bordered caption="Apply GPO">
   ![Apply GPO](../../img/desktop-access/apply-gpo.png)
@@ -157,10 +156,14 @@ Computer Configuration \ Policies \ Windows Settings \ Security Settings \ Local
 ```
 
 Double click `Deny log on locally` and in the popup, check "Define these policy settings". Then click "Add User or Group...", "Browse ...", enter the name
-of the group you created above and hit "Check Names", select your Group, and then hit "OK" on all the windows. (If the system won't let you hit "OK" after
-clicking "Check Names", just hit "Cancel" and then try again until it does).
+of the group you created above (`svc-teleport-group`) and hit "Check Names", select your Group, and then hit "OK" on all the windows. (If the system won't let you hit "OK" after
+clicking "Check Names", just hit "Cancel" twice, re-click "Add User or Group", "Browse...", and keep trying again until it does).
 
 Repeat the process from above for `Deny log on through Remote Desktop Services`.
+
+<Figure align="left" bordered caption="Deny Interactive Login">
+  ![Deny Interactive Login](../../img/desktop-access/deny-interactive-login.png)
+</Figure>
 
 
 ### Allow remote RDP connections
@@ -189,10 +192,6 @@ Right click `Require user authentication for remote connections by using
 Network Level Authentication`, edit, select **"Disable"** and "OK".
 
 
-<Figure align="left" bordered caption="Deny Interactive Login">
-  ![Deny Interactive Login](../../img/desktop-access/deny-interactive-login.png)
-</Figure>
-
 ## Step 3/5. Configure Group to allow Teleport connections
 
 Next, complete the service account's configuration by giving its corresponding Group the minimum necessary permissions for Teleport to work.
@@ -209,7 +208,7 @@ Run the PowerShell script below, replacing variable values where appropriate.
 
 ```powershell
 $DomainDN="DC=domain-controller,DC=example,DC=com" # replace this with your domain
-$TeleportLDAPGroupName="svc-teleport-group" # replace this with your Group name
+$TeleportLDAPGroupName="svc-teleport-group" # replace this with your Group name if different
 
 # Gives Teleport the ability to create LDAP containers in the CDP container.
 dsacls "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G “$($TeleportLDAPGroupName):CC;container;"
