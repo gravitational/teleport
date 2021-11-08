@@ -74,7 +74,20 @@ import (
 const (
 	// ssoLoginConsoleErr is a generic error message to hide revealing sso login failure msgs.
 	ssoLoginConsoleErr = "Failed to login. Please check Teleport's log for more details."
+	metaRedirectHTML   = `
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Teleport Redirection Service</title>
+		<meta http-equiv="cache-control" content="no-cache"/>
+		<meta http-equiv="refresh" content="0;URL='{{.}}'" />
+	</head>
+	<body></body>
+</html>
+`
 )
+
+var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(metaRedirectHTML))
 
 // Handler is HTTP web proxy handler
 type Handler struct {
@@ -2493,26 +2506,12 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 			http.Error(w, err.Error(), trace.ErrorToCode(err))
 			return
 		}
-
 		app.SetRedirectPageHeaders(w.Header(), nonce)
 		redirectURL := fn(w, r, p)
 		if !isValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
-
-		const html = `
-<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<title>Teleport Redirection Service</title>
-		<meta http-equiv="cache-control" content="no-cache"/>
-		<meta http-equiv="refresh" content="0;URL='{{.}}'" />
-	</head>
-	<body></body>
-</html>
-`
-		templ := template.Must(template.New("meta-redirect").Parse(html))
-		err = templ.Execute(w, redirectURL)
+		err = metaRedirectTemplate.Execute(w, redirectURL)
 		if err != nil {
 			h.log.WithError(err).Warn("Failed to execute template.")
 		}
