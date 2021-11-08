@@ -100,11 +100,8 @@ Action=GetCallerIdentity&Version=2011-06-15`
 func TestIAMJoin(t *testing.T) {
 	a := newAuthServer(t)
 
-	isNil := func(err error) bool {
-		if err != nil {
-			log.WithError(err).Error("unexpected error")
-		}
-		return err == nil
+	isAccessDenied := func(t require.TestingT, err error, _ ...interface{}) {
+		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
 	}
 
 	testCases := []struct {
@@ -114,7 +111,7 @@ func TestIAMJoin(t *testing.T) {
 		givenChallenge    string
 		responseChallenge string
 		requestTemplate   string
-		expectError       func(error) bool
+		assertError       require.ErrorAssertionFunc
 	}{
 		{
 			desc: "basic passing case",
@@ -137,7 +134,7 @@ func TestIAMJoin(t *testing.T) {
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
 			requestTemplate:   identityRequestTemplate,
-			expectError:       isNil,
+			assertError:       require.NoError,
 		},
 		{
 			desc: "wildcard arn 1",
@@ -160,7 +157,7 @@ func TestIAMJoin(t *testing.T) {
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
 			requestTemplate:   identityRequestTemplate,
-			expectError:       isNil,
+			assertError:       require.NoError,
 		},
 		{
 			desc: "wildcard arn 2",
@@ -183,7 +180,7 @@ func TestIAMJoin(t *testing.T) {
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
 			requestTemplate:   identityRequestTemplate,
-			expectError:       isNil,
+			assertError:       require.NoError,
 		},
 		{
 			desc: "wrong arn 1",
@@ -206,7 +203,7 @@ func TestIAMJoin(t *testing.T) {
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
 			requestTemplate:   identityRequestTemplate,
-			expectError:       trace.IsAccessDenied,
+			assertError:       isAccessDenied,
 		},
 		{
 			desc: "wrong challenge",
@@ -229,7 +226,7 @@ func TestIAMJoin(t *testing.T) {
 			givenChallenge:    "test-challenge",
 			responseChallenge: "wrong-challenge",
 			requestTemplate:   identityRequestTemplate,
-			expectError:       trace.IsAccessDenied,
+			assertError:       isAccessDenied,
 		},
 		{
 			desc: "wrong account",
@@ -252,7 +249,7 @@ func TestIAMJoin(t *testing.T) {
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
 			requestTemplate:   identityRequestTemplate,
-			expectError:       trace.IsAccessDenied,
+			assertError:       isAccessDenied,
 		},
 		{
 			desc: "sts api error",
@@ -270,7 +267,7 @@ func TestIAMJoin(t *testing.T) {
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
 			requestTemplate:   identityRequestTemplate,
-			expectError:       trace.IsAccessDenied,
+			assertError:       isAccessDenied,
 		},
 		{
 			desc: "wrong sts host",
@@ -293,7 +290,7 @@ func TestIAMJoin(t *testing.T) {
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
 			requestTemplate:   wrongHostTemplate,
-			expectError:       trace.IsAccessDenied,
+			assertError:       isAccessDenied,
 		},
 		{
 			desc: "unsigned challenge header",
@@ -316,7 +313,7 @@ func TestIAMJoin(t *testing.T) {
 			givenChallenge:    "test-challenge",
 			responseChallenge: "test-challenge",
 			requestTemplate:   unsignedChallengeTemplate,
-			expectError:       trace.IsAccessDenied,
+			assertError:       isAccessDenied,
 		},
 	}
 
@@ -342,7 +339,7 @@ func TestIAMJoin(t *testing.T) {
 			}
 
 			err = a.checkIAMRequest(ctx, tc.stsClient, tc.givenChallenge, req)
-			require.True(t, tc.expectError(err))
+			tc.assertError(t, err)
 		})
 	}
 }

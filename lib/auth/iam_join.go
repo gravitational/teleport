@@ -45,10 +45,29 @@ const (
 	challengeHeaderKey             = "X-Teleport-Challenge"
 	normalizedChallengeHeaderKey   = "x-teleport-challenge"
 	authHeaderKey                  = "Authorization"
+	acceptHeaderKey                = "Accept"
+	acceptJSON                     = "application/json"
 )
 
 var signedHeadersRe = regexp.MustCompile(`^AWS4-HMAC-SHA256 Credential=\S+, SignedHeaders=(\S+), Signature=\S+$`)
 
+// validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
+// request is valid and includes the challenge as a signed header. An example of
+// a valid request looks like:
+/*
+POST / HTTP/1.1
+Host: sts.amazonaws.com
+Accept: application/json
+Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211108/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token;x-teleport-challenge, Signature=9999999999999999999999999999999999999999999999999999999999999999
+Content-Length: 43
+Content-Type: application/x-www-form-urlencoded; charset=utf-8
+User-Agent: aws-sdk-go/1.37.17 (go1.17.1; darwin; amd64)
+X-Amz-Date: 20211108T190420Z
+X-Amz-Security-Token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=
+X-Teleport-Challenge: 0ezlc3usTAkXeZTcfOazUq0BGrRaKmb4EwODk8U7J5A
+
+Action=GetCallerIdentity&Version=2011-06-15
+*/
 func validateSTSIdentityRequest(req *http.Request, challenge string) error {
 	if req.Host != stsHost {
 		return trace.AccessDenied("sts identity request is for unknown host %q", req.Host)
@@ -75,16 +94,17 @@ func validateSTSIdentityRequest(req *http.Request, challenge string) error {
 			normalizedChallengeHeaderKey+" as a signed header", authHeader)
 	}
 
-	// read and replace request body
+	// read the request body to make sure it matches
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req.Body = io.NopCloser(bytes.NewBuffer(body))
-
 	if !bytes.Equal([]byte(expectedSTSIdentityRequestBody), body) {
 		return trace.BadParameter("sts request body %q does not equal expected %q", string(body), expectedSTSIdentityRequestBody)
 	}
+
+	// replace the request body since it was "drained" when read above
+	req.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	return nil
 }
@@ -97,6 +117,9 @@ func parseSTSRequest(req []byte) (*http.Request, error) {
 
 	// Unset RequestURI and set req.URL instead (necessary quirk of sending a
 	// request parsed by http.ReadRequest). Also, force https here.
+	if httpReq.RequestURI != "/" {
+		return nil, trace.AccessDenied("unexpected sts identity request URI: %q", httpReq.RequestURI)
+	}
 	httpReq.RequestURI = ""
 	httpReq.URL = &url.URL{
 		Scheme: "https",
@@ -221,6 +244,20 @@ func (a *Server) checkIAMRequest(ctx context.Context, client stsClient, challeng
 	return nil
 }
 
+func generateChallenge() (string, error) {
+	// read 32 crypto-random bytes to generate the challenge
+	challengeRawBytes := make([]byte, 32)
+	if _, err := rand.Read(challengeRawBytes); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// encode the challenge to base64 so it can be sent in an HTTP header
+	encoding := base64.RawStdEncoding
+	challengeBase64 := make([]byte, encoding.EncodedLen(len(challengeRawBytes)))
+	encoding.Encode(challengeBase64, challengeRawBytes)
+	return string(challengeBase64), nil
+}
+
 func (a *Server) registerUsingIAMMethod(srv proto.AuthService_RegisterUsingIAMMethodServer) error {
 	ctx := srv.Context()
 
@@ -230,21 +267,14 @@ func (a *Server) registerUsingIAMMethod(srv proto.AuthService_RegisterUsingIAMMe
 	}
 	remoteAddr := p.Addr.String()
 
-	// read 32 crypto-random bytes to generate the challenge
-	challengeRawBytes := make([]byte, 32)
-	if _, err := rand.Read(challengeRawBytes); err != nil {
+	challenge, err := generateChallenge()
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// encode the challenge to base64 so it can be sent in an HTTP header
-	encoding := base64.RawStdEncoding
-	challengeBase64 := make([]byte, encoding.EncodedLen(len(challengeRawBytes)))
-	encoding.Encode(challengeBase64, challengeRawBytes)
-	challengeString := string(challengeBase64)
-
 	// send the challenge to the node
 	if err := srv.Send(&proto.RegisterUsingIAMMethodResponse{
-		Challenge: challengeString,
+		Challenge: challenge,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -254,10 +284,11 @@ func (a *Server) registerUsingIAMMethod(srv proto.AuthService_RegisterUsingIAMMe
 		return trace.Wrap(err)
 	}
 
+	// fill in the client remote addr to the register request
 	req.RemoteAddr = remoteAddr
 
 	// check that the GetCallerIdentity request is valid and matches the token
-	if err := a.checkIAMRequest(ctx, http.DefaultClient, challengeString, req); err != nil {
+	if err := a.checkIAMRequest(ctx, http.DefaultClient, challenge, req); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -285,9 +316,9 @@ func createSignedSTSIdentityRequest(challenge string) ([]byte, error) {
 	stsService := sts.New(sess)
 	req, _ := stsService.GetCallerIdentityRequest(&sts.GetCallerIdentityInput{})
 	// set challenge header
-	req.HTTPRequest.Header.Set("X-Teleport-Challenge", challenge)
+	req.HTTPRequest.Header.Set(challengeHeaderKey, challenge)
 	// request json for simpler parsing
-	req.HTTPRequest.Header.Set("accept", "application/json")
+	req.HTTPRequest.Header.Set(acceptHeaderKey, acceptJSON)
 	// sign the request, including headers
 	if err := req.Sign(); err != nil {
 		return nil, trace.Wrap(err)

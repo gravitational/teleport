@@ -272,6 +272,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*WebAPIHandler, error) {
 	// OIDC connectors and auth preferences
 	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 
+	// clusterca endpoint returns the cluster name and the auth servers' TLS CAs
+	// and is used to bootstrap trust of the auth server when a client is
+	// connecting through a proxy using TLS routing. The proxy can be trusted
+	// based on PKI.
 	h.GET("/webapi/clusterca", httplib.MakeHandler(h.getClusterCA))
 
 	// Unauthenticated access to JWT public keys.
