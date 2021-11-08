@@ -19,16 +19,17 @@ import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 import { ContextProvider, Context } from 'teleport';
 import Audit from './Audit';
-import { events } from './fixtures';
+import EventList from './EventList';
+import { events, eventsSample } from './fixtures';
 
 export default {
   title: 'Teleport/Audit',
 };
 
-export const Loaded = () => {
+export const LoadedSample = () => {
   const ctx = new Context();
   ctx.auditService.fetchEvents = () =>
-    Promise.resolve({ events, startKey: '' });
+    Promise.resolve({ events: eventsSample, startKey: '' });
 
   return render(ctx);
 };
@@ -53,6 +54,17 @@ export const Failed = () => {
     Promise.reject(new Error('server error'));
   return render(ctx);
 };
+
+export const AllEvents = () => (
+  <EventList
+    clusterId="im-a-cluster"
+    events={events}
+    search=""
+    fetchMore={() => null}
+    fetchStatus={''}
+    pageSize={100}
+  />
+);
 
 function render(ctx) {
   const history = createMemoryHistory({

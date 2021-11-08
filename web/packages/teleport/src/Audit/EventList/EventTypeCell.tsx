@@ -96,6 +96,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.RECOVERY_CODE_GENERATED]: Icons.Keypair,
   [eventCodes.RECOVERY_CODE_USED]: Icons.VpnKey,
   [eventCodes.RECOVERY_CODE_USED_FAILURE]: Icons.VpnKey,
+  [eventCodes.PRIVILEGE_TOKEN_CREATED]: Icons.Info,
 };
 
 export default function TypeCell(props) {

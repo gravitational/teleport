@@ -76,6 +76,7 @@ export const eventCodes = {
   PORTFORWARD_FAILURE: 'T3003E',
   PORTFORWARD: 'T3003I',
   RECOVERY_TOKEN_CREATED: 'T6001I',
+  PRIVILEGE_TOKEN_CREATED: 'T6002I',
   RECOVERY_CODE_GENERATED: 'T1008I',
   RECOVERY_CODE_USED: 'T1009I',
   RECOVERY_CODE_USED_FAILURE: 'T1009W',
@@ -308,7 +309,7 @@ export type RawEvents = {
     typeof eventCodes.USER_PASSWORD_CHANGED,
     HasName
   >;
-  [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: RawEventPasswordToken<
+  [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: RawEventUserToken<
     typeof eventCodes.RESET_PASSWORD_TOKEN_CREATED
   >;
   [eventCodes.USER_LOCAL_LOGIN]: RawEvent<typeof eventCodes.USER_LOCAL_LOGIN>;
@@ -437,7 +438,10 @@ export type RawEvents = {
     typeof eventCodes.LOCK_DELETED,
     { name: string }
   >;
-  [eventCodes.RECOVERY_TOKEN_CREATED]: RawEventPasswordToken<
+  [eventCodes.PRIVILEGE_TOKEN_CREATED]: RawEventUserToken<
+    typeof eventCodes.PRIVILEGE_TOKEN_CREATED
+  >;
+  [eventCodes.RECOVERY_TOKEN_CREATED]: RawEventUserToken<
     typeof eventCodes.RECOVERY_TOKEN_CREATED
   >;
   [eventCodes.RECOVERY_CODE_GENERATED]: RawEvent<
@@ -589,7 +593,7 @@ type RawEventAccess<T extends EventCode> = RawEvent<
   }
 >;
 
-type RawEventPasswordToken<T extends EventCode> = RawEvent<
+type RawEventUserToken<T extends EventCode> = RawEvent<
   T,
   {
     name: string;

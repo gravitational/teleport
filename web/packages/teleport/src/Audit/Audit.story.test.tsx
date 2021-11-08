@@ -1,9 +1,14 @@
 import React from 'react';
-import * as Stories from './Audit.story';
 import { render } from 'design/utils/testing';
+import { LoadedSample, AllEvents } from './Audit.story';
 
-test('loaded', async () => {
-  const { container, findByText } = render(<Stories.Loaded />);
+test('loaded audit log screen', async () => {
+  const { container, findByText } = render(<LoadedSample />);
   await findByText(/Audit Log/);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('list of all events', async () => {
+  const { container } = render(<AllEvents />);
   expect(container.firstChild).toMatchSnapshot();
 });

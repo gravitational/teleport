@@ -426,6 +426,11 @@ export const formatters: Formatters = {
     desc: 'Lock Deleted',
     format: ({ user, name }) => `Lock [${name}] was deleted by user [${user}]`,
   },
+  [eventCodes.PRIVILEGE_TOKEN_CREATED]: {
+    type: 'privilege_token.create',
+    desc: 'Privilege Token Created',
+    format: ({ name }) => `Privilege token was created for user [${name}]`,
+  },
   [eventCodes.RECOVERY_TOKEN_CREATED]: {
     type: 'recovery_token.create',
     desc: 'Recovery Token Created',
