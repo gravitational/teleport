@@ -102,7 +102,7 @@ $ tctl auth export --type=windows > user-ca.cer
 
 Transfer the `user-ca.cer` file to your Domain Controller.
 
-Then, in your Domain Controller, again open the "Group Policy Management" window. On the left pane, navigate to
+Then, on your Domain Controller, again open the "Group Policy Management" window. On the left pane, navigate to
 `$FOREST > Domains > $DOMAIN > Group Policy Objects`, right click on the Group Policy Object you made in step 1, and select "Edit...".
 
 ### Import Teleport CA
@@ -200,7 +200,7 @@ First, open a PowerShell terminal and figure out the `$DomainDN` and `$TeleportL
 
 `$DomainDN` is the 
 [distinguished name](https://docs.microsoft.com/en-us/previous-versions/windows/desktop/ldap/distinguished-names) representation of your Domain Controller's
-domain name. For example, for the domain name `teleport.example.com`, the distinguished name representation is `DC=teleport,DC=example,DC=com`.
+domain name. For example, for the domain name `teleport.example.com`, the distinguished name representation is `DC=teleport,DC=example,DC=com`. If you aren't sure, you can get the DN by running `(Get-ADDomain).DistinguishedName` in PowerShell.
 
 `$TeleportLDAPGroupName` is the Group name you defined in step 1.
 
