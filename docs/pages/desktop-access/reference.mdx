@@ -91,10 +91,16 @@ spec:
       environment: ["dev", "stage"]
     
     # Windows user accounts this role can connect as.
-    windows_desktop_logins: ["Administrator"]
+    windows_desktop_logins: ["Administrator", "{{internal.windows_logins}}"]
 ```
 
-It is possible to use wildcards to match all desktop labels.
+It is possible to use wildcards (`"*"`) to match all desktop labels.
+
+Like with SSH access, the `windows_desktop_logins` field supports the special `{{internal.windows_logins}}` variable 
+for local users which will map to any logins that are supplied when the user is created with
+`tctl users add alice --windows-logins=Administrator,DBUser`.
+
+For new clusters, the `"access"` role will have `windows_desktop_logins: ["{{internal.windows_logins}}"]` set by default.
 
 ## CLI
 

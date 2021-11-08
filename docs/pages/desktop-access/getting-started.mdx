@@ -270,6 +270,17 @@ windows_desktop_service:
     # Plain text file containing the LDAP password for authentication.
     # This is the same password you chose in step 1.
     password_file: /var/lib/ldap-pass
+  hosts:
+    # DNS entries for any static hosts you want to connect to.
+    # These are only needed to connect to desktops that aren't covered by the discovery setting below.
+    - "100.104.52.89"
+    - "example.com"
+  discovery:
+    # This setting will tell Teleport to discover all the hosts connected to the LDAP domain
+    # controller configured above.
+    base_dn: '*'
+
+  
 ```
 
 After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
@@ -277,14 +288,41 @@ After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
 
 ## Step 5/5. Log in using Teleport
 
-{/* TODO: add screenshots */}
+### Create a Teleport User/Role for Desktop Access
 
-At this point everything should be ready for Desktop Access connections. Open
-the Teleport web UI and log in.
+{/* TODO: remove the "/ver/8.0/" in the link once these docs are the primary version */}
+In order to gain access to a remote desktop, a Teleport user needs to have the appropriate permissions for that desktop.
+For example, you can create a role that gives its users access to all windows desktop labels and the `"Administrator"` user:
+```yaml
+kind: role
+version: v4
+metadata:
+  name: windows-desktop-admins
+spec:
+  allow:
+    windows_desktop_labels:
+      "*": "*"
+    windows_desktop_logins: ["Administrator"]
+```
 
-On the left pane, select `Desktops`. You should see the list of all computers
+See the [RBAC section](https://goteleport.com/docs/ver/8.0/desktop-access/reference/#rbac) in the Reference documentation 
+for more information about setting up windows desktop permissions.
+
+See the Access Controls [Getting Started](https://goteleport.com/docs/access-controls/getting-started/#step-13-add-local-users-with-preset-roles) 
+guide for instructions on how to create or update a user with a given role.
+
+### Connect to Your Desktop
+
+At this point everything is nearly ready for Desktop Access connections. Open
+the Teleport web UI and log in with a user with the role created above.
+
+On the left pane, select `Desktops (preview)`. You should see the list of all computers
 and Domain Controllers connected to your domain. Select one and click `CONNECT`
-on the right.
+on the right, selecting one of the available logins:
+
+<Figure align="left" bordered caption="Select Desktop">
+  ![Select Desktop](../../img/desktop-access/select-desktop.png)
+</Figure>
 
 A new tab will open and, after a few seconds, you should be logged in to your
 target Windows host.
