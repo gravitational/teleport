@@ -39,10 +39,10 @@ we recommend creating a dedicated service account with the restrictive permissio
 
 From the start menu of your Domain Controller, search for “Active Directory Users and Computers” and open the corresponding program.
 
-Find your domain in the side menu, and right click the folder you want the service account to live in (typically Users). From the context
-menu, select `New > User` and fill out the fields for your Teleport LDAP Service Account. On the password screen, unselect 
-“User must change password at next login” and select “Password never expires”. Make a note of what values you put for user logon name and password,
-which will be used in your `teleport.yaml` configuration file later, and then click through the rest of the wizard.
+Find your domain in the side menu, and right click the container you want the service account to live in (typically Users). From the context
+menu, select `New > User` and fill out the fields for your Teleport LDAP Service Account. For the "User logon name" field, you can use `svc-teleport`
+On the password screen, unselect  “User must change password at next login” and select “Password never expires”. Make a note of what values you put 
+for user logon name and password, which will be used in your `teleport.yaml` configuration file later, and then click through the rest of the wizard.
 
 <Admonition
   type="note"
@@ -56,7 +56,7 @@ which will be used in your `teleport.yaml` configuration file later, and then cl
   ![Create Service Account](../../img/desktop-access/ad-new-user.png)
 </Figure>
 
-Now right click the same folder you did before, and select `New > Group`. Choose a Group name and ensure that “Global”
+Now right click the same container you did before, and select `New > Group`. Choose a Group name like `svc-teleport-group` and ensure that “Global”
 is selected for “Group scope”, and “Security” for “Group type”, then hit "OK". Make note of the Group name you chose, as it will
 be used later for the PowerShell variable `$TeleportLDAPGroupName`.
 
@@ -67,7 +67,7 @@ by clicking the “Check Names” button, then click “OK”. You should see a 
 
 Next, open the "Start" menu and run "Group Policy Management". On the left pane, navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`,
 selecting your forest and domain names respectively. Right click `Group Policy Objects` and select `New` from the context menu. Give your GPO
-a name and ensure "(none)" is selected for "Source Starter GPO", then hit "OK".
+a name like `svc-teleport-gpo` and ensure "(none)" is selected for "Source Starter GPO", then hit "OK".
 
 Lastly, apply this new Group Policy Object to the Group by first clicking on its just-created entry in the left pane. In the primary pane, select the
 "Delegation" tab, and then click the "Add" button. Type the name of the Group you created in the previous step, and ensure that the Group
@@ -141,7 +141,7 @@ Double click on `Smart Card`, select `Define this policy setting` and switch to
 Select:
 
 ```text
-Computer Configuration > Policies > Windows Settings > Security Settings > Windows Firewall with Advanced Security
+Computer Configuration > Policies > Windows Settings > Security Settings > Windows Firewall with Advanced Security (x2)
 ```
 
 Right click on `Inbound Rules` and select `New Rule...`. Under `Predefined`
@@ -200,15 +200,16 @@ First, open a PowerShell terminal and figure out the `$DomainDN` and `$TeleportL
 
 `$DomainDN` is the 
 [distinguished name](https://docs.microsoft.com/en-us/previous-versions/windows/desktop/ldap/distinguished-names) representation of your Domain Controller's
-domain name. For example, for the domain name `teleport.example.com`, the distinguished name representation is `DC=teleport,DC=example,DC=com`. If you aren't sure, you can get the DN by running `(Get-ADDomain).DistinguishedName` in PowerShell.
+domain name. For example, for the domain name `domain-controller.example.com`, the distinguished name representation is `DC=domain-controller,DC=example,DC=com`.
+If you aren't sure, you can get the DN by running `(Get-ADDomain).DistinguishedName` in PowerShell.
 
 `$TeleportLDAPGroupName` is the Group name you defined in step 1.
 
 Run the PowerShell script below, replacing variable values where appropriate.
 
 ```powershell
-$DomainDN="DC=teleport,DC=example,DC=com" # replace this with your domain
-$TeleportLDAPGroupName="Teleport LDAP" # replace this with your Group name
+$DomainDN="DC=domain-controller,DC=example,DC=com" # replace this with your domain
+$TeleportLDAPGroupName="svc-teleport-group" # replace this with your Group name
 
 # Gives Teleport the ability to create LDAP containers in the CDP container.
 dsacls "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G “$($TeleportLDAPGroupName):CC;container;"
@@ -235,7 +236,7 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
   in order to resolve this.
 </Admonition>
 
-First, we need to enable Desktop Access in Teleport. To do this, add the
+In order to enable Desktop Access in Teleport, add the
 following section in `teleport.yaml` on your Linux server:
 
 ```yaml
@@ -254,15 +255,21 @@ windows_desktop_service:
     addr:     '$LDAP_SERVER_ADDRESS'
     # Active Directory domain name you are connecting to, like: domain-controller.example.com.
     domain:   '$LDAP_DOMAIN_NAME'
-    # LDAP username for authentication. This will be the username you chose for the service 
-    # account User in step 1. This username must include the domain NetBIOS name.
+    # LDAP username for authentication. This will be the user logon name you chose for the service 
+    # account User in step 1 (svc-teleport). This username must include the domain NetBIOS name.
     #
     # For example, if your domain is "example.com", the NetBIOS name for it is
-    # likely "EXAMPLE". When connecting as the "TLDAPSA" user, you should
-    # use the format: "EXAMPLE\TLDAPSA".
+    # likely "EXAMPLE". When connecting as the "svc-teleport" user, you should
+    # use the format: "EXAMPLE\svc-teleport".
+    # 
+    # If you are unsure of your NetBIOS name, you can find it by opening a PowerShell command prompt
+    # and running:
+    # ```
+    # (Get-ADDomain).NetBIOSName
+    # ```
     username: '$LDAP_USERNAME'
     # Plain text file containing the LDAP password for authentication.
-    # This is the same password you chose for the LDAP service account in step 1.
+    # This is the same password you chose in step 1.
     password_file: /var/lib/ldap-pass
 ```
 
