@@ -50,6 +50,7 @@ type kubeCommands struct {
 	ls          *kubeLSCommand
 	login       *kubeLoginCommand
 	sessions    *kubeSessionsCommand
+	exec        *kubeExecCommand
 }
 
 func newKubeCommand(app *kingpin.Application) kubeCommands {
@@ -59,8 +60,38 @@ func newKubeCommand(app *kingpin.Application) kubeCommands {
 		ls:          newKubeLSCommand(kube),
 		login:       newKubeLoginCommand(kube),
 		sessions:    newKubeSessionsCommand(kube),
+		exec:        newKubeExecCommand(kube),
 	}
 	return cmds
+}
+
+// TODO(joel): assemble command
+func kubeExecCommandAssembler(c *kubeExecCommand) []string {
+	return nil
+}
+
+type kubeExecCommand struct {
+	*kingpin.CmdClause
+	target    string
+	container string
+	filename  string
+	quiet     bool
+	stdin     bool
+	tty       bool
+}
+
+// TODO(joel): impl params
+func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
+	c := &kubeExecCommand{
+		CmdClause: parent.Command("exec", "Execute a command in a kubernetes pod"),
+	}
+
+	return c
+}
+
+// TODO(joel): impl run
+func (c *kubeExecCommand) run(cf *CLIConf) error {
+	return nil
 }
 
 type kubeSessionsCommand struct {
