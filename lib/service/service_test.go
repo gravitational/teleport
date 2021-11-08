@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -470,5 +471,72 @@ func waitForStatus(diagAddr string, statusCodes ...int) error {
 		case <-timeoutCh:
 			return trace.BadParameter("timeout waiting for status: %v; last status: %v", statusCodes, lastStatus)
 		}
+	}
+}
+
+type mockAccessPoint struct {
+	auth.ProxyAccessPoint
+}
+
+type mockReverseTunnelServer struct {
+	reversetunnel.Server
+}
+
+func TestSetupProxyTLSConfig(t *testing.T) {
+	testCases := []struct {
+		name           string
+		acmeEnabled    bool
+		wantNextProtos []string
+	}{
+		{
+			name:        "ACME enabled, teleport ALPN protocols should be appended",
+			acmeEnabled: true,
+			wantNextProtos: []string{
+				"h2",
+				"http/1.1",
+				"acme-tls/1",
+				"teleport-postgres",
+				"teleport-mysql",
+				"teleport-mongodb",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
+			},
+		},
+		{
+			name:        "ACME disabled",
+			acmeEnabled: false,
+			// If server NextProtos list is empty server allows for connection with any protocol.
+			wantNextProtos: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := MakeDefaultConfig()
+			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
+			cfg.DataDir = t.TempDir()
+			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
+			process := TeleportProcess{
+				Config: cfg,
+			}
+			conn := &Connector{
+				ServerIdentity: &auth.Identity{
+					Cert: &ssh.Certificate{
+						Permissions: ssh.Permissions{
+							Extensions: map[string]string{},
+						},
+					},
+				},
+			}
+			tls, err := process.setupProxyTLSConfig(
+				conn,
+				&mockReverseTunnelServer{},
+				&mockAccessPoint{},
+				"cluster",
+			)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantNextProtos, tls.NextProtos)
+		})
 	}
 }
