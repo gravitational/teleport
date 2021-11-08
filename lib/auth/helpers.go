@@ -252,7 +252,13 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	src := types.DefaultSessionRecordingConfig()
+	// Use synchronous session recording for tests until stream
+	// writers are made aware that the server is shutting down.
+	// This avoids the case where asynchronous writes occur after
+	// the server begins shutting down.
+	src.SetMode(types.RecordAtNodeSync)
+	err = srv.AuthServer.SetSessionRecordingConfig(ctx, src)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

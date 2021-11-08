@@ -17,11 +17,12 @@ limitations under the License.
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -77,24 +78,6 @@ type Suite struct {
 	role types.Role
 }
 
-func (s *Suite) TearDown(t *testing.T) {
-	err := s.appServer.Close()
-	require.NoError(t, err)
-
-	err = s.authClient.Close()
-	require.NoError(t, err)
-
-	s.testhttp.Close()
-
-	err = s.tlsServer.Auth().DeleteAllAppServers(s.closeContext, defaults.Namespace)
-	require.NoError(t, err)
-
-	s.closeFunc()
-
-	err = s.tlsServer.Close()
-	require.NoError(t, err)
-}
-
 type suiteConfig struct {
 	// ResourceMatchers are resource watcher matchers.
 	ResourceMatchers []services.ResourceMatcher
@@ -109,11 +92,13 @@ func SetUpSuite(t *testing.T) *Suite {
 }
 
 func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
-	s := &Suite{}
+	t.Helper()
 
-	s.clock = clockwork.NewFakeClock()
-	s.dataDir = t.TempDir()
-	s.hostUUID = uuid.New()
+	s := &Suite{
+		clock:    clockwork.NewFakeClock(),
+		dataDir:  t.TempDir(),
+		hostUUID: uuid.New(),
+	}
 
 	var err error
 	// Create Auth Server.
@@ -123,8 +108,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Clock:       s.clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, s.authServer.Close())
+	})
+
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, s.tlsServer.Close())
+	})
 
 	// Create user and role.
 	s.user, s.role, err = auth.CreateUserAndRole(s.tlsServer.Auth(), "foo", []string{"foo-login"})
@@ -155,6 +147,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}))
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
 	s.testhttp.Start()
+	t.Cleanup(s.testhttp.Close)
+
+	t.Cleanup(func() {
+		require.NoError(t, s.tlsServer.Auth().DeleteAllAppServers(s.closeContext, defaults.Namespace))
+	})
 
 	// Extract the hostport that the in-memory HTTP server is running on.
 	u, err := url.Parse(s.testhttp.URL)
@@ -183,6 +180,9 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Create a client with a machine role of RoleApp.
 	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, s.authClient.Close())
+	})
 
 	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
 	require.NoError(t, err)
@@ -262,6 +262,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	err = s.appServer.Start(s.closeContext)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, s.appServer.Close())
+	})
+
 	err = s.appServer.ForceHeartbeat()
 	require.NoError(t, err)
 
@@ -346,9 +350,9 @@ func TestHandleConnection(t *testing.T) {
 	s := SetUpSuite(t)
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, resp.StatusCode, http.StatusOK)
-		buf, err := ioutil.ReadAll(resp.Body)
+		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, strings.TrimSpace(string(buf)), s.message)
+		require.Equal(t, string(bytes.TrimSpace(buf)), s.message)
 	})
 }
 
@@ -374,7 +378,7 @@ func TestAuthorizeWithLocks(t *testing.T) {
 
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, resp.StatusCode, http.StatusForbidden)
-		buf, err := ioutil.ReadAll(resp.Body)
+		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, strings.TrimSpace(string(buf)), "Forbidden")
 	})
