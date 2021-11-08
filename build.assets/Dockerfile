@@ -88,10 +88,10 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 COPY --from=rust:1.56.1 /usr/local/rustup /usr/local/rustup
 COPY --from=rust:1.56.1 /usr/local/cargo /usr/local/cargo
 RUN set -eux \
-    chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
     rustup --version; \
     cargo --version; \
     rustup component add --toolchain 1.56.1-x86_64-unknown-linux-gnu rustfmt clippy; \
+    chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
     rustup target add i686-unknown-linux-gnu; \
     rustup target add arm-unknown-linux-gnueabihf; \
     rustup target add aarch64-unknown-linux-gnu; \
