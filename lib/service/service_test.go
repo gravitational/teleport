@@ -428,6 +428,28 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 	}
 }
 
+// TestDesktopAccessFIPS makes sure that Desktop Access can not be started in
+// FIPS mode. Remove this test once Rust code has been updated to use
+// BoringCrypto instead of OpenSSL.
+func TestDesktopAccessFIPS(t *testing.T) {
+	t.Parallel()
+
+	// Create and configure a default Teleport configuration.
+	cfg := MakeDefaultConfig()
+	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.Clock = clockwork.NewFakeClock()
+	cfg.DataDir = t.TempDir()
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = false
+
+	// Enable FIPS mode and Desktop Access, this should fail.
+	cfg.FIPS = true
+	cfg.WindowsDesktop.Enabled = true
+	_, err := NewTeleport(cfg)
+	require.Error(t, err)
+}
+
 func waitForStatus(diagAddr string, statusCodes ...int) error {
 	tickCh := time.Tick(100 * time.Millisecond)
 	timeoutCh := time.After(10 * time.Second)
