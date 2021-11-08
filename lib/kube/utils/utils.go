@@ -17,9 +17,12 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
+	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -149,17 +152,30 @@ type KubeServicesPresence interface {
 	GetKubeServices(context.Context) ([]types.Server, error)
 }
 
-// KubeClusterNames returns a sorted list of unique kubernetes clusters
-// registered in p.
-func KubeClusterNames(ctx context.Context, p KubeServicesPresence) ([]string, error) {
+// Kubedetails represents the details about a kubernetes cluster for kube ls
+type Kubedetails struct {
+	Name   string
+	Labels map[string]string
+}
+
+// KubeClusterDetails returns a sorted list of unique kubernetes clusters
+// registered in p along with details like labels.
+func KubeClusterDetails(ctx context.Context, p KubeServicesPresence) ([]string, map[string]Kubedetails, error) {
 	kss, err := p.GetKubeServices(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, map[string]Kubedetails{}, trace.Wrap(err)
 	}
-	kubeClusters := make(map[string]struct{})
+	kubeClusters := make(map[string]Kubedetails)
 	for _, ks := range kss {
 		for _, kc := range ks.GetKubernetesClusters() {
-			kubeClusters[kc.Name] = struct{}{}
+			labels := kc.StaticLabels
+			for dynamicLabelKey, dynamicLabelValue := range kc.DynamicLabels {
+				labels[dynamicLabelKey] = dynamicLabelValue.GetResult()
+			}
+			kubeClusters[kc.Name] = Kubedetails{
+				Name:   kc.Name,
+				Labels: labels,
+			}
 		}
 	}
 	kubeClusterNames := make([]string, 0, len(kubeClusters))
@@ -167,7 +183,7 @@ func KubeClusterNames(ctx context.Context, p KubeServicesPresence) ([]string, er
 		kubeClusterNames = append(kubeClusterNames, n)
 	}
 	sort.Strings(kubeClusterNames)
-	return kubeClusterNames, nil
+	return kubeClusterNames, kubeClusters, nil
 }
 
 // CheckOrSetKubeCluster validates kubeClusterName if it's set, or a sane
@@ -175,7 +191,7 @@ func KubeClusterNames(ctx context.Context, p KubeServicesPresence) ([]string, er
 //
 // If no clusters are registered, a NotFound error is returned.
 func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClusterName, teleportClusterName string) (string, error) {
-	kubeClusterNames, err := KubeClusterNames(ctx, p)
+	kubeClusterNames, _, err := KubeClusterDetails(ctx, p)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -195,4 +211,14 @@ func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClus
 		return teleportClusterName, nil
 	}
 	return kubeClusterNames[0], nil
+}
+
+func MapToString(m map[string]string) string {
+	b := new(bytes.Buffer)
+	for key, value := range m {
+		fmt.Fprintf(b, "%s=\"%s\", ", key, value)
+	}
+	str := b.String()
+	str = strings.TrimSuffix(str, ", ")
+	return str
 }

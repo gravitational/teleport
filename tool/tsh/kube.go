@@ -48,11 +48,11 @@ type kubeCommands struct {
 	login       *kubeLoginCommand
 }
 
-func newKubeCommand(app *kingpin.Application) kubeCommands {
+func newKubeCommand(app *kingpin.Application, cf *CLIConf) kubeCommands {
 	kube := app.Command("kube", "Manage available kubernetes clusters")
 	cmds := kubeCommands{
 		credentials: newKubeCredentialsCommand(kube),
-		ls:          newKubeLSCommand(kube),
+		ls:          newKubeLSCommand(kube, cf),
 		login:       newKubeLoginCommand(kube),
 	}
 	return cmds
@@ -152,10 +152,11 @@ type kubeLSCommand struct {
 	*kingpin.CmdClause
 }
 
-func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
+func newKubeLSCommand(parent *kingpin.CmdClause, cf *CLIConf) *kubeLSCommand {
 	c := &kubeLSCommand{
 		CmdClause: parent.Command("ls", "Get a list of kubernetes clusters"),
 	}
+	c.CmdClause.Flag("verbose", "Provide more output").BoolVar(&cf.Verbose)
 	return c
 }
 
@@ -164,25 +165,35 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
+	currentTeleportCluster, kubeClusters, kubeClusterDetails, err := fetchKubeClusters(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	selectedCluster := selectedKubeCluster(currentTeleportCluster)
+	var tableHeadings = []string{"Kube Cluster Name", "Selected"}
+
+	if cf.Verbose {
+		tableHeadings = append(tableHeadings, "Labels")
+	}
 
 	var t asciitable.Table
 	if cf.Quiet {
 		t = asciitable.MakeHeadlessTable(2)
 	} else {
-		t = asciitable.MakeTable([]string{"Kube Cluster Name", "Selected"})
+		t = asciitable.MakeTable(tableHeadings)
 	}
 	for _, cluster := range kubeClusters {
 		var selectedMark string
 		if cluster == selectedCluster {
 			selectedMark = "*"
 		}
-		t.AddRow([]string{cluster, selectedMark})
+		if cf.Verbose {
+			labels := kubeClusterDetails[cluster].Labels
+			t.AddRow([]string{cluster, selectedMark, kubeutils.MapToString(labels)})
+		} else {
+			t.AddRow([]string{cluster, selectedMark})
+		}
 	}
 	fmt.Println(t.AsBuffer().String())
 
@@ -220,7 +231,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	// Check that this kube cluster exists.
-	currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
+	currentTeleportCluster, kubeClusters, _, err := fetchKubeClusters(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -257,7 +268,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []string, err error) {
+func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []string, kubeClusterDetails map[string]kubeutils.Kubedetails, err error) {
 	err = client.RetryWithRelogin(ctx, tc, func() error {
 		pc, err := tc.ConnectToProxy(ctx)
 		if err != nil {
@@ -276,16 +287,16 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 		}
 		teleportCluster = cn.GetClusterName()
 
-		kubeClusters, err = kubeutils.KubeClusterNames(ctx, ac)
+		kubeClusters, kubeClusterDetails, err = kubeutils.KubeClusterDetails(ctx, ac)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
 	})
 	if err != nil {
-		return "", nil, trace.Wrap(err)
+		return "", nil, nil, trace.Wrap(err)
 	}
-	return teleportCluster, kubeClusters, nil
+	return teleportCluster, kubeClusters, kubeClusterDetails, nil
 }
 
 // kubernetesStatus holds teleport client information necessary to populate the user's kubeconfig.
@@ -307,7 +318,7 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	kubeStatus.teleportClusterName, kubeStatus.kubeClusters, err = fetchKubeClusters(ctx, tc)
+	kubeStatus.teleportClusterName, kubeStatus.kubeClusters, _, err = fetchKubeClusters(ctx, tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

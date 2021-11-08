@@ -527,7 +527,7 @@ func Run(args []string, opts ...cliOption) error {
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
 
 	// Kubernetes subcommands.
-	kube := newKubeCommand(app)
+	kube := newKubeCommand(app, &cf)
 	// MFA subcommands.
 	mfa := newMFACommand(app)
 
