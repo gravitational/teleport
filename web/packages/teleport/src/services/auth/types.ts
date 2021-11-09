@@ -34,6 +34,12 @@ export type U2fRegisterRequest = {
   appId: string;
 };
 
+export type U2fChallenge = {
+  appId: string;
+  challenge: string;
+  registeredKeys: U2fSignRequest[];
+};
+
 export type U2fSignRequest = {
   version: string;
   challenge: string;
@@ -42,7 +48,7 @@ export type U2fSignRequest = {
 };
 
 export type MfaAuthenticateChallenge = {
-  u2fSignRequests: U2fSignRequest[];
+  u2f: U2fChallenge;
   webauthnPublicKey: PublicKeyCredentialRequestOptions;
 };
 
@@ -50,4 +56,9 @@ export type MfaRegistrationChallenge = {
   qrCode: Base64urlString;
   u2fRegisterRequest: U2fRegisterRequest;
   webauthnPublicKey: PublicKeyCredentialCreationOptions;
+};
+
+export type RecoveryCodes = {
+  codes?: string[];
+  createdDate: Date;
 };

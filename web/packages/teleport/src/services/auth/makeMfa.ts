@@ -68,7 +68,11 @@ export function makeMfaAuthenticateChallenge(json): MfaAuthenticateChallenge {
   }
 
   return {
-    u2fSignRequests: json.u2f_challenges || [],
+    u2f: {
+      appId: json.appId,
+      challenge: json.challenge,
+      registeredKeys: json.u2f_challenges || [],
+    },
     webauthnPublicKey: webauthnPublicKey,
   };
 }

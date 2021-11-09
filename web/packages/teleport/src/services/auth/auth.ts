@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import 'u2f-api-polyfill';
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import makePasswordToken from './makePasswordToken';
+import { makeRecoveryCodes } from './makeRecoveryCodes';
 import {
   makeMfaAuthenticateChallenge,
   makeMfaRegistrationChallenge,
@@ -100,7 +101,8 @@ const auth = {
 
     return auth.mfaLoginBegin(name, password).then(data => {
       const promise = new Promise((resolve, reject) => {
-        window['u2f'].sign(null, null, data.u2fSignRequests, function(res) {
+        const { appId, challenge, registeredKeys } = data.u2f;
+        window['u2f'].sign(appId, challenge, registeredKeys, function(res) {
           if (res.errorCode) {
             const err = auth._getU2fErr(res.errorCode);
             reject(err);
@@ -168,7 +170,8 @@ const auth = {
         };
 
         return api.put(cfg.getPasswordTokenUrl(), request);
-      });
+      })
+      .then(makeRecoveryCodes);
   },
 
   resetPasswordWithU2f(tokenId: string, password: string) {
@@ -204,7 +207,8 @@ const auth = {
 
     return auth.mfaChangePasswordBegin(oldPass).then(data => {
       return new Promise((resolve, reject) => {
-        window['u2f'].sign(null, null, data.u2fSignRequests, function(res) {
+        const { appId, challenge, registeredKeys } = data.u2f;
+        window['u2f'].sign(appId, challenge, registeredKeys, function(res) {
           if (res.errorCode) {
             const err = auth._getU2fErr(res.errorCode);
             reject(err);
@@ -319,7 +323,7 @@ const auth = {
       u2f_register_response: u2fResponse,
     };
 
-    return api.put(cfg.getPasswordTokenUrl(), request);
+    return api.put(cfg.getPasswordTokenUrl(), request).then(makeRecoveryCodes);
   },
 
   _getU2FRegisterRes(tokenId: string) {
