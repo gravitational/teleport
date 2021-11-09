@@ -76,7 +76,13 @@ const (
 	// Created is an event type that is triggered when a pull request review is created.
 	Created = "created"
 
-	// AnyAuthor is the symbol used to get reviewers for external contributors/contrtibutors who 
-	// do not have designated reviewers. 
+	// AnyAuthor is the symbol used to get reviewers for external contributors/contrtibutors who
+	// do not have designated reviewers.
 	AnyAuthor = "*"
+
+	// RussjonesUsername is Russell's (Teleport repo admin) GitHub username.
+	RussjonesUsername = "russjones"
+
+	// R0mantUserName is Roman's (Teleport repo admin) GitHub username.
+	R0mantUsername = "r0mant"
 )
