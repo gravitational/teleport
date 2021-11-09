@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package auth
 
 import (
 	"github.com/gravitational/teleport/api/types"
@@ -30,26 +30,17 @@ const (
 type SessionKind string
 type SessionParticipantMode string
 
-type SessionAccessRequirePolicy struct {
-	name   string
-	filter string
-	kinds  []SessionKind
-	count  int
-}
-
-type SessionAccessAllowPolicy struct {
-	name            string
-	initiator_roles []string
-	kinds           []SessionKind
-	modes           []SessionParticipantMode
+type User struct {
+	user  types.User
+	roles []types.Role
 }
 
 type SessionAccessEvaluator struct {
 	kind     SessionKind
-	requires []SessionAccessRequirePolicy
+	requires []*types.SessionRequirePolicy
 }
 
-func NewSessionAccessEvaluator(initiator *types.User, kind SessionKind) SessionAccessEvaluator {
+func NewSessionAccessEvaluator(initiator User, kind SessionKind) SessionAccessEvaluator {
 	requires := getRequirePolicies(initiator)
 
 	return SessionAccessEvaluator{
@@ -58,26 +49,31 @@ func NewSessionAccessEvaluator(initiator *types.User, kind SessionKind) SessionA
 	}
 }
 
-func getRequirePolicies(participant *types.User) []SessionAccessRequirePolicy {
-	return []SessionAccessRequirePolicy{}
+// TODO(joel): implement this
+func getRequirePolicies(participant User) []*types.SessionRequirePolicy {
+	var policies []*types.SessionRequirePolicy
+	return policies
 }
 
-func getAllowPolicies(participant *types.User) []SessionAccessAllowPolicy {
-	return []SessionAccessAllowPolicy{}
+// TODO(joel): implement this
+func getAllowPolicies(participant User) []*types.SessionJoinPolicy {
+	var policies []*types.SessionJoinPolicy
+	return policies
 }
 
-func matchesPolicy(require *SessionAccessRequirePolicy, allow SessionAccessAllowPolicy) bool {
+// TODO(joel): implement this
+func matchesPolicy(require *types.SessionRequirePolicy, allow *types.SessionJoinPolicy) bool {
 	return true
 }
 
-func (e *SessionAccessEvaluator) FulfilledFor(participants []*types.User) bool {
+func (e *SessionAccessEvaluator) FulfilledFor(participants []User) bool {
 	for _, requirePolicy := range e.requires {
-		left := requirePolicy.count
+		left := requirePolicy.Count
 
 		for _, participant := range participants {
 			allowPolicies := getAllowPolicies(participant)
 			for _, allowPolicy := range allowPolicies {
-				if matchesPolicy(&requirePolicy, allowPolicy) {
+				if matchesPolicy(requirePolicy, allowPolicy) {
 					left--
 					break
 				}

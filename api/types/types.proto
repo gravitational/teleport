@@ -1587,6 +1587,28 @@ message RoleConditions {
         (gogoproto.jsontag) = "windows_desktop_labels,omitempty",
         (gogoproto.customtype) = "Labels"
     ];
+
+    // RequireSessionJoin specifies policies for required users to start a session.
+    repeated SessionRequirePolicy RequireSessionJoin = 19
+        [ (gogoproto.jsontag) = "require_session_join,omitempty" ];
+
+    // JoinSessions specifies policies to allow users to join other sessions.
+    repeated SessionJoinPolicy JoinSessions = 20
+        [ (gogoproto.jsontag) = "join_sessions,omitempty" ];
+}
+
+message SessionRequirePolicy {
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    string Filter = 2 [ (gogoproto.jsontag) = "filter" ];
+    repeated string Kinds = 3 [ (gogoproto.jsontag) = "kinds" ];
+    int32 count = 4 [ (gogoproto.jsontag) = "count" ];
+}
+
+message SessionJoinPolicy {
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    repeated string Roles = 2 [ (gogoproto.jsontag) = "roles" ];
+    repeated string Kinds = 3 [ (gogoproto.jsontag) = "kinds" ];
+    repeated string Modes = 4 [ (gogoproto.jsontag) = "modes" ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
