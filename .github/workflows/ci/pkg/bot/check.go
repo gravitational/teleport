@@ -61,7 +61,7 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 	// This is used in the event there is someone out of the office and the pull request needs the bypassing
 	// of the required reviewers.
 	if hasApproved(ci.R0mantUsername, mostRecentReviews) && hasApproved(ci.RussjonesUsername, mostRecentReviews) {
-		log.Printf("Admins @r0mant and @rjones have approved.")
+		log.Println("Admins @r0mant and @rjones have approved.")
 		return nil
 	}
 	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
