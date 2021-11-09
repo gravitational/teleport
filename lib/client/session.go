@@ -182,6 +182,17 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// start x11 forwarding for the session if requested
+	if ns.nodeClient.TC.Config.X11Forwarding {
+		if err := sshutils.HandleX11Channel(ns.nodeClient.Client); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := sshutils.RequestX11Channel(sess); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// pass language info into the remote session.
 	evarsToPass := []string{"LANG", "LANGUAGE"}
 	for _, evar := range evarsToPass {
