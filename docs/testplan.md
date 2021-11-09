@@ -564,15 +564,23 @@ authentication:
 - [ ] Change `second_factor` type to `on` and verify that mfa is required (no option `none` in dropdown)
 
 #### MFA require auth
-Through the CLI, `tsh login` and register a WebAuthn key with `tsh mfa add` (not supported in UI yet).
+Through the CLI, `tsh login` and register a WebAuthn key with `tsh mfa add`.
 
 Using the same user as above:
 - [ ] Verify logging in with registered WebAuthn key works
 - [ ] Verify connecting to a ssh node prompts you to tap your registered WebAuthn key
 - [ ] Verify in the web terminal, you can scp upload/download files
 
-#### MFA Management
-TODO(yassine)
+#### MFA Management (UI)
+
+- [ ] Verify adding first device works without requiring re-authentication
+- [ ] Verify re-authenticating with a WebAuthn device works
+- [ ] Verify re-authenticating with a U2F device works
+- [ ] Verify re-authenticating with a OTP device works
+- [ ] Verify adding a WebAuthn device works
+- [ ] Verify adding a U2F device works
+- [ ] Verify adding an OTP device works
+- [ ] Verify removing a device works
 
 ## Cloud
 From your cloud staging account, change the field `teleportVersion` to the test version.
@@ -580,8 +588,11 @@ From your cloud staging account, change the field `teleportVersion` to the test 
 $ kubectl -n <namespace> edit tenant
 ```
 
-#### Recovery Code Management
-TODO(yassine)
+#### Recovery Code Management (UI)
+
+- [ ] Verify generating recovery codes for local accounts with email usernames works
+- [ ] Verify local accounts with non-email usernames don't have access to generate recovery codes
+- [ ] Verify SSO accounts don't have access to generate recovery codes
 
 #### Invite/Reset
 - [ ] Verify email as usernames, renders recovery codes dialog
