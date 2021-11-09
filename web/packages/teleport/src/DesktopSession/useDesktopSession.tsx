@@ -31,6 +31,8 @@ export default function useDesktopSession(ctx: Ctx) {
   const [hostname, setHostname] = useState<string>('');
   const clientCanvasProps = useTdpClientCanvas();
 
+  document.title = `${clusterId} • ${clientCanvasProps.username}@${hostname}`;
+
   // creates hostname string from list of desktops based on url's desktopId
   const makeHostname = (desktops: Desktop[]) => {
     const desktop = desktops.find(d => d.name === desktopId);
