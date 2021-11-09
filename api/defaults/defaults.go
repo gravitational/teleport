@@ -53,11 +53,11 @@ const (
 var (
 	moduleLock sync.RWMutex
 
-	// svrKeepAliveTTL is a period between server keep-alives,
+	// serverKeepAliveTTL is a period between server keep-alives,
 	// when servers announce only presence without sending full data
 	serverKeepAliveTTL = 60 * time.Second
 
-	// KeepAliveInterval is interval at which Teleport will send keep-alive
+	// keepAliveInterval is interval at which Teleport will send keep-alive
 	// messages to the client. The default interval of 5 minutes (300 seconds) is
 	// set to help keep connections alive when using AWS NLBs (which have a default
 	// timeout of 350 seconds)
