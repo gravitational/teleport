@@ -432,7 +432,6 @@ exports[`render successful first timer recovery codes dialog 1`] = `
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 16px;
   margin: 0px;
   margin-top: 8px;
 }
@@ -558,6 +557,10 @@ exports[`render successful first timer recovery codes dialog 1`] = `
   box-sizing: border-box;
 }
 
+.c4 .print-only {
+  visibility: hidden;
+}
+
 .c18 {
   max-width: 48px;
   width: 100%;
@@ -571,12 +574,17 @@ exports[`render successful first timer recovery codes dialog 1`] = `
     overflow: hidden;
   }
 
-  .c4 .print {
+  .c4 .print,
+  .c4 .print-only {
     visibility: visible;
   }
 
   .c4 .no-print {
     visibility: hidden;
+  }
+
+  .c4 .codes {
+    font-size: 16px;
   }
 }
 
@@ -640,8 +648,7 @@ exports[`render successful first timer recovery codes dialog 1`] = `
                 class="c14"
               >
                 <div
-                  class="c15"
-                  font-size="3"
+                  class="c15 codes"
                   style="white-space: pre-wrap;"
                 >
                   tele-testword-testword-testword-testword-testword-testword-testword
@@ -666,6 +673,11 @@ tele-testword-testword-testword-testword-testword-testword-testword
                     PRINT
                   </button>
                 </div>
+              </div>
+              <div
+                class="c11 print-only"
+              >
+                Created: Fri Aug 30 2019 04:00:00 GMT-0700 (Pacific Daylight Time)
               </div>
               <button
                 class="c20 no-print"
@@ -916,7 +928,6 @@ exports[`render successful recovery codes dialog 1`] = `
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 16px;
   margin: 0px;
   margin-top: 8px;
 }
@@ -1042,6 +1053,10 @@ exports[`render successful recovery codes dialog 1`] = `
   box-sizing: border-box;
 }
 
+.c4 .print-only {
+  visibility: hidden;
+}
+
 .c18 {
   max-width: 48px;
   width: 100%;
@@ -1055,12 +1070,17 @@ exports[`render successful recovery codes dialog 1`] = `
     overflow: hidden;
   }
 
-  .c4 .print {
+  .c4 .print,
+  .c4 .print-only {
     visibility: visible;
   }
 
   .c4 .no-print {
     visibility: hidden;
+  }
+
+  .c4 .codes {
+    font-size: 16px;
   }
 }
 
@@ -1124,8 +1144,7 @@ exports[`render successful recovery codes dialog 1`] = `
                 class="c14"
               >
                 <div
-                  class="c15"
-                  font-size="3"
+                  class="c15 codes"
                   style="white-space: pre-wrap;"
                 >
                   tele-testword-testword-testword-testword-testword-testword-testword
@@ -1150,6 +1169,11 @@ tele-testword-testword-testword-testword-testword-testword-testword
                     PRINT
                   </button>
                 </div>
+              </div>
+              <div
+                class="c11 print-only"
+              >
+                Created: Fri Aug 30 2019 04:00:00 GMT-0700 (Pacific Daylight Time)
               </div>
               <button
                 class="c20 no-print"

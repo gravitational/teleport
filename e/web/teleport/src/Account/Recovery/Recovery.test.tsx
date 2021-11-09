@@ -38,15 +38,16 @@ describe('recovery dashboard testing', () => {
 
     jest
       .spyOn(ctx.recoveryService, 'fetchRecoveryCodesMetadata')
-      .mockResolvedValue({ createdDate: new Date() });
+      .mockResolvedValue({ createdDate: new Date('2019-08-30T11:00:00.00Z') });
 
-    jest
-      .spyOn(ctx.recoveryService, 'generateRecoveryCodes')
-      .mockResolvedValue([
+    jest.spyOn(ctx.recoveryService, 'generateRecoveryCodes').mockResolvedValue({
+      codes: [
         'tele-recovery-code-1',
         'tele-recovery-code-2',
         'tele-recovery-code-3',
-      ]);
+      ],
+      createdDate: new Date('2019-08-30T11:00:00.00Z'),
+    });
 
     jest.spyOn(cfg.oss, 'getAuth2faType').mockReturnValue('on');
 

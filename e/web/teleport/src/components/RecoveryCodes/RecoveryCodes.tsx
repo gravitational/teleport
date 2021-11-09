@@ -3,9 +3,10 @@ import styled from 'styled-components';
 import { Flex, Card, Text, Box, ButtonPrimary } from 'design';
 import copyToClipboard from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
+import { RecoveryCodes } from 'teleport/services/auth';
 
-export default function RecoveryCodes({
-  recoveryCodes = [],
+export default function RecoveryCodesDialog({
+  recoveryCodes,
   redirect,
   isNewCodes,
   continueText = 'Continue',
@@ -13,7 +14,11 @@ export default function RecoveryCodes({
   const codesRef = useRef();
 
   const onCopyClick = () => {
-    copyToClipboard(recoveryCodes.join(', ')).then(() => {
+    copyToClipboard(
+      `${recoveryCodes?.codes.join('\n')} \n\nCreated: ${
+        recoveryCodes?.createdDate
+      }`
+    ).then(() => {
       selectElementContent(codesRef.current);
     });
   };
@@ -59,7 +64,7 @@ export default function RecoveryCodes({
           </Box>
           <Box>
             <Text bold mb={2} caps>
-              Recovery Codes ({recoveryCodes.length} Total)
+              Recovery Codes ({recoveryCodes?.codes.length} Total)
             </Text>
             <Flex
               bg="primary.dark"
@@ -71,11 +76,11 @@ export default function RecoveryCodes({
             >
               <Text
                 style={{ whiteSpace: 'pre-wrap' }}
-                fontSize={3}
                 mt={2}
                 ref={codesRef}
+                className="codes"
               >
-                {recoveryCodes.join('\n\n')}
+                {recoveryCodes?.codes.join('\n\n')}
               </Text>
               <Flex flexDirection="column" className="no-print" ml={2}>
                 <MiniActionButton onClick={onCopyClick}>COPY</MiniActionButton>
@@ -84,6 +89,9 @@ export default function RecoveryCodes({
                 </MiniActionButton>
               </Flex>
             </Flex>
+            <Text className="print-only">
+              {`Created: ${recoveryCodes?.createdDate.toString()}`}
+            </Text>
             <ButtonPrimary
               mt={6}
               size="large"
@@ -138,13 +146,21 @@ export default function RecoveryCodes({
 }
 
 const PrintWrapper = styled(Box)`
+  .print-only {
+    visibility: hidden;
+  }
+
   @media print {
     overflow: hidden;
-    .print {
+    .print,
+    .print-only {
       visibility: visible;
     }
     .no-print {
       visibility: hidden;
+    }
+    .codes {
+      font-size: 16px;
     }
   }
 `;
@@ -158,7 +174,7 @@ const MiniActionButton = styled(ButtonPrimary)`
 `;
 
 export type Props = {
-  recoveryCodes: string[];
+  recoveryCodes: RecoveryCodes;
   redirect: () => void;
   isNewCodes: boolean;
   continueText?: string;

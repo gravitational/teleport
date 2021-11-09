@@ -32,9 +32,12 @@ const props: State = {
   closeWithDateRefresh: () => null,
   generateCodes: () => null,
   isNewCodes: true,
-  recoveryCodes: [
-    'tele-testword-testword-testword-testword-testword-testword-testword',
-    'tele-testword-testword-testword-testword-testword-testword-testword',
-    'tele-testword-testword-testword-testword-testword-testword-testword',
-  ],
+  recoveryCodes: {
+    codes: [
+      'tele-testword-testword-testword-testword-testword-testword-testword',
+      'tele-testword-testword-testword-testword-testword-testword-testword',
+      'tele-testword-testword-testword-testword-testword-testword-testword',
+    ],
+    createdDate: new Date('2019-08-30T11:00:00.00Z'),
+  },
 };

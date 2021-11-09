@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { RecoveryCodes } from 'teleport/services/auth';
 import TeleportContextE from 'e-teleport/teleportContextE';
 
 export default function useRecoveryCodesDialog(
   ctx: TeleportContextE,
   { token, close, refreshDate, isNewCodes }: Props
 ) {
-  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
   const { attempt, run } = useAttempt('');
 
   function generateCodes() {

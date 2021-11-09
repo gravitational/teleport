@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import cfg from 'e-teleport/config';
 import history from 'teleport/services/history';
-import auth from 'teleport/services/auth';
+import auth, { RecoveryCodes } from 'teleport/services/auth';
 
 export default function useInvite(tokenId: string) {
   const [passwordToken, setPswToken] = useState<ResetToken>(undefined);
-  const [recoveryCodes, setRecoveryCodes] = useState<string[]>();
+  const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
   const fetchAttempt = useAttempt('');
   const submitAttempt = useAttempt('');
   const auth2faType = cfg.oss.getAuth2faType();
@@ -24,7 +24,7 @@ export default function useInvite(tokenId: string) {
     auth
       .resetPassword(tokenId, password, otpToken)
       .then(recoveryCodes => {
-        if (recoveryCodes?.length > 0) {
+        if (recoveryCodes.createdDate) {
           setRecoveryCodes(recoveryCodes);
         } else {
           redirect();
@@ -38,7 +38,7 @@ export default function useInvite(tokenId: string) {
     auth
       .resetPasswordWithU2f(tokenId, password)
       .then(recoveryCodes => {
-        if (recoveryCodes?.length > 0) {
+        if (recoveryCodes.createdDate) {
           setRecoveryCodes(recoveryCodes);
         } else {
           redirect();
@@ -52,7 +52,7 @@ export default function useInvite(tokenId: string) {
     auth
       .resetPasswordWithWebauthn(tokenId, password)
       .then(recoveryCodes => {
-        if (recoveryCodes?.length > 0) {
+        if (recoveryCodes.createdDate) {
           setRecoveryCodes(recoveryCodes);
         } else {
           redirect();

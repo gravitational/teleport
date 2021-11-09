@@ -40,7 +40,7 @@ export function Invite(props: State & Props) {
     return null;
   }
 
-  if (recoveryCodes?.length > 0) {
+  if (recoveryCodes) {
     return (
       <>
         <LogoHero />

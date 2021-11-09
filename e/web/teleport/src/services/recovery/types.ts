@@ -27,7 +27,3 @@ export type RecoveryToken = {
   isApproved: boolean;
   qrCode: string;
 };
-
-export type RecoveryCodesMetadata = {
-  createdDate: Date;
-};

@@ -230,7 +230,6 @@ exports[`render recovery codes 1`] = `
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 16px;
   margin: 0px;
   margin-top: 8px;
 }
@@ -307,6 +306,10 @@ exports[`render recovery codes 1`] = `
   box-sizing: border-box;
 }
 
+.c0 .print-only {
+  visibility: hidden;
+}
+
 .c14 {
   max-width: 48px;
   width: 100%;
@@ -320,12 +323,17 @@ exports[`render recovery codes 1`] = `
     overflow: hidden;
   }
 
-  .c0 .print {
+  .c0 .print,
+  .c0 .print-only {
     visibility: visible;
   }
 
   .c0 .no-print {
     visibility: hidden;
+  }
+
+  .c0 .codes {
+    font-size: 16px;
   }
 }
 
@@ -373,8 +381,7 @@ exports[`render recovery codes 1`] = `
           class="c10"
         >
           <div
-            class="c11"
-            font-size="3"
+            class="c11 codes"
             style="white-space: pre-wrap;"
           >
             tele-testword-testword-testword-testword-testword-testword-testword
@@ -399,6 +406,11 @@ tele-testword-testword-testword-testword-testword-testword-testword
               PRINT
             </button>
           </div>
+        </div>
+        <div
+          class="c7 print-only"
+        >
+          Created: Fri Aug 30 2019 04:00:00 GMT-0700 (Pacific Daylight Time)
         </div>
         <button
           class="c16 no-print"

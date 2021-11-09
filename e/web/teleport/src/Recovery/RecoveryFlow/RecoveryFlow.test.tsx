@@ -22,6 +22,15 @@ const approvedToken = {
   id: 'approvedTokenId',
 };
 
+const recoveryCodes = {
+  codes: [
+    'tele-recovery-code-1',
+    'tele-recovery-code-2',
+    'tele-recovery-code-3',
+  ],
+  createdDate: new Date('2019-08-30T00:00:00.00Z'),
+};
+
 const route1VerifyWithStartToken = '/web/recovery/steps/startTokenId/verify';
 const route2NewPasswordWithApprovedToken =
   '/web/recovery/steps/approvedTokenId/new/password';
@@ -62,11 +71,7 @@ describe('all recovery flows should show correct screens', () => {
 
     jest
       .spyOn(RecoveryService.prototype, 'generateRecoveryCodes')
-      .mockResolvedValue([
-        'tele-recovery-code-1',
-        'tele-recovery-code-2',
-        'tele-recovery-code-3',
-      ]);
+      .mockResolvedValue(recoveryCodes);
 
     jest
       .spyOn(MfaService.prototype, 'fetchDevicesWithToken')
@@ -172,6 +177,9 @@ describe('all recovery flows should show correct screens', () => {
     expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-2/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(recoveryCodes.createdDate.toString(), { exact: false })
+    ).toBeInTheDocument();
   });
 
   test('new password with u2f', async () => {
@@ -251,6 +259,9 @@ describe('all recovery flows should show correct screens', () => {
     expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-2/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(recoveryCodes.createdDate.toString(), { exact: false })
+    ).toBeInTheDocument();
   });
 
   test('new otp device using password', async () => {
@@ -349,6 +360,9 @@ describe('all recovery flows should show correct screens', () => {
     expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-2/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(recoveryCodes.createdDate.toString(), { exact: false })
+    ).toBeInTheDocument();
   });
 
   test('new u2f device using password', async () => {
@@ -446,5 +460,8 @@ describe('all recovery flows should show correct screens', () => {
     expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-2/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(recoveryCodes.createdDate.toString(), { exact: false })
+    ).toBeInTheDocument();
   });
 });

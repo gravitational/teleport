@@ -15,13 +15,14 @@ test('should render recovery codes screen afterwards if the response includes th
     qrCode: 'test12345',
   }));
 
-  jest
-    .spyOn(auth, 'resetPassword')
-    .mockResolvedValue([
+  jest.spyOn(auth, 'resetPassword').mockResolvedValue({
+    codes: [
       'tele-recovery-code-1',
       'tele-recovery-code-2',
       'tele-recovery-code-3',
-    ]);
+    ],
+    createdDate: new Date('2019-08-30T11:00:00.00Z'),
+  });
   await act(async () => renderInvite());
 
   const pwdField = screen.getByPlaceholderText('Password');
@@ -51,7 +52,7 @@ test('should not render recovery codes screen afterwards if the response doesnt 
     qrCode: 'test12345',
   }));
 
-  jest.spyOn(auth, 'resetPassword').mockResolvedValue(undefined);
+  jest.spyOn(auth, 'resetPassword').mockResolvedValue({});
   await act(async () => renderInvite());
 
   const pwdField = screen.getByPlaceholderText('Password');

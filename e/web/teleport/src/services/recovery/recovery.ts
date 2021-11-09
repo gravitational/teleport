@@ -3,10 +3,10 @@ import api from 'teleport/services/api';
 import auth, {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
+  makeRecoveryCodes,
 } from 'teleport/services/auth';
 import cfg from 'e-teleport/config';
 import makeRecoveryToken from './makeRecoveryToken';
-import makeRecoveryCodesMetadata from './makeRecoveryCodesMetadata';
 import {
   RecoveryToken,
   StartRecoveryRequest,
@@ -40,7 +40,8 @@ class RecoveryService {
 
     return new Promise<RecoveryToken>((resolve, reject) => {
       auth.createMfaAuthnChallengeWithToken(tokenId).then(data => {
-        window['u2f'].sign(null, null, data.u2fSignRequests, res => {
+        const { appId, challenge, registeredKeys } = data.u2f;
+        window['u2f'].sign(appId, challenge, registeredKeys, res => {
           if (res.errorCode) {
             const err = auth._getU2fErr(res.errorCode);
             reject(err);
@@ -123,11 +124,11 @@ class RecoveryService {
   generateRecoveryCodes(tokenId: string) {
     return api
       .post(cfg.api.recoveryCodesPath, { tokenId })
-      .then(res => res || []);
+      .then(makeRecoveryCodes);
   }
 
   fetchRecoveryCodesMetadata() {
-    return api.get(cfg.api.recoveryCodesPath).then(makeRecoveryCodesMetadata);
+    return api.get(cfg.api.recoveryCodesPath).then(makeRecoveryCodes);
   }
 }
 
