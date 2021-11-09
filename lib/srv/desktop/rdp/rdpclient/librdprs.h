@@ -103,7 +103,6 @@ struct ClientOrError connect_rdp(char *go_addr,
                                  uint16_t screen_width,
                                  uint16_t screen_height);
 
-
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
  * handle_bitmap.
