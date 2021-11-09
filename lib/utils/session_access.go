@@ -48,6 +48,32 @@ type SessionAccessEvaluator struct {
 	requires []SessionAccessRequirePolicy
 }
 
-func (e *SessionAccessEvaluator) FulfilledFor(participants []*types.Participant) bool {
+func getPoliciesFor(participant *types.Participant) []SessionAccessAllowPolicy {
+	return []SessionAccessAllowPolicy{}
+}
+
+func matchesPolicy(require *SessionAccessRequirePolicy, allow SessionAccessAllowPolicy) bool {
 	return true
+}
+
+func (e *SessionAccessEvaluator) FulfilledFor(participants []*types.Participant) bool {
+	for _, requirePolicy := range e.requires {
+		left := requirePolicy.count
+
+		for _, participant := range participants {
+			allowPolicies := getPoliciesFor(participant)
+			for _, allowPolicy := range allowPolicies {
+				if matchesPolicy(&requirePolicy, allowPolicy) {
+					left--
+					break
+				}
+			}
+		}
+
+		if left <= 0 {
+			return true
+		}
+	}
+
+	return false
 }
