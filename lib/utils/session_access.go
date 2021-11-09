@@ -16,10 +16,38 @@ limitations under the License.
 
 package utils
 
-type SessionAccessPolicy struct{}
+import (
+	"github.com/gravitational/teleport/api/types"
+)
 
-type SessionAccessEvaluator struct{}
+const (
+	SSHSessionKind        = "ssh"
+	KubernetesSessionKind = "kubernetes"
+	SessionObserverMode   = "observer"
+	SessionModeratorMode  = "moderator"
+)
 
-func (e *SessionAccessEvaluator) Fulfilled() bool {
+type SessionKind string
+type SessionParticipantMode string
+
+type SessionAccessRequirePolicy struct {
+	name   string
+	filter string
+	kinds  []SessionKind
+	count  int
+}
+
+type SessionAccessAllowPolicy struct {
+	name            string
+	initiator_roles []string
+	kinds           []SessionKind
+	modes           []SessionParticipantMode
+}
+
+type SessionAccessEvaluator struct {
+	requires []SessionAccessRequirePolicy
+}
+
+func (e *SessionAccessEvaluator) FulfilledFor(participants []*types.Participant) bool {
 	return true
 }
