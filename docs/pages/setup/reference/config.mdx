@@ -47,14 +47,13 @@ teleport:
     # This value can be specified as FQDN e.g. host.example.com
     advertise_ip: 10.1.0.5
 
-    # List of auth servers in a cluster. you will have more than one auth server
-    # if you configure teleport auth to run in High Availability configuration.
+    # Auth Server address and port to connect to. If you configure teleport auth to run in High
+    # Availability configuration the address should point to a Load Balancer.
     # If adding a node located behind NAT, use the Proxy URL. e.g.
     #  auth_servers:
-    #     - teleport-proxy.example.com:3080
+    #     - teleport-proxy.example.com:443
     auth_servers:
         - 10.1.0.5:3025
-        - 10.1.0.6:3025
 
     # For use on a Teleport Proxy
     # See the "Teleport Scalability Tweaks" of the admin manual
@@ -204,7 +203,12 @@ auth_service:
         # this section is used if second_factor is set to 'u2f'
         u2f:
             # public address of the Teleport proxy, _including_ the `https://`
-            # prefix and port number.
+            # prefix. If you use a port number other than 443, include it as
+            # well.
+            #
+            # Examples:
+            # - "https://example.com" (uses default port 443)
+            # - "https://example.com:3080" (uses non-default port 3080)
             #
             # IMPORTANT: app_id must never change in the lifetime of the
             # cluster, because it's recorded in the registration data on the
@@ -218,7 +222,7 @@ auth_service:
             # websites and proxies from requesting U2F challenges on behalf of
             # the legitimate proxy.
             facets:
-            - https://localhost:3080
+            - https://localhost:3080 # app_id should always also be listed as a facet
             - https://localhost
             - localhost:3080
             - localhost
@@ -311,6 +315,10 @@ auth_service:
     # you'll need to change this.
     # session_control_timeout: 2m
 
+    # Determines the routing strategy used to connect to nodes. Can be
+    # 'unambiguous_match' (default), or 'most_recent'.
+    routing_strategy: unambiguous_match
+
     # License file to start auth server with. Note that this setting is ignored
     # in the Teleport Open-Source Edition and is required only for Teleport Pro, Business
     # and Enterprise subscription plans.
@@ -323,9 +331,9 @@ auth_service:
     license_file: /var/lib/teleport/license.pem
 
 
-    # Configures a banner message to be displayed to a user logging into the cluster, 
+    # Configures a banner message to be displayed to a user logging into the cluster,
     # which must be acknowledged before the user is allowed to log in. Note that will
-    # be shown *before* login, so should not contain any confidential information. 
+    # be shown *before* login, so should not contain any confidential information.
     # Defaults to the empty string, implying no message or acknowledgment is required.
     message_of_the_day: ""
 

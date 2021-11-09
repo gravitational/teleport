@@ -70,7 +70,7 @@ database account:
 ```bash
 tctl --config=/path/to/teleport.yaml create <<EOF
 kind: role
-version: v3
+version: v4
 metadata:
   name: db
 spec:
@@ -87,7 +87,7 @@ EOF
 Create the user assigned the `db` role we've just created:
 
 ```code
-$ tctl --config=/path/to/teleport.yaml users add --roles=admin,db testuser
+$ tctl --config=/path/to/teleport.yaml users add --roles=access,db testuser
 ```
 
 ### Start Database service with CLI flags

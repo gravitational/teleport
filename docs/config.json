@@ -15,9 +15,6 @@
           ]
         },
         { "title": "Installation", "slug": "/installation/" },
-        { "title": "User Manual", "slug": "/user-manual/" },
-        { "title": "Admin Manual", "slug": "/admin-guide/" },
-        { "title": "Production Guide", "slug": "/production/" },
         { "title": "FAQ", "slug": "/faq/" },
         { "title": "Changelog", "slug": "/changelog/" }
       ]
@@ -30,6 +27,11 @@
           "title": "Admin Guides",
           "slug": "/setup/admin/",
           "entries": [
+            { "title": "Github SSO", "slug": "/setup/admin/github-sso/" },
+            { "title": "Adding nodes", "slug": "/setup/admin/adding-nodes/" },
+            { "title": "Trusted Clusters", "slug": "/setup/admin/trustedclusters/" },
+            { "title": "Labels", "slug": "/setup/admin/labels/" },
+            { "title": "Local users", "slug": "/setup/admin/users/" },
             { "title": "Troubleshooting", "slug": "/setup/admin/troubleshooting/" },
             { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
             { "title": "Daemon", "slug": "/setup/admin/daemon/" }
@@ -45,12 +47,24 @@
           ]
         },
         {
+          "title": "Operations",
+          "slug": "/setup/operations/",
+          "entries": [
+            { "title": "Scaling", "slug": "/setup/operations/scaling/" },
+            { "title": "Upgrading", "slug": "/setup/operations/upgrading/" },
+            { "title": "Backup and Restore", "slug": "/setup/operations/backup-restore/" },
+            { "title": "Cert Authority Rotation", "slug": "/setup/operations/ca-rotation/" }
+          ]
+        },
+        {
           "title": "Integrations",
           "slug": "/setup/guides/",
           "entries": [
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
             { "title": "Docker", "slug": "/setup/guides/docker/" },
-            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" }
+            { "title": "Fluentd", "slug": "/setup/guides/fluentd/" },
+            { "title": "EC2 tags", "slug": "/setup/guides/ec2-tags/" },
+            { "title": "Joining Nodes in AWS", "slug": "/setup/guides/joining-nodes-aws/" }
           ]
         },
         {
@@ -58,10 +72,15 @@
           "slug": "/setup/reference/",
           "entries": [
             { "title": "Config File", "slug": "/setup/reference/config/" },
-            { "title": "Config Resources", "slug": "/setup/reference/resources/" },            
+            { "title": "Config Resources", "slug": "/setup/reference/resources/" },
             { "title": "Command Line", "slug": "/setup/reference/cli/" },
             { "title": "Metrics", "slug": "/setup/reference/metrics/" },
-            { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" }            
+            { "title": "Terraform Resources", "slug": "/setup/reference/terraform-provider/" },
+            { "title": "Audit Events and Records", "slug": "/setup/reference/audit/" },
+            { "title": "Authentication", "slug": "/setup/reference/authentication/" },
+            { "title": "Storage Backends", "slug": "/setup/reference/backends/" },
+            { "title": "Networking", "slug": "/setup/reference/networking/" },
+            { "title": "Enterprise License File", "slug": "/setup/reference/license/" }
           ]
         }
       ]
@@ -79,7 +98,8 @@
             { "title": "Connecting Apps", "slug": "/application-access/guides/connecting-apps/" },
             { "title": "Integrating with JWT", "slug": "/application-access/guides/jwt/" },
             { "title": "API Access", "slug": "/application-access/guides/api-access/" },
-            { "title": "AWS Console Access", "slug": "/application-access/guides/aws-console/" }
+            { "title": "AWS Console Access", "slug": "/application-access/guides/aws-console/" },
+            { "title": "Dynamic Registration", "slug": "/application-access/guides/dynamic-registration/" }
           ]
         },
         { "title": "Access Controls", "slug": "/application-access/controls/" },
@@ -96,10 +116,13 @@
           "title": "Guides",
           "slug": "/server-access/guides/",
           "entries": [
+            { "title": "Ansible", "slug": "/server-access/guides/ansible/" },
             { "title": "Using Teleport with PAM", "slug": "/server-access/guides/ssh-pam/" },
+            { "title": "Using TSH", "slug": "/server-access/guides/tsh/" },
             { "title": "OpenSSH Guide", "slug": "/server-access/guides/openssh/" },
             {"title": "BPF Session Recording", "slug": "/server-access/guides/bpf-session-recording/"},
-            {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"}
+            {"title": "Restricted Session", "slug": "/server-access/guides/restricted-session/"},
+            {"title": "Visual Studio Code", "slug": "/server-access/guides/vscode/"}
           ]
         }
       ]
@@ -152,8 +175,7 @@
           "title": "Guides",
           "slug": "/database-access/guides/",
           "entries": [
-            { "title": "AWS RDS/Aurora PostgreSQL", "slug": "/database-access/guides/postgres-aws/" },
-            { "title": "AWS RDS/Aurora MySQL", "slug": "/database-access/guides/mysql-aws/" },
+            { "title": "AWS RDS & Aurora", "slug": "/database-access/guides/rds/" },
             { "title": "AWS Redshift", "slug": "/database-access/guides/postgres-redshift/" },
             { "title": "GCP Cloud SQL PostgreSQL", "slug": "/database-access/guides/postgres-cloudsql/" },
             { "title": "GCP Cloud SQL MySQL", "slug": "/database-access/guides/mysql-cloudsql/" },
@@ -161,7 +183,9 @@
             { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
             { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
             { "title": "Self-Hosted MongoDB", "slug": "/database-access/guides/mongodb-self-hosted/" },
+            { "title": "Self-Hosted CockroachDB", "slug": "/database-access/guides/cockroachdb-self-hosted/" },
             { "title": "Database GUI Clients", "slug": "/database-access/guides/gui-clients/" },
+            { "title": "Dynamic Registration", "slug": "/database-access/guides/dynamic-registration/" },
             { "title": "High Availability", "slug": "/database-access/guides/ha/" }
           ]
         },
@@ -173,10 +197,21 @@
           "entries": [
             { "title": "Configuration", "slug": "/database-access/reference/configuration/" },
             { "title": "CLI", "slug": "/database-access/reference/cli/" },
-            { "title": "Audit Events", "slug": "/database-access/reference/audit/" }
+            { "title": "Audit Events", "slug": "/database-access/reference/audit/" },
+            { "title": "AWS IAM", "slug": "/database-access/reference/aws/" }
           ]
         },
         { "title": "FAQ", "slug": "/database-access/faq/" }
+      ]
+    },
+    {
+      "icon": "desktop",
+      "title": "Desktop Access",
+      "entries": [
+        { "title": "Introduction", "slug": "/desktop-access/introduction/" },
+        { "title": "Getting Started", "slug": "/desktop-access/getting-started/" },
+        { "title": "Reference", "slug": "/desktop-access/reference/" },
+        { "title": "Troubleshooting", "slug": "/desktop-access/troubleshooting/" }
       ]
     },
     {
@@ -209,7 +244,7 @@
         {"title": "Getting Started", "slug": "/api/getting-started/"},
         {"title": "Architecture", "slug": "/api/architecture/"}
       ]
-    },    
+    },
     {
       "icon": "wand",
       "title": "Preview",
@@ -242,6 +277,14 @@
         {
           "title": "FedRAMP",
           "slug": "/enterprise/fedramp/"
+        },
+        {
+          "title": "SOC2",
+          "slug": "/enterprise/soc2/"
+        },
+        {
+          "title": "HSM",
+          "slug": "/enterprise/hsm/"
         }
       ]
     },
@@ -257,7 +300,7 @@
           "entries": [
             { "title": "U2f", "slug": "/cloud/guides/u2f/" }
           ]
-        },        
+        },
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
       ]
@@ -318,8 +361,14 @@
       "major_version": "1",
       "minor_version": "17"
     },
+    "ansible": {
+      "min_version": "2.9.6"
+    },
     "mongodb": {
       "min_version": "3.6"
+    },
+    "mysql": {
+      "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
       "version": "7.0.0",
@@ -334,6 +383,26 @@
   },
   "redirects": [
     {
+      "source": "/user-manual/",
+      "destination": "/server-access/guides/tsh/",
+      "permanent": true
+    },
+    {
+      "source": "/production/",
+      "destination": "/setup/deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guide/",
+      "destination": "/setup/admin/",
+      "permanent": true
+    },
+    {
+      "source": "/trustedclusters/",
+      "destination": "/setup/admin/trustedclusters/",
+      "permanent": true
+    },
+    {
       "source": "/reference/api/architecture/",
       "destination": "/api/architecture/",
       "permanent": true
@@ -347,7 +416,7 @@
       "source": "/reference/api/introduction/",
       "destination": "/api/introduction/",
       "permanent": true
-    },    
+    },
     {
       "source": "/metrics-logs-reference/",
       "destination": "/setup/reference/metrics/",
@@ -357,7 +426,7 @@
       "source": "/config-reference/",
       "destination": "/setup/reference/config/",
       "permanent": true
-    },    
+    },
     {
       "source": "/cli-docs/",
       "destination": "/setup/reference/cli/",
@@ -407,7 +476,7 @@
       "source": "/gcp-guide/",
       "destination": "/setup/deployments/gcp/",
       "permanent": true
-    },    
+    },
     {
       "source": "/ibm-cloud-guide/",
       "destination": "/setup/deployments/ibm/",
@@ -491,6 +560,16 @@
     {
       "source": "/quickstart-docker/",
       "destination": "/setup/guides/docker/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/postgres-aws/",
+      "destination": "/database-access/guides/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/mysql-aws/",
+      "destination": "/database-access/guides/rds/",
       "permanent": true
     }
   ]

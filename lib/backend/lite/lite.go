@@ -99,7 +99,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("specify directory path to the database using 'path' parameter")
 	}
 	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferSize
+		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.PollStreamPeriod == 0 {
 		cfg.PollStreamPeriod = backend.DefaultPollStreamPeriod
@@ -153,10 +153,9 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	}
 	// serialize access to sqlite to avoid database is locked errors
 	db.SetMaxOpenConns(1)
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	buf := backend.NewCircularBuffer(
+		backend.BufferCapacity(cfg.BufferSize),
+	)
 	closeCtx, cancel := context.WithCancel(ctx)
 	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	l := &Backend{

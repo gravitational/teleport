@@ -1,6 +1,6 @@
 ---
-title: Getting started
-description: Getting started with Teleport - identity-aware, multi-protocol access proxy for SSH, HTTPS, Kubernetes, and more.
+title: Getting started on a Linux Server
+description: This tutorial will guide you through the steps needed to install and run Teleport on a Linux server
 videoBanner: jvaCmQyHghY
 ---
 
@@ -80,7 +80,7 @@ Set up an email to receive updates from Let's Encrypt, and use a valid DNS name 
 
 ```code
 $ sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
-Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
+# Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
 ```
 
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
@@ -163,7 +163,7 @@ Here's a selection of compatible two-factor authentication apps:
       If you choose to use Homebrew, you must verify that the versions of `tsh` and
       `tctl` are compatible with the versions you run server-side. Homebrew usually
       ships the latest release of Teleport, which may be incompatible with older
-      versions. See our [compatibility policy](../admin-guide.mdx#component-compatibility) for details.
+      versions. See our [compatibility policy](../setup/operations/upgrading.mdx#component-compatibility) for details.
     </Admonition>
   </TabItem>
 
@@ -311,9 +311,9 @@ Add a new application:
 Check out our collection of step-by-step guides for common Teleport tasks.
 
 - [Install Teleport](../installation.mdx)
-- [Admin Guide](../admin-guide.mdx)
-- [Share Sessions](../user-manual.mdx#sharing-sessions)
-- [Manage Users](../admin-guide.mdx#adding-and-deleting-users)
-- [Github SSO](../admin-guide.mdx#github-oauth-20)
-- [Label Nodes](../admin-guide.mdx#labeling-nodes-and-applications)
+- [Admin Guides](../setup/admin.mdx)
+- [Share Sessions](../server-access/guides/tsh.mdx#sharing-sessions)
+- [Manage Users](../setup/admin/users.mdx)
+- [Github SSO](../setup/admin/github-sso.mdx)
+- [Label Nodes](../setup/admin/labels.mdx)
 - [Teleport with OpenSSH](../server-access/guides/openssh.mdx)

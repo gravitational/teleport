@@ -33,6 +33,9 @@ import (
 
 // ConvertError converts errors to trace errors.
 func ConvertError(err error) error {
+	if err == nil {
+		return nil
+	}
 	// Unwrap original error first.
 	if _, ok := err.(*trace.TraceErr); ok {
 		return ConvertError(trace.Unwrap(err))
@@ -75,6 +78,10 @@ func convertAWSRequestFailureError(err awserr.RequestFailure) error {
 	switch err.StatusCode() {
 	case http.StatusForbidden:
 		return trace.AccessDenied(err.Error())
+	case http.StatusConflict:
+		return trace.AlreadyExists(err.Error())
+	case http.StatusNotFound:
+		return trace.NotFound(err.Error())
 	}
 	return err // Return unmodified.
 }

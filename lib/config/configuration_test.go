@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -38,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -46,7 +49,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 type testConfigFiles struct {
@@ -68,26 +70,22 @@ func writeTestConfigs() error {
 	}
 	// create a good config file fixture
 	testConfigs.configFile = filepath.Join(testConfigs.tempDir, "good-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFile, []byte(makeConfigFixture()), 0660); err != nil {
+	if err = os.WriteFile(testConfigs.configFile, []byte(makeConfigFixture()), 0660); err != nil {
 		return err
 	}
 	// create a static config file fixture
 	testConfigs.configFileStatic = filepath.Join(testConfigs.tempDir, "static-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFileStatic, []byte(StaticConfigString), 0660); err != nil {
+	if err = os.WriteFile(testConfigs.configFileStatic, []byte(StaticConfigString), 0660); err != nil {
 		return err
 	}
 	// create an empty config file
 	testConfigs.configFileNoContent = filepath.Join(testConfigs.tempDir, "empty-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFileNoContent, []byte(""), 0660); err != nil {
+	if err = os.WriteFile(testConfigs.configFileNoContent, []byte(""), 0660); err != nil {
 		return err
 	}
 	// create a bad config file fixture
 	testConfigs.configFileBadContent = filepath.Join(testConfigs.tempDir, "bad-config.yaml")
-	if err = ioutil.WriteFile(testConfigs.configFileBadContent, []byte("bad-data!"), 0660); err != nil {
-		return err
-	}
-
-	return nil
+	return os.WriteFile(testConfigs.configFileBadContent, []byte("bad-data!"), 0660)
 }
 
 func (tc testConfigFiles) cleanup() {
@@ -121,7 +119,7 @@ func TestConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, sfc)
 		fn := filepath.Join(t.TempDir(), "default-config.yaml")
-		err = ioutil.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
+		err = os.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
 		require.NoError(t, err)
 
 		// make sure it could be parsed:
@@ -133,6 +131,8 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, "INFO", fc.Logger.Severity)
 		require.Equal(t, fc.Auth.ClusterName, ClusterName("cookie.localhost"))
 		require.Equal(t, fc.Auth.LicenseFile, "/tmp/license.pem")
+		require.Equal(t, fc.Proxy.PublicAddr, apiutils.Strings{"cookie.localhost:443"})
+		require.Equal(t, fc.Proxy.WebAddr, "0.0.0.0:443")
 
 		require.False(t, lib.IsInsecureDevMode())
 	})
@@ -215,6 +215,7 @@ func TestConfigReading(t *testing.T) {
 	conf, err = ReadFromFile(testConfigs.configFile)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(conf, &FileConfig{
+		Version: defaults.TeleportConfigVersionV1,
 		Global: Global{
 			NodeName:    NodeName,
 			AuthServers: []string{"auth0.server.example.org:3024", "auth1.server.example.org:3024"},
@@ -246,6 +247,7 @@ func TestConfigReading(t *testing.T) {
 			DisconnectExpiredCert: types.NewBoolOption(true),
 			ClientIdleTimeout:     types.Duration(17 * time.Second),
 			WebIdleTimeout:        types.Duration(19 * time.Second),
+			RoutingStrategy:       types.RoutingStrategy_MOST_RECENT,
 		},
 		SSH: SSH{
 			Service: Service{
@@ -265,7 +267,7 @@ func TestConfigReading(t *testing.T) {
 			KeyFile:  "/etc/teleport/proxy.key",
 			CertFile: "/etc/teleport/proxy.crt",
 			KeyPairs: []KeyPair{
-				KeyPair{
+				{
 					PrivateKey:  "/etc/teleport/proxy.key",
 					Certificate: "/etc/teleport/proxy.crt",
 				},
@@ -286,12 +288,19 @@ func TestConfigReading(t *testing.T) {
 				EnabledFlag: "yes",
 			},
 			Apps: []*App{
-				&App{
+				{
 					Name:          "foo",
 					URI:           "http://127.0.0.1:8080",
 					PublicAddr:    "foo.example.com",
 					StaticLabels:  Labels,
 					DynamicLabels: CommandLabels,
+				},
+			},
+			ResourceMatchers: []ResourceMatcher{
+				{
+					Labels: map[string]apiutils.Strings{
+						"*": {"*"},
+					},
 				},
 			},
 		},
@@ -308,6 +317,29 @@ func TestConfigReading(t *testing.T) {
 					DynamicLabels: CommandLabels,
 				},
 			},
+			ResourceMatchers: []ResourceMatcher{
+				{
+					Labels: map[string]apiutils.Strings{
+						"*": {"*"},
+					},
+				},
+			},
+			AWSMatchers: []AWSMatcher{
+				{
+					Types:   []string{"rds"},
+					Regions: []string{"us-west-1", "us-east-1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+				},
+				{
+					Types:   []string{"rds"},
+					Regions: []string{"us-central-1"},
+					Tags: map[string]apiutils.Strings{
+						"c": {"d"},
+					},
+				},
+			},
 		},
 		Metrics: Metrics{
 			Service: Service{
@@ -315,7 +347,7 @@ func TestConfigReading(t *testing.T) {
 				EnabledFlag:   "yes",
 			},
 			KeyPairs: []KeyPair{
-				KeyPair{
+				{
 					PrivateKey:  "/etc/teleport/proxy.key",
 					Certificate: "/etc/teleport/proxy.crt",
 				},
@@ -359,6 +391,27 @@ func TestConfigReading(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, conf)
 	checkStaticConfig(t, conf)
+}
+
+func TestReadLDAPPasswordFromFile(t *testing.T) {
+	tmp := t.TempDir()
+	passwordFile := filepath.Join(tmp, "ldap-password")
+	require.NoError(t, os.WriteFile(passwordFile, []byte(" super-secret-password\n"), 0644))
+
+	fc := FileConfig{
+		WindowsDesktop: WindowsDesktopService{
+			LDAP: LDAPConfig{
+				Addr:         "test.example.com",
+				Domain:       "example.com",
+				Username:     "admin",
+				PasswordFile: passwordFile,
+			},
+		},
+	}
+
+	var sc service.Config
+	require.NoError(t, applyWindowsDesktopConfig(&fc, &sc))
+	require.Equal(t, "super-secret-password", sc.WindowsDesktop.LDAP.Password)
 }
 
 func TestLabelParsing(t *testing.T) {
@@ -515,7 +568,7 @@ teleport:
 func TestApplyConfig(t *testing.T) {
 	tempDir := t.TempDir()
 	tokenPath := filepath.Join(tempDir, "small-config-token")
-	err := ioutil.WriteFile(tokenPath, []byte("join-token"), 0644)
+	err := os.WriteFile(tokenPath, []byte("join-token"), 0644)
 	require.NoError(t, err)
 
 	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(SmallConfigString, tokenPath)))
@@ -605,6 +658,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
 	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
 	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
+	require.Empty(t, cfg.CAPins)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -783,12 +837,11 @@ func TestParseCachePolicy(t *testing.T) {
 		out *service.CachePolicy
 		err error
 	}{
-		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, NeverExpires: true, Type: lite.GetName()}},
-		{in: &CachePolicy{EnabledFlag: "yes", TTL: "10h"}, out: &service.CachePolicy{Enabled: true, NeverExpires: false, TTL: 10 * time.Hour, Type: lite.GetName()}},
-		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "false", TTL: "10h"}, out: &service.CachePolicy{Enabled: false, NeverExpires: false, TTL: 10 * time.Hour, Type: memory.GetName()}},
-		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, NeverExpires: true, Type: memory.GetName()}},
+		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, Type: lite.GetName()}},
+		{in: &CachePolicy{EnabledFlag: "yes", TTL: "10h"}, out: &service.CachePolicy{Enabled: true, Type: lite.GetName()}},
+		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "false", TTL: "10h"}, out: &service.CachePolicy{Enabled: false, Type: memory.GetName()}},
+		{in: &CachePolicy{Type: memory.GetName(), EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true, Type: memory.GetName()}},
 		{in: &CachePolicy{EnabledFlag: "no"}, out: &service.CachePolicy{Type: lite.GetName(), Enabled: false}},
-		{in: &CachePolicy{EnabledFlag: "false", TTL: "zap"}, err: trace.BadParameter("bad format")},
 		{in: &CachePolicy{Type: "memsql"}, err: trace.BadParameter("unsupported backend")},
 	}
 	for i, tc := range tcs {
@@ -881,13 +934,12 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 		},
 		ClientIdleTimeout:     types.Duration(17 * time.Second),
 		DisconnectExpiredCert: types.NewBoolOption(true),
+		RoutingStrategy:       types.RoutingStrategy_MOST_RECENT,
 	}, cmp.AllowUnexported(Service{})))
 
 	policy, err := conf.CachePolicy.Parse()
 	require.NoError(t, err)
 	require.True(t, policy.Enabled)
-	require.False(t, policy.NeverExpires)
-	require.Equal(t, policy.TTL, 20*time.Hour)
 }
 
 var (
@@ -947,6 +999,7 @@ func makeConfigFixture() string {
 	conf.Auth.ClientIdleTimeout = types.NewDuration(17 * time.Second)
 	conf.Auth.WebIdleTimeout = types.NewDuration(19 * time.Second)
 	conf.Auth.DisconnectExpiredCert = types.NewBoolOption(true)
+	conf.Auth.RoutingStrategy = types.RoutingStrategy_MOST_RECENT
 
 	// ssh service:
 	conf.SSH.EnabledFlag = "true"
@@ -960,7 +1013,7 @@ func makeConfigFixture() string {
 	conf.Proxy.KeyFile = "/etc/teleport/proxy.key"
 	conf.Proxy.CertFile = "/etc/teleport/proxy.crt"
 	conf.Proxy.KeyPairs = []KeyPair{
-		KeyPair{
+		{
 			PrivateKey:  "/etc/teleport/proxy.key",
 			Certificate: "/etc/teleport/proxy.crt",
 		},
@@ -982,12 +1035,17 @@ func makeConfigFixture() string {
 	// Application service.
 	conf.Apps.EnabledFlag = "yes"
 	conf.Apps.Apps = []*App{
-		&App{
+		{
 			Name:          "foo",
 			URI:           "http://127.0.0.1:8080",
 			PublicAddr:    "foo.example.com",
 			StaticLabels:  Labels,
 			DynamicLabels: CommandLabels,
+		},
+	}
+	conf.Apps.ResourceMatchers = []ResourceMatcher{
+		{
+			Labels: map[string]apiutils.Strings{"*": {"*"}},
 		},
 	}
 
@@ -1002,18 +1060,36 @@ func makeConfigFixture() string {
 			DynamicLabels: CommandLabels,
 		},
 	}
+	conf.Databases.ResourceMatchers = []ResourceMatcher{
+		{
+			Labels: map[string]apiutils.Strings{"*": {"*"}},
+		},
+	}
+	conf.Databases.AWSMatchers = []AWSMatcher{
+		{
+			Types:   []string{"rds"},
+			Regions: []string{"us-west-1", "us-east-1"},
+			Tags:    map[string]apiutils.Strings{"a": {"b"}},
+		},
+		{
+			Types:   []string{"rds"},
+			Regions: []string{"us-central-1"},
+			Tags:    map[string]apiutils.Strings{"c": {"d"}},
+		},
+	}
 
 	// Metrics service.
 	conf.Metrics.EnabledFlag = "yes"
 	conf.Metrics.ListenAddress = "tcp://metrics"
 	conf.Metrics.CACerts = []string{"/etc/teleport/ca.crt"}
 	conf.Metrics.KeyPairs = []KeyPair{
-		KeyPair{
+		{
 			PrivateKey:  "/etc/teleport/proxy.key",
 			Certificate: "/etc/teleport/proxy.crt",
 		},
 	}
 
+	// Windows Desktop Service
 	conf.WindowsDesktop = WindowsDesktopService{
 		Service: Service{
 			EnabledFlag:   "yes",
@@ -1173,13 +1249,16 @@ func TestProxyKube(t *testing.T) {
 	tests := []struct {
 		desc     string
 		cfg      Proxy
+		version  string
 		want     service.KubeProxyConfig
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
-			desc:     "not configured",
-			cfg:      Proxy{},
-			want:     service.KubeProxyConfig{},
+			desc: "not configured",
+			cfg:  Proxy{},
+			want: service.KubeProxyConfig{
+				Enabled: false,
+			},
 			checkErr: require.NoError,
 		},
 		{
@@ -1245,14 +1324,188 @@ func TestProxyKube(t *testing.T) {
 			},
 			checkErr: require.NoError,
 		},
+		{
+			desc:    "v2 kube service should be enabled by default",
+			version: defaults.TeleportConfigVersionV2,
+			cfg:     Proxy{},
+			want: service.KubeProxyConfig{
+				Enabled: true,
+			},
+			checkErr: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			fc := &FileConfig{Proxy: tt.cfg}
-			cfg := &service.Config{}
+			fc := &FileConfig{
+				Version: tt.version,
+				Proxy:   tt.cfg,
+			}
+			cfg := &service.Config{
+				Version: tt.version,
+			}
 			err := applyProxyConfig(fc, cfg)
 			tt.checkErr(t, err)
 			require.Empty(t, cmp.Diff(cfg.Proxy.Kube, tt.want, cmpopts.EquateEmpty()))
+		})
+	}
+}
+
+// Test default values generated by v1 and v2 configuration versions.
+func TestProxyConfigurationVersion(t *testing.T) {
+	tests := []struct {
+		desc     string
+		fc       FileConfig
+		want     service.ProxyConfig
+		checkErr require.ErrorAssertionFunc
+	}{
+		{
+			desc: "v2 config with default web address",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV2,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+				},
+			},
+			want: service.ProxyConfig{
+				WebAddr:             *utils.MustParseAddr("0.0.0.0:3080"),
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				Kube: service.KubeProxyConfig{
+					Enabled: true,
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+			checkErr: require.NoError,
+		},
+		{
+			desc: "v2 config with custom web address",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV2,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+					WebAddr: "0.0.0.0:9999",
+				},
+			},
+			want: service.ProxyConfig{
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
+				Kube: service.KubeProxyConfig{
+					Enabled: true,
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+			checkErr: require.NoError,
+		},
+		{
+			desc: "v1 config should generate default listener addresses",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV1,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+				},
+			},
+			want: service.ProxyConfig{
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+				WebAddr: *defaults.ProxyWebListenAddr(),
+				Kube: service.KubeProxyConfig{
+					Enabled: false,
+				},
+				ReverseTunnelListenAddr: *defaults.ReverseTunnelListenAddr(),
+				SSHAddr:                 *defaults.ProxyListenAddr(),
+			},
+			checkErr: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+			err := ApplyFileConfig(&tt.fc, cfg)
+			tt.checkErr(t, err)
+			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
+		})
+	}
+}
+
+func TestWindowsDesktopService(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	ldapPasswordFile := filepath.Join(tmp, "ldap-pass")
+	require.NoError(t, os.WriteFile(ldapPasswordFile, []byte("foo"), 0644))
+
+	for _, test := range []struct {
+		desc        string
+		mutate      func(fc *FileConfig)
+		expectError require.ErrorAssertionFunc
+	}{
+		{
+			desc:        "NOK - invalid static host addr",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Hosts = []string{"badscheme://foo:1:2"}
+			},
+		},
+		{
+			desc:        "NOK - invalid host label key",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
+					{Match: ".*", Labels: map[string]string{"invalid label key": "value"}},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid host label regexp",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
+					{Match: "g(-z]+ invalid regex", Labels: map[string]string{"key": "value"}},
+				}
+			},
+		},
+		{
+			desc:        "OK - valid config",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.EnabledFlag = "yes"
+				fc.WindowsDesktop.ListenAddress = "0.0.0.0:3028"
+				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
+					{Match: ".*", Labels: map[string]string{"key": "value"}},
+				}
+			},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			fc := &FileConfig{
+				WindowsDesktop: WindowsDesktopService{
+					LDAP: LDAPConfig{
+						PasswordFile: ldapPasswordFile,
+					},
+				},
+			}
+			test.mutate(fc)
+			cfg := &service.Config{}
+			err := applyWindowsDesktopConfig(fc, cfg)
+			test.expectError(t, err)
 		})
 	}
 }
@@ -1272,6 +1525,9 @@ app_service:
       name: foo
       public_addr: "foo.example.com"
       uri: "http://127.0.0.1:8080"
+  resources:
+  - labels:
+      '*': '*'
 `,
 			inComment: "config is valid",
 			outError:  false,
@@ -1407,6 +1663,14 @@ func TestDatabaseConfig(t *testing.T) {
 			inConfigString: `
 db_service:
   enabled: true
+  resources:
+  - labels:
+      '*': '*'
+  aws:
+  - types: ["rds", "redshift"]
+    regions: ["us-east-1", "us-west-1"]
+    tags:
+      '*': '*'
   databases:
   - name: foo
     protocol: postgres
@@ -1487,7 +1751,7 @@ db_service:
 func TestDatabaseCLIFlags(t *testing.T) {
 	// Prepare test CA certificate used to configure some databases.
 	testCertPath := filepath.Join(t.TempDir(), "cert.pem")
-	err := ioutil.WriteFile(testCertPath, fixtures.LocalhostCert, 0644)
+	err := os.WriteFile(testCertPath, fixtures.LocalhostCert, 0644)
 	require.NoError(t, err)
 	tests := []struct {
 		inFlags     CommandLineFlags
@@ -1504,10 +1768,11 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Labels:           "env=test,hostname=[1h:hostname]",
 			},
 			outDatabase: service.Database{
-				Name:         "foo",
-				Protocol:     defaults.ProtocolPostgres,
-				URI:          "localhost:5432",
-				StaticLabels: map[string]string{"env": "test"},
+				Name:     "foo",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				StaticLabels: map[string]string{"env": "test",
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{
 					"hostname": &types.CommandLabelV2{
 						Period:  types.Duration(time.Hour),
@@ -1557,7 +1822,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				AWS: service.DatabaseAWS{
 					Region: "us-east-1",
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -1580,7 +1846,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 						ClusterID: "redshift-cluster-1",
 					},
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -1603,7 +1870,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					ProjectID:  "gcp-project-1",
 					InstanceID: "gcp-instance-1",
 				},
-				StaticLabels:  map[string]string{},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},

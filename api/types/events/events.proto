@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 syntax = "proto3";
 package events;
 
@@ -1076,6 +1090,62 @@ message KubeRequest {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// AppMetadata contains common application information.
+message AppMetadata {
+    // AppURI is the application endpoint.
+    string AppURI = 1 [ (gogoproto.jsontag) = "app_uri" ];
+    // AppPublicAddr is the configured application public address.
+    string AppPublicAddr = 2 [ (gogoproto.jsontag) = "app_public_addr,omitempty" ];
+    // AppLabels are the configured application labels.
+    map<string, string> AppLabels = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "app_labels,omitempty" ];
+}
+
+// AppCreate is emitted when a new application resource is created.
+message AppCreate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // ResourceMetadata is a common resource event metadata.
+    ResourceMetadata Resource = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // AppMetadata is a common application resource metadata.
+    AppMetadata App = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// AppUpdate is emitted when an existing application resource is updated.
+message AppUpdate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // ResourceMetadata is a common resource event metadata.
+    ResourceMetadata Resource = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // AppMetadata is a common application resource metadata.
+    AppMetadata App = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// AppDelete is emitted when an application resource is deleted.
+message AppDelete {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // ResourceMetadata is a common resource event metadata.
+    ResourceMetadata Resource = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // AppSessionStart is emitted when a user is issued an application certificate.
 message AppSessionStart {
     // Metadata is a common event metadata
@@ -1150,15 +1220,72 @@ message AppSessionRequest {
 // DatabaseMetadata contains common database information.
 message DatabaseMetadata {
     // DatabaseService is the name of the database service proxying the database.
-    string DatabaseService = 1 [ (gogoproto.jsontag) = "db_service" ];
+    string DatabaseService = 1 [ (gogoproto.jsontag) = "db_service,omitempty" ];
     // DatabaseProtocol is the database type, e.g. postgres or mysql.
     string DatabaseProtocol = 2 [ (gogoproto.jsontag) = "db_protocol" ];
     // DatabaseURI is the database URI to connect to.
     string DatabaseURI = 3 [ (gogoproto.jsontag) = "db_uri" ];
     // DatabaseName is the name of the database a user is connecting to.
-    string DatabaseName = 4 [ (gogoproto.jsontag) = "db_name" ];
+    string DatabaseName = 4 [ (gogoproto.jsontag) = "db_name,omitempty" ];
     // DatabaseUser is the database username used to connect.
-    string DatabaseUser = 5 [ (gogoproto.jsontag) = "db_user" ];
+    string DatabaseUser = 5 [ (gogoproto.jsontag) = "db_user,omitempty" ];
+    // DatabaseLabels is the database resource labels.
+    map<string, string> DatabaseLabels = 6
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "db_labels,omitempty" ];
+    // DatabaseAWSRegion is AWS regions for AWS hosted databases.
+    string DatabaseAWSRegion = 7 [ (gogoproto.jsontag) = "db_aws_region,omitempty" ];
+    // DatabaseAWSRegion is cluster ID for Redshift databases.
+    string DatabaseAWSRedshiftClusterID = 8
+        [ (gogoproto.jsontag) = "db_aws_redshift_cluster_id,omitempty" ];
+    // DatabaseGCPProjectID is project ID for GCP hosted databases.
+    string DatabaseGCPProjectID = 9 [ (gogoproto.jsontag) = "db_gcp_project_id,omitempty" ];
+    // DatabaseGCPInstanceID is instance ID for GCP hosted databases.
+    string DatabaseGCPInstanceID = 10 [ (gogoproto.jsontag) = "db_gcp_instance_id,omitempty" ];
+}
+
+// DatabaseCreate is emitted when a new database resource is created.
+message DatabaseCreate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // ResourceMetadata is a common resource event metadata.
+    ResourceMetadata Resource = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // DatabaseMetadata is a common database resource metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// DatabaseUpdate is emitted when an existing database resource is updated.
+message DatabaseUpdate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // ResourceMetadata is a common resource event metadata.
+    ResourceMetadata Resource = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // DatabaseMetadata is a common database resource metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// DatabaseDelete is emitted when a database resource is deleted.
+message DatabaseDelete {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // ResourceMetadata is a common resource event metadata.
+    ResourceMetadata Resource = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // DatabaseSessionStart is emitted when a user connects to a database.
@@ -1208,6 +1335,35 @@ message DatabaseSessionQuery {
     // Status indicates whether the query was successfully sent to the database.
     Status Status = 7
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// WindowsDesktopSessionStart is emitted when a user connects to a desktop.
+message WindowsDesktopSessionStart {
+    // Metadata is common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Session is common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Connection holds information about the connection.
+    ConnectionMetadata Connection = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Status indicates whether the connection was successful or denied.
+    Status Status = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // WindowsDesktopService is the name of the service proxying the RDP session.
+    string WindowsDesktopService = 6 [ (gogoproto.jsontag) = "windows_desktop_service" ];
+    // DesktopAddr is the address of the desktop being accessed.
+    string DesktopAddr = 7 [ (gogoproto.jsontag) = "desktop_addr" ];
+    // Domain is the Active Directory domain of the desktop being accessed.
+    string Domain = 8 [ (gogoproto.jsontag) = "windows_domain" ];
+    // WindowsUser is the Windows username used to connect.
+    string WindowsUser = 9 [ (gogoproto.jsontag) = "windows_user" ];
+    // DesktopLabels are the labels on the desktop resource.
+    map<string, string> DesktopLabels = 10 [ (gogoproto.jsontag) = "desktop_labels" ];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.
@@ -1349,6 +1505,29 @@ message RecoveryCodeUsed {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// WindowsDesktopSessionEnd is emitted when a user ends a Windows desktop session.
+message WindowsDesktopSessionEnd {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Session is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // WindowsDesktopService is the name of the service proxying the RDP session.
+    string WindowsDesktopService = 4 [ (gogoproto.jsontag) = "windows_desktop_service" ];
+    // DesktopAddr is the address of the desktop being accessed.
+    string DesktopAddr = 5 [ (gogoproto.jsontag) = "desktop_addr" ];
+    // Domain is the Active Directory domain of the desktop being accessed.
+    string Domain = 6 [ (gogoproto.jsontag) = "windows_domain" ];
+    // WindowsUser is the Windows username used to connect.
+    string WindowsUser = 7 [ (gogoproto.jsontag) = "windows_user" ];
+    // DesktopLabels are the labels on the desktop resource.
+    map<string, string> DesktopLabels = 8 [ (gogoproto.jsontag) = "desktop_labels" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -1405,6 +1584,14 @@ message OneOf {
         events.LockDelete LockDelete = 50;
         events.RecoveryCodeGenerate RecoveryCodeGenerate = 51;
         events.RecoveryCodeUsed RecoveryCodeUsed = 52;
+        events.DatabaseCreate DatabaseCreate = 53;
+        events.DatabaseUpdate DatabaseUpdate = 54;
+        events.DatabaseDelete DatabaseDelete = 55;
+        events.AppCreate AppCreate = 56;
+        events.AppUpdate AppUpdate = 57;
+        events.AppDelete AppDelete = 58;
+        events.WindowsDesktopSessionStart WindowsDesktopSessionStart = 59;
+        events.WindowsDesktopSessionEnd WindowsDesktopSessionEnd = 60;
     }
 }
 

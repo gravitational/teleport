@@ -44,8 +44,10 @@ RUN apt-get update -y --fix-missing && \
         locales \
         make \
         mingw-w64 \
+        mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
+        osslsigncode \
         python-pip \
         pkg-config \
         shellcheck \
@@ -65,6 +67,36 @@ ARG UID
 ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
+
+# Install Rust
+#
+# Rust installation based on official rust image Dockerfile here:
+#   https://github.com/rust-lang/docker-rust/blob/master/1.56.0/bullseye/Dockerfile
+#
+# The original Rust docker image uses a script to install `rustup`, and from
+# there rustc and associated tools.
+#
+# Rather than execute an arbitrary `rustup` installation script, we are cherry-
+# picking the appropriate files off the official docker image and then installing
+# the extra tooling/targets we need.
+
+ ENV RUSTUP_HOME=/usr/local/rustup \
+     CARGO_HOME=/usr/local/cargo \
+     PATH=/usr/local/cargo/bin:$PATH \
+     RUST_VERSION=1.56.1
+
+COPY --from=rust:1.56.1 /usr/local/rustup /usr/local/rustup
+COPY --from=rust:1.56.1 /usr/local/cargo /usr/local/cargo
+RUN set -eux \
+    rustup --version; \
+    cargo --version; \
+    rustup component add --toolchain 1.56.1-x86_64-unknown-linux-gnu rustfmt clippy; \
+    chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
+    rustup target add i686-unknown-linux-gnu; \
+    rustup target add arm-unknown-linux-gnueabihf; \
+    rustup target add aarch64-unknown-linux-gnu; \
+    rustup target list | grep installed; \
+    rustc --version;
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
@@ -88,6 +120,9 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+# Install addlicense
+RUN go install github.com/google/addlicense@v1.0.0
 
 # Install meta-linter.
 RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.38.0/golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
@@ -120,7 +155,9 @@ RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gog
      git reset --hard ${GOGO_PROTO_TAG} && \
      make install)
 
-ENV PROTO_INCLUDE "/usr/local/include":"${GOPATH}/src":"${GOPATH}/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf":"${GOPATH}/src/github.com/gravitational/teleport/lib/services"
+# Note: protoc reads the proto files from /vendor/.../teleport/api/vX rather than
+# /api because protoc does not understand go modules, and reads vX as a directory.
+ENV PROTO_INCLUDE "/usr/local/include":"/go/src/github.com/gravitational/teleport/vendor":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/

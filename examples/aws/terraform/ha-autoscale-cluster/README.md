@@ -20,7 +20,7 @@ the ports to the other parts.
 
 We recommend familiarizing yourself with the following resources prior to reviewing our Terraform examples:
 
-- [Teleport Architecture](https://gravitational.com/teleport/docs/architecture/teleport_architecture_overview/)
+- [Teleport Architecture](https://goteleport.com/docs/architecture/overview/)
 - [Admin Guide](https://gravitational.com/teleport/docs/admin-guide/)
 
 In order to spin up AWS resources using these Terraform examples, you need the following software:
@@ -45,7 +45,7 @@ export TF_VAR_cluster_name="teleport.example.com"
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-export TF_VAR_ami_name="gravitational-teleport-ami-ent-7.1.0"
+export TF_VAR_ami_name="gravitational-teleport-ami-ent-7.3.2"
 
 # AWS SSH key name to provision in installed instances, should be available in the region
 export TF_VAR_key_name="example"

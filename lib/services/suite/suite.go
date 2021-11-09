@@ -28,12 +28,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -836,174 +834,6 @@ func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	c.Assert(devs, check.HasLen, 2)
 }
 
-func (s *ServicesTestSuite) WebauthnLocalAuthUpsert(c *check.C) {
-	updateViaUser := func(ctx context.Context, user string, wal *types.WebauthnLocalAuth) error {
-		u, err := types.NewUser(user)
-		if err != nil {
-			return err
-		}
-		las := u.GetLocalAuth()
-		if las == nil {
-			las = &types.LocalAuthSecrets{}
-		}
-		las.Webauthn = wal
-		u.SetLocalAuth(las)
-
-		err = s.WebS.UpsertUser(u)
-		return err
-	}
-	getViaUser := func(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
-		u, err := s.WebS.GetUser(user, true /* withSecrets */)
-		if err != nil {
-			return nil, err
-		}
-		return u.GetLocalAuth().Webauthn, nil
-	}
-
-	// Create a user to begin with.
-	const name = "llama"
-	user, err := types.NewUser(name)
-	c.Assert(err, check.IsNil)
-	err = s.WebS.UpsertUser(user)
-	c.Assert(err, check.IsNil)
-
-	// Try a few empty reads.
-	ctx := context.Background()
-	_, err = s.WebS.GetUser(name, true /* withSecrets */)
-	c.Assert(err, check.IsNil) // User read should be fine.
-	_, err = s.WebS.GetWebauthnLocalAuth(ctx, name)
-	c.Assert(trace.IsNotFound(err), check.Equals, true) // Direct WAL read should fail.
-
-	// Try a few invalid updates.
-	badWAL := &types.WebauthnLocalAuth{} // missing UserID
-	err = s.WebS.UpsertWebauthnLocalAuth(ctx, name, badWAL)
-	c.Check(trace.IsBadParameter(err), check.Equals, true)
-	user.SetLocalAuth(&types.LocalAuthSecrets{Webauthn: badWAL})
-	err = s.WebS.UpdateUser(ctx, user)
-	c.Check(trace.IsBadParameter(err), check.Equals, true)
-
-	// Update/Read tests.
-	tests := []struct {
-		name   string
-		user   string
-		wal    *types.WebauthnLocalAuth
-		update func(context.Context, string, *types.WebauthnLocalAuth) error
-		get    func(context.Context, string) (*types.WebauthnLocalAuth, error)
-	}{
-		{
-			name:   "OK: Create WAL directly",
-			user:   "llama",
-			wal:    &types.WebauthnLocalAuth{UserID: []byte("webauthn user ID for llama")},
-			update: s.WebS.UpsertWebauthnLocalAuth,
-			get:    s.WebS.GetWebauthnLocalAuth,
-		},
-		{
-			name:   "OK: Update WAL directly",
-			user:   "llama", // same as above
-			wal:    &types.WebauthnLocalAuth{UserID: []byte("another ID")},
-			update: s.WebS.UpsertWebauthnLocalAuth,
-			get:    s.WebS.GetWebauthnLocalAuth,
-		},
-		{
-			name:   "OK: Create WAL via user",
-			user:   "alpaca", // new user
-			wal:    &types.WebauthnLocalAuth{UserID: []byte("webauthn user ID for alpaca")},
-			update: updateViaUser,
-			get:    getViaUser,
-		},
-		{
-			name:   "OK: Update WAL via user",
-			user:   "alpaca", // same as above
-			wal:    &types.WebauthnLocalAuth{UserID: []byte("some other ID")},
-			update: updateViaUser,
-			get:    getViaUser,
-		},
-	}
-	for _, test := range tests {
-		err := test.update(ctx, test.name, test.wal)
-		c.Check(err, check.IsNil)
-
-		want := test.wal
-		got, err := test.get(ctx, test.name)
-		c.Check(err, check.IsNil)
-		if diff := cmp.Diff(want, got); diff != "" {
-			c.Fatalf("WebauthnLocalAuth mismatch (-want +got):\n%s", diff)
-		}
-	}
-}
-
-func (s *ServicesTestSuite) WebauthnSessionDataCRUD(c *check.C) {
-	const user1 = "llama"
-	const user2 = "alpaca"
-	// Prepare a few different objects so we can assert that both "user" and
-	// "session" key components are used correctly.
-	user1Reg := &wantypes.SessionData{
-		Challenge: []byte("challenge1-reg"),
-		UserId:    []byte("llamaid"),
-	}
-	user1Login := &wantypes.SessionData{
-		Challenge:        []byte("challenge1-login"),
-		UserId:           []byte("llamaid"),
-		AllowCredentials: [][]byte{[]byte("cred1"), []byte("cred2")},
-	}
-	user2Login := &wantypes.SessionData{
-		Challenge: []byte("challenge2"),
-		UserId:    []byte("alpacaid"),
-	}
-
-	// Usually there are only 2 sessions for each user: login and registration.
-	const registerSession = "register"
-	const loginSession = "login"
-	params := []struct {
-		user, session string
-		sd            *wantypes.SessionData
-	}{
-		{user: user1, session: registerSession, sd: user1Reg},
-		{user: user1, session: loginSession, sd: user1Login},
-		{user: user2, session: loginSession, sd: user2Login},
-	}
-
-	// Verify upsert/create.
-	ctx := context.Background()
-	for _, p := range params {
-		err := s.WebS.UpsertWebauthnSessionData(ctx, p.user, p.session, p.sd)
-		c.Assert(err, check.IsNil)
-	}
-
-	// Verify read.
-	for _, p := range params {
-		got, err := s.WebS.GetWebauthnSessionData(ctx, p.user, p.session)
-		c.Assert(err, check.IsNil)
-		if diff := cmp.Diff(p.sd, got); diff != "" {
-			c.Fatalf("GetWebauthnSessionData() mismatch (-want +got):\n%s", diff)
-		}
-	}
-
-	// Verify upsert/update.
-	user1Reg = &wantypes.SessionData{
-		Challenge: []byte("challenge1reg--another"),
-		UserId:    []byte("llamaid"),
-	}
-	err := s.WebS.UpsertWebauthnSessionData(ctx, user1, registerSession, user1Reg)
-	c.Assert(err, check.IsNil)
-	got, err := s.WebS.GetWebauthnSessionData(ctx, user1, registerSession)
-	c.Assert(err, check.IsNil)
-	if diff := cmp.Diff(user1Reg, got); diff != "" {
-		c.Fatalf("GetWebauthnSessionData() mismatch (-want +got):\n%s", diff)
-	}
-
-	// Verify deletion.
-	err = s.WebS.DeleteWebauthnSessionData(ctx, user1, registerSession)
-	c.Assert(err, check.IsNil)
-	_, err = s.WebS.GetWebauthnSessionData(ctx, user1, registerSession)
-	c.Assert(trace.IsNotFound(err), check.Equals, true)
-	params = params[1:] // Remove user1/register from params
-	for _, p := range params {
-		_, err := s.WebS.GetWebauthnSessionData(ctx, p.user, p.session)
-		c.Assert(err, check.IsNil) // Other keys preserved
-	}
-}
-
 func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 	ctx := context.Background()
 	connector := &types.SAMLConnectorV2{
@@ -1321,44 +1151,6 @@ func CollectOptions(opts ...Option) Options {
 		o(&suiteOpts)
 	}
 	return suiteOpts
-}
-
-// ClusterConfig tests cluster configuration.
-// DELETE IN 8.0.0: Remove ClusterConfig and related tests
-// and test only the individual resources.
-func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
-	ctx := context.Background()
-
-	clusterName, err := s.ConfigS.GetClusterName()
-	c.Assert(err, check.IsNil)
-	clusterID := clusterName.GetClusterID()
-
-	auditConfig, err := s.ConfigS.GetClusterAuditConfig(ctx)
-	c.Assert(err, check.IsNil)
-
-	netConfig, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
-	c.Assert(err, check.IsNil)
-
-	recConfig, err := s.ConfigS.GetSessionRecordingConfig(ctx)
-	c.Assert(err, check.IsNil)
-
-	authPref, err := s.ConfigS.GetAuthPreference(ctx)
-	c.Assert(err, check.IsNil)
-
-	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
-	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetClusterConfig(config)
-	c.Assert(err, check.IsNil)
-
-	gotConfig, err := s.ConfigS.GetClusterConfig()
-	c.Assert(err, check.IsNil)
-	config.SetResourceID(gotConfig.GetResourceID())
-	config.SetLegacyClusterID(clusterID)
-	config.SetAuditConfig(auditConfig)
-	config.SetNetworkingFields(netConfig)
-	config.SetSessionRecordingFields(recConfig)
-	config.SetAuthFields(authPref)
-	fixtures.DeepCompare(c, config, gotConfig)
 }
 
 // ClusterName tests cluster name.
@@ -1925,62 +1717,6 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 // EventsClusterConfig tests cluster config resource events
 func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 	testCases := []eventTest{
-		{
-			name: "Cluster config",
-			kind: types.WatchKind{
-				Kind: types.KindClusterConfig,
-			},
-			crud: func(ctx context.Context) types.Resource {
-				// DELETE IN 8.0.0
-				clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-					ClusterName: "example.com",
-				})
-				c.Assert(err, check.IsNil)
-				err = s.ConfigS.SetClusterName(clusterName)
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
-				c.Assert(err, check.IsNil)
-
-				config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
-				c.Assert(err, check.IsNil)
-
-				err = s.ConfigS.SetClusterConfig(config)
-				c.Assert(err, check.IsNil)
-
-				out, err := s.ConfigS.GetClusterConfig()
-				c.Assert(err, check.IsNil)
-
-				// To ensure backward compatibility the ClusterConfig resource is not
-				// emitted in the same form as it is put into the backend, but instead
-				// the event handler performs an additional get of ClusterConfig from
-				// the backend.  Therefore, do not delete the resource immediately but
-				// wait until the event has been actually emitted.  DELETE IN 8.0.0
-				w, err := s.EventsS.NewWatcher(ctx, types.Watch{
-					Kinds: []types.WatchKind{{Kind: types.KindClusterConfig}},
-				})
-				c.Assert(err, check.IsNil)
-				defer w.Close()
-				ExpectResource(c, w, time.Second, out)
-
-				err = s.ConfigS.DeleteClusterConfig()
-				c.Assert(err, check.IsNil)
-				return out
-			},
-		},
 		{
 			name: "Cluster name",
 			kind: types.WatchKind{

@@ -47,6 +47,11 @@ func CompareServers(a, b types.Resource) int {
 			return compareServers(serverA, serverB)
 		}
 	}
+	if appA, ok := a.(types.AppServer); ok {
+		if appB, ok := b.(types.AppServer); ok {
+			return compareApplicationServers(appA, appB)
+		}
+	}
 	if dbA, ok := a.(types.DatabaseServer); ok {
 		if dbB, ok := b.(types.DatabaseServer); ok {
 			return compareDatabaseServers(dbA, dbB)
@@ -108,6 +113,32 @@ func compareServers(a, b types.Server) int {
 	return Equal
 }
 
+func compareApplicationServers(a, b types.AppServer) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetName() != b.GetName() {
+		return Different
+	}
+	if a.GetNamespace() != b.GetNamespace() {
+		return Different
+	}
+	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
+	}
+	r := a.GetRotation()
+	if !r.Matches(b.GetRotation()) {
+		return Different
+	}
+	if !cmp.Equal(a.GetApp(), b.GetApp()) {
+		return Different
+	}
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
 func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if a.GetKind() != b.GetKind() {
 		return Different
@@ -125,7 +156,7 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetDatabases(), b.GetDatabases()) {
+	if !cmp.Equal(a.GetDatabase(), b.GetDatabase()) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {

@@ -176,6 +176,22 @@ func (p *resourceWatcher) runWatchLoop() {
 	for {
 		p.Log.WithField("retry", p.retry).Debug("Starting watch.")
 		err := p.watch()
+
+		select {
+		case <-p.ctx.Done():
+			return
+		default:
+		}
+
+		if err != nil && p.failureStartedAt.IsZero() {
+			// Note that failureStartedAt is zeroed in the watch routine immediately
+			// after the local resource set has been successfully updated.
+			p.failureStartedAt = p.Clock.Now()
+		}
+		if p.hasStaleView() {
+			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
+			p.collector.notifyStale()
+		}
 		select {
 		case <-p.retry.After():
 			p.retry.Inc()
@@ -185,15 +201,8 @@ func (p *resourceWatcher) runWatchLoop() {
 		}
 		if err != nil {
 			p.Log.Warningf("Restart watch on error: %v.", err)
-			if p.failureStartedAt.IsZero() {
-				p.failureStartedAt = p.Clock.Now()
-			}
-			// failureStartedAt is zeroed in the watch routine immediately after
-			// the local resource set has been successfully updated.
-		}
-		if p.hasStaleView() {
-			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
-			p.collector.notifyStale()
+		} else {
+			p.Log.Debug("Triggering scheduled refetch.")
 		}
 		// Used for testing that the watch routine has exited and is about
 		// to be restarted.
@@ -236,7 +245,6 @@ func (p *resourceWatcher) watch() error {
 	case <-watcher.Done():
 		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 	case <-refetchC:
-		p.Log.Debug("Triggering scheduled refetch.")
 		return nil
 	case <-p.ctx.Done():
 		return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
@@ -257,7 +265,6 @@ func (p *resourceWatcher) watch() error {
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 		case <-refetchC:
-			p.Log.Debug("Triggering scheduled refetch.")
 			return nil
 		case <-p.ctx.Done():
 			return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
@@ -607,11 +614,11 @@ func (p *lockCollector) notifyStale() {
 }
 
 func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, error) {
-	if len(targets) == 0 {
-		return []types.WatchKind{{Kind: types.KindLock}}, nil
-	}
 	watchKinds := make([]types.WatchKind, 0, len(targets))
 	for _, target := range targets {
+		if target.IsEmpty() {
+			continue
+		}
 		filter, err := target.IntoMap()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -620,6 +627,9 @@ func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, err
 			Kind:   types.KindLock,
 			Filter: filter,
 		})
+	}
+	if len(watchKinds) == 0 {
+		watchKinds = []types.WatchKind{{Kind: types.KindLock}}
 	}
 	return watchKinds, nil
 }
@@ -630,4 +640,236 @@ func lockMapValues(lockMap map[string]types.Lock) []types.Lock {
 		locks = append(locks, lock)
 	}
 	return locks
+}
+
+// DatabaseWatcherConfig is a DatabaseWatcher configuration.
+type DatabaseWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// DatabaseGetter is responsible for fetching database resources.
+	DatabaseGetter
+	// DatabasesC receives up-to-date list of all database resources.
+	DatabasesC chan types.Databases
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *DatabaseWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.DatabaseGetter == nil {
+		getter, ok := cfg.Client.(DatabaseGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter DatabaseGetter and Client not usable as DatabaseGetter")
+		}
+		cfg.DatabaseGetter = getter
+	}
+	if cfg.DatabasesC == nil {
+		cfg.DatabasesC = make(chan types.Databases)
+	}
+	return nil
+}
+
+// NewDatabaseWatcher returns a new instance of DatabaseWatcher.
+func NewDatabaseWatcher(ctx context.Context, cfg DatabaseWatcherConfig) (*DatabaseWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &databaseCollector{
+		DatabaseWatcherConfig: cfg,
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &DatabaseWatcher{watcher, collector}, nil
+}
+
+// DatabaseWatcher is built on top of resourceWatcher to monitor database resources.
+type DatabaseWatcher struct {
+	*resourceWatcher
+	*databaseCollector
+}
+
+// databaseCollector accompanies resourceWatcher when monitoring database resources.
+type databaseCollector struct {
+	// DatabaseWatcherConfig is the watcher configuration.
+	DatabaseWatcherConfig
+	// current holds a map of the currently known database resources.
+	current map[string]types.Database
+	// lock protects the "current" map.
+	lock sync.RWMutex
+}
+
+// resourceKind specifies the resource kind to watch.
+func (p *databaseCollector) resourceKind() string {
+	return types.KindDatabase
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *databaseCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	databases, err := p.DatabaseGetter.GetDatabases(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newCurrent := make(map[string]types.Database, len(databases))
+	for _, database := range databases {
+		newCurrent[database.GetName()] = database
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.current = newCurrent
+	p.DatabasesC <- databases
+	return nil
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindDatabase {
+		p.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	switch event.Type {
+	case types.OpDelete:
+		delete(p.current, event.Resource.GetName())
+		p.DatabasesC <- databasesToSlice(p.current)
+	case types.OpPut:
+		database, ok := event.Resource.(types.Database)
+		if !ok {
+			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		p.current[database.GetName()] = database
+		p.DatabasesC <- databasesToSlice(p.current)
+	default:
+		p.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*databaseCollector) notifyStale() {}
+
+func databasesToSlice(databases map[string]types.Database) (slice []types.Database) {
+	for _, database := range databases {
+		slice = append(slice, database)
+	}
+	return slice
+}
+
+// AppWatcherConfig is an AppWatcher configuration.
+type AppWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// AppGetter is responsible for fetching application resources.
+	AppGetter
+	// AppsC receives up-to-date list of all application resources.
+	AppsC chan types.Apps
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *AppWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.AppGetter == nil {
+		getter, ok := cfg.Client.(AppGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter AppGetter and Client not usable as AppGetter")
+		}
+		cfg.AppGetter = getter
+	}
+	if cfg.AppsC == nil {
+		cfg.AppsC = make(chan types.Apps)
+	}
+	return nil
+}
+
+// NewAppWatcher returns a new instance of AppWatcher.
+func NewAppWatcher(ctx context.Context, cfg AppWatcherConfig) (*AppWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &appCollector{
+		AppWatcherConfig: cfg,
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &AppWatcher{watcher, collector}, nil
+}
+
+// AppWatcher is built on top of resourceWatcher to monitor application resources.
+type AppWatcher struct {
+	*resourceWatcher
+	*appCollector
+}
+
+// appCollector accompanies resourceWatcher when monitoring application resources.
+type appCollector struct {
+	// AppWatcherConfig is the watcher configuration.
+	AppWatcherConfig
+	// current holds a map of the currently known application resources.
+	current map[string]types.Application
+	// lock protects the "current" map.
+	lock sync.RWMutex
+}
+
+// resourceKind specifies the resource kind to watch.
+func (p *appCollector) resourceKind() string {
+	return types.KindApp
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *appCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	apps, err := p.AppGetter.GetApps(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newCurrent := make(map[string]types.Application, len(apps))
+	for _, app := range apps {
+		newCurrent[app.GetName()] = app
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.current = newCurrent
+	p.AppsC <- apps
+	return nil
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (p *appCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindApp {
+		p.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	switch event.Type {
+	case types.OpDelete:
+		delete(p.current, event.Resource.GetName())
+		p.AppsC <- appsToSlice(p.current)
+	case types.OpPut:
+		app, ok := event.Resource.(types.Application)
+		if !ok {
+			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		p.current[app.GetName()] = app
+		p.AppsC <- appsToSlice(p.current)
+	default:
+		p.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*appCollector) notifyStale() {}
+
+func appsToSlice(apps map[string]types.Application) (slice []types.Application) {
+	for _, app := range apps {
+		slice = append(slice, app)
+	}
+	return slice
 }

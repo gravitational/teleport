@@ -18,12 +18,90 @@ package webclient
 
 import (
 	"context"
+	"encoding/json"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
+
+func newPingHandler(path string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.RequestURI != path {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(PingResponse{ServerVersion: "test"})
+	})
+}
+
+func TestPlainHttpFallback(t *testing.T) {
+	testCases := []struct {
+		desc            string
+		handler         http.Handler
+		actionUnderTest func(addr string, insecure bool) error
+	}{
+		{
+			desc:    "Ping",
+			handler: newPingHandler("/webapi/ping"),
+			actionUnderTest: func(addr string, insecure bool) error {
+				_, err := Ping(context.Background(), addr, insecure, nil /*pool*/, "")
+				return err
+			},
+		}, {
+			desc:    "Find",
+			handler: newPingHandler("/webapi/find"),
+			actionUnderTest: func(addr string, insecure bool) error {
+				_, err := Find(context.Background(), addr, insecure, nil /*pool*/)
+				return err
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.desc, func(t *testing.T) {
+			t.Run("Allowed on insecure & loopback", func(t *testing.T) {
+				httpSvr := httptest.NewServer(testCase.handler)
+				defer httpSvr.Close()
+
+				err := testCase.actionUnderTest(httpSvr.Listener.Addr().String(), true /* insecure */)
+				require.NoError(t, err)
+			})
+
+			t.Run("Denied on secure", func(t *testing.T) {
+				httpSvr := httptest.NewServer(testCase.handler)
+				defer httpSvr.Close()
+
+				err := testCase.actionUnderTest(httpSvr.Listener.Addr().String(), false /* secure */)
+				require.Error(t, err)
+			})
+
+			t.Run("Denied on non-loopback", func(t *testing.T) {
+				nonLoopbackSvr := httptest.NewUnstartedServer(testCase.handler)
+
+				// replace the test-supplied loopback listener with the first available
+				// non-loopback address
+				nonLoopbackSvr.Listener.Close()
+				l, err := net.Listen("tcp", "0.0.0.0:0")
+				require.NoError(t, err)
+				nonLoopbackSvr.Listener = l
+				nonLoopbackSvr.Start()
+				defer nonLoopbackSvr.Close()
+
+				err = testCase.actionUnderTest(nonLoopbackSvr.Listener.Addr().String(), true /* insecure */)
+				require.Error(t, err)
+			})
+		})
+	}
+}
 
 func TestGetTunnelAddr(t *testing.T) {
 	ctx := context.Background()
@@ -39,7 +117,7 @@ func TestGetTunnelAddr(t *testing.T) {
 func TestTunnelAddr(t *testing.T) {
 	type testCase struct {
 		proxyAddr          string
-		settings           SSHProxySettings
+		settings           ProxySettings
 		expectedTunnelAddr string
 	}
 
@@ -54,42 +132,61 @@ func TestTunnelAddr(t *testing.T) {
 
 	t.Run("should use TunnelPublicAddr", testTunnelAddr(testCase{
 		proxyAddr: "proxy.example.com",
-		settings: SSHProxySettings{
-			TunnelPublicAddr: "tunnel.example.com:4024",
-			PublicAddr:       "public.example.com",
-			SSHPublicAddr:    "ssh.example.com",
-			TunnelListenAddr: "[::]:5024",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				TunnelPublicAddr: "tunnel.example.com:4024",
+				PublicAddr:       "public.example.com",
+				SSHPublicAddr:    "ssh.example.com",
+				TunnelListenAddr: "[::]:5024",
+			},
 		},
 		expectedTunnelAddr: "tunnel.example.com:4024",
 	}))
 	t.Run("should use SSHPublicAddr and TunnelListenAddr", testTunnelAddr(testCase{
 		proxyAddr: "proxy.example.com",
-		settings: SSHProxySettings{
-			SSHPublicAddr:    "ssh.example.com",
-			PublicAddr:       "public.example.com",
-			TunnelListenAddr: "[::]:5024",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				SSHPublicAddr:    "ssh.example.com",
+				PublicAddr:       "public.example.com",
+				TunnelListenAddr: "[::]:5024",
+			},
 		},
 		expectedTunnelAddr: "ssh.example.com:5024",
 	}))
 	t.Run("should use PublicAddr and TunnelListenAddr", testTunnelAddr(testCase{
 		proxyAddr: "proxy.example.com",
-		settings: SSHProxySettings{
-			PublicAddr:       "public.example.com",
-			TunnelListenAddr: "[::]:5024",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				PublicAddr:       "public.example.com",
+				TunnelListenAddr: "[::]:5024",
+			},
 		},
 		expectedTunnelAddr: "public.example.com:5024",
 	}))
 	t.Run("should use PublicAddr and SSHProxyTunnelListenPort", testTunnelAddr(testCase{
 		proxyAddr: "proxy.example.com",
-		settings: SSHProxySettings{
-			PublicAddr: "public.example.com",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				PublicAddr: "public.example.com",
+			},
 		},
 		expectedTunnelAddr: "public.example.com:3024",
 	}))
 	t.Run("should use proxyAddr and SSHProxyTunnelListenPort", testTunnelAddr(testCase{
 		proxyAddr:          "proxy.example.com",
-		settings:           SSHProxySettings{},
+		settings:           ProxySettings{SSH: SSHProxySettings{}},
 		expectedTunnelAddr: "proxy.example.com:3024",
+	}))
+	t.Run("should use PublicAddr and WebAddrPort if TLSRoutingEnabled was enabled", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com:443",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				PublicAddr:       "public.example.com",
+				TunnelListenAddr: "[::]:5024",
+			},
+			TLSRoutingEnabled: true,
+		},
+		expectedTunnelAddr: "public.example.com:443",
 	}))
 }
 

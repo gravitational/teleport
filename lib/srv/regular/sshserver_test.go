@@ -39,6 +39,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -127,15 +128,24 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
-	certs, err := testServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: testServer.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
-	})
+	priv, pub, err := testServer.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	certs, err := testServer.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     testServer.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
-	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
 	nodeID := uuid.New()
@@ -160,7 +170,8 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 			},
 		),
 		SetBPF(&bpf.NOP{}),
@@ -709,7 +720,7 @@ func TestAllowedLabels(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	var tests = []struct {
+	tests := []struct {
 		desc       string
 		inLabelMap types.Labels
 		outError   bool
@@ -924,6 +935,10 @@ func mustListen(t *testing.T) (net.Listener, utils.NetAddr) {
 	return l, addr
 }
 
+func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+	return clt, nil
+}
+
 func TestProxyReverseTunnel(t *testing.T) {
 	t.Parallel()
 
@@ -933,14 +948,24 @@ func TestProxyReverseTunnel(t *testing.T) {
 
 	proxyClient, proxyID := newProxyClient(t, f.testSrv)
 
-	// Create host key and certificate for proxy.
-	proxyKeys, err := f.testSrv.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: f.testSrv.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleProxy},
-	})
+	priv, pub, err := f.testSrv.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
-	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	// Create certificate for proxy.
+	proxyCerts, err := f.testSrv.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     f.testSrv.ClusterName(),
+			Role:         types.RoleProxy,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
+	proxySigner, err := sshutils.NewSigner(priv, proxyCerts.SSH)
 	require.NoError(t, err)
 
 	logger := logrus.WithField("test", "TestProxyReverseTunnel")
@@ -956,8 +981,8 @@ func TestProxyReverseTunnel(t *testing.T) {
 		HostSigners:                   []ssh.Signer{proxySigner},
 		LocalAuthClient:               proxyClient,
 		LocalAccessPoint:              proxyClient,
-		NewCachingAccessPoint:         auth.NoCache,
-		NewCachingAccessPointOldProxy: auth.NoCache,
+		NewCachingAccessPoint:         noCache,
+		NewCachingAccessPointOldProxy: noCache,
 		DirectClusters:                []reversetunnel.DirectCluster{{Name: f.testSrv.ClusterName(), Client: proxyClient}},
 		DataDir:                       t.TempDir(),
 		Component:                     teleport.ComponentProxy,
@@ -979,7 +1004,7 @@ func TestProxyReverseTunnel(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		SetUUID(proxyID),
-		SetProxyMode(reverseTunnelServer),
+		SetProxyMode(reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -1055,10 +1080,12 @@ func TestProxyReverseTunnel(t *testing.T) {
 			services.CommandLabels{
 				"cmdLabel1": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 				"cmdLabel2": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Second * 2),
-					Command: []string{"expr", "2", "+", "3"}},
+					Command: []string{"expr", "2", "+", "3"},
+				},
 			},
 		),
 		SetSessionServer(nodeClient),
@@ -1145,8 +1172,8 @@ func TestProxyRoundRobin(t *testing.T) {
 		HostSigners:                   []ssh.Signer{f.signer},
 		LocalAuthClient:               proxyClient,
 		LocalAccessPoint:              proxyClient,
-		NewCachingAccessPoint:         auth.NoCache,
-		NewCachingAccessPointOldProxy: auth.NoCache,
+		NewCachingAccessPoint:         noCache,
+		NewCachingAccessPointOldProxy: noCache,
 		DirectClusters:                []reversetunnel.DirectCluster{{Name: f.testSrv.ClusterName(), Client: proxyClient}},
 		DataDir:                       t.TempDir(),
 		Emitter:                       proxyClient,
@@ -1167,7 +1194,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
-		SetProxyMode(reverseTunnelServer),
+		SetProxyMode(reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -1267,8 +1294,8 @@ func TestProxyDirectAccess(t *testing.T) {
 		HostSigners:                   []ssh.Signer{f.signer},
 		LocalAuthClient:               proxyClient,
 		LocalAccessPoint:              proxyClient,
-		NewCachingAccessPoint:         auth.NoCache,
-		NewCachingAccessPointOldProxy: auth.NoCache,
+		NewCachingAccessPoint:         noCache,
+		NewCachingAccessPointOldProxy: noCache,
 		DirectClusters:                []reversetunnel.DirectCluster{{Name: f.testSrv.ClusterName(), Client: proxyClient}},
 		DataDir:                       t.TempDir(),
 		Emitter:                       proxyClient,
@@ -1290,7 +1317,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
-		SetProxyMode(reverseTunnelServer),
+		SetProxyMode(reverseTunnelServer, proxyClient),
 		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -1349,7 +1376,7 @@ func TestEnv(t *testing.T) {
 	require.NoError(t, se.Setenv("HOME", "/"))
 }
 
-// // TestNoAuth tries to log in with no auth methods and should be rejected
+// TestNoAuth tries to log in with no auth methods and should be rejected
 func TestNoAuth(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -1584,17 +1611,26 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
-	// Create host key and certificate for node.
-	keys, err := authSrv.GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:               "raw-node",
-		NodeName:             "raw-node",
-		Roles:                types.SystemRoles{types.RoleNode},
-		AdditionalPrincipals: []string{hostname},
-		DNSNames:             []string{hostname},
-	})
+	priv, pub, err := authSrv.GenerateKeyPair("")
 	require.NoError(t, err)
 
-	signer, err := sshutils.NewSigner(keys.Key, keys.Cert)
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	// Create host key and certificate for node.
+	certs, err := authSrv.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               "raw-node",
+			NodeName:             "raw-node",
+			Role:                 types.RoleNode,
+			AdditionalPrincipals: []string{hostname},
+			DNSNames:             []string{hostname},
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
+	require.NoError(t, err)
+
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
 	// configure a server which allows any client to connect
@@ -1854,7 +1890,7 @@ type upack struct {
 	// pub is a public user key
 	pub []byte
 
-	//cert is a certificate signed by user CA
+	// cert is a certificate signed by user CA
 	cert []byte
 	// pcert is a parsed ssh Certificae
 	pcert *ssh.Certificate
@@ -1879,14 +1915,14 @@ func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string,
 		return nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
-	rules := role.GetRules(services.Allow)
+	rules := role.GetRules(types.Allow)
 	rules = append(rules, types.NewRule(types.Wildcard, services.RW()))
-	role.SetRules(services.Allow, rules)
+	role.SetRules(types.Allow, rules)
 	opts := role.GetOptions()
 	opts.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(opts)
-	role.SetLogins(services.Allow, allowedLogins)
-	role.SetNodeLabels(services.Allow, allowedLabels)
+	role.SetLogins(types.Allow, allowedLogins)
+	role.SetNodeLabels(types.Allow, allowedLabels)
 	err = auth.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -22,22 +22,21 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
 )
 
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
@@ -174,8 +173,8 @@ type HostCertParams struct {
 	NodeName string
 	// ClusterName is the name of the cluster within which a node lives
 	ClusterName string
-	// Roles identifies the roles of a Teleport instance
-	Roles types.SystemRoles
+	// Role identifies the role of a Teleport instance
+	Role types.SystemRole
 	// TTL defines how long a certificate is valid for
 	TTL time.Duration
 }
@@ -193,7 +192,7 @@ func (c HostCertParams) Check() error {
 		return trace.BadParameter("ClusterName [%q] is required", c.ClusterName)
 	}
 
-	if err := c.Roles.Check(); err != nil {
+	if err := c.Role.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -212,6 +211,8 @@ type ChangePasswordReq struct {
 	SecondFactorToken string `json:"second_factor_token"`
 	// U2FSignResponse is U2F sign response
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
+	// WebauthnResponse is Webauthn sign response
+	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
 }
 
 // UserCertParams defines OpenSSH user certificate parameters

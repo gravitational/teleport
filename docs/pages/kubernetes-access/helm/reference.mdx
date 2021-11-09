@@ -54,7 +54,7 @@ This reference details available values for the `teleport-cluster` chart.
 ## `kubeClusterName`
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
-| - | - | - |
+| - | - | - | - | - |
 | `string` | `clusterName` value | no | `kubernetes_service.kube_cluster_name` |  ✅ |
 
 `kubeClusterName` sets the name used for the Kubernetes cluster. This name will be shown to Teleport users connecting to the cluster.
@@ -325,7 +325,7 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - |
-| ❌ | See [Using DynamoDB](../../admin-guide.mdx#using-dynamodb) and [Using Amazon S3](../../admin-guide.mdx#using-amazon-s3) for details |
+| ❌ | See [Using DynamoDB](../../setup/reference/backends.mdx#dynamodb) and [Using Amazon S3](../../setup/reference/backends.mdx#s3) for details |
 
 `aws` settings are described in the AWS guide: [Running an HA Teleport cluster using an AWS EKS Cluster](./guides/aws.mdx)
 
@@ -333,7 +333,7 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - |
-| ❌ | See [Using Firestore](../../admin-guide.mdx#using-firestore) and [Using GCS](../../admin-guide.mdx#using-gcs) for details |
+| ❌ | See [Using Firestore](../../setup/reference/backends.mdx#dynamodb) and [Using GCS](../../setup/reference/backends.mdx#gcs) for details |
 
 `gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](./guides/gcp.mdx)
 
@@ -899,7 +899,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
   ```yaml
   extraVolumeMounts:
   - name: myvolume
-    path: /path/to/mount/volume
+    mountPath: /path/to/mount/volume
   ```
   </TabItem>
   <TabItem label="--set">
@@ -1038,6 +1038,29 @@ Kubernetes Tolerations to set for pod assignment.
   --set tolerations[0].operator=Equal \
   --set tolerations[0].value=teleport \
   --set tolerations[0].effect=NoSchedule
+  ```
+  </TabItem>
+</Tabs>
+
+## `priorityClassName`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `string` | `""` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+
+Kubernetes PriorityClass to set for pod.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  priorityClassName: "system-cluster-critical"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set priorityClassName=system-cluster-critical
   ```
   </TabItem>
 </Tabs>
@@ -1276,7 +1299,7 @@ You can specify multiple databases by adding additional list elements.
   --set "databases[1].uri=mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306" \
   --set "databases[1].protocol=mysql" \
   --set "databases[1].aws.region=us-east-1" \
-  --set "databases[1].static_labels.env=staging" \
+  --set "databases[1].static_labels.env=staging"
   ```
 
   <Admonition type="note">
@@ -1421,7 +1444,7 @@ These labels can then be used with Teleport's RBAC policies to define access rul
   To set labels for applications, add a `labels` element to the [`apps`](#apps) section.
   To set labels for databases, add a `static_labels` element to the [`databases`](#databases) section.
 
-  For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../admin-guide.mdx#labeling-nodes-and-applications).
+  For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../setup/admin/labels.mdx).
 </Admonition>
 
 <Tabs>
@@ -1956,7 +1979,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
   ```yaml
   extraVolumeMounts:
   - name: myvolume
-    path: /path/to/mount/volume
+    mountPath: /path/to/mount/volume
   ```
   </TabItem>
   <TabItem label="--set">

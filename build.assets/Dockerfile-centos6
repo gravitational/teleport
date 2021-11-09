@@ -15,6 +15,11 @@ RUN sed -i 's%^mirrorlist%#mirrorlist%g' /etc/yum.repos.d/* && \
     yum -y install gcc pam-devel glibc-devel net-tools tree git zip && \
     yum clean all
 
+# Create /opt directory from pre-built assets of gcc and binutils. Both are
+# needed to build programs that use CGO starting with Go 1.17. See
+# Dockerfile-centos6-assets for more details.
+RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/centos6-assets.tar.gz | tar -xz
+
 ARG UID
 ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
@@ -24,18 +29,9 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
 
-# Go 1.16 upgraded to a newer distro for creating their prebuilt binaries, so they no longer work on CentOS 6.
-# As such, we now build from source in the same way as we do for BoringCrypto.
-# 1) Install older binary Go runtime for bootstrapping
-# 2) Get source for the correct Go runtime and compile it with Go bootstrap runtime
-# 3) Erase Go bootstrap runtime and create build directories
-# 4) Print compiled Go version
+# Install Go.
 ARG RUNTIME
-ARG GO_BOOTSTRAP_RUNTIME=go1.9.7
-RUN mkdir -p /go-bootstrap && cd /go-bootstrap && curl https://dl.google.com/go/${GO_BOOTSTRAP_RUNTIME}.linux-amd64.tar.gz | tar xz && \
-    mkdir -p /opt && cd /opt && curl -L https://golang.org/dl/${RUNTIME}.src.tar.gz | tar xz && \
-    cd /opt/go/src && GOROOT_BOOTSTRAP=/go-bootstrap/go ./make.bash && \
-    rm -rf /go-bootstrap && \
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-amd64.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -44,7 +40,7 @@ RUN mkdir -p /go-bootstrap && cd /go-bootstrap && curl https://dl.google.com/go/
 
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
-    PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+    PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/

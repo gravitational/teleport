@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 /*
@@ -425,7 +426,7 @@ func (f *fakeTerminal) SetTermType(string) {
 type fakeServer struct {
 	auditLog events.IAuditLog
 	events.MockEmitter
-	accessPoint auth.AccessPoint
+	accessPoint AccessPoint
 	id          string
 }
 
@@ -457,7 +458,7 @@ func (f *fakeServer) PermitUserEnvironment() bool {
 	return true
 }
 
-func (f *fakeServer) GetAccessPoint() auth.AccessPoint {
+func (f *fakeServer) GetAccessPoint() AccessPoint {
 	return f.accessPoint
 }
 
@@ -553,7 +554,7 @@ func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, event
 	return nil, "", trace.NotFound("")
 }
 
-func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (a *fakeLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	return nil, "", trace.NotFound("")
 }
 

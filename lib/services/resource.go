@@ -163,10 +163,14 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindNetworkRestrictions, nil
 	case types.KindDatabase:
 		return types.KindDatabase, nil
+	case types.KindApp, "apps":
+		return types.KindApp, nil
 	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service":
 		return types.KindWindowsDesktopService, nil
 	case types.KindWindowsDesktop, "win_desktop":
 		return types.KindWindowsDesktop, nil
+	case types.KindToken, "tokens":
+		return types.KindToken, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -357,10 +361,10 @@ type ResourceMarshaler func(types.Resource, ...MarshalOption) ([]byte, error)
 type ResourceUnmarshaler func([]byte, ...MarshalOption) (types.Resource, error)
 
 // resourceMarshalers holds a collection of marshalers organized by kind.
-var resourceMarshalers map[string]ResourceMarshaler = make(map[string]ResourceMarshaler)
+var resourceMarshalers = make(map[string]ResourceMarshaler)
 
 // resourceUnmarshalers holds a collection of unmarshalers organized by kind.
-var resourceUnmarshalers map[string]ResourceUnmarshaler = make(map[string]ResourceUnmarshaler)
+var resourceUnmarshalers = make(map[string]ResourceUnmarshaler)
 
 // GetResourceMarshalerKinds lists all registered resource marshalers by kind.
 func GetResourceMarshalerKinds() []string {

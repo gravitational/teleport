@@ -16,7 +16,7 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-RUNTIME ?= go1.16.2
+RUNTIME ?= go1.17.2
 BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
 LIBBPF_VERSION ?= 0.3.1
 
@@ -82,7 +82,7 @@ build-binaries: buildbox
 .PHONY:build-enterprise-binaries
 build-enterprise-binaries: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) full
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) clean full
 
 #
 # Build 'teleport' FIPS release inside a docker container
@@ -91,7 +91,7 @@ build-enterprise-binaries: buildbox
 .PHONY:build-binaries-fips
 build-binaries-fips: buildbox-fips
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_FIPS) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes full
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes clean full
 
 #
 # Builds a Docker container which is used for building official Teleport binaries
@@ -103,7 +103,7 @@ build-binaries-fips: buildbox-fips
 buildbox:
 	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
 		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
-		docker build \
+		docker build --platform=linux/amd64 \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg RUNTIME=$(RUNTIME) \
@@ -178,7 +178,7 @@ buildbox-arm-fips: buildbox-fips
 # grpc generates GRPC stubs from service definitions
 .PHONY: grpc
 grpc: buildbox
-	docker run \
+	docker run --platform=linux/amd64 \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
 
@@ -315,6 +315,14 @@ release-windows: buildbox
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows
 
 #
+# Create a Windows Teleport package using the build container.
+#
+.PHONY:release-windows-unsigned
+release-windows-unsigned: buildbox
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
+		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows
+
+#
 # Run docs tester to detect problems.
 #
 .PHONY: docsbox
@@ -326,3 +334,9 @@ test-docs: DOCS_VERSION := $(shell grep -E ^VERSION $(MAKEFILE_ROOT_DIR)/Makefil
 test-docs: docsbox
 	docker run -i $(NOROOT) -v $$(pwd)/..:/src/content/$(DOCS_VERSION) $(DOCSBOX) \
 		/bin/sh -c "yarn markdown-lint-external-links"
+
+# build-centos6-assets builds assets needed by CentOS 6 in a container.
+.PHONY: build-centos6-assets
+build-centos6-assets:
+	docker build -t buildbox-centos6-assets -f Dockerfile-centos6-assets .
+	docker run -v $$(pwd):/centos6.assets -it buildbox-centos6-assets cp /centos6-assets.tar.gz /centos6.assets

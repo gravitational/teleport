@@ -1,0 +1,67 @@
+---
+title: Desktop Access
+description: Teleport Desktop Access introduction and resources.
+---
+
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  Desktop Access is currently in Preview. Do not use this feature for any critical
+  infrastructure and keep a backup option for accessing your desktop hosts.
+
+  Desktop Access Preview:
+
+  - is not compatible with HSM integration.
+  - does not support clipboard sharing.
+  - does not support session recording.
+  - does not support per-session MFA.
+  - may have worse performance than a native RDP client.
+</Admonition>
+
+# Desktop Access
+
+Teleport manages graphical desktop access to remote hosts. With Teleport
+Desktop Access, you get:
+
+- A password-less login experience backed by strong cryptographic
+  authentication.
+- Role-based access control (RBAC) for groups of hosts and users.
+- Audit log and recording of all desktop connections.
+
+<Admonition
+  type="note"
+  title="Supported platforms"
+>
+  Only Windows hosts accessible over RDP are supported currently. Specifically:
+
+  - Windows Server 2012 R2 / Windows 10 or newer
+  - Hosts connected to an Active Directory domain
+</Admonition>
+
+## Getting started
+
+<TileSet>
+  <Tile icon="desktop" title="Getting started" href="./getting-started.mdx">
+    Connect an Active Directory domain.
+  </Tile>
+</TileSet>
+
+## Resources
+
+{/*
+
+To learn more about configuring role-based access control for Desktop Access,
+check out [RBAC](./rbac.mdx) section.
+
+TODO: Complete the RBAC section
+
+*/}
+
+See [Reference](./reference.mdx) for an overview of
+Desktop Access related configuration and CLI commands.
+
+## Troubleshooting
+
+If you hit any issues, check out the [Troubleshooting documentation](./troubleshooting.mdx)
+for common problems and solutions.

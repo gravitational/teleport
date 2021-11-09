@@ -90,7 +90,7 @@ func (a *RecoveryAttempt) Check() error {
 
 // IsMaxFailedRecoveryAttempt determines if user reached their max failed attempts.
 // Attempts list is expected to come sorted from oldest to latest time.
-func IsMaxFailedRecoveryAttempt(maxAttempts int, attempts []RecoveryAttempt, now time.Time) bool {
+func IsMaxFailedRecoveryAttempt(maxAttempts int, attempts []*RecoveryAttempt, now time.Time) bool {
 	var failed int
 	for i := len(attempts) - 1; i >= 0; i-- {
 		if attempts[i].Expires.After(now) {

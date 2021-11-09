@@ -26,7 +26,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	"github.com/gravitational/trace"
@@ -67,7 +67,7 @@ func (ks *KeyStore) GetKeyPair() (*rsa.PrivateKey, []byte, error) {
 
 // GenerateSelfSignedSigningCert generates self-signed certificate used for digital signatures
 func GenerateSelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -221,9 +221,11 @@ func IsSelfSigned(certificateChain []*x509.Certificate) bool {
 // multiple certificates and returns a slice of x509.Certificate.
 func ReadCertificateChain(certificateChainBytes []byte) ([]*x509.Certificate, error) {
 	// build the certificate chain next
-	var certificateBlock *pem.Block
-	var remainingBytes []byte = bytes.TrimSpace(certificateChainBytes)
-	var certificateChain [][]byte
+	var (
+		certificateBlock *pem.Block
+		certificateChain [][]byte
+	)
+	remainingBytes := bytes.TrimSpace(certificateChainBytes)
 
 	for {
 		certificateBlock, remainingBytes = pem.Decode(remainingBytes)
