@@ -564,7 +564,7 @@ authentication:
 - [ ] Change `second_factor` type to `on` and verify that mfa is required (no option `none` in dropdown)
 
 #### MFA require auth
-Go to Account Settings > Two-Factor Devices and register a new device by clicking "Add new two-factor device"
+Go to `Account Settings` > `Two-Factor Devices` and register a new device
 
 Using the same user as above:
 - [ ] Verify logging in with registered WebAuthn key works
