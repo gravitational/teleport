@@ -17,91 +17,289 @@ limitations under the License.
 package regular
 
 import (
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/srv"
+	"testing"
+	"time"
 
-	"gopkg.in/check.v1"
+	"github.com/google/uuid"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv"
+	"github.com/stretchr/testify/require"
 )
 
-type ProxyTestSuite struct {
-	srv *Server
-}
+func TestParseProxyRequest(t *testing.T) {
+	t.Parallel()
 
-var _ = check.Suite(&ProxyTestSuite{})
-
-func (s *ProxyTestSuite) SetUpSuite(c *check.C) {
-	s.srv = &Server{}
-	s.srv.hostname = "redhorse"
-	s.srv.proxyMode = true
-}
-
-func (s *ProxyTestSuite) TestParseProxyRequest(c *check.C) {
-
-	tt := []struct {
-		req, host, port, cluster, namespace string
+	testCases := []struct {
+		desc, req string
+		expected  proxySubsysRequest
 	}{
-		{ // proxy request for a host:port
+		{
+			desc: "proxy request for a host:port",
 			req:  "proxy:host:22",
-			host: "host",
-			port: "22",
+			expected: proxySubsysRequest{
+				namespace:   "",
+				host:        "host",
+				port:        "22",
+				clusterName: "",
+			},
 		},
-		{ // similar request, just with '@' at the end (missing site)
+		{
+			desc: "similar request, just with '@' at the end (missing site)",
 			req:  "proxy:host:22@",
-			host: "host",
-			port: "22",
+			expected: proxySubsysRequest{
+				namespace:   "",
+				host:        "host",
+				port:        "22",
+				clusterName: "",
+			},
 		},
-		{ // proxy request for just the sitename
-			req:     "proxy:@moon",
-			cluster: "moon",
+		{
+			desc: "proxy request for just the sitename",
+			req:  "proxy:@moon",
+			expected: proxySubsysRequest{
+				namespace:   "",
+				host:        "",
+				port:        "",
+				clusterName: "moon",
+			},
 		},
-		{ // proxy request for the host:port@sitename
-			req:     "proxy:station:100@moon",
-			host:    "station",
-			port:    "100",
-			cluster: "moon",
+		{
+			desc: "proxy request for the host:port@sitename",
+			req:  "proxy:station:100@moon",
+			expected: proxySubsysRequest{
+				namespace:   "",
+				host:        "station",
+				port:        "100",
+				clusterName: "moon",
+			},
 		},
-		{ // proxy request for the host:port@namespace@cluster
-			req:       "proxy:station:100@system@moon",
-			host:      "station",
-			port:      "100",
-			cluster:   "moon",
-			namespace: "system",
+		{
+			desc: "proxy request for the host:port@namespace@cluster",
+			req:  "proxy:station:100@system@moon",
+			expected: proxySubsysRequest{
+				namespace:   "system",
+				host:        "station",
+				port:        "100",
+				clusterName: "moon",
+			},
 		},
 	}
 
-	for i, t := range tt {
-		if t.namespace == "" {
-			// test cases without a defined namespace are testing for
-			// the presence of the default namespace; namespace should
-			// never actually be empty.
-			t.namespace = apidefaults.Namespace
-		}
-		cmt := check.Commentf("Test case %d: %+v", i, t)
-		req, err := parseProxySubsysRequest(t.req)
-		c.Assert(err, check.IsNil, cmt)
-		c.Assert(req.host, check.Equals, t.host, cmt)
-		c.Assert(req.port, check.Equals, t.port, cmt)
-		c.Assert(req.clusterName, check.Equals, t.cluster, cmt)
-		c.Assert(req.namespace, check.Equals, t.namespace, cmt)
+	for i, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			if tt.expected.namespace == "" {
+				// test cases without a defined namespace are testing for
+				// the presence of the default namespace; namespace should
+				// never actually be empty.
+				tt.expected.namespace = apidefaults.Namespace
+			}
+			req, err := parseProxySubsysRequest(tt.req)
+			require.NoError(t, err, "Test case %d: req=%s, expected=%+v", i, tt.req, tt.expected)
+			require.Equal(t, tt.expected, req, "Test case %d: req=%s, expected=%+v", i, tt.req, tt.expected)
+		})
 	}
 }
 
-func (s *ProxyTestSuite) TestParseBadRequests(c *check.C) {
+func TestParseBadRequests(t *testing.T) {
+	t.Parallel()
+
+	server := &Server{
+		hostname:  "redhorse",
+		proxyMode: true,
+	}
+
 	ctx := &srv.ServerContext{}
 
-	testCases := []string{
-		// empty request
-		"proxy:",
-		// missing hostname
-		"proxy::80",
-		// missing hostname and missing cluster name
-		"proxy:@",
-		// just random string
-		"this is bad string",
+	testCases := []struct {
+		desc  string
+		input string
+	}{
+		{desc: "empty request", input: "proxy:"},
+		{desc: "missing hostname", input: "proxy::80"},
+		{desc: "missing hostname and missing cluster name", input: "proxy:@"},
+		{desc: "just random string", input: "this is bad string"},
 	}
-	for _, input := range testCases {
-		comment := check.Commentf("test case: %q", input)
-		_, err := parseProxySubsys(input, s.srv, ctx)
-		c.Assert(err, check.NotNil, comment)
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			subsystem, err := parseProxySubsys(tt.input, server, ctx)
+			require.Error(t, err, "test case: %q", tt.input)
+			require.Nil(t, subsystem, "test case: %q", tt.input)
+		})
+	}
+}
+
+func TestProxySubsys_getMatchingServer(t *testing.T) {
+	t.Parallel()
+
+	serverUUID := uuid.NewString()
+
+	setExpiry := func(time time.Time) func(server types.Server) {
+		return func(server types.Server) {
+			server.SetExpiry(time)
+		}
+	}
+
+	createServer := func(name string, spec types.ServerSpecV2, opts ...func(server types.Server)) types.Server {
+		t.Helper()
+
+		server, err := types.NewServer(name, types.KindNode, spec)
+		require.NoError(t, err)
+
+		for _, opt := range opts {
+			opt(server)
+		}
+
+		return server
+	}
+
+	servers := []types.Server{
+		createServer(serverUUID, types.ServerSpecV2{
+			Hostname: "127.0.0.1",
+			Addr:     "127.0.0.1:80",
+		}, setExpiry(time.Now().Add(-time.Hour))),
+		createServer("server2", types.ServerSpecV2{
+			Hostname: "localhost",
+			Addr:     "127.0.0.1:80",
+		}, setExpiry(time.Now().Add(time.Hour*24))),
+		createServer("server3", types.ServerSpecV2{
+			Hostname: serverUUID,
+			Addr:     "127.0.0.1:",
+		}),
+	}
+
+	cases := []struct {
+		desc         string
+		req          proxySubsysRequest
+		strategy     types.RoutingStrategy
+		servers      []types.Server
+		expectError  require.ErrorAssertionFunc
+		expectServer func(servers []types.Server) types.Server
+	}{
+		{
+			desc:        "No matches found",
+			expectError: require.NoError,
+		},
+		{
+			desc:        "No matches found for UUID host",
+			expectError: require.Error,
+			servers: []types.Server{createServer(uuid.NewString(), types.ServerSpecV2{
+				Addr: "127.0.0.1:0",
+			})},
+			req: proxySubsysRequest{
+				host: uuid.NewString(),
+			},
+		},
+		{
+			desc:        "Match by UUID",
+			expectError: require.NoError,
+			expectServer: func(servers []types.Server) types.Server {
+				return servers[0]
+			},
+			servers: servers,
+			req: proxySubsysRequest{
+				host: serverUUID,
+			},
+		},
+		{
+			desc:        "Match Tunnel By Host Only",
+			expectError: require.NoError,
+			expectServer: func(servers []types.Server) types.Server {
+				return servers[0]
+			},
+			servers: []types.Server{
+				createServer("server1", types.ServerSpecV2{
+					Addr:      "127.0.0.1",
+					Hostname:  "127.0.0.1",
+					UseTunnel: true,
+				}),
+				createServer("server2", types.ServerSpecV2{
+					Hostname:  "localhost",
+					Addr:      "127.0.0.1:80",
+					UseTunnel: true,
+				}),
+			},
+			req: proxySubsysRequest{
+				host: "127.0.0.1",
+				port: "80",
+			},
+		},
+		{
+			desc:        "Match by IP",
+			expectError: require.NoError,
+			expectServer: func(servers []types.Server) types.Server {
+				return servers[1]
+			},
+			servers: []types.Server{
+				createServer("server1", types.ServerSpecV2{
+					Addr:     "127.0.0.1:0",
+					Hostname: "127.0.0.1",
+				}),
+				createServer("server2", types.ServerSpecV2{
+					Hostname: "localhost",
+					Addr:     "127.0.0.1:80",
+				}),
+			},
+			req: proxySubsysRequest{
+				host: "127.0.0.1",
+				port: "80",
+			},
+		},
+		{
+			desc:        "Match by hostname",
+			expectError: require.NoError,
+			expectServer: func(servers []types.Server) types.Server {
+				return servers[1]
+			},
+			servers: []types.Server{
+				createServer("server1", types.ServerSpecV2{
+					Addr:     "127.0.0.1:0",
+					Hostname: "localhost",
+				}),
+				createServer("server2", types.ServerSpecV2{
+					Hostname: "localhost",
+					Addr:     "127.0.0.1:80",
+				}),
+			},
+			req: proxySubsysRequest{
+				host: "localhost",
+				port: "80",
+			},
+		},
+		{
+			desc:        "Ambiguous match",
+			expectError: require.Error,
+			servers:     servers,
+			req: proxySubsysRequest{
+				host: "localhost",
+			},
+		},
+		{
+			desc:        "Most Recent match",
+			expectError: require.NoError,
+			expectServer: func(servers []types.Server) types.Server {
+				return servers[1]
+			},
+			servers:  servers,
+			strategy: types.RoutingStrategy_MOST_RECENT,
+			req: proxySubsysRequest{
+				host: "localhost",
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.desc, func(t *testing.T) {
+			subsystem := proxySubsys{
+				proxySubsysRequest: tt.req,
+				srv:                &Server{},
+			}
+
+			server, err := subsystem.getMatchingServer(tt.servers, tt.strategy)
+			tt.expectError(t, err)
+			if tt.expectServer != nil {
+				require.Equal(t, tt.expectServer(tt.servers), server)
+			}
+		})
 	}
 }

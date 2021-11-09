@@ -19,7 +19,6 @@ package db
 import (
 	"context"
 	"testing"
-	"time"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -36,41 +35,26 @@ func TestDatabaseServerStart(t *testing.T) {
 		withSelfHostedMySQL("mysql"),
 		withSelfHostedMongo("mongo"))
 
-	err := testCtx.server.Start()
-	require.NoError(t, err)
-
 	tests := []struct {
 		database types.Database
 	}{
-		{
-			database: testCtx.postgres["postgres"].resource,
-		},
-		{
-			database: testCtx.mysql["mysql"].resource,
-		},
-		{
-			database: testCtx.mongo["mongo"].resource,
-		},
+		{database: testCtx.postgres["postgres"].resource},
+		{database: testCtx.mysql["mysql"].resource},
+		{database: testCtx.mongo["mongo"].resource},
 	}
 
 	for _, test := range tests {
-		labels, ok := testCtx.server.dynamicLabels[test.database.GetName()]
-		require.True(t, ok)
+		labels := testCtx.server.getDynamicLabels(test.database.GetName())
+		require.NotNil(t, labels)
 		require.Equal(t, "test", labels.Get()["echo"].GetResult())
 	}
-
-	heartbeat, ok := testCtx.server.heartbeats[testCtx.server.cfg.Server.GetName()]
-	require.True(t, ok)
-
-	err = heartbeat.ForceSend(time.Second)
-	require.NoError(t, err)
 
 	// Make sure servers were announced and their labels updated.
 	servers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Len(t, servers, 1)
-	require.Len(t, servers[0].GetDatabases(), 3)
-	for _, database := range servers[0].GetDatabases() {
-		require.Equal(t, map[string]string{"echo": "test"}, database.GetAllLabels())
+	require.Len(t, servers, 3)
+	for _, server := range servers {
+		require.Equal(t, map[string]string{"echo": "test"},
+			server.GetDatabase().GetAllLabels())
 	}
 }

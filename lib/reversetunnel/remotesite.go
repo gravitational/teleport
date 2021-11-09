@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
@@ -75,10 +76,10 @@ type remoteSite struct {
 	remoteClient auth.ClientI
 	// localAccessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
-	localAccessPoint auth.AccessPoint
+	localAccessPoint auth.ProxyAccessPoint
 	// remoteAccessPoint provides access to a cached subset of the Auth Server API of
 	// the remote cluster this site belongs to.
-	remoteAccessPoint auth.AccessPoint
+	remoteAccessPoint auth.RemoteProxyAccessPoint
 
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
@@ -112,7 +113,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		// encode the name of this cluster to identify this cluster,
 		// connecting to the remote one (it is used to find the right certificate
 		// authority to verify)
-		tlsConfig.ServerName = auth.EncodeClusterName(s.srv.ClusterName)
+		tlsConfig.ServerName = apiutils.EncodeClusterName(s.srv.ClusterName)
 		clt, err := auth.NewClient(client.Config{
 			Dialer: client.ContextDialerFunc(s.authServerContextDialer),
 			Credentials: []client.Credentials{
@@ -137,7 +138,7 @@ func (s *remoteSite) GetTunnelsCount() int {
 	return s.connectionCount()
 }
 
-func (s *remoteSite) CachingAccessPoint() (auth.AccessPoint, error) {
+func (s *remoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	return s.remoteAccessPoint, nil
 }
 
@@ -167,7 +168,7 @@ func (s *remoteSite) hasValidConnections() bool {
 	return false
 }
 
-// Clos closes remote cluster connections
+// Close closes remote cluster connections
 func (s *remoteSite) Close() error {
 	s.Lock()
 	defer s.Unlock()
@@ -250,7 +251,6 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	rconn := newRemoteConn(&connConfig{
 		conn:             conn,
 		sconn:            sconn,
-		accessPoint:      s.localAccessPoint,
 		tunnelType:       string(types.ProxyTunnel),
 		proxyName:        s.connInfo.GetProxyName(),
 		clusterName:      s.domainName,
@@ -532,7 +532,14 @@ func (s *remoteSite) periodicUpdateLocks() {
 		case <-periodic.Next():
 			locks := s.srv.LockWatcher.GetCurrent()
 			if err := s.remoteClient.ReplaceRemoteLocks(s.ctx, s.srv.ClusterName, locks); err != nil {
-				s.WithError(err).Warning("Could not update remote locks.")
+				switch {
+				case trace.IsNotImplemented(err):
+					s.Debugf("Remote cluster %v does not support locks yet.", s.domainName)
+				case trace.IsConnectionProblem(err):
+					s.Debugf("Remote cluster %v is offline.", s.domainName)
+				default:
+					s.WithError(err).Warning("Could not update remote locks.")
+				}
 			}
 		}
 	}

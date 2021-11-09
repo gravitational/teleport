@@ -1,14 +1,26 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package auth
 
 import (
 	"context"
 	"crypto/subtle"
-
-	"golang.org/x/crypto/bcrypt"
-
-	"github.com/gravitational/trace"
+	"net/mail"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -17,39 +29,65 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
+	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // This is bcrypt hash for password "barbaz".
 var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
 
 // ChangePasswordWithTokenRequest defines a request to change user password
+// DELETE IN 9.0.0 along with changePasswordWithToken http endpoint
+// in favor of grpc ChangeUserAuthentication.
 type ChangePasswordWithTokenRequest struct {
-	// SecondFactorToken is 2nd factor token value
+	// SecondFactorToken is the TOTP code.
 	SecondFactorToken string `json:"second_factor_token"`
-	// TokenID is this token ID
+	// TokenID is the ID of a reset or invite token.
 	TokenID string `json:"token"`
-	// Password is user password
+	// Password is user password string converted to bytes.
 	Password []byte `json:"password"`
 	// U2FRegisterResponse is U2F registration challenge response.
 	U2FRegisterResponse *u2f.RegisterChallengeResponse `json:"u2f_register_response,omitempty"`
 }
 
-// ChangePasswordWithToken changes password with token
-func (s *Server) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
-	user, err := s.changePasswordWithToken(ctx, req)
+// ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
+func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
+	user, err := s.changeUserAuthentication(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(ctx, user)
+	// Check if a user can receive new recovery codes.
+	_, emailErr := mail.ParseAddress(user.GetName())
+	hasEmail := emailErr == nil
+	hasMFA := req.GetNewMFARegisterResponse() != nil
+	recoveryAllowed := s.isAccountRecoveryAllowed(ctx) == nil
+	createRecoveryCodes := hasEmail && hasMFA && recoveryAllowed
+
+	var newRecovery *proto.RecoveryCodes
+	if createRecoveryCodes {
+		newRecovery, err = s.generateAndUpsertRecoveryCodes(ctx, user.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	webSession, err := s.createUserWebSession(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return sess, nil
+	sess, ok := webSession.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected WebSessionV2 type %T", sess)
+	}
+
+	return &proto.ChangeUserAuthenticationResponse{
+		WebSession: sess,
+		Recovery:   newRecovery,
+	}, nil
 }
 
 // ResetPassword securely generates a new random password and assigns it to user.
@@ -83,67 +121,33 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 
 	}
 
-	authPreference, err := s.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	// Authenticate.
+	user := req.User
+	authReq := AuthenticateUserRequest{
+		Username: user,
+		Webauthn: req.WebauthnResponse,
 	}
-
-	userID := req.User
-	fn := func() error {
-		secondFactor := authPreference.GetSecondFactor()
-		switch secondFactor {
-		case constants.SecondFactorOff:
-			return s.checkPasswordWOToken(userID, req.OldPassword)
-		case constants.SecondFactorOTP:
-			_, err := s.checkPassword(userID, req.OldPassword, req.SecondFactorToken)
-			return trace.Wrap(err)
-		case constants.SecondFactorU2F:
-			if req.U2FSignResponse == nil {
-				return trace.AccessDenied("missing U2F sign response")
-			}
-
-			_, err := s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
-			return trace.Wrap(err)
-		case constants.SecondFactorOn:
-			if req.SecondFactorToken != "" {
-				_, err := s.checkPassword(userID, req.OldPassword, req.SecondFactorToken)
-				return trace.Wrap(err)
-			}
-			if req.U2FSignResponse != nil {
-				_, err := s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
-				return trace.Wrap(err)
-			}
-			return trace.AccessDenied("missing second factor authentication")
-		case constants.SecondFactorOptional:
-			if req.SecondFactorToken != "" {
-				_, err := s.checkPassword(userID, req.OldPassword, req.SecondFactorToken)
-				return trace.Wrap(err)
-			}
-			if req.U2FSignResponse != nil {
-				_, err := s.CheckU2FSignResponse(ctx, userID, req.U2FSignResponse)
-				return trace.Wrap(err)
-			}
-			// Check that a user has no MFA devices registered.
-			devs, err := s.GetMFADevices(ctx, userID)
-			if err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-			if len(devs) != 0 {
-				// MFA devices registered but no MFA fields set in request.
-				log.Warningf("MFA bypass attempt by user %q, access denied.", userID)
-				return trace.AccessDenied("missing second factor authentication")
-			}
-			return nil
+	if len(req.OldPassword) > 0 {
+		authReq.Pass = &PassCreds{
+			Password: req.OldPassword,
 		}
-
-		return trace.BadParameter("unsupported second factor method: %q", secondFactor)
 	}
-
-	if err := s.WithUserLock(userID, fn); err != nil {
+	if req.U2FSignResponse != nil {
+		authReq.U2F = &U2FSignResponseCreds{
+			SignResponse: *req.U2FSignResponse,
+		}
+	}
+	if req.SecondFactorToken != "" {
+		authReq.OTP = &OTPCreds{
+			Password: req.OldPassword,
+			Token:    req.SecondFactorToken,
+		}
+	}
+	if _, err := s.authenticateUser(ctx, authReq); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := s.UpsertPassword(userID, req.NewPassword); err != nil {
+	if err := s.UpsertPassword(user, req.NewPassword); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -153,7 +157,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 			Code: events.UserPasswordChangeCode,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User: userID,
+			User: user,
 		},
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit password change event.")
@@ -254,7 +258,7 @@ func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 			return nil, trace.BadParameter("previously used totp token")
 		}
 
-		devs, err := s.GetMFADevices(ctx, user)
+		devs, err := s.Identity.GetMFADevices(ctx, user, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -309,32 +313,6 @@ func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *type
 	return nil
 }
 
-// CreateSignupU2FRegisterRequest initiates registration for a new U2F token.
-// The returned challenge should be sent to the client to sign.
-func (s *Server) CreateSignupU2FRegisterRequest(tokenID string) (*u2f.RegisterChallenge, error) {
-	ctx := context.TODO()
-	cap, err := s.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	u2fConfig, err := cap.GetU2F()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = s.GetResetPasswordToken(context.TODO(), tokenID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return u2f.RegisterInit(u2f.RegisterInitParams{
-		StorageKey: tokenID,
-		AppConfig:  *u2fConfig,
-		Storage:    s.Identity,
-	})
-}
-
 // getOTPType returns the type of OTP token used, HOTP or TOTP.
 // Deprecated: Remove this method once HOTP support has been removed from Gravity.
 func (s *Server) getOTPType(user string) (teleport.OTPType, error) {
@@ -348,7 +326,7 @@ func (s *Server) getOTPType(user string) (teleport.OTPType, error) {
 	return teleport.HOTP, nil
 }
 
-func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.User, error) {
+func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (types.User, error) {
 	// Get cluster configuration and check if local auth is allowed.
 	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
@@ -358,13 +336,13 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
-	err = services.VerifyPassword(req.Password)
+	err = services.VerifyPassword(req.GetNewPassword())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Check if token exists.
-	token, err := s.GetResetPasswordToken(ctx, req.TokenID)
+	token, err := s.getResetPasswordToken(ctx, req.TokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -373,7 +351,7 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 		return nil, trace.BadParameter("expired token")
 	}
 
-	err = s.changeUserSecondFactor(req, token)
+	err = s.changeUserSecondFactor(ctx, req, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -381,13 +359,13 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	username := token.GetUser()
 	// Delete this token first to minimize the chances
 	// of partially updated user with still valid token.
-	err = s.deleteResetPasswordTokens(ctx, username)
+	err = s.deleteUserTokens(ctx, username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Set a new password.
-	err = s.UpsertPassword(username, req.Password)
+	err = s.UpsertPassword(username, req.GetNewPassword())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -400,63 +378,52 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	return user, nil
 }
 
-func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, token types.ResetPasswordToken) error {
-	ctx := context.TODO()
+func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUserAuthenticationRequest, token types.UserToken) error {
 	username := token.GetUser()
 	cap, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	secondFactor := cap.GetSecondFactor()
-	if secondFactor == constants.SecondFactorOff {
+	switch sf := cap.GetSecondFactor(); {
+	case sf == constants.SecondFactorOff:
 		return nil
-	}
-	if req.SecondFactorToken != "" {
-		if secondFactor == constants.SecondFactorU2F {
-			return trace.BadParameter("user %q sent an OTP token during password reset but cluster only allows U2F for second factor", username)
-		}
-		secrets, err := s.Identity.GetResetPasswordTokenSecrets(ctx, req.TokenID)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		dev, err := services.NewTOTPDevice("otp", secrets.GetOTPKey(), s.clock.Now())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := s.checkTOTP(ctx, username, req.SecondFactorToken, dev); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := s.UpsertMFADevice(ctx, username, dev); err != nil {
-			return trace.Wrap(err)
-		}
-
+	case req.GetNewMFARegisterResponse() == nil && sf == constants.SecondFactorOptional:
+		// Optional second factor does not enforce users to add a MFA device.
+		// No need to check if a user already has registered devices since we expect
+		// users to have no devices at this point.
+		//
+		// The ChangeUserAuthenticationRequest is made with a reset or invite token
+		// where a reset token would've reset the users' MFA devices, and an invite
+		// token is a new user with no devices.
 		return nil
-	}
-	if req.U2FRegisterResponse != nil {
-		if secondFactor == constants.SecondFactorOTP {
-			return trace.BadParameter("user %q sent a U2F registration during password reset but cluster only allows OTP for second factor", username)
-		}
-		cfg, err := cap.GetU2F()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		_, err = u2f.RegisterVerify(ctx, u2f.RegisterVerifyParams{
-			DevName:                "u2f",
-			ChallengeStorageKey:    req.TokenID,
-			RegistrationStorageKey: username,
-			Resp:                   *req.U2FRegisterResponse,
-			Storage:                s.Identity,
-			Clock:                  s.GetClock(),
-			AttestationCAs:         cfg.DeviceAttestationCAs,
-		})
-		return trace.Wrap(err)
-	}
-
-	if secondFactor != constants.SecondFactorOptional {
+	case req.GetNewMFARegisterResponse() == nil:
 		return trace.BadParameter("no second factor sent during user %q password reset", username)
 	}
-	return nil
+
+	// Default device name still used as UI invite/reset
+	// forms does not allow user to enter own device names yet.
+	// Using default values here is safe since we don't expect users to have
+	// any devices at this point.
+	var deviceName string
+	switch {
+	case req.GetNewMFARegisterResponse().GetTOTP() != nil:
+		deviceName = "otp"
+	case req.GetNewMFARegisterResponse().GetU2F() != nil:
+		deviceName = "u2f"
+	case req.GetNewMFARegisterResponse().GetWebauthn() != nil:
+		deviceName = "webauthn"
+	default:
+		// Fallback to something reasonable while letting verifyMFARespAndAddDevice
+		// worry about the "unknown" response type.
+		deviceName = "mfa"
+		log.Warnf("Unexpected MFA register response type, setting device name to %q: %T", deviceName, req.GetNewMFARegisterResponse().Response)
+	}
+
+	_, err = s.verifyMFARespAndAddDevice(ctx, req.GetNewMFARegisterResponse(), &newMFADeviceFields{
+		username:      token.GetUser(),
+		newDeviceName: deviceName,
+		tokenID:       token.GetName(),
+	})
+	return trace.Wrap(err)
 }

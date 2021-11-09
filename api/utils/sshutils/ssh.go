@@ -48,6 +48,37 @@ func ParseCertificate(buf []byte) (*ssh.Certificate, error) {
 	return cert, nil
 }
 
+// ParseKnownHosts parses provided known_hosts entries into ssh.PublicKey list.
+func ParseKnownHosts(knownHosts [][]byte) ([]ssh.PublicKey, error) {
+	var keys []ssh.PublicKey
+	for _, line := range knownHosts {
+		for {
+			_, _, publicKey, _, bytes, err := ssh.ParseKnownHosts(line)
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				return nil, trace.Wrap(err, "failed parsing known hosts: %v; raw line: %q", err, line)
+			}
+			keys = append(keys, publicKey)
+			line = bytes
+		}
+	}
+	return keys, nil
+}
+
+// ParseAuthorizedKeys parses provided authorized_keys entries into ssh.PublicKey list.
+func ParseAuthorizedKeys(authorizedKeys [][]byte) ([]ssh.PublicKey, error) {
+	var keys []ssh.PublicKey
+	for _, line := range authorizedKeys {
+		publicKey, _, _, _, err := ssh.ParseAuthorizedKey(line)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed parsing authorized keys: %v; raw line: %q", err, line)
+		}
+		keys = append(keys, publicKey)
+	}
+	return keys, nil
+}
+
 // ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
 // Key and HostKeyCallback matching SSH CAs in the Key.
 //
@@ -64,7 +95,7 @@ func ProxyClientSSHConfig(sshCert, privKey []byte, caCerts [][]byte) (*ssh.Clien
 		return nil, trace.Wrap(err, "failed to convert key pair to auth method")
 	}
 
-	hostKeyCallback, err := HostKeyCallback(caCerts)
+	hostKeyCallback, err := HostKeyCallback(caCerts, false)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to convert certificate authorities to HostKeyCallback")
 	}
@@ -172,19 +203,10 @@ func AsAgentKeys(sshCert *ssh.Certificate, privKey []byte) ([]agent.AddedKey, er
 // If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
 // This causes golang.org/x/crypto/ssh to prompt the user to verify host key
 // fingerprint (same as OpenSSH does for an unknown host).
-func HostKeyCallback(caCerts [][]byte) (ssh.HostKeyCallback, error) {
-	var trustedKeys []ssh.PublicKey
-	for _, caCert := range caCerts {
-		for {
-			_, _, publicKey, _, bytes, err := ssh.ParseKnownHosts(caCert)
-			if err == io.EOF {
-				break
-			} else if err != nil {
-				return nil, trace.Wrap(err, "failed parsing CA cert: %v; raw CA cert line: %q", err, caCert)
-			}
-			trustedKeys = append(trustedKeys, publicKey)
-			caCert = bytes
-		}
+func HostKeyCallback(caCerts [][]byte, withHostKeyFallback bool) (ssh.HostKeyCallback, error) {
+	trustedKeys, err := ParseKnownHosts(caCerts)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// No CAs are provided, return a nil callback which will prompt the user
@@ -193,18 +215,33 @@ func HostKeyCallback(caCerts [][]byte) (ssh.HostKeyCallback, error) {
 		return nil, nil
 	}
 
-	return func(host string, a net.Addr, hostKey ssh.PublicKey) error {
-		clusterCert, ok := hostKey.(*ssh.Certificate)
-		if ok {
-			hostKey = clusterCert.SignatureKey
-		}
-		for _, trustedKey := range trustedKeys {
-			if KeysEqual(trustedKey, hostKey) {
+	callbackConfig := HostKeyCallbackConfig{
+		GetHostCheckers: func() ([]ssh.PublicKey, error) {
+			return trustedKeys, nil
+		},
+	}
+
+	if withHostKeyFallback {
+		callbackConfig.HostKeyFallback = hostKeyFallbackFunc(trustedKeys)
+	}
+
+	callback, err := NewHostKeyCallback(callbackConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return callback, nil
+}
+
+func hostKeyFallbackFunc(knownHosts []ssh.PublicKey) func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		for _, knownHost := range knownHosts {
+			if KeysEqual(key, knownHost) {
 				return nil
 			}
 		}
-		return trace.AccessDenied("host %v is untrusted or Teleport CA has been rotated; try getting new credentials by logging in again ('tsh login') or re-exporting the identity file ('tctl auth sign' or 'tsh login -o'), depending on how you got them initially", host)
-	}, nil
+		return trace.AccessDenied("host %v presented a public key instead of a host certificate which isn't among known hosts", hostname)
+	}
 }
 
 // KeysEqual is constant time compare of the keys to avoid timing attacks

@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
@@ -59,7 +58,7 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 	configService, err := NewClusterConfigurationService(s.bk)
 	c.Assert(err, check.IsNil)
 
-	eventsService := NewEventsService(s.bk, configService.GetClusterConfig)
+	eventsService := NewEventsService(s.bk)
 	presenceService := NewPresenceService(s.bk)
 
 	s.suite = &suite.ServicesTestSuite{

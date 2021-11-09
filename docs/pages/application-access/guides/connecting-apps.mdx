@@ -30,8 +30,8 @@ ssh_service:
 
 Start the service:
 
-```bash
-sudo teleport start --config=/path/to/teleport.yaml
+```code
+$ sudo teleport start --config=/path/to/teleport.yaml
 ```
 
 ### Generate a token
@@ -40,8 +40,8 @@ A join token is required to authorize a Teleport Application Proxy service to
 join the cluster. Generate a short-lived join token and save it for example
 in `/tmp/token`:
 
-```bash
-tctl tokens add \
+```code
+$ tctl tokens add \
     --type=app \
     --app-name=grafana \
     --app-uri=http://localhost:3000
@@ -67,7 +67,7 @@ Enable ACME in your proxy config:
 ```yaml
 proxy_service:
   enabled: "yes"
-  web_listen_addr: ":443"
+  web_listen_addr: "0.0.0.0:443"
   public_addr: "teleport.example.com:443"
   acme:
     enabled: "yes"
@@ -89,7 +89,7 @@ to the proxy service:
 ```yaml
 proxy_service:
   enabled: "yes"
-  web_listen_addr: ":443"
+  web_listen_addr: "0.0.0.0:443"
   public_addr: "teleport.example.com:443"
   https_keypairs:
   - key_file: "/etc/letsencrypt/live/teleport.example.com/privkey.pem"
@@ -103,16 +103,16 @@ proxy_service:
 A Teleport user needs their role's permission to access an application. Teleport
 comes with a built-in `access` role that grants access to all apps:
 
-```bash
-tctl --config=/path/to/teleport.yaml users add --roles=access appuser
+```code
+$ tctl --config=/path/to/teleport.yaml users add --roles=access appuser
 ```
 
 ## Start application service with CLI flags
 
 A Teleport Application Proxy agent can be started with a single CLI command:
 
-```bash
-sudo teleport start \
+```code
+$ sudo teleport start \
     --roles=app \
     --token=/tmp/token \
     --auth-server=teleport.example.com:3080 \
@@ -184,8 +184,8 @@ proxy_service:
 
 Start the application service:
 
-```bash
-sudo teleport start --config=/path/to/teleport.yaml
+```code
+$ sudo teleport start --config=/path/to/teleport.yaml
 ```
 
 ## Advanced options
@@ -254,9 +254,9 @@ provides an option to rewrite the hostname of the `Location` header on
 redirect responses to the application's public address:
 
 ```yaml
-- name: "jira"
+- name: "jenkins"
   uri: "https://localhost:8001"
-  public_addr: "jira.example.com"
+  public_addr: "jenkins.example.com"
   rewrite:
     # Rewrite the "Location" header on redirect responses replacing the
     # host with the public address of this application.

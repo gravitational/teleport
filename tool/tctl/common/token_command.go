@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -154,9 +153,13 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	// Calculate the CA pin for this cluster. The CA pin is used by the client
-	// to verify the identity of the Auth Server.
-	caPin, err := calculateCAPin(client)
+	// Calculate the CA pins for this cluster. The CA pins are used by the
+	// client to verify the identity of the Auth Server.
+	localCAResponse, err := client.GetClusterCACert()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -182,21 +185,16 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		}
 		appPublicAddr := fmt.Sprintf("%v.%v", c.appName, proxies[0].GetPublicAddr())
 
-		fmt.Printf(appMessage,
-			token,
-			int(c.ttl.Minutes()),
-			token,
-			caPin,
-			proxies[0].GetPublicAddr(),
-			c.appName,
-			c.appName,
-			c.appURI,
-			c.appURI,
-			appPublicAddr,
-			int(c.ttl.Minutes()),
-			proxies[0].GetPublicAddr(),
-			appPublicAddr,
-			appPublicAddr)
+		return appMessageTemplate.Execute(os.Stdout,
+			map[string]interface{}{
+				"token":           token,
+				"minutes":         c.ttl.Minutes(),
+				"ca_pins":         caPins,
+				"auth_server":     proxies[0].GetPublicAddr(),
+				"app_name":        c.appName,
+				"app_uri":         c.appURI,
+				"app_public_addr": appPublicAddr,
+			})
 	case roles.Include(types.RoleDatabase):
 		proxies, err := client.GetProxies()
 		if err != nil {
@@ -209,7 +207,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 			map[string]interface{}{
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
-				"ca_pin":      caPin,
+				"ca_pins":     caPins,
 				"auth_server": proxies[0].GetPublicAddr(),
 				"db_name":     c.dbName,
 				"db_protocol": c.dbProtocol,
@@ -220,15 +218,13 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 			token,
 			int(c.ttl.Minutes()))
 	default:
-		fmt.Printf(nodeMessage,
-			token,
-			int(c.ttl.Minutes()),
-			strings.ToLower(roles.String()),
-			token,
-			caPin,
-			authServers[0].GetAddr(),
-			int(c.ttl.Minutes()),
-			authServers[0].GetAddr())
+		return nodeMessageTemplate.Execute(os.Stdout, map[string]interface{}{
+			"token":       token,
+			"roles":       strings.ToLower(roles.String()),
+			"minutes":     int(c.ttl.Minutes()),
+			"ca_pins":     caPins,
+			"auth_server": authServers[0].GetAddr(),
+		})
 	}
 
 	return nil
@@ -286,18 +282,4 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 		fmt.Print(string(data))
 	}
 	return nil
-}
-
-// calculateCAPin returns the SPKI pin for the local cluster.
-func calculateCAPin(client auth.ClientI) (string, error) {
-	localCA, err := client.GetClusterCACert()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	tlsCA, err := tlsca.ParseCertificatePEM(localCA.TLSCA)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return utils.CalculateSPKI(tlsCA), nil
 }

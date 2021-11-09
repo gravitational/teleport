@@ -26,12 +26,14 @@ import (
 	stdlog "log"
 	"math"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"unicode"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
@@ -159,7 +161,15 @@ func UserMessageFromError(err error) string {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
-	fmt.Fprint(&buf, Color(Red, "ERROR: "))
+	if runtime.GOOS == constants.WindowsOS {
+		// TODO(timothyb89): Due to complications with globally enabling +
+		// properly resetting Windows terminal ANSI processing, for now we just
+		// disable color output. Otherwise, raw ANSI escapes will be visible to
+		// users.
+		fmt.Fprint(&buf, "ERROR: ")
+	} else {
+		fmt.Fprint(&buf, Color(Red, "ERROR: "))
+	}
 	formatErrorWriter(err, &buf)
 	return buf.String()
 }

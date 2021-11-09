@@ -1,0 +1,166 @@
+---
+title: Troubleshooting Desktop Access
+description: Common issues and resolutions for Teleport's Desktop Access
+---
+
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  Desktop Access is currently in Preview. Do not use this feature for any critical
+  infrastructure and keep a backup option for accessing your desktop hosts.
+</Admonition>
+
+Common issues and resolution steps.
+
+## Auto-login does not work
+
+### Smart Card Service Not Running
+
+You connect to a Windows host from the Teleport UI, land on the Windows login
+screen and nothing happens.
+
+You can click on the username, click `Sign-in options` and click on the smart
+card icon. The error message is: **"No Valid Certificates Were Found on This
+Smart Card"**.
+
+**Solution:** Enable the Smart Card Service
+
+Usually, this means that the Smart Card service is not running on the target
+host.
+
+First, make sure that you [enable the Smart Card service in Group
+Policy](./getting-started.mdx#enable-the-smart-card-service).
+
+If that doesn't help, log into the target host directly, open the "Services"
+program from the "Start" menu and check that the "Smart Card" service is in the
+"Running" state.
+
+If the "Smart Card" service is not running, open PowerShell and run
+`gpupdate.exe /force`. This forces a Group Policy sync and should pick up the
+service changes.
+
+### Smart Card Certificate Not Trusted
+
+You connect to a Windows host from the Teleport UI, land on the Windows login
+screen and see an error message: **"The smartcard certificate used for
+authentication was not trusted"** (or similar).
+
+**Solution:** Import the Teleport CA
+
+This means that the host does not trust the Teleport CA.
+
+First, make sure that you [import the Teleport CA into Group
+Policy](./getting-started.mdx#import-teleport-ca). Note that if the
+Teleport CA was rotated since the last import, you will have to fetch the
+new CA using `tctl auth export --type=windows >user-ca.cer`
+
+If that doesn't help, log into the target host directly, open PowerShell and
+run `gpupdate.exe /force`. This forces a Group Policy sync and should pick up
+the new CA.
+
+## New session "hangs"
+
+### Host Unreachable
+
+You click `CONNECT` on a Windows host from the Teleport UI, a new tab opens but
+nothing is displayed other than the top bar. After a while, an error is
+displayed about a failed connection.
+
+**Solution:** Open Firewall for RDP Traffic
+
+This happens when the `windows_desktop_service` can't reach the target Windows
+host.
+
+First, make sure that you [open the RDP
+port](./getting-started.mdx#open-firewall-to-inbound-rdp-connections) and [allow
+remote RDP connections in Group
+Policy](./getting-started.mdx#allow-remote-rdp-connections).
+
+If that does not help, check if the target host is online and try to `ping` it
+from the Linux server that runs `windows_desktop_service`. If the host is
+online but not reachable, there is some other networking barrier in the way,
+specific to your infrastructure.
+
+### Hostname Does Not Resolve
+
+Connections to Windows Desktops hang during connection establishment, or the
+Teleport debug logs show errors of the form
+`couldn't resolve winserver.example.com`.
+
+**Solution:** Ensure Firewall Permits DNS Traffic
+
+For desktops that are automatically discovered via LDAP, Teleport makes DNS
+queries against the LDAP server in order to resolve the hostname to an IP
+address.
+
+Ensure that your firewalls allow inbound DNS traffic on port 53 from the
+instance(s) running Teleport's Windows Desktop Service to the LDAP server
+(Active Directory Domain Controller).
+
+## Teleport fails to start
+
+### Invalid LDAP Credentials
+
+Teleport fails to start with an error similar to:
+
+```text
+LDAP Result Code 49 "Invalid Credentials": 80090308: LdapErr: DSID-0C0903C5, comment: AcceptSecurityContext error, data 52e, v2580\x00
+```
+
+**Solution:** Fix Credentials
+
+This means that your LDAP username and password were not correct. Double-check
+them in the `ldap` section of `windows_desktop_service`.
+
+Note that the LDAP username must be formatted as `DOMAIN\User`, where `DOMAIN`
+is the NetBIOS name for the domain. For example, user `Administrator` in domain
+`example.com` should be formatted as `EXAMPLE\Administrator`.
+
+### Incorrect Domain
+
+Teleport fails to start with an error similar to:
+
+```text
+LDAP Result Code 10 "Referral": 0000202B: RefErr: DSID-0310082F, data 0, 1 access points
+"\tref 1: 'xample.com'"
+"\x00"
+```
+
+**Solution:** Correct Domain
+
+This means that your domain name is likely wrong. Double-check the `domain`
+field in the `ldap` section of `windows_desktop_service`.
+
+### Domain Controller Unreachable
+
+Teleport fails to start with an error similar to:
+
+```text
+LDAP Result Code 200 "Network Error": dial tcp ad.example.com:389: i/o timeout
+```
+
+**Solution:** Check LDAP Address
+
+This means that your Domain Controller is down or unreachable. Double-check the
+`addr` field in the `ldap` section of `windows_desktop_service`. If it's
+correct, check that the Domain Controller is up and reachable from the server
+that runs `windows_desktop_service`.
+
+### Cannot Initialize LDAP over TLS
+
+Teleport fails to start with an error similar to:
+
+```text
+LDAP Result Code 52 "Unavailable": 00000000: LdapErr: DSID-0C090F78, comment: Error initializing SSL/TLS, data 0, v2580\x00
+```
+
+**Solution:** Install Active Directory Certificate Services
+
+This means that you do not have Active Directory Certificate Services (AD CS)
+installed in your domain. AD CS provides the certificate for TLS connections to
+LDAP and Teleport refuses to authenticate to LDAP over an insecure connection.
+
+You must [install AD
+CS](https://docs.microsoft.com/en-us/windows-server/networking/core-network-guide/cncg/server-certs/install-the-certification-authority)
+on one of the Domain Controllers and reboot it.

@@ -29,12 +29,12 @@ auth_service:
     # to enable U2F support, set this field to 'u2f', 'on' or 'optional'
     second_factor: u2f
     u2f:
-       app_id: https://example.com:443
+       app_id: https://example.com
        facets:
-       - https://example.com:443
-       - https://example.com
-       - example.com:443
-       - example.com
+       - "https://example.com"      # app_id should always also be listed as a facet
+       - "https://example.com:443"
+       - "example.com:443"
+       - "example.com"
        device_attestation_cas:
        - "/path/to/u2f_attestation_ca.pem"
 ```
@@ -42,7 +42,12 @@ auth_service:
 The fields in the above snippet are:
 
 - `app_id` - public address of the Teleport proxy, *including* the `https://`
-  prefix and port number.
+  prefix. If you use a port number other than 443, include it as well.
+
+  Examples:
+
+  - `https://example.com` (uses default port 443)
+  - `https://example.com:3080` (uses non-default port 3080)
 
 <Admonition
   type="warning"
@@ -62,8 +67,9 @@ The fields in the above snippet are:
 
   For compatibility with multiple browsers, it's recommended to write down the
   proxy address in several formats. For example, if your `app_id` is
-  `https://example.com:443`, your `facets` should include
-  `https://example.com:443`, `https://example.com` and `example.com:443`.
+  `https://example.com`, your `facets` should include
+  `https://example.com:443`, `https://example.com`, `example.com:443` and
+  `example.com`.
 
 - `device_attestation_cas` - optional list of certificate authorities (as local
   file paths or in-line PEM certificate string) for U2F [device
@@ -77,17 +83,16 @@ changes.
 
 ## Register U2F devices as a user
 
-A user can register multiple U2F devices [using `tsh`](../../cli-docs.mdx#tsh-mfa-add):
+A user can register multiple U2F devices [using `tsh`](../../setup/reference/cli.mdx#tsh-mfa-add):
 
-```bash
-tsh mfa add
+```code
+$ tsh mfa add
 
-# Output
-Choose device type [TOTP, U2F]: u2f
-Enter device name: desktop yubikey
-Tap any *registered* security key
-Tap your *new* security key
-MFA device "desktop yubikey" added.
+# Choose device type [TOTP, U2F]: u2f
+# Enter device name: desktop yubikey
+# Tap any *registered* security key
+# Tap your *new* security key
+# MFA device "desktop yubikey" added.
 ```
 
 {/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
@@ -100,27 +105,24 @@ MFA device "desktop yubikey" added.
 
 Once a U2F device is registered, the user will be prompted for it on login:
 
-```bash
-tsh login --proxy=example.com
+```code
+$ tsh login --proxy=example.com
 
-# Output
-Enter password for Teleport user awly:
-Tap any security key <tap U2F token>
-> Profile URL:        https://example.com
-  Logged in as:       awly
-  Cluster:            example.com
-  Roles:              admin*
-  Logins:             awly
-  Kubernetes:         enabled
-  Valid until:        2021-04-01 23:32:29 -0700 PDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+# Enter password for Teleport user awly:
+# Tap any security key <tap U2F token>
+# > Profile URL:        https://example.com
+#  Logged in as:       awly
+#  Cluster:            example.com
+#  Roles:              admin*
+#  Logins:             awly
+#  Kubernetes:         enabled
+#  Valid until:        2021-04-01 23:32:29 -0700 PDT [valid for 12h0m0s]
+#  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
-
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 <Admonition type="note">
 U2F for logging into Teleport is only required for [local
-users](../../admin-guide.mdx#local-connector). SSO users should configure
+users](../../setup/reference/authentication.mdx#local). SSO users should configure
 multi-factor authentication in their SSO provider.
 </Admonition>
 

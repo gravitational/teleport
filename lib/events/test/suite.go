@@ -206,7 +206,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 				Time:       s.Clock.Now().Add(time.Hour).UTC().UnixNano(),
 				EventIndex: 4,
 				EventType:  events.SessionEndEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob"}),
+				Data:       marshal(events.EventFields{events.EventLogin: "bob", events.SessionParticipants: []string{"bob", "alice"}}),
 			},
 		},
 		Version: events.V2,
@@ -220,13 +220,28 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
 	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "")
-	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 2)
-
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "")
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 1)
+
+	withParticipant := func(participant string) *types.WhereExpr {
+		return &types.WhereExpr{Contains: types.WhereExpr2{
+			L: &types.WhereExpr{Field: events.SessionParticipants},
+			R: &types.WhereExpr{Literal: participant},
+		}}
+	}
+
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("alice"))
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 1)
+
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("cecile"))
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 0)
+
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "", nil)
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 0)
 }
 
 func marshal(f events.EventFields) []byte {

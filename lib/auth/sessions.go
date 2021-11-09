@@ -91,8 +91,8 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
 		User:    req.Username,
 		Priv:    privateKey,
-		Pub:     certs.ssh,
-		TLSCert: certs.tls,
+		Pub:     certs.SSH,
+		TLSCert: certs.TLS,
 		Expires: s.clock.Now().Add(ttl),
 	})
 	if err != nil {
@@ -108,7 +108,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 
 // WaitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
-func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoint) error {
+func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
 	_, err := ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
 	if err == nil {
 		return nil
@@ -231,5 +231,5 @@ func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, pu
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return certs.ssh, certs.tls, nil
+	return certs.SSH, certs.TLS, nil
 }

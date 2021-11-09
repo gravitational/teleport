@@ -48,10 +48,7 @@ const (
 	// one of many SSH nodes
 	SSHProxyListenPort = 3023
 
-	// When running in "SSH Proxy" role this port will be used for incoming
-	// connections from SSH nodes who wish to use "reverse tunnell" (when they
-	// run behind an environment/firewall which only allows outgoing connections)
-	SSHProxyTunnelListenPort = 3024
+	SSHProxyTunnelListenPort = defaults.SSHProxyTunnelListenPort
 
 	// KubeListenPort is a default port for kubernetes proxies
 	KubeListenPort = 3026
@@ -65,6 +62,16 @@ const (
 
 	// MetricsListenPort is the default listen port for the metrics service.
 	MetricsListenPort = 3081
+
+	// WindowsDesktopListenPort is the default listed port for
+	// windows_desktop_service.
+	//
+	// TODO(awly): update to match HTTPListenPort once SNI routing is
+	// implemented.
+	WindowsDesktopListenPort = 3028
+
+	// RDPListenPort is the standard port for RDP servers.
+	RDPListenPort = 3389
 
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
@@ -152,6 +159,15 @@ const (
 	// ChangePasswordTokenTTL is a default password change token expiry time
 	ChangePasswordTokenTTL = 8 * time.Hour
 
+	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
+	RecoveryStartTokenTTL = 3 * time.Hour
+
+	// RecoveryApprovedTokenTTL is a default expiry time for a recovery approved token.
+	RecoveryApprovedTokenTTL = 15 * time.Minute
+
+	// PrivilegeTokenTTL is a default expiry time for a privilege token.
+	PrivilegeTokenTTL = 5 * time.Minute
+
 	// ResetPasswordLength is the length of the reset user password
 	ResetPasswordLength = 16
 
@@ -217,6 +233,10 @@ const (
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5
 
+	// MaxAccountRecoveryAttempts sets the max number of allowed failed recovery attempts
+	// before a user is locked from login and further recovery attempts for AccountLockInterval.
+	MaxAccountRecoveryAttempts = 3
+
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts
 	AccountLockInterval = 20 * time.Minute
@@ -276,6 +296,10 @@ const (
 
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour
+
+	// LockMaxStaleness is the maximum staleness for cached lock resources
+	// to be deemed acceptable for strict locking mode.
+	LockMaxStaleness = 5 * time.Minute
 )
 
 var (
@@ -366,6 +390,9 @@ var (
 	// DatabasesQueueSize is db service queue size.
 	DatabasesQueueSize = 128
 
+	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
+	WindowsDesktopQueueSize = 128
+
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
 	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
@@ -437,6 +464,8 @@ const (
 	RoleApp = "app"
 	// RoleDatabase is a database proxy role.
 	RoleDatabase = "db"
+	// RoleWindowsDesktop is a Windows desktop service.
+	RoleWindowsDesktop = "windowsdesktop"
 )
 
 const (
@@ -446,6 +475,12 @@ const (
 	ProtocolMySQL = "mysql"
 	// ProtocolMongoDB is the MongoDB database protocol.
 	ProtocolMongoDB = "mongodb"
+	// ProtocolCockroachDB is the CockroachDB database protocol.
+	//
+	// Technically it's the same as the Postgres protocol but it's used to
+	// differentiate between Cockroach and Postgres databases e.g. when
+	// selecting a CLI client to use.
+	ProtocolCockroachDB = "cockroachdb"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -453,6 +488,7 @@ var DatabaseProtocols = []string{
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
+	ProtocolCockroachDB,
 }
 
 const (
@@ -494,9 +530,6 @@ var (
 	// the Teleport configuration file that tctl reads on use
 	ConfigFileEnvar = "TELEPORT_CONFIG_FILE"
 
-	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
-	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
-
 	// LicenseFile is the default name of the license file
 	LicenseFile = "license.pem"
 
@@ -517,6 +550,9 @@ const (
 const (
 	// U2FChallengeTimeout is hardcoded in the U2F library
 	U2FChallengeTimeout = 5 * time.Minute
+	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
+	// or registration challenges.
+	WebauthnChallengeTimeout = 5 * time.Minute
 )
 
 const (
@@ -614,6 +650,9 @@ const (
 
 	// WebsocketU2FChallenge is sending a U2F challenge.
 	WebsocketU2FChallenge = "u"
+
+	// WebsocketWebauthnChallenge is sending a webauthn challenge.
+	WebsocketWebauthnChallenge = "n"
 )
 
 // The following are cryptographic primitives Teleport does not support in
@@ -724,3 +763,10 @@ func Transport() (*http.Transport, error) {
 
 	return tr, nil
 }
+
+const (
+	// TeleportConfigVersionV1 is the teleport proxy configuration v1 version.
+	TeleportConfigVersionV1 string = "v1"
+	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
+	TeleportConfigVersionV2 string = "v2"
+)

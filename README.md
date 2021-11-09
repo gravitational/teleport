@@ -5,7 +5,7 @@
       <img src="https://img.shields.io/badge/Teleport-7.0-651FFF.svg" />
       </a>
       <a href="https://golang.org/">
-      <img src="https://img.shields.io/badge/Go-1.16-7fd5ea.svg" />
+      <img src="https://img.shields.io/badge/Go-1.17-7fd5ea.svg" />
       </a>
       <a href="https://github.com/gravitational/teleport/blob/master/CODE_OF_CONDUCT.md">
       <img src="https://img.shields.io/badge/Contribute-🙌-green.svg" />
@@ -54,7 +54,7 @@ replacing legacy `sshd`-based setups at organizations who need:
   across many environments and cloud providers.
 * Audit log with session recording/replay for multiple protocols
 * Easily manage trust between teams, organizations and data centers.
-* Role-based access control (RBAC) and flexible access workflows (one-time access requests)
+* Role-based access control (RBAC) and flexible access workflows (one-time [access requests](https://goteleport.com/features/access-requests/)
 
 In addition to its hallmark features, Teleport is interesting for smaller teams
 because it facilitates easy adoption of the best infrastructure security

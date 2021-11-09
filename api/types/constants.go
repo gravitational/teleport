@@ -112,11 +112,17 @@ const (
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
+	// KindApp is a web app resource.
+	KindApp = "app"
+
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
+
+	// KindKubernetesCluster is a Kubernetes cluster.
+	KindKubernetesCluster = "kube_cluster"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -153,10 +159,10 @@ const (
 	MetaNameSessionRecordingConfig = "session-recording-config"
 
 	// KindClusterConfig is the resource that holds cluster level configuration.
+	// Deprecated: This does not correspond to an actual resource anymore but is
+	// still used when checking access to the new configuration resources, as an
+	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
-
-	// MetaNameClusterConfig is the exact name of the cluster config singleton resource.
-	MetaNameClusterConfig = "cluster-config"
 
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"
@@ -200,11 +206,11 @@ const (
 	// to proxy
 	KindRemoteCluster = "remote_cluster"
 
-	// KindResetPasswordToken is a token used to change user passwords
-	KindResetPasswordToken = "user_token"
+	// KindUserToken is a user token used for various user related actions.
+	KindUserToken = "user_token"
 
-	// KindResetPasswordTokenSecrets is reset password token secrets
-	KindResetPasswordTokenSecrets = "reset_password_token_secrets"
+	// KindUserTokenSecrets is user token secrets.
+	KindUserTokenSecrets = "user_token_secrets"
 
 	// KindIdentity is local on disk identity resource
 	KindIdentity = "identity"
@@ -230,6 +236,15 @@ const (
 	// MetaNameNetworkRestrictions is the exact name of the singleton resource for
 	// network restrictions
 	MetaNameNetworkRestrictions = "network-restrictions"
+
+	// KindWindowsDesktopService is a Windows desktop service resource.
+	KindWindowsDesktopService = "windows_desktop_service"
+
+	// KindWindowsDesktop is a Windows desktop host.
+	KindWindowsDesktop = "windows_desktop"
+
+	// KindRecoveryCodes is a resource that holds users recovery codes.
+	KindRecoveryCodes = "recovery_codes"
 
 	// V4 is the fourth version of resources.
 	V4 = "v4"
@@ -288,10 +303,14 @@ const (
 	// OriginDynamic is an origin value indicating that the resource was
 	// committed as dynamic configuration.
 	OriginDynamic = "dynamic"
+
+	// OriginCloud is an origin value indicating that the resource was
+	// imported from a cloud provider.
+	OriginCloud = "cloud"
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic}
+var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
@@ -334,4 +353,7 @@ const (
 
 	// DatabaseTunnel is a tunnel where a database proxy dials back to the proxy.
 	DatabaseTunnel TunnelType = "db"
+
+	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
+	WindowsDesktopTunnel TunnelType = "windows_desktop"
 )

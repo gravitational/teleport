@@ -38,20 +38,24 @@ With every user combination, try to login and signup with invalid second factor,
   - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users U2F
+  - [ ] Adding Users WebAuthn
   - [ ] Managing MFA devices
     - [ ] Add an OTP device with `tsh mfa add`
     - [ ] Add a U2F device with `tsh mfa add`
+    - [ ] Verify that the U2F device works under WebAuthn
+    - [ ] Add a WebAuthn device with `tsh mfa add`
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
     - [ ] Remove a U2F device with `tsh mfa rm`
+    - [ ] Remove a WebAuthn device with `tsh mfa rm`
     - [ ] Attempt removing the last MFA device on the user
       - [ ] with `second_factor: on` in `auth_service`, should fail
       - [ ] with `second_factor: optional` in `auth_service`, should succeed
   - [ ] Login Password Only
   - [ ] Login with MFA
-    - [ ] Add 2 OTP and 2 U2F devices with `tsh mfa add`
+    - [ ] Add 2 OTP and 2 WebAuthn devices with `tsh mfa add`
     - [ ] Login via OTP
-    - [ ] Login via U2F
+    - [ ] Login via WebAuthn
   - [ ] Login OIDC
   - [ ] Login SAML
   - [ ] Login GitHub
@@ -275,7 +279,7 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 ## WEB UI
 
 ## Main
-For main, test with admin role that has access to all resources.
+For main, test with a role that has access to all resources.
 
 #### Top Nav
 - [ ] Verify that cluster selector displays all (root + leaf) clusters
@@ -330,19 +334,13 @@ For main, test with admin role that has access to all resources.
 - [ ] Verify search by username, roles, and type works
 
 #### Auth Connectors
+- [ ] Verify when there are no connectors, empty state renders
 - [ ] Verify that creating OIDC/SAML/GITHUB connectors works
 - [ ] Verify that editing  OIDC/SAML/GITHUB connectors works
 - [ ] Verify that error is shown when saving an invalid YAML
 - [ ] Verify that correct hint text is shown on the right side
 - [ ] Verify that encrypted SAML assertions work with an identity provider that supports it (Azure).
-
-#### Auth Connectors Card Icons
-- [ ] Verify that GITHUB card has github icon
-- [ ] Verify that SAML card has SAML icon
-- [ ] Verify that OIDC card has OIDC icon
-- [ ] Verify when there are no connectors, empty state renders
-
-
+- [ ] Verify that created github, saml, oidc card has their icons
 #### Roles
 - [ ] Verify that roles are shown
 - [ ] Verify that "Create New Role" dialog works
@@ -352,7 +350,7 @@ For main, test with admin role that has access to all resources.
 
 #### Managed Clusters
 - [ ] Verify that it displays a list of clusters (root + leaf)
-- [ ] Verify that every menu item works: nodes, apps, audit events, session recordings.
+- [ ] Verify that every menu item works: nodes, apps, audit events, session recordings, etc.
 
 #### Help & Support
 - [ ] Verify that all URLs work and correct (no 404)
@@ -388,7 +386,7 @@ version: v3
 ```
 kind: role
 metadata:
-  name: allow-users
+  name: allow-users-short-ttl
 spec:
   allow:
     rules:
@@ -421,11 +419,10 @@ spec:
     max_session_ttl: 8h0m0s
 version: v3
 ```
-- [ ] Verify that creating a new request works
 - [ ] Verify that under requestable roles, only `allow-roles` and `allow-users` are listed
 - [ ] Verify input validation requires at least one role to be selected
 - [ ] Verify you can select/input/modify reviewers
-- [ ] Verify after creating, requests are listed in pending states
+- [ ] Verify after creating a request, requests are listed in pending states
 - [ ] Verify you can't review own requests
 
 ### Viewing & Approving/Denying Requests
@@ -441,7 +438,7 @@ spec:
       roles: ['*']
 ```
 - [ ] Verify you can view access request from request list
-- [ ] Verify there is list of reviewers you selected (empty list if none selected AND none wasn't defined in roles)
+- [ ] Verify there is list of reviewers you selected (empty list if none selected AND suggested_reviewers wasn't defined)
 - [ ] Verify threshold name is there (it will be `default` if thresholds weren't defined in role, or blank if not named)
 - [ ] Verify you can approve a request with message, and immediately see updated state with your review stamp (green checkmark) and message box
 - [ ] Verify you can deny a request, and immediately see updated state with your review stamp (red cross)
@@ -451,10 +448,10 @@ spec:
 - [ ] Verify assume buttons are only present for approved request and for logged in user
 - [ ] Verify that assuming `allow-roles` allows you to see roles screen and ssh into nodes
 - [ ] Verify that after clicking on the assume button, it is disabled in both the list and in viewing
-- [ ] After assuming `allow-roles`, verify that assuming `allow-users` allows you to see users screen, and denies access to nodes
+- [ ] After assuming `allow-roles`, verify that assuming `allow-users-short-ttl` allows you to see users screen, and denies access to nodes
   - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
   - [ ] Verify `switching back` goes back to your default static role
-  - [ ] Verify after re-assuming this role, the user is automatically logged out after the expiry is met (4 minutes)
+  - [ ] Verify after re-assuming `allow-users-short-ttl` role, the user is automatically logged out after the expiry is met (4 minutes)
 - [ ] Verify that after logging out (or getting logged out automatically) and relogging in, permissions are reset to `default`, and requests that are not expired and are approved are assumable again
 
 ## Access Request Waiting Room
@@ -463,7 +460,7 @@ Create the following role:
 ```
 kind: role
 metadata:
-  name: restrict
+  name: waiting-room
 spec:
   allow:
     request:
@@ -482,7 +479,7 @@ version: v3
 
 #### Strategy Always
 With the previous role you created from `Strategy Reason`, change `request_access` to `always`:
-- [ ] Verify after login, pending dialogue is rendered
+- [ ] Verify after login, pending dialogue is auto rendered
 - [ ] Verify after approving a request, dashboard is rendered
 - [ ] Verify after denying a request, access denied dialogue is rendered
 - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
@@ -490,8 +487,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 
 #### Strategy Optional
 With the previous role you created from `Strategy Reason`, change `request_access` to `optional`:
-- [ ] Verify after login, dashboard is rendered
-- [ ] Verify switchback button says `Switch Back` and clicking goes back to the login screen
+- [ ] Verify after login, dashboard is rendered as normal
 
 ## Terminal
 - [ ] Verify that top nav has a user menu (Main and Logout)
@@ -525,14 +521,15 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify when resizing player to a small screen, scroller appears and is working
 - [ ] Verify that error message is displayed (enter a invalid SID in the URL)
 
-## Invite Form
+## Invite and Reset Form
 - [ ] Verify that input validates
 - [ ] Verify that invite works with 2FA disabled
 - [ ] Verify that invite works with OTP enabled
 - [ ] Verify that invite works with U2F enabled
+- [ ] Verify that invite works with WebAuthn enabled
 - [ ] Verify that error message is shown if an invite is expired/invalid
 
-## Login Form
+## Login Form and Change Password
 - [ ] Verify that input validates
 - [ ] Verify that login works with 2FA disabled
 - [ ] Verify that changing passwords works for 2FA disabled
@@ -540,44 +537,78 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify that changing passwords works for OTP enabled
 - [ ] Verify that login works with U2F enabled
 - [ ] Verify that changing passwords works for U2F enabled
+- [ ] Verify that login works with WebAuthn enabled
+- [ ] Verify that changing passwords works for WebAuthn enabled
 - [ ] Verify that login works for Github/SAML/OIDC
-- [ ] Verify that account is locked after several unsuccessful attempts
 - [ ] Verify that redirect to original URL works after successful login
+- [ ] Verify that account is locked after several unsuccessful login attempts
+- [ ] Verify that account is locked after several unsuccessful change password attempts
 
 ## Multi-factor Authentication (mfa)
 Create/modify `teleport.yaml` and set the following authentication settings under `auth_service`
-```
+
+```yaml
 authentication:
   type: local
   second_factor: optional
   require_session_mfa: yes
-  u2f:
-    app_id: https://example.com:443
-    facets:
-    - https://example.com:443
-    - https://example.com
-    - example.com:443
-    - example.com
+  webauthn:
+    rp_id: example.com
 ```
-#### MFA create, login, password reset
-- [ ] Verify when creating a user, and setting password, required 2nd factor is `totp` (TODO: temporary hack, ideally want to allow user to select)
-- [ ] Verify at login page, there is a mfa dropdown menu (none, u2f, otp), and can login with `otp`
-- [ ] Verify at reset password page, there is the same dropdown to select your mfa, and can reset with `otp`
+
+#### MFA invite, login, password reset, change password
+- [ ] Verify during invite/reset, second factor list all auth types: none, hardware key, and authenticator app
+- [ ] Verify registration works with all option types
+- [ ] Verify login with all option types
+- [ ] Verify changing password with all option types
+- [ ] Change `second_factor` type to `on` and verify that mfa is required (no option `none` in dropdown)
 
 #### MFA require auth
-Through the CLI, `tsh login` and register a u2f key with `tsh mfa add` (not supported in UI yet).
+Through the CLI, `tsh login` and register a WebAuthn key with `tsh mfa add` (not supported in UI yet).
 
 Using the same user as above:
-- [ ] Verify logging in with registered u2f key works
-- [ ] Verify connecting to a ssh node prompts you to tap your registered u2f key
+- [ ] Verify logging in with registered WebAuthn key works
+- [ ] Verify connecting to a ssh node prompts you to tap your registered WebAuthn key
 - [ ] Verify in the web terminal, you can scp upload/download files
+
+#### MFA Management
+TODO(yassine)
+
+## Cloud
+From your cloud staging account, change the field `teleportVersion` to the test version.
+```
+$ kubectl -n <namespace> edit tenant
+```
+
+#### Recovery Code Management
+TODO(yassine)
+
+#### Invite/Reset
+- [ ] Verify email as usernames, renders recovery codes dialog
+- [ ] Verify non email usernames, does not render recovery codes dialog
+
+#### Recovery Flow: Add new mfa device
+- [ ] Verify recovering (adding) a new hardware key device with password
+- [ ] Verify recovering (adding) a new otp device with password
+- [ ] Verify viewing and deleting any old device (but not the one just added)
+- [ ] Verify new recovery codes are rendered at the end of flow
+
+#### Recovery Flow: Change password
+- [ ] Verify recovering password with any mfa device
+- [ ] Verify new recovery codes are rendered at the end of flow
+
+#### Recovery Email
+- [ ] Verify receiving email for link to start recovery
+- [ ] Verify receiving email for successfully recovering
+- [ ] Verify email link is invalid after successful recovery
+- [ ] Verify receiving email for locked account when max attempts reached
 
 ## RBAC
 Create a role, with no `allow.rules` defined:
 ```
 kind: role
 metadata:
-  name: test
+  name: rbac
 spec:
   allow:
     app_labels:
@@ -592,7 +623,7 @@ version: v3
 ```
 - [ ] Verify that a user has access only to: "Servers", "Applications", "Databases", "Kubernetes", "Active Sessions", "Access Requests" and "Manage Clusters"
 - [ ] Verify there is no `Add Server, Application, Databases, Kubernetes` button in each respective view
-- [ ] Verify only `Nodes`, `Apps`, `Databases`, and `Kubernetes` are listed under `options` button in `Manage Clusters`
+- [ ] Verify only `Servers`, `Apps`, `Databases`, and `Kubernetes` are listed under `options` button in `Manage Clusters`
 
 Note: User has read/create access_request access to their own requests, despite resource settings
 
@@ -729,6 +760,13 @@ and non interactive tsh bench loads.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
 - [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
+- [ ] Verify AWS console access.
+  - [ ] Can log into AWS web console through the web UI.
+  - [ ] Can interact with AWS using `tsh aws` commands.
+- [ ] Verify dynamic registration.
+  - [ ] Can register a new app using `tctl create`.
+  - [ ] Can update registered app using `tctl create -f`.
+  - [ ] Can delete registered app using `tctl rm`.
 - [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all apps registered are shown
   - [ ] Verify that clicking on the app icon takes you to another tab
@@ -740,6 +778,7 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MongoDB.
+  - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
@@ -749,6 +788,7 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MongoDB.
+  - [ ] Self-hosted CockroachDB.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
@@ -765,8 +805,76 @@ and non interactive tsh bench loads.
     - [ ] `db.session.start` is emitted when connection attempt is denied.
   - [ ] _(MongoDB only)_ Can only execute commands in databases from `db_names`.
     - [ ] `db.session.query` is emitted when command fails due to permissions.
+  - [ ] Can configure per-session MFA.
+    - [ ] MFA tap is required on each `tsh db connect`.
+- [ ] Verify dynamic registration.
+  - [ ] Can register a new database using `tctl create`.
+  - [ ] Can update registered database using `tctl create -f`.
+  - [ ] Can delete registered database using `tctl rm`.
+- [ ] Verify discovery.
+  - [ ] Can detect and register RDS instances and Aurora clusters.
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
+
+## TLS Routing
+
+- [ ] Verify that teleport proxy `v2` configuration starts only a single listener.
+  ```
+  version: v2
+  teleport:
+    proxy_service:
+      enabled: "yes"
+      public_addr: ['root.example.com']
+      web_listen_addr: 0.0.0.0:3080
+  ```
+- [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
+  - [ ] Trusted cluster
+    - [ ] Setup trusted clusters using single port setup `web_proxy_addr == tunnel_addr`
+    ```
+    kind: trusted_cluster
+    spec:
+      ...
+      web_proxy_addr: root.example.com:443
+      tunnel_addr: root.example.com:443
+      ...
+    ```
+- [ ] Database Access
+  - [ ] Verify that `tsh db connect` works through proxy running in `multiplex` mode
+    - [ ] Postgres
+    - [ ] MySQL
+    - [ ] MongoDB
+    - [ ] CockroachDB
+  - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
+- [ ] Application Access
+  - [ ] Verify app access through proxy running in `multiplex` mode
+- [ ] SSH Access
+  - [ ] Connect to a OpenSSH server through a local ssh proxy `ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh" user@host.example.com`
+  - [ ] Connect to a OpenSSH server on leaf-cluster through a local ssh proxy`ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf-cluster %h:%p" user@node.foo.com`
+  - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
+- [ ] Kubernetes access:
+  - [ ] Verify kubernetes access through proxy running in `multiplex` mode
+
+## Desktop Access
+
+- [ ] Can connect to desktop defined in static `hosts` section.
+- [ ] Can connect to desktop discovered via LDAP
+- [ ] Download [Keyboard Key Info](https://dennisbabkin.com/kbdkeyinfo/) and verify all keys are processed correctly in each supported browser. Known issues: F11 cannot be captured by the browser without
+[special configuration](https://social.technet.microsoft.com/Forums/en-US/784b2bbe-353f-412e-ac9a-193d81f306b6/remote-desktop-for-mac-f11-key-not-working-on-macbook-pro-touchbar?forum=winRDc) on MacOS.
+- [ ] Left click and right click register as Windows clicks. (Right click on the
+  desktop should show a Windows menu, not a browser context menu)
+- [ ] Vertical and horizontal scroll work. [Horizontal Scroll Test](https://codepen.io/jaemskyle/pen/inbmB)
+- [ ] All desktops have `teleport.dev/origin` label.
+- [ ] Dynamic desktops have additional `teleport.dev` labels for OS, OS Version,
+  DNS hostname.
+- [ ] Verify that placing a user lock terminates an active desktop session.
+- [ ] Verify desktop session start/end audit events.
+- [ ] Regexp-based host labeling applies across all desktops, regardless of
+  origin.
+- [ ] RBAC denies access to a Windows desktop due to labels
+- [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
+- [ ] Multiple sessions as different users on the same desktop are allowed.
+- [ ] Connect multiple `windows_desktop_service`s to the same Teleport cluster,
+  verify that connections to desktops on different AD domains works.

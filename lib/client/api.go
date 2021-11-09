@@ -53,14 +53,17 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -321,6 +324,10 @@ type Config struct {
 
 	// HomePath is where tsh stores profiles
 	HomePath string
+
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	TLSRoutingEnabled bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -394,6 +401,9 @@ type ProfileStatus struct {
 	// ActiveRequests tracks the privilege escalation requests applied
 	// during certificate construction.
 	ActiveRequests services.RequestIDs
+
+	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
+	AWSRolesARNs []string
 }
 
 // IsExpired returns true if profile is not expired yet
@@ -403,14 +413,14 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 
 // CACertPath returns path to the CA certificate for this profile.
 //
-// It's stored in ~/.tsh/keys/<proxy>/certs.pem by default.
+// It's stored in <profile-dir>/keys/<proxy>/certs.pem by default.
 func (p *ProfileStatus) CACertPath() string {
 	return keypaths.TLSCAsPath(p.Dir, p.Name)
 }
 
 // KeyPath returns path to the private key for this profile.
 //
-// It's kept in ~/.tsh/keys/<proxy>/<user>.
+// It's kept in <profile-dir>/keys/<proxy>/<user>.
 func (p *ProfileStatus) KeyPath() string {
 	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
 }
@@ -418,7 +428,7 @@ func (p *ProfileStatus) KeyPath() string {
 // DatabaseCertPath returns path to the specified database access certificate
 // for this profile.
 //
-// It's kept in ~/.tsh/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
+// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) DatabaseCertPath(name string) string {
 	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
@@ -426,10 +436,17 @@ func (p *ProfileStatus) DatabaseCertPath(name string) string {
 // AppCertPath returns path to the specified app access certificate
 // for this profile.
 //
-// It's kept in ~/.tsh/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) AppCertPath(name string) string {
 	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 
+}
+
+// KubeConfigPath returns path to the specified kubeconfig for this profile.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-kube/<cluster>/<name>-kubeconfig
+func (p *ProfileStatus) KubeConfigPath(name string) string {
+	return keypaths.KubeConfigPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
 // DatabaseServices returns a list of database service names for this profile.
@@ -586,6 +603,11 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// If the cert expiration time is less than 5s consider cert as expired and don't add
+		// it to the user profile as an active database.
+		if time.Until(cert.NotAfter) < 5*time.Second {
+			continue
+		}
 		if tlsID.RouteToDatabase.ServiceName != "" {
 			databases = append(databases, tlsID.RouteToDatabase)
 		}
@@ -626,6 +648,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		KubeGroups:     tlsID.KubernetesGroups,
 		Databases:      databases,
 		Apps:           apps,
+		AWSRolesARNs:   tlsID.AWSRoleARNs,
 	}, nil
 }
 
@@ -762,6 +785,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.SSHProxyAddr = cp.SSHProxyAddr
 	c.PostgresProxyAddr = cp.PostgresProxyAddr
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
+	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -794,6 +818,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.MySQLProxyAddr = c.MySQLProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
+	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
@@ -968,6 +993,19 @@ func (c *Config) MySQLProxyHostPort() (string, int) {
 	return webProxyHost, defaults.MySQLListenPort
 }
 
+// DatabaseProxyHostPort returns proxy connection endpoint for the database.
+func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
+	switch db.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
+		return c.PostgresProxyHostPort()
+	case defaults.ProtocolMySQL:
+		return c.MySQLProxyHostPort()
+	case defaults.ProtocolMongoDB:
+		return c.WebProxyHostPort()
+	}
+	return c.WebProxyHostPort()
+}
+
 // ProxyHost returns the hostname of the proxy server (without any port numbers)
 func ProxyHost(proxyHost string) string {
 	host, _, err := net.SplitHostPort(proxyHost)
@@ -1080,7 +1118,13 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		tc.localAgent, err = NewLocalAgent(keystore, webProxyHost, c.Username, c.AddKeysToAgent)
+		tc.localAgent, err = NewLocalAgent(LocalAgentConfig{
+			Keystore:   keystore,
+			ProxyHost:  webProxyHost,
+			Username:   c.Username,
+			KeysOption: c.AddKeysToAgent,
+			Insecure:   c.InsecureSkipVerify,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1121,18 +1165,6 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// accessPoint returns access point based on the cache policy
-func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string, clusterName string) (auth.AccessPoint, error) {
-	// If no caching policy was set or on Windows (where Teleport does not
-	// support file locking at the moment), return direct access to the access
-	// point.
-	if tc.CachePolicy == nil || runtime.GOOS == constants.WindowsOS {
-		log.Debugf("not using caching access point")
-		return clt, nil
-	}
-	return clt, nil
 }
 
 // LocalAgent is a getter function for the client's local agent
@@ -1525,14 +1557,6 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		stream = append(stream, tmp...)
 	}
 
-	// configure terminal for direct unbuffered echo-less input:
-	if term.IsTerminal(0) {
-		state, err := term.MakeRaw(0)
-		if err != nil {
-			return nil
-		}
-		defer term.Restore(0, state)
-	}
 	return playSession(sessionEvents, stream)
 }
 
@@ -1558,6 +1582,7 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	return playSession(sessionEvents, stream)
 }
 
@@ -1790,7 +1815,7 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error)
 }
 
 // ListAppServers returns a list of application servers.
-func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, error) {
+func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.AppServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1798,6 +1823,19 @@ func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, e
 	defer proxyClient.Close()
 
 	return proxyClient.GetAppServers(ctx, tc.Namespace)
+}
+
+// ListApps returns all registered applications.
+func (tc *TeleportClient) ListApps(ctx context.Context) ([]types.Application, error) {
+	servers, err := tc.ListAppServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var apps []types.Application
+	for _, server := range servers {
+		apps = append(apps, server.GetApp())
+	}
+	return types.DeduplicateApps(apps), nil
 }
 
 // CreateAppSession creates a new application access session.
@@ -1838,7 +1876,7 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context) ([]types.Database, 
 	}
 	var databases []types.Database
 	for _, server := range servers {
-		databases = append(databases, server.GetDatabases()...)
+		databases = append(databases, server.GetDatabase())
 	}
 	return types.DeduplicateDatabases(databases), nil
 }
@@ -1926,6 +1964,13 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 		return trace.Wrap(err)
 	}
 	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
+		switch e := trace.Unwrap(err).(type) {
+		case *ssh.ExitError:
+			tc.ExitStatus = e.ExitStatus()
+		case *ssh.ExitMissingError:
+			tc.ExitStatus = 1
+		}
+
 		return trace.Wrap(err)
 	}
 	if nodeSession.ExitMsg == "" {
@@ -2034,7 +2079,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		signers, err := tc.localAgent.certsForCluster("")
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
 		// should be passing auth methods via tc.Config.AuthMethods.
-		if err != nil && !errors.Is(err, errNoLocalKeyStore) {
+		if err != nil && !errors.Is(err, errNoLocalKeyStore) && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 		if len(signers) > 0 {
@@ -2053,10 +2098,9 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}
 	log.Infof("Connecting proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 
-	sshClient, err := ssh.Dial("tcp", sshProxyAddr, sshConfig)
+	sshClient, err := makeProxySSHClient(tc, sshConfig)
 	if err != nil {
-		log.WithError(err).Warnf("Failed to authenticate with proxy %v.", sshProxyAddr)
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
+		return nil, trace.Wrap(err)
 	}
 
 	log.Infof("Successful auth with proxy %v.", sshProxyAddr)
@@ -2071,6 +2115,39 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		siteName:        clusterName(),
 		clientAddr:      tc.ClientAddr,
 	}, nil
+}
+
+func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	cfg := tc.Config
+	clientTLSConf, err := tc.loadTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clientTLSConf.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
+	clientTLSConf.InsecureSkipVerify = cfg.InsecureSkipVerify
+
+	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, clientTLSConf)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to dial tls %v", cfg.WebProxyAddr)
+	}
+	c, chans, reqs, err := ssh.NewClientConn(tlsConn, cfg.WebProxyAddr, sshConfig)
+	if err != nil {
+		// tlsConn is closed inside ssh.NewClientConn function
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.WebProxyAddr)
+	}
+	return ssh.NewClient(c, chans, reqs), nil
+}
+
+func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	if tc.Config.TLSRoutingEnabled {
+		return makeProxySSHClientWithTLSWrapper(tc, sshConfig)
+	}
+	client, err := ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
+	}
+	return client, nil
 }
 
 func (tc *TeleportClient) rootClusterName() (string, error) {
@@ -2495,7 +2572,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 			} else {
 				tc.KubeProxyAddr = proxySettings.Kube.ListenAddr
 			}
-		// If neither PublicAddr nor ListenAddr are passed, use the web
+		// If neither PublicAddr nor TunnelAddr are passed, use the web
 		// interface hostname with default k8s port as a guess.
 		default:
 			webProxyHost, _ := tc.WebProxyHostPort()
@@ -2582,6 +2659,8 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 		tc.MySQLProxyAddr = net.JoinHostPort(tc.WebProxyHost(), strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
 	}
 
+	tc.TLSRoutingEnabled = proxySettings.TLSRoutingEnabled
+
 	return nil
 }
 
@@ -2598,7 +2677,7 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case constants.SecondFactorU2F, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
 		response, err = tc.mfaLocalLogin(ctx, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2754,7 +2833,7 @@ func (tc *TeleportClient) EventsChannel() <-chan events.EventFields {
 // loopbackPool reads trusted CAs if it finds it in a predefined location
 // and will work only if target proxy address is loopback
 func loopbackPool(proxyAddr string) *x509.CertPool {
-	if !utils.IsLoopback(proxyAddr) {
+	if !apiutils.IsLoopback(proxyAddr) {
 		log.Debugf("not using loopback pool for remote proxy addr: %v", proxyAddr)
 		return nil
 	}
@@ -2804,7 +2883,18 @@ func Username() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return u.Username, nil
+
+	username := u.Username
+
+	// If on Windows, strip the domain name.
+	if runtime.GOOS == constants.WindowsOS {
+		idx := strings.LastIndex(username, "\\")
+		if idx > -1 {
+			username = username[idx+1:]
+		}
+	}
+
+	return username, nil
 }
 
 // AskOTP prompts the user to enter the OTP token.
@@ -2821,7 +2911,7 @@ func (tc *TeleportClient) AskOTP() (token string, err error) {
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
-	pwd, err = passwordFromConsole()
+	pwd, err = passwordFromConsoleFn()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
 		return "", trace.Wrap(err)
@@ -2869,6 +2959,29 @@ func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, erro
 		return "", trace.NotFound("timed out waiting for server response")
 	}
 }
+
+// loadTLS returns the user's TLS configuration for an external identity if the SkipLocalAuth flag was set
+// or teleport core TLS certificate for the local agent.
+func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
+	// if SkipLocalAuth flag is set use an external identity file instead of loading cert from the local agent.
+	if tc.SkipLocalAuth {
+		return tc.TLS.Clone(), nil
+	}
+
+	tlsKey, err := tc.localAgent.GetCoreKey()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
+	}
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate client TLS config")
+	}
+	return tlsConfig, nil
+}
+
+// passwordFromConsoleFn allows tests to replace the passwordFromConsole
+// function.
+var passwordFromConsoleFn = passwordFromConsole
 
 // passwordFromConsole reads from stdin without echoing typed characters to stdout
 func passwordFromConsole() (string, error) {
@@ -3074,8 +3187,23 @@ func isFIPS() bool {
 
 // playSession plays session in the terminal
 func playSession(sessionEvents []events.EventFields, stream []byte) error {
+	term, err := terminal.New(nil, nil, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer term.Close()
+
+	// configure terminal for direct unbuffered echo-less input:
+	if term.IsAttached() {
+		err := term.InitRaw(true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	var errorCh = make(chan error)
-	player := newSessionPlayer(sessionEvents, stream)
+	player := newSessionPlayer(sessionEvents, stream, term)
 	// keys:
 	const (
 		keyCtrlC = 3
@@ -3091,7 +3219,7 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 		defer player.Stop()
 		var key [1]byte
 		for {
-			_, err := os.Stdin.Read(key[:])
+			_, err := term.Stdin().Read(key[:])
 			if err != nil {
 				errorCh <- err
 				return

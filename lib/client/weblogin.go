@@ -27,17 +27,18 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
 const (
@@ -116,18 +117,18 @@ type CreateSSHCertReq struct {
 	KubernetesCluster string
 }
 
-// CreateSSHCertWithMFAReq are passed by web client
-// to authenticate against teleport server and receive
-// a temporary cert signed by auth server authority
-type CreateSSHCertWithMFAReq struct {
+// AuthenticateSSHUserRequest are passed by web client to authenticate against
+// teleport server and receive a temporary cert signed by auth server authority.
+type AuthenticateSSHUserRequest struct {
 	// User is a teleport username
 	User string `json:"user"`
 	// Password for the user, to authenticate in case no MFA check was
 	// performed.
 	Password string `json:"password"`
-
 	// U2FSignResponse is the signature from the U2F device
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
+	// WebauthnChallengeResponse is a signed WebAuthn credential assertion.
+	WebauthnChallengeResponse *wanlib.CredentialAssertionResponse `json:"webauthn_challenge_response"`
 	// TOTPCode is a code from the TOTP device.
 	TOTPCode string `json:"totp_code"`
 	// PubKey is a public key user wishes to sign
@@ -143,6 +144,15 @@ type CreateSSHCertWithMFAReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+}
+
+type AuthenticateWebUserRequest struct {
+	// User is a teleport username.
+	User string `json:"user"`
+	// U2FSignResponse is the signature from the U2F device.
+	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response,omitempty"`
+	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
+	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
 // SSHLogin contains common SSH login parameters.
@@ -353,44 +363,54 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(awly): mfa: rename endpoint
-	chalRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), MFAChallengeRequest{
+	beginReq := MFAChallengeRequest{
 		User: login.User,
 		Pass: login.Password,
-	})
+	}
+	// TODO(codingllama): Decide endpoints based on the Ping server version, once
+	//  we have a known version for Webauthn.
+	challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
+	// DELETE IN 9.x, fallback not necessary after U2F is removed (codingllama)
+	if trace.IsNotImplemented(err) {
+		challengeJSON, err = clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), beginReq)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var chal auth.MFAAuthenticateChallenge
-	if err := json.Unmarshal(chalRaw.Bytes(), &chal); err != nil {
+	challenge := &auth.MFAAuthenticateChallenge{}
+	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(chal.U2FChallenges) == 0 && chal.AuthenticateChallenge != nil {
+	// DELETE IN 9.x, fallback not necessary after U2F is removed (codingllama)
+	if len(challenge.U2FChallenges) == 0 && challenge.AuthenticateChallenge != nil {
 		// Challenge sent by a pre-6.0 auth server, fall back to the old
 		// single-device format.
-		chal.U2FChallenges = []u2f.AuthenticateChallenge{*chal.AuthenticateChallenge}
+		challenge.U2FChallenges = []u2f.AuthenticateChallenge{*challenge.AuthenticateChallenge}
 	}
 
 	// Convert to auth gRPC proto challenge.
-	protoChal := new(proto.MFAAuthenticateChallenge)
-	if chal.TOTPChallenge {
-		protoChal.TOTP = new(proto.TOTPChallenge)
+	challengePB := &proto.MFAAuthenticateChallenge{}
+	if challenge.TOTPChallenge {
+		challengePB.TOTP = &proto.TOTPChallenge{}
 	}
-	for _, u2fChal := range chal.U2FChallenges {
-		protoChal.U2F = append(protoChal.U2F, &proto.U2FChallenge{
-			KeyHandle: u2fChal.KeyHandle,
-			Challenge: u2fChal.Challenge,
-			AppID:     u2fChal.AppID,
+	for _, c := range challenge.U2FChallenges {
+		challengePB.U2F = append(challengePB.U2F, &proto.U2FChallenge{
+			KeyHandle: c.KeyHandle,
+			Challenge: c.Challenge,
+			AppID:     c.AppID,
 		})
 	}
+	if challenge.WebauthnChallenge != nil {
+		challengePB.WebauthnChallenge = wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge)
+	}
 
-	protoResp, err := PromptMFAChallenge(ctx, login.ProxyAddr, protoChal, "")
+	respPB, err := PromptMFAChallenge(ctx, login.ProxyAddr, challengePB, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	chalResp := CreateSSHCertWithMFAReq{
+	challengeResp := AuthenticateSSHUserRequest{
 		User:              login.User,
 		Password:          login.Password,
 		PubKey:            login.PubKey,
@@ -400,50 +420,45 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		KubernetesCluster: login.KubernetesCluster,
 	}
 	// Convert back from auth gRPC proto response.
-	switch r := protoResp.Response.(type) {
+	switch r := respPB.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
-		chalResp.TOTPCode = r.TOTP.Code
+		challengeResp.TOTPCode = r.TOTP.Code
 	case *proto.MFAAuthenticateResponse_U2F:
-		chalResp.U2FSignResponse = &u2f.AuthenticateChallengeResponse{
+		challengeResp.U2FSignResponse = &u2f.AuthenticateChallengeResponse{
 			KeyHandle:     r.U2F.KeyHandle,
 			SignatureData: r.U2F.Signature,
 			ClientData:    r.U2F.ClientData,
 		}
+	case *proto.MFAAuthenticateResponse_Webauthn:
+		challengeResp.WebauthnChallengeResponse = wanlib.CredentialAssertionResponseFromProto(r.Webauthn)
 	default:
 		// No challenge was sent, so we send back just username/password.
 	}
 
-	loginRespRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), chalResp)
+	loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finish"), challengeResp)
+	// DELETE IN 9.x, fallback not necessary after U2F is removed (codingllama)
+	if trace.IsNotImplemented(err) {
+		loginRespJSON, err = clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), challengeResp)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var loginResp *auth.SSHLoginResponse
-	err = json.Unmarshal(loginRespRaw.Bytes(), &loginResp)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return loginResp, nil
+	loginResp := &auth.SSHLoginResponse{}
+	return loginResp, trace.Wrap(json.Unmarshal(loginRespJSON.Bytes(), loginResp))
 }
 
 // HostCredentials is used to fetch host credentials for a node.
-func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req auth.RegisterUsingTokenRequest) (*auth.PackedKeys, error) {
+func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	clt, _, err := initClient(proxyAddr, insecure, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "host", "credentials"), req)
+	resp, err := clt.PostJSONWithFallback(ctx, clt.Endpoint("webapi", "host", "credentials"), req, insecure)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var packedKeys *auth.PackedKeys
-	err = json.Unmarshal(resp.Bytes(), &packedKeys)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return packedKeys, nil
+	return auth.UnmarshalLegacyCerts(resp.Bytes())
 }

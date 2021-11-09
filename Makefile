@@ -11,14 +11,16 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=7.0.0-beta.1
+VERSION=8.0.0-alpha.1
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
+GOPATH ?= $(shell go env GOPATH)
+
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
-SHELL := /bin/bash
+SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
 ASSETS_BUILDDIR ?= lib/web/build
@@ -26,7 +28,6 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
-GOPKGDIR ?= `go env GOPATH`/pkg/`go env GOHOSTOS`_`go env GOARCH`/github.com/gravitational/teleport*
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
@@ -111,12 +112,56 @@ endif
 endif
 endif
 
+# Check if rust and cargo are installed before compiling
+CHECK_CARGO := $(shell cargo --version 2>/dev/null)
+CHECK_RUST := $(shell rustc --version 2>/dev/null)
+
+with_roletester := no
+ROLETESTER_MESSAGE := "without access tester"
+
+with_rdpclient := no
+RDPCLIENT_MESSAGE := "without Windows RDP client"
+
+CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
+CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
+CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
+CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
+CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
+CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
+
+CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
+
+ifneq ($(CHECK_RUST),)
+ifneq ($(CHECK_CARGO),)
+with_roletester := yes
+ROLETESTER_MESSAGE := "with access tester"
+ROLETESTER_TAG := roletester
+ROLETESTER_BUILDDIR := lib/datalog/roletester/Cargo.toml
+
+with_rdpclient := yes
+RDPCLIENT_MESSAGE := "with Windows RDP client"
+RDPCLIENT_TAG := desktop_access_rdp
+endif
+endif
+
+# Reproducible builds are only available on select targets, and only when OS=linux.
+REPRODUCIBLE ?=
+ifneq ("$(OS)","linux")
+REPRODUCIBLE = no
+endif
+
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(ROLETESTER_MESSAGE) and $(RDPCLIENT_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
+endif
+
+# On platforms that support reproducible builds, ensure the archive is created in a reproducible manner.
+TAR_FLAGS ?=
+ifeq ("$(REPRODUCIBLE)","yes")
+TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
 VERSRC = version.go gitref.go api/version.go
@@ -143,12 +188,12 @@ all: version
 # * Manual change detection was broken on a large dependency tree
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
-$(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+$(BUILDDIR)/tctl: roletester
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets bpf-bytecode
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+$(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
@@ -195,6 +240,30 @@ bpf-bytecode:
 endif
 
 #
+# tctl role tester
+# Requires a recent version of Rust and Cargo installed (tested rustc >= 1.52.1 and cargo >= 1.52.0)
+#
+ifeq ("$(with_roletester)", "yes")
+.PHONY: roletester
+roletester:
+	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release $(CARGO_TARGET)
+else
+.PHONY: roletester
+roletester:
+endif
+
+ifeq ("$(with_rdpclient)", "yes")
+.PHONY: rdpclient
+rdpclient:
+	cargo build --manifest-path=lib/srv/desktop/rdp/rdpclient/Cargo.toml --release $(CARGO_TARGET)
+	cargo install cbindgen
+	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
+else
+.PHONY: rdpclient
+rdpclient:
+endif
+
+#
 # make full - Builds Teleport binaries with the built-in web assets and
 # places them into $(BUILDDIR). On Windows, this target is skipped because
 # only tsh is built.
@@ -217,7 +286,7 @@ ifneq ("$(OS)", "windows")
 endif
 
 #
-# make clean - Removed all build artifacts.
+# make clean - Removes all build artifacts.
 #
 .PHONY: clean
 clean:
@@ -225,8 +294,9 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf $(ER_BPF_BUILDDIR)
 	rm -rf $(RS_BPF_BUILDDIR)
+	rm -rf lib/srv/desktop/rdp/rdpclient/target
+	rm -rf lib/datalog/roletester/target
 	-go clean -cache
-	rm -rf $(GOPKGDIR)
 	rm -rf teleport
 	rm -rf *.gz
 	rm -rf *.zip
@@ -277,7 +347,7 @@ release-unix: clean full
 		CHANGELOG.md \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
-	tar --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu -c teleport | gzip -n > $(RELEASE).tar.gz
+	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 	@if [ -f e/Makefile ]; then \
@@ -286,19 +356,53 @@ release-unix: clean full
 	fi
 
 #
-# make release-windows - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make release-windows-unsigned - Produces a binary release archive containing only tsh.
 #
-.PHONY:
-release-windows: clean all
+.PHONY: release-windows-unsigned
+release-windows-unsigned: clean all
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
 		README.md \
 		CHANGELOG.md \
 		teleport/
-	mv teleport/tsh teleport/tsh.exe
+	mv teleport/tsh teleport/tsh-unsigned.exe
 	echo $(GITTAG) > teleport/VERSION
+	zip -9 -y -r -q $(RELEASE)-unsigned.zip teleport/
+	rm -rf teleport/
+	@echo "---> Created $(RELEASE)-unsigned.zip."
+
+#
+# make release-windows - Produces an archive containing a signed release of
+# tsh.exe
+#
+.PHONY: release-windows
+release-windows: release-windows-unsigned
+	@if [ ! -f "windows-signing-cert.pfx" ]; then \
+		echo "windows-signing-cert.pfx is missing or invalid, cannot create signed archive."; \
+		exit 1; \
+	fi
+
+	rm -rf teleport
+	@echo "---> Extracting $(RELEASE)-unsigned.zip"
+	unzip $(RELEASE)-unsigned.zip
+
+	@echo "---> Signing Windows binary."
+	@osslsigncode sign \
+		-pkcs12 "windows-signing-cert.pfx" \
+		-n "Teleport" \
+		-i https://goteleport.com \
+		-t http://timestamp.digicert.com \
+		-h sha2 \
+		-in teleport/tsh-unsigned.exe \
+		-out teleport/tsh.exe; \
+	success=$$?; \
+	rm -f teleport/tsh-unsigned.exe; \
+	if [ "$${success}" -ne 0 ]; then \
+		echo "Failed to sign tsh.exe, aborting."; \
+		exit 1; \
+	fi
+
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
 	@echo "---> Created $(RELEASE).zip."
@@ -343,24 +447,26 @@ test: test-sh test-api test-go
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test-go
-test-go: ensure-webassets bpf-bytecode
+test-go: ensure-webassets bpf-bytecode roletester rdpclient
 test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover $(ADDFLAGS)
+	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+		| go run build.assets/render-tests/main.go
+	$(CGOFLAG) go test -p 4 -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
+		| go run build.assets/render-tests/main.go
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets bpf-bytecode
+test-go-root: ensure-webassets bpf-bytecode roletester rdpclient
 test-go-root: FLAGS ?= '-race'
 test-go-root: PACKAGES := $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
-	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -p 4 -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Runs API Go tests. These have to be run separately as the package name is different.
 #
@@ -369,7 +475,7 @@ test-api:
 test-api: FLAGS ?= '-race'
 test-api: PACKAGES := $(shell cd api && go list ./...)
 test-api: $(VERSRC)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -390,7 +496,7 @@ integration: FLAGS ?= -v -race
 integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -401,15 +507,21 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES := $(shell go list ./... | grep integration)
 integration-root:
-	$(CGOFLAG) go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -p 4 -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
-# Lint the Go code.
+# Lint the source code.
 # By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
+
+.PHONY: lint-rdp
+lint-rdp:
+	cd lib/srv/desktop/rdp/rdpclient \
+		&& cargo clippy --locked --all-targets -- -D warnings \
+		&& cargo fmt -- --check
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -471,6 +583,39 @@ lint-helm:
 		fi; \
 	done
 
+ADDLICENSE := $(GOPATH)/bin/addlicense
+ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
+		-ignore '**/*.c' \
+		-ignore '**/*.h' \
+		-ignore '**/*.html' \
+		-ignore '**/*.js' \
+		-ignore '**/*.py' \
+		-ignore '**/*.sh' \
+		-ignore '**/*.tf' \
+		-ignore '**/*.yaml' \
+		-ignore '**/*.yml' \
+		-ignore '**/Dockerfile' \
+		-ignore 'api/version.go' \
+		-ignore 'e/**' \
+		-ignore 'gitref.go' \
+		-ignore 'lib/web/build/**' \
+		-ignore 'vendor/**' \
+		-ignore 'version.go' \
+		-ignore 'webassets/**' \
+		-ignore 'ignoreme' \
+		-ignore lib/srv/desktop/rdp/rdpclient/target
+
+.PHONY: lint-license
+lint-license: $(ADDLICENSE)
+	$(ADDLICENSE) $(ADDLICENSE_ARGS) -check * 2>/dev/null
+
+.PHONY: fix-license
+fix-license: $(ADDLICENSE)
+	$(ADDLICENSE) $(ADDLICENSE_ARGS) * 2>/dev/null
+
+$(ADDLICENSE):
+	cd && go install github.com/google/addlicense@v1.0.0
+
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
 version: $(VERSRC)
@@ -478,6 +623,24 @@ version: $(VERSRC)
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
+	# Update api module path, but don't fail on error.
+	$(MAKE) update-api-module-path || true
+
+# This rule updates the api module path to be in sync with the current api release version.
+# e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
+#
+# It will immediately fail if:
+#  1. A suffix is present in the version - e.g. "v7.0.0-alpha"
+#  2. The major version suffix in the api module path hasn't changed. e.g:
+#    - v7.0.0 -> v7.1.0 - both use version suffix "/v7" - github.com/gravitational/teleport/api/v7
+#    - v0.0.0 -> v1.0.0 - both have no version suffix - github.com/gravitational/teleport/api
+#
+# Note: any build flags needed to compile go files (such as build tags) should be provided below.
+.PHONY: update-api-module-path
+update-api-module-path:
+	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
+	$(MAKE) update-vendor
+	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -550,7 +713,7 @@ enter:
 # grpc generates GRPC stubs from service definitions
 .PHONY: grpc
 grpc:
-	make -C build.assets grpc
+	$(MAKE) -C build.assets grpc
 
 # buildbox-grpc generates GRPC stubs inside buildbox
 .PHONY: buildbox-grpc
@@ -564,6 +727,11 @@ buildbox-grpc:
 		--proto_path=api/types/events \
 		--gogofast_out=plugins=grpc:api/types/events \
 		events.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/webauthn \
+		--gogofast_out=plugins=grpc:api/types/webauthn \
+		webauthn.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/wrappers \
@@ -587,6 +755,10 @@ buildbox-grpc:
 	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
 	  --gogofast_out=plugins=grpc:.\
     *.proto
+
+	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
+	  --gogofast_out=plugins=grpc:.\
+    types.proto
 
 .PHONY: goinstall
 goinstall:
@@ -735,6 +907,7 @@ init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
 
+# Update go.mod and vendor files.
 .PHONY: update-vendor
 update-vendor:
 	# update modules in api/
@@ -742,10 +915,22 @@ update-vendor:
 	# update modules in root directory
 	go mod tidy
 	go mod vendor
-	# delete the vendored api package. In its place
-	# create a symlink to the the original api package
-	rm -r vendor/github.com/gravitational/teleport/api
-	ln -s -r $(shell readlink -f api) vendor/github.com/gravitational/teleport
+	$(MAKE) vendor-api
+
+# When teleport vendors its dependencies, Go also vendors the local api sub module. To get
+# around this issue, we replace the vendored api package with a symlink to the
+# local module. The symlink should be in vendor/.../api or vendor/.../api/vX if X >= 2.
+.PHONY: vendor-api
+vendor-api: API_VENDOR_PATH := vendor/$(shell head -1 api/go.mod | awk '{print $$2;}')
+vendor-api:
+	rm -rf vendor/github.com/gravitational/teleport/api
+	mkdir -p $(shell dirname $(API_VENDOR_PATH))
+	# make a relative link to the true api dir (without using `ln -r` for non-linux OS compatibility)
+	if [ -d $(shell dirname $(API_VENDOR_PATH))/../../../../../api/ ]; then \
+		ln -s ../../../../../api $(API_VENDOR_PATH); \
+	else \
+		ln -s ../../../../api $(API_VENDOR_PATH); \
+	fi;
 
 # update-webassets updates the minified code in the webassets repo using the latest webapps
 # repo and creates a PR in the teleport repo to update webassets submodule.

@@ -294,6 +294,14 @@ const (
 	MFADeviceAddEventCode = "T1006I"
 	// MFADeviceDeleteEventCode is an event code for users deleting MFA devices.
 	MFADeviceDeleteEventCode = "T1007I"
+	// RecoveryCodesGenerateCode is an event code for generation of recovery codes.
+	RecoveryCodesGenerateCode = "T1008I"
+	// RecoveryCodeUseSuccessCode is an event code for when a
+	// recovery code was used successfully.
+	RecoveryCodeUseSuccessCode = "T1009I"
+	// RecoveryCodeUseFailureCode is an event code for when a
+	// recovery code was not used successfully.
+	RecoveryCodeUseFailureCode = "T1009W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"
@@ -323,6 +331,13 @@ const (
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
 
+	// AppCreateCode is the app.create event code.
+	AppCreateCode = "TAP03I"
+	// AppUpdateCode is the app.update event code.
+	AppUpdateCode = "TAP04I"
+	// AppDeleteCode is the app.delete event code.
+	AppDeleteCode = "TAP05I"
+
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
 	// AppSessionChunkCode is the application session chunk create code.
@@ -330,7 +345,7 @@ const (
 	// AppSessionRequestCode is the application request/response code.
 	AppSessionRequestCode = "T2009I"
 
-	// DatabaseSessioStartCode is the database session start event code.
+	// DatabaseSessionStartCode is the database session start event code.
 	DatabaseSessionStartCode = "TDB00I"
 	// DatabaseSessionStartFailureCode is the database session start failure event code.
 	DatabaseSessionStartFailureCode = "TDB00W"
@@ -340,6 +355,21 @@ const (
 	DatabaseSessionQueryCode = "TDB02I"
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
 	DatabaseSessionQueryFailedCode = "TDB02W"
+
+	// DatabaseCreateCode is the db.create event code.
+	DatabaseCreateCode = "TDB03I"
+	// DatabaseUpdateCode is the db.update event code.
+	DatabaseUpdateCode = "TDB04I"
+	// DatabaseDeleteCode is the db.delete event code.
+	DatabaseDeleteCode = "TDB05I"
+
+	// DesktopSessionStartCode is the desktop session start event code.
+	DesktopSessionStartCode = "TDP00I"
+	// DesktopSessionStartFailureCode is event code for desktop sessions
+	// that failed to start.
+	DesktopSessionStartFailureCode = "TDP00W"
+	// DesktopSessionEndCode is the desktop session end event code.
+	DesktopSessionEndCode = "TDP01I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -391,6 +421,10 @@ const (
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
+	// RecoveryTokenCreateCode is the recovery token create event code.
+	RecoveryTokenCreateCode = "T6001I"
+	// PrivilegeTokenCreateCode is the privilege token create event code.
+	PrivilegeTokenCreateCode = "T6002I"
 
 	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
 	TrustedClusterCreateCode = "T7000I"
@@ -419,4 +453,9 @@ const (
 	RoleCreatedCode = "T9000I"
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
+
+	// LockCreatedCode is the lock created event code.
+	LockCreatedCode = "TLK00I"
+	// LockDeletedCode is the lock deleted event code.
+	LockDeletedCode = "TLK01I"
 )

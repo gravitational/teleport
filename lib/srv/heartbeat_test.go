@@ -316,6 +316,14 @@ func (f *fakeAnnouncer) UpsertAppServer(ctx context.Context, s types.Server) (*t
 	return &types.KeepAlive{}, nil
 }
 
+func (f *fakeAnnouncer) UpsertApplicationServer(ctx context.Context, s types.AppServer) (*types.KeepAlive, error) {
+	f.upsertCalls[HeartbeatModeApp]++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &types.KeepAlive{}, nil
+}
+
 func (f *fakeAnnouncer) UpsertDatabaseServer(ctx context.Context, s types.DatabaseServer) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeDB]++
 	if f.err != nil {
@@ -344,6 +352,24 @@ func (f *fakeAnnouncer) UpsertAuthServer(s types.Server) error {
 
 func (f *fakeAnnouncer) UpsertKubeService(ctx context.Context, s types.Server) error {
 	f.upsertCalls[HeartbeatModeKube]++
+	return f.err
+}
+
+func (f *fakeAnnouncer) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {
+	f.upsertCalls[HeartbeatModeWindowsDesktopService]++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &types.KeepAlive{}, nil
+}
+
+func (f *fakeAnnouncer) CreateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	f.upsertCalls[HeartbeatModeWindowsDesktop]++
+	return f.err
+}
+
+func (f *fakeAnnouncer) UpdateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	f.upsertCalls[HeartbeatModeWindowsDesktop]++
 	return f.err
 }
 

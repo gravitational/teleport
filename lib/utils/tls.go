@@ -28,8 +28,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
@@ -91,7 +90,7 @@ type TLSCredentials struct {
 // GenerateSelfSignedCert generates a self-signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
 func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,7 +163,7 @@ func CipherSuiteMapping(cipherSuites []string) ([]uint16, error) {
 
 // cipherSuiteMapping is the mapping between Teleport formatted cipher
 // suites strings and uint16 IDs.
-var cipherSuiteMapping map[string]uint16 = map[string]uint16{
+var cipherSuiteMapping = map[string]uint16{
 	"tls-rsa-with-aes-128-cbc-sha":            tls.TLS_RSA_WITH_AES_128_CBC_SHA,
 	"tls-rsa-with-aes-256-cbc-sha":            tls.TLS_RSA_WITH_AES_256_CBC_SHA,
 	"tls-rsa-with-aes-128-cbc-sha256":         tls.TLS_RSA_WITH_AES_128_CBC_SHA256,

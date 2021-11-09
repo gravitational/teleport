@@ -87,7 +87,7 @@ type Server struct {
 	srv           *sshutils.Server
 	shell         string
 	getRotation   RotationGetter
-	authService   auth.AccessPoint
+	authService   srv.AccessPoint
 	reg           *srv.SessionRegistry
 	sessionServer rsession.Service
 	limiter       *limiter.Limiter
@@ -98,8 +98,9 @@ type Server struct {
 	// dynamicLabels are the result of command execution.
 	dynamicLabels *labels.Dynamic
 
-	proxyMode bool
-	proxyTun  reversetunnel.Tunnel
+	proxyMode        bool
+	proxyTun         reversetunnel.Tunnel
+	proxyAccessPoint auth.ReadProxyAccessPoint
 
 	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
@@ -199,7 +200,7 @@ func (s *Server) GetNamespace() string {
 	return s.namespace
 }
 
-func (s *Server) GetAccessPoint() auth.AccessPoint {
+func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 
@@ -239,16 +240,6 @@ func (s *Server) GetRestrictedSessionManager() restricted.Manager {
 // GetLockWatcher gets the server's lock watcher.
 func (s *Server) GetLockWatcher() *services.LockWatcher {
 	return s.lockWatcher
-}
-
-// isLockedOut returns an error if the identity is matched by an active lock.
-func (s *Server) isLockedOut(id srv.IdentityContext) error {
-	lock := s.lockWatcher.FindLockInForce(srv.ComputeLockTargets(s, id)...)
-	// TODO(andrej): Handle stale lock views.
-	if lock != nil {
-		return trace.AccessDenied(services.LockInForceMessage(lock))
-	}
-	return nil
 }
 
 // isAuditedAtProxy returns true if sessions are being recorded at the proxy
@@ -397,13 +388,14 @@ func SetSessionServer(sessionServer rsession.Service) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(tsrv reversetunnel.Tunnel) ServerOption {
+func SetProxyMode(tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
 		// but proxy is still used without it.
 		s.proxyMode = true
 		s.proxyTun = tsrv
+		s.proxyAccessPoint = ap
 		return nil
 	}
 }
@@ -563,7 +555,7 @@ func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 func New(addr utils.NetAddr,
 	hostname string,
 	signers []ssh.Signer,
-	authService auth.AccessPoint,
+	authService srv.AccessPoint,
 	dataDir string,
 	advertiseAddr string,
 	proxyPublicAddr utils.NetAddr,
@@ -709,7 +701,7 @@ func (s *Server) getNamespace() string {
 }
 
 func (s *Server) tunnelWithRoles(ctx *srv.ServerContext) reversetunnel.Tunnel {
-	return reversetunnel.NewTunnelWithRoles(s.proxyTun, ctx.Identity.RoleSet, s.authService)
+	return reversetunnel.NewTunnelWithRoles(s.proxyTun, ctx.Identity.RoleSet, s.proxyAccessPoint)
 }
 
 // Context returns server shutdown context
@@ -929,6 +921,11 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
+	authPref, err := s.GetAccessPoint().GetAuthPreference(ctx)
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+	lockingMode := identityContext.RoleSet.LockingMode(authPref.GetLockingMode())
 
 	event := &apievents.SessionReject{
 		Metadata: apievents.Metadata{
@@ -951,14 +948,16 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		},
 	}
 
-	if err := s.isLockedOut(identityContext); err != nil {
-		if trace.IsAccessDenied(err) {
-			event.Reason = err.Error()
-			if err := s.EmitAuditEvent(s.ctx, event); err != nil {
-				log.WithError(err).Warn("Failed to emit session reject event.")
-			}
-		}
+	lockTargets, err := srv.ComputeLockTargets(s, identityContext)
+	if err != nil {
 		return ctx, trace.Wrap(err)
+	}
+	if lockErr := s.lockWatcher.CheckLockInForce(lockingMode, lockTargets...); lockErr != nil {
+		event.Reason = lockErr.Error()
+		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit session reject event.")
+		}
+		return ctx, trace.Wrap(lockErr)
 	}
 
 	// Don't apply the following checks in non-node contexts.
@@ -973,7 +972,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 		return ctx, nil
 	}
 
-	netConfig, err := s.authService.GetClusterNetworkingConfig(ctx)
+	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}

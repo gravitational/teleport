@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -49,7 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,6 +65,8 @@ import (
 // Some settings are global (like DataDir) while others are grouped into
 // sections, like AuthConfig
 type Config struct {
+	// Teleport configuration version.
+	Version string
 	// DataDir provides directory where teleport stores it's permanent state
 	// (in case of auth server backed by BoltDB) or local state, e.g. keys
 	DataDir string
@@ -72,6 +76,9 @@ type Config struct {
 
 	// Token is used to register this Teleport instance with the auth server
 	Token string
+
+	// JoinMethod is the method the instance will use to join the auth server
+	JoinMethod JoinMethod
 
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
 	// connect to. Yes, this is not just auth servers, the field name is
@@ -109,8 +116,14 @@ type Config struct {
 	// Metrics defines the metrics service configuration.
 	Metrics MetricsConfig
 
+	// WindowsDesktop defines the Windows desktop service configuration.
+	WindowsDesktop WindowsDesktopConfig
+
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
+
+	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
+	KeyStore keystore.Config
 
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
@@ -197,8 +210,8 @@ type Config struct {
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
 
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
@@ -270,23 +283,6 @@ type CachePolicy struct {
 	Type string
 	// Enabled enables or disables caching
 	Enabled bool
-	// TTL sets maximum TTL for the cached values
-	// without explicit TTL set
-	TTL time.Duration
-	// NeverExpires means that cache values without TTL
-	// set by the auth server won't expire
-	NeverExpires bool
-	// RecentTTL is the recently accessed items cache TTL
-	RecentTTL *time.Duration
-}
-
-// GetRecentTTL either returns TTL that was set,
-// or default recent TTL value
-func (c *CachePolicy) GetRecentTTL() time.Duration {
-	if c.RecentTTL == nil {
-		return defaults.RecentCacheTTL
-	}
-	return *c.RecentTTL
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -307,19 +303,7 @@ func (c CachePolicy) String() string {
 	if !c.Enabled {
 		return "no cache policy"
 	}
-	recentCachePolicy := ""
-	if c.GetRecentTTL() == 0 {
-		recentCachePolicy = "will not cache frequently accessed items"
-	} else {
-		recentCachePolicy = fmt.Sprintf("will cache frequently accessed items for %v", c.GetRecentTTL())
-	}
-	if c.NeverExpires {
-		return fmt.Sprintf("%v cache that will not expire in case if connection to database is lost, %v", c.Type, recentCachePolicy)
-	}
-	if c.TTL == 0 {
-		return fmt.Sprintf("%v cache that will expire after connection to database is lost after %v, %v", c.Type, defaults.CacheTTL, recentCachePolicy)
-	}
-	return fmt.Sprintf("%v cache that will expire after connection to database is lost after %v, %v", c.Type, c.TTL, recentCachePolicy)
+	return fmt.Sprintf("%v cache will store frequently accessed items", c.Type)
 }
 
 // ProxyConfig specifies configuration for proxy service
@@ -327,13 +311,13 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
-	// DisableTLS is enabled if we don't want self signed certs
+	// DisableTLS is enabled if we don't want self-signed certs
 	DisableTLS bool
 
-	// DisableWebInterface allows to turn off serving the Web UI interface
+	// DisableWebInterface allows turning off serving the Web UI interface
 	DisableWebInterface bool
 
-	// DisableWebService turnes off serving web service completely, including web UI
+	// DisableWebService turns off serving web service completely, including web UI
 	DisableWebService bool
 
 	// DisableReverseTunnel disables reverse tunnel on the proxy
@@ -390,6 +374,9 @@ type ProxyConfig struct {
 
 	// ACME is ACME protocol support config
 	ACME ACME
+
+	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
+	DisableALPNSNIListener bool
 }
 
 // ACME configures ACME automatic certificate renewal
@@ -453,8 +440,6 @@ type KubeProxyConfig struct {
 	// LegacyKubeProxy specifies that this proxy was configured using the
 	// legacy kubernetes section.
 	LegacyKubeProxy bool
-
-	DisableImpersonationCheck bool
 }
 
 // AuthConfig is a configuration of the auth server
@@ -501,9 +486,6 @@ type AuthConfig struct {
 	// the auth server.
 	Preference types.AuthPreference
 
-	// ClusterConfig stores cluster level configuration.
-	ClusterConfig types.ClusterConfig
-
 	// AuditConfig stores cluster audit configuration.
 	AuditConfig types.ClusterAuditConfig
 
@@ -518,6 +500,9 @@ type AuthConfig struct {
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
 	PublicAddrs []utils.NetAddr
+
+	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
+	KeyStore keystore.Config
 }
 
 // SSHConfig configures SSH server node role
@@ -542,14 +527,6 @@ type SSHConfig struct {
 
 	// RestrictedSession holds kernel objects restrictions for Teleport.
 	RestrictedSession *restricted.Config
-
-	// ProxyReverseTunnelFallbackAddr optionall specifies the address of the proxy if reverse tunnel
-	// discovered proxy fails.
-	// This configuration is not exposed directly but can be set from environment via
-	// defaults.ProxyFallbackAddrEnvar.
-	//
-	// See github.com/gravitational/teleport/issues/4141 for details.
-	ProxyReverseTunnelFallbackAddr *utils.NetAddr
 
 	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
 	AllowTCPForwarding bool
@@ -598,6 +575,10 @@ type DatabasesConfig struct {
 	Enabled bool
 	// Databases is a list of databases proxied by this service.
 	Databases []Database
+	// ResourceMatchers match cluster database resources.
+	ResourceMatchers []services.ResourceMatcher
+	// AWSMatchers match AWS hosted databases.
+	AWSMatchers []services.AWSMatcher
 }
 
 // Database represents a single database that's being proxied.
@@ -628,11 +609,21 @@ type DatabaseAWS struct {
 	Region string
 	// Redshift contains Redshift specific settings.
 	Redshift DatabaseAWSRedshift
+	// RDS contains RDS specific settings.
+	RDS DatabaseAWSRDS
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
+	ClusterID string
+}
+
+// DatabaseAWSRDS contains AWS RDS specific settings.
+type DatabaseAWSRDS struct {
+	// InstanceID is the RDS instance identifier.
+	InstanceID string
+	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string
 }
 
@@ -644,8 +635,8 @@ type DatabaseGCP struct {
 	InstanceID string
 }
 
-// Check validates the database proxy configuration.
-func (d *Database) Check() error {
+// CheckAndSetDefaults validates the database proxy configuration.
+func (d *Database) CheckAndSetDefaults() error {
 	if d.Name == "" {
 		return trace.BadParameter("empty database name")
 	}
@@ -659,6 +650,11 @@ func (d *Database) Check() error {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
 			d.Name, d.Protocol, defaults.DatabaseProtocols)
 	}
+	// Mark the database as coming from the static configuration.
+	if d.StaticLabels == nil {
+		d.StaticLabels = make(map[string]string)
+	}
+	d.StaticLabels[types.OriginLabel] = types.OriginConfigFile
 	// For MongoDB we support specifying either server address or connection
 	// string in the URI which is useful when connecting to a replica set.
 	if d.Protocol == defaults.ProtocolMongoDB &&
@@ -706,6 +702,9 @@ type AppsConfig struct {
 
 	// Apps is the list of applications that are being proxied.
 	Apps []App
+
+	// ResourceMatchers match cluster database resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // App is the specific application that will be proxied by the application
@@ -738,8 +737,8 @@ type App struct {
 	Rewrite *Rewrite
 }
 
-// Check validates an application.
-func (a App) Check() error {
+// CheckAndSetDefaults validates an application.
+func (a *App) CheckAndSetDefaults() error {
 	if a.Name == "" {
 		return trace.BadParameter("missing application name")
 	}
@@ -766,12 +765,17 @@ func (a App) Check() error {
 			return trace.BadParameter("application %q public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.Name, a.PublicAddr)
 		}
 	}
+	// Mark the app as coming from the static configuration.
+	if a.StaticLabels == nil {
+		a.StaticLabels = make(map[string]string)
+	}
+	a.StaticLabels[types.OriginLabel] = types.OriginConfigFile
 	// Make sure there are no reserved headers in the rewrite configuration.
 	// They wouldn't be rewritten even if we allowed them here but catch it
 	// early and let the user know.
 	if a.Rewrite != nil {
 		for _, h := range a.Rewrite.Headers {
-			if app.IsReservedHeader(h.Name) {
+			if common.IsReservedHeader(h.Name) {
 				return trace.BadParameter("invalid application %q header rewrite configuration: header %q is reserved and can't be rewritten",
 					a.Name, http.CanonicalHeaderKey(h.Name))
 			}
@@ -801,6 +805,78 @@ type MetricsConfig struct {
 	// use for mTLS.
 	// Used in conjunction with MTLS = true
 	CACerts []string
+}
+
+// WindowsDesktopConfig specifies the configuration for the Windows Desktop
+// Access service.
+type WindowsDesktopConfig struct {
+	Enabled bool
+	// ListenAddr is the address to listed on for incoming desktop connections.
+	ListenAddr utils.NetAddr
+	// PublicAddrs is a list of advertised public addresses of the service.
+	PublicAddrs []utils.NetAddr
+	// LDAP is the LDAP connection parameters.
+	LDAP LDAPConfig
+
+	// Discovery configures automatic desktop discovery via LDAP.
+	Discovery LDAPDiscoveryConfig
+
+	// Hosts is an optional list of static Windows hosts to expose through this
+	// service.
+	Hosts []utils.NetAddr
+	// ConnLimiter limits the connection and request rates.
+	ConnLimiter limiter.Config
+	// HostLabels specifies rules that are used to apply labels to Windows hosts.
+	HostLabels HostLabelRules
+}
+
+type LDAPDiscoveryConfig struct {
+	// BaseDN is the base DN to search for desktops.
+	// Use the value '*' to search from the root of the domain,
+	// or leave blank to disable desktop discovery.
+	BaseDN string `yaml:"base_dn"`
+	// Filters are additional LDAP filters to apply to the search.
+	// See: https://ldap.com/ldap-filters/
+	Filters []string `yaml:"filters"`
+}
+
+// HostLabelRules is a collection of rules describing how to apply labels to hosts.
+type HostLabelRules []HostLabelRule
+
+// LabelsForHost returns the set of all labels that should be applied
+// to the specified host. If multiple rules match and specify the same
+// label keys, the value will be that of the last matching rule.
+func (h HostLabelRules) LabelsForHost(host string) map[string]string {
+	// TODO(zmb3): consider memoizing this call - the set of rules doesn't
+	// change, so it may be worth not matching regexps on each heartbeat.
+	result := make(map[string]string)
+	for _, rule := range h {
+		if rule.Regexp.MatchString(host) {
+			for k, v := range rule.Labels {
+				result[k] = v
+			}
+		}
+	}
+	return result
+}
+
+// HostLabelRule specifies a set of labels that should be applied to
+// hosts matching the provided regexp.
+type HostLabelRule struct {
+	Regexp *regexp.Regexp
+	Labels map[string]string
+}
+
+// LDAPConfig is the LDAP connection parameters.
+type LDAPConfig struct {
+	// Addr is the address:port of the LDAP server (typically port 389).
+	Addr string
+	// Domain is the ActiveDirectory domain name.
+	Domain string
+	// Username for LDAP authentication.
+	Username string
+	// Password for LDAP authentication.
+	Password string
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -901,7 +977,6 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
-	cfg.Auth.ClusterConfig = types.DefaultClusterConfig()
 	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
@@ -909,16 +984,12 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 
+	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
 	// Proxy service defaults.
 	cfg.Proxy.Enabled = true
-	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
-	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
-	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnelListenAddr()
-	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
-
-	// Kubernetes proxy service defaults.
 	cfg.Proxy.Kube.Enabled = false
-	cfg.Proxy.Kube.ListenAddr = *defaults.KubeProxyListenAddr()
+
+	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 
 	// SSH service defaults.
 	cfg.SSH.Enabled = true
@@ -941,6 +1012,10 @@ func ApplyDefaults(cfg *Config) {
 
 	// Metrics service defaults.
 	cfg.Metrics.Enabled = false
+
+	// Windows desktop service is disabled by default.
+	cfg.WindowsDesktop.Enabled = false
+	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
@@ -963,3 +1038,14 @@ func ApplyFIPSDefaults(cfg *Config) {
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }
+
+// JoinMethod is the method the instance will use to join the auth server.
+type JoinMethod int
+
+const (
+	// JoinMethodToken means the instance will use a basic token.
+	JoinMethodToken JoinMethod = iota
+	// JoinMethodEC2 means the instance will use Simplified Node Joining and send an
+	// EC2 Instance Identity Document.
+	JoinMethodEC2
+)

@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -31,7 +30,9 @@ import (
 )
 
 func (process *TeleportProcess) initDatabases() {
-	if len(process.Config.Databases.Databases) == 0 {
+	if len(process.Config.Databases.Databases) == 0 &&
+		len(process.Config.Databases.ResourceMatchers) == 0 &&
+		len(process.Config.Databases.AWSMatchers) == 0 {
 		return
 	}
 	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
@@ -58,21 +59,24 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if !ok {
 		return trace.BadParameter("unsupported event payload type %q", event.Payload)
 	}
+	accessPoint, err := process.newLocalCacheForDatabase(conn.Client, []string{teleport.ComponentDatabase})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resp, err := accessPoint.GetClusterNetworkingConfig(process.ExitContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	var tunnelAddr string
 	if conn.TunnelProxy() != "" {
 		tunnelAddr = conn.TunnelProxy()
 	} else {
-		if tunnelAddr, ok = process.singleProcessMode(); !ok {
+		if tunnelAddr, ok = process.singleProcessMode(resp.GetProxyListenerMode()); !ok {
 			return trace.BadParameter("failed to find reverse tunnel address, " +
 				"if running in a single-process mode, make sure auth_service, " +
 				"proxy_service, and db_service are all enabled")
 		}
-	}
-
-	accessPoint, err := process.newLocalCache(conn.Client, cache.ForDatabases, []string{teleport.ComponentDatabase})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	// Start uploader that will scan a path on disk and upload completed
@@ -82,9 +86,8 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	// Create database server containing all databases defined
-	// in the static configuration.
-	var databases []*types.DatabaseV3
+	// Create database resources from databases defined in the static configuration.
+	var databases types.Databases
 	for _, db := range process.Config.Databases.Databases {
 		db, err := types.NewDatabaseV3(
 			types.Metadata{
@@ -101,6 +104,10 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					Redshift: types.Redshift{
 						ClusterID: db.AWS.Redshift.ClusterID,
 					},
+					RDS: types.RDS{
+						InstanceID: db.AWS.RDS.InstanceID,
+						ClusterID:  db.AWS.RDS.ClusterID,
+					},
 				},
 				GCP: types.GCPCloudSQL{
 					ProjectID:  db.GCP.ProjectID,
@@ -112,16 +119,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			return trace.Wrap(err)
 		}
 		databases = append(databases, db)
-	}
-	databaseServer, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: process.Config.HostUUID,
-	}, types.DatabaseServerSpecV3{
-		Hostname:  process.Config.Hostname,
-		HostID:    process.Config.HostUUID,
-		Databases: databases,
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
@@ -175,10 +172,14 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			Emitter:  asyncEmitter,
 			Streamer: streamer,
 		},
-		Authorizer:  authorizer,
-		TLSConfig:   tlsConfig,
-		GetRotation: process.getRotation,
-		Server:      databaseServer,
+		Authorizer:       authorizer,
+		TLSConfig:        tlsConfig,
+		GetRotation:      process.getRotation,
+		Hostname:         process.Config.Hostname,
+		HostID:           process.Config.HostUUID,
+		Databases:        databases,
+		ResourceMatchers: process.Config.Databases.ResourceMatchers,
+		AWSMatchers:      process.Config.Databases.AWSMatchers,
 		OnHeartbeat: func(err error) {
 			if err != nil {
 				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentDatabase})
@@ -191,7 +192,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := dbService.Start(); err != nil {
+	if err := dbService.Start(process.ExitContext()); err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
@@ -211,6 +212,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			AccessPoint: conn.Client,
 			HostSigner:  conn.ServerIdentity.KeySigner,
 			Cluster:     clusterName,
+			FIPS:        process.Config.FIPS,
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -236,6 +238,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		if agentPool != nil {
 			agentPool.Stop()
 		}
+		warnOnErr(conn.Close(), log)
 		log.Info("Exited.")
 	})
 

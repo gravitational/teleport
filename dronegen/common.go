@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import "fmt"
@@ -60,14 +74,15 @@ var (
 	// TODO(gus): Set this from `make -C build.assets print-runtime-version` or similar rather
 	// than hardcoding it. Also remove the usage of RUNTIME as a pipeline-level environment variable
 	// (as support for these varies among Drone runners) and only set it for steps that need it.
-	goRuntime = value{raw: "go1.16.2"}
+	goRuntime = value{raw: "go1.17.2"}
 )
 
 type buildType struct {
-	os      string
-	arch    string
-	fips    bool
-	centos6 bool
+	os              string
+	arch            string
+	fips            bool
+	centos6         bool
+	windowsUnsigned bool
 }
 
 // dockerService generates a docker:dind service
@@ -101,6 +116,9 @@ func releaseMakefileTarget(b buildType) string {
 	}
 	if b.fips {
 		makefileTarget += "-fips"
+	}
+	if b.os == "windows" && b.windowsUnsigned {
+		makefileTarget = "release-windows-unsigned"
 	}
 	return makefileTarget
 }

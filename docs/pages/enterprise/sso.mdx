@@ -69,7 +69,7 @@ To configure SSO, a Teleport administrator must:
 
 - Update `/etc/teleport.yaml` on the auth server to set the default
   authentication connector.
-- Define the connector [resource](../admin-guide.mdx#resources) and save it into
+- Define the connector [resource](../setup/reference/resources.mdx) and save it into
   a YAML file (like `connector.yaml`)
 - Create the connector using `tctl create connector.yaml`.
 
@@ -96,12 +96,12 @@ spec:
 
   acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs
   attributes_to_roles:
-    - {name: "groups", value: "okta-admin", roles: ["admin"]}
+    - {name: "groups", value: "okta-admin", roles: ["access"]}
     - {name: "groups", value: "okta-dev", roles: ["dev"]}
 
      # note that wildcards can also be used. the next line instructs Teleport
-     # to assign "admin" role to any user who has the SAML attribute that begins with "admin":
-     - { name: "group", value: "admin*", roles: ["admin"] }
+     # to assign "access" role to any user who has the SAML attribute that begins with "admin":
+     - { name: "group", value: "admin*", roles: ["access"] }
      # regular expressions with capture are also supported. the next line instructs Teleport
      # to assign users to roles `admin-1` if his SAML "group" attribute equals 'ssh_admin_1':
      - { name: "group", value: "^ssh_admin_(.*)$", roles: ["admin-$1"] }
@@ -126,7 +126,7 @@ connect to Teleport nodes. To support this:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: sso_user
 spec:
@@ -166,7 +166,7 @@ Here's how this looks in a Teleport role:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: sso_user
 spec:
@@ -191,7 +191,7 @@ $ tctl get connectors
 ```
 
 To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
-as described in the [Resources section](../admin-guide.mdx#resources) in the Admin Manual.
+as described in the [Resources Reference](../setup/reference/resources.mdx).
 
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:

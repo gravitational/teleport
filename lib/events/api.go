@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -49,6 +50,9 @@ const (
 	EventProtocolSSH = "ssh"
 	// EventProtocolKube specifies kubernetes as a type of captured protocol
 	EventProtocolKube = "kube"
+	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
+	// as a type of captured protocol
+	EventProtocolTDP = "tdp"
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address
@@ -217,10 +221,14 @@ const (
 	//  - updating a user record
 	UpdatedBy = "updated_by"
 
+	// RecoveryTokenCreateEvent is emitted when a new recovery token is created.
+	RecoveryTokenCreateEvent = "recovery_token.create"
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
+	// PrivilegeTokenCreateEvent is emitted when a new user privilege token is created.
+	PrivilegeTokenCreateEvent = "privilege_token.create"
 
 	// FieldName contains name, e.g. resource name, etc.
 	FieldName = "name"
@@ -353,6 +361,13 @@ const (
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
 
+	// AppCreateEvent is emitted when an application resource is created.
+	AppCreateEvent = "app.create"
+	// AppUpdateEvent is emitted when an application resource is updated.
+	AppUpdateEvent = "app.update"
+	// AppDeleteEvent is emitted when an application resource is deleted.
+	AppDeleteEvent = "app.delete"
+
 	// AppSessionStartEvent is emitted when a user is issued an application certificate.
 	AppSessionStartEvent = "app.session.start"
 
@@ -363,6 +378,13 @@ const (
 
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
+
+	// DatabaseCreateEvent is emitted when a database resource is created.
+	DatabaseCreateEvent = "db.create"
+	// DatabaseUpdateEvent is emitted when a database resource is updated.
+	DatabaseUpdateEvent = "db.update"
+	// DatabaseDeleteEvent is emitted when a database resource is deleted.
+	DatabaseDeleteEvent = "db.delete"
 
 	// DatabaseSessionStartEvent is emitted when a database client attempts
 	// to connect to a database.
@@ -396,6 +418,23 @@ const (
 	MFADeviceAddEvent = "mfa.add"
 	// MFADeviceDeleteEvent is an event type for users deleting MFA devices.
 	MFADeviceDeleteEvent = "mfa.delete"
+
+	// LockCreatedEvent fires when a lock is created/updated.
+	LockCreatedEvent = "lock.created"
+	// LockDeletedEvent fires when a lock is deleted.
+	LockDeletedEvent = "lock.deleted"
+
+	// RecoveryCodeGeneratedEvent is an event type for generating a user's recovery tokens.
+	RecoveryCodeGeneratedEvent = "recovery_code.generated"
+	// RecoveryCodeUsedEvent is an event type when a recovery token was used.
+	RecoveryCodeUsedEvent = "recovery_code.used"
+
+	// WindowsDesktopSessionStartEvent is emitted when a user attempts
+	// to connect to a desktop.
+	WindowsDesktopSessionStartEvent = "windows.desktop.session.start"
+	// WindowsDesktopSessionEndEvent is emitted when a user  disconnects
+	// from a desktop.
+	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
 )
 
 const (
@@ -602,14 +641,14 @@ type IAuditLog interface {
 	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
 
 	// SearchSessionEvents is a flexible way to find session events.
-	// Only session events are returned by this function.
-	// This is used to find completed session.
+	// Only session.end events are returned by this function.
+	// This is used to find completed sessions.
 	//
 	// Event types to filter can be specified and pagination is handled by an iterator key that allows
 	// a query to be resumed.
 	//
 	// This function may never return more than 1 MiB of event data.
-	SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
+	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error)
 
 	// WaitForDelivery waits for resources to be released and outstanding requests to
 	// complete after calling Close method
@@ -663,6 +702,27 @@ func (f EventFields) GetString(key string) string {
 	return v
 }
 
+// GetStrings returns a slice-of-strings representation of a logged field.
+func (f EventFields) GetStrings(key string) []string {
+	val, found := f[key]
+	if !found {
+		return nil
+	}
+	strings, ok := val.([]string)
+	if ok {
+		return strings
+	}
+	slice, _ := val.([]interface{})
+	res := make([]string, 0, len(slice))
+	for _, v := range slice {
+		s, ok := v.(string)
+		if ok {
+			res = append(res, s)
+		}
+	}
+	return res
+}
+
 // GetInt returns an int representation of a logged field
 func (f EventFields) GetInt(key string) int {
 	val, found := f[key]
@@ -697,4 +757,62 @@ func (f EventFields) GetTime(key string) time.Time {
 func (f EventFields) HasField(key string) bool {
 	_, ok := f[key]
 	return ok
+}
+
+// EventFieldsCondition is a boolean function on EventFields.
+type EventFieldsCondition func(EventFields) bool
+
+// ToEventFieldsCondition converts a WhereExpr into an executable
+// EventFieldsCondition.
+func ToEventFieldsCondition(cond *types.WhereExpr) (EventFieldsCondition, error) {
+	if cond == nil {
+		return nil, trace.BadParameter("cond is nil")
+	}
+
+	binOp := func(e types.WhereExpr2, op func(a, b bool) bool) (EventFieldsCondition, error) {
+		left, err := ToEventFieldsCondition(e.L)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		right, err := ToEventFieldsCondition(e.R)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return func(ef EventFields) bool { return op(left(ef), right(ef)) }, nil
+	}
+	if cond, err := binOp(cond.And, func(a, b bool) bool { return a && b }); err == nil {
+		return cond, nil
+	}
+	if cond, err := binOp(cond.Or, func(a, b bool) bool { return a || b }); err == nil {
+		return cond, nil
+	}
+	if inner, err := ToEventFieldsCondition(cond.Not); err == nil {
+		return func(ef EventFields) bool { return !inner(ef) }, nil
+	}
+
+	if cond.Equals.L != nil && cond.Equals.R != nil {
+		left, right := cond.Equals.L, cond.Equals.R
+		switch {
+		case left.Field != "" && right.Field != "":
+			return func(ef EventFields) bool { return ef[left.Field] == ef[right.Field] }, nil
+		case left.Literal != nil && right.Field != "":
+			return func(ef EventFields) bool { return left.Literal == ef[right.Field] }, nil
+		case left.Field != "" && right.Literal != nil:
+			return func(ef EventFields) bool { return ef[left.Field] == right.Literal }, nil
+		}
+	}
+	if cond.Contains.L != nil && cond.Contains.R != nil {
+		left, right := cond.Contains.L, cond.Contains.R
+		getRight := func(ef EventFields) string { return ef.GetString(right.Field) }
+		if rightLit, ok := right.Literal.(string); ok {
+			getRight = func(ef EventFields) string { return rightLit }
+		}
+		if slice, ok := left.Literal.([]string); ok {
+			return func(ef EventFields) bool { return apiutils.SliceContainsStr(slice, getRight(ef)) }, nil
+		}
+		if left.Field != "" {
+			return func(ef EventFields) bool { return apiutils.SliceContainsStr(ef.GetStrings(left.Field), getRight(ef)) }, nil
+		}
+	}
+	return nil, trace.BadParameter("failed to convert expression %q to EventFieldsCondition", cond)
 }

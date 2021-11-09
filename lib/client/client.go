@@ -19,6 +19,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"io"
@@ -163,14 +164,7 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	case p.RouteToDatabase.ServiceName != "":
 		// Database means a request for a TLS certificate for access to a
 		// specific database, as specified by RouteToDatabase.
-
-		// DELETE IN 7.0
-		// Database certs have to be requested with CertUsage All because
-		// pre-7.0 servers do not accept usage-restricted certificates.
-		//
-		// In 7.0 clients, we can expect the server to be 7.0+ and set this to
-		// proto.UserCertsRequest_Database again.
-		return proto.UserCertsRequest_All
+		return proto.UserCertsRequest_Database
 	case p.RouteToApp.Name != "":
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
@@ -285,13 +279,8 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 		// Database certs have to be requested with CertUsage All because
 		// pre-7.0 servers do not accept usage-restricted certificates.
 		if params.RouteToDatabase.ServiceName != "" {
-			switch params.RouteToDatabase.Protocol {
-			case defaults.ProtocolMongoDB:
-				// MongoDB expects certificate and key pair in the same pem file.
-				key.DBTLSCerts[params.RouteToDatabase.ServiceName] = append(certs.TLS, key.Priv...)
-			default:
-				key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
-			}
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
+				params.RouteToDatabase.Protocol, certs.TLS, key.Priv)
 		}
 
 	case proto.UserCertsRequest_SSH:
@@ -299,17 +288,23 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 	case proto.UserCertsRequest_App:
 		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
 	case proto.UserCertsRequest_Database:
-		switch params.RouteToDatabase.Protocol {
-		case defaults.ProtocolMongoDB:
-			// MongoDB expects certificate and key pair in the same pem file.
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = append(certs.TLS, key.Priv...)
-		default:
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
-		}
+		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
+			params.RouteToDatabase.Protocol, certs.TLS, key.Priv)
 	case proto.UserCertsRequest_Kubernetes:
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
 	}
 	return key, nil
+}
+
+// makeDatabaseClientPEM returns appropriate client PEM file contents for the
+// specified database type. Some databases only need certificate in the PEM
+// file, others both certificate and key.
+func makeDatabaseClientPEM(proto string, cert, key []byte) []byte {
+	// MongoDB expects certificate and key pair in the same pem file.
+	if proto == defaults.ProtocolMongoDB {
+		return append(cert, key...)
+	}
+	return cert
 }
 
 // PromptMFAChallengeHandler is a handler for MFA challenges.
@@ -440,7 +435,8 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		case proto.UserCertsRequest_Kubernetes:
 			key.KubeTLSCerts[initReq.KubernetesCluster] = crt.TLS
 		case proto.UserCertsRequest_Database:
-			key.DBTLSCerts[initReq.RouteToDatabase.ServiceName] = crt.TLS
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
+				params.RouteToDatabase.Protocol, crt.TLS, key.Priv)
 		default:
 			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", initReq.Usage)
 		}
@@ -551,34 +547,21 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 	if namespace == "" {
 		return nil, trace.BadParameter(auth.MissingNamespaceError)
 	}
-	nodes := make([]types.Server, 0)
 	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	siteNodes, err := site.GetNodes(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// look at every node on this site and see which ones match:
-	for _, node := range siteNodes {
-		if node.MatchAgainst(labels) {
-			nodes = append(nodes, node)
-		}
-	}
-	return nodes, nil
+	return auth.GetNodesWithLabels(ctx, site, namespace, labels)
 }
 
 // GetAppServers returns a list of application servers.
-func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]types.Server, error) {
+func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := authClient.GetAppServers(ctx, namespace)
+	servers, err := authClient.GetApplicationServers(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -641,7 +624,7 @@ func (proxy *ProxyClient) GetDatabaseServers(ctx context.Context, namespace stri
 // CurrentClusterAccessPoint returns cluster access point to the currently
 // selected cluster and is used for discovery
 // and could be cached based on the access policy
-func (proxy *ProxyClient) CurrentClusterAccessPoint(ctx context.Context, quiet bool) (auth.AccessPoint, error) {
+func (proxy *ProxyClient) CurrentClusterAccessPoint(ctx context.Context, quiet bool) (auth.ClientI, error) {
 	// get the current cluster:
 	cluster, err := proxy.currentCluster()
 	if err != nil {
@@ -652,7 +635,7 @@ func (proxy *ProxyClient) CurrentClusterAccessPoint(ctx context.Context, quiet b
 
 // ClusterAccessPoint returns cluster access point used for discovery
 // and could be cached based on the access policy
-func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, clusterName string, quiet bool) (auth.AccessPoint, error) {
+func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("parameter clusterName is missing")
 	}
@@ -660,7 +643,7 @@ func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, clusterName st
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return proxy.teleportClient.accessPoint(clt, proxy.proxyAddress, clusterName)
+	return clt, nil
 }
 
 // ConnectToCurrentCluster connects to the auth server of the currently selected
@@ -689,12 +672,59 @@ func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context, quiet bool) 
 	return proxy.ConnectToCluster(ctx, clusterName, quiet)
 }
 
+func (proxy *ProxyClient) loadTLS() (*tls.Config, error) {
+	if proxy.teleportClient.SkipLocalAuth {
+		return proxy.teleportClient.TLS.Clone(), nil
+	}
+	tlsKey, err := proxy.localAgent().GetCoreKey()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
+	}
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate client TLS config")
+	}
+	return tlsConfig.Clone(), nil
+}
+
+// ConnectToAuthServiceThroughALPNSNIProxy uses ALPN proxy service to connect to remove/local auth
+// service and returns auth client. For routing purposes, TLS ServerName is set to destination auth service
+// cluster name with ALPN values set to teleport-auth protocol.
+func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Context, clusterName string) (auth.ClientI, error) {
+	tlsConfig, err := proxy.loadTLS()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
+	clt, err := auth.NewClient(client.Config{
+		Addrs: []string{proxy.teleportClient.WebProxyAddr},
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+		ALPNSNIAuthDialClusterName: clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clt, nil
+}
+
 // ConnectToCluster connects to the auth server of the given cluster via proxy.
 // It returns connected and authenticated auth server client
 //
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
+	// If proxy supports multiplex listener mode dial root/leaf cluster auth service via ALPN Proxy
+	// directly without using SSH tunnels.
+	if proxy.teleportClient.TLSRoutingEnabled {
+		clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	}
+
 	dialer := client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return proxy.dialAuthServer(ctx, clusterName)
 	})
