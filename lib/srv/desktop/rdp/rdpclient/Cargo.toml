@@ -17,11 +17,8 @@ libc = "0.2.121"
 log = "0.4.16"
 num-derive = "0.3.3"
 num-traits = "0.2.14"
-# Ideally, we'd use RustCrypto/RSA instead of linking OpenSSL. Unfortunately,
-# RustCrypto doesn't expose the low-level primitives we need for the smartcard
-# challenge signing (see src/piv.rs for details).
-openssl = { version = "0.10.38", features = ["vendored"] }
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
+rsa = { version = "0.5.0", features = ["alloc"] }
 rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "f51222e7edeaf2954e2c02db3506aa36e02304ca" }
 uuid = { version = "0.8.2", features = ["v4"] }
