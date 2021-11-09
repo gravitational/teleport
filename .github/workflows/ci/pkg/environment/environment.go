@@ -37,8 +37,6 @@ type Config struct {
 	// EventPath is the path of the file with the complete
 	// webhook event payload on the runner.
 	EventPath string
-	// users optional override to inject a user list for testing.
-	users githubUserGetter
 }
 
 // PullRequestEnvironment contains information about the environment
@@ -97,9 +95,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.EventPath == "" {
 		c.EventPath = os.Getenv(ci.GithubEventPath)
 	}
-	if c.users == nil {
-		c.users = c.Client.Users
-	}
 	return nil
 }
 
@@ -109,7 +104,7 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	revs, err := unmarshalReviewers(c.Context, c.Reviewers, c.users)
+	revs, err := unmarshalReviewers(c.Context, c.Reviewers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,12 +120,8 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	}, nil
 }
 
-type githubUserGetter interface {
-	Get(context.Context, string) (*github.User, *github.Response, error)
-}
-
 // unmarshalReviewers converts the passed in string representing json object into a map.
-func unmarshalReviewers(ctx context.Context, str string, users githubUserGetter) (map[string][]string, error) {
+func unmarshalReviewers(ctx context.Context, str string) (map[string][]string, error) {
 	if str == "" {
 		return nil, trace.NotFound("reviewers not found")
 	}
@@ -140,37 +131,11 @@ func unmarshalReviewers(ctx context.Context, str string, users githubUserGetter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var hasDefaultReviewers bool
-	for author, requiredReviewers := range m {
-		for _, reviewer := range requiredReviewers {
-			_, err := userExists(ctx, reviewer, users)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-		if author == ci.AnyAuthor {
-			hasDefaultReviewers = true
-			continue
-		}
-		_, err := userExists(ctx, author, users)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if !hasDefaultReviewers {
+	if _, ok := m[ci.AnyAuthor]; !ok {
 		return nil, trace.BadParameter("default reviewers are not set. set default reviewers with a wildcard (*) as a key")
 	}
 	return m, nil
 
-}
-
-// userExists checks if a user exists.
-func userExists(ctx context.Context, userLogin string, users githubUserGetter) (*github.User, error) {
-	user, _, err := users.Get(ctx, userLogin)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return user, nil
 }
 
 // GetReviewersForAuthor gets the required reviewers for the current user.
