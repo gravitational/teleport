@@ -1,9 +1,9 @@
 ---
 authors: Andrej Tokarčík (andrej@goteleport.com)
-state: draft
+state: implemented
 ---
 
-# RFD XY - RBAC `where` conditions for session recordings list/read
+# RFD 44 - RBAC `where` conditions for session recordings list/read
 
 ## What
 
