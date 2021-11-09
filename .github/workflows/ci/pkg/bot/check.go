@@ -60,9 +60,11 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 	// If @r0mant and @russjones approve a pull request, allow the check workflow run to pass.
 	// This is used in the event there is someone out of the office and the pull request needs the bypassing
 	// of the required reviewers.
-	if hasApproved(ci.R0mantUsername, mostRecentReviews) && hasApproved(ci.RussjonesUsername, mostRecentReviews) {
-		log.Println("Admins @r0mant and @rjones have approved.")
-		return nil
+	if len(ci.RepoAdmins) == 2 {
+		if hasApproved(ci.RepoAdmins[0], mostRecentReviews) && hasApproved(ci.RepoAdmins[1], mostRecentReviews) {
+			log.Println("Admins @r0mant and @russjones have approved.")
+			return nil
+		}
 	}
 	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
 	err = hasRequiredApprovals(mostRecentReviews, c.Environment.GetReviewersForAuthor(pr.Author))

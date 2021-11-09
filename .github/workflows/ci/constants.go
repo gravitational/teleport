@@ -79,10 +79,7 @@ const (
 	// AnyAuthor is the symbol used to get reviewers for external contributors/contrtibutors who
 	// do not have designated reviewers.
 	AnyAuthor = "*"
-
-	// RussjonesUsername is Russell's (Teleport repo admin) GitHub username.
-	RussjonesUsername = "russjones"
-
-	// R0mantUsername is Roman's (Teleport repo admin) GitHub username.
-	R0mantUsername = "r0mant"
 )
+
+// RepoAdmins are the Teleport repository admin usernames.
+var RepoAdmins = []string{"r0mant", "russjones"}
