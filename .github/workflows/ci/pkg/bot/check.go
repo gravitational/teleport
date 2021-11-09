@@ -62,7 +62,7 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 	// of the required reviewers.
 	if len(ci.RepoAdmins) == 2 {
 		if hasApproved(ci.RepoAdmins[0], mostRecentReviews) && hasApproved(ci.RepoAdmins[1], mostRecentReviews) {
-			log.Println("Admins @r0mant and @russjones have approved.")
+			log.Printf("Admins %s and %s have approved.", ci.RepoAdmins[0], ci.RepoAdmins[1])
 			return nil
 		}
 	}
