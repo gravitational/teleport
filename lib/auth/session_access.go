@@ -49,15 +49,23 @@ func NewSessionAccessEvaluator(initiator User, kind SessionKind) SessionAccessEv
 	}
 }
 
-// TODO(joel): implement this
 func getRequirePolicies(participant User) []*types.SessionRequirePolicy {
 	var policies []*types.SessionRequirePolicy
+
+	for _, role := range participant.roles {
+		policies = append(policies, role.GetSessionRequirePolicies(types.Allow)...)
+	}
+
 	return policies
 }
 
-// TODO(joel): implement this
 func getAllowPolicies(participant User) []*types.SessionJoinPolicy {
 	var policies []*types.SessionJoinPolicy
+
+	for _, role := range participant.roles {
+		policies = append(policies, role.GetSessionJoinPolicies(types.Allow)...)
+	}
+
 	return policies
 }
 
