@@ -258,7 +258,9 @@ func generateChallenge() (string, error) {
 	return string(challengeBase64), nil
 }
 
-func (a *Server) registerUsingIAMMethod(srv proto.AuthService_RegisterUsingIAMMethodServer) error {
+// RegisterUsingIAMMethod is used to register new nodes to the cluster using the
+// IAM join method.
+func (a *Server) RegisterUsingIAMMethod(srv proto.AuthService_RegisterUsingIAMMethodServer) error {
 	ctx := srv.Context()
 
 	p, ok := peer.FromContext(ctx)

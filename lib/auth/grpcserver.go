@@ -3502,7 +3502,7 @@ func (g *GRPCServer) RegisterUsingIAMMethod(srv proto.AuthService_RegisterUsingI
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(auth.authServer.registerUsingIAMMethod(srv))
+	return trace.Wrap(auth.RegisterUsingIAMMethod(srv))
 }
 
 // GRPCServerConfig specifies GRPC server configuration
