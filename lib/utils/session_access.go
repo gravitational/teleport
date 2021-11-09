@@ -45,10 +45,24 @@ type SessionAccessAllowPolicy struct {
 }
 
 type SessionAccessEvaluator struct {
+	kind     SessionKind
 	requires []SessionAccessRequirePolicy
 }
 
-func getPoliciesFor(participant *types.Participant) []SessionAccessAllowPolicy {
+func NewSessionAccessEvaluator(initiator *types.User, kind SessionKind) SessionAccessEvaluator {
+	requires := getRequirePolicies(initiator)
+
+	return SessionAccessEvaluator{
+		kind,
+		requires,
+	}
+}
+
+func getRequirePolicies(participant *types.User) []SessionAccessRequirePolicy {
+	return []SessionAccessRequirePolicy{}
+}
+
+func getAllowPolicies(participant *types.User) []SessionAccessAllowPolicy {
 	return []SessionAccessAllowPolicy{}
 }
 
@@ -56,12 +70,12 @@ func matchesPolicy(require *SessionAccessRequirePolicy, allow SessionAccessAllow
 	return true
 }
 
-func (e *SessionAccessEvaluator) FulfilledFor(participants []*types.Participant) bool {
+func (e *SessionAccessEvaluator) FulfilledFor(participants []*types.User) bool {
 	for _, requirePolicy := range e.requires {
 		left := requirePolicy.count
 
 		for _, participant := range participants {
-			allowPolicies := getPoliciesFor(participant)
+			allowPolicies := getAllowPolicies(participant)
 			for _, allowPolicy := range allowPolicies {
 				if matchesPolicy(&requirePolicy, allowPolicy) {
 					left--
