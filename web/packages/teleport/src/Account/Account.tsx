@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import { Box } from 'design';
 import cfg from 'teleport/config';
+import useTeleport from 'teleport/useTeleport';
 import { Route, Switch, NavLink, Redirect } from 'teleport/components/Router';
 import {
   FeatureBox,
@@ -27,14 +28,21 @@ import {
 import ChangePassword from './ChangePassword';
 import ManageDevices from './ManageDevices';
 
-export default function Account() {
+export default function Container() {
+  const ctx = useTeleport();
+  return <Account isSso={ctx.storeUser.isSso()} />;
+}
+
+export function Account({ isSso }: Props) {
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>
-          <TabItem as={NavLink} to={cfg.routes.accountPassword}>
-            Password
-          </TabItem>
+          {!isSso && (
+            <TabItem as={NavLink} to={cfg.routes.accountPassword}>
+              Password
+            </TabItem>
+          )}
           <TabItem as={NavLink} to={cfg.routes.accountMfaDevices}>
             Two-Factor Devices
           </TabItem>
@@ -42,14 +50,27 @@ export default function Account() {
       </FeatureHeader>
       <Box mt={3}>
         <Switch>
-          <Route path={cfg.routes.accountPassword} component={ChangePassword} />
+          {!isSso && (
+            <Route
+              path={cfg.routes.accountPassword}
+              component={ChangePassword}
+            />
+          )}
           <Route
             path={cfg.routes.accountMfaDevices}
             component={ManageDevices}
           />
-          <Redirect to={cfg.routes.accountPassword} />
+          <Redirect
+            to={
+              isSso ? cfg.routes.accountMfaDevices : cfg.routes.accountPassword
+            }
+          />
         </Switch>
       </Box>
     </FeatureBox>
   );
 }
+
+type Props = {
+  isSso: boolean;
+};

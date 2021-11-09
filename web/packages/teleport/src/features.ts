@@ -158,10 +158,6 @@ export class FeatureAccount {
   };
 
   register(ctx: Ctx) {
-    if (!ctx.getFeatureFlags().account) {
-      return;
-    }
-
     ctx.storeNav.addTopMenuItem({
       title: 'Account Settings',
       Icon: Icons.User,

@@ -19,7 +19,6 @@ import React from 'react';
 export type NavGroup = 'team' | 'activity' | 'clusters';
 
 type FeatureFlags = {
-  account: boolean;
   audit: boolean;
   authConnector: boolean;
   roles: boolean;
