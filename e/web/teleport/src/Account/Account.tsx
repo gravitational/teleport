@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box } from 'design';
 import cfg from 'e-teleport/config';
+import useTeleportE from 'e-teleport/useTeleportE';
 import { Route, Switch, NavLink, Redirect } from 'teleport/components/Router';
 import {
   FeatureBox,
@@ -12,14 +13,21 @@ import ChangePassword from 'teleport/Account/ChangePassword';
 import ManageDevices from 'teleport/Account/ManageDevices';
 import Recovery from './Recovery';
 
-export default function Account() {
+export default function Container() {
+  const ctx = useTeleportE();
+  return <Account isSso={ctx.storeUser.isSso()} />;
+}
+
+export function Account({ isSso }: Props) {
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>
-          <TabItem as={NavLink} to={cfg.oss.routes.accountPassword}>
-            Password
-          </TabItem>
+          {!isSso && (
+            <TabItem as={NavLink} to={cfg.oss.routes.accountPassword}>
+              Password
+            </TabItem>
+          )}
           <TabItem as={NavLink} to={cfg.oss.routes.accountMfaDevices}>
             Two-Factor Devices
           </TabItem>
@@ -32,10 +40,12 @@ export default function Account() {
       </FeatureHeader>
       <Box mt={3}>
         <Switch>
-          <Route
-            path={cfg.oss.routes.accountPassword}
-            component={ChangePassword}
-          />
+          {!isSso && (
+            <Route
+              path={cfg.oss.routes.accountPassword}
+              component={ChangePassword}
+            />
+          )}
           <Route
             path={cfg.oss.routes.accountMfaDevices}
             component={ManageDevices}
@@ -43,9 +53,19 @@ export default function Account() {
           {cfg.oss.isCloud && (
             <Route path={cfg.routes.accountRecovery} component={Recovery} />
           )}
-          <Redirect to={cfg.oss.routes.accountPassword} />
+          <Redirect
+            to={
+              isSso
+                ? cfg.oss.routes.accountMfaDevices
+                : cfg.oss.routes.accountPassword
+            }
+          />
         </Switch>
       </Box>
     </FeatureBox>
   );
 }
+
+type Props = {
+  isSso: boolean;
+};
