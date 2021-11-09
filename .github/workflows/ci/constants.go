@@ -83,6 +83,6 @@ const (
 	// RussjonesUsername is Russell's (Teleport repo admin) GitHub username.
 	RussjonesUsername = "russjones"
 
-	// R0mantUserName is Roman's (Teleport repo admin) GitHub username.
+	// R0mantUsername is Roman's (Teleport repo admin) GitHub username.
 	R0mantUsername = "r0mant"
 )
