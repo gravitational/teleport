@@ -336,7 +336,7 @@ func (c *Bot) invalidateApprovals(ctx context.Context, reviews map[string]review
 	pr := c.Environment.Metadata
 	msg := dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author))
 	for _, v := range reviews {
-		if pr.HeadSHA != v.commitID {
+		if pr.HeadSHA != v.commitID && v.status != ci.Commented {
 			_, _, err := c.Environment.Client.PullRequests.DismissReview(ctx,
 				pr.RepoOwner,
 				pr.RepoName,
