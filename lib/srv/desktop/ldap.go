@@ -18,7 +18,9 @@ package desktop
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
@@ -33,18 +35,38 @@ type ldapClient struct {
 // newLDAPClient connects to an LDAP server, authenticates and returns the
 // client connection. Caller must close the client after using it.
 func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
+	// Get the SystemCertPool, continue with an empty pool on error
+	rootCAs, _ := x509.SystemCertPool()
+	if rootCAs == nil {
+		rootCAs = x509.NewCertPool()
+	}
+
+	const localCertFile = "/home/zmb/ldap-ca-der.cer"
+	// Read in the raw_cert file
+	raw_cert, err := ioutil.ReadFile(localCertFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := x509.ParseCertificate(raw_cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Append our cert to the system pool
+	rootCAs.AddCert(cert)
+
+	for _, sub := range rootCAs.Subjects() {
+		fmt.Printf("%s\n", sub)
+	}
+
 	// TODO(zmb3): should we get a CA cert for the LDAP cert validation? Active
 	// Directory Certificate Services (their managed CA thingy) seems to be
 	// issuing those.
 	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(&tls.Config{
 		InsecureSkipVerify: false,
-		VerifyConnection: func(state tls.ConnectionState) error {
-			fmt.Printf("%+v\n", state)
-			for _, c := range state.PeerCertificates {
-				fmt.Printf("%+v\n", c)
-			}
-			return nil
-		},
+		RootCAs:            rootCAs,
+		// ServerName:         cert.Subject.CommonName,
 		// TODO(zmb3): is this necessary?
 		MinVersion: tls.VersionTLS12,
 		MaxVersion: tls.VersionTLS12,
