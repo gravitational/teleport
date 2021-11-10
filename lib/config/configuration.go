@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package 'config' provides facilities for configuring Teleport daemons
+// Package config provides facilities for configuring Teleport daemons
 // including
 //	- parsing YAML configuration
 //	- parsing CLI flags
@@ -22,6 +22,7 @@ package config
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"io/ioutil"
 	"net"
@@ -35,6 +36,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -292,6 +294,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	// Logging configuration has already been validated above
 	_ = applyLogConfig(fc.Logger, log.StandardLogger())
 
+	if fc.CachePolicy.TTL != "" {
+		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
+
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
 	if err != nil {
@@ -360,6 +366,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			})
 		}
 	}
+
+	applyConfigVersion(fc, cfg)
 
 	// Apply configuration for "auth_service", "proxy_service", "ssh_service",
 	// and "app_service" if they are enabled.
@@ -564,6 +572,8 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
+		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
+		RoutingStrategy:          fc.Auth.RoutingStrategy,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -750,7 +760,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	case legacyKube && newKube:
 		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
-		// Nothing enabled, this is just for completeness.
+		if fc.Version == defaults.TeleportConfigVersionV2 {
+			// Always enable kube service if using config V2 (TLS routing is supported)
+			cfg.Proxy.Kube.Enabled = true
+		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
 		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
@@ -808,7 +821,31 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
+	applyDefaultProxyListenerAddresses(cfg)
+
 	return nil
+}
+
+func applyDefaultProxyListenerAddresses(cfg *service.Config) {
+	if cfg.Version == defaults.TeleportConfigVersionV2 {
+		// For v2 configuration if an address is not provided don't fallback to the default values.
+		return
+	}
+
+	// For v1 configuration check if address was set in config file if
+	// not fallback to the default listener address.
+	if cfg.Proxy.WebAddr.IsEmpty() {
+		cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
+	}
+	if cfg.Proxy.SSHAddr.IsEmpty() {
+		cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
+	}
+	if cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
+		cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnelListenAddr()
+	}
+	if cfg.Proxy.Kube.ListenAddr.IsEmpty() && cfg.Proxy.Kube.Enabled {
+		cfg.Proxy.Kube.ListenAddr = *defaults.KubeProxyListenAddr()
+	}
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
@@ -937,10 +974,18 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 // applyDatabasesConfig applies file configuration for the "db_service" section.
 func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Databases.Enabled = true
-	for _, selector := range fc.Databases.Selectors {
-		cfg.Databases.Selectors = append(cfg.Databases.Selectors,
-			services.Selector{
-				MatchLabels: selector.MatchLabels,
+	for _, matcher := range fc.Databases.ResourceMatchers {
+		cfg.Databases.ResourceMatchers = append(cfg.Databases.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
+			})
+	}
+	for _, matcher := range fc.Databases.AWSMatchers {
+		cfg.Databases.AWSMatchers = append(cfg.Databases.AWSMatchers,
+			services.AWSMatcher{
+				Types:   matcher.Types,
+				Regions: matcher.Regions,
+				Tags:    matcher.Tags,
 			})
 	}
 	for _, database := range fc.Databases.Databases {
@@ -1006,10 +1051,10 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
 	// Configure resource watcher selectors if present.
-	for _, selector := range fc.Apps.Selectors {
-		cfg.Apps.Selectors = append(cfg.Apps.Selectors,
-			services.Selector{
-				MatchLabels: selector.MatchLabels,
+	for _, matcher := range fc.Apps.ResourceMatchers {
+		cfg.Apps.ResourceMatchers = append(cfg.Apps.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
 			})
 	}
 
@@ -1144,6 +1189,14 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.WindowsDesktop.ListenAddr = *listenAddr
 	}
+
+	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
+		if _, err := ldap.CompileFilter(ldap.EscapeFilter(filter)); err != nil {
+			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
+		}
+	}
+	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
+
 	var err error
 	cfg.WindowsDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.WindowsDesktop.PublicAddr, defaults.WindowsDesktopListenPort)
 	if err != nil {
@@ -1153,7 +1206,20 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cfg.WindowsDesktop.LDAP = service.LDAPConfig(fc.WindowsDesktop.LDAP)
+	ldapPassword, err := os.ReadFile(fc.WindowsDesktop.LDAP.PasswordFile)
+	if err != nil {
+		return trace.WrapWithMessage(err, "loading LDAP password from file %v",
+			fc.WindowsDesktop.LDAP.PasswordFile)
+	}
+	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
+		Addr:     fc.WindowsDesktop.LDAP.Addr,
+		Username: fc.WindowsDesktop.LDAP.Username,
+		Domain:   fc.WindowsDesktop.LDAP.Domain,
+
+		// trim whitespace to protect against things like
+		// a leading tab character or trailing newline
+		Password: string(bytes.TrimSpace(ldapPassword)),
+	}
 
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
@@ -1377,6 +1443,15 @@ func applyString(src string, target *string) bool {
 		return true
 	}
 	return false
+}
+
+// applyConfigVersion applies config version from parsed file. If config version is not
+// present the v1 version will be used as default.
+func applyConfigVersion(fc *FileConfig, cfg *service.Config) {
+	cfg.Version = defaults.TeleportConfigVersionV1
+	if fc.Version != "" {
+		cfg.Version = fc.Version
+	}
 }
 
 // Configure merges command line arguments with what's in a configuration file
@@ -1723,7 +1798,7 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 		if len(cmdSpec) < 1 {
 			return nil, trace.Wrap(invalidSpecError)
 		}
-		var openQuote bool = false
+		openQuote := false
 		return &types.CommandLabelV2{
 			Period: types.NewDuration(period),
 			Command: strings.FieldsFunc(cmdSpec, func(c rune) bool {
@@ -1764,7 +1839,7 @@ func replaceHost(addr *utils.NetAddr, newHost string) {
 	addr.Addr = net.JoinHostPort(newHost, port)
 }
 
-// validateRoles makes sure that value upassed to --roles flag is valid
+// validateRoles makes sure that value passed to the --roles flag is valid
 func validateRoles(roles string) error {
 	for _, role := range splitRoles(roles) {
 		switch role {
@@ -1772,8 +1847,8 @@ func validateRoles(roles string) error {
 			defaults.RoleNode,
 			defaults.RoleProxy,
 			defaults.RoleApp,
-			defaults.RoleDatabase:
-			break
+			defaults.RoleDatabase,
+			defaults.RoleWindowsDesktop:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}

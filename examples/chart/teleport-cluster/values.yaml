@@ -195,7 +195,7 @@ extraVolumes: []
 # Extra volume mounts corresponding to the volumes mounted above
 extraVolumeMounts: []
 #- name: myvolume
-#  path: /path/on/host
+#  mountPath: /path/on/host
 
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent
@@ -218,6 +218,9 @@ resources: {}
 #  requests:
 #    cpu: "1"
 #    memory: "2Gi"
+
+# Priority class name to add to the deployment
+priorityClassName: ""
 
 # Tolerations for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/

@@ -69,7 +69,7 @@ type AgentConfig struct {
 	// Client is a client to the local auth servers
 	Client auth.ClientI
 	// AccessPoint is a caching access point to the local auth servers
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.AccessCache
 	// Context is a parent context
 	Context context.Context
 	// Username is the name of this client used to authenticate on SSH
@@ -174,9 +174,9 @@ type Agent struct {
 
 // ReverseTunnelDetails contains catchable details about the reverse tunnel.
 type reverseTunnelDetails struct {
-	// ALPNSNIListenerEnabled indicates that remote address listener supports ALPN SNI Listener and
+	// TLSRoutingEnabled indicates that remote address listener supports ALPN SNI Listener and
 	// the client needs to dial the remote proxy with proper TLS ALPN protocol.
-	ALPNSNIListenerEnabled bool
+	TLSRoutingEnabled bool
 }
 
 // NewAgent returns a new reverse tunnel agent
@@ -261,13 +261,14 @@ func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
 // getReverseTunnelDetails pings the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
 // If this is Web Service port check if proxy support ALPN SNI Listener.
 func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
-	pd := reverseTunnelDetails{ALPNSNIListenerEnabled: false}
+	pd := reverseTunnelDetails{TLSRoutingEnabled: false}
 	resp, err := webclient.Find(a.ctx, a.Addr.Addr, lib.IsInsecureDevMode(), nil)
 	if err != nil {
-		a.log.WithError(err).Errorf("Failed to ping web proxy %q addr.", a.Addr.Addr)
-	}
-	if err == nil && resp.Proxy.ALPNSNIListenerEnabled {
-		pd.ALPNSNIListenerEnabled = resp.Proxy.ALPNSNIListenerEnabled
+		// If TLS Routing is disabled the address is the proxy reverse tunnel
+		// address the ping call will always fail.
+		a.log.Infof("Failed to ping web proxy %q addr: %v", a.Addr.Addr, err)
+	} else {
+		pd.TLSRoutingEnabled = resp.Proxy.TLSRoutingEnabled
 	}
 	return &pd
 }
@@ -278,7 +279,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	}
 
 	var opts []proxy.DialerOptionFunc
-	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.ALPNSNIListenerEnabled {
+	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.TLSRoutingEnabled {
 		opts = append(opts, proxy.WithALPNDialer())
 	}
 

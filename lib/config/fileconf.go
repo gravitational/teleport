@@ -61,11 +61,12 @@ var validCASigAlgos = []string{
 //
 // Use config.ReadFromFile() to read the parsed FileConfig from a YAML file.
 type FileConfig struct {
-	Global `yaml:"teleport,omitempty"`
-	Auth   Auth  `yaml:"auth_service,omitempty"`
-	SSH    SSH   `yaml:"ssh_service,omitempty"`
-	Proxy  Proxy `yaml:"proxy_service,omitempty"`
-	Kube   Kube  `yaml:"kubernetes_service,omitempty"`
+	Version string `yaml:"version,omitempty"`
+	Global  `yaml:"teleport,omitempty"`
+	Auth    Auth  `yaml:"auth_service,omitempty"`
+	SSH     SSH   `yaml:"ssh_service,omitempty"`
+	Proxy   Proxy `yaml:"proxy_service,omitempty"`
+	Kube    Kube  `yaml:"kubernetes_service,omitempty"`
 
 	// Apps is the "app_service" section in Teleport file configuration which
 	// defines application access configuration.
@@ -134,6 +135,8 @@ type SampleFlags struct {
 	ACMEEmail string
 	// ACMEEnabled turns on ACME
 	ACMEEnabled bool
+	// Version is the Teleport Configuration version.
+	Version string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -177,6 +180,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		a.LicenseFile = flags.LicensePath
 	}
 
+	if flags.Version == defaults.TeleportConfigVersionV2 {
+		a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
+	}
+
 	// sample proxy config:
 	var p Proxy
 	p.EnabledFlag = "yes"
@@ -191,10 +198,11 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	}
 
 	fc = &FileConfig{
-		Global: g,
-		Proxy:  p,
-		SSH:    s,
-		Auth:   a,
+		Version: flags.Version,
+		Global:  g,
+		Proxy:   p,
+		SSH:     s,
+		Auth:    a,
 	}
 	return fc, nil
 }
@@ -216,6 +224,9 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	conf.Proxy.defaultEnabled = true
 	conf.SSH.defaultEnabled = true
 	conf.Kube.defaultEnabled = false
+	if conf.Version == "" {
+		conf.Version = defaults.TeleportConfigVersionV1
+	}
 
 	var sc ssh.Config
 	sc.SetDefaults()
@@ -375,14 +386,6 @@ type CachePolicy struct {
 	TTL string `yaml:"ttl,omitempty"`
 }
 
-func isNever(v string) bool {
-	switch v {
-	case "never", "no", "0":
-		return true
-	}
-	return false
-}
-
 // Enabled determines if a given "_service" section has been set to 'true'
 func (c *CachePolicy) Enabled() bool {
 	if c.EnabledFlag == "" {
@@ -392,26 +395,11 @@ func (c *CachePolicy) Enabled() bool {
 	return enabled
 }
 
-// NeverExpires returns if cache never expires by itself
-func (c *CachePolicy) NeverExpires() bool {
-	return isNever(c.TTL)
-}
-
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 	out := service.CachePolicy{
-		Type:         c.Type,
-		Enabled:      c.Enabled(),
-		NeverExpires: c.NeverExpires(),
-	}
-	if !out.NeverExpires {
-		var err error
-		if c.TTL != "" {
-			out.TTL, err = time.ParseDuration(c.TTL)
-			if err != nil {
-				return nil, trace.BadParameter("cache.ttl invalid duration: %v, accepted format '10h'", c.TTL)
-			}
-		}
+		Type:    c.Type,
+		Enabled: c.Enabled(),
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -546,6 +534,12 @@ type Auth struct {
 
 	// CAKeyParams configures how CA private keys will be created and stored.
 	CAKeyParams *CAKeyParams `yaml:"ca_key_params,omitempty"`
+
+	// ProxyListenerMode is a listener mode user by the proxy.
+	ProxyListenerMode types.ProxyListenerMode `yaml:"proxy_listener_mode,omitempty"`
+
+	// RoutingStrategy configures the routing strategy to nodes.
+	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -900,14 +894,26 @@ type Databases struct {
 	Service `yaml:",inline"`
 	// Databases is a list of databases proxied by the service.
 	Databases []*Database `yaml:"databases"`
-	// Selectors defines resource monitor selectors.
-	Selectors []Selector `yaml:"selectors,omitempty"`
+	// ResourceMatchers match cluster database resources.
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
+	// AWSMatchers match AWS hosted databases.
+	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 }
 
-// Selector represents a single resource monitor selector.
-type Selector struct {
-	// MatchLabels represents a selector that matches labels.
-	MatchLabels map[string]apiutils.Strings `yaml:"match_labels,omitempty"`
+// ResourceMatcher matches cluster resources.
+type ResourceMatcher struct {
+	// Labels match resource labels.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+}
+
+// AWSMatcher matches AWS databases.
+type AWSMatcher struct {
+	// Types are AWS database types to match, "rds" or "redshift".
+	Types []string `yaml:"types,omitempty"`
+	// Regions are AWS regions to query for databases.
+	Regions []string `yaml:"regions,omitempty"`
+	// Tags are AWS tags to match.
+	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
@@ -978,8 +984,8 @@ type Apps struct {
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`
 
-	// Selectors defines resource monitor selectors.
-	Selectors []Selector `yaml:"selectors,omitempty"`
+	// ResourceMatchers match cluster application resources.
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 }
 
 // App is the specific application that will be proxied by the application
@@ -1288,6 +1294,8 @@ type WindowsDesktopService struct {
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig `yaml:"ldap"`
+	// Discovery configures desktop discovery via LDAP.
+	Discovery service.LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// Hosts is a list of static Windows hosts connected to this service in
 	// gateway mode.
 	Hosts []string `yaml:"hosts,omitempty"`
@@ -1308,16 +1316,13 @@ type WindowsHostLabelRule struct {
 }
 
 // LDAPConfig is the LDAP connection parameters.
-//
-// TODO(awly): these credentials are very sensitive. Add support for loading
-// from a file.
 type LDAPConfig struct {
-	// Addr is the address:port of the LDAP server (typically port 389).
+	// Addr is the host:port of the LDAP server (typically port 389).
 	Addr string `yaml:"addr"`
 	// Domain is the ActiveDirectory domain name.
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
 	Username string `yaml:"username"`
-	// Password for LDAP authentication.
-	Password string `yaml:"password"`
+	// PasswordFile is a text file containing the password for LDAP authentication.
+	PasswordFile string `yaml:"password_file"`
 }

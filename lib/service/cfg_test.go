@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/require"
@@ -41,7 +41,6 @@ func TestDefaultConfig(t *testing.T) {
 	require.True(t, config.Proxy.Enabled)
 
 	localAuthAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3025"}
-	localProxyAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3023"}
 
 	// data dir, hostname and auth server
 	require.Equal(t, config.DataDir, defaults.DataDir)
@@ -88,7 +87,6 @@ func TestDefaultConfig(t *testing.T) {
 
 	// proxy section
 	proxy := config.Proxy
-	require.Equal(t, proxy.SSHAddr, localProxyAddr)
 	require.Equal(t, proxy.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
 	require.Equal(t, proxy.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
 }
@@ -140,7 +138,7 @@ func TestCheckApp(t *testing.T) {
 			err: "must be a valid DNS subdomain",
 		},
 	}
-	for _, h := range app.ReservedHeaders {
+	for _, h := range common.ReservedHeaders {
 		tests = append(tests, tc{
 			desc: fmt.Sprintf("reserved header rewrite %v", h),
 			inApp: App{

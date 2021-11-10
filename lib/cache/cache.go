@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -183,7 +184,6 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
-		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		// Node only needs to "know" about default
 		// namespace events to avoid matching too much
@@ -281,7 +281,7 @@ func ForWindowsDesktop(cfg Config) Config {
 // for cache
 type SetupConfigFn func(c Config) Config
 
-// Cache implements auth.AccessPoint interface and remembers
+// Cache implements auth.Cache interface and remembers
 // the previously returned upstream value for each API call.
 //
 // This which can be used if the upstream AccessPoint goes offline
@@ -332,6 +332,10 @@ type Cache struct {
 	// collections is a map of registered collections by resource Kind/SubKind
 	collections map[resourceKind]collection
 
+	// fnCache is used to perform short ttl-based caching of the results of
+	// regularly called methods.
+	fnCache *fnCache
+
 	trustCache           services.Trust
 	clusterConfigCache   services.ClusterConfiguration
 	provisionerCache     services.Provisioner
@@ -362,6 +366,11 @@ func (c *Cache) setInitError(err error) {
 // setReadOK updates Cache.ok, which determines whether the
 // cache is accessible for reads.
 func (c *Cache) setReadOK(ok bool) {
+	if c.neverOK {
+		// we are running inside of a test where the cache
+		// needs to pretend that it never becomes healthy.
+		return
+	}
 	if ok == c.getReadOK() {
 		return
 	}
@@ -514,13 +523,6 @@ type Config struct {
 	// EventsC is a channel for event notifications,
 	// used in tests
 	EventsC chan Event
-	// OnlyRecent configures cache behavior that always uses
-	// recent values, see OnlyRecent for details
-	OnlyRecent OnlyRecent
-	// PreferRecent configures cache behavior that prefer recent values
-	// when available, but falls back to stale data, see PreferRecent
-	// for details
-	PreferRecent PreferRecent
 	// Clock can be set to control time,
 	// uses runtime clock by default
 	Clock clockwork.Clock
@@ -530,36 +532,10 @@ type Config struct {
 	MetricComponent string
 	// QueueSize is a desired queue Size
 	QueueSize int
-}
-
-// OnlyRecent defines cache behavior always
-// using recent data and failing otherwise.
-// Used by auth servers and other systems
-// having direct access to the backend.
-type OnlyRecent struct {
-	// Enabled enables cache behavior
-	Enabled bool
-}
-
-// PreferRecent defined cache behavior
-// that always prefers recent data, but will
-// serve stale data in case if disconnect is detected
-type PreferRecent struct {
-	// Enabled enables cache behavior
-	Enabled bool
-	// MaxTTL sets maximum TTL the cache keeps the value
-	// in case if there is no connection to auth servers
-	MaxTTL time.Duration
-	// NeverExpires if set, never expires stale cache values
-	NeverExpires bool
-}
-
-// CheckAndSetDefaults checks parameters and sets default values
-func (p *PreferRecent) CheckAndSetDefaults() error {
-	if p.MaxTTL == 0 {
-		p.MaxTTL = defaults.CacheTTL
-	}
-	return nil
+	// neverOK is used in tests to create a cache that appears to never
+	// becomes healthy, meaning that it will always end up hitting the
+	// real backend and the ttl cache.
+	neverOK bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -569,15 +545,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Backend == nil {
 		return trace.BadParameter("missing Backend parameter")
-	}
-	if c.OnlyRecent.Enabled && c.PreferRecent.Enabled {
-		return trace.BadParameter("either one of OnlyRecent or PreferRecent should be enabled at a time")
-	}
-	if !c.OnlyRecent.Enabled && !c.PreferRecent.Enabled {
-		c.OnlyRecent.Enabled = true
-	}
-	if err := c.PreferRecent.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
 	}
 	if c.Context == nil {
 		c.Context = context.Background()
@@ -642,6 +609,7 @@ func New(config Config) (*Cache, error) {
 		Config:               config,
 		generation:           atomic.NewUint64(0),
 		initC:                make(chan struct{}),
+		fnCache:              newFnCache(time.Second),
 		trustCache:           local.NewCAService(wrapper),
 		clusterConfigCache:   clusterConfigCache,
 		provisionerCache:     local.NewProvisioningService(wrapper),
@@ -683,9 +651,7 @@ func New(config Config) (*Cache, error) {
 	err = cs.wrapper.Delete(ctx, tombstoneKey())
 	switch {
 	case err == nil:
-		if !cs.OnlyRecent.Enabled {
-			cs.setReadOK(true)
-		}
+		cs.setReadOK(true)
 	case trace.IsNotFound(err):
 		// do nothing
 	default:
@@ -706,10 +672,6 @@ func New(config Config) (*Cache, error) {
 
 	select {
 	case <-cs.initC:
-		if cs.initErr != nil && cs.OnlyRecent.Enabled {
-			cs.Close()
-			return nil, trace.Wrap(cs.initErr)
-		}
 		if cs.initErr == nil {
 			cs.Infof("Cache %q first init succeeded.", cs.Config.target)
 		} else {
@@ -719,10 +681,6 @@ func New(config Config) (*Cache, error) {
 		cs.Close()
 		return nil, trace.Wrap(ctx.Err(), "context closed during cache init")
 	case <-time.After(cs.Config.CacheInitTimeout):
-		if cs.OnlyRecent.Enabled {
-			cs.Close()
-			return nil, trace.ConnectionProblem(nil, "timeout waiting for cache init")
-		}
 		cs.Warningf("Cache init is taking too long, will continue in background.")
 	}
 	return cs, nil
@@ -765,9 +723,6 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		}
 		if err != nil {
 			c.Warningf("Re-init the cache on error: %v.", err)
-			if c.OnlyRecent.Enabled {
-				c.setReadOK(false)
-			}
 		}
 		// events cache should be closed as well
 		c.Debugf("Reloading %v.", retry)
@@ -796,23 +751,6 @@ func (c *Cache) writeTombstone(ctx context.Context) {
 	} else {
 		c.notify(ctx, Event{Type: TombstoneWritten})
 	}
-}
-
-// setTTL overrides TTL supplied by the resource
-// based on the cache behavior:
-// - for "only recent", does nothing
-// - for "prefer recent", honors TTL set on the resource, otherwise
-//   sets TTL to max TTL
-func (c *Cache) setTTL(r types.Resource) {
-	if c.OnlyRecent.Enabled || (c.PreferRecent.Enabled && c.PreferRecent.NeverExpires) {
-		return
-	}
-	// honor expiry set in the resource
-	if !r.Expiry().IsZero() {
-		return
-	}
-	// set max TTL on the resources
-	r.SetExpiry(c.Clock.Now().UTC().Add(c.PreferRecent.MaxTTL))
 }
 
 func (c *Cache) notify(ctx context.Context, event Event) {
@@ -1057,6 +995,12 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	return nil
 }
 
+type getCertAuthorityCacheKey struct {
+	id types.CertAuthID
+}
+
+var _ map[getCertAuthorityCacheKey]struct{} // compile-time hashability check
+
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
 func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
@@ -1065,6 +1009,22 @@ func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+
+	if !rg.IsCacheRead() && !loadSigningKeys {
+		ta := func(_ types.CertAuthority) {} // compile-time type assertion
+		ci, err := c.fnCache.Get(context.TODO(), getCertAuthorityCacheKey{id}, func() (interface{}, error) {
+			ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
+			ta(ca)
+			return ca, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedCA := ci.(types.CertAuthority)
+		ta(cachedCA)
+		return cachedCA.Clone(), nil
+	}
+
 	ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
@@ -1078,6 +1038,12 @@ func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts
 	return ca, trace.Wrap(err)
 }
 
+type getCertAuthoritiesCacheKey struct {
+	caType types.CertAuthType
+}
+
+var _ map[getCertAuthoritiesCacheKey]struct{} // compile-time hashability check
+
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
 func (c *Cache) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
@@ -1086,6 +1052,24 @@ func (c *Cache) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bo
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+	if !rg.IsCacheRead() && !loadSigningKeys {
+		ta := func(_ []types.CertAuthority) {} // compile-time type assertion
+		ci, err := c.fnCache.Get(context.TODO(), getCertAuthoritiesCacheKey{caType}, func() (interface{}, error) {
+			cas, err := rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
+			ta(cas)
+			return cas, trace.Wrap(err)
+		})
+		if err != nil || ci == nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedCAs := ci.([]types.CertAuthority)
+		ta(cachedCAs)
+		cas := make([]types.CertAuthority, 0, len(cachedCAs))
+		for _, ca := range cachedCAs {
+			cas = append(cas, ca.Clone())
+		}
+		return cas, nil
+	}
 	return rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
 }
 
@@ -1130,6 +1114,12 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 	return token, trace.Wrap(err)
 }
 
+type clusterConfigCacheKey struct {
+	kind string
+}
+
+var _ map[clusterConfigCacheKey]struct{} // compile-time hashability check
+
 // GetClusterAuditConfig gets ClusterAuditConfig from the backend.
 func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
 	rg, err := c.read()
@@ -1137,6 +1127,22 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+	if !rg.IsCacheRead() {
+		ta := func(_ types.ClusterAuditConfig) {} // compile-time type assertion
+		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"audit"}, func() (interface{}, error) {
+			// use cache's close context instead of request context in order to ensure
+			// that we don't cache a context cancellation error.
+			cfg, err := rg.clusterConfig.GetClusterAuditConfig(c.ctx, opts...)
+			ta(cfg)
+			return cfg, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedCfg := ci.(types.ClusterAuditConfig)
+		ta(cachedCfg)
+		return cachedCfg.Clone(), nil
+	}
 	return rg.clusterConfig.GetClusterAuditConfig(ctx, opts...)
 }
 
@@ -1147,6 +1153,22 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+	if !rg.IsCacheRead() {
+		ta := func(_ types.ClusterNetworkingConfig) {} // compile-time type assertion
+		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"networking"}, func() (interface{}, error) {
+			// use cache's close context instead of request context in order to ensure
+			// that we don't cache a context cancellation error.
+			cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(c.ctx, opts...)
+			ta(cfg)
+			return cfg, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedCfg := ci.(types.ClusterNetworkingConfig)
+		ta(cachedCfg)
+		return cachedCfg.Clone(), nil
+	}
 	return rg.clusterConfig.GetClusterNetworkingConfig(ctx, opts...)
 }
 
@@ -1157,10 +1179,24 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+	if !rg.IsCacheRead() {
+		ta := func(_ types.ClusterName) {} // compile-time type assertion
+		ci, err := c.fnCache.Get(context.TODO(), clusterConfigCacheKey{"name"}, func() (interface{}, error) {
+			cfg, err := rg.clusterConfig.GetClusterName(opts...)
+			ta(cfg)
+			return cfg, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedCfg := ci.(types.ClusterName)
+		ta(cachedCfg)
+		return cachedCfg.Clone(), nil
+	}
 	return rg.clusterConfig.GetClusterName(opts...)
 }
 
-// GetRoles is a part of auth.AccessPoint implementation
+// GetRoles is a part of auth.Cache implementation
 func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1170,7 +1206,7 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return rg.access.GetRoles(ctx)
 }
 
-// GetRole is a part of auth.AccessPoint implementation
+// GetRole is a part of auth.Cache implementation
 func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1200,7 +1236,7 @@ func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
 	return rg.presence.GetNamespace(name)
 }
 
-// GetNamespaces is a part of auth.AccessPoint implementation
+// GetNamespaces is a part of auth.Cache implementation
 func (c *Cache) GetNamespaces() ([]types.Namespace, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1220,24 +1256,90 @@ func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Serv
 	return rg.presence.GetNode(ctx, namespace, name)
 }
 
-// GetNodes is a part of auth.AccessPoint implementation
+type getNodesCacheKey struct {
+	namespace string
+}
+
+var _ map[getNodesCacheKey]struct{} // compile-time hashability check
+
+// GetNodes is a part of auth.Cache implementation
 func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+
+	if !rg.IsCacheRead() {
+		ta := func(_ []types.Server) {} // compile-time type assertion
+		ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
+			// use cache's close context instead of request context in order to ensure
+			// that we don't cache a context cancellation error.
+			nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
+			ta(nodes)
+			return nodes, err
+		})
+		if err != nil || ni == nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedNodes := ni.([]types.Server)
+		ta(cachedNodes)
+		nodes := make([]types.Server, 0, len(cachedNodes))
+		for _, node := range cachedNodes {
+			nodes = append(nodes, node.DeepCopy())
+		}
+		return nodes, nil
+	}
+
 	return rg.presence.GetNodes(ctx, namespace, opts...)
 }
 
-// ListNodes is a part of auth.AccessPoint implementation
-func (c *Cache) ListNodes(ctx context.Context, namespace string, limit int, startKey string) ([]types.Server, string, error) {
-	rg, err := c.read()
+// ListNodes is a part of auth.Cache implementation
+func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
+	// NOTE: we "fake" the ListNodes API here in order to take advantage of TTL-based caching of
+	// the GetNodes endpoint, since performing TTL-based caching on a paginated endpoint is nightmarish.
+
+	limit := int(req.Limit)
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive limit value")
+	}
+
+	nodes, err := c.GetNodes(ctx, req.Namespace)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	defer rg.Release()
-	return rg.presence.ListNodes(ctx, namespace, limit, startKey)
+
+	// trim nodes that precede start key
+	if req.StartKey != "" {
+		pageStart := 0
+		for i, node := range nodes {
+			if node.GetName() < req.StartKey {
+				pageStart = i + 1
+			} else {
+				break
+			}
+		}
+		nodes = nodes[pageStart:]
+	}
+
+	// iterate and filter nodes, halting when we reach page limit
+	var filtered []types.Server
+	for _, node := range nodes {
+		if len(filtered) == limit {
+			break
+		}
+
+		if node.MatchAgainst(req.Labels) {
+			filtered = append(filtered, node)
+		}
+	}
+
+	var nextKey string
+	if len(filtered) == limit {
+		nextKey = backend.NextPaginationKey(filtered[len(filtered)-1])
+	}
+
+	return filtered, nextKey, nil
 }
 
 // GetAuthServers returns a list of registered servers
@@ -1250,7 +1352,7 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	return rg.presence.GetAuthServers()
 }
 
-// GetReverseTunnels is a part of auth.AccessPoint implementation
+// GetReverseTunnels is a part of auth.Cache implementation
 func (c *Cache) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1260,7 +1362,7 @@ func (c *Cache) GetReverseTunnels(opts ...services.MarshalOption) ([]types.Rever
 	return rg.presence.GetReverseTunnels(opts...)
 }
 
-// GetProxies is a part of auth.AccessPoint implementation
+// GetProxies is a part of auth.Cache implementation
 func (c *Cache) GetProxies() ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1270,6 +1372,12 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 	return rg.presence.GetProxies()
 }
 
+type remoteClustersCacheKey struct {
+	name string
+}
+
+var _ map[remoteClustersCacheKey]struct{} // compile-time hashability check
+
 // GetRemoteClusters returns a list of remote clusters
 func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	rg, err := c.read()
@@ -1277,6 +1385,24 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+	if !rg.IsCacheRead() {
+		ta := func(_ []types.RemoteCluster) {} // compile-time type assertion
+		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{}, func() (interface{}, error) {
+			remotes, err := rg.presence.GetRemoteClusters(opts...)
+			ta(remotes)
+			return remotes, err
+		})
+		if err != nil || ri == nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedRemotes := ri.([]types.RemoteCluster)
+		ta(cachedRemotes)
+		remotes := make([]types.RemoteCluster, 0, len(cachedRemotes))
+		for _, remote := range cachedRemotes {
+			remotes = append(remotes, remote.Clone())
+		}
+		return remotes, nil
+	}
 	return rg.presence.GetRemoteClusters(opts...)
 }
 
@@ -1287,10 +1413,24 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
+	if !rg.IsCacheRead() {
+		ta := func(_ types.RemoteCluster) {} // compile-time type assertion
+		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{clusterName}, func() (interface{}, error) {
+			remote, err := rg.presence.GetRemoteCluster(clusterName)
+			ta(remote)
+			return remote, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cachedRemote := ri.(types.RemoteCluster)
+		ta(cachedRemote)
+		return cachedRemote.Clone(), nil
+	}
 	return rg.presence.GetRemoteCluster(clusterName)
 }
 
-// GetUser is a part of auth.AccessPoint implementation.
+// GetUser is a part of auth.Cache implementation.
 func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err error) {
 	if withSecrets { // cache never tracks user secrets
 		return c.Config.Users.GetUser(name, withSecrets)
@@ -1314,7 +1454,7 @@ func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err err
 	return user, trace.Wrap(err)
 }
 
-// GetUsers is a part of auth.AccessPoint implementation
+// GetUsers is a part of auth.Cache implementation
 func (c *Cache) GetUsers(withSecrets bool) (users []types.User, err error) {
 	if withSecrets { // cache never tracks user secrets
 		return c.Users.GetUsers(withSecrets)
@@ -1327,9 +1467,7 @@ func (c *Cache) GetUsers(withSecrets bool) (users []types.User, err error) {
 	return rg.users.GetUsers(withSecrets)
 }
 
-// GetTunnelConnections is a part of auth.AccessPoint implementation
-// GetTunnelConnections are not using recent cache as they are designed
-// to be called periodically and always return fresh data
+// GetTunnelConnections is a part of auth.Cache implementation
 func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1339,9 +1477,7 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 	return rg.presence.GetTunnelConnections(clusterName, opts...)
 }
 
-// GetAllTunnelConnections is a part of auth.AccessPoint implementation
-// GetAllTunnelConnections are not using recent cache, as they are designed
-// to be called periodically and always return fresh data
+// GetAllTunnelConnections is a part of auth.Cache implementation
 func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []types.TunnelConnection, err error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1351,7 +1487,7 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 	return rg.presence.GetAllTunnelConnections(opts...)
 }
 
-// GetKubeServices is a part of auth.AccessPoint implementation
+// GetKubeServices is a part of auth.Cache implementation
 func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	rg, err := c.read()
 	if err != nil {

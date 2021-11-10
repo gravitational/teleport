@@ -325,9 +325,9 @@ type Config struct {
 	// HomePath is where tsh stores profiles
 	HomePath string
 
-	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
-	// all proxy services are exposed on single TLS listener (Proxy Web Listener).
-	ALPNSNIListenerEnabled bool
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	TLSRoutingEnabled bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -401,6 +401,9 @@ type ProfileStatus struct {
 	// ActiveRequests tracks the privilege escalation requests applied
 	// during certificate construction.
 	ActiveRequests services.RequestIDs
+
+	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
+	AWSRolesARNs []string
 }
 
 // IsExpired returns true if profile is not expired yet
@@ -645,6 +648,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		KubeGroups:     tlsID.KubernetesGroups,
 		Databases:      databases,
 		Apps:           apps,
+		AWSRolesARNs:   tlsID.AWSRoleARNs,
 	}, nil
 }
 
@@ -781,7 +785,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.SSHProxyAddr = cp.SSHProxyAddr
 	c.PostgresProxyAddr = cp.PostgresProxyAddr
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
-	c.ALPNSNIListenerEnabled = cp.ALPNSNIListenerEnabled
+	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -814,7 +818,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.MySQLProxyAddr = c.MySQLProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
-	cp.ALPNSNIListenerEnabled = c.ALPNSNIListenerEnabled
+	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
@@ -1161,18 +1165,6 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// accessPoint returns access point based on the cache policy
-func (tc *TeleportClient) accessPoint(clt auth.AccessPoint, proxyHostPort string, clusterName string) (auth.AccessPoint, error) {
-	// If no caching policy was set or on Windows (where Teleport does not
-	// support file locking at the moment), return direct access to the access
-	// point.
-	if tc.CachePolicy == nil || runtime.GOOS == constants.WindowsOS {
-		log.Debugf("not using caching access point")
-		return clt, nil
-	}
-	return clt, nil
 }
 
 // LocalAgent is a getter function for the client's local agent
@@ -2106,7 +2098,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}
 	log.Infof("Connecting proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 
-	sshClient, err := makeProxySSHClient(tc.Config, sshConfig)
+	sshClient, err := makeProxySSHClient(tc, sshConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2125,11 +2117,17 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}, nil
 }
 
-func makeProxySSHClientWithTLSWrapper(cfg Config, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, &tls.Config{
-		NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
-	})
+func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	cfg := tc.Config
+	clientTLSConf, err := tc.loadTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clientTLSConf.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
+	clientTLSConf.InsecureSkipVerify = cfg.InsecureSkipVerify
+
+	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, clientTLSConf)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to dial tls %v", cfg.WebProxyAddr)
 	}
@@ -2141,13 +2139,13 @@ func makeProxySSHClientWithTLSWrapper(cfg Config, sshConfig *ssh.ClientConfig) (
 	return ssh.NewClient(c, chans, reqs), nil
 }
 
-func makeProxySSHClient(cfg Config, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	if cfg.ALPNSNIListenerEnabled {
-		return makeProxySSHClientWithTLSWrapper(cfg, sshConfig)
+func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	if tc.Config.TLSRoutingEnabled {
+		return makeProxySSHClientWithTLSWrapper(tc, sshConfig)
 	}
-	client, err := ssh.Dial("tcp", cfg.SSHProxyAddr, sshConfig)
+	client, err := ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.SSHProxyAddr)
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
 	}
 	return client, nil
 }
@@ -2661,7 +2659,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 		tc.MySQLProxyAddr = net.JoinHostPort(tc.WebProxyHost(), strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
 	}
 
-	tc.ALPNSNIListenerEnabled = proxySettings.ALPNSNIListenerEnabled
+	tc.TLSRoutingEnabled = proxySettings.TLSRoutingEnabled
 
 	return nil
 }
@@ -2960,6 +2958,25 @@ func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, erro
 	case <-time.After(500 * time.Millisecond):
 		return "", trace.NotFound("timed out waiting for server response")
 	}
+}
+
+// loadTLS returns the user's TLS configuration for an external identity if the SkipLocalAuth flag was set
+// or teleport core TLS certificate for the local agent.
+func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
+	// if SkipLocalAuth flag is set use an external identity file instead of loading cert from the local agent.
+	if tc.SkipLocalAuth {
+		return tc.TLS.Clone(), nil
+	}
+
+	tlsKey, err := tc.localAgent.GetCoreKey()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
+	}
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate client TLS config")
+	}
+	return tlsConfig, nil
 }
 
 // passwordFromConsoleFn allows tests to replace the passwordFromConsole

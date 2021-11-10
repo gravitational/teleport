@@ -78,7 +78,7 @@ type server struct {
 	localAuthClient auth.ClientI
 	// localAccessPoint provides access to a cached subset of the Auth
 	// Server API.
-	localAccessPoint auth.AccessPoint
+	localAccessPoint auth.ProxyAccessPoint
 
 	// srv is the "base class" i.e. the underlying SSH server
 	srv     *sshutils.Server
@@ -96,7 +96,7 @@ type server struct {
 	clusterPeers map[string]*clusterPeers
 
 	// newAccessPoint returns new caching access point
-	newAccessPoint auth.NewCachingAccessPoint
+	newAccessPoint auth.NewRemoteProxyCachingAccessPoint
 
 	// cancel function will cancel the
 	cancel context.CancelFunc
@@ -145,10 +145,10 @@ type Config struct {
 	// AccessPoint provides access to a subset of AuthClient of the cluster.
 	// AccessPoint caches values and can still return results during connection
 	// problems.
-	LocalAccessPoint auth.AccessPoint
+	LocalAccessPoint auth.ProxyAccessPoint
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
-	NewCachingAccessPoint auth.NewCachingAccessPoint
+	NewCachingAccessPoint auth.NewRemoteProxyCachingAccessPoint
 	// DirectClusters is a list of clusters accessed directly
 	DirectClusters []DirectCluster
 	// Context is a signalling context
@@ -198,7 +198,7 @@ type Config struct {
 	// NewCachingAccessPointOldProxy is an access point that can be configured
 	// with the old access point policy until all clusters are migrated to 7.0.0
 	// and above.
-	NewCachingAccessPointOldProxy auth.NewCachingAccessPoint
+	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
 
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
@@ -1040,7 +1040,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	// don't assume the newer organization of cluster configuration resources
 	// (RFD 28) because older proxy servers will reject that causing the cache
 	// to go into a re-sync loop.
-	var accessPointFunc auth.NewCachingAccessPoint
+	var accessPointFunc auth.NewRemoteProxyCachingAccessPoint
 	ok, err := isPreV8Cluster(closeContext, sconn)
 	if err != nil {
 		return nil, trace.Wrap(err)

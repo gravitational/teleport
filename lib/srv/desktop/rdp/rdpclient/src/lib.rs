@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 pub mod errors;
 pub mod piv;
 pub mod rdpdr;
@@ -23,26 +37,26 @@ use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
 use std::io::{Cursor, Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
-use std::{mem, ptr, slice};
+use std::{mem, ptr, slice, time};
 
 #[no_mangle]
 pub extern "C" fn init() {
     env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {}", e));
 }
 
-// Client has an unusual lifecycle:
-// - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
-// - most other exported rdp functions take the raw pointer, convert it to a reference for use
-//   without dropping the Client
-// - close_rdp takes the raw pointer and drops it
-//
-// All of the exported rdp functions could run concurrently, so the rdp_client is synchronized.
-// tcp_fd is only set in connect_rdp and used as read-only afterwards, so it does not need
-// synchronization.
+/// Client has an unusual lifecycle:
+/// - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
+/// - most other exported rdp functions take the raw pointer, convert it to a reference for use
+///   without dropping the Client
+/// - close_rdp takes the raw pointer and drops it
+///
+/// All of the exported rdp functions could run concurrently, so the rdp_client is synchronized.
+/// tcp_fd is only set in connect_rdp and used as read-only afterwards, so it does not need
+/// synchronization.
 pub struct Client {
     rdp_client: Arc<Mutex<RdpClient<TcpStream>>>,
     tcp_fd: usize,
@@ -81,11 +95,16 @@ impl From<Result<Client, ConnectError>> for ClientOrError {
     }
 }
 
-// connect_rdp establishes an RDP connection to go_addr with the provided credentials and screen
-// size. If succeeded, the client is internally registered under client_ref. When done with the
-// connection, the caller must call close_rdp.
+/// connect_rdp establishes an RDP connection to go_addr with the provided credentials and screen
+/// size. If succeeded, the client is internally registered under client_ref. When done with the
+/// connection, the caller must call close_rdp.
+///
+/// # Safety
+///
+/// The caller mmust ensure that go_addr, go_username, cert_der, key_der point to valid buffers in respect
+/// to their corresponding parameters.
 #[no_mangle]
-pub extern "C" fn connect_rdp(
+pub unsafe extern "C" fn connect_rdp(
     go_addr: *mut c_char,
     go_username: *mut c_char,
     cert_der_len: u32,
@@ -114,21 +133,24 @@ pub extern "C" fn connect_rdp(
 
 #[derive(Debug)]
 enum ConnectError {
-    TCP(IoError),
-    RDP(RdpError),
+    Tcp(IoError),
+    Rdp(RdpError),
+    InvalidAddr(),
 }
 
 impl From<IoError> for ConnectError {
     fn from(e: IoError) -> ConnectError {
-        ConnectError::TCP(e)
+        ConnectError::Tcp(e)
     }
 }
 
 impl From<RdpError> for ConnectError {
     fn from(e: RdpError) -> ConnectError {
-        ConnectError::RDP(e)
+        ConnectError::Rdp(e)
     }
 }
+
+const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
 
 fn connect_rdp_inner(
     addr: &str,
@@ -139,7 +161,11 @@ fn connect_rdp_inner(
     screen_height: u16,
 ) -> Result<Client, ConnectError> {
     // Connect and authenticate.
-    let tcp = TcpStream::connect(addr)?;
+    let addr = addr
+        .to_socket_addrs()?
+        .next()
+        .ok_or(ConnectError::InvalidAddr())?;
+    let tcp = TcpStream::connect_timeout(&addr, RDP_CONNECT_TIMEOUT)?;
     let tcp_fd = tcp.as_raw_fd() as usize;
     // Domain name "." means current domain.
     let domain = ".";
@@ -154,10 +180,10 @@ fn connect_rdp_inner(
         screen_width,
         screen_height,
         KeyboardLayout::US,
-        // Request the RDPDR static channel.
-        // For some reason, we also need to request RDPSND along with it, although it's never used
-        // explicitly from our end.
-        &vec!["rdpdr".to_string(), "rdpsnd".to_string()],
+        // Request the RDPDR (device redirection) static channel.
+        // For some reason, we also need to request RDPSND (sound) along with it,
+        // although it's never used explicitly from our end.
+        &["rdpdr".to_string(), "rdpsnd".to_string()],
     )?;
     // Password must be non-empty for autologin (sec::InfoFlag::InfoPasswordIsScPin) to trigger on
     // a smartcard.
@@ -187,11 +213,11 @@ fn connect_rdp_inner(
     let rdp_client = RdpClient { mcs, global, rdpdr };
     Ok(Client {
         rdp_client: Arc::new(Mutex::new(rdp_client)),
-        tcp_fd: tcp_fd,
+        tcp_fd,
     })
 }
 
-// From rdp-rs/src/core/client.rs
+/// From rdp-rs/src/core/client.rs
 struct RdpClient<S> {
     mcs: mcs::Client<S>,
     global: global::Client,
@@ -232,15 +258,15 @@ impl<S: Read + Write> RdpClient<S> {
     }
 }
 
-// CGOBitmap is a CGO-compatible version of BitmapEvent that we pass back to Go.
-// BitmapEvent is a video output update from the server.
+/// CGOBitmap is a CGO-compatible version of BitmapEvent that we pass back to Go.
+/// BitmapEvent is a video output update from the server.
 #[repr(C)]
 pub struct CGOBitmap {
     pub dest_left: u16,
     pub dest_top: u16,
     pub dest_right: u16,
     pub dest_bottom: u16,
-    // Memory is freed on the Rust side.
+    /// The memory of this field is managed by the Rust side.
     pub data_ptr: *mut u8,
     pub data_len: usize,
     pub data_cap: usize,
@@ -270,6 +296,7 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
         res.data_ptr = data.as_mut_ptr();
         res.data_len = data.len();
         res.data_cap = data.capacity();
+
         // Prevent the data field from being freed while Go handles it.
         // It will be dropped once CGOBitmap is dropped (see below).
         mem::forget(data);
@@ -282,7 +309,7 @@ impl Drop for CGOBitmap {
     fn drop(&mut self) {
         // Reconstruct into Vec to drop the allocated buffer.
         unsafe {
-            let _ = Vec::from_raw_parts(self.data_ptr, self.data_len, self.data_cap);
+            Vec::from_raw_parts(self.data_ptr, self.data_len, self.data_cap);
         }
     }
 }
@@ -305,11 +332,16 @@ fn wait_for_fd(fd: usize) -> bool {
     }
 }
 
-// read_rdp_output reads incoming RDP bitmap frames from client at client_ref and forwards them to
-// handle_bitmap. handle_bitmap *must not* free the memory of CGOBitmap.
+/// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
+/// handle_bitmap.
+///
+/// # Safety
+///
+/// client_ptr must be a valid pointer to a Client.
+/// handle_bitmap *must not* free the memory of CGOBitmap.
 #[no_mangle]
-pub extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: i64) -> CGOError {
-    let client = unsafe { Client::from_ptr(client_ptr) };
+pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: usize) -> CGOError {
+    let client = Client::from_ptr(client_ptr);
     let client = match client {
         Some(client) => client,
         None => {
@@ -323,7 +355,7 @@ pub extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: i64) -> C
     }
 }
 
-fn read_rdp_output_inner(client: &Client, client_ref: i64) -> Option<String> {
+fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
     let tcp_fd = client.tcp_fd;
     // Read incoming events.
     //
@@ -363,18 +395,18 @@ fn read_rdp_output_inner(client: &Client, client_ref: i64) -> Option<String> {
             return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
         };
         if err != CGO_OK {
-            let err_str = from_cgo_error(err);
+            let err_str = unsafe { from_cgo_error(err) };
             return Some(format!("failed forwarding RDP bitmap frame: {}", err_str));
         }
     }
     None
 }
 
-// CGOPointer is a CGO-compatible version of PointerEvent that we pass back to Go.
-// PointerEvent is a mouse move or click update from the user.
+/// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
+/// PointerEvent is a mouse move or click update from the user.
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct CGOPointer {
+pub struct CGOMousePointerEvent {
     pub x: u16,
     pub y: u16,
     pub button: CGOPointerButton,
@@ -400,8 +432,8 @@ pub enum CGOPointerWheel {
     PointerWheelHorizontal,
 }
 
-impl From<CGOPointer> for PointerEvent {
-    fn from(p: CGOPointer) -> PointerEvent {
+impl From<CGOMousePointerEvent> for PointerEvent {
+    fn from(p: CGOMousePointerEvent) -> PointerEvent {
         PointerEvent {
             x: p.x,
             y: p.y,
@@ -422,9 +454,15 @@ impl From<CGOPointer> for PointerEvent {
     }
 }
 
+/// # Safety
+///
+/// client_ptr must be a valid pointer to a Client.
 #[no_mangle]
-pub extern "C" fn write_rdp_pointer(client_ptr: *mut Client, pointer: CGOPointer) -> CGOError {
-    let client = unsafe { Client::from_ptr(client_ptr) };
+pub unsafe extern "C" fn write_rdp_pointer(
+    client_ptr: *mut Client,
+    pointer: CGOMousePointerEvent,
+) -> CGOError {
+    let client = Client::from_ptr(client_ptr);
     let client = match client {
         Some(client) => client,
         None => {
@@ -436,6 +474,7 @@ pub extern "C" fn write_rdp_pointer(client_ptr: *mut Client, pointer: CGOPointer
         .lock()
         .unwrap()
         .write(RdpEvent::Pointer(pointer.into()));
+
     if let Err(e) = res {
         to_cgo_error(format!("failed writing RDP pointer event: {:?}", e))
     } else {
@@ -443,11 +482,11 @@ pub extern "C" fn write_rdp_pointer(client_ptr: *mut Client, pointer: CGOPointer
     }
 }
 
-// CGOKey is a CGO-compatible version of KeyboardEvent that we pass back to Go.
-// KeyboardEvent is a keyboard update from the user.
+/// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
+/// KeyboardEvent is a keyboard update from the user.
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct CGOKey {
+pub struct CGOKeyboardEvent {
     // Note: there's only one key code sent at a time. A key combo is sent as a sequence of
     // KeyboardEvent messages, one key at a time in the "down" state. The RDP server takes care of
     // interpreting those.
@@ -455,8 +494,8 @@ pub struct CGOKey {
     pub down: bool,
 }
 
-impl From<CGOKey> for KeyboardEvent {
-    fn from(k: CGOKey) -> KeyboardEvent {
+impl From<CGOKeyboardEvent> for KeyboardEvent {
+    fn from(k: CGOKeyboardEvent) -> KeyboardEvent {
         KeyboardEvent {
             code: k.code,
             down: k.down,
@@ -464,9 +503,15 @@ impl From<CGOKey> for KeyboardEvent {
     }
 }
 
+/// # Safety
+///
+/// client_ptr must be a valid pointer to a Client.
 #[no_mangle]
-pub extern "C" fn write_rdp_keyboard(client_ptr: *mut Client, key: CGOKey) -> CGOError {
-    let client = unsafe { Client::from_ptr(client_ptr) };
+pub unsafe extern "C" fn write_rdp_keyboard(
+    client_ptr: *mut Client,
+    key: CGOKeyboardEvent,
+) -> CGOError {
+    let client = Client::from_ptr(client_ptr);
     let client = match client {
         Some(client) => client,
         None => {
@@ -485,9 +530,12 @@ pub extern "C" fn write_rdp_keyboard(client_ptr: *mut Client, key: CGOKey) -> CG
     }
 }
 
+/// # Safety
+///
+/// client_ptr must be a valid pointer to a Client.
 #[no_mangle]
-pub extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOError {
-    let client = unsafe { Client::from_ptr(client_ptr) };
+pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOError {
+    let client = Client::from_ptr(client_ptr);
     let client = match client {
         Some(client) => client,
         None => {
@@ -501,41 +549,56 @@ pub extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOError {
     }
 }
 
-// free_rdp lets the Go side inform us when it's done with Client and it can be dropped.
+/// free_rdp lets the Go side inform us when it's done with Client and it can be dropped.
+///
+/// # Safety
+///
+/// client_ptr must be a valid pointer to a Client.
 #[no_mangle]
-pub extern "C" fn free_rdp(client_ptr: *mut Client) {
-    unsafe { drop(Client::from_raw(client_ptr)) }
+pub unsafe extern "C" fn free_rdp(client_ptr: *mut Client) {
+    drop(Client::from_raw(client_ptr))
 }
 
+/// # Safety
+///
+/// The passed pointer must point to a C-style string allocated by Rust.
 #[no_mangle]
 pub unsafe extern "C" fn free_rust_string(s: *mut c_char) {
     let _ = CString::from_raw(s);
 }
 
-fn from_go_string(s: *mut c_char) -> String {
-    unsafe { CStr::from_ptr(s).to_string_lossy().into_owned().clone() }
+/// # Safety
+///
+/// s must be a C-style null terminated string.
+unsafe fn from_go_string(s: *mut c_char) -> String {
+    CStr::from_ptr(s).to_string_lossy().into_owned()
 }
 
-fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
-    unsafe { slice::from_raw_parts(ptr, len as usize).to_vec() }
+/// # Safety
+///
+/// ptr must be a valid buffer of len bytes.
+unsafe fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
+    slice::from_raw_parts(ptr, len as usize).to_vec()
 }
 
-// CGOError is an alias for a C string pointer, for C API clarity.
+/// CGOError is an alias for a C string pointer, for C API clarity.
 pub type CGOError = *mut c_char;
 
-// CGO_OK is a CGOError value that means "success".
+/// CGO_OK is a CGOError value that means "success".
 const CGO_OK: CGOError = ptr::null_mut();
 
 fn to_cgo_error(s: String) -> CGOError {
     CString::new(s).expect("CString::new failed").into_raw()
 }
 
-// from_cgo_error copies CGOError into a String and frees the underlying Go memory.
-fn from_cgo_error(e: CGOError) -> String {
+/// from_cgo_error copies CGOError into a String and frees the underlying Go memory.
+///
+/// # Safety
+///
+/// The pointer inside the CGOError must point to a valid null terminated Go string.
+unsafe fn from_cgo_error(e: CGOError) -> String {
     let s = from_go_string(e);
-    unsafe {
-        free_go_string(e);
-    }
+    free_go_string(e);
     s
 }
 
@@ -543,8 +606,8 @@ fn from_cgo_error(e: CGOError) -> String {
 // comments.
 extern "C" {
     fn free_go_string(s: *mut c_char);
-    fn handle_bitmap(client_ref: i64, b: CGOBitmap) -> CGOError;
+    fn handle_bitmap(client_ref: usize, b: CGOBitmap) -> CGOError;
 }
 
-// Payload is a generic type used to represent raw incoming RDP messages for parsing.
+/// Payload is a generic type used to represent raw incoming RDP messages for parsing.
 pub(crate) type Payload = Cursor<Vec<u8>>;

@@ -7,7 +7,7 @@ description: Teleport Desktop Access configuration and CLI reference.
   type="warning"
   title="Warning"
 >
-  Desktop Access is currently in Beta. Do not use this feature for any critical
+  Desktop Access is currently in Preview. Do not use this feature for any critical
   infrastructure and keep a backup option for accessing your desktop hosts.
 </Admonition>
 
@@ -45,9 +45,15 @@ windows_desktop_service:
     # likely "EXAMPLE". When connecting as the "Administrator" user, you should
     # use the format: "EXAMPLE\Administrator".
     username: '$LDAP_USERNAME'
-    # LDAP password for authentication. This is usually the same password you
-    # use to login to the Domain Controller.
-    password: '$LDAP_PASSWORD'
+    # Plain text file containing the LDAP password for authentication.
+    # This is usually the same password you use to login to the Domain Controller.
+    password_file: /var/lib/ldap-pass
+  # (optional) settings for enabling automatic desktop discovery via LDAP
+  discovery:
+    # currently supported values:
+    # '*' to search from the root of the domain
+    # ''  to disable desktop discovery
+    base_dn: '*'
   # Rules for applying labels to Windows hosts based on regular expressions
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.
@@ -85,10 +91,10 @@ spec:
       environment: ["dev", "stage"]
     
     # Windows user accounts this role can connect as.
-    windows_logins: ["Administrator"]
+    windows_desktop_logins: ["Administrator"]
 ```
 
-It is possible to use wildcards to match any desktop labels.
+It is possible to use wildcards to match all desktop labels.
 
 ## CLI
 

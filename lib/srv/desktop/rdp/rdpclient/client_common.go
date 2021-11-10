@@ -20,10 +20,9 @@ package rdpclient
 import (
 	"context"
 
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/lib/srv/desktop/deskproto"
 )
 
 // Config for creating a new Client.
@@ -36,13 +35,13 @@ type Config struct {
 	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
 	AuthorizeFn func(login string) error
 
-	// TODO(zmb3): replace these callbacks with a deskproto.Conn
+	// TODO(zmb3): replace these callbacks with a tdp.Conn
 
 	// InputMessage is called to receive a message from the client for the RDP
 	// server. This function should block until there is a message.
-	InputMessage func() (deskproto.Message, error)
+	InputMessage func() (tdp.Message, error)
 	// OutputMessage is called to send a message from RDP server to the client.
-	OutputMessage func(deskproto.Message) error
+	OutputMessage func(tdp.Message) error
 
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger

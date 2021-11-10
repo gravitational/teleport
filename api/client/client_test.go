@@ -332,7 +332,10 @@ func TestLimitExceeded(t *testing.T) {
 	require.NoError(t, err)
 
 	// ListNodes should return a limit exceeded error when exceeding gRPC message size limit.
-	_, _, err = clt.ListNodes(ctx, defaults.Namespace, 50, "")
+	_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+		Namespace: defaults.Namespace,
+		Limit:     50,
+	})
 	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
 
 	// GetNodes should retrieve all nodes and transparently handle limit exceeded errors.

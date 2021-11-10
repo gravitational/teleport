@@ -17,11 +17,15 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
+	"os"
+	"text/template"
 
 	"github.com/gravitational/trace"
 
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -29,26 +33,35 @@ import (
 )
 
 func onProxyCommandSSH(cf *CLIConf) error {
-	client, err := makeClient(cf, false)
+	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	address, err := utils.ParseAddr(client.WebProxyAddr)
+	address, err := utils.ParseAddr(tc.WebProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	pool, err := tc.LocalAgent().ClientCertPool(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tlsConfig := &tls.Config{
+		RootCAs: pool,
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:    client.WebProxyAddr,
+		RemoteProxyAddr:    tc.WebProxyAddr,
 		Protocol:           alpncommon.ProtocolProxySSH,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
-		SSHUser:            cf.Username,
+		SSHUser:            tc.HostLogin,
 		SSHUserHost:        cf.UserHost,
-		SSHHostKeyCallback: client.HostKeyCallback,
+		SSHHostKeyCallback: tc.HostKeyCallback,
 		SSHTrustedCluster:  cf.SiteName,
+		ClientTLSConfig:    tlsConfig,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -92,7 +105,21 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	fmt.Printf("Started DB proxy on %s\n", listener.Addr())
+	profile, err := libclient.StatusCurrent("", cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = dbProxyTpl.Execute(os.Stdout, map[string]string{
+		"database": database.ServiceName,
+		"address":  listener.Addr().String(),
+		"ca":       profile.CACertPath(),
+		"cert":     profile.DatabaseCertPath(database.ServiceName),
+		"key":      profile.KeyPath(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	defer lp.Close()
 	if err := lp.Start(cf.Context); err != nil {
@@ -136,3 +163,12 @@ func toALPNProtocol(dbProtocol string) (alpncommon.Protocol, error) {
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
 }
+
+// dbProxyTpl is the message that gets printed to a user when a database proxy is started.
+var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
+
+Use following credentials to connect to the {{.database}} proxy:
+  ca_file={{.ca}}
+  cert_file={{.cert}}
+  key_file={{.key}}
+`))

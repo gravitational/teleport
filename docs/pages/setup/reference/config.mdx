@@ -222,7 +222,7 @@ auth_service:
             # websites and proxies from requesting U2F challenges on behalf of
             # the legitimate proxy.
             facets:
-            - https://localhost:3080
+            - https://localhost:3080 # app_id should always also be listed as a facet
             - https://localhost
             - localhost:3080
             - localhost
@@ -314,6 +314,10 @@ auth_service:
     # be used with enterprise max_connections and max_sessions. It's unlikely that
     # you'll need to change this.
     # session_control_timeout: 2m
+
+    # Determines the routing strategy used to connect to nodes. Can be
+    # 'unambiguous_match' (default), or 'most_recent'.
+    routing_strategy: unambiguous_match
 
     # License file to start auth server with. Note that this setting is ignored
     # in the Teleport Open-Source Edition and is required only for Teleport Pro, Business

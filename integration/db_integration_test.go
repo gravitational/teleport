@@ -415,6 +415,8 @@ type databaseClusterPack struct {
 type testOptions struct {
 	clock             clockwork.Clock
 	instancePortsFunc func() *InstancePorts
+	rootConfig        func(config *service.Config)
+	leafConfig        func(config *service.Config)
 	nodeName          string
 }
 
@@ -447,6 +449,18 @@ func withNodeName(nodeName string) testOptionFunc {
 func withPortSetupDatabaseTest(portFn func() *InstancePorts) testOptionFunc {
 	return func(o *testOptions) {
 		o.instancePortsFunc = portFn
+	}
+}
+
+func withRootConfig(fn func(*service.Config)) testOptionFunc {
+	return func(o *testOptions) {
+		o.rootConfig = fn
+	}
+}
+
+func withLeafConfig(fn func(*service.Config)) testOptionFunc {
+	return func(o *testOptions) {
+		o.leafConfig = fn
 	}
 }
 
@@ -512,6 +526,9 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
+	if opts.rootConfig != nil {
+		opts.rootConfig(rcConf)
+	}
 
 	// Make leaf cluster config.
 	lcConf := service.MakeDefaultConfig()
@@ -521,6 +538,9 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
+	if opts.leafConfig != nil {
+		opts.rootConfig(lcConf)
+	}
 
 	// Establish trust b/w root and leaf.
 	err = p.root.cluster.CreateEx(t, p.leaf.cluster.Secrets.AsSlice(), rcConf)
@@ -735,10 +755,13 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 	accessPoint, err := site.CachingAccessPoint()
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	for {
 		select {
 		case <-time.Tick(500 * time.Millisecond):
-			servers, err := accessPoint.GetDatabaseServers(context.Background(), apidefaults.Namespace)
+			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
 				logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue
@@ -752,7 +775,7 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 				continue
 			}
 			return
-		case <-time.After(10 * time.Second):
+		case <-ctx.Done():
 			t.Fatal("Leaf cluster access point is unavailable.")
 		}
 	}
