@@ -237,9 +237,9 @@ func dismissMessage(pr *environment.Metadata, required []string) string {
 	var sb strings.Builder
 	sb.WriteString("new commit pushed, please re-review ")
 	for _, reviewer := range required {
-		sb.WriteString(fmt.Sprintf("@%s", reviewer))
+		sb.WriteString(fmt.Sprintf("@%s ", reviewer))
 	}
-	return sb.String()
+	return strings.TrimSpace(sb.String())
 }
 
 // hasFileChangeFromLastApproved checks if there is a file change from the last commit all
