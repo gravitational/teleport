@@ -31,9 +31,9 @@ type Config struct {
 	Context context.Context
 	// Client is the authenticated Github client.
 	Client *github.Client
-	// Reviewers is a json object encoded as a string with
-	// authors mapped to their respective required reviewers.
-	Reviewers string
+	// Reviewers is a map that maps authors to their respective
+	// required reviewers.
+	Reviewers map[string][]string
 	// EventPath is the path of the file with the complete
 	// webhook event payload on the runner.
 	EventPath string
@@ -89,8 +89,11 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Client == nil {
 		return trace.BadParameter("missing parameter Client")
 	}
-	if c.Reviewers == "" {
+	if c.Reviewers == nil {
 		return trace.BadParameter("missing parameter Reviewers")
+	}
+	if _, ok := c.Reviewers[ci.AnyAuthor]; !ok {
+		return trace.BadParameter(`default reviewers are not set in reviewers map. set default reviewers with a wildcard (*) as a key`)
 	}
 	if c.EventPath == "" {
 		c.EventPath = os.Getenv(ci.GithubEventPath)
@@ -104,38 +107,16 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	revs, err := unmarshalReviewers(c.Context, c.Reviewers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	pr, err := GetMetadata(c.EventPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &PullRequestEnvironment{
 		Client:           c.Client,
-		reviewers:        revs,
-		defaultReviewers: revs[ci.AnyAuthor],
+		reviewers:        c.Reviewers,
+		defaultReviewers: c.Reviewers["*"],
 		Metadata:         pr,
 	}, nil
-}
-
-// unmarshalReviewers converts the passed in string representing json object into a map.
-func unmarshalReviewers(ctx context.Context, str string) (map[string][]string, error) {
-	if str == "" {
-		return nil, trace.NotFound("reviewers not found")
-	}
-	m := make(map[string][]string)
-
-	err := json.Unmarshal([]byte(str), &m)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if _, ok := m[ci.AnyAuthor]; !ok {
-		return nil, trace.BadParameter("default reviewers are not set. set default reviewers with a wildcard (*) as a key")
-	}
-	return m, nil
-
 }
 
 // GetReviewersForAuthor gets the required reviewers for the current user.
