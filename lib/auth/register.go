@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -241,6 +242,10 @@ func newUnauthenticatedClient(ctx context.Context, cfg *unauthenticatedClientCon
 	var rawClusterCAs []byte
 	var err error
 
+	tlsConfig := &tls.Config{
+		Time: cfg.Clock.Now,
+	}
+
 	// first, try to read given CA path
 	if cfg.CAPath != "" {
 		rawClusterCAs, err = utils.ReadPath(cfg.CAPath)
@@ -258,14 +263,13 @@ func newUnauthenticatedClient(ctx context.Context, cfg *unauthenticatedClientCon
 		if err == nil {
 			clusterName = clusterCAResponse.ClusterName
 			rawClusterCAs = append(rawClusterCAs, clusterCAResponse.ClusterCAs...)
+
+			// set TLS ServerName to encoded cluster name for SNI routing
+			tlsConfig.ServerName = apiutils.EncodeClusterName(clusterName)
 			break
 		}
 		log.WithError(err).Debugf("Failed to retrieve cluster CA certs from proxy "+
 			"endpoint, %q is probably not a proxy", proxyAddr)
-	}
-
-	tlsConfig := &tls.Config{
-		Time: cfg.Clock.Now,
 	}
 
 	// parse CAs certs if we have any
