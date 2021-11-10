@@ -28,25 +28,59 @@ If you are upgrading from a Teleport version configured to use U2F, see the
 
 ## Step 1/3. Enable WebAuthn support
 
-WebAuthn is disabled by default. To enable WebAuthn support, edit the Teleport
-configuration file `/etc/teleport.yaml` like so:
+WebAuthn is disabled by default. To enable WebAuthn support, update your Teleport
+configuration as below:
 
-```yaml
-# snippet from /etc/teleport.yaml:
-auth_service:
-  authentication:
-    type: local
-    # to enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-    second_factor: on
-    webauthn:
-      rp_id: example.com
-      attestation_allowed_cas:
-      - "/path/to/allowed_ca.pem"
-      attestation_denied_cas:
-      - "/path/to/denied_ca.pem"
-```
+<Tabs>
+  <TabItem label="Static Config" scope={["oss","enterprise"]}>
+    Auth Server `teleport.yaml` file:
 
-The fields in the above snippet are:
+    ```yaml
+    # snippet from /etc/teleport.yaml:
+    auth_service:
+      authentication:
+        type: local
+        # to enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+        second_factor: on
+        webauthn:
+          rp_id: example.com
+          attestation_allowed_cas:
+          - "/path/to/allowed_ca.pem"
+          attestation_denied_cas:
+          - "/path/to/denied_ca.pem"
+    ```
+  </TabItem>
+  <TabItem label="Dynamic resources" scope={["cloud"]}>
+    Create a `cap.yaml` file or get the existing configuration using
+    `tctl get cluster_auth_preference`:
+
+    ```yaml
+    kind: cluster_auth_preference
+    version: v2
+    metadata:
+      name: cluster-auth-preference
+    spec:
+      type: local
+      # to enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+      second_factor: on
+      webauthn:
+        rp_id: example.com
+        attestation_allowed_cas:
+        - "/path/to/allowed_ca.pem"
+        attestation_denied_cas:
+        - "/path/to/denied_ca.pem"
+    ```
+
+    Update the configuration:
+
+    ```code
+    $ tctl create -f cap.yaml
+    # cluster auth preference has been updated
+    ```
+  </TabItem>
+</Tabs>
+
+The fields in the above snippets are:
 
 - `rp_id` - public domain of the Teleport proxy, *excluding* protocol
   (`https://`) and port number
@@ -137,33 +171,80 @@ You can find the inferred `rp_id` in the Teleport Auth Server logs:
 
 Example configuration, including both U2F and WebAuthn settings:
 
-```yaml
-# snippet from /etc/teleport.yaml:
-auth_service:
-  authentication:
-    type: local
-    # to enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-    second_factor: on
-    # valid, pre-existing U2F configuration
-    u2f:
-       app_id: https://example.com
-       facets:
-       - https://example.com:443
-       - https://example.com
-       - example.com:443
-       - example.com
-       device_attestation_cas:
-       - "/path/to/u2f_attestation_ca.pem"
-    # optional WebAuthn configuration
-    webauthn:
-      # inferred from the U2F app_id if not present.
-      rp_id: "example.com"
-      # copied from U2F device_attestation_cas if not present.
-      attestation_allowed_cas:
-      - "/path/to/u2f_attestation_ca.pem"
-      attestation_denied_cas:
-      - "/path/to/denied_ca.pem"
-```
+<Tabs>
+  <TabItem label="Static Config" scope={["oss","enterprise"]}>
+    Auth Server `teleport.yaml` file:
+
+    ```yaml
+    # snippet from /etc/teleport.yaml:
+    auth_service:
+      authentication:
+        type: local
+        # to enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+        second_factor: on
+        # valid, pre-existing U2F configuration
+        u2f:
+          app_id: https://example.com
+          facets:
+          - https://example.com:443
+          - https://example.com
+          - example.com:443
+          - example.com
+          device_attestation_cas:
+          - "/path/to/u2f_attestation_ca.pem"
+        # optional WebAuthn configuration
+        webauthn:
+          # inferred from the U2F app_id if not present.
+          rp_id: "example.com"
+          # copied from U2F device_attestation_cas if not present.
+          attestation_allowed_cas:
+          - "/path/to/u2f_attestation_ca.pem"
+          attestation_denied_cas:
+          - "/path/to/denied_ca.pem"
+    ```
+  </TabItem>
+  <TabItem label="Dynamic resources" scope={["cloud"]}>
+    Create a `cap.yaml` file or get the existing configuration using
+    `tctl get cluster_auth_preference`:
+
+    ```yaml
+    kind: cluster_auth_preference
+    version: v2
+    metadata:
+      name: cluster-auth-preference
+    spec:
+      type: local
+      # to enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+      second_factor: on
+      # valid, pre-existing U2F configuration
+      u2f:
+        app_id: https://example.com
+        facets:
+        - https://example.com:443
+        - https://example.com
+        - example.com:443
+        - example.com
+        device_attestation_cas:
+        - "/path/to/u2f_attestation_ca.pem"
+      # optional WebAuthn configuration
+      webauthn:
+        # inferred from the U2F app_id if not present.
+        rp_id: "example.com"
+        # copied from U2F device_attestation_cas if not present.
+        attestation_allowed_cas:
+        - "/path/to/u2f_attestation_ca.pem"
+        attestation_denied_cas:
+        - "/path/to/denied_ca.pem"
+    ```
+
+    Update the configuration:
+
+    ```code
+    $ tctl create -f cap.yaml
+    # cluster auth preference has been updated
+    ```
+  </TabItem>
+</Tabs>
 
 The fields in the above snippet are:
 
