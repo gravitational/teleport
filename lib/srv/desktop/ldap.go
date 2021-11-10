@@ -36,13 +36,13 @@ type ldapClient struct {
 // client connection. Caller must close the client after using it.
 func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: !cfg.VerifyCA,
+		InsecureSkipVerify: cfg.SkipVerifyCA,
 		// TODO(zmb3): is this necessary?
 		MinVersion: tls.VersionTLS12,
 		MaxVersion: tls.VersionTLS12,
 	}
 
-	if cfg.VerifyCA {
+	if cfg.SkipVerifyCA {
 		// Create a cert pool.
 		certPool := x509.NewCertPool()
 

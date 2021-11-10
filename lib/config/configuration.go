@@ -1218,9 +1218,9 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 
 		// trim whitespace to protect against things like
 		// a leading tab character or trailing newline
-		Password: string(bytes.TrimSpace(ldapPassword)),
-		VerifyCA: fc.WindowsDesktop.LDAP.VerifyCA,
-		CAFile:   fc.WindowsDesktop.LDAP.CAFile,
+		Password:     string(bytes.TrimSpace(ldapPassword)),
+		SkipVerifyCA: fc.WindowsDesktop.LDAP.SkipVerifyCA,
+		CAFile:       fc.WindowsDesktop.LDAP.CAFile,
 	}
 
 	for _, rule := range fc.WindowsDesktop.HostLabels {
