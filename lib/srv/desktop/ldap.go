@@ -40,6 +40,7 @@ func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
 		InsecureSkipVerify: true,
 		VerifyConnection: func(state tls.ConnectionState) error {
 			fmt.Printf("%+v\n", state)
+			fmt.Printf("%+v\n", state.PeerCertificates)
 			return nil
 		},
 		// TODO(zmb3): is this necessary?
