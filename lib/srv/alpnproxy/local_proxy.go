@@ -122,9 +122,6 @@ func (l *LocalProxy) SSHProxy(localAgent *client.LocalKeyAgent) error {
 	}
 	defer upstreamConn.Close()
 
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	client, err := makeSSHClient(upstreamConn, l.cfg.RemoteProxyAddr, &ssh.ClientConfig{
 		User: l.cfg.SSHUser,
 		Auth: []ssh.AuthMethod{
