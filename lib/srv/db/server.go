@@ -224,7 +224,7 @@ func (s *Server) initHeartbeat(ctx context.Context, server types.DatabaseServer)
 		Mode:            srv.HeartbeatModeDB,
 		Announcer:       s.cfg.AccessPoint,
 		GetServerInfo:   s.getServerInfoFunc(server),
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
