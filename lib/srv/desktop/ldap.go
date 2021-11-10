@@ -38,6 +38,11 @@ func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
 	// issuing those.
 	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(&tls.Config{
 		InsecureSkipVerify: true,
+		VerifyConnection: func(state tls.ConnectionState) error {
+			fmt.Printf("%+v\n", state)
+			fmt.Printf("%+v\n", state.PeerCertificates)
+			return nil
+		},
 		// TODO(zmb3): is this necessary?
 		MinVersion: tls.VersionTLS12,
 		MaxVersion: tls.VersionTLS12,
