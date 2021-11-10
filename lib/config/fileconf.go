@@ -1326,8 +1326,8 @@ type LDAPConfig struct {
 	// PasswordFile is a text file containing the password for LDAP authentication.
 	PasswordFile string `yaml:"password_file"`
 	// VerifyCA decides whether whether we verify the CA when making the LDAPS connection.
-	VerifyCA string `yaml:"verify_ca"`
-	// CAFile is an optional DER encoded CA cert to be used for verification
-	// (along with any trusted system certs) if VerifyCA is set to true.
+	VerifyCA bool `yaml:"verify_ca"`
+	// CAFile is an optional DER encoded CA cert to be used for verification (along with any trusted system certs)
+	// if VerifyCA is set to true.
 	CAFile string `yaml:"ca_file,omitempty"`
 }

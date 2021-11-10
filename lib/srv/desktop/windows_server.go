@@ -135,6 +135,11 @@ type LDAPConfig struct {
 	// Password is an LDAP password. Usually it's the same user password used
 	// for local logins on the Domain Controller.
 	Password string
+	// VerifyCA decides whether whether we verify the CA when making the LDAPS connection.
+	VerifyCA bool
+	// CAFile is an optional DER encoded CA cert to be used for verification (along with any trusted system certs)
+	// if VerifyCA is set to true.
+	CAFile string
 }
 
 func (cfg LDAPConfig) check() error {

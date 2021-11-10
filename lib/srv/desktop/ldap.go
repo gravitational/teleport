@@ -35,42 +35,41 @@ type ldapClient struct {
 // newLDAPClient connects to an LDAP server, authenticates and returns the
 // client connection. Caller must close the client after using it.
 func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
-	// Get the SystemCertPool, continue with an empty pool on error
-	rootCAs, _ := x509.SystemCertPool()
-	if rootCAs == nil {
-		rootCAs = x509.NewCertPool()
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: !cfg.VerifyCA,
+		// TODO(zmb3): is this necessary?
+		MinVersion: tls.VersionTLS12,
+		MaxVersion: tls.VersionTLS12,
 	}
 
-	const localCertFile = "/home/zmb/ldap-ca-der.cer"
-	// Read in the raw_cert file
-	raw_cert, err := ioutil.ReadFile(localCertFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	if cfg.VerifyCA {
+		// Create a cert pool.
+		certPool := x509.NewCertPool()
 
-	cert, err := x509.ParseCertificate(raw_cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		// Read the user supplied raw_cert file.
+		raw_cert, err := ioutil.ReadFile(cfg.CAFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	// Append our cert to the system pool
-	rootCAs.AddCert(cert)
+		cert, err := x509.ParseCertificate(raw_cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	for _, sub := range rootCAs.Subjects() {
-		fmt.Printf("%s\n", sub)
+		// Append our cert to the pool.
+		certPool.AddCert(cert)
+
+		// Supply our cert pool to TLS config for verification.
+		tlsConfig.RootCAs = certPool
+		// Register the CA's Subject as a valid name for cert verification.
+		tlsConfig.ServerName = cert.Subject.CommonName
 	}
 
 	// TODO(zmb3): should we get a CA cert for the LDAP cert validation? Active
 	// Directory Certificate Services (their managed CA thingy) seems to be
 	// issuing those.
-	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(&tls.Config{
-		InsecureSkipVerify: false,
-		RootCAs:            rootCAs,
-		// ServerName:         cert.Subject.CommonName,
-		// TODO(zmb3): is this necessary?
-		MinVersion: tls.VersionTLS12,
-		MaxVersion: tls.VersionTLS12,
-	}))
+	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(tlsConfig))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

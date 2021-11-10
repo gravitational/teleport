@@ -877,6 +877,11 @@ type LDAPConfig struct {
 	Username string
 	// Password for LDAP authentication.
 	Password string
+	// VerifyCA decides whether whether we verify the CA when making the LDAPS connection.
+	VerifyCA bool
+	// CAFile is an optional DER encoded CA cert to be used for verification (along with any trusted system certs)
+	// if VerifyCA is set to true.
+	CAFile string
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
