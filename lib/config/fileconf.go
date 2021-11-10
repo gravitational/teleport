@@ -1327,7 +1327,6 @@ type LDAPConfig struct {
 	PasswordFile string `yaml:"password_file"`
 	// SkipVerifyCA decides whether whether we skip verifying the CA when making the LDAPS connection.
 	SkipVerifyCA bool `yaml:"verify_ca"`
-	// CAFile is an optional DER encoded CA cert to be used for verification (along with any trusted system certs)
-	// if SkipVerifyCA is set to true.
+	// CAFile is an optional DER encoded CA cert to be used for verificationif SkipVerifyCA is set to false.
 	CAFile string `yaml:"ca_file,omitempty"`
 }

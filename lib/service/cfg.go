@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -879,9 +880,8 @@ type LDAPConfig struct {
 	Password string
 	// SkipVerifyCA decides whether whether we skip verifying the CA when making the LDAPS connection.
 	SkipVerifyCA bool
-	// CAFile is an optional DER encoded CA cert to be used for verification (along with any trusted system certs)
-	// if SkipVerifyCA is set to true.
-	CAFile string
+	// CA is an optional CA cert to be used for verificationif SkipVerifyCA is set to false.
+	CA *x509.Certificate
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

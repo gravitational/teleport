@@ -20,7 +20,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
@@ -42,28 +41,17 @@ func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
 		MaxVersion: tls.VersionTLS12,
 	}
 
-	if cfg.SkipVerifyCA {
+	if !cfg.SkipVerifyCA {
 		// Create a cert pool.
 		certPool := x509.NewCertPool()
 
-		// Read the user supplied raw_cert file.
-		raw_cert, err := ioutil.ReadFile(cfg.CAFile)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cert, err := x509.ParseCertificate(raw_cert)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		// Append our cert to the pool.
-		certPool.AddCert(cert)
+		certPool.AddCert(cfg.CA)
 
 		// Supply our cert pool to TLS config for verification.
 		tlsConfig.RootCAs = certPool
 		// Register the CA's Subject as a valid name for cert verification.
-		tlsConfig.ServerName = cert.Subject.CommonName
+		tlsConfig.ServerName = cfg.CA.Subject.CommonName
 	}
 
 	// TODO(zmb3): should we get a CA cert for the LDAP cert validation? Active

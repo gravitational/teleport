@@ -23,6 +23,7 @@ package config
 import (
 	"bufio"
 	"bytes"
+	"crypto/x509"
 	"io"
 	"io/ioutil"
 	"net"
@@ -1211,6 +1212,20 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.WrapWithMessage(err, "loading LDAP password from file %v",
 			fc.WindowsDesktop.LDAP.PasswordFile)
 	}
+
+	var cert *x509.Certificate
+	if !fc.WindowsDesktop.LDAP.SkipVerifyCA {
+		raw_cert, err := ioutil.ReadFile(fc.WindowsDesktop.LDAP.CAFile)
+		if err != nil {
+			return trace.WrapWithMessage(err, "loading LDAP root CA from file %v", fc.WindowsDesktop.LDAP.CAFile)
+		}
+
+		cert, err = x509.ParseCertificate(raw_cert)
+		if err != nil {
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA file %v: ensure this is a DER encoded root CA certificate", fc.WindowsDesktop.LDAP.CAFile)
+		}
+	}
+
 	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
 		Addr:     fc.WindowsDesktop.LDAP.Addr,
 		Username: fc.WindowsDesktop.LDAP.Username,
@@ -1220,7 +1235,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		// a leading tab character or trailing newline
 		Password:     string(bytes.TrimSpace(ldapPassword)),
 		SkipVerifyCA: fc.WindowsDesktop.LDAP.SkipVerifyCA,
-		CAFile:       fc.WindowsDesktop.LDAP.CAFile,
+		CA:           cert,
 	}
 
 	for _, rule := range fc.WindowsDesktop.HostLabels {
