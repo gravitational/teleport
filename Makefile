@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=8.0.0-beta.3
+VERSION=8.0.0-rc.1
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -510,12 +510,18 @@ integration-root:
 	$(CGOFLAG) go test -p 4 -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
-# Lint the Go code.
+# Lint the source code.
 # By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
+
+.PHONY: lint-rdp
+lint-rdp:
+	cd lib/srv/desktop/rdp/rdpclient \
+		&& cargo clippy --locked --all-targets -- -D warnings \
+		&& cargo fmt -- --check
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -584,7 +590,6 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore '**/*.html' \
 		-ignore '**/*.js' \
 		-ignore '**/*.py' \
-		-ignore '**/*.rs' \
 		-ignore '**/*.sh' \
 		-ignore '**/*.tf' \
 		-ignore '**/*.yaml' \
@@ -597,7 +602,8 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'vendor/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
-		-ignore 'ignoreme'
+		-ignore 'ignoreme' \
+		-ignore lib/srv/desktop/rdp/rdpclient/target
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)

@@ -3605,7 +3605,7 @@ func (a *ServerWithRoles) CompleteAccountRecovery(ctx context.Context, req *prot
 }
 
 // CreateAccountRecoveryCodes is implemented by AuthService.CreateAccountRecoveryCodes.
-func (a *ServerWithRoles) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error) {
+func (a *ServerWithRoles) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 	return a.authServer.CreateAccountRecoveryCodes(ctx, req)
 }
 
@@ -3635,7 +3635,7 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 }
 
 // GetAccountRecoveryCodes is implemented by AuthService.GetAccountRecoveryCodes.
-func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error) {
+func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
 	// User in context can retrieve their own recovery codes.
 	return a.authServer.GetAccountRecoveryCodes(ctx, req)
 }
