@@ -34,7 +34,7 @@ If you are upgrading from a Teleport version configured to use U2F, see the
   devices work properly.
 </Admonition>
 
-If you have a pre-existing Teleport cluster configured with either
+If you have an existing Teleport cluster configured with either
 `second_factor:optional` or `second_factor:on`, then WebAuthn automatically
 replaces U2F in `tsh` and Web UI. The existing U2F configuration is used to
 derive the WebAuthn settings and ensure previously-registered devices keep
@@ -44,8 +44,8 @@ If your Teleport cluster is configured using `second_factor:u2f`, you can opt to
 change it to `second_factor:webauthn` (allowing only WebAuthn authenticators) or
 `second_factor:on` (allowing both WebAuthn and OTP).
 
-It is recommended to capture the inferred `rp_id` in your `/etc/teleport.yaml`
-file. You can find the inferred `rp_id` in the Teleport Auth Server logs:
+We recommend capturing the inferred `rp_id` in your `/etc/teleport.yaml` file.
+You can find the inferred `rp_id` in the Teleport Auth Server logs:
 
 ```
 2021-10-04T18:03:22-07:00 INFO WebAuthn: RPID inferred from U2F configuration: "example.com" types/authentication.go:504
