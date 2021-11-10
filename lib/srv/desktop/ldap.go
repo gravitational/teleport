@@ -37,7 +37,7 @@ func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
 	// Directory Certificate Services (their managed CA thingy) seems to be
 	// issuing those.
 	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(&tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: false,
 		VerifyConnection: func(state tls.ConnectionState) error {
 			fmt.Printf("%+v\n", state)
 			for _, c := range state.PeerCertificates {
