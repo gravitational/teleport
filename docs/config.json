@@ -294,13 +294,6 @@
       "entries": [
         { "title": "Introduction", "slug": "/cloud/introduction/" },
         { "title": "Getting Started", "slug": "/cloud/getting-started/" },
-        {
-          "title": "Guides",
-          "slug": "/cloud/guides/",
-          "entries": [
-            { "title": "WebAuthn", "slug": "/cloud/guides/webauthn/" }
-          ]
-        },
         { "title": "Architecture", "slug": "/cloud/architecture/" },
         { "title": "FAQ", "slug": "/cloud/faq/" }
       ]
