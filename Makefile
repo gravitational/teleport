@@ -257,7 +257,7 @@ ifeq ("$(with_rdpclient)", "yes")
 rdpclient:
 	cargo build --manifest-path=lib/srv/desktop/rdp/rdpclient/Cargo.toml --release $(CARGO_TARGET)
 	cargo install cbindgen
-	cbindgen --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
+	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
 rdpclient:
@@ -510,12 +510,18 @@ integration-root:
 	$(CGOFLAG) go test -p 4 -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
-# Lint the Go code.
+# Lint the source code.
 # By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rdp
+
+.PHONY: lint-rdp
+lint-rdp:
+	cd lib/srv/desktop/rdp/rdpclient \
+		&& cargo clippy --locked --all-targets -- -D warnings \
+		&& cargo fmt -- --check
 
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
@@ -584,7 +590,6 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore '**/*.html' \
 		-ignore '**/*.js' \
 		-ignore '**/*.py' \
-		-ignore '**/*.rs' \
 		-ignore '**/*.sh' \
 		-ignore '**/*.tf' \
 		-ignore '**/*.yaml' \
@@ -597,7 +602,8 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'vendor/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
-		-ignore 'ignoreme'
+		-ignore 'ignoreme' \
+		-ignore lib/srv/desktop/rdp/rdpclient/target
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
@@ -632,7 +638,7 @@ $(VERSRC): Makefile
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
 .PHONY: update-api-module-path
 update-api-module-path:
-	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_beta"
+	go run build.assets/update_api_module_path/main.go -tags "bpf fips pam roletester desktop_access_rdp"
 	$(MAKE) update-vendor
 	$(MAKE) grpc
 

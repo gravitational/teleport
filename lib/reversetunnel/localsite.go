@@ -99,7 +99,7 @@ type localSite struct {
 	client auth.ClientI
 	// accessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
-	accessPoint auth.AccessPoint
+	accessPoint auth.RemoteProxyAccessPoint
 
 	// certificateCache caches host certificates for the forwarding server.
 	certificateCache *certificateCache
@@ -123,8 +123,8 @@ func (s *localSite) GetTunnelsCount() int {
 	return len(s.remoteConns)
 }
 
-// CachingAccessPoint returns a auth.AccessPoint for this cluster.
-func (s *localSite) CachingAccessPoint() (auth.AccessPoint, error) {
+// CachingAccessPoint returns an auth.RemoteProxyAccessPoint for this cluster.
+func (s *localSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	return s.accessPoint, nil
 }
 
@@ -355,7 +355,6 @@ func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.C
 	rconn := newRemoteConn(&connConfig{
 		conn:             conn,
 		sconn:            sconn,
-		accessPoint:      s.accessPoint,
 		tunnelType:       string(connType),
 		proxyName:        s.srv.ID,
 		clusterName:      s.domainName,
