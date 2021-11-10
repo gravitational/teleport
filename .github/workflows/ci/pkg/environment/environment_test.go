@@ -52,7 +52,7 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		{
 			cfg: Config{
 				Client:    github.NewClient(nil),
-				Reviewers: `{"foo": ["bar", "baz"], "*":["admin"]}`,
+				Reviewers: map[string][]string{"foo": {"bar", "baz"}, "*": {"admin"}},
 			},
 			checkErr: require.NoError,
 			desc:     "valid PullRequestEnvironment config",
@@ -67,7 +67,7 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		{
 			cfg: Config{
 				Client:    github.NewClient(nil),
-				Reviewers: `{"foo": ["bar", "baz"], "*":["admin"]}`,
+				Reviewers: map[string][]string{"foo": {"bar", "baz"}, "*": {"admin"}},
 			},
 			checkErr: require.NoError,
 			desc:     "valid PullRequestEnvironment config",
@@ -82,20 +82,10 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		{
 			cfg: Config{
 				Client:    github.NewClient(nil),
-				Reviewers: `{"foo": ["bar", "baz"]}`,
+				Reviewers: map[string][]string{"foo": {"bar", "baz"}},
 			},
 			checkErr:   require.Error,
 			desc:       "invalid PullRequestEnvironment config, has no default reviewers key",
-			expected:   nil,
-			createFile: true,
-		},
-		{
-			cfg: Config{
-				Reviewers: `{"foo": "baz", "*":["admin"]}`,
-				Client:    github.NewClient(nil),
-			},
-			checkErr:   require.Error,
-			desc:       "invalid reviewers object format",
 			expected:   nil,
 			createFile: true,
 		},
