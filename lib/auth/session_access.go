@@ -48,7 +48,12 @@ func getRequirePolicies(participant []types.Role) []*types.SessionRequirePolicy 
 	var policies []*types.SessionRequirePolicy
 
 	for _, role := range participant {
-		policies = append(policies, role.GetSessionRequirePolicies(types.Allow)...)
+		policiesFromRole := role.GetSessionRequirePolicies(types.Allow)
+		if len(policiesFromRole) == 0 {
+			return nil
+		}
+
+		policies = append(policies, policiesFromRole...)
 	}
 
 	return policies
