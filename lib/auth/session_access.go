@@ -90,10 +90,10 @@ func (e *SessionAccessEvaluator) FulfilledFor(participants [][]types.Role) bool 
 					break
 				}
 			}
-		}
 
-		if left <= 0 {
-			return true
+			if left <= 0 {
+				return true
+			}
 		}
 	}
 
