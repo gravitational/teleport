@@ -1172,6 +1172,8 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 	// NOTE: we "fake" the ListNodes API here in order to take advantage of TTL-based caching of
 	// the GetNodes endpoint, since performing TTL-based caching on a paginated endpoint is nightmarish.
 
+	start := time.Now()
+
 	limit := int(req.Limit)
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
@@ -1182,6 +1184,9 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 		return nil, "", trace.Wrap(err)
 	}
 
+	load_time := time.Since(start)
+
+	filter_start := time.Now()
 	// trim nodes that precede start key
 	if req.StartKey != "" {
 		pageStart := 0
@@ -1210,6 +1215,17 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 	var nextKey string
 	if len(filtered) == limit {
 		nextKey = backend.NextPaginationKey(filtered[len(filtered)-1])
+	}
+
+	filter_time := time.Since(filter_start)
+
+	if len(req.Labels) > 0 {
+		c.Infof("[label-debug] Cache.ListNodes with labels (total=%d, filtered=%d)", len(nodes), len(filtered))
+	}
+
+	elapsed := time.Since(start)
+	if elapsed > 2*time.Second {
+		c.Warnf("[label-debug] Cache.ListNodes ran long, elapsed=%s, load_time=%s, filter_time=%s", elapsed, load_time, filter_time)
 	}
 
 	return filtered, nextKey, nil

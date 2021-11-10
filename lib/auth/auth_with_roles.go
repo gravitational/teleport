@@ -649,6 +649,8 @@ func (a *ServerWithRoles) ListNodes(ctx context.Context, req proto.ListNodesRequ
 }
 
 func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
+	start := time.Now()
+
 	limit := int(req.Limit)
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive parameter limit")
@@ -658,8 +660,11 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.List
 	//realLabels := req.Labels
 	//req.Labels = nil
 
+	var iterations int
+
 	page = make([]types.Server, 0, limit)
 	nextKey, err = a.authServer.IterateNodePages(ctx, req, func(nextPage []types.Server) (bool, error) {
+		iterations++
 		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
 		filteredPage, err := a.filterNodes(nextPage)
 		if err != nil {
@@ -686,6 +691,12 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.List
 	// Filled a page, reset nextKey in case the last node was cut out.
 	if len(page) == limit {
 		nextKey = backend.NextPaginationKey(page[len(page)-1])
+	}
+
+	elapsed := time.Since(start)
+
+	if elapsed > 2*time.Second {
+		log.Warnf("[label-debug] ServerWithRoles.filterAndListNodes elapsed=%s, iterations=%d", elapsed, iterations)
 	}
 
 	return page, nextKey, nil
