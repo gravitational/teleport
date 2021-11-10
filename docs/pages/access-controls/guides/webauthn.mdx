@@ -24,9 +24,9 @@ and Web UI), as well as biometric authenticators like Touch ID and Windows Hello
 
 If you are upgrading from a Teleport version configured to use U2F, see the
 [Migrating from U2F](#migrating-from-u2f) section below; otherwise start at
-[Enable WebAuthn support](#enable-webauthn).
+[Enable WebAuthn support](#enable-webauthn-support).
 
-<h2 id="migrating-from-u2f">Migrating from U2F</h2>
+## Migrating from U2F
 
 <Admonition type="warning" title="Warning">
   Do not erase your U2F configuration from `/etc/teleport.yaml` or
@@ -105,7 +105,7 @@ The fields in the above snippet are:
   Devices within this list will be rejected during registration. By default no
   devices are forbidden.
 
-<h2 id="enable-webauthn">Enable WebAuthn support</h2>
+## Enable WebAuthn support
 
 WebAuthn is disabled by default. To enable WebAuthn support, edit the Teleport
 configuration file `/etc/teleport.yaml` like so:
