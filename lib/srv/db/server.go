@@ -54,7 +54,7 @@ type Config struct {
 	// AuthClient is a client directly connected to the Auth server.
 	AuthClient *auth.Client
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.DatabaseAccessPoint
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
@@ -453,7 +453,7 @@ func (s *Server) startHeartbeat(ctx context.Context, database types.Database) er
 		Mode:            srv.HeartbeatModeDB,
 		Announcer:       s.cfg.AccessPoint,
 		GetServerInfo:   s.getServerInfoFunc(database),
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,

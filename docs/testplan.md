@@ -564,7 +564,7 @@ authentication:
 - [ ] Change `second_factor` type to `on` and verify that mfa is required (no option `none` in dropdown)
 
 #### MFA require auth
-Through the CLI, `tsh login` and register a WebAuthn key with `tsh mfa add` (not supported in UI yet).
+Go to `Account Settings` > `Two-Factor Devices` and register a new device
 
 Using the same user as above:
 - [ ] Verify logging in with registered WebAuthn key works
@@ -572,7 +572,16 @@ Using the same user as above:
 - [ ] Verify in the web terminal, you can scp upload/download files
 
 #### MFA Management
-TODO(yassine)
+
+- [ ] Verify adding first device works without requiring re-authentication
+- [ ] Verify re-authenticating with a WebAuthn device works
+- [ ] Verify re-authenticating with a U2F device works
+- [ ] Verify re-authenticating with a OTP device works
+- [ ] Verify adding a WebAuthn device works
+- [ ] Verify adding a U2F device works
+- [ ] Verify adding an OTP device works
+- [ ] Verify removing a device works
+- [ ] Verify `second_factor` set to `off` disables adding devices
 
 ## Cloud
 From your cloud staging account, change the field `teleportVersion` to the test version.
@@ -581,7 +590,10 @@ $ kubectl -n <namespace> edit tenant
 ```
 
 #### Recovery Code Management
-TODO(yassine)
+
+- [ ] Verify generating recovery codes for local accounts with email usernames works
+- [ ] Verify local accounts with non-email usernames are not able to generate recovery codes
+- [ ] Verify SSO accounts are not able to generate recovery codes
 
 #### Invite/Reset
 - [ ] Verify email as usernames, renders recovery codes dialog
@@ -856,3 +868,25 @@ and non interactive tsh bench loads.
   - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
 - [ ] Kubernetes access:
   - [ ] Verify kubernetes access through proxy running in `multiplex` mode
+
+## Desktop Access
+
+- [ ] Can connect to desktop defined in static `hosts` section.
+- [ ] Can connect to desktop discovered via LDAP
+- [ ] Download [Keyboard Key Info](https://dennisbabkin.com/kbdkeyinfo/) and verify all keys are processed correctly in each supported browser. Known issues: F11 cannot be captured by the browser without
+[special configuration](https://social.technet.microsoft.com/Forums/en-US/784b2bbe-353f-412e-ac9a-193d81f306b6/remote-desktop-for-mac-f11-key-not-working-on-macbook-pro-touchbar?forum=winRDc) on MacOS.
+- [ ] Left click and right click register as Windows clicks. (Right click on the
+  desktop should show a Windows menu, not a browser context menu)
+- [ ] Vertical and horizontal scroll work. [Horizontal Scroll Test](https://codepen.io/jaemskyle/pen/inbmB)
+- [ ] All desktops have `teleport.dev/origin` label.
+- [ ] Dynamic desktops have additional `teleport.dev` labels for OS, OS Version,
+  DNS hostname.
+- [ ] Verify that placing a user lock terminates an active desktop session.
+- [ ] Verify desktop session start/end audit events.
+- [ ] Regexp-based host labeling applies across all desktops, regardless of
+  origin.
+- [ ] RBAC denies access to a Windows desktop due to labels
+- [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
+- [ ] Multiple sessions as different users on the same desktop are allowed.
+- [ ] Connect multiple `windows_desktop_service`s to the same Teleport cluster,
+  verify that connections to desktops on different AD domains works.

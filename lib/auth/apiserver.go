@@ -69,7 +69,7 @@ type APIConfig struct {
 // CheckAndSetDefaults checks and sets default values
 func (a *APIConfig) CheckAndSetDefaults() error {
 	if a.KeepAlivePeriod == 0 {
-		a.KeepAlivePeriod = apidefaults.ServerKeepAliveTTL
+		a.KeepAlivePeriod = apidefaults.ServerKeepAliveTTL()
 	}
 	if a.KeepAliveCount == 0 {
 		a.KeepAliveCount = apidefaults.KeepAliveCountMax

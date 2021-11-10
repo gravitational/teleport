@@ -31,7 +31,9 @@ jobs:
       # Checkout master branch of Teleport repository. This is to prevent an
       # attacker from submitting their own review assignment logic.
       - name: Checkout master branch
-        uses: actions/checkout@master        
+        uses: actions/checkout@v2    
+        with:
+          ref: master    
       - name: Installing the latest version of Go.
         uses: actions/setup-go@v2
       # Run "assign-reviewers" subcommand on bot.

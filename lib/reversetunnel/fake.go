@@ -54,13 +54,13 @@ type FakeRemoteSite struct {
 	// ConnCh receives the connection when dialing this site.
 	ConnCh chan net.Conn
 	// AccessPoint is the auth server client.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.RemoteProxyAccessPoint
 	// OfflineTunnels is a list of server IDs that will return connection error.
 	OfflineTunnels map[string]struct{}
 }
 
 // CachingAccessPoint returns caching auth server client.
-func (s *FakeRemoteSite) CachingAccessPoint() (auth.AccessPoint, error) {
+func (s *FakeRemoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	return s.AccessPoint, nil
 }
 
