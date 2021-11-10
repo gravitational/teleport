@@ -83,7 +83,8 @@ After you complete the registration process by setting up a password and enrolli
 
 In this step, we created a user **tadmin** with roles `access, edit`. These are the default roles available in Teleport. However, to allow this user to access the Kubernetes cluster, we will need to assign **tadmin** a role authorized to access the Kubernetes cluster. So first, let's create a role named **member** with the Kubernetes privilege `system:master`.
 
-#### Create a new Kubernetes Role name "member"
+**Create a new Kubernetes Role name "member":**
+
 Create a file name `member.yaml` with the following spec:
 ```code
 $ vi member.yaml
@@ -111,7 +112,8 @@ $ POD=$(kubectl --namespace=teleport-cluster get pod -l app=teleport-cluster -o 
 $ kubectl --namespace=teleport-cluster exec -i ${POD?} -- tctl create -f < member.yaml
 ```
 
-#### Assign "member" role to user "tadmin"
+**Assign "member" role to user "tadmin":**
+
 Now we will assign Teleport user **tadmin** with this role. The example below shows a process using Teleport WebUI:
 First, lets select user edit menu:
 ![Edit User](../../../../img/helm/digitalocean/edit-user.png)
