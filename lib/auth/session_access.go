@@ -30,17 +30,12 @@ const (
 type SessionKind string
 type SessionParticipantMode string
 
-type User struct {
-	user  types.User
-	roles []types.Role
-}
-
 type SessionAccessEvaluator struct {
 	kind     SessionKind
 	requires []*types.SessionRequirePolicy
 }
 
-func NewSessionAccessEvaluator(initiator User, kind SessionKind) SessionAccessEvaluator {
+func NewSessionAccessEvaluator(initiator []types.Role, kind SessionKind) SessionAccessEvaluator {
 	requires := getRequirePolicies(initiator)
 
 	return SessionAccessEvaluator{
@@ -49,20 +44,20 @@ func NewSessionAccessEvaluator(initiator User, kind SessionKind) SessionAccessEv
 	}
 }
 
-func getRequirePolicies(participant User) []*types.SessionRequirePolicy {
+func getRequirePolicies(participant []types.Role) []*types.SessionRequirePolicy {
 	var policies []*types.SessionRequirePolicy
 
-	for _, role := range participant.roles {
+	for _, role := range participant {
 		policies = append(policies, role.GetSessionRequirePolicies(types.Allow)...)
 	}
 
 	return policies
 }
 
-func getAllowPolicies(participant User) []*types.SessionJoinPolicy {
+func getAllowPolicies(participant []types.Role) []*types.SessionJoinPolicy {
 	var policies []*types.SessionJoinPolicy
 
-	for _, role := range participant.roles {
+	for _, role := range participant {
 		policies = append(policies, role.GetSessionJoinPolicies(types.Allow)...)
 	}
 
@@ -74,7 +69,7 @@ func matchesPolicy(require *types.SessionRequirePolicy, allow *types.SessionJoin
 	return true
 }
 
-func (e *SessionAccessEvaluator) FulfilledFor(participants []User) bool {
+func (e *SessionAccessEvaluator) FulfilledFor(participants [][]types.Role) bool {
 	for _, requirePolicy := range e.requires {
 		left := requirePolicy.Count
 
