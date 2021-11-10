@@ -1209,7 +1209,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	ldapPassword, err := os.ReadFile(fc.WindowsDesktop.LDAP.PasswordFile)
 	if err != nil {
-		return trace.WrapWithMessage(err, "loading LDAP password from file %v",
+		return trace.WrapWithMessage(err, "error loading LDAP password from file %v",
 			fc.WindowsDesktop.LDAP.PasswordFile)
 	}
 
@@ -1217,12 +1217,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if !fc.WindowsDesktop.LDAP.SkipVerifyCA {
 		raw_cert, err := ioutil.ReadFile(fc.WindowsDesktop.LDAP.CAFile)
 		if err != nil {
-			return trace.WrapWithMessage(err, "loading LDAP root CA from file %v", fc.WindowsDesktop.LDAP.CAFile)
+			return trace.WrapWithMessage(err, "error loading LDAP root CA from file %v", fc.WindowsDesktop.LDAP.CAFile)
 		}
 
 		cert, err = x509.ParseCertificate(raw_cert)
 		if err != nil {
-			return trace.WrapWithMessage(err, "parsing the LDAP root CA file %v: ensure this is a DER encoded root CA certificate", fc.WindowsDesktop.LDAP.CAFile)
+			return trace.WrapWithMessage(err, "error parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.CAFile)
 		}
 	}
 

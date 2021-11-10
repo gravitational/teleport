@@ -1326,7 +1326,7 @@ type LDAPConfig struct {
 	// PasswordFile is a text file containing the password for LDAP authentication.
 	PasswordFile string `yaml:"password_file"`
 	// SkipVerifyCA decides whether whether we skip verifying the CA when making the LDAPS connection.
-	SkipVerifyCA bool `yaml:"verify_ca"`
+	SkipVerifyCA bool `yaml:"skip_verify_ca"`
 	// CAFile is an optional DER encoded CA cert to be used for verificationif SkipVerifyCA is set to false.
 	CAFile string `yaml:"ca_file,omitempty"`
 }

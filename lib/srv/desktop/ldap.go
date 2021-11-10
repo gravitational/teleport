@@ -50,7 +50,7 @@ func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
 
 		// Supply our cert pool to TLS config for verification.
 		tlsConfig.RootCAs = certPool
-		// Register the CA's Subject as a valid name for cert verification.
+		// Register the CA's Subject CN as a valid name for cert verification.
 		tlsConfig.ServerName = cfg.CA.Subject.CommonName
 	}
 
