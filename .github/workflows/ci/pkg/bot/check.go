@@ -57,14 +57,11 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// If @r0mant and @russjones approve a pull request, allow the check workflow run to pass.
-	// This is used in the event there is someone out of the office and the pull request needs the bypassing
+	// If an admin approves a pull request, allow the check workflow run to pass.
+	// This is used in the event the pull request needs the bypassing
 	// of the required reviewers.
-	if len(ci.RepoAdmins) == 2 {
-		if hasApproved(ci.RepoAdmins[0], mostRecentReviews) && hasApproved(ci.RepoAdmins[1], mostRecentReviews) {
-			log.Printf("Admins %s and %s have approved.", ci.RepoAdmins[0], ci.RepoAdmins[1])
-			return nil
-		}
+	if repoAdminHasApproved(mostRecentReviews) {
+		return nil
 	}
 	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
 	err = hasRequiredApprovals(mostRecentReviews, c.Environment.GetReviewersForAuthor(pr.Author))
@@ -72,6 +69,16 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// repoAdminsHaveApproved checks that at least one listed admin has approved.
+func repoAdminHasApproved(reviews map[string]review) bool {
+	for _, adminName := range ci.RepoAdmins {
+		if hasApproved(adminName, reviews) {
+			return true
+		}
+	}
+	return false
 }
 
 // checkExternal is called to check if a PR reviewed and approved by the

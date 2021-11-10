@@ -82,4 +82,4 @@ const (
 )
 
 // RepoAdmins are the Teleport repository admin usernames.
-var RepoAdmins = []string{"r0mant", "russjones"}
+var RepoAdmins = []string{"r0mant", "russjones", "klizhentas", "zmb3"}
