@@ -114,7 +114,7 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	return &PullRequestEnvironment{
 		Client:           c.Client,
 		reviewers:        c.Reviewers,
-		defaultReviewers: c.Reviewers["*"],
+		defaultReviewers: c.Reviewers[ci.AnyAuthor],
 		Metadata:         pr,
 	}, nil
 }
