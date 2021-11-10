@@ -91,7 +91,7 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	} else {
-		// If there are no file changes between current commit and commit where all 
+		// If there are no file changes between current commit and commit where all
 		// reviewers have approved, then all most recent reviews are valid.
 		validReviews = mostRecentReviews
 	}
@@ -237,13 +237,13 @@ func dismissMessage(pr *environment.Metadata, required []string) string {
 	var sb strings.Builder
 	sb.WriteString("new commit pushed, please re-review ")
 	for _, reviewer := range required {
-		sb.WriteString(fmt.Sprintf("@%s", reviewer))
+		sb.WriteString(fmt.Sprintf("@%s ", reviewer))
 	}
-	return sb.String()
+	return strings.TrimSpace(sb.String())
 }
 
-// hasFileChangeFromLastApproved checks if there is a file change from the last commit all 
-// reviewers approved (if all reviewers approved at a commit) to the current HEAD. 
+// hasFileChangeFromLastApproved checks if there is a file change from the last commit all
+// reviewers approved (if all reviewers approved at a commit) to the current HEAD.
 func (c *Bot) hasFileChangeFromLastApprovedReview(ctx context.Context) error {
 	pr := c.Environment.Metadata
 	lastReviewCommitID, err := c.getLastApprovedReviewCommitID(ctx)
@@ -267,7 +267,7 @@ func (c *Bot) hasFileChangeFromLastApprovedReview(ctx context.Context) error {
 	return nil
 }
 
-// getLastApprovedReviewCommitID gets the last review's commit ID (last review where a commit was approved). 
+// getLastApprovedReviewCommitID gets the last review's commit ID (last review where a commit was approved).
 func (c *Bot) getLastApprovedReviewCommitID(ctx context.Context) (string, error) {
 	pr := c.Environment.Metadata
 	clt := c.Environment.Client
@@ -304,7 +304,7 @@ func (c *Bot) getLastApprovedReviewCommitID(ctx context.Context) (string, error)
 	return *lastApprovedReview.CommitID, nil
 }
 
-// hasFileDiff compares two commits and checks if there are changes. 
+// hasFileDiff compares two commits and checks if there are changes.
 func (c *Bot) hasFileDiff(ctx context.Context, base, head string) error {
 	pr := c.Environment.Metadata
 	clt := c.Environment.Client
