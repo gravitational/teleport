@@ -71,7 +71,7 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 	return nil
 }
 
-// repoAdminsHaveApproved checks that at least one listed admin has approved.
+// repoAdminHasApproved checks that at least one listed admin has approved.
 func repoAdminHasApproved(reviews map[string]review) bool {
 	for _, adminName := range ci.RepoAdmins {
 		if hasApproved(adminName, reviews) {
