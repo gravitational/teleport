@@ -350,7 +350,7 @@ func (s *Server) startHeartbeat(ctx context.Context, app types.Application) erro
 		Mode:            srv.HeartbeatModeApp,
 		Announcer:       s.c.AccessPoint,
 		GetServerInfo:   s.getServerInfoFunc(app),
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
