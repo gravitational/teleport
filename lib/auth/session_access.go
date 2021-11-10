@@ -70,6 +70,10 @@ func matchesPolicy(require *types.SessionRequirePolicy, allow *types.SessionJoin
 }
 
 func (e *SessionAccessEvaluator) FulfilledFor(participants [][]types.Role) bool {
+	if len(e.requires) == 0 {
+		return true
+	}
+
 	for _, requirePolicy := range e.requires {
 		left := requirePolicy.Count
 
