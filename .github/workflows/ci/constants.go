@@ -42,6 +42,9 @@ const (
 	// Approved is a pull request review status.
 	Approved = "APPROVED"
 
+	// Commented is a pull request review status. 
+	Commented = "COMMENTED"
+
 	// Token is the env variable name that stores the Github authentication token
 	Token = "GITHUB_TOKEN"
 
