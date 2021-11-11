@@ -136,7 +136,7 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	}, nil
 }
 
-// hasChanges determines if the pull request has changes to docs and code changes.
+// hasChanges determines if the pull request has docs and/or code changes.
 func hasChanges(ctx context.Context, pr *Metadata, clt *github.Client) (hasDocsChanges bool, hasCodeChanges bool, err error) {
 	files, err := getPullRequestFiles(ctx, pr, clt)
 	if err != nil {
