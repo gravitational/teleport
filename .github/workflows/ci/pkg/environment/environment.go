@@ -192,14 +192,15 @@ func (e *PullRequestEnvironment) GetReviewersForAuthor(user string) []string {
 	var reviewers []string
 	if e.HasDocsChanges {
 		reviewers = append(reviewers, ci.DocReviewers...)
-	}
-	if e.HasCodeChanges {
-		rr, ok := e.reviewers[user]
-		if ok {
-			reviewers = append(reviewers, rr...)
-		} else {
-			reviewers = append(reviewers, e.defaultReviewers...)
+		if !e.HasCodeChanges {
+			return reviewers
 		}
+	}
+	rr, ok := e.reviewers[user]
+	if ok {
+		reviewers = append(reviewers, rr...)
+	} else {
+		reviewers = append(reviewers, e.defaultReviewers...)
 	}
 	return reviewers
 }
