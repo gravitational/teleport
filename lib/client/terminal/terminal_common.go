@@ -67,3 +67,12 @@ func (e *signalEmitter) clearSubscribers() {
 	}
 	e.subscribers = e.subscribers[:0]
 }
+
+// Clear clears the terminal, including scrollback.
+func (t *Terminal) Clear() error {
+	const resetPattern = "\x1b[3J\x1b\x63\n"
+	if _, err := t.Stdout().Write([]byte(resetPattern)); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
