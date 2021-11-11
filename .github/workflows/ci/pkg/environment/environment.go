@@ -60,6 +60,8 @@ type PullRequestEnvironment struct {
 	action string
 	// HasDocsChanges tells if the pull request has changes to `docs/`
 	HasDocsChanges bool
+	// HasCodeChanges tells if the pull request has changes in any directory besides `docs/`
+	HasCodeChanges bool
 }
 
 // Metadata is the current pull request metadata
@@ -118,7 +120,7 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	}
 	// Check if the pull request has changes to the `docs/` directory as that will effect who
 	// the required reviewers are.
-	docChanges, err := hasDocChanges(c.Context, pr, c.Client)
+	docChanges, codeChanges, err := hasChanges(c.Context, pr, c.Client)
 	if err != nil {
 		// Log the error, don't fail the whole run because it couldn't detect if the pull request has docs
 		log.Errorf("error while detecting pull request for docs changes: %v, skipping assigning docs reviewers", err)
@@ -130,24 +132,28 @@ func New(c Config) (*PullRequestEnvironment, error) {
 		defaultReviewers: c.Reviewers[ci.AnyAuthor],
 		Metadata:         pr,
 		HasDocsChanges:   docChanges,
+		HasCodeChanges:   codeChanges,
 	}, nil
 }
 
-// hasDocsChanges determines if the pull request has changes to `docs/`
-func hasDocChanges(ctx context.Context, pr *Metadata, clt *github.Client) (bool, error) {
+// hasChanges determines if the pull request has changes to `docs/`
+func hasChanges(ctx context.Context, pr *Metadata, clt *github.Client) (hasDocsChanges bool, hasCodeChanges bool, err error) {
 	files, err := getPullRequestFiles(ctx, pr, clt)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return false, true, trace.Wrap(err)
 	}
 	for _, file := range files {
 		if file.Filename == nil {
-			return false, trace.BadParameter("pull request file name is nil")
+			return false, true, trace.BadParameter("pull request file name is nil")
 		}
 		if strings.HasPrefix(*file.Filename, ci.DocsPrefix) {
-			return true, nil
+			hasDocsChanges = true
+		} else {
+			hasCodeChanges = true
 		}
+
 	}
-	return false, nil
+	return hasDocsChanges, hasCodeChanges, nil
 }
 
 // getPullRequestFiles gets all the files in the pull request.
@@ -175,14 +181,17 @@ func getPullRequestFiles(ctx context.Context, pr *Metadata, clt *github.Client) 
 func (e *PullRequestEnvironment) GetReviewersForAuthor(user string) []string {
 	var reviewers []string
 	requiredReviewers, ok := e.reviewers[user]
-
 	if !ok {
 		reviewers = e.defaultReviewers
 	} else {
 		reviewers = requiredReviewers
 	}
-	if e.HasDocsChanges {
+
+	switch {
+	case e.HasDocsChanges && e.HasCodeChanges:
 		reviewers = append(reviewers, ci.DocReviewers...)
+	case e.HasDocsChanges && !e.HasCodeChanges:
+		reviewers = ci.DocReviewers
 	}
 	return reviewers
 }
