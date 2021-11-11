@@ -10,7 +10,7 @@ Here are examples of access policies you can define with Teleport:
 
 - Analytics team members can SSH into the MongoDB read replica, but not the main database.
 - Interns can't access production databases.
-- Devops can access the production server only when using a registered U2F hardware token.
+- Devops can access the production server only when using a registered second factor hardware device.
 - Members of my team can access the production Kubernetes cluster if approved by someone else from the team.
 
 Role-Based Access Control (RBAC) is almost always used in conjunction with Single Sign-On (SSO), Github (in the Teleport Open Source Edition), and OIDC or SAML (in the Teleport Enterprise editions).
@@ -34,8 +34,8 @@ guide.
   <Tile icon="lock" title="Impersonating Teleport Users" href="./guides/impersonation.mdx">
     Create certs for CI/CD using impersonation.
   </Tile>
-  <Tile icon="lock" title="Second Factor - U2F" href="./guides/u2f.mdx">
-    Add Two-Factor Authentication through U2F.
+  <Tile icon="lock" title="Second Factor - WebAuthn" href="./guides/webauthn.mdx">
+    Add Two-Factor Authentication through WebAuthn.
   </Tile>
   <Tile icon="lock" title="Per-session MFA" href="./guides/per-session-mfa.mdx">
     Per-session Multi-Factor Authentication.
