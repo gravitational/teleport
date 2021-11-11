@@ -123,7 +123,7 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	docChanges, codeChanges, err := hasChanges(c.Context, pr, c.Client)
 	if err != nil {
 		// Log the error, don't fail the whole run because it couldn't detect if the pull request has docs.
-		log.Errorf("error while detecting pull request for docs changes: %v, skipping assigning docs reviewers", err)
+		log.Errorf("Error while detecting pull request for docs changes: %v, skipping assigning docs reviewers", err)
 	}
 
 	return &PullRequestEnvironment{
@@ -144,7 +144,7 @@ func hasChanges(ctx context.Context, pr *Metadata, clt *github.Client) (hasDocsC
 	}
 	for _, file := range files {
 		if file.Filename == nil {
-			return false, true, trace.BadParameter("pull request file name is nil")
+			continue
 		}
 		if hasDocChanges(*file.Filename) {
 			hasDocsChanges = true
