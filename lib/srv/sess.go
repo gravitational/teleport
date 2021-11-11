@@ -738,6 +738,7 @@ func (s *session) waitForAccess() error {
 	return nil
 }
 
+// TODO(joel): transition to pending on participant leave
 // startInteractive starts a new interactive process (or a shell) in the
 // current session.
 func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
