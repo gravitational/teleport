@@ -17,6 +17,8 @@ limitations under the License.
 package auth
 
 import (
+	"strings"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
@@ -62,10 +64,10 @@ func getRequirePolicies(participant []types.Role) []*types.SessionRequirePolicy 
 	return policies
 }
 
-func getAllowPolicies(participant []types.Role) []*types.SessionJoinPolicy {
+func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPolicy {
 	var policies []*types.SessionJoinPolicy
 
-	for _, role := range participant {
+	for _, role := range participant.roles {
 		policies = append(policies, role.GetSessionJoinPolicies(types.Allow)...)
 	}
 
@@ -82,13 +84,37 @@ func contains(s []string, e SessionKind) bool {
 	return false
 }
 
-// TODO(joel): set up parser context
-func (e *SessionAccessEvaluator) matchesPolicy(require *types.SessionRequirePolicy, allow *types.SessionJoinPolicy) (bool, error) {
+type SessionAccessContext struct {
+	user  types.User
+	roles []types.Role
+}
+
+func (ctx *SessionAccessContext) GetIdentifier(fields []string) (interface{}, error) {
+	if fields[0] == "user" {
+		if len(fields) == 2 {
+			switch fields[1] {
+			case "roles":
+				return ctx.user.GetRoles(), nil
+			case "traits":
+				return ctx.user.GetTraits(), nil
+			}
+		}
+	}
+
+	return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
+}
+
+func (ctx *SessionAccessContext) GetResource() (types.Resource, error) {
+	return nil, trace.BadParameter("resource unsupported")
+}
+
+// TODO(joel): handle modes
+func (e *SessionAccessEvaluator) matchesPolicy(ctx *SessionAccessContext, require *types.SessionRequirePolicy, allow *types.SessionJoinPolicy) (bool, error) {
 	if !contains(require.Kinds, e.kind) || !contains(allow.Kinds, e.kind) {
 		return false, nil
 	}
 
-	parser, err := services.NewWhereParser(nil)
+	parser, err := services.NewWhereParser(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -106,7 +132,7 @@ func (e *SessionAccessEvaluator) matchesPolicy(require *types.SessionRequirePoli
 	return fn(), nil
 }
 
-func (e *SessionAccessEvaluator) FulfilledFor(participants [][]types.Role) (bool, error) {
+func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, error) {
 	if len(e.requires) == 0 {
 		return true, nil
 	}
@@ -117,7 +143,7 @@ func (e *SessionAccessEvaluator) FulfilledFor(participants [][]types.Role) (bool
 		for _, participant := range participants {
 			allowPolicies := getAllowPolicies(participant)
 			for _, allowPolicy := range allowPolicies {
-				matches, err := e.matchesPolicy(requirePolicy, allowPolicy)
+				matches, err := e.matchesPolicy(&participant, requirePolicy, allowPolicy)
 				if err != nil {
 					return false, trace.Wrap(err)
 				}
