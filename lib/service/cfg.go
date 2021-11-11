@@ -878,9 +878,9 @@ type LDAPConfig struct {
 	Username string
 	// Password for LDAP authentication.
 	Password string
-	// SkipVerifyCA decides whether whether we skip verifying the CA when making the LDAPS connection.
-	SkipVerifyCA bool
-	// CA is an optional CA cert to be used for verificationif SkipVerifyCA is set to false.
+	// InsecureSkipVerifyCA decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
+	InsecureSkipVerifyCA bool
+	// CA is an optional CA cert to be used for verification if InsecureSkipVerifyCA is set to false.
 	CA *x509.Certificate
 }
 

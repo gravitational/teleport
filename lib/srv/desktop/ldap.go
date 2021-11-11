@@ -35,13 +35,10 @@ type ldapClient struct {
 // client connection. Caller must close the client after using it.
 func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: cfg.SkipVerifyCA,
-		// TODO(zmb3): is this necessary?
-		MinVersion: tls.VersionTLS12,
-		MaxVersion: tls.VersionTLS12,
+		InsecureSkipVerify: cfg.InsecureSkipVerifyCA,
 	}
 
-	if !cfg.SkipVerifyCA {
+	if !cfg.InsecureSkipVerifyCA {
 		// Create a cert pool.
 		certPool := x509.NewCertPool()
 
@@ -54,9 +51,6 @@ func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
 		tlsConfig.ServerName = cfg.CA.Subject.CommonName
 	}
 
-	// TODO(zmb3): should we get a CA cert for the LDAP cert validation? Active
-	// Directory Certificate Services (their managed CA thingy) seems to be
-	// issuing those.
 	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(tlsConfig))
 	if err != nil {
 		return nil, trace.Wrap(err)

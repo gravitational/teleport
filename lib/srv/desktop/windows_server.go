@@ -135,9 +135,9 @@ type LDAPConfig struct {
 	// Password is an LDAP password. Usually it's the same user password used
 	// for local logins on the Domain Controller.
 	Password string
-	// SkipVerifyCA decides whether whether we skip verifying the CA when making the LDAPS connection.
-	SkipVerifyCA bool
-	// CA is an optional CA cert to be used for verificationif SkipVerifyCA is set to false.
+	// InsecureSkipVerifyCA decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
+	InsecureSkipVerifyCA bool
+	// CA is an optional CA cert to be used for verification if InsecureSkipVerifyCA is set to false.
 	CA *x509.Certificate
 }
 

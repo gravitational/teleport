@@ -1213,16 +1213,27 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			fc.WindowsDesktop.LDAP.PasswordFile)
 	}
 
+	// If a CA file is provided but InsecureSkipVerifyCA is also set to true, throw an
+	// error to make sure the user isn't making a critical security mistake (i.e. thinking
+	// that their LDAPS connection is being verified to be with the CA provided, but it isn't
+	// due to InsecureSkipVerifyCA == true ).
+	if fc.WindowsDesktop.LDAP.DerEncodedCAFile != "" && fc.WindowsDesktop.LDAP.InsecureSkipVerifyCA {
+		return trace.Wrap(trace.BadParameter(
+			`a CA file was provided but insecure_skip_verify_ca was also set to true;
+confirm that you really want CA verification to be skipped by delete or commenting
+out the der_ca_file configuration value`))
+	}
+
 	var cert *x509.Certificate
-	if !fc.WindowsDesktop.LDAP.SkipVerifyCA {
-		raw_cert, err := ioutil.ReadFile(fc.WindowsDesktop.LDAP.CAFile)
+	if !fc.WindowsDesktop.LDAP.InsecureSkipVerifyCA {
+		rawCert, err := os.ReadFile(fc.WindowsDesktop.LDAP.DerEncodedCAFile)
 		if err != nil {
-			return trace.WrapWithMessage(err, "error loading LDAP root CA from file %v", fc.WindowsDesktop.LDAP.CAFile)
+			return trace.WrapWithMessage(err, "error loading LDAP CA from file %v", fc.WindowsDesktop.LDAP.DerEncodedCAFile)
 		}
 
-		cert, err = x509.ParseCertificate(raw_cert)
+		cert, err = x509.ParseCertificate(rawCert)
 		if err != nil {
-			return trace.WrapWithMessage(err, "error parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.CAFile)
+			return trace.WrapWithMessage(err, "error parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DerEncodedCAFile)
 		}
 	}
 
@@ -1233,9 +1244,9 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 
 		// trim whitespace to protect against things like
 		// a leading tab character or trailing newline
-		Password:     string(bytes.TrimSpace(ldapPassword)),
-		SkipVerifyCA: fc.WindowsDesktop.LDAP.SkipVerifyCA,
-		CA:           cert,
+		Password:             string(bytes.TrimSpace(ldapPassword)),
+		InsecureSkipVerifyCA: fc.WindowsDesktop.LDAP.InsecureSkipVerifyCA,
+		CA:                   cert,
 	}
 
 	for _, rule := range fc.WindowsDesktop.HostLabels {
