@@ -262,6 +262,7 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 		complete:     complete,
 		completeType: atomic.NewUint32(completeTypeComplete),
 		completeMtx:  &sync.RWMutex{},
+		writeDoneCh:  make(chan struct{}),
 
 		uploadsCtx:  uploadsCtx,
 		uploadsDone: uploadsDone,
@@ -318,6 +319,8 @@ type ProtoStream struct {
 	completeType   *atomic.Uint32
 	completeResult error
 	completeMtx    *sync.RWMutex
+	// writeDoneCh is closed when all streams have completed
+	writeDoneCh chan struct{}
 
 	// uploadsCtx is used to signal that all uploads have been completed
 	uploadsCtx context.Context
@@ -392,6 +395,7 @@ func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 // Complete completes the upload, waits for completion and returns all allocated resources.
 func (s *ProtoStream) Complete(ctx context.Context) error {
 	s.complete()
+	<-s.writeDoneCh
 	select {
 	// wait for all in-flight uploads to complete and stream to be completed
 	case <-s.uploadsCtx.Done():
@@ -466,6 +470,7 @@ func (w *sliceWriter) trySendStreamStatusUpdate(lastEventIndex int64) {
 
 // receiveAndUpload receives and uploads serialized events
 func (w *sliceWriter) receiveAndUpload() {
+	defer close(w.proto.writeDoneCh)
 	// on the start, send stream status with the upload ID and negative
 	// index so that remote party can get an upload ID
 	w.trySendStreamStatusUpdate(-1)
