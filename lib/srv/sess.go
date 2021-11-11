@@ -626,6 +626,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		// TODO(joel): fetch initiator
 		access:      auth.NewSessionAccessEvaluator(nil, types.SSHSessionKind),
 		checkAccess: make(chan struct{}),
+		stateUpdate: broadcast.NewBroadcaster(1),
 	}
 	return sess, nil
 }
@@ -712,6 +713,31 @@ func (s *session) monitorAccess() error {
 	}
 }
 
+func termWrite(w *multiWriter, s string) error {
+	_, err := w.Write([]byte(s))
+	return trace.Wrap(err)
+}
+
+func (s *session) waitForAccess() error {
+	if err := termWrite(s.writer, "This session requires additional participants. Waiting for others to join..."); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ch := make(chan interface{})
+	s.stateUpdate.Register(ch)
+	defer s.stateUpdate.Unregister(ch)
+
+	for {
+		// TODO(joel): handle breaking here
+		state := <-ch
+		if state == types.SessionState_SessionStateRunning {
+			break
+		}
+	}
+
+	return nil
+}
+
 // startInteractive starts a new interactive process (or a shell) in the
 // current session.
 func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
@@ -747,6 +773,26 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		}
 	}
 	s.writer.addWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder), true)
+
+	go s.monitorAccess()
+	if err := termWrite(s.writer, "Creating session with uuid "+string(s.id)+"..."); err != nil {
+		return trace.Wrap(err)
+	}
+
+	canStart, err := s.checkIfStart()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !canStart {
+		if err := s.waitForAccess(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := termWrite(s.writer, "Starting session..."); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	// allocate a terminal or take the one previously allocated via a
 	// seaprate "allocate TTY" SSH request
