@@ -13,8 +13,6 @@ limitations under the License.
 package environment
 
 import (
-	"context"
-	"errors"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -45,7 +43,6 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 			cfg: Config{
 				Client:    github.NewClient(nil),
 				EventPath: "",
-				users:     &mockUserGetter{},
 			},
 			checkErr:   require.Error,
 			desc:       "invalid PullRequestEnvironment config without Reviewers parameter",
@@ -55,8 +52,7 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		{
 			cfg: Config{
 				Client:    github.NewClient(nil),
-				Reviewers: `{"foo": ["bar", "baz"], "*":["admin"]}`,
-				users:     &mockUserGetter{},
+				Reviewers: map[string][]string{"foo": {"bar", "baz"}, "*": {"admin"}},
 			},
 			checkErr: require.NoError,
 			desc:     "valid PullRequestEnvironment config",
@@ -71,8 +67,7 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		{
 			cfg: Config{
 				Client:    github.NewClient(nil),
-				Reviewers: `{"foo": ["bar", "baz"], "*":["admin"]}`,
-				users:     &mockUserGetter{},
+				Reviewers: map[string][]string{"foo": {"bar", "baz"}, "*": {"admin"}},
 			},
 			checkErr: require.NoError,
 			desc:     "valid PullRequestEnvironment config",
@@ -87,8 +82,7 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 		{
 			cfg: Config{
 				Client:    github.NewClient(nil),
-				Reviewers: `{"foo": ["bar", "baz"]}`,
-				users:     &mockUserGetter{},
+				Reviewers: map[string][]string{"foo": {"bar", "baz"}},
 			},
 			checkErr:   require.Error,
 			desc:       "invalid PullRequestEnvironment config, has no default reviewers key",
@@ -96,30 +90,9 @@ func TestNewPullRequestEnvironment(t *testing.T) {
 			createFile: true,
 		},
 		{
-			cfg: Config{
-				Reviewers: `{"foo": "baz", "*":["admin"]}`,
-				Client:    github.NewClient(nil),
-			},
-			checkErr:   require.Error,
-			desc:       "invalid reviewers object format",
-			expected:   nil,
-			createFile: true,
-		},
-		{
 			cfg:        Config{},
 			checkErr:   require.Error,
 			desc:       "invalid config with no client",
-			expected:   nil,
-			createFile: true,
-		},
-		{
-			cfg: Config{
-				Client:    github.NewClient(nil),
-				Reviewers: `{"invalidUser": ["bar", "baz"], "*":["admin"]}`,
-				users:     &mockUserGetter{},
-			},
-			checkErr:   require.Error,
-			desc:       "invalid PullRequestEnvironment config, user does not exist",
 			expected:   nil,
 			createFile: true,
 		},
@@ -232,14 +205,4 @@ func TestSetPullRequest(t *testing.T) {
 		})
 	}
 
-}
-
-type mockUserGetter struct {
-}
-
-func (m *mockUserGetter) Get(ctx context.Context, userLogin string) (*github.User, *github.Response, error) {
-	if userLogin == "invalidUser" {
-		return nil, nil, errors.New("invalid user")
-	}
-	return nil, nil, nil
 }

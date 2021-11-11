@@ -448,7 +448,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.KeepAlivePeriod == 0 {
-		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
+		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL()
 	}
 	if c.KeepAliveCount == 0 {
 		c.KeepAliveCount = defaults.KeepAliveCountMax
