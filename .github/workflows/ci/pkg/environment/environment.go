@@ -58,9 +58,9 @@ type PullRequestEnvironment struct {
 	defaultReviewers []string
 	// action is the action that triggered the workflow.
 	action string
-	// HasDocsChanges tells if the pull request has changes to `docs/`
+	// HasDocsChanges tells if the pull request has changes to `docs/`.
 	HasDocsChanges bool
-	// HasCodeChanges tells if the pull request has changes in any directory besides `docs/`
+	// HasCodeChanges tells if the pull request has changes in any directory besides `docs/`.
 	HasCodeChanges bool
 }
 
@@ -118,11 +118,11 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Check if the pull request has changes to the `docs/` directory as that will effect who
+	// Check if the pull request has changes to the `docs/` directory as that will affect who
 	// the required reviewers are.
 	docChanges, codeChanges, err := hasChanges(c.Context, pr, c.Client)
 	if err != nil {
-		// Log the error, don't fail the whole run because it couldn't detect if the pull request has docs
+		// Log the error, don't fail the whole run because it couldn't detect if the pull request has docs.
 		log.Errorf("error while detecting pull request for docs changes: %v, skipping assigning docs reviewers", err)
 	}
 
@@ -180,18 +180,16 @@ func getPullRequestFiles(ctx context.Context, pr *Metadata, clt *github.Client) 
 // GetReviewersForAuthor gets the required reviewers for the current user.
 func (e *PullRequestEnvironment) GetReviewersForAuthor(user string) []string {
 	var reviewers []string
-	requiredReviewers, ok := e.reviewers[user]
-	if !ok {
-		reviewers = e.defaultReviewers
-	} else {
-		reviewers = requiredReviewers
-	}
-
-	switch {
-	case e.HasDocsChanges && e.HasCodeChanges:
+	if e.HasDocsChanges {
 		reviewers = append(reviewers, ci.DocReviewers...)
-	case e.HasDocsChanges && !e.HasCodeChanges:
-		reviewers = ci.DocReviewers
+	}
+	if e.HasCodeChanges {
+		rr, ok := e.reviewers[user]
+		if ok {
+			reviewers = append(reviewers, rr...)
+		} else {
+			reviewers = append(reviewers, e.defaultReviewers...)
+		}
 	}
 	return reviewers
 }
