@@ -1071,7 +1071,7 @@ func (s *Server) serveX11Channels(ctx context.Context) error {
 
 // handleX11Forward handles an X11 forwarding request from the client.
 func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
-	event := apievents.X11Forward{
+	event := &apievents.X11Forward{
 		Metadata: apievents.Metadata{
 			Type: events.X11ForwardEvent,
 		},
@@ -1086,17 +1086,20 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		},
 	}
 
-	// check if RBAC permits X11 forwarding
-	if !scx.Identity.RoleSet.PermitX11Forwarding() {
-		event.Metadata.Code = events.X11ForwardFailureCode
-		event.Status.Success = false
-		event.Status.Error = "x11 forwarding not permitted"
-		if err := s.EmitAuditEvent(s.closeContext, &event); err != nil {
+	defer func() {
+		if err := s.EmitAuditEvent(ctx, event); err != nil {
 			s.log.WithError(err).Warn("Failed to emit X11 forward event.")
 		}
-		s.replyError(ch, req, trace.AccessDenied("x11 forwarding not permitted"))
-		// failed X11 requests are ok from a protocol perspective, so
-		// we don't actually return an error here.
+	}()
+
+	// Check if the user's RBAC role allows X11 forwarding.
+	if err := s.authHandlers.CheckX11Forward(scx); err != nil {
+		s.replyError(ch, req, err)
+		event.Metadata.Code = events.X11ForwardFailureCode
+		event.Status.Success = false
+		event.Status.Error = err.Error()
+		// failed X11 requests are ok from a protocol perspective, so we
+		// don't actually return an error here.
 		return nil
 	}
 
@@ -1109,9 +1112,6 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		if err != nil {
 			event.Status.Error = err.Error()
 		}
-		if err := s.EmitAuditEvent(s.closeContext, &event); err != nil {
-			s.log.WithError(err).Warn("Failed to emit X11 forward event.")
-		}
 		return trace.Wrap(err)
 	}
 
@@ -1123,9 +1123,6 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 
 	event.Status.Success = true
 	event.Metadata.Code = events.X11ForwardCode
-	if err := s.EmitAuditEvent(s.closeContext, &event); err != nil {
-		s.log.WithError(err).Warn("Failed to emit X11 forward event.")
-	}
 	return nil
 }
 

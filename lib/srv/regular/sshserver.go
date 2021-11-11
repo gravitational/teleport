@@ -1435,10 +1435,13 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 		return s.termHandlers.HandleWinChange(ch, req, ctx)
 	case sshutils.EnvRequest:
 		return s.handleEnv(ch, req, ctx)
+
 	case sshutils.SubsystemRequest:
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
 		return s.handleSubsystem(ch, req, ctx)
+	case sshutils.X11ForwardRequest:
+		return s.handleX11Forward(ch, req, ctx)
 	case sshutils.AgentForwardRequest:
 		// This happens when SSH client has agent forwarding enabled, in this case
 		// client sends a special request, in return SSH server opens new channel
@@ -1505,6 +1508,57 @@ func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContex
 	// context.
 	ctx.Parent().SetForwardAgent(true)
 
+	return nil
+}
+
+// handleX11Forward handles an X11 forwarding request from the client.
+func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) (err error) {
+	event := &apievents.X11Forward{
+		Metadata: apievents.Metadata{
+			Type: events.X11ForwardEvent,
+		},
+		UserMetadata: apievents.UserMetadata{
+			Login:        ctx.Identity.Login,
+			User:         ctx.Identity.TeleportUser,
+			Impersonator: ctx.Identity.Impersonator,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  ctx.ServerConn.LocalAddr().String(),
+			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+		},
+	}
+
+	defer func() {
+		if err != nil {
+			event.Metadata.Code = events.X11ForwardFailureCode
+			event.Status.Success = false
+			event.Status.Error = err.Error()
+		} else {
+			event.Metadata.Code = events.X11ForwardCode
+			event.Status.Success = true
+		}
+		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit X11 forward event.")
+		}
+	}()
+
+	// Check if the user's RBAC role allows X11 forwarding.
+	if err := s.authHandlers.CheckAgentForward(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var x11Req sshutils.X11ForwardRequestPayload
+	if err := ssh.Unmarshal(req.Payload, &x11Req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	display, err := sshutils.StartXServerListener(ctx.ServerConn, x11Req)
+	if err != nil {
+		log.WithError(err).Warn("Failed to start X11 server listener")
+		return trace.Wrap(err)
+	}
+
+	ctx.SetEnv(sshutils.DisplayEnv, display)
 	return nil
 }
 
@@ -1745,5 +1799,13 @@ func writeStderr(ch ssh.Channel, msg string) {
 func rejectChannel(ch ssh.NewChannel, reason ssh.RejectionReason, msg string) {
 	if err := ch.Reject(reason, msg); err != nil {
 		log.Warnf("Failed to reject new ssh.Channel: %v", err)
+	}
+}
+
+func replyOk(req *ssh.Request) {
+	if req.WantReply {
+		if err := req.Reply(true, nil); err != nil {
+			log.Warnf("Failed to reply to %q request: %v", req.Type, err)
+		}
 	}
 }
