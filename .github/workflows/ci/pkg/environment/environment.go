@@ -160,6 +160,9 @@ func hasChanges(ctx context.Context, pr *Metadata, clt *github.Client) (hasDocsC
 // Prefix of "rfd/" or "docs/".
 // Suffix of ".mdx", or ".md".
 func hasDocChanges(filename string) bool {
+	if strings.HasPrefix(filename, ci.VendorPrefix) {
+		return false
+	}
 	return strings.HasPrefix(filename, ci.DocsPrefix) ||
 		strings.HasSuffix(filename, ci.MdSuffix) ||
 		strings.HasSuffix(filename, ci.MdxSuffix) ||

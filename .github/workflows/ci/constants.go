@@ -95,8 +95,11 @@ const (
 	// MdSuffix is a suffix used to determine if a pull request has changes that would require doc reviewers to review.
 	MdSuffix = ".md"
 
-	// MdxSuffix is a suffic used to determine if a pull request has changes that would require doc reviewers to review.
+	// MdxSuffix is a suffix used to determine if a pull request has changes that would require doc reviewers to review.
 	MdxSuffix = ".mdx"
+
+	// VendorPrefix is a prefix used to determine if a file is in the `vendor/` directory.
+	VendorPrefix = "vendor/"
 )
 
 var DocReviewers = []string{"klizhentas"}

@@ -171,6 +171,8 @@ func TestHasDocsChanges(t *testing.T) {
 		{input: "some/random/path.md", expected: true},
 		{input: "rfd/new-proposal.txt", expected: true},
 		{input: "doc/file.txt", expected: false},
+		{input: "", expected: false},
+		{input: "vendor/file.md", expected: false},
 	}
 
 	for _, test := range tests {
