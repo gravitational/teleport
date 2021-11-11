@@ -18,13 +18,15 @@ package auth
 
 import (
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
 
 const (
-	SSHSessionKind        = "ssh"
-	KubernetesSessionKind = "kubernetes"
-	SessionObserverMode   = "observer"
-	SessionModeratorMode  = "moderator"
+	SSHSessionKind        SessionKind            = "ssh"
+	KubernetesSessionKind SessionKind            = "kubernetes"
+	SessionObserverMode   SessionParticipantMode = "observer"
+	SessionModeratorMode  SessionParticipantMode = "moderator"
 )
 
 type SessionKind string
@@ -69,14 +71,43 @@ func getAllowPolicies(participant []types.Role) []*types.SessionJoinPolicy {
 	return policies
 }
 
-// TODO(joel): implement this
-func matchesPolicy(require *types.SessionRequirePolicy, allow *types.SessionJoinPolicy) bool {
-	return true
+func contains(s []string, e SessionKind) bool {
+	for _, a := range s {
+		if SessionKind(a) == e {
+			return true
+		}
+	}
+
+	return false
 }
 
-func (e *SessionAccessEvaluator) FulfilledFor(participants [][]types.Role) bool {
+// TODO(joel): set up parser context
+func (e *SessionAccessEvaluator) matchesPolicy(require *types.SessionRequirePolicy, allow *types.SessionJoinPolicy) (bool, error) {
+	if !contains(require.Kinds, e.kind) || !contains(allow.Kinds, e.kind) {
+		return false, nil
+	}
+
+	parser, err := services.NewWhereParser(nil)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	output, err := parser.Parse(require.Filter)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	matches, ok := output.(bool)
+	if !ok {
+		return false, trace.BadParameter("unexpected filter output type %T", output)
+	}
+
+	return matches, nil
+}
+
+func (e *SessionAccessEvaluator) FulfilledFor(participants [][]types.Role) (bool, error) {
 	if len(e.requires) == 0 {
-		return true
+		return true, nil
 	}
 
 	for _, requirePolicy := range e.requires {
@@ -85,17 +116,22 @@ func (e *SessionAccessEvaluator) FulfilledFor(participants [][]types.Role) bool 
 		for _, participant := range participants {
 			allowPolicies := getAllowPolicies(participant)
 			for _, allowPolicy := range allowPolicies {
-				if matchesPolicy(requirePolicy, allowPolicy) {
+				matches, err := e.matchesPolicy(requirePolicy, allowPolicy)
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+
+				if matches {
 					left--
 					break
 				}
 			}
 
 			if left <= 0 {
-				return true
+				return true, nil
 			}
 		}
 	}
 
-	return false
+	return false, nil
 }
