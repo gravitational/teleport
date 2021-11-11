@@ -151,6 +151,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.KeyStoreConfig.HostUUID == "" {
 		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
 	}
+	if cfg.PluginData == nil {
+		cfg.PluginData = local.NewPluginDataService(cfg.Backend)
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -192,6 +195,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			IAuditLog:            cfg.AuditLog,
 			Events:               cfg.Events,
 			WindowsDesktops:      cfg.WindowsDesktops,
+			PluginData:           cfg.PluginData,
 		},
 		keyStore: keyStore,
 	}
@@ -217,6 +221,7 @@ type Services struct {
 	services.Apps
 	services.Databases
 	services.WindowsDesktops
+	services.PluginData
 	types.Events
 	events.IAuditLog
 }
@@ -3345,6 +3350,71 @@ func (a *Server) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRes
 // DeleteNetworkRestrictions deletes the network restrictions in the backend
 func (a *Server) DeleteNetworkRestrictions(ctx context.Context) error {
 	return a.Services.Restrictions.DeleteNetworkRestrictions(ctx)
+}
+
+// GetPluginData loads all plugin data matching the supplied filter.
+func (a *Server) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
+	if !isAllowedPluginDataKind(filter.Kind) {
+		return nil, trace.BadParameter("unsupported resource kind %q", filter.Kind)
+	}
+
+	return a.Services.PluginData.GetPluginData(ctx, filter)
+}
+
+// GetPluginData loads all plugin data matching the supplied filter.
+func (a *Server) UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
+	if !isAllowedPluginDataKind(params.Kind) {
+		return trace.BadParameter("unsupported resource kind %q", params.Kind)
+	}
+
+	// Load parent resource expiration value. Nil means that a parent resource does not exist.
+	// Non-existent parent resource is fine on update. There are the cases when we need to access
+	// PluginData of a just deleted resource. We need to prevent creation of PluginData entries
+	// for a missing resources.
+	//
+	// Expires itself is needed to prevent orphaned plugin data, we automatically
+	// configure new instances to expire shortly after the resource to which they are associated.
+	expires, err := a.getResourceExpiry(ctx, params.Resource, params.Kind)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.PluginData.UpsertPluginData(ctx, params, expires)
+}
+
+// isAllowedPluginDataKind returns true if PluginData can be attached to a resource kind.
+func isAllowedPluginDataKind(kind string) bool {
+	return kind == types.KindAccessRequest || kind == types.KindUser
+}
+
+// getResourceExpiry returns a resource expiration time or nil if a resource does not exist
+func (a *Server) getResourceExpiry(ctx context.Context, resource string, kind string) (*time.Time, error) {
+	switch kind {
+	case types.KindAccessRequest:
+		req, err := a.GetAccessRequests(ctx, types.AccessRequestFilter{ID: resource})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(req) == 0 { // Equals to NotFound error
+			return nil, nil
+		}
+
+		// GetAccessExpiry() might be less than the RequestAccess object Expiry()
+		exp := req[0].GetAccessExpiry()
+		return &exp, nil
+	case types.KindUser:
+		u, err := a.GetUser(resource, false)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+		exp := u.Expiry()
+		return &exp, nil
+	}
+
+	return nil, trace.BadParameter("unsupported resource kind %q", kind)
 }
 
 func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {

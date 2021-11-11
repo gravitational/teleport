@@ -944,7 +944,7 @@ func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (type
 			Verbs:     []string{types.VerbRead, types.VerbList},
 		},
 		types.Rule{
-			Resources: []string{types.KindAccessPluginData},
+			Resources: []string{types.KindAccessPluginData, types.KindUserPluginData},
 			Verbs:     []string{types.VerbRead, types.VerbList, types.VerbUpdate},
 		},
 	)

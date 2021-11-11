@@ -1805,9 +1805,14 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 
 	c.Assert(userClient.CreateAccessRequest(context.TODO(), req), check.IsNil)
 
-	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
-		Kind:     types.KindAccessRequest,
-		Resource: req.GetName(),
+	s.testPluginData(c, pluginClient, plugin, types.KindAccessRequest, req.GetName())
+	s.testPluginData(c, pluginClient, plugin, types.KindUser, user)
+}
+
+func (s *TLSSuite) testPluginData(c *check.C, pluginClient *Client, plugin string, kind string, resource string) {
+	err := pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
+		Kind:     kind,
+		Resource: resource,
 		Plugin:   plugin,
 		Set: map[string]string{
 			"foo": "bar",
@@ -1816,8 +1821,8 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	data, err := pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
-		Kind:     types.KindAccessRequest,
-		Resource: req.GetName(),
+		Kind:     kind,
+		Resource: resource,
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(len(data), check.Equals, 1)
@@ -1827,8 +1832,8 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	c.Assert(entry.Data, check.DeepEquals, map[string]string{"foo": "bar"})
 
 	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
-		Kind:     types.KindAccessRequest,
-		Resource: req.GetName(),
+		Kind:     kind,
+		Resource: resource,
 		Plugin:   plugin,
 		Set: map[string]string{
 			"foo":  "",
@@ -1841,8 +1846,8 @@ func (s *TLSSuite) TestPluginData(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	data, err = pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
-		Kind:     types.KindAccessRequest,
-		Resource: req.GetName(),
+		Kind:     kind,
+		Resource: resource,
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(len(data), check.Equals, 1)

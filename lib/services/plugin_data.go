@@ -17,11 +17,23 @@ limitations under the License.
 package services
 
 import (
+	"context"
+	"time"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// PluginData is responsible for managing a per-resource PluginData entries.
+type PluginData interface {
+	// GetPluginData loads all plugin data matching the supplied filter.
+	GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error)
+
+	// UpsertPluginData upserts a per-resource PluginData entry.
+	UpsertPluginData(ctx context.Context, params types.PluginDataUpdateParams, parentExpiresAt *time.Time) error
+}
 
 //MarshalPluginData marshals the PluginData resource to JSON.
 func MarshalPluginData(pluginData types.PluginData, opts ...MarshalOption) ([]byte, error) {

@@ -96,10 +96,6 @@ type DynamicAccessCore interface {
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
 	DeleteAccessRequest(ctx context.Context, reqID string) error
-	// GetPluginData loads all plugin data matching the supplied filter.
-	GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error)
-	// UpdatePluginData updates a per-resource PluginData entry.
-	UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error
 }
 
 // DynamicAccess is a service which manages dynamic RBAC.  Specifically, this is the
