@@ -1220,8 +1220,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.WindowsDesktop.LDAP.DerEncodedCAFile != "" && fc.WindowsDesktop.LDAP.InsecureSkipVerifyCA {
 		return trace.Wrap(trace.BadParameter(
 			`a CA file was provided but insecure_skip_verify_ca was also set to true;
-confirm that you really want CA verification to be skipped by delete or commenting
-out the der_ca_file configuration value`))
+confirm that you really want CA verification to be skipped by deleting or commenting-out the der_ca_file configuration value`))
 	}
 
 	var cert *x509.Certificate
