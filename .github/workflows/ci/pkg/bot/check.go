@@ -235,7 +235,7 @@ func hasApproved(reviewer string, reviews map[string]review) bool {
 // dimissMessage returns the dimiss message when a review is dismissed
 func dismissMessage(pr *environment.Metadata, required []string) string {
 	var sb strings.Builder
-	sb.WriteString("new commit pushed, please re-review ")
+	sb.WriteString("New commit pushed, please re-review ")
 	for _, reviewer := range required {
 		sb.WriteString(fmt.Sprintf("@%s ", reviewer))
 	}
