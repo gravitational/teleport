@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate"
 )
 
 const (
@@ -92,17 +93,17 @@ func (e *SessionAccessEvaluator) matchesPolicy(require *types.SessionRequirePoli
 		return false, trace.Wrap(err)
 	}
 
-	output, err := parser.Parse(require.Filter)
+	ifn, err := parser.Parse(require.Filter)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	matches, ok := output.(bool)
+	fn, ok := ifn.(predicate.BoolPredicate)
 	if !ok {
-		return false, trace.BadParameter("unexpected filter output type %T", output)
+		return false, trace.BadParameter("unsupported type: %T", ifn)
 	}
 
-	return matches, nil
+	return fn(), nil
 }
 
 func (e *SessionAccessEvaluator) FulfilledFor(participants [][]types.Role) (bool, error) {
