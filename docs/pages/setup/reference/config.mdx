@@ -197,8 +197,60 @@ auth_service:
         # (https://goteleport.com/docs/enterprise/ssh-kubernetes-fedramp/)
         #local_auth: true
 
-        # second_factor can be off, otp, or u2f
+        # second_factor can be 'off', 'on', 'optional', 'otp', 'webauthn' or 'u2f'.
+        # - 'on' requires otp and either webauthn (preferred) or u2f.
+        # - 'optional' allows otp and either webauthn (preferred) or u2f.
+        # - 'otp', 'webauthn' and 'u2f' require their corresponding second
+        #   factor type.
         second_factor: otp
+
+        # this section is used if second_factor is set to 'on', 'optional' or
+        # 'webauthn'.
+        webauthn:
+          # public domain of the Teleport proxy, *excluding* protocol
+          # (`https://`) and port number.
+          #
+          # IMPORTANT: rp_id must never change in the lifetime of the cluster,
+          # because it's recorded in the registration data on the second factor
+          # authenticator. If the rp_id changes, all existing authenticator
+          # registrations will become invalid and all users who use WebAuthn as
+          # the second factor will need to re-register.
+          rp_id: "localhost"
+
+          # optional allow list of certificate authorities (as local file paths
+          # or in-line PEM certificate string) for [device verification](
+          # https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+          # This field allows you to restrict which device models and vendors
+          # you trust.
+          # Devices outside of the list will be rejected during registration. By
+          # default all devices are allowed.
+          # If you must use attestation, consider using `attestation_denied_cas` to
+          # forbid troublesome devices instead.
+          attestation_allowed_cas:
+          - /path/to/allowed_ca.pem
+          - |
+            -----BEGIN CERTIFICATE-----
+            ...
+            -----END CERTIFICATE-----
+
+          # optional deny list of certificate authorities (as local file paths
+          # or in-line PEM certificate string) for [device verification](
+          # https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+          # This field allows you to forbid specific device models and vendors,
+          # while allowing all others (provided they clear
+          # `attestation_allowed_cas` as well).
+          # Devices within this list will be rejected during registration. By
+          # default no devices are forbidden.
+          attestation_denied_cas:
+          - /path/to/denied_ca.pem
+          - |
+            -----BEGIN CERTIFICATE-----
+            ...
+            -----END CERTIFICATE-----
+
+          # if set to true, disables WebAuthn. Allows a fallback to U2F for
+          # second factor modes 'on' and 'optional'.
+          disabled: false
 
         # this section is used if second_factor is set to 'u2f'
         u2f:
