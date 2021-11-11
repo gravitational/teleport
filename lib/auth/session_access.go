@@ -25,22 +25,12 @@ import (
 	"github.com/vulcand/predicate"
 )
 
-const (
-	SSHSessionKind        SessionKind            = "ssh"
-	KubernetesSessionKind SessionKind            = "kubernetes"
-	SessionObserverMode   SessionParticipantMode = "observer"
-	SessionModeratorMode  SessionParticipantMode = "moderator"
-)
-
-type SessionKind string
-type SessionParticipantMode string
-
 type SessionAccessEvaluator struct {
-	kind     SessionKind
+	kind     types.SessionKind
 	requires []*types.SessionRequirePolicy
 }
 
-func NewSessionAccessEvaluator(initiator []types.Role, kind SessionKind) SessionAccessEvaluator {
+func NewSessionAccessEvaluator(initiator []types.Role, kind types.SessionKind) SessionAccessEvaluator {
 	requires := getRequirePolicies(initiator)
 
 	return SessionAccessEvaluator{
@@ -74,9 +64,9 @@ func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPoli
 	return policies
 }
 
-func contains(s []string, e SessionKind) bool {
+func contains(s []string, e types.SessionKind) bool {
 	for _, a := range s {
-		if SessionKind(a) == e {
+		if types.SessionKind(a) == e {
 			return true
 		}
 	}

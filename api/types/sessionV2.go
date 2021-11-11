@@ -22,6 +22,16 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	SSHSessionKind        SessionKind            = "ssh"
+	KubernetesSessionKind SessionKind            = "kubernetes"
+	SessionObserverMode   SessionParticipantMode = "observer"
+	SessionModeratorMode  SessionParticipantMode = "moderator"
+)
+
+type SessionKind string
+type SessionParticipantMode string
+
 type Session interface {
 	Resource
 
@@ -29,7 +39,7 @@ type Session interface {
 
 	GetNamespace() string
 
-	GetType() SessionType
+	GetSessionKind() SessionKind
 
 	GetState() SessionState
 
@@ -147,8 +157,8 @@ func (s *SessionV3) GetNamespace() string {
 	return s.Spec.Namespace
 }
 
-func (s *SessionV3) GetType() SessionType {
-	return s.Spec.Type
+func (s *SessionV3) GetSessionKind() SessionKind {
+	return SessionKind(s.Spec.Type)
 }
 
 func (s *SessionV3) GetState() SessionState {

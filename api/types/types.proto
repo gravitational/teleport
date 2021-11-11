@@ -2748,7 +2748,7 @@ message SessionSpecV3 {
     string Namespace = 2 [ (gogoproto.jsontag) = "namespace,omitempty" ];
 
     // Type describes what type of session this is.
-    SessionType Type = 3 [ (gogoproto.jsontag) = "type,omitempty" ];
+    string Type = 3 [ (gogoproto.jsontag) = "type,omitempty" ];
 
     // State is the current state of this session.
     SessionState State = 4 [ (gogoproto.jsontag) = "state,omitempty" ];
@@ -2817,18 +2817,6 @@ message Participant {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "last_active,omitempty"
     ];
-}
-
-// SessionType encodes different types of sessions.
-enum SessionType {
-    // SessionTypeNone is a placeholder variant and isn't valid.
-    SessionTypeNone = 0;
-
-    // SessionTypeKubernetes means a session initiated via Kubernetes Access.
-    SessionTypeKubernetes = 1;
-
-    // SessionTypeSSH means a standard SSH session initiated via `tsh` or web.
-    SessionTypeSSH = 2;
 }
 
 // SessionState represents the state of a session.

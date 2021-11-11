@@ -146,7 +146,14 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	printSessions(sessions)
+	filteredSessions := make([]types.Session, 0)
+	for _, session := range sessions {
+		if session.GetSessionKind() == types.KubernetesSessionKind {
+			filteredSessions = append(filteredSessions, session)
+		}
+	}
+
+	printSessions(filteredSessions)
 	return nil
 }
 

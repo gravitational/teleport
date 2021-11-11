@@ -1405,7 +1405,7 @@ message CreateSessionRequest {
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace,omitempty" ];
 
     // Type describes what type of session this is.
-    types.SessionType Type = 2 [ (gogoproto.jsontag) = "type,omitempty" ];
+    string Type = 2 [ (gogoproto.jsontag) = "type,omitempty" ];
 
     // Reason is an arbitrary string that may be used to describe the session and/or it's
     // purpose.
