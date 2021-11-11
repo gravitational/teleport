@@ -82,9 +82,21 @@ const (
 	// AnyAuthor is the symbol used to get reviewers for external contributors/contrtibutors who
 	// do not have designated reviewers.
 	AnyAuthor = "*"
+)
 
-	// DocsPrefix is the prefix used to determine if a pull request has changes made in the docs directory.
+// Doc Detection Constants
+const (
+	// DocsPrefix is the prefix used to determine if a pull request has changes that would require doc reviewers to review.
 	DocsPrefix = "docs/"
+
+	// RfdPrefix is the prefix used to determine if a pull request has changes that would require doc reviewers to review.
+	RfdPrefix = "rfd/"
+
+	// MdSuffix is a suffix used to determine if a pull request has changes that would require doc reviewers to review.
+	MdSuffix = ".md"
+
+	// MdxSuffix is a suffic used to determine if a pull request has changes that would require doc reviewers to review.
+	MdxSuffix = ".mdx"
 )
 
 var DocReviewers = []string{"klizhentas"}

@@ -136,7 +136,7 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	}, nil
 }
 
-// hasChanges determines if the pull request has changes to `docs/`
+// hasChanges determines if the pull request has changes to docs and code changes.
 func hasChanges(ctx context.Context, pr *Metadata, clt *github.Client) (hasDocsChanges bool, hasCodeChanges bool, err error) {
 	files, err := getPullRequestFiles(ctx, pr, clt)
 	if err != nil {
@@ -146,7 +146,7 @@ func hasChanges(ctx context.Context, pr *Metadata, clt *github.Client) (hasDocsC
 		if file.Filename == nil {
 			return false, true, trace.BadParameter("pull request file name is nil")
 		}
-		if strings.HasPrefix(*file.Filename, ci.DocsPrefix) {
+		if hasDocChanges(*file.Filename) {
 			hasDocsChanges = true
 		} else {
 			hasCodeChanges = true
@@ -154,6 +154,16 @@ func hasChanges(ctx context.Context, pr *Metadata, clt *github.Client) (hasDocsC
 
 	}
 	return hasDocsChanges, hasCodeChanges, nil
+}
+
+// hasDocChanges checks if the file name contains a prefix or suffix that would suggest a change to docs.
+// Prefix of "rfd/" or "docs/".
+// Suffix of ".mdx", or ".md".
+func hasDocChanges(filename string) bool {
+	return strings.HasPrefix(filename, ci.DocsPrefix) ||
+		strings.HasSuffix(filename, ci.MdSuffix) ||
+		strings.HasSuffix(filename, ci.MdxSuffix) ||
+		strings.HasPrefix(filename, ci.RfdPrefix)
 }
 
 // getPullRequestFiles gets all the files in the pull request.
