@@ -159,6 +159,14 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 	return nil
 }
 
+// CheckX11Forward checks if X11 forwarding is permitted for the user's RoleSet.
+func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
+	if !ctx.Identity.RoleSet.PermitX11Forwarding() {
+		return trace.Wrap(trace.AccessDenied("x11 forwarding not permitted"))
+	}
+	return nil
+}
+
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
 func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 	if ok := ctx.Identity.RoleSet.CanPortForward(); !ok {

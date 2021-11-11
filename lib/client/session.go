@@ -185,10 +185,8 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 
 	// start x11 forwarding for the session if requested
 	if ns.nodeClient.TC.Config.X11Forwarding {
-		if err := sshutils.HandleX11Channel(ns.nodeClient.Client); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := sshutils.RequestX11Channel(sess); err != nil {
+		sshutils.StartX11ChannelListener(ns.nodeClient.Client)
+		if err := sshutils.RequestX11Forward(sess); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
