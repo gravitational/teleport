@@ -1,6 +1,6 @@
 ---
 authors: Joel Wejdenstål (jwejdenstal@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 43 - Shared sessions with observers for Kubernetes Access
