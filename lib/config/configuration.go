@@ -1224,7 +1224,7 @@ confirm that you really want CA verification to be skipped by deleting or commen
 	}
 
 	var cert *x509.Certificate
-	if !fc.WindowsDesktop.LDAP.InsecureSkipVerifyCA {
+	if !fc.WindowsDesktop.LDAP.InsecureSkipVerifyCA && fc.WindowsDesktop.LDAP.DerEncodedCAFile != "" {
 		rawCert, err := os.ReadFile(fc.WindowsDesktop.LDAP.DerEncodedCAFile)
 		if err != nil {
 			return trace.WrapWithMessage(err, "error loading LDAP CA from file %v", fc.WindowsDesktop.LDAP.DerEncodedCAFile)

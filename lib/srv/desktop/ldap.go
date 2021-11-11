@@ -39,16 +39,19 @@ func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
 	}
 
 	if !cfg.InsecureSkipVerifyCA {
-		// Create a cert pool.
-		certPool := x509.NewCertPool()
+		// Get the SystemCertPool, continue with an empty pool on error
+		rootCAs, _ := x509.SystemCertPool()
+		if rootCAs == nil {
+			rootCAs = x509.NewCertPool()
+		}
 
-		// Append our cert to the pool.
-		certPool.AddCert(cfg.CA)
+		if cfg.CA != nil {
+			// Append our cert to the pool.
+			rootCAs.AddCert(cfg.CA)
+		}
 
 		// Supply our cert pool to TLS config for verification.
-		tlsConfig.RootCAs = certPool
-		// Register the CA's Subject CN as a valid name for cert verification.
-		tlsConfig.ServerName = cfg.CA.Subject.CommonName
+		tlsConfig.RootCAs = rootCAs
 	}
 
 	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(tlsConfig))
