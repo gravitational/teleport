@@ -17,12 +17,13 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
-	"log"
+
 	"os"
 	"strings"
 
 	"github.com/gravitational/teleport/.github/workflows/ci"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/google/go-github/v37/github"
 )
@@ -119,9 +120,8 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	// the required reviewers are.
 	docChanges, err := hasDocChanges(c.Context, pr, c.Client)
 	if err != nil {
-		// Log the error, don't fail the whole run because it couldn't detect if the pull request has docs,
-		// note the error though.
-		log.Printf("error while detecting pull request for docs changes: %v, skipping assigning docs reviewers", err)
+		// Log the error, don't fail the whole run because it couldn't detect if the pull request has docs
+		log.Errorf("error while detecting pull request for docs changes: %v, skipping assigning docs reviewers", err)
 	}
 
 	return &PullRequestEnvironment{
