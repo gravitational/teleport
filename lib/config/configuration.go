@@ -1217,22 +1217,22 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	// error to make sure the user isn't making a critical security mistake (i.e. thinking
 	// that their LDAPS connection is being verified to be with the CA provided, but it isn't
 	// due to InsecureSkipVerifyCA == true ).
-	if fc.WindowsDesktop.LDAP.DerEncodedCAFile != "" && fc.WindowsDesktop.LDAP.InsecureSkipVerifyCA {
+	if fc.WindowsDesktop.LDAP.DerEncodedCACert != "" && fc.WindowsDesktop.LDAP.InsecureSkipVerifyCA {
 		return trace.Wrap(trace.BadParameter(
 			`a CA file was provided but insecure_skip_verify_ca was also set to true;
 confirm that you really want CA verification to be skipped by deleting or commenting-out the der_ca_file configuration value`))
 	}
 
 	var cert *x509.Certificate
-	if !fc.WindowsDesktop.LDAP.InsecureSkipVerifyCA && fc.WindowsDesktop.LDAP.DerEncodedCAFile != "" {
-		rawCert, err := os.ReadFile(fc.WindowsDesktop.LDAP.DerEncodedCAFile)
+	if !fc.WindowsDesktop.LDAP.InsecureSkipVerifyCA && fc.WindowsDesktop.LDAP.DerEncodedCACert != "" {
+		rawCert, err := os.ReadFile(fc.WindowsDesktop.LDAP.DerEncodedCACert)
 		if err != nil {
-			return trace.WrapWithMessage(err, "error loading LDAP CA from file %v", fc.WindowsDesktop.LDAP.DerEncodedCAFile)
+			return trace.WrapWithMessage(err, "error loading LDAP CA from file %v", fc.WindowsDesktop.LDAP.DerEncodedCACert)
 		}
 
 		cert, err = x509.ParseCertificate(rawCert)
 		if err != nil {
-			return trace.WrapWithMessage(err, "error parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DerEncodedCAFile)
+			return trace.WrapWithMessage(err, "error parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DerEncodedCACert)
 		}
 	}
 

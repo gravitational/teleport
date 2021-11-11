@@ -1327,6 +1327,6 @@ type LDAPConfig struct {
 	PasswordFile string `yaml:"password_file"`
 	// InsecureSkipVerifyCA decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerifyCA bool `yaml:"insecure_skip_verify_ca"`
-	// DerEncodedCAFile is an optional DER encoded CA cert to be used for verification if InsecureSkipVerifyCA is set to false.
-	DerEncodedCAFile string `yaml:"der_ca_file,omitempty"`
+	// DerEncodedCACert is an optional DER encoded CA cert to be used for verification (if InsecureSkipVerifyCA is set to false).
+	DerEncodedCACert string `yaml:"der_ca_cert,omitempty"`
 }
