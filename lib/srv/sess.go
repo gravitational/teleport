@@ -1119,6 +1119,7 @@ func (s *session) removePartyMember(party *party) {
 	defer s.mu.Unlock()
 
 	delete(s.parties, party.id)
+	s.checkAccess <- struct{}{}
 }
 
 // removeParty removes the party from the in-memory map that holds all party
