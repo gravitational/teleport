@@ -26,6 +26,26 @@ Review the Desktop Access design in:
 
 #### TLS Routing
 
+In TLS routing mode all client connections are wrapped in TLS and multiplexed on
+a single Teleport proxy port.
+
+TLS routing can be enabled by including the following auth service configuration:
+
+```yaml
+auth_service:
+  proxy_listener_mode: multiplex
+  ...
+```
+
+and setting proxy configuration version to `v2` to prevent legacy listeners from
+being created:
+
+```yaml
+version: v2
+proxy_service:
+  ...
+```
+
 #### AWS CLI
 
 Teleport application access extends AWS console support to CLI . Users are able
