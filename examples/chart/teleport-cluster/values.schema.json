@@ -11,6 +11,7 @@
         "highAvailability",
         "image",
         "enterpriseImage",
+        "operatorImage",
         "logLevel",
         "affinity",
         "annotations",
@@ -243,6 +244,11 @@
             "$id": "#/properties/enterpriseImage",
             "type": "string",
             "default": "quay.io/gravitational/teleport-ent"
+        },
+        "operatorImage": {
+            "$id": "#/properties/operatorImage",
+            "type": "string",
+            "default": "quay.io/gravitational/teleport-k8s-operator"
         },
         "logLevel": {
             "$id": "#/properties/logLevel",

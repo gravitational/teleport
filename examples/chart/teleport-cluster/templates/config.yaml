@@ -54,6 +54,9 @@ data:
   {{- end }}
     proxy_service:
       public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
+      tunnel_public_addr:
+      - '{{ required "clusterName is required in chart values" .Values.clusterName }}:3024'
+      - '{{ .Release.Name }}.{{ .Release.Namespace }}.svc.cluster.local:3024'
       kube_listen_addr: 0.0.0.0:3026
       mysql_listen_addr: 0.0.0.0:3036
       enabled: true
@@ -71,4 +74,13 @@ data:
   {{- end }}
     ssh_service:
       enabled: false
+  operator.yaml: |
+    apiVersion: config.teleport.dev/v8
+    kind: SidecarConfig
+    teleport:
+      config: /etc/teleport/teleport.yaml
+    scope:
+      namespace: {{ .Release.Namespace }}
+
+
 {{- end -}}

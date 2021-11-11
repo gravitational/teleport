@@ -18,6 +18,14 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - create
+  - update
+- apiGroups:
   - "authorization.k8s.io"
   resources:
   - selfsubjectaccessreviews

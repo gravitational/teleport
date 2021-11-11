@@ -149,6 +149,8 @@ highAvailability:
 image: quay.io/gravitational/teleport
 # Enterprise version of the image
 enterpriseImage: quay.io/gravitational/teleport-ent
+# Teleport Kubernetes Operator image
+operatorImage: quay.io/gravitational/teleport-k8s-operator
 # Log level for the Teleport process.
 # Available log levels are: DEBUG, INFO, WARNING, ERROR.
 # The default is INFO, which is recommended in production.
