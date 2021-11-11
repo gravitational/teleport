@@ -17,7 +17,9 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"os"
+	"strings"
 
 	"github.com/gravitational/teleport/.github/workflows/ci"
 	"github.com/gravitational/trace"
@@ -55,6 +57,8 @@ type PullRequestEnvironment struct {
 	defaultReviewers []string
 	// action is the action that triggered the workflow.
 	action string
+	// HasDocsChanges tells if the pull request has changes to `docs/`
+	HasDocsChanges bool
 }
 
 // Metadata is the current pull request metadata
@@ -111,22 +115,76 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Check if the pull request has changes to the `docs/` directory as that will effect who
+	// the required reviewers are.
+	docChanges, err := hasDocChanges(c.Context, pr, c.Client)
+	if err != nil {
+		// Log the error, don't fail the whole run because it couldn't detect if the pull request has docs,
+		// note the error though.
+		log.Printf("error while detecting pull request for docs changes: %v, skipping assigning docs reviewers", err)
+	}
+
 	return &PullRequestEnvironment{
 		Client:           c.Client,
 		reviewers:        c.Reviewers,
 		defaultReviewers: c.Reviewers[ci.AnyAuthor],
 		Metadata:         pr,
+		HasDocsChanges:   docChanges,
 	}, nil
+}
+
+// hasDocsChanges determines if the pull request has changes to `docs/`
+func hasDocChanges(ctx context.Context, pr *Metadata, clt *github.Client) (bool, error) {
+	files, err := getPullRequestFiles(ctx, pr, clt)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, file := range files {
+		if file.Filename == nil {
+			return false, trace.BadParameter("pull request file name is nil")
+		}
+		if strings.HasPrefix(*file.Filename, ci.DocsPrefix) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// getPullRequestFiles gets all the files in the pull request.
+func getPullRequestFiles(ctx context.Context, pr *Metadata, clt *github.Client) ([]*github.CommitFile, error) {
+	// Can only request 100 files per page according to the docs.
+	// https://docs.github.com/en/free-pro-team@latest/rest/reference/pulls/#list-pull-requests-files
+	opt := &github.ListOptions{PerPage: 100}
+
+	var allFiles []*github.CommitFile
+	for {
+		files, resp, err := clt.PullRequests.ListFiles(ctx, pr.RepoOwner, pr.RepoName, pr.Number, opt)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		allFiles = append(allFiles, files...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return allFiles, nil
 }
 
 // GetReviewersForAuthor gets the required reviewers for the current user.
 func (e *PullRequestEnvironment) GetReviewersForAuthor(user string) []string {
-	value, ok := e.reviewers[user]
-	// Author is external or does not have set reviewers
+	var reviewers []string
+	requiredReviewers, ok := e.reviewers[user]
+
 	if !ok {
-		return e.defaultReviewers
+		reviewers = e.defaultReviewers
+	} else {
+		reviewers = requiredReviewers
 	}
-	return value
+	if e.HasDocsChanges {
+		reviewers = append(reviewers, ci.DocReviewers...)
+	}
+	return reviewers
 }
 
 // IsInternal determines if an author is an internal contributor.

@@ -42,7 +42,7 @@ const (
 	// Approved is a pull request review status.
 	Approved = "APPROVED"
 
-	// Commented is a pull request review status. 
+	// Commented is a pull request review status.
 	Commented = "COMMENTED"
 
 	// Token is the env variable name that stores the Github authentication token
@@ -82,7 +82,12 @@ const (
 	// AnyAuthor is the symbol used to get reviewers for external contributors/contrtibutors who
 	// do not have designated reviewers.
 	AnyAuthor = "*"
+
+	// DocsPrefix is the prefix used to determine if a pull request has changes made in the docs directory.
+	DocsPrefix = "docs/"
 )
+
+var DocReviewers = []string{"klizhentas"}
 
 var Reviewers = map[string][]string{
 	// Teleport Core
