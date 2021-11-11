@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -234,6 +235,15 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 		return trace.Wrap(err)
 	}
 	ctx.Infof("Creating (exec) session %v.", sessionID)
+
+	canStart, err := sess.checkIfStart()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !canStart {
+		return trace.AccessDenied("lacking privileges to start unattended session")
+	}
 
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
@@ -531,6 +541,10 @@ type session struct {
 
 	// serverCtx is used to control clean up of internal resources
 	serverCtx context.Context
+
+	state types.SessionState
+
+	access auth.SessionAccessEvaluator
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -603,6 +617,9 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		lingerTTL:    defaults.SessionIdlePeriod,
 		startTime:    startTime,
 		serverCtx:    ctx.srv.Context(),
+		state:        types.SessionState_SessionStatePending,
+		// TODO(joel): fetch initiator
+		access: auth.NewSessionAccessEvaluator(nil, types.SSHSessionKind),
 	}
 	return sess, nil
 }
@@ -645,6 +662,7 @@ func (s *session) Close() error {
 				s.recorder.Close(s.serverCtx)
 			}
 			close(s.closeC)
+			s.state = types.SessionState_SessionStateTerminated
 		}()
 	})
 	return nil
@@ -1207,6 +1225,19 @@ func (s *session) heartbeat(ctx *ServerContext) {
 	}
 }
 
+func (s *session) checkIfStart() (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// TODO(joel): fetch participants
+	shouldStart, err := s.access.FulfilledFor(nil)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return shouldStart, nil
+}
+
 // addPartyMember adds participant to in-memory map of party members. Occurs
 // under a lock.
 func (s *session) addPartyMember(p *party) {
@@ -1258,6 +1289,7 @@ func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) (*p
 	if err := s.addParty(p); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return p, nil
 }
 
