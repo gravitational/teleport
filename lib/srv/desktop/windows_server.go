@@ -350,7 +350,7 @@ func (s *WindowsService) startServiceHeartbeat() error {
 		Mode:            srv.HeartbeatModeWindowsDesktopService,
 		Announcer:       s.cfg.AccessPoint,
 		GetServerInfo:   s.getServiceHeartbeatInfo,
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
@@ -408,19 +408,21 @@ func (s *WindowsService) startDiscoveredHostHeartbeats() error {
 	// and stop heartbeating for hosts that no longer exist
 	// (this may require updates to srv.Heartbeat)
 	for _, entry := range entries {
+		desktop := *entry // make a copy to avoid capturing a loop variable that may change
+
 		heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 			Context:   s.closeCtx,
 			Component: teleport.ComponentWindowsDesktop,
 			Mode:      srv.HeartbeatModeWindowsDesktop,
 			Announcer: s.cfg.AccessPoint,
 			GetServerInfo: func() (types.Resource, error) {
-				return s.dynamicHostHeartbeatInfo(s.closeCtx, entry, s.cfg.HostLabelsFn)
+				return s.dynamicHostHeartbeatInfo(s.closeCtx, &desktop, s.cfg.HostLabelsFn)
 			},
 			// Larger than normal periods are due to the fact that we don't currently refresh
 			// the list of hosts from LDAP. Since the heartbeat data is static we don't need
 			// to announce it as frequently as we do for dynamic resources.
 			// TODO(zmb3): reconsider timeouts when #8644 is addressed
-			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL * 2,
+			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL() * 2,
 			AnnouncePeriod:  apidefaults.ServerAnnounceTTL + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 			CheckPeriod:     defaults.HeartbeatCheckPeriod * 60,
 			ServerTTL:       apidefaults.ServerAnnounceTTL,
@@ -429,11 +431,11 @@ func (s *WindowsService) startDiscoveredHostHeartbeats() error {
 			return trace.Wrap(err)
 		}
 
-		go func(entry *ldap.Entry) {
+		go func() {
 			if err := heartbeat.Run(); err != nil {
-				s.cfg.Log.WithError(err).Errorf("heartbeat for Windows host %v ended with error", entry.DN)
+				s.cfg.Log.WithError(err).Errorf("heartbeat for Windows host %v ended with error", desktop.DN)
 			}
-		}(entry)
+		}()
 	}
 
 	return nil
@@ -496,7 +498,7 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 			Mode:            srv.HeartbeatModeWindowsDesktop,
 			Announcer:       s.cfg.AccessPoint,
 			GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn),
-			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 			CheckPeriod:     defaults.HeartbeatCheckPeriod,
 			ServerTTL:       apidefaults.ServerAnnounceTTL,

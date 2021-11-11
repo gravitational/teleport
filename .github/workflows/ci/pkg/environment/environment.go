@@ -31,14 +31,12 @@ type Config struct {
 	Context context.Context
 	// Client is the authenticated Github client.
 	Client *github.Client
-	// Reviewers is a json object encoded as a string with
-	// authors mapped to their respective required reviewers.
-	Reviewers string
+	// Reviewers is a map that maps authors to their respective
+	// required reviewers.
+	Reviewers map[string][]string
 	// EventPath is the path of the file with the complete
 	// webhook event payload on the runner.
 	EventPath string
-	// users optional override to inject a user list for testing.
-	users githubUserGetter
 }
 
 // PullRequestEnvironment contains information about the environment
@@ -91,14 +89,14 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Client == nil {
 		return trace.BadParameter("missing parameter Client")
 	}
-	if c.Reviewers == "" {
+	if c.Reviewers == nil {
 		return trace.BadParameter("missing parameter Reviewers")
+	}
+	if _, ok := c.Reviewers[ci.AnyAuthor]; !ok {
+		return trace.BadParameter(`default reviewers are not set in reviewers map. set default reviewers with a wildcard (*) as a key`)
 	}
 	if c.EventPath == "" {
 		c.EventPath = os.Getenv(ci.GithubEventPath)
-	}
-	if c.users == nil {
-		c.users = c.Client.Users
 	}
 	return nil
 }
@@ -109,68 +107,16 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	revs, err := unmarshalReviewers(c.Context, c.Reviewers, c.users)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	pr, err := GetMetadata(c.EventPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &PullRequestEnvironment{
 		Client:           c.Client,
-		reviewers:        revs,
-		defaultReviewers: revs[ci.AnyAuthor],
+		reviewers:        c.Reviewers,
+		defaultReviewers: c.Reviewers[ci.AnyAuthor],
 		Metadata:         pr,
 	}, nil
-}
-
-type githubUserGetter interface {
-	Get(context.Context, string) (*github.User, *github.Response, error)
-}
-
-// unmarshalReviewers converts the passed in string representing json object into a map.
-func unmarshalReviewers(ctx context.Context, str string, users githubUserGetter) (map[string][]string, error) {
-	if str == "" {
-		return nil, trace.NotFound("reviewers not found")
-	}
-	m := make(map[string][]string)
-
-	err := json.Unmarshal([]byte(str), &m)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var hasDefaultReviewers bool
-	for author, requiredReviewers := range m {
-		for _, reviewer := range requiredReviewers {
-			_, err := userExists(ctx, reviewer, users)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-		if author == ci.AnyAuthor {
-			hasDefaultReviewers = true
-			continue
-		}
-		_, err := userExists(ctx, author, users)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if !hasDefaultReviewers {
-		return nil, trace.BadParameter("default reviewers are not set. set default reviewers with a wildcard (*) as a key")
-	}
-	return m, nil
-
-}
-
-// userExists checks if a user exists.
-func userExists(ctx context.Context, userLogin string, users githubUserGetter) (*github.User, error) {
-	user, _, err := users.Get(ctx, userLogin)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return user, nil
 }
 
 // GetReviewersForAuthor gets the required reviewers for the current user.

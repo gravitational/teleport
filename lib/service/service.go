@@ -52,6 +52,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -813,6 +814,14 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.WindowsDesktop.Enabled {
+		// FedRAMP/FIPS is not supported for Desktop Access. Desktop Access uses
+		// Rust for the underlying RDP protocol implementation which in turn uses
+		// OpenSSL. Return an error if the user attempts to start Desktop Access in
+		// FedRAMP/FIPS mode for now until we can swap out OpenSSL for BoringCrypto.
+		if cfg.FIPS {
+			return nil, trace.BadParameter("FedRAMP/FIPS 140-2 compliant configuration for Desktop Access not supported in Teleport %v", teleport.Version)
+		}
+
 		process.initWindowsDesktopService()
 		serviceStarted = true
 	} else {
@@ -1423,7 +1432,7 @@ func (process *TeleportProcess) initAuthService() error {
 			srv.SetExpiry(process.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 			return &srv, nil
 		},
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
@@ -3268,6 +3277,12 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		tlsConfig = m.TLSConfig()
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
+
+		// If ACME protocol was enabled add all known TLS Routing protocols.
+		// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
+		// the TLS handshake will fail.
+		supportedProtocols := alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)
+		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, supportedProtocols...))
 	}
 
 	for _, pair := range process.Config.Proxy.KeyPairs {

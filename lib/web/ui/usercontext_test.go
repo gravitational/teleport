@@ -45,6 +45,10 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 			Resources: []string{types.KindAuthConnector},
 			Verbs:     services.RW(),
 		},
+		{
+			Resources: []string{types.KindWindowsDesktop},
+			Verbs:     services.RW(),
+		},
 	})
 
 	// not setting the rule, or explicitly denying, both denies access
@@ -99,7 +103,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.ACL.Tokens, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Nodes, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.AccessRequests, check.DeepEquals, denied)
-	c.Assert(userContext.ACL.Desktops, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Desktops, check.DeepEquals, allowed)
 	c.Assert(userContext.ACL.SSHLogins, check.DeepEquals, []string{"a", "b", "d"})
 	c.Assert(userContext.ACL.WindowsLogins, check.DeepEquals, []string{"a", "b", "d"})
 	c.Assert(userContext.AccessStrategy, check.DeepEquals, accessStrategy{
@@ -120,4 +124,58 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	userContext, err = NewUserContext(user, roleSet, proto.Features{Cloud: true})
 	c.Assert(err, check.IsNil)
 	c.Assert(userContext.ACL.Billing, check.DeepEquals, access{true, true, false, false, false})
+}
+
+func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
+	user := &types.UserV2{
+		Metadata: types.Metadata{
+			Name: "root",
+		},
+	}
+
+	role := &types.RoleV4{}
+	role.SetNamespaces(types.Allow, []string{"*"})
+	role.SetRules(types.Allow, []types.Rule{
+		{
+			Resources: []string{"*"},
+			Verbs:     services.RW(),
+		},
+	})
+
+	role.SetLogins(types.Allow, []string{"a", "b"})
+	role.SetLogins(types.Deny, []string{"c"})
+	role.SetWindowsLogins(types.Allow, []string{"a", "b"})
+	role.SetWindowsLogins(types.Deny, []string{"c"})
+
+	roleSet := []types.Role{role}
+
+	allowed := access{true, true, true, true, true}
+	denied := access{false, false, false, false, false}
+
+	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true})
+	c.Assert(err, check.IsNil)
+
+	c.Assert(userContext.Name, check.Equals, "root")
+	c.Assert(userContext.ACL.AuthConnectors, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.TrustedClusters, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.AppServers, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.DBServers, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.KubeServers, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Events, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Sessions, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Roles, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Users, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Tokens, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Nodes, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.AccessRequests, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.SSHLogins, check.DeepEquals, []string{"a", "b"})
+	c.Assert(userContext.ACL.WindowsLogins, check.DeepEquals, []string{"a", "b"})
+	c.Assert(userContext.AccessStrategy, check.DeepEquals, accessStrategy{
+		Type:   types.RequestStrategyOptional,
+		Prompt: "",
+	})
+
+	// cloud-specific asserts
+	c.Assert(userContext.ACL.Billing, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Desktops, check.DeepEquals, denied)
 }
