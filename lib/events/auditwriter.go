@@ -473,7 +473,10 @@ func (a *AuditWriter) closeStream(stream apievents.Stream) {
 }
 
 func (a *AuditWriter) completeStream(stream apievents.Stream) {
-	ctx, cancel := context.WithTimeout(a.cfg.Context, defaults.NetworkBackoffDuration)
+	// Cannot use the configured context b/c it's the servers and when the server
+	// is requested to close (and hence the context is cancled), the stream will not be able
+	// to complete
+	ctx, cancel := context.WithTimeout(context.Background(), defaults.NetworkBackoffDuration)
 	defer cancel()
 	if err := stream.Complete(ctx); err != nil {
 		a.log.WithError(err).Warning("Failed to complete stream.")
