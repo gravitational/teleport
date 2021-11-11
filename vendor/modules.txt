@@ -296,6 +296,9 @@ github.com/duo-labs/webauthn/protocol
 github.com/duo-labs/webauthn/protocol/googletpm
 github.com/duo-labs/webauthn/protocol/webauthncose
 github.com/duo-labs/webauthn/webauthn
+# github.com/dustin/go-broadcast v0.0.0-20211018055107-71439988bd91
+## explicit; go 1.16
+github.com/dustin/go-broadcast
 # github.com/dustin/go-humanize v1.0.0
 ## explicit
 github.com/dustin/go-humanize

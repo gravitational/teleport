@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	broadcast "github.com/dustin/go-broadcast"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
@@ -547,6 +548,8 @@ type session struct {
 	access auth.SessionAccessEvaluator
 
 	checkAccess chan struct{}
+
+	stateUpdate broadcast.Broadcaster
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -678,6 +681,35 @@ func (s *session) isLingering() bool {
 	defer s.mu.Unlock()
 
 	return len(s.parties) == 0
+}
+
+func (s *session) monitorAccess() error {
+	for {
+		select {
+		case <-s.checkAccess:
+			permitted, err := s.checkIfStart()
+			if err != nil {
+				s.log.Errorf("Failed to check if session %v can be started: %v.", s.id, err)
+			}
+
+			var state types.SessionState
+			if permitted {
+				state = types.SessionState_SessionStateRunning
+			} else {
+				state = types.SessionState_SessionStatePending
+			}
+
+			s.mu.Lock()
+			if state != s.state {
+				s.state = state
+				s.stateUpdate.Submit(state)
+			}
+			s.mu.Unlock()
+			return nil
+		case <-s.closeC:
+			return nil
+		}
+	}
 }
 
 // startInteractive starts a new interactive process (or a shell) in the
