@@ -545,6 +545,8 @@ type session struct {
 	state types.SessionState
 
 	access auth.SessionAccessEvaluator
+
+	checkAccess chan struct{}
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -619,7 +621,8 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		serverCtx:    ctx.srv.Context(),
 		state:        types.SessionState_SessionStatePending,
 		// TODO(joel): fetch initiator
-		access: auth.NewSessionAccessEvaluator(nil, types.SSHSessionKind),
+		access:      auth.NewSessionAccessEvaluator(nil, types.SSHSessionKind),
+		checkAccess: make(chan struct{}),
 	}
 	return sess, nil
 }
@@ -1288,6 +1291,12 @@ func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) (*p
 	p := newParty(s, ch, ctx)
 	if err := s.addParty(p); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state == types.SessionState_SessionStatePending {
+		s.checkAccess <- struct{}{}
 	}
 
 	return p, nil
