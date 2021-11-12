@@ -61,7 +61,8 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// Rate describes a rate ratio, i.e. the number of "events" that hapen over a unit of time
+// Rate describes a rate ratio, i.e. the number of "events" that happen over a
+// come unit time period
 type Rate struct {
 	Amount int
 	Time   time.Duration

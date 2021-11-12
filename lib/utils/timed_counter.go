@@ -22,9 +22,10 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// TimedCounted counts events that happen over a period of time, e.g. have there been
-// more than 4 errors in the last 30 seconds. Automatically expires old events so they
-// are not included in the count. Not safe for concurrent use.
+// TimedCounter is essentially a lightweight rate calculator. It counts events
+// that happen over a period of time, e.g. have there been more than 4 errors
+// in the last 30 seconds. Automatically expires old events so they are not
+// included in the count. Not safe for concurrent use.
 type TimedCounter struct {
 	clock   clockwork.Clock
 	timeout time.Duration
@@ -47,6 +48,8 @@ func (c *TimedCounter) Increment() int {
 	return len(c.events)
 }
 
+// Count fetches the number of recorded events currently in the measurement
+// time window.
 func (c *TimedCounter) Count() int {
 	c.trim()
 	return len(c.events)
