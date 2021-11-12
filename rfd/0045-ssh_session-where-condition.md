@@ -8,7 +8,7 @@ state: draft
 ## What
 
 Manage access to active sessions (resource kind `ssh_session`) by RBAC
-`where` conditions, in the same manner as the RFD *RBAC `where` conditions
+`where` conditions, in the same manner as the RFD 44 *RBAC `where` conditions
 for session recordings list/read* provides access management for session
 recordings (resource kind `session`).
 
