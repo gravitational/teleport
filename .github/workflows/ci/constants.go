@@ -84,6 +84,10 @@ const (
 	AnyAuthor = "*"
 )
 
+
+// RepoAdmins are the Teleport repository admin usernames.
+var RepoAdmins = []string{"r0mant", "russjones", "klizhentas", "zmb3"}
+
 var Reviewers = map[string][]string{
 	// Teleport Core
 	"alex-kovoy":    {"russjones", "r0mant"},
