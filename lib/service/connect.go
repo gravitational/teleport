@@ -435,7 +435,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 
 // periodicSyncRotationState checks rotation state periodically and
 // takes action if necessary
-func (process *TeleportProcess) periodicSyncRotationState(pollingInterval time.Duration, syncRotationFailureThreshold Rate) error {
+func (process *TeleportProcess) periodicSyncRotationState() error {
 	// start rotation only after teleport process has started
 	eventC := make(chan Event, 1)
 	process.WaitForEvent(process.ExitContext(), TeleportReadyEvent, eventC)
@@ -447,13 +447,13 @@ func (process *TeleportProcess) periodicSyncRotationState(pollingInterval time.D
 	}
 
 	periodic := interval.New(interval.Config{
-		Duration:      pollingInterval,
-		FirstDuration: utils.HalfJitter(pollingInterval),
+		Duration:      process.Config.RotationConnectionInterval,
+		FirstDuration: utils.HalfJitter(process.Config.RotationConnectionInterval),
 		Jitter:        utils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
 
-	errors := utils.NewTimedCounter(process.Clock, syncRotationFailureThreshold.Time)
+	errors := utils.NewTimedCounter(process.Clock, process.Config.RestartThreshold.Time)
 
 	for {
 		err := process.syncRotationStateCycle()
@@ -466,15 +466,15 @@ func (process *TeleportProcess) periodicSyncRotationState(pollingInterval time.D
 		// route to the auth server is gone. If we're using a tunnel then it's possible
 		// that the proxy has been reconfigured and the tunnel address has moved.
 		count := errors.Increment()
-		process.log.Warnf("%d connection errors in last %v.", count, syncRotationFailureThreshold.Time)
-		if count > syncRotationFailureThreshold.Amount {
+		process.log.Warnf("%d connection errors in last %v.", count, process.Config.RestartThreshold.Time)
+		if count > process.Config.RestartThreshold.Amount {
 			// signal quit
 			process.log.Error("Connection error threshold exceeded. Asking for a graceful restart.")
 			process.BroadcastEvent(Event{Name: TeleportReloadEvent})
 			return nil
 		}
 
-		process.log.Warningf("Retrying in ~%v", defaults.HighResPollingPeriod)
+		process.log.Warningf("Retrying in ~%v", process.Config.RotationConnectionInterval)
 
 		select {
 		case <-periodic.Next():

@@ -828,9 +828,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentWindowsDesktop), process.log)
 	}
 
-	process.RegisterFunc("common.rotate", func() error {
-		return process.periodicSyncRotationState(cfg.RotationConnectionInterval, cfg.RestartThreshold)
-	})
+	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
 
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")

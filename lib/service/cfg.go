@@ -238,7 +238,7 @@ type Config struct {
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
 
-	// SyncRotationConnectionInterval is the interval between connection
+	// RotationConnectionInterval is the interval between connection
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
