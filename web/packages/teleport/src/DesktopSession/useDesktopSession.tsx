@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { UrlDesktopParams } from 'teleport/config';
@@ -35,7 +35,9 @@ export default function useDesktopSession(ctx: Ctx) {
     clusterId,
   });
 
-  document.title = `${clusterId} • ${clientCanvasProps.username}@${hostname}`;
+  document.title = useMemo(() => `${clusterId} • ${username}@${hostname}`, [
+    hostname,
+  ]);
 
   // creates hostname string from list of desktops based on url's desktopId
   const makeHostname = (desktops: Desktop[]) => {
