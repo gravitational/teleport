@@ -30,7 +30,7 @@ This guide requires you to have:
 - A Linux server to run the Teleport Desktop Access service on
   - You can reuse an existing server running any other Teleport instance
 
-## Step 1/5: Create a User, Group, and Group Policy Object
+## Step 1/6: Create a User, Group, and Group Policy Object
 
 Teleport requires a service account to connect to your Active Directory domain. We recommend creating a dedicated service account with restrictive permissions
 (described below) for maximal security.
@@ -91,7 +91,7 @@ should be displayed in the "Security Filtering" pane:
   ![Apply GPO](../../img/desktop-access/apply-gpo.png)
 </Figure>
 
-## Step 2/5. Configure Group Policy to allow Teleport connections
+## Step 2/6. Configure Group Policy to allow Teleport connections
 
 {/* TODO: script this using PowerShell */}
 
@@ -206,7 +206,7 @@ Right click `Require user authentication for remote connections by using
 Network Level Authentication`, edit, select **"Disable"** and "OK".
 
 
-## Step 3/5. Configure Group to allow Teleport connections
+## Step 3/6. Configure Group to allow Teleport connections
 
 Next, complete the service account's configuration by giving its corresponding Group the minimum necessary permissions for Teleport to work.
 First, open a PowerShell terminal and figure out the `$DomainDN` and `$TeleportLDAPGroupName` variables you'll need to use:
@@ -237,7 +237,31 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 
 ```
 
-## Step 4/5. Configure Teleport
+## Step 4/6. Export your Domain Controller's CA Certificate
+
+Teleport connects to your Domain Controller via LDAPS. This means that you must let Teleport know that the certificate sent 
+by your Domain Controller during the initial SSL connection is trusted. If your Domain Controller's certificate is trusted by
+the system repository on the system running Teleport, you can skip this step. Atlernately, if you trust your network, you can
+skip LDAPS certificate verification by setting the `insecure_skip_verify` configuration variable to `false`.
+
+### To Export a CA Certificate
+
+{/* Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server */}
+1. Begin by navigating to `Start > Control Panel > Administrative Tools > Certificate Authority` to open the CA Microsoft Management Console (MMC) GUI.
+2. Right click on your CA computer and select "Properties".
+3. From "General" tab, click "View Certificate".
+4. Select the "Details" view and click "Copy to File".
+5. Click "Next" in the Certificate Export Wizard, and ensure that "DER encoded binary X.509 (.CER)" is selected
+6. Select a name and location for you certificate and finish out the wizard.
+
+Now transfer the exported file to the system where you're running Teleport. You can either add this certificate to your system's
+trusted repository or provide the filepath in the `der_ca_file` configuration variable.
+
+<Figure align="left" bordered caption="Export CA Cert">
+  ![Export CA Cert](../../img/desktop-access/export-ca.png)
+</Figure>
+
+## Step 5/6. Configure Teleport
 
 <Admonition
   type="note"
@@ -284,8 +308,16 @@ windows_desktop_service:
     # Plain text file containing the LDAP password for authentication.
     # This is the same password you chose in step 1.
     password_file: /var/lib/ldap-pass
+    # You can skip LDAPS certificate verification by setting
+    # this to true. It is recommended that this be set to false
+    # and the certificate added your system's trusted repository,
+    # or its filepath provided in with the der_ca_file variable below.
+    insecure_skip_verify: false
+    # DER encoded certificate.
+    # This should be the path to the certificate exported in step 4.
+    der_ca_file: /path/to/cert
   hosts:
-    # DNS entries for any static hosts you want to connect to.
+    # DNS entries for any static hosts yRou want to connect to.
     # These are only needed to connect to desktops that aren't covered by the discovery setting below.
     - "100.104.52.89"
     - "example.com"
@@ -300,7 +332,7 @@ windows_desktop_service:
 After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
 
 
-## Step 5/5. Log in using Teleport
+## Step 6/6. Log in using Teleport
 
 ### Create a Teleport User/Role for Desktop Access
 
