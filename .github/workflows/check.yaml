@@ -30,6 +30,7 @@ jobs:
   check-reviews:
     name: Checking reviewers 
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     steps:
       # Checkout master branch of Teleport repository. This is to prevent an
       # attacker from submitting their own review assignment logic. 
