@@ -40,7 +40,7 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
-      {{- if or .Values.affinity (gt (int .Values.highAvailability.replicaCount) 1) }}
+      {{- if or .Values.affinity (gt (int .replicaCount) 1) }}
       affinity:
         {{- if .Values.affinity }}
           {{- if .Values.highAvailability.requireAntiAffinity }}
@@ -58,7 +58,7 @@ spec:
                 values:
                 - {{ .Release.Name }}
             topologyKey: "kubernetes.io/hostname"
-        {{- else if gt (int .Values.highAvailability.replicaCount) 1 }}
+        {{- else if gt (int .replicaCount) 1 }}
           preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 50
             podAffinityTerm:
