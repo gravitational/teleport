@@ -249,14 +249,10 @@ skip LDAPS certificate verification by setting the `insecure_skip_verify` config
 3. From "General" tab, click "View Certificate".
 4. Select the "Details" view and click "Copy to File".
 5. Click "Next" in the Certificate Export Wizard, and ensure that "DER encoded binary X.509 (.CER)" is selected
-6. Select a name and location for you certificate and finish out the wizard.
+6. Select a name and location for you certificate and click through the wizard.
 
 Now transfer the exported file to the system where you're running Teleport. You can either add this certificate to your system's
-trusted repository or provide the filepath in the `der_ca_file` configuration variable.
-
-<Figure align="left" bordered caption="Export CA Cert">
-  ![Export CA Cert](../../img/desktop-access/export-ca.png)
-</Figure>
+trusted repository or provide the filepath to the `der_ca_file` configuration variable.
 
 ## Step 5/6. Configure Teleport
 
