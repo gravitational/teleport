@@ -280,7 +280,7 @@ func (m *AgentPool) getReverseTunnelDetails(addr utils.NetAddr) *reverseTunnelDe
 }
 
 // addAgent adds a new agent to the pool. Note that ownership of the lease
-// transfers into the AgentPool, and will be released whet the AgentPool
+// transfers into the AgentPool, and will be released when the AgentPool
 // is done with it.
 func (m *AgentPool) addAgent(lease track.Lease) error {
 	addr := lease.Key().(utils.NetAddr)
