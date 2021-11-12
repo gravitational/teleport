@@ -27,9 +27,14 @@ export default function useSshSession(doc: DocumentSsh) {
   const { clusterId, sid, serverId, login } = doc;
   const ctx = useConsoleContext();
   const ttyRef = React.useRef<Tty>(null);
+  const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
   const [session, setSession] = React.useState<Session>(null);
   const [statusText, setStatusText] = React.useState('');
   const [status, setStatus] = React.useState<Status>('loading');
+
+  function closeDocument() {
+    ctx.closeTab(doc);
+  }
 
   React.useEffect(() => {
     // initializes tty instances
@@ -42,6 +47,7 @@ export default function useSshSession(doc: DocumentSsh) {
       tty.on(TermEventEnum.CONN_CLOSE, () =>
         ctx.updateSshDocument(doc.id, { status: 'disconnected' })
       );
+
       tty.on('open', () => handleTtyConnect(ctx, session, doc.id));
 
       // assign tty reference so it can be passed down to xterm
@@ -79,10 +85,11 @@ export default function useSshSession(doc: DocumentSsh) {
   }, []);
 
   return {
-    tty: ttyRef.current as ReturnType<typeof ctx.createTty>,
+    tty,
     status,
     statusText,
     session,
+    closeDocument,
   };
 }
 

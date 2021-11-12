@@ -23,13 +23,16 @@ import * as stores from 'teleport/Console/stores';
 import FileTransfer, { useFileTransferDialogs } from './../FileTransfer';
 import Terminal from './Terminal';
 import Document from '../Document';
+import AuthnDialog from './AuthnDialog';
+import useWebauthn from './useWebauthn';
 import useSshSession from './useSshSession';
 import ActionBar from './ActionBar';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
   const scpDialogs = useFileTransferDialogs();
-  const { tty, status, statusText } = useSshSession(doc);
+  const { tty, status, statusText, closeDocument } = useSshSession(doc);
+  const webauthn = useWebauthn(tty);
 
   function onCloseScpDialogs() {
     scpDialogs.close();
@@ -41,7 +44,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
       // when switching tabs or closing tabs, focus on visible terminal
       refTerminal.current.terminal.term.focus();
     }
-  }, [visible]);
+  }, [visible, webauthn.requested]);
 
   return (
     <Document visible={visible} flexDirection="column">
@@ -64,6 +67,13 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
       )}
       {status === 'notfound' && (
         <SidNotFoundError sid={doc.sid} clusterId={doc.clusterId} />
+      )}
+      {webauthn.requested && (
+        <AuthnDialog
+          onContinue={webauthn.authenticate}
+          onCancel={closeDocument}
+          errorText={webauthn.errorText}
+        />
       )}
       {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
       <FileTransfer
