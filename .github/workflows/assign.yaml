@@ -25,6 +25,7 @@ permissions:
     statuses: none
 jobs:
   auto-request-review:
+    if: !github.event.pull_request.draft
     name: Auto Request Review
     runs-on: ubuntu-latest
     steps:
