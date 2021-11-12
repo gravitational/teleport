@@ -42,7 +42,7 @@ const (
 	// Approved is a pull request review status.
 	Approved = "APPROVED"
 
-	// Commented is a pull request review status. 
+	// Commented is a pull request review status.
 	Commented = "COMMENTED"
 
 	// Token is the env variable name that stores the Github authentication token
@@ -84,6 +84,29 @@ const (
 	AnyAuthor = "*"
 )
 
+// Doc Detection Constants
+const (
+	// DocsPrefix is the prefix used to determine if a pull request has changes that would require doc reviewers to review.
+	DocsPrefix = "docs/"
+
+	// RfdPrefix is the prefix used to determine if a pull request has changes that would require doc reviewers to review.
+	RfdPrefix = "rfd/"
+
+	// MdSuffix is a suffix used to determine if a pull request has changes that would require doc reviewers to review.
+	MdSuffix = ".md"
+
+	// MdxSuffix is a suffix used to determine if a pull request has changes that would require doc reviewers to review.
+	MdxSuffix = ".mdx"
+
+	// VendorPrefix is a prefix used to determine if a file is in the `vendor/` directory.
+	VendorPrefix = "vendor/"
+)
+
+var DocReviewers = []string{"klizhentas"}
+
+// RepoAdmins are the Teleport repository admin usernames.
+var RepoAdmins = []string{"r0mant", "russjones", "klizhentas", "zmb3"}
+
 var Reviewers = map[string][]string{
 	// Teleport Core
 	"alex-kovoy":    {"russjones", "r0mant"},
@@ -94,7 +117,7 @@ var Reviewers = map[string][]string{
 	"gabrielcorado": {"r0mant", "smallinsky"},
 	"gzdunek":       {"alex-kovoy", "kimlisa"},
 	"ibeckermayer":  {"zmb3", "alex-kovoy"},
-	"joerger":       {"zmb3", "atburke"},
+	"Joerger":       {"zmb3", "atburke"},
 	"kimlisa":       {"alex-kovoy", "rudream"},
 	"klizhentas":    {"russjones", "r0mant"},
 	"kontsevoy":     {"russjones", "r0mant"},
@@ -104,11 +127,11 @@ var Reviewers = map[string][]string{
 	"rosstimothy":   {"r0mant", "fspmarshall"},
 	"rudream":       {"russjones", "r0mant"},
 	"russjones":     {"zmb3", "r0mant"},
-	"smallinsky":    {"joerger", "r0mant"},
+	"smallinsky":    {"Joerger", "r0mant"},
 	"tcsc":          {"nklaassen", "codingllama"},
 	"timothyb89":    {"codingllama", "xacrimon"},
 	"twakes":        {"russjones", "r0mant"},
-	"xacrimon":      {"zmb3", "joerger"},
+	"xacrimon":      {"zmb3", "Joerger"},
 	"zmb3":          {"rosstimothy", "xacrimon"},
 
 	// Teleport
