@@ -3,7 +3,7 @@ authors: Andrej Tokarčík (andrej@goteleport.com)
 state: draft
 ---
 
-# RFD XY - RBAC `where` conditions for active sessions list/read
+# RFD 45 - RBAC `where` conditions for active sessions list/read
 
 ## What
 
