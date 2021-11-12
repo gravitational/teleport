@@ -25,10 +25,11 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/trace"
 )
 
 const sshConfigTemplate = `
@@ -41,7 +42,7 @@ Host *.{{ .ClusterName }} {{ .ProxyHost }}
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
     Port 3022
-    ProxyCommand "{{ .TSHPath }}" config-proxy --login="%r" --proxy={{ .ProxyHost }}:{{ .ProxyPort }} %h:%p "{{ .ClusterName }}"
+    ProxyCommand "{{ .TSHPath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
 `
 
 type hostConfigParameters struct {
@@ -50,7 +51,6 @@ type hostConfigParameters struct {
 	IdentityFilePath    string
 	CertificateFilePath string
 	ProxyHost           string
-	ProxyPort           string
 	TSHPath             string
 }
 
@@ -88,7 +88,7 @@ func onConfig(cf *CLIConf) error {
 
 	// Note: TeleportClient.connectToProxy() overrides the proxy address when
 	// JumpHosts are in use, which this does not currently implement.
-	proxyHost, proxyPort, err := net.SplitHostPort(tc.Config.SSHProxyAddr)
+	proxyHost, _, err := net.SplitHostPort(tc.Config.SSHProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -127,7 +127,6 @@ func onConfig(cf *CLIConf) error {
 		IdentityFilePath:    identityFilePath,
 		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName),
 		ProxyHost:           proxyHost,
-		ProxyPort:           proxyPort,
 		TSHPath:             cf.executablePath,
 	})
 	if err != nil {
@@ -141,7 +140,6 @@ func onConfig(cf *CLIConf) error {
 			IdentityFilePath:    identityFilePath,
 			CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName),
 			ProxyHost:           proxyHost,
-			ProxyPort:           proxyPort,
 			TSHPath:             cf.executablePath,
 		})
 		if err != nil {
