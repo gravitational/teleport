@@ -1699,11 +1699,6 @@ func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
-// DeleteClusterNetworkingConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterNetworkingConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetSessionRecordingConfig gets session recording configuration.
 func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	resp, err := c.grpc.GetSessionRecordingConfig(ctx, &empty.Empty{}, c.callOpts...)
@@ -1727,11 +1722,6 @@ func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.
 func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
 	_, err := c.grpc.ResetSessionRecordingConfig(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
-}
-
-// DeleteSessionRecordingConfig not implemented: can only be called locally.
-func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GetAuthPreference gets cluster auth preference.
@@ -1759,11 +1749,6 @@ func (c *Client) ResetAuthPreference(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
-// DeleteAuthPreference not implemented: can only be called locally.
-func (c *Client) DeleteAuthPreference(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetClusterAuditConfig gets cluster audit configuration.
 func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	resp, err := c.grpc.GetClusterAuditConfig(ctx, &empty.Empty{}, c.callOpts...)
@@ -1771,16 +1756,6 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
-}
-
-// SetClusterAuditConfig not implemented: can only be called locally.
-func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteClusterAuditConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GetLock gets a lock by name.
@@ -1832,11 +1807,6 @@ func (c *Client) DeleteLock(ctx context.Context, name string) error {
 	}
 	_, err := c.grpc.DeleteLock(ctx, &proto.DeleteLockRequest{Name: name}, c.callOpts...)
 	return trail.FromGRPC(err)
-}
-
-// DeleteAllLocks not implemented: can only be called locally.
-func (c *Client) DeleteAllLocks(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.

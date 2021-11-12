@@ -1628,6 +1628,36 @@ func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 	return resp.CRL, nil
 }
 
+// DeleteClusterNetworkingConfig not implemented: can only be called locally.
+func (c *Client) DeleteClusterNetworkingConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteSessionRecordingConfig not implemented: can only be called locally.
+func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAuthPreference not implemented: can only be called locally.
+func (c *Client) DeleteAuthPreference(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// SetClusterAuditConfig not implemented: can only be called locally.
+func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteClusterAuditConfig not implemented: can only be called locally.
+func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAllLocks not implemented: can only be called locally.
+func (c *Client) DeleteAllLocks(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
