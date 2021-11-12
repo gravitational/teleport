@@ -26,39 +26,39 @@ import (
 
 func TestGetKubeTLSServerName(t *testing.T) {
 	tests := []struct {
-		name         string
-		webProxyAddr string
-		want         string
+		name          string
+		kubeProxyAddr string
+		want          string
 	}{
 		{
-			name:         "ipv4 format, API domain should be used",
-			webProxyAddr: "127.0.0.1",
-			want:         "kube.teleport.cluster.local",
+			name:          "ipv4 format, API domain should be used",
+			kubeProxyAddr: "127.0.0.1",
+			want:          "kube.teleport.cluster.local",
 		},
 		{
-			name:         "ipv4 with port, API domain should be used",
-			webProxyAddr: "127.0.0.1:3080",
-			want:         "kube.teleport.cluster.local",
+			name:          "ipv4 with port, API domain should be used",
+			kubeProxyAddr: "127.0.0.1:3080",
+			want:          "kube.teleport.cluster.local",
 		},
 		{
-			name:         "ipv4 missing host, API domain should be used",
-			webProxyAddr: ":3080",
-			want:         "kube.teleport.cluster.local",
+			name:          "ipv4 missing host, API domain should be used",
+			kubeProxyAddr: ":3080",
+			want:          "kube.teleport.cluster.local",
 		},
 		{
-			name:         "ipv4 unspecified, API domain should be used ",
-			webProxyAddr: "0.0.0.0:3080",
-			want:         "kube.teleport.cluster.local",
+			name:          "ipv4 unspecified, API domain should be used ",
+			kubeProxyAddr: "0.0.0.0:3080",
+			want:          "kube.teleport.cluster.local",
 		},
 		{
-			name:         "valid hostname with port",
-			webProxyAddr: "example.com:3080",
-			want:         "kube.example.com",
+			name:          "valid hostname with port",
+			kubeProxyAddr: "example.com:3080",
+			want:          "kube.example.com",
 		},
 		{
-			name:         "valid hostname without port",
-			webProxyAddr: "example.com",
-			want:         "kube.example.com",
+			name:          "valid hostname without port",
+			kubeProxyAddr: "example.com",
+			want:          "kube.example.com",
 		},
 	}
 
@@ -66,7 +66,7 @@ func TestGetKubeTLSServerName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tc := &client.TeleportClient{
 				Config: client.Config{
-					WebProxyAddr: tt.webProxyAddr,
+					WebProxyAddr: tt.kubeProxyAddr,
 				},
 			}
 			got := getKubeTLSServerName(tc)

@@ -323,16 +323,16 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 
 // getKubeTLSServerName returns k8s server name used in KUBECONFIG to leverage TLS Routing.
 func getKubeTLSServerName(tc *client.TeleportClient) string {
-	webHost := tc.WebProxyHost()
+	k8host, _ := tc.KubeProxyHostPort()
 
-	isIPFormat := net.ParseIP(webHost) != nil
-	if webHost == "" || isIPFormat {
+	isIPFormat := net.ParseIP(k8host) != nil
+	if k8host == "" || isIPFormat {
 		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
 		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
 		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
 		return addSubdomainPrefix(constants.APIDomain, alpnproxy.KubeSNIPrefix)
 	}
-	return addSubdomainPrefix(webHost, alpnproxy.KubeSNIPrefix)
+	return addSubdomainPrefix(k8host, alpnproxy.KubeSNIPrefix)
 }
 
 func addSubdomainPrefix(domain, prefix string) string {
