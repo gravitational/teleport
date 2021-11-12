@@ -44,10 +44,12 @@ Another wizard (AD DS configuration) will open:
 
 #### AD CS
 
-Next, we need Active Directory Certificate Services (AD CS) to enable TLS on
-LDAP connections. From Server Manager, in the top-right select `Manage > Add
-Roles and Features`. (Note: you won't be able to install both AD DS and AD CS
-at the same time, they need to be separate).
+Next, we'll install Active Directory Certificate Services (AD CS) to enable TLS
+on LDAP connections. While AD CS is not strictly required, it is the easiest way
+to generate a keypair and ensure that the server supports LDAPS. From Server
+Manager, in the top-right select `Manage > Add Roles and Features`. (Note: you
+won't be able to install both AD DS and AD CS at the same time, they need to be
+separate).
 
 In the wizard, select:
 - Before you Begin: click `Next`
