@@ -16,15 +16,14 @@ limitations under the License.
 
 import { useMemo } from 'react';
 import TdpClient, { ImageData } from 'teleport/lib/tdp/client';
-import { useParams } from 'react-router';
 import { TopBarHeight } from './TopBar';
-import cfg, { UrlDesktopParams } from 'teleport/config';
+import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import { ButtonState, ScrollAxis } from 'teleport/lib/tdp/codec';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-export default function useTdpClientCanvas() {
-  const { clusterId, username, desktopId } = useParams<UrlDesktopParams>();
+export default function useTdpClientCanvas(props: Props) {
+  const { username, desktopId, clusterId } = props;
   // status === '' means disconnected
   const {
     attempt: connectionAttempt,
@@ -141,3 +140,9 @@ export default function useTdpClientCanvas() {
     onMouseWheelScroll,
   };
 }
+
+type Props = {
+  username: string;
+  desktopId: string;
+  clusterId: string;
+};
