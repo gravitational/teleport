@@ -134,13 +134,6 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindEvent, RO()),
 				},
 			},
-			Deny: types.RoleConditions{
-				Namespaces:       []string{types.Wildcard},
-				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-			},
 		},
 	}
 	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New()})
