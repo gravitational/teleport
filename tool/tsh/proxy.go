@@ -21,6 +21,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
+	"strconv"
+	"strings"
 	"text/template"
 
 	"github.com/gravitational/trace"
@@ -32,12 +35,43 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// onProxyCommandSSH creates a local ssh proxy.
+// In cases of TLS Routing the connection is established to the WebProxy with teleport-proxy-ssh ALPN protocol.
+// and all ssh traffic is forwarded through the local ssh proxy.
+//
+// If proxy doesn't support TLS Routing the onProxyCommandSSH is used as ProxyCommand to remove proxy/site prefixes
+// from destination node address to support multiple platform where 'cut -d' command is not provided.
+// For more details please look at: Generate Windows-compatible OpenSSH config https://github.com/gravitational/teleport/pull/7848
 func onProxyCommandSSH(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName)
+
+	if tc.TLSRoutingEnabled {
+		return trace.Wrap(sshProxyWithTLSRouting(cf, tc, targetHost, targetPort))
+	}
+
+	return trace.Wrap(sshProxy(cf, tc, targetHost, targetPort))
+}
+
+// cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
+// Before the `cut -d` command was used for this purpose but to support multi-platform OpenSSH clients the logic
+// it was moved tsh proxy ssh command.
+// For more details please look at: Generate Windows-compatible OpenSSH config https://github.com/gravitational/teleport/pull/7848
+func cleanTargetHost(targetHost, proxyHost, siteName string) string {
+	targetHost = strings.TrimSuffix(targetHost, "."+proxyHost)
+	targetHost = strings.TrimSuffix(targetHost, "."+siteName)
+	return targetHost
+}
+
+func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHost, targetPort string) error {
 	address, err := utils.ParseAddr(tc.WebProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
@@ -58,7 +92,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
 		SSHUser:            tc.HostLogin,
-		SSHUserHost:        cf.UserHost,
+		SSHUserHost:        fmt.Sprintf("%s:%s", targetHost, targetPort),
 		SSHHostKeyCallback: tc.HostKeyCallback,
 		SSHTrustedCluster:  cf.SiteName,
 		ClientTLSConfig:    tlsConfig,
@@ -67,10 +101,36 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	defer lp.Close()
-	if err := lp.SSHProxy(); err != nil {
+	if err := lp.SSHProxy(tc.LocalAgent()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func sshProxy(cf *CLIConf, tc *libclient.TeleportClient, targetHost, targetPort string) error {
+	sshPath, err := getSSHPath()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sshHost, sshPort := tc.SSHProxyHostPort()
+	args := []string{
+		"-p",
+		strconv.Itoa(sshPort),
+		sshHost,
+		"-s",
+		fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, tc.SiteName),
+	}
+
+	if cf.NodeLogin != "" {
+		args = append([]string{"-l", cf.NodeLogin}, args...)
+	}
+
+	child := exec.Command(sshPath, args...)
+	child.Stdin = os.Stdin
+	child.Stdout = os.Stdout
+	child.Stderr = os.Stderr
+	return trace.Wrap(child.Run())
 }
 
 func onProxyCommandDB(cf *CLIConf) error {
