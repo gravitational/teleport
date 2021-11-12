@@ -568,7 +568,8 @@ func (s *Server) Close() error {
 	// Stop proxying all databases.
 	for _, database := range s.getProxiedDatabases() {
 		if err := s.stopProxyingDatabase(s.closeContext, database); err != nil {
-			errors = append(errors, err)
+			errors = append(errors, trace.WrapWithMessage(
+				err, "stopping database %v", database.GetName()))
 		}
 	}
 	// Signal to all goroutines to stop.
@@ -585,7 +586,10 @@ func (s *Server) Close() error {
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
 	<-s.closeContext.Done()
-	return s.closeContext.Err()
+	if err := s.closeContext.Err(); err != nil && err != context.Canceled {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // ForceHeartbeat is used by tests to force-heartbeat all registered databases.
