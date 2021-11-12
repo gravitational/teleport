@@ -72,9 +72,10 @@ func TestTimedCounterExpiresEvents(t *testing.T) {
 }
 
 func TestTimedCounterIncrementExpiresValues(t *testing.T) {
-	// Given a counter with a 10-second cutoff, primed with events at 1 second
-	// intervals
+	// Given a counter with a 10-second cutoff, primed with 5 events at 1-
+	// second intervals
 	clock := clockwork.NewFakeClock()
+
 	uut := NewTimedCounter(clock, 10*time.Second)
 	for i := 1; i <= 5; i++ {
 		require.Equal(t, uut.Increment(), i)
@@ -82,11 +83,11 @@ func TestTimedCounterIncrementExpiresValues(t *testing.T) {
 		clock.Advance(1 * time.Second)
 	}
 
-	// When I advance the clock to a time when three of the events should have
-	// expired and increment the count
-	clock.Advance(6599 * time.Millisecond)
+	// When I advance the clock to 12.5s after the first event, by which time
+	// events at 0s, 1s and 2s should have expired.
+	clock.Advance(7500 * time.Millisecond)
 
 	// Expect that incrementing the count handles expiring three events and
-	// adding a new one (net result: 3 "live" events)
-	require.Equal(t, uut.Increment(), 3)
+	// adding a new one (net result: 3 "live" events remaining)
+	require.Equal(t, 3, uut.Increment())
 }
