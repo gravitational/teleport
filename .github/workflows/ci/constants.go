@@ -42,6 +42,9 @@ const (
 	// Approved is a pull request review status.
 	Approved = "APPROVED"
 
+	// Commented is a pull request review status.
+	Commented = "COMMENTED"
+
 	// Token is the env variable name that stores the Github authentication token
 	Token = "GITHUB_TOKEN"
 
@@ -76,7 +79,96 @@ const (
 	// Created is an event type that is triggered when a pull request review is created.
 	Created = "created"
 
-	// AnyAuthor is the symbol used to get reviewers for external contributors/contrtibutors who 
-	// do not have designated reviewers. 
+	// AnyAuthor is the symbol used to get reviewers for external contributors/contrtibutors who
+	// do not have designated reviewers.
 	AnyAuthor = "*"
 )
+
+// Doc Detection Constants
+const (
+	// DocsPrefix is the prefix used to determine if a pull request has changes that would require doc reviewers to review.
+	DocsPrefix = "docs/"
+
+	// RfdPrefix is the prefix used to determine if a pull request has changes that would require doc reviewers to review.
+	RfdPrefix = "rfd/"
+
+	// MdSuffix is a suffix used to determine if a pull request has changes that would require doc reviewers to review.
+	MdSuffix = ".md"
+
+	// MdxSuffix is a suffix used to determine if a pull request has changes that would require doc reviewers to review.
+	MdxSuffix = ".mdx"
+
+	// VendorPrefix is a prefix used to determine if a file is in the `vendor/` directory.
+	VendorPrefix = "vendor/"
+)
+
+var DocReviewers = []string{"klizhentas"}
+
+// RepoAdmins are the Teleport repository admin usernames.
+var RepoAdmins = []string{"r0mant", "russjones", "klizhentas", "zmb3"}
+
+var Reviewers = map[string][]string{
+	// Teleport Core
+	"alex-kovoy":    {"russjones", "r0mant"},
+	"benarent":      {"russjones", "r0mant"},
+	"atburke":       {"nklaassen", "fspmarshall"},
+	"codingllama":   {"rosstimothy", "quinqu"},
+	"fspmarshall":   {"rosstimothy", "codingllama"},
+	"gabrielcorado": {"r0mant", "smallinsky"},
+	"gzdunek":       {"alex-kovoy", "kimlisa"},
+	"ibeckermayer":  {"zmb3", "alex-kovoy"},
+	"Joerger":       {"zmb3", "atburke"},
+	"kimlisa":       {"alex-kovoy", "rudream"},
+	"klizhentas":    {"russjones", "r0mant"},
+	"kontsevoy":     {"russjones", "r0mant"},
+	"nklaassen":     {"smallinsky", "tcsc"},
+	"quinqu":        {"timothyb89", "tcsc"},
+	"r0mant":        {"smallinsky", "timothyb89"},
+	"rosstimothy":   {"r0mant", "fspmarshall"},
+	"rudream":       {"russjones", "r0mant"},
+	"russjones":     {"zmb3", "r0mant"},
+	"smallinsky":    {"Joerger", "r0mant"},
+	"tcsc":          {"nklaassen", "codingllama"},
+	"timothyb89":    {"codingllama", "xacrimon"},
+	"twakes":        {"russjones", "r0mant"},
+	"xacrimon":      {"zmb3", "Joerger"},
+	"zmb3":          {"rosstimothy", "xacrimon"},
+
+	// Teleport
+	"aelkugia":             {"russjones", "r0mant"},
+	"aharic":               {"russjones", "r0mant"},
+	"alexwolfe":            {"russjones", "r0mant"},
+	"annabambi":            {"russjones", "r0mant"},
+	"bernardjkim":          {"russjones", "r0mant"},
+	"c-styr":               {"russjones", "r0mant"},
+	"dboslee":              {"russjones", "r0mant"},
+	"deliaconstantino":     {"russjones", "r0mant"},
+	"justinas":             {"russjones", "r0mant"},
+	"kapilville":           {"russjones", "r0mant"},
+	"kbence":               {"russjones", "r0mant"},
+	"knisbet":              {"russjones", "r0mant"},
+	"logand22":             {"russjones", "r0mant"},
+	"michaelmcallister":    {"russjones", "r0mant"},
+	"mike-battle":          {"russjones", "r0mant"},
+	"najiobeid":            {"russjones", "r0mant"},
+	"nataliestaud":         {"russjones", "r0mant"},
+	"pierrebeaucamp":       {"russjones", "r0mant"},
+	"programmerq":          {"russjones", "r0mant"},
+	"pschisa":              {"russjones", "r0mant"},
+	"recruitingthebest":    {"russjones", "r0mant"},
+	"rishibarbhaya-design": {"russjones", "r0mant"},
+	"sandylcruz":           {"russjones", "r0mant"},
+	"sshahcodes":           {"russjones", "r0mant"},
+	"stevengravy":          {"russjones", "r0mant"},
+	"travelton":            {"russjones", "r0mant"},
+	"travisgary":           {"russjones", "r0mant"},
+	"ulysseskan":           {"russjones", "r0mant"},
+	"valien":               {"russjones", "r0mant"},
+	"wadells":              {"russjones", "r0mant"},
+	"webvictim":            {"russjones", "r0mant"},
+	"williamloy":           {"russjones", "r0mant"},
+	"yjperez":              {"russjones", "r0mant"},
+
+	// External
+	AnyAuthor: {"russjones", "r0mant"},
+}
