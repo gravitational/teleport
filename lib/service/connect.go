@@ -460,7 +460,7 @@ func (process *TeleportProcess) periodicSyncRotationState(pollingInterval time.D
 		if err == nil {
 			return nil
 		}
-		process.log.WithError(err).Warningf("Sync rotation state cycle failed: %v", err)
+		process.log.WithError(err).Warning("Sync rotation state cycle failed")
 
 		// If we have had a *lot* of failures very recently, then it's likely that our
 		// route to the auth server is gone. If we're using a tunnel then it's possible
