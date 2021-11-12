@@ -61,6 +61,12 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
+// Rate describes a rate ratio, i.e. the number of "events" that hapen over a unit of time
+type Rate struct {
+	Amount int
+	Time   time.Duration
+}
+
 // Config structure is used to initialize _all_ services Teleport can run.
 // Some settings are global (like DataDir) while others are grouped into
 // sections, like AuthConfig
@@ -230,6 +236,15 @@ type Config struct {
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
+
+	// SyncRotationConnectionInterval is the interval between connection
+	// attempts as used by the rotation state service
+	RotationConnectionInterval time.Duration
+
+	// RestartThreshold describes the number of connection failures per
+	// unit time that the node can sustain before restarting itself, as
+	// measured by the rotation state service.
+	RestartThreshold Rate
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -1016,6 +1031,12 @@ func ApplyDefaults(cfg *Config) {
 	// Windows desktop service is disabled by default.
 	cfg.WindowsDesktop.Enabled = false
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
+
+	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
+	cfg.RestartThreshold = Rate{
+		Amount: defaults.MaxConnectionErrorsBeforeRestart,
+		Time:   defaults.ConnectionErrorMeasurementPeriod,
+	}
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

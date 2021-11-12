@@ -435,7 +435,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 
 // periodicSyncRotationState checks rotation state periodically and
 // takes action if necessary
-func (process *TeleportProcess) periodicSyncRotationState() error {
+func (process *TeleportProcess) periodicSyncRotationState(pollingInterval time.Duration, syncRotationFailureThreshold Rate) error {
 	// start rotation only after teleport process has started
 	eventC := make(chan Event, 1)
 	process.WaitForEvent(process.ExitContext(), TeleportReadyEvent, eventC)
@@ -447,13 +447,13 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	}
 
 	periodic := interval.New(interval.Config{
-		Duration:      defaults.HighResPollingPeriod,
-		FirstDuration: utils.HalfJitter(defaults.HighResPollingPeriod),
+		Duration:      pollingInterval,
+		FirstDuration: utils.HalfJitter(pollingInterval),
 		Jitter:        utils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
 
-	errors := utils.NewTimedCounter(process.Clock, defaults.ConnectionErrorMeasurementPeriod)
+	errors := utils.NewTimedCounter(process.Clock, syncRotationFailureThreshold.Time)
 
 	for {
 		err := process.syncRotationStateCycle()
@@ -465,10 +465,11 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 		// If we have had a *lot* of failures very recently, then it's likely that our
 		// route to the auth server is gone. If we're using a tunnel then it's possible
 		// that the proxy has been reconfigured and the tunnel address has moved.
-		if count := errors.Increment(); count > defaults.MaxConnectionErrorsBeforeRestart {
+		count := errors.Increment()
+		process.log.Warnf("%d connection errors in last %v.", count, syncRotationFailureThreshold.Time)
+		if count > syncRotationFailureThreshold.Amount {
 			// signal quit
-			process.log.Errorf("%d connection errors in %v. Triggering restart", count,
-				defaults.ConnectionErrorMeasurementPeriod)
+			process.log.Error("Connection error threshold exceeded. Asking for a graceful restart.")
 			process.BroadcastEvent(Event{Name: TeleportReloadEvent})
 			return nil
 		}
