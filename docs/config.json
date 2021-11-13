@@ -99,7 +99,8 @@
             { "title": "Integrating with JWT", "slug": "/application-access/guides/jwt/" },
             { "title": "API Access", "slug": "/application-access/guides/api-access/" },
             { "title": "AWS Console Access", "slug": "/application-access/guides/aws-console/" },
-            { "title": "Dynamic Registration", "slug": "/application-access/guides/dynamic-registration/" }
+            { "title": "Dynamic Registration", "slug": "/application-access/guides/dynamic-registration/" },
+            { "title": "Automation", "slug": "/application-access/guides/automation/" }
           ]
         },
         { "title": "Access Controls", "slug": "/application-access/controls/" },

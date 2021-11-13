@@ -1,0 +1,96 @@
+---
+title: App access automation
+description: How to issue app access certificates for robot accounts
+---
+
+Teleport administrators and users with necessary [impersonation](../../access-controls/guides/impersonation.mdx)
+permissions can generate application access certificates for robot accounts such
+as CI/CD systems.
+
+## Setup
+
+Suppose you have a non-interactive user `robot` with the role that allows it to
+access Grafana application:
+
+```yaml
+kind: role
+version: v4
+metadata:
+  name: robot
+spec:
+  options:
+    max_session_ttl: 240h
+  allow:
+    app_labels:
+      "app": "grafana"
+```
+
+and an interactive user `alice` with the role that allows it to impersonate the
+`robot` user and its role:
+
+```yaml
+kind: role
+version: v4
+metadata:
+  name: robot-impersonator
+spec:
+  allow:
+    impersonate:
+      users: ["robot"]
+      roles: ["robot"]
+```
+
+User `alice` can now impersonate the robot account and use its identity to
+issue short-lived certificates for accessing Grafana application.
+
+## Step 1/4. Log into the cluster
+
+Log into your Teleport cluster as the interactive `alice` user using `tsh login`
+command and save the identity file:
+
+```code
+$ tsh login --proxy=proxy.example.com:443 --user=alice -o alice-ident
+```
+
+## Step 2/4. Create robot identity
+
+Using `alice`'s identity file, run `tctl auth sign` command to create another
+identity file for the `robot` account `alice` is impersonating:
+
+```code
+$ tctl -i alice-ident auth sign \
+    --user=robot \
+    --out=robot-ident \
+    --ttl=240h
+```
+
+## Step 3/4. Issue app certificate
+
+Now, using `robot`'s identity file, sign certificate for Grafana application:
+
+```code
+$ tctl -i robot-ident auth sign \
+    --user=robot \
+    --app-name=grafana \
+    --out=grafana \
+    --format=tls
+```
+
+## Step 4/4. Connect to app
+
+Use certificate, key and CA files produced by the `auth sign` command to access
+the application:
+
+```code
+$ curl \
+    --cacert ./grafana.cas \
+    --cert ./grafana.crt \
+    --key ./grafana.key \
+    https://proxy.example.com:443/api/users
+```
+
+## Next steps
+
+- Learn more about [accessing APIs](./api-access.mdx) with app access.
+- Take a look at the [impersonation](../../access-controls/guides/impersonation.mdx)
+  guide.
