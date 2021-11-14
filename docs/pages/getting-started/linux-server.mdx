@@ -9,15 +9,13 @@ Teleport (=teleport.version=) on Linux machines.
 
 ## Prerequisites
 
-- A Linux machine with ports `3023`, `3024`, `3025`, and `443` open.
-- A registered domain name.
+- A Linux machine with a port `443` open.
 - A two-factor authenticator app.
 - An SSH client like OpenSSH.
-- Around 20 minutes to complete; half of this may be waiting for DNS propagation.
+- Public internet deployment: a domain name. It takes 20 minutes to complete, including DNS propagation.
+- Private net deployment: a domain name and a wildcard certificate e.g. `*.tele.example.com`.
 
 ## Step 1/4. Install Teleport on a Linux host
-
-(!docs/pages/includes/permission-warning.mdx!)
 
 <Tabs>
   <TabItem label="Amazon Linux 2/RHEL (RPM)">
@@ -70,22 +68,48 @@ Teleport (=teleport.version=) on Linux machines.
 
 Take a look at the [Installation Guide](../installation.mdx) for more options.
 
+(!docs/pages/includes/permission-warning.mdx!)
+
 ### Configure Teleport
 
 Generate a configuration file for Teleport using `teleport configure`.
 
-Acme turns on automatic TLS certificates from [Let's Encrypt](https://letsencrypt.org).
+<Tabs>
+  <TabItem label="Public internet eployment with Let's Encrypt">
+  Teleport uses Acme protocol to receive automatic TLS certificates from [Letsencrypt](https://letsencrypt.org).
 
-Set up an email to receive updates from Let's Encrypt, and use a valid DNS name for a cluster name.
+  First, set up an email to receive updates from Let's Encrypt. Use a valid DNS name for a cluster name.
 
-```code
-$ sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
-# Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
-```
+  ```code
+  $ sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
+  # Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
+  ```
+  </TabItem>
 
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+  <TabItem label="Private net deployment">
+  Place the valid private key and a certificate chain in `/var/lib/teleport/privkey.pem`
+  and `/var/lib/teleport/fullchain.pem` respectively.
 
-### Configure domain name and obtain TLS certificates using Let's Encrypt
+  Configure teleport:
+
+  ```code
+  $ sudo teleport configure --cluster-name=tele.example.com -o file
+  $ sed -i '/^\s*https_keypairs/d' /etc/teleport.yaml
+  # Replace `tele.example.com` with your domain name.
+  $ export TELEPORT_PUBLIC_DNS_NAME="tele.example.com"
+  $ cat >> /etc/teleport.yaml <<EOF
+    public_addr: $TELEPORT_PUBLIC_DNS_NAME:443
+    web_listen_addr: 0.0.0.0:443
+    https_keypairs:
+    - key_file: /var/lib/teleport/privkey.pem
+      cert_file: /var/lib/teleport/fullchain.pem
+  EOF
+  ```
+  </TabItem>
+
+</Tabs>
+
+### Configure DNS
 
 Teleport requires a secure public endpoint for the Teleport UI and for end-users to connect to.
 To get started, set up two `A` records for `tele.example.com` and `*.tele.example.com`
@@ -104,9 +128,19 @@ pointing to the IP/FQDN of the machine with Teleport installed.
 
 Start Teleport:
 
-```code
-$ sudo teleport start
-```
+<Tabs>
+  <TabItem label="Package manager RPM/DEB">
+    ```code
+    $ sudo systemctl start teleport
+    ```
+  </TabItem>
+
+  <TabItem label="Source or custom install">
+    ```code
+    $ sudo teleport start
+    ```
+  </TabItem>
+</Tabs>
 
 You can access Teleport's Web UI on port `443`.
 
