@@ -18,6 +18,7 @@ package desktop
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 
 	"github.com/go-ldap/ldap/v3"
@@ -33,17 +34,31 @@ type ldapClient struct {
 // newLDAPClient connects to an LDAP server, authenticates and returns the
 // client connection. Caller must close the client after using it.
 func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
-	con, err := ldap.Dial("tcp", cfg.Addr)
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+	}
+
+	if !cfg.InsecureSkipVerify {
+		// Get the SystemCertPool, continue with an empty pool on error
+		rootCAs, _ := x509.SystemCertPool()
+		if rootCAs == nil {
+			rootCAs = x509.NewCertPool()
+		}
+
+		if cfg.CA != nil {
+			// Append our cert to the pool.
+			rootCAs.AddCert(cfg.CA)
+		}
+
+		// Supply our cert pool to TLS config for verification.
+		tlsConfig.RootCAs = rootCAs
+	}
+
+	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(tlsConfig))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(awly): should we get a CA cert for the LDAP cert validation? Active
-	// Directory Certificate Services (their managed CA thingy) seems to be
-	// issuing those.
-	if err := con.StartTLS(&tls.Config{InsecureSkipVerify: true}); err != nil {
-		con.Close()
-		return nil, trace.Wrap(err)
-	}
+
 	// TODO(zmb3): Active Directory, theoretically, supports cert-based
 	// authentication. Figure out the right certificate format and generate it
 	// with Teleport CA for authn here.
