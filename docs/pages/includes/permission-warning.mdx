@@ -6,7 +6,7 @@
 
   1. Avoid using `sudo` in production environments unless it's necessary.
   2. Create new, non-root, users and use test instances for experimenting with Teleport.
-  3. You can run many Teleport's services as a non root. For example, auth, proxy, application access, kubernetes access, and database access services as a non-root user. Only the SSH/node service requires root access. You will need root permissions (or the `CAP_NET_BIND_SERVICE` capability) to make Teleport listen on a port numbered < `1024` (e.g. `443`)
+  3. You can run many Teleport's services as a non root. For example, auth, proxy, application access, kubernetes access, and database access services can run as a non-root user. Only the SSH/node service requires root access. You will need root permissions (or the `CAP_NET_BIND_SERVICE` capability) to make Teleport listen on a port numbered < `1024` (e.g. `443`)
   4. Follow the "Principle of Least Privilege" (PoLP) and "Zero Admin" best practices. Don't give users permissive roles when giving them more restrictive `access,editor` roles will do instead.
   5. Save tokens into a file rather than sharing tokens directly as strings.
 </Details>
