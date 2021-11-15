@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"crypto/subtle"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -553,4 +554,19 @@ func (a *LocalKeyAgent) certsForCluster(clusterName string) ([]ssh.Signer, error
 		return nil, trace.NotFound("no auth method available")
 	}
 	return certs, nil
+}
+
+// ClientCertPool returns x509.CertPool containing trusted CA.
+func (a *LocalKeyAgent) ClientCertPool(cluster string) (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	key, err := a.GetKey(cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, caPEM := range key.TLSCAs() {
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, trace.BadParameter("failed to parse TLS CA certificate")
+		}
+	}
+	return pool, nil
 }

@@ -535,7 +535,7 @@ func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
-func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs, error) {
+func (c *Client) RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1802,12 +1802,12 @@ type IdentityService interface {
 	CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error
 
 	// CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
-	CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.CreateAccountRecoveryCodesResponse, error)
+	CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error)
 	// GetAccountRecoveryToken returns a user token resource after verifying the token in
 	// request is not expired and is of the correct recovery type.
 	GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error)
 	// GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
-	GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*types.RecoveryCodesV1, error)
+	GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error)
 
 	// CreatePrivilegeToken creates a privilege token for the logged in user who has successfully re-authenticated with their second factor.
 	// A privilege token allows users to perform privileged action eg: add/delete their MFA device.
@@ -1835,7 +1835,7 @@ type ProvisioningService interface {
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
-	RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs, error)
+	RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error)
 
 	// RegisterNewAuthServer is used to register new auth server with token
 	RegisterNewAuthServer(ctx context.Context, token string) error

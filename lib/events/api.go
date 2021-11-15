@@ -50,6 +50,9 @@ const (
 	EventProtocolSSH = "ssh"
 	// EventProtocolKube specifies kubernetes as a type of captured protocol
 	EventProtocolKube = "kube"
+	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
+	// as a type of captured protocol
+	EventProtocolTDP = "tdp"
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address
@@ -425,6 +428,13 @@ const (
 	RecoveryCodeGeneratedEvent = "recovery_code.generated"
 	// RecoveryCodeUsedEvent is an event type when a recovery token was used.
 	RecoveryCodeUsedEvent = "recovery_code.used"
+
+	// WindowsDesktopSessionStartEvent is emitted when a user attempts
+	// to connect to a desktop.
+	WindowsDesktopSessionStartEvent = "windows.desktop.session.start"
+	// WindowsDesktopSessionEndEvent is emitted when a user  disconnects
+	// from a desktop.
+	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
 )
 
 const (

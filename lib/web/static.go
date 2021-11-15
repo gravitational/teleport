@@ -1,3 +1,4 @@
+//go:build !webassets_embed
 // +build !webassets_embed
 
 /*

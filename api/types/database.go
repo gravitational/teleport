@@ -69,6 +69,10 @@ type Database interface {
 	GetType() string
 	// GetIAMPolicy returns AWS IAM policy for the database.
 	GetIAMPolicy() string
+	// GetIAMAction returns AWS IAM action needed to connect to the database.
+	GetIAMAction() string
+	// GetIAMResources returns AWS IAM resources that provide access to the database.
+	GetIAMResources() []string
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
 	// IsRedshift returns true if this is a Redshift database.
@@ -380,6 +384,37 @@ func (d *DatabaseV3) GetIAMPolicy() string {
 		return d.getRedshiftPolicy()
 	}
 	return ""
+}
+
+// GetIAMAction returns AWS IAM action needed to connect to the database.
+func (d *DatabaseV3) GetIAMAction() string {
+	if d.IsRDS() {
+		return "rds-db:connect"
+	} else if d.IsRedshift() {
+		return "redshift:GetClusterCredentials"
+	}
+	return ""
+}
+
+// GetIAMResources returns AWS IAM resources that provide access to the database.
+func (d *DatabaseV3) GetIAMResources() []string {
+	aws := d.GetAWS()
+	if d.IsRDS() {
+		return []string{
+			fmt.Sprintf("arn:aws:rds-db:%v:%v:dbuser:%v/*",
+				aws.Region, aws.AccountID, aws.RDS.ResourceID),
+		}
+	} else if d.IsRedshift() {
+		return []string{
+			fmt.Sprintf("arn:aws:redshift:%v:%v:dbuser:%v/*",
+				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+			fmt.Sprintf("arn:aws:redshift:%v:%v:dbname:%v/*",
+				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+			fmt.Sprintf("arn:aws:redshift:%v:%v:dbgroup:%v/*",
+				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+		}
+	}
+	return nil
 }
 
 // getRDSPolicy returns IAM policy document for this RDS database.

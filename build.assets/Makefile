@@ -16,7 +16,7 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-RUNTIME ?= go1.16.2
+RUNTIME ?= go1.17.2
 BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
 LIBBPF_VERSION ?= 0.3.1
 
@@ -82,7 +82,7 @@ build-binaries: buildbox
 .PHONY:build-enterprise-binaries
 build-enterprise-binaries: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) full
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) clean full
 
 #
 # Build 'teleport' FIPS release inside a docker container
@@ -91,7 +91,7 @@ build-enterprise-binaries: buildbox
 .PHONY:build-binaries-fips
 build-binaries-fips: buildbox-fips
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_FIPS) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes full
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes clean full
 
 #
 # Builds a Docker container which is used for building official Teleport binaries
@@ -334,3 +334,9 @@ test-docs: DOCS_VERSION := $(shell grep -E ^VERSION $(MAKEFILE_ROOT_DIR)/Makefil
 test-docs: docsbox
 	docker run -i $(NOROOT) -v $$(pwd)/..:/src/content/$(DOCS_VERSION) $(DOCSBOX) \
 		/bin/sh -c "yarn markdown-lint-external-links"
+
+# build-centos6-assets builds assets needed by CentOS 6 in a container.
+.PHONY: build-centos6-assets
+build-centos6-assets:
+	docker build -t buildbox-centos6-assets -f Dockerfile-centos6-assets .
+	docker run -v $$(pwd):/centos6.assets -it buildbox-centos6-assets cp /centos6-assets.tar.gz /centos6.assets

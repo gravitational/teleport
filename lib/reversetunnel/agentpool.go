@@ -66,7 +66,7 @@ type AgentPoolConfig struct {
 	Client auth.ClientI
 	// AccessPoint is a lightweight access point
 	// that can optionally cache some values
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.AccessCache
 	// HostSigner is a host signer this agent presents itself as
 	HostSigner ssh.Signer
 	// HostUUID is a unique ID of this host

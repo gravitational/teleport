@@ -225,6 +225,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("acme-email",
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
 	dump.Flag("test", "Path to a configuration file to test.").ExistingFileVar(&dumpFlags.testConfigFile)
+	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV2).StringVar(&dumpFlags.Version)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)
@@ -324,6 +325,16 @@ func (flags *dumpFlags) CheckAndSetDefaults() error {
 	} else if flags.output == teleport.SchemeStdout {
 		flags.output = teleport.SchemeStdout + "://"
 	}
+
+	supportedVersions := []string{defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2}
+	switch flags.Version {
+	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2, "":
+	default:
+		return trace.BadParameter(
+			"unsupported Teleport configuration version %q, supported are: %s",
+			flags.Version, strings.Join(supportedVersions, ","))
+	}
+
 	return nil
 }
 

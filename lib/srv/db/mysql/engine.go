@@ -199,7 +199,8 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
   %v
 
 Make sure that IAM auth is enabled for MySQL user %q and Teleport database
-agent's IAM policy has "rds-connect" permissions:
+agent's IAM policy has "rds-connect" permissions (note that IAM changes may
+take a few minutes to propagate):
 
 %v
 `, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())

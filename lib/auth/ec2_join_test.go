@@ -199,7 +199,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		tokenRules  []*types.TokenRule
 		tokenSpec   types.ProvisionTokenSpecV2
 		ec2Client   ec2Client
-		request     RegisterUsingTokenRequest
+		request     types.RegisterUsingTokenRequest
 		expectError func(error) bool
 		clock       clockwork.Clock
 	}{
@@ -215,7 +215,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -241,7 +241,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -263,7 +263,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -284,7 +284,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -306,7 +306,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -328,7 +328,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -350,7 +350,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -372,7 +372,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -394,7 +394,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -416,7 +416,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -438,7 +438,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientNotRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -460,7 +460,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientNoInstance{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -482,7 +482,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				},
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -505,7 +505,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				AWSIIDTTL: types.Duration(10 * time.Minute),
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -528,7 +528,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 				AWSIIDTTL: types.Duration(10 * time.Minute),
 			},
 			ec2Client: ec2ClientRunning{},
-			request: RegisterUsingTokenRequest{
+			request: types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                types.RoleNode,
@@ -696,7 +696,7 @@ func TestHostUniqueCheck(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(string(tc.role), func(t *testing.T) {
-			request := RegisterUsingTokenRequest{
+			request := types.RegisterUsingTokenRequest{
 				Token:               "test_token",
 				NodeName:            "node_name",
 				Role:                tc.role,

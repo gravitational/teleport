@@ -96,8 +96,8 @@ func (s *Suite) TearDown(t *testing.T) {
 }
 
 type suiteConfig struct {
-	// Selectors are resource watcher selectors.
-	Selectors []services.Selector
+	// ResourceMatchers are resource watcher matchers.
+	ResourceMatchers []services.ResourceMatcher
 	// OnReconcile sets app resource reconciliation callback.
 	OnReconcile func(types.Apps)
 	// Apps are the apps to configure.
@@ -242,21 +242,21 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:        s.clock,
-		DataDir:      s.dataDir,
-		AccessPoint:  s.authClient,
-		AuthClient:   s.authClient,
-		TLSConfig:    tlsConfig,
-		CipherSuites: utils.DefaultCipherSuites(),
-		HostID:       s.hostUUID,
-		Hostname:     "test",
-		Authorizer:   authorizer,
-		GetRotation:  testRotationGetter,
-		Apps:         apps,
-		OnHeartbeat:  func(err error) {},
-		Cloud:        &testCloud{},
-		Selectors:    config.Selectors,
-		OnReconcile:  config.OnReconcile,
+		Clock:            s.clock,
+		DataDir:          s.dataDir,
+		AccessPoint:      s.authClient,
+		AuthClient:       s.authClient,
+		TLSConfig:        tlsConfig,
+		CipherSuites:     utils.DefaultCipherSuites(),
+		HostID:           s.hostUUID,
+		Hostname:         "test",
+		Authorizer:       authorizer,
+		GetRotation:      testRotationGetter,
+		Apps:             apps,
+		OnHeartbeat:      func(err error) {},
+		Cloud:            &testCloud{},
+		ResourceMatchers: config.ResourceMatchers,
+		OnReconcile:      config.OnReconcile,
 	})
 	require.NoError(t, err)
 
@@ -355,6 +355,7 @@ func TestHandleConnection(t *testing.T) {
 // TestAuthorize verifies that only authorized requests are handled.
 func TestAuthorize(t *testing.T) {
 	// TODO(r0mant): Implement this.
+	t.Skip("Not implemented")
 }
 
 // TestAuthorizeWithLocks verifies that requests are forbidden when there is

@@ -236,7 +236,7 @@ func TestWebauthnLogin_web_u2fDevice(t *testing.T) {
 	// 2nd login step: reply with signed challenged.
 	sessionResp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), &client.AuthenticateWebUserRequest{
 		User:                      user,
-		WebauthnChallengeResponse: assertionResp,
+		WebauthnAssertionResponse: assertionResp,
 	})
 	require.NoError(t, err)
 	createSessionResp := &CreateSessionResponse{}

@@ -74,14 +74,6 @@ the `purgeExpiredDocuments` property, which defaults to true. Purging is done ba
 configurable `eventRetentionPeriod` property, which defaults to a year. Add this property to
 the URI to change the retention period.
 
-Two composite indexes are required for this implementation:
-
-1. `EventNamespace` ascending, then on `CreatedAt` ascending
-2. `SessionID` ascending, then on `EventIndex` ascending
-
-Composite indexes should be limited to the specific collection set in the
-configuration (in the aforementioned example is `events`).
-
 ### Tests
 
 Tests must execute one of two ways:
