@@ -38,7 +38,7 @@ RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 $(shell ln -sf fips.go.hide tool/modules/fips.go)
 else
 # See the comment in tool/modules/fips.go.hide for explanation.
-$(shell rm tool/modules/fips.go)
+$(shell rm -f tool/modules/fips.go)
 endif
 
 PAM_ENT_MESSAGE := "without PAM support"
