@@ -17,10 +17,13 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+
 	"os"
+	"strings"
 
 	"github.com/gravitational/teleport/.github/workflows/ci"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/google/go-github/v37/github"
 )
@@ -31,14 +34,12 @@ type Config struct {
 	Context context.Context
 	// Client is the authenticated Github client.
 	Client *github.Client
-	// Reviewers is a json object encoded as a string with
-	// authors mapped to their respective required reviewers.
-	Reviewers string
+	// Reviewers is a map that maps authors to their respective
+	// required reviewers.
+	Reviewers map[string][]string
 	// EventPath is the path of the file with the complete
 	// webhook event payload on the runner.
 	EventPath string
-	// users optional override to inject a user list for testing.
-	users githubUserGetter
 }
 
 // PullRequestEnvironment contains information about the environment
@@ -57,6 +58,10 @@ type PullRequestEnvironment struct {
 	defaultReviewers []string
 	// action is the action that triggered the workflow.
 	action string
+	// HasDocsChanges tells if the pull request has changes to `docs/`.
+	HasDocsChanges bool
+	// HasCodeChanges tells if the pull request has changes in any directory besides `docs/`.
+	HasCodeChanges bool
 }
 
 // Metadata is the current pull request metadata
@@ -91,14 +96,14 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Client == nil {
 		return trace.BadParameter("missing parameter Client")
 	}
-	if c.Reviewers == "" {
+	if c.Reviewers == nil {
 		return trace.BadParameter("missing parameter Reviewers")
+	}
+	if _, ok := c.Reviewers[ci.AnyAuthor]; !ok {
+		return trace.BadParameter(`default reviewers are not set in reviewers map. set default reviewers with a wildcard (*) as a key`)
 	}
 	if c.EventPath == "" {
 		c.EventPath = os.Getenv(ci.GithubEventPath)
-	}
-	if c.users == nil {
-		c.users = c.Client.Users
 	}
 	return nil
 }
@@ -109,78 +114,98 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	revs, err := unmarshalReviewers(c.Context, c.Reviewers, c.users)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	pr, err := GetMetadata(c.EventPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Check if the pull request has changes to the `docs/` directory as that will affect who
+	// the required reviewers are.
+	docChanges, codeChanges, err := hasChanges(c.Context, pr, c.Client)
+	if err != nil {
+		// Log the error, don't fail the whole run because it couldn't detect if the pull request has docs.
+		log.Errorf("Error while detecting pull request for docs changes: %v, skipping assigning docs reviewers", err)
+	}
+
 	return &PullRequestEnvironment{
 		Client:           c.Client,
-		reviewers:        revs,
-		defaultReviewers: revs[ci.AnyAuthor],
+		reviewers:        c.Reviewers,
+		defaultReviewers: c.Reviewers[ci.AnyAuthor],
 		Metadata:         pr,
+		HasDocsChanges:   docChanges,
+		HasCodeChanges:   codeChanges,
 	}, nil
 }
 
-type githubUserGetter interface {
-	Get(context.Context, string) (*github.User, *github.Response, error)
-}
-
-// unmarshalReviewers converts the passed in string representing json object into a map.
-func unmarshalReviewers(ctx context.Context, str string, users githubUserGetter) (map[string][]string, error) {
-	if str == "" {
-		return nil, trace.NotFound("reviewers not found")
-	}
-	m := make(map[string][]string)
-
-	err := json.Unmarshal([]byte(str), &m)
+// hasChanges determines if the pull request has docs and/or code changes.
+func hasChanges(ctx context.Context, pr *Metadata, clt *github.Client) (hasDocsChanges bool, hasCodeChanges bool, err error) {
+	files, err := getPullRequestFiles(ctx, pr, clt)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return false, true, trace.Wrap(err)
 	}
-	var hasDefaultReviewers bool
-	for author, requiredReviewers := range m {
-		for _, reviewer := range requiredReviewers {
-			_, err := userExists(ctx, reviewer, users)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-		if author == ci.AnyAuthor {
-			hasDefaultReviewers = true
+	for _, file := range files {
+		if file.Filename == nil {
 			continue
 		}
-		_, err := userExists(ctx, author, users)
+		if hasDocChanges(*file.Filename) {
+			hasDocsChanges = true
+		} else {
+			hasCodeChanges = true
+		}
+
+	}
+	return hasDocsChanges, hasCodeChanges, nil
+}
+
+// hasDocChanges checks if the file name contains a prefix or suffix that would suggest a change to docs.
+// Prefix of "rfd/" or "docs/".
+// Suffix of ".mdx", or ".md".
+func hasDocChanges(filename string) bool {
+	if strings.HasPrefix(filename, ci.VendorPrefix) {
+		return false
+	}
+	return strings.HasPrefix(filename, ci.DocsPrefix) ||
+		strings.HasSuffix(filename, ci.MdSuffix) ||
+		strings.HasSuffix(filename, ci.MdxSuffix) ||
+		strings.HasPrefix(filename, ci.RfdPrefix)
+}
+
+// getPullRequestFiles gets all the files in the pull request.
+func getPullRequestFiles(ctx context.Context, pr *Metadata, clt *github.Client) ([]*github.CommitFile, error) {
+	// Can only request 100 files per page according to the docs.
+	// https://docs.github.com/en/free-pro-team@latest/rest/reference/pulls/#list-pull-requests-files
+	opt := &github.ListOptions{PerPage: 100}
+
+	var allFiles []*github.CommitFile
+	for {
+		files, resp, err := clt.PullRequests.ListFiles(ctx, pr.RepoOwner, pr.RepoName, pr.Number, opt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		allFiles = append(allFiles, files...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
 	}
-	if !hasDefaultReviewers {
-		return nil, trace.BadParameter("default reviewers are not set. set default reviewers with a wildcard (*) as a key")
-	}
-	return m, nil
-
-}
-
-// userExists checks if a user exists.
-func userExists(ctx context.Context, userLogin string, users githubUserGetter) (*github.User, error) {
-	user, _, err := users.Get(ctx, userLogin)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return user, nil
+	return allFiles, nil
 }
 
 // GetReviewersForAuthor gets the required reviewers for the current user.
 func (e *PullRequestEnvironment) GetReviewersForAuthor(user string) []string {
-	value, ok := e.reviewers[user]
-	// Author is external or does not have set reviewers
-	if !ok {
-		return e.defaultReviewers
+	var reviewers []string
+	if e.HasDocsChanges {
+		reviewers = append(reviewers, ci.DocReviewers...)
+		if !e.HasCodeChanges {
+			return reviewers
+		}
 	}
-	return value
+	rr, ok := e.reviewers[user]
+	if ok {
+		reviewers = append(reviewers, rr...)
+	} else {
+		reviewers = append(reviewers, e.defaultReviewers...)
+	}
+	return reviewers
 }
 
 // IsInternal determines if an author is an internal contributor.

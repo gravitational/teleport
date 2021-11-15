@@ -624,7 +624,7 @@ func (proxy *ProxyClient) GetDatabaseServers(ctx context.Context, namespace stri
 // CurrentClusterAccessPoint returns cluster access point to the currently
 // selected cluster and is used for discovery
 // and could be cached based on the access policy
-func (proxy *ProxyClient) CurrentClusterAccessPoint(ctx context.Context, quiet bool) (auth.AccessPoint, error) {
+func (proxy *ProxyClient) CurrentClusterAccessPoint(ctx context.Context, quiet bool) (auth.ClientI, error) {
 	// get the current cluster:
 	cluster, err := proxy.currentCluster()
 	if err != nil {
@@ -635,7 +635,7 @@ func (proxy *ProxyClient) CurrentClusterAccessPoint(ctx context.Context, quiet b
 
 // ClusterAccessPoint returns cluster access point used for discovery
 // and could be cached based on the access policy
-func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, clusterName string, quiet bool) (auth.AccessPoint, error) {
+func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("parameter clusterName is missing")
 	}
@@ -643,7 +643,7 @@ func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, clusterName st
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return proxy.teleportClient.accessPoint(clt, proxy.proxyAddress, clusterName)
+	return clt, nil
 }
 
 // ConnectToCurrentCluster connects to the auth server of the currently selected

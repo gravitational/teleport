@@ -14,133 +14,14 @@ package environment
 
 import (
 	"context"
-	"errors"
-	"io/ioutil"
 	"os"
 	"testing"
 
+	"github.com/google/go-github/v37/github"
 	"github.com/gravitational/teleport/.github/workflows/ci"
 
-	"github.com/google/go-github/v37/github"
 	"github.com/stretchr/testify/require"
 )
-
-func TestNewPullRequestEnvironment(t *testing.T) {
-	pr := &Metadata{Author: "Codertocat",
-		RepoName:   "Hello-World",
-		RepoOwner:  "Codertocat",
-		Number:     2,
-		HeadSHA:    "ec26c3e57ca3a959ca5aad62de7213c562f8c821",
-		BaseSHA:    "f95f852bd8fca8fcc58a9a2d6c842781e32a215e",
-		BranchName: "changes",
-	}
-	tests := []struct {
-		cfg        Config
-		checkErr   require.ErrorAssertionFunc
-		expected   *PullRequestEnvironment
-		desc       string
-		createFile bool
-	}{
-		{
-			cfg: Config{
-				Client:    github.NewClient(nil),
-				EventPath: "",
-				users:     &mockUserGetter{},
-			},
-			checkErr:   require.Error,
-			desc:       "invalid PullRequestEnvironment config without Reviewers parameter",
-			expected:   nil,
-			createFile: true,
-		},
-		{
-			cfg: Config{
-				Client:    github.NewClient(nil),
-				Reviewers: `{"foo": ["bar", "baz"], "*":["admin"]}`,
-				users:     &mockUserGetter{},
-			},
-			checkErr: require.NoError,
-			desc:     "valid PullRequestEnvironment config",
-			expected: &PullRequestEnvironment{
-				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "*": {"admin"}},
-				Client:           github.NewClient(nil),
-				Metadata:         pr,
-				defaultReviewers: []string{"admin"},
-			},
-			createFile: true,
-		},
-		{
-			cfg: Config{
-				Client:    github.NewClient(nil),
-				Reviewers: `{"foo": ["bar", "baz"], "*":["admin"]}`,
-				users:     &mockUserGetter{},
-			},
-			checkErr: require.NoError,
-			desc:     "valid PullRequestEnvironment config",
-			expected: &PullRequestEnvironment{
-				reviewers:        map[string][]string{"foo": {"bar", "baz"}, "*": {"admin"}},
-				Client:           github.NewClient(nil),
-				Metadata:         pr,
-				defaultReviewers: []string{"admin"},
-			},
-			createFile: true,
-		},
-		{
-			cfg: Config{
-				Client:    github.NewClient(nil),
-				Reviewers: `{"foo": ["bar", "baz"]}`,
-				users:     &mockUserGetter{},
-			},
-			checkErr:   require.Error,
-			desc:       "invalid PullRequestEnvironment config, has no default reviewers key",
-			expected:   nil,
-			createFile: true,
-		},
-		{
-			cfg: Config{
-				Reviewers: `{"foo": "baz", "*":["admin"]}`,
-				Client:    github.NewClient(nil),
-			},
-			checkErr:   require.Error,
-			desc:       "invalid reviewers object format",
-			expected:   nil,
-			createFile: true,
-		},
-		{
-			cfg:        Config{},
-			checkErr:   require.Error,
-			desc:       "invalid config with no client",
-			expected:   nil,
-			createFile: true,
-		},
-		{
-			cfg: Config{
-				Client:    github.NewClient(nil),
-				Reviewers: `{"invalidUser": ["bar", "baz"], "*":["admin"]}`,
-				users:     &mockUserGetter{},
-			},
-			checkErr:   require.Error,
-			desc:       "invalid PullRequestEnvironment config, user does not exist",
-			expected:   nil,
-			createFile: true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			if test.createFile {
-				f, err := ioutil.TempFile("", "payload")
-				require.NoError(t, err)
-				filePath := f.Name()
-				defer os.Remove(f.Name())
-				_, err = f.Write([]byte(pullRequest))
-				require.NoError(t, err)
-				test.cfg.EventPath = filePath
-			}
-			env, err := New(test.cfg)
-			test.checkErr(t, err)
-			require.Equal(t, test.expected, env)
-		})
-	}
-}
 
 func TestSetPullRequest(t *testing.T) {
 	tests := []struct {
@@ -234,12 +115,120 @@ func TestSetPullRequest(t *testing.T) {
 
 }
 
-type mockUserGetter struct {
+func TestGetReviewersForAuthors(t *testing.T) {
+	testReviewerMap := map[string][]string{
+		"*":   {"foo"},
+		"foo": {"bar", "baz"},
+	}
+	tests := []struct {
+		env      *PullRequestEnvironment
+		desc     string
+		user     string
+		expected []string
+	}{
+		{
+			env:      &PullRequestEnvironment{HasDocsChanges: true, HasCodeChanges: true, reviewers: testReviewerMap},
+			desc:     "pull request has both code and docs changes",
+			user:     "foo",
+			expected: []string{"klizhentas", "bar", "baz"},
+		},
+		{
+			env:      &PullRequestEnvironment{HasDocsChanges: false, HasCodeChanges: true, reviewers: testReviewerMap},
+			desc:     "pull request has only code changes",
+			user:     "foo",
+			expected: []string{"bar", "baz"},
+		},
+		{
+			env:      &PullRequestEnvironment{HasDocsChanges: true, HasCodeChanges: false, reviewers: testReviewerMap},
+			desc:     "pull request has only docs changes",
+			user:     "foo",
+			expected: []string{"klizhentas"},
+		},
+		{
+			env:      &PullRequestEnvironment{HasDocsChanges: false, HasCodeChanges: false, reviewers: testReviewerMap},
+			desc:     "pull request has no changes",
+			user:     "foo",
+			expected: []string{"bar", "baz"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			reviewerSlice := test.env.GetReviewersForAuthor(test.user)
+			require.Equal(t, test.expected, reviewerSlice)
+		})
+	}
 }
 
-func (m *mockUserGetter) Get(ctx context.Context, userLogin string) (*github.User, *github.Response, error) {
-	if userLogin == "invalidUser" {
-		return nil, nil, errors.New("invalid user")
+func TestHasDocsChanges(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{input: "docs/some-file.txt", expected: true},
+		{input: "lib/auth/auth.go", expected: false},
+		{input: "lib/some-file.mdx", expected: true},
+		{input: "some/random/path.md", expected: true},
+		{input: "rfd/new-proposal.txt", expected: true},
+		{input: "doc/file.txt", expected: false},
+		{input: "", expected: false},
+		{input: "vendor/file.md", expected: false},
 	}
-	return nil, nil, nil
+
+	for _, test := range tests {
+		result := hasDocChanges(test.input)
+		require.Equal(t, test.expected, result)
+	}
+}
+
+func TestCheckAndSetDefaults(t *testing.T) {
+	testReviewerMapValid := map[string][]string{
+		"*":   {"foo"},
+		"foo": {"bar", "baz"},
+	}
+	testReviewerMapInvalid := map[string][]string{
+		"foo": {"bar", "baz"},
+	}
+
+	client := github.NewClient(nil)
+	ctx := context.Background()
+	os.Setenv(ci.GithubEventPath, "path/to/event.json")
+	tests := []struct {
+		cfg      Config
+		desc     string
+		expected Config
+		checkErr require.ErrorAssertionFunc
+	}{
+		{
+			cfg:      Config{Client: nil, Reviewers: testReviewerMapValid, Context: ctx, EventPath: "test/path"},
+			desc:     "Invalid config, Client is nil.",
+			expected: Config{Client: nil, Reviewers: testReviewerMapValid, Context: ctx, EventPath: "test/path"},
+			checkErr: require.Error,
+		},
+		{
+			cfg:      Config{Client: client, Reviewers: testReviewerMapInvalid, Context: ctx, EventPath: "test/path"},
+			desc:     "Invalid config, invalid Reviewer map, missing wildcard key.",
+			expected: Config{Client: client, Reviewers: testReviewerMapInvalid, Context: ctx, EventPath: "test/path"},
+			checkErr: require.Error,
+		},
+		{
+			cfg:      Config{Client: client, Context: ctx, EventPath: "test/path"},
+			desc:     "Invalid config, missing Reviewer map.",
+			expected: Config{Client: client, Context: ctx, EventPath: "test/path"},
+			checkErr: require.Error,
+		},
+		{
+			cfg:      Config{Client: client, Context: ctx, Reviewers: testReviewerMapValid},
+			desc:     "Valid config, EventPath not set.  ",
+			expected: Config{Client: client, Context: ctx, EventPath: "path/to/event.json", Reviewers: testReviewerMapValid},
+			checkErr: require.NoError,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			err := test.cfg.CheckAndSetDefaults()
+			test.checkErr(t, err)
+			require.Equal(t, test.expected, test.cfg)
+		})
+	}
 }
