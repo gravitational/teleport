@@ -102,6 +102,12 @@ const (
 	// connections from SSH nodes who wish to use "reverse tunnell" (when they
 	// run behind an environment/firewall which only allows outgoing connections)
 	SSHProxyTunnelListenPort = 3024
+
+	// ProxyWebListenPort is the default Teleport Proxy WebPort address.
+	ProxyWebListenPort = 3080
+
+	// StandardHTTPSPort is the default port used for the https URI scheme.
+	StandardHTTPSPort = 443
 )
 
 const (
