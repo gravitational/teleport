@@ -2584,6 +2584,27 @@ steps:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Install Go Toolchain
+  commands:
+  - set -u
+  - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz
+  - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
+  - rm -rf $RUNTIME.darwin-amd64.tar.gz
+  environment:
+    RUNTIME: go1.17.3
+- name: Install Rust Toolchain
+  commands:
+  - set -u
+  - export PATH=/Users/build/.cargo/bin:$PATH
+  - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile
+    | cut -d= -f2)
+  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export RUST_HOME=$CARGO_HOME
+  - rustup toolchain install $RUST_VERSION
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Build Mac release artifacts
   commands:
   - set -u
@@ -2625,6 +2646,24 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Clean up toolchains (post)
+  commands:
+  - set -u
+  - export PATH=/Users/build/.cargo/bin:$PATH
+  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export RUST_HOME=$CARGO_HOME
+  - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile
+    | cut -d= -f2)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - rustup override unset
+  - rustup toolchain uninstall $RUST_VERSION
+  - rm -rf ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64
+  when:
+    status:
+    - success
+    - failure
 - name: Clean up exec runner storage (post)
   commands:
   - set -u
@@ -4461,6 +4500,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 73f5fbfed18a324cf1c0476eba116e6ce903567caa4d0e01f2d92157411415a5
+hmac: 71fa7fa49c424d3b2da13e7a24860b466e11ba717381469671e40f5c443c1e63
 
 ...
