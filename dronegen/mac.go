@@ -99,6 +99,8 @@ func darwinTagPipeline() pipeline {
 			},
 			Commands: darwinTagCheckoutCommands(),
 		},
+		installGoToolchainStep(),
+		installRustToolchainStep(p.Workspace.Path),
 		{
 			Name: "Build Mac release artifacts",
 			Environment: map[string]value{
@@ -128,6 +130,7 @@ func darwinTagPipeline() pipeline {
 			},
 			Commands: darwinUploadToS3Commands(),
 		},
+		cleanUpToolchainsStep(p.Workspace.Path),
 		cleanUpExecStorageStep(p.Workspace.Path),
 	}
 	return p
