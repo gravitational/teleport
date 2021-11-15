@@ -263,7 +263,8 @@
                 "deployment",
                 "pod",
                 "service",
-                "serviceAccount"
+                "serviceAccount",
+                "certSecret"
             ],
             "properties": {
                 "config": {
@@ -288,6 +289,11 @@
                 },
                 "serviceAccount": {
                     "$id": "#/properties/annotations/properties/serviceAccount",
+                    "type": "object",
+                    "default": {}
+                },
+                "certSecret": {
+                    "$id": "#/properties/annotations/properties/certSecret",
                     "type": "object",
                     "default": {}
                 }
