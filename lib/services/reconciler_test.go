@@ -29,7 +29,7 @@ import (
 func TestReconciler(t *testing.T) {
 	tests := []struct {
 		description         string
-		selectors           []Selector
+		selectors           []ResourceMatcher
 		registeredResources types.ResourcesWithLabels
 		newResources        types.ResourcesWithLabels
 		onCreateCalls       types.ResourcesWithLabels
@@ -38,8 +38,8 @@ func TestReconciler(t *testing.T) {
 	}{
 		{
 			description: "new matching resource should be registered",
-			selectors: []Selector{{
-				MatchLabels: types.Labels{"*": []string{"*"}},
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"*": []string{"*"}},
 			}},
 			registeredResources: types.ResourcesWithLabels{},
 			newResources: types.ResourcesWithLabels{
@@ -51,8 +51,8 @@ func TestReconciler(t *testing.T) {
 		},
 		{
 			description: "new non-matching resource should not be registered",
-			selectors: []Selector{{
-				MatchLabels: types.Labels{"env": []string{"prod"}},
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"env": []string{"prod"}},
 			}},
 			registeredResources: types.ResourcesWithLabels{},
 			newResources: types.ResourcesWithLabels{
@@ -60,9 +60,21 @@ func TestReconciler(t *testing.T) {
 			},
 		},
 		{
+			description: "resources with different origins don't overwrite each other",
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"*": []string{"*"}},
+			}},
+			registeredResources: types.ResourcesWithLabels{
+				makeStaticResource("res1", nil),
+			},
+			newResources: types.ResourcesWithLabels{
+				makeDynamicResource("res1", nil),
+			},
+		},
+		{
 			description: "resource that's no longer present should be removed",
-			selectors: []Selector{{
-				MatchLabels: types.Labels{"*": []string{"*"}},
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"*": []string{"*"}},
 			}},
 			registeredResources: types.ResourcesWithLabels{
 				makeDynamicResource("res1", nil),
@@ -73,42 +85,30 @@ func TestReconciler(t *testing.T) {
 			},
 		},
 		{
-			description: "static resource should not be overwritten",
-			selectors: []Selector{{
-				MatchLabels: types.Labels{"*": []string{"*"}},
-			}},
-			registeredResources: types.ResourcesWithLabels{
-				makeStaticResource("res1", nil),
-			},
-			newResources: types.ResourcesWithLabels{
-				makeDynamicResource("res1", nil),
-			},
-		},
-		{
 			description: "resource with updated matching labels should be updated",
-			selectors: []Selector{{
-				MatchLabels: types.Labels{"*": []string{"*"}},
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"*": []string{"*"}},
 			}},
 			registeredResources: types.ResourcesWithLabels{
 				makeDynamicResource("res1", nil),
 			},
 			newResources: types.ResourcesWithLabels{
-				makeDynamicResourceWithID("res1", map[string]string{"env": "dev"}, 1),
+				makeDynamicResource("res1", map[string]string{"env": "dev"}),
 			},
 			onUpdateCalls: types.ResourcesWithLabels{
-				makeDynamicResourceWithID("res1", map[string]string{"env": "dev"}, 1),
+				makeDynamicResource("res1", map[string]string{"env": "dev"}),
 			},
 		},
 		{
 			description: "non-matching updated resource should be removed",
-			selectors: []Selector{{
-				MatchLabels: types.Labels{"env": []string{"prod"}},
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"env": []string{"prod"}},
 			}},
 			registeredResources: types.ResourcesWithLabels{
 				makeDynamicResource("res1", map[string]string{"env": "prod"}),
 			},
 			newResources: types.ResourcesWithLabels{
-				makeDynamicResourceWithID("res1", map[string]string{"env": "dev"}, 1),
+				makeDynamicResource("res1", map[string]string{"env": "dev"}),
 			},
 			onDeleteCalls: types.ResourcesWithLabels{
 				makeDynamicResource("res1", map[string]string{"env": "prod"}),
@@ -116,8 +116,8 @@ func TestReconciler(t *testing.T) {
 		},
 		{
 			description: "complex scenario with multiple created/updated/deleted resources",
-			selectors: []Selector{{
-				MatchLabels: types.Labels{"env": []string{"prod"}},
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"env": []string{"prod"}},
 			}},
 			registeredResources: types.ResourcesWithLabels{
 				makeStaticResource("res0", nil),
@@ -128,9 +128,9 @@ func TestReconciler(t *testing.T) {
 			},
 			newResources: types.ResourcesWithLabels{
 				makeDynamicResource("res0", map[string]string{"env": "prod"}),
-				makeDynamicResourceWithID("res2", map[string]string{"env": "prod", "a": "b"}, 1),
+				makeDynamicResource("res2", map[string]string{"env": "prod", "a": "b"}),
 				makeDynamicResource("res3", map[string]string{"env": "prod"}),
-				makeDynamicResourceWithID("res4", map[string]string{"env": "dev"}, 1),
+				makeDynamicResource("res4", map[string]string{"env": "dev"}),
 				makeDynamicResource("res5", map[string]string{"env": "prod"}),
 				makeDynamicResource("res6", map[string]string{"env": "dev"}),
 			},
@@ -138,7 +138,7 @@ func TestReconciler(t *testing.T) {
 				makeDynamicResource("res5", map[string]string{"env": "prod"}),
 			},
 			onUpdateCalls: types.ResourcesWithLabels{
-				makeDynamicResourceWithID("res2", map[string]string{"env": "prod", "a": "b"}, 1),
+				makeDynamicResource("res2", map[string]string{"env": "prod", "a": "b"}),
 			},
 			onDeleteCalls: types.ResourcesWithLabels{
 				makeDynamicResource("res1", map[string]string{"env": "prod"}),
@@ -153,9 +153,14 @@ func TestReconciler(t *testing.T) {
 			var onCreateCalls, onUpdateCalls, onDeleteCalls types.ResourcesWithLabels
 
 			reconciler, err := NewReconciler(ReconcilerConfig{
-				Selectors: test.selectors,
-				GetResources: func() types.ResourcesWithLabels {
+				Matcher: func(rwl types.ResourceWithLabels) bool {
+					return MatchResourceLabels(test.selectors, rwl)
+				},
+				GetCurrentResources: func() types.ResourcesWithLabels {
 					return test.registeredResources
+				},
+				GetNewResources: func() types.ResourcesWithLabels {
+					return test.newResources
 				},
 				OnCreate: func(ctx context.Context, r types.ResourceWithLabels) error {
 					onCreateCalls = append(onCreateCalls, r)
@@ -173,7 +178,7 @@ func TestReconciler(t *testing.T) {
 			require.NoError(t, err)
 
 			// Reconcile and make sure we got all expected callback calls.
-			err = reconciler.Reconcile(context.Background(), test.newResources)
+			err = reconciler.Reconcile(context.Background())
 			require.NoError(t, err)
 			require.Equal(t, test.onCreateCalls, onCreateCalls)
 			require.Equal(t, test.onUpdateCalls, onUpdateCalls)
@@ -185,22 +190,16 @@ func TestReconciler(t *testing.T) {
 func makeStaticResource(name string, labels map[string]string) types.ResourceWithLabels {
 	return makeResource(name, labels, map[string]string{
 		types.OriginLabel: types.OriginConfigFile,
-	}, 0)
+	})
 }
 
 func makeDynamicResource(name string, labels map[string]string) types.ResourceWithLabels {
 	return makeResource(name, labels, map[string]string{
 		types.OriginLabel: types.OriginDynamic,
-	}, 0)
+	})
 }
 
-func makeDynamicResourceWithID(name string, labels map[string]string, id int64) types.ResourceWithLabels {
-	return makeResource(name, labels, map[string]string{
-		types.OriginLabel: types.OriginDynamic,
-	}, id)
-}
-
-func makeResource(name string, labels map[string]string, additionalLabels map[string]string, id int64) types.ResourceWithLabels {
+func makeResource(name string, labels map[string]string, additionalLabels map[string]string) types.ResourceWithLabels {
 	if labels == nil {
 		labels = make(map[string]string)
 	}
@@ -208,31 +207,26 @@ func makeResource(name string, labels map[string]string, additionalLabels map[st
 		labels[k] = v
 	}
 	return &testResource{
-		name:   name,
-		labels: labels,
-		resID:  id,
+		Metadata: types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
 	}
 }
 
 type testResource struct {
 	types.ResourceWithLabels
-	name   string
-	labels map[string]string
-	resID  int64
+	Metadata types.Metadata
 }
 
 func (r *testResource) GetName() string {
-	return r.name
+	return r.Metadata.Name
 }
 
 func (r *testResource) Origin() string {
-	return r.labels[types.OriginLabel]
-}
-
-func (r testResource) GetResourceID() int64 {
-	return r.resID
+	return r.Metadata.Labels[types.OriginLabel]
 }
 
 func (r *testResource) GetAllLabels() map[string]string {
-	return r.labels
+	return r.Metadata.Labels
 }

@@ -86,7 +86,7 @@ EOF
 Create the user assigned the `db` role we've just created:
 
 ```code
-$ tctl --config=/path/to/teleport-db-role.yaml users add --roles=admin,db testuser
+$ tctl --config=/path/to/teleport-db-role.yaml users add --roles=access,db testuser
 ```
 
 ### Start Database Service with CLI Flags

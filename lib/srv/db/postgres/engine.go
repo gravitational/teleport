@@ -218,7 +218,8 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
   %v
 
 Make sure that Postgres user %q has "rds_iam" role and Teleport database
-agent's IAM policy has "rds-connect" permissions:
+agent's IAM policy has "rds-connect" permissions (note that IAM changes may
+take a few minutes to propagate):
 
 %v
 `, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())

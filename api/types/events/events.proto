@@ -1337,6 +1337,35 @@ message DatabaseSessionQuery {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// WindowsDesktopSessionStart is emitted when a user connects to a desktop.
+message WindowsDesktopSessionStart {
+    // Metadata is common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Session is common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Connection holds information about the connection.
+    ConnectionMetadata Connection = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Status indicates whether the connection was successful or denied.
+    Status Status = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // WindowsDesktopService is the name of the service proxying the RDP session.
+    string WindowsDesktopService = 6 [ (gogoproto.jsontag) = "windows_desktop_service" ];
+    // DesktopAddr is the address of the desktop being accessed.
+    string DesktopAddr = 7 [ (gogoproto.jsontag) = "desktop_addr" ];
+    // Domain is the Active Directory domain of the desktop being accessed.
+    string Domain = 8 [ (gogoproto.jsontag) = "windows_domain" ];
+    // WindowsUser is the Windows username used to connect.
+    string WindowsUser = 9 [ (gogoproto.jsontag) = "windows_user" ];
+    // DesktopLabels are the labels on the desktop resource.
+    map<string, string> DesktopLabels = 10 [ (gogoproto.jsontag) = "desktop_labels" ];
+}
+
 // DatabaseSessionEnd is emitted when a user ends the database session.
 message DatabaseSessionEnd {
     // Metadata is a common event metadata.
@@ -1476,6 +1505,29 @@ message RecoveryCodeUsed {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// WindowsDesktopSessionEnd is emitted when a user ends a Windows desktop session.
+message WindowsDesktopSessionEnd {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Session is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // WindowsDesktopService is the name of the service proxying the RDP session.
+    string WindowsDesktopService = 4 [ (gogoproto.jsontag) = "windows_desktop_service" ];
+    // DesktopAddr is the address of the desktop being accessed.
+    string DesktopAddr = 5 [ (gogoproto.jsontag) = "desktop_addr" ];
+    // Domain is the Active Directory domain of the desktop being accessed.
+    string Domain = 6 [ (gogoproto.jsontag) = "windows_domain" ];
+    // WindowsUser is the Windows username used to connect.
+    string WindowsUser = 7 [ (gogoproto.jsontag) = "windows_user" ];
+    // DesktopLabels are the labels on the desktop resource.
+    map<string, string> DesktopLabels = 8 [ (gogoproto.jsontag) = "desktop_labels" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -1538,6 +1590,8 @@ message OneOf {
         events.AppCreate AppCreate = 56;
         events.AppUpdate AppUpdate = 57;
         events.AppDelete AppDelete = 58;
+        events.WindowsDesktopSessionStart WindowsDesktopSessionStart = 59;
+        events.WindowsDesktopSessionEnd WindowsDesktopSessionEnd = 60;
     }
 }
 

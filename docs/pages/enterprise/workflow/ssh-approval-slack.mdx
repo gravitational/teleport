@@ -4,7 +4,7 @@ description: This guide explains how to setup a Slack plugin for Teleport for pr
 h1: Teleport Slack Plugin Setup
 ---
 
-This guide will talk through how to setup Teleport with Slack. Teleport to Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components.
+This guide will talk through how to setup Teleport with Slack. Teleport to Slack integration notifies individuals and channels of Access Requests.
 
 #### Example Slack Request
 
@@ -32,11 +32,45 @@ This guide assumes that you have:
 - Admin privileges with access to `tctl`
 - Slack Admin Privileges to create an app and install it to your workspace.
 
+Teleport Cloud requires connecting through the proxy service (`mytenant.teleport.sh:443`).
+If you want the Slack plugin to connect through the web port (`teleport.example.com:443`) follow the Teleport Cloud instructions.
+OpenSource and Enterprise installations can connect to the auth service (`auth.example.com:3025`) directly.
+
 #### Create User and Role for access
 
+<Tabs>
+  <TabItem label="OpenSource, Enterprise" scope={["oss","enterprise"]}>
 Log into Teleport Authentication Server, this is where you normally run `tctl`. Create a
 new user and role that only has API access to the `access_request` API. The below script
 will create a yaml resource file for a new user and role.
+</TabItem>
+  <TabItem label="Cloud" scope={["cloud"]}>
+
+The Teleport Cloud requires authenticating with a role that has [`impersonation`](https://goteleport.com/docs/access-controls/guides/impersonation/) rights and can create the `access-plugin` role and user.
+Login in with `tsh` with a user that has this role or has a role with these allows.
+```
+kind: role
+version: v4
+metadata:
+  name: plugin-admin
+spec:
+  allow:
+    impersonate:
+      roles:
+      - access-plugin
+      users:
+      - access-plugin
+    rules:
+      - resources: ['roles']
+        verbs: ['create','update','read','list','delete']
+      - resources: ['user']
+        verbs: ['create','update','read','list','delete']
+
+```
+  </TabItem>
+
+</Tabs>
+
 
 Create a non-interactive bot `access-plugin` user and role.
 
@@ -59,9 +93,6 @@ spec:
         verbs: ['list', 'read']
       - resources: ['access_plugin_data']
         verbs: ['update']
-    # teleport currently refuses to issue certs for a user with 0 logins,
-    # this restriction may be lifted in future versions.
-    logins: ['access-plugin-not-used']
 ```
 
 Here and below follow along and create yaml resources using `tctl create -f`:
@@ -76,14 +107,30 @@ $ tctl create -f access.yaml
 
 #### Export access-plugin Certificate
 
-Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign).
+Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign). You have the option of connecting through the proxy or auth server.  Teleport Cloud must use the proxy server.
 
+<Tabs>
+  <TabItem label="OpenSource, Enterprise" scope={["oss","enterprise"]}>
 ```code
 $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=2190h
 # ...
 ```
 
 The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-teleport-slack).
+</TabItem>
+  <TabItem label="Cloud" scope={["cloud"]}>
+```code
+$ tctl auth sign --user=access-plugin --out=auth.pem --ttl=2190h
+# ...
+```
+
+The above sequence should result in one PEM encoded file being generated: auth.pem.  We'll reference the auth.pem file later when [configuring the plugins](#configuring-teleport-slack).
+
+  </TabItem>
+
+</Tabs>
+
+
 
 <Admonition
   type="note"
@@ -160,7 +207,7 @@ compile these plugins from [source](https://github.com/gravitational/teleport-pl
 </Tabs>
 
 
-Run `./install` in from 'teleport-slack' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
+Run `./install` in from `teleport-slack` or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuring Teleport Slack
 
@@ -175,19 +222,29 @@ $ sudo mv teleport-slack.toml /etc
 Then, edit the config as needed.
 
 ```yaml
-(!examples/resources/plugins/teleport-slack.toml!)
+(!examples/resources/plugins/teleport-slack-configure.toml!)
 ```
 
 #### Editing the config file
 
 In the Teleport section, use the certificates you've generated with `tctl auth sign` before. The plugin installer creates a folder for those certificates in `/var/lib/teleport/plugins/slack/` — so just move the certificates there and make sure the config points to them.
 
-In Slack section, use the OAuth token, signing token, setup the desired channel name. The listen URL is the URL the plugin will listen for Slack callbacks.
+In Slack section, use the OAuth token, signing token, setup the desired channel name.
 
-
+<Tabs>
+  <TabItem label="OpenSource, Enterprise" scope={["oss","enterprise"]}>
 ```conf
 (!examples/resources/plugins/teleport-slack.toml!)
 ```
+</TabItem>
+
+  <TabItem label="Cloud" scope={["cloud"]}>
+
+```conf
+(!examples/resources/plugins/teleport-slack-proxy.toml!)
+```
+</TabItem>
+</Tabs>
 
 ## Test Run
 
@@ -202,10 +259,8 @@ If everything works fine, the log output should look like this:
 
 ```code
 $ teleport-slack start
-# INFO   Starting Teleport Access Slack (=teleport.plugin.version=).1-0-slack/main.go:145
-# INFO   Starting a request watcher... slack/main.go:330
-# INFO   Starting insecure HTTP server on 0.0.0.0:8081 utils/http.go:64
-# INFO   Watcher connected slack/main.go:298
+INFO   Starting Teleport Access Slack Plugin 7.2.1: slack/app.go:80
+INFO   Plugin is ready slack/app.go:101
 ```
 
 ### Testing the approval workflow
@@ -234,7 +289,7 @@ The messages should automatically get updated to reflect the action you just cli
 $ tctl request ls
 ```
 
-### TSH User Login and Request Admin Role
+### TSH User Login and Request Role
 
 You can also test the full workflow from the user's perspective using `tsh`:
 
@@ -243,8 +298,7 @@ You can also test the full workflow from the user's perspective using `tsh`:
 Seeking request approval... (id: 8f77d2d1-2bbf-4031-a300-58926237a807)
 ```
 
-You should now see a new request in Teleport, and a message about the request on Slack. You can
-approve or deny it and `tsh` should login successfully or error out right after you click an action button on Slack.
+You should now see a new request in Teleport, and a message about the request on Slack with instructions.
 
 ### Setup with SystemD
 

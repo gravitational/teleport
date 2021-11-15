@@ -154,7 +154,7 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 		return nil, trace.BadParameter("invalid server name %q: %v", req.server, err)
 	}
 
-	cfg, err := makeTeleportClientConfig(f.ctx)
+	cfg, err := makeTeleportClientConfig(httpReq.Context(), f.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -69,7 +69,7 @@ type SessionContext struct {
 	// This access point should only be used if the identity of the caller will
 	// not affect the result of the RPC. For example, never use it to call
 	// "GetNodes".
-	unsafeCachedAuthClient auth.ReadAccessPoint
+	unsafeCachedAuthClient auth.ReadProxyAccessPoint
 
 	parent *sessionCache
 	// resources is persistent resource store this context is bound to.
@@ -341,7 +341,7 @@ func (c *SessionContext) GetUserRoles() (services.RoleSet, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, traits, err := services.ExtractFromCertificate(c.clt, cert)
+	roles, traits, err := services.ExtractFromCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -350,6 +350,15 @@ func (c *SessionContext) GetUserRoles() (services.RoleSet, error) {
 		return nil, trace.Wrap(err)
 	}
 	return roleset, nil
+}
+
+// GetProxyListenerMode returns cluster proxy listener mode form cluster networking config.
+func (c *SessionContext) GetProxyListenerMode(ctx context.Context) (types.ProxyListenerMode, error) {
+	resp, err := c.unsafeCachedAuthClient.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return types.ProxyListenerMode_Separate, trace.Wrap(err)
+	}
+	return resp.GetProxyListenerMode(), nil
 }
 
 // GetIdentity returns identity parsed from the session's TLS certificate.
@@ -448,7 +457,7 @@ const cachedSessionLingeringThreshold = 2 * time.Minute
 
 type sessionCacheOptions struct {
 	proxyClient  auth.ClientI
-	accessPoint  auth.ReadAccessPoint
+	accessPoint  auth.ReadProxyAccessPoint
 	servers      []utils.NetAddr
 	cipherSuites []uint16
 	clock        clockwork.Clock
@@ -490,7 +499,7 @@ type sessionCache struct {
 	log         logrus.FieldLogger
 	proxyClient auth.ClientI
 	authServers []utils.NetAddr
-	accessPoint auth.ReadAccessPoint
+	accessPoint auth.ReadProxyAccessPoint
 	closer      *utils.CloseBroadcaster
 	clusterName string
 	clock       clockwork.Clock
@@ -579,8 +588,8 @@ func (s *sessionCache) AuthenticateWebUser(req *client.AuthenticateWebUserReques
 			SignResponse: *req.U2FSignResponse,
 		}
 	}
-	if req.WebauthnChallengeResponse != nil {
-		authReq.Webauthn = req.WebauthnChallengeResponse
+	if req.WebauthnAssertionResponse != nil {
+		authReq.Webauthn = req.WebauthnAssertionResponse
 	}
 	return s.proxyClient.AuthenticateWebUser(authReq)
 }
