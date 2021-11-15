@@ -57,12 +57,28 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// If an admin approves a pull request, allow the check workflow run to pass.
+	// This is used in the event the pull request needs the bypassing
+	// of the required reviewers.
+	if repoAdminHasApproved(mostRecentReviews) {
+		return nil
+	}
 	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
 	err = hasRequiredApprovals(mostRecentReviews, c.Environment.GetReviewersForAuthor(pr.Author))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// repoAdminHasApproved checks that at least one listed admin has approved.
+func repoAdminHasApproved(reviews map[string]review) bool {
+	for _, adminName := range ci.RepoAdmins {
+		if hasApproved(adminName, reviews) {
+			return true
+		}
+	}
+	return false
 }
 
 // checkExternal is called to check if a PR reviewed and approved by the
@@ -91,7 +107,7 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	} else {
-		// If there are no file changes between current commit and commit where all 
+		// If there are no file changes between current commit and commit where all
 		// reviewers have approved, then all most recent reviews are valid.
 		validReviews = mostRecentReviews
 	}
@@ -235,15 +251,15 @@ func hasApproved(reviewer string, reviews map[string]review) bool {
 // dimissMessage returns the dimiss message when a review is dismissed
 func dismissMessage(pr *environment.Metadata, required []string) string {
 	var sb strings.Builder
-	sb.WriteString("new commit pushed, please re-review ")
+	sb.WriteString("New commit pushed, please re-review ")
 	for _, reviewer := range required {
-		sb.WriteString(fmt.Sprintf("@%s", reviewer))
+		sb.WriteString(fmt.Sprintf("@%s ", reviewer))
 	}
-	return sb.String()
+	return strings.TrimSpace(sb.String())
 }
 
-// hasFileChangeFromLastApproved checks if there is a file change from the last commit all 
-// reviewers approved (if all reviewers approved at a commit) to the current HEAD. 
+// hasFileChangeFromLastApproved checks if there is a file change from the last commit all
+// reviewers approved (if all reviewers approved at a commit) to the current HEAD.
 func (c *Bot) hasFileChangeFromLastApprovedReview(ctx context.Context) error {
 	pr := c.Environment.Metadata
 	lastReviewCommitID, err := c.getLastApprovedReviewCommitID(ctx)
@@ -267,7 +283,7 @@ func (c *Bot) hasFileChangeFromLastApprovedReview(ctx context.Context) error {
 	return nil
 }
 
-// getLastApprovedReviewCommitID gets the last review's commit ID (last review where a commit was approved). 
+// getLastApprovedReviewCommitID gets the last review's commit ID (last review where a commit was approved).
 func (c *Bot) getLastApprovedReviewCommitID(ctx context.Context) (string, error) {
 	pr := c.Environment.Metadata
 	clt := c.Environment.Client
@@ -304,7 +320,7 @@ func (c *Bot) getLastApprovedReviewCommitID(ctx context.Context) (string, error)
 	return *lastApprovedReview.CommitID, nil
 }
 
-// hasFileDiff compares two commits and checks if there are changes. 
+// hasFileDiff compares two commits and checks if there are changes.
 func (c *Bot) hasFileDiff(ctx context.Context, base, head string) error {
 	pr := c.Environment.Metadata
 	clt := c.Environment.Client
@@ -336,7 +352,7 @@ func (c *Bot) invalidateApprovals(ctx context.Context, reviews map[string]review
 	pr := c.Environment.Metadata
 	msg := dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author))
 	for _, v := range reviews {
-		if pr.HeadSHA != v.commitID {
+		if pr.HeadSHA != v.commitID && v.status != ci.Commented {
 			_, _, err := c.Environment.Client.PullRequests.DismissReview(ctx,
 				pr.RepoOwner,
 				pr.RepoName,

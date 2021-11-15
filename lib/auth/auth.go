@@ -391,7 +391,7 @@ func (a *Server) runPeriodicOperations() {
 	a.lock.RUnlock()
 	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
-		Duration: apidefaults.ServerKeepAliveTTL * 2,
+		Duration: apidefaults.ServerKeepAliveTTL() * 2,
 		Jitter:   utils.NewSeventhJitter(),
 	})
 	missedKeepAliveCount := 0
