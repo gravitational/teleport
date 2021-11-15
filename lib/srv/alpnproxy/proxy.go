@@ -63,7 +63,7 @@ type ProxyConfig struct {
 	// IdentityTLSConfig is the TLS ProxyRole identity used in servers with localhost SANs values.
 	IdentityTLSConfig *tls.Config
 	// AccessPoint is the auth server client.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ReadProxyAccessPoint
 	// ClusterName is the name of the teleport cluster.
 	ClusterName string
 }

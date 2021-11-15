@@ -580,6 +580,40 @@ func TestValidateRole(t *testing.T) {
 	}
 }
 
+func TestValidateRoleName(t *testing.T) {
+	var tests = []struct {
+		name         string
+		roleName     string
+		err          error
+		matchMessage string
+	}{
+		{
+			name:         "reserved role name proxy",
+			roleName:     string(types.RoleProxy),
+			err:          trace.BadParameter(""),
+			matchMessage: fmt.Sprintf("reserved role: %s", types.RoleProxy),
+		},
+		{
+			name:     "valid role name test-1",
+			roleName: "test-1",
+		},
+	}
+
+	for _, tc := range tests {
+		err := ValidateRoleName(&types.RoleV4{Metadata: types.Metadata{
+			Name: tc.roleName,
+		}})
+		if tc.err != nil {
+			require.Error(t, err, tc.name)
+			if tc.matchMessage != "" {
+				require.Contains(t, err.Error(), tc.matchMessage)
+			}
+		} else {
+			require.NoError(t, err, tc.name)
+		}
+	}
+}
+
 // TestLabelCompatibility makes sure that labels
 // are serialized in format understood by older servers with
 // scalar labels
@@ -2081,10 +2115,7 @@ func TestExtractFrom(t *testing.T) {
 
 	// At this point, services.User and the certificate/identity are still in
 	// sync. The roles and traits returned should be the same as the original.
-	roles, traits, err := ExtractFromCertificate(&userGetter{
-		roles:  origRoles,
-		traits: origTraits,
-	}, cert)
+	roles, traits, err := ExtractFromCertificate(cert)
 	require.NoError(t, err)
 	require.Equal(t, roles, origRoles)
 	require.Equal(t, traits, origTraits)
@@ -2100,12 +2131,7 @@ func TestExtractFrom(t *testing.T) {
 	// The backend now returns new roles and traits, however because the roles
 	// and traits are extracted from the certificate/identity, the original
 	// roles and traits will be returned.
-	roles, traits, err = ExtractFromCertificate(&userGetter{
-		roles: []string{"intern"},
-		traits: wrappers.Traits(map[string][]string{
-			"login": {"bar"},
-		}),
-	}, cert)
+	roles, traits, err = ExtractFromCertificate(cert)
 	require.NoError(t, err)
 	require.Equal(t, roles, origRoles)
 	require.Equal(t, traits, origTraits)
@@ -2117,64 +2143,6 @@ func TestExtractFrom(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, roles, origRoles)
 	require.Equal(t, traits, origTraits)
-}
-
-// TestExtractFromLegacy verifies that roles and traits are fetched
-// from services.User for SSH certificates is the legacy format and TLS
-// certificates that don't contain traits.
-func TestExtractFromLegacy(t *testing.T) {
-	origRoles := []string{"admin"}
-	origTraits := wrappers.Traits(map[string][]string{
-		"login": {"foo"},
-	})
-
-	// Create a SSH certificate in the legacy format.
-	cert, err := sshutils.ParseCertificate([]byte(fixtures.UserCertificateLegacy))
-	require.NoError(t, err)
-
-	// Create a TLS identity with only roles.
-	identity := &tlsca.Identity{
-		Username: "foo",
-		Groups:   origRoles,
-	}
-
-	// At this point, services.User and the certificate/identity are still in
-	// sync. The roles and traits returned should be the same as the original.
-	roles, traits, err := ExtractFromCertificate(&userGetter{
-		roles:  origRoles,
-		traits: origTraits,
-	}, cert)
-	require.NoError(t, err)
-	require.Equal(t, roles, origRoles)
-	require.Equal(t, traits, origTraits)
-	roles, traits, err = ExtractFromIdentity(&userGetter{
-		roles:  origRoles,
-		traits: origTraits,
-	}, *identity)
-	require.NoError(t, err)
-	require.Equal(t, roles, origRoles)
-	require.Equal(t, traits, origTraits)
-
-	// The backend now returns new roles and traits, because the SSH certificate
-	// is in the old standard format and the TLS identity is missing traits.
-	newRoles := []string{"intern"}
-	newTraits := wrappers.Traits(map[string][]string{
-		"login": {"bar"},
-	})
-	roles, traits, err = ExtractFromCertificate(&userGetter{
-		roles:  newRoles,
-		traits: newTraits,
-	}, cert)
-	require.NoError(t, err)
-	require.Equal(t, roles, newRoles)
-	require.Equal(t, traits, newTraits)
-	roles, traits, err = ExtractFromIdentity(&userGetter{
-		roles:  newRoles,
-		traits: newTraits,
-	}, *identity)
-	require.NoError(t, err)
-	require.Equal(t, roles, newRoles)
-	require.Equal(t, traits, newTraits)
 }
 
 // TestBoolOptions makes sure that bool options (like agent forwarding and

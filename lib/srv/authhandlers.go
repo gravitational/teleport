@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -72,7 +71,7 @@ type AuthHandlerConfig struct {
 	Emitter apievents.Emitter
 
 	// AccessPoint is used to access the Auth Server.
-	AccessPoint auth.AccessPoint
+	AccessPoint AccessPoint
 
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
@@ -445,7 +444,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca types.CertAuthorit
 	if clusterName == ca.GetClusterName() {
 		// Extract roles and traits either from the certificate or from
 		// services.User and create a services.RoleSet with all runtime roles.
-		roles, traits, err := services.ExtractFromCertificate(h.c.AccessPoint, cert)
+		roles, traits, err := services.ExtractFromCertificate(cert)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

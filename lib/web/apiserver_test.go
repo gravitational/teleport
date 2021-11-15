@@ -35,6 +35,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -142,6 +143,10 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	s.mockU2F, err = mocku2f.Create()
 	c.Assert(err, IsNil)
 	c.Assert(s.mockU2F, NotNil)
+}
+
+func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+	return clt, nil
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
@@ -273,7 +278,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
 		Emitter:               s.proxyClient,
-		NewCachingAccessPoint: auth.NoCache,
+		NewCachingAccessPoint: noCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
 		LockWatcher:           proxyLockWatcher,
@@ -291,7 +296,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer),
+		regular.SetProxyMode(revTunServer, s.proxyClient),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -473,6 +478,25 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	}
 }
 
+func TestValidRedirectURL(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		desc, url string
+		valid     bool
+	}{
+		{"valid absolute https url", "https://example.com?a=1", true},
+		{"valid absolute http url", "http://example.com?a=1", true},
+		{"valid relative url", "/path/to/something", true},
+		{"garbage", "fjoiewjwpods302j09", false},
+		{"empty string", "", false},
+		{"block bad protocol", "javascript:alert('xss')", false},
+	} {
+		t.Run(tt.desc, func(t *testing.T) {
+			require.Equal(t, tt.valid, isValidRedirectURL(tt.url))
+		})
+	}
+}
+
 func (s *WebSuite) TestSAMLSuccess(c *C) {
 	input := fixtures.SAMLOktaConnectorV2
 
@@ -521,7 +545,8 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	c.Assert(err, IsNil)
 
 	// we got a redirect
-	locationURL := re.Headers().Get("Location")
+	urlPattern := regexp.MustCompile(`URL='([^']*)'`)
+	locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
 	u, err := url.Parse(locationURL)
 	c.Assert(err, IsNil)
 	c.Assert(u.Scheme+"://"+u.Host+u.Path, Equals, fixtures.SAMLOktaSSO)
@@ -3251,7 +3276,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		LocalAuthClient:       client,
 		LocalAccessPoint:      client,
 		Emitter:               client,
-		NewCachingAccessPoint: auth.NoCache,
+		NewCachingAccessPoint: noCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: authServer.ClusterName(), Client: client}},
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
@@ -3268,7 +3293,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer),
+		regular.SetProxyMode(revTunServer, client),
 		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),

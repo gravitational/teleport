@@ -68,7 +68,7 @@ type ProxyServerConfig struct {
 	// AuthClient is the authenticated client to the auth server.
 	AuthClient *auth.Client
 	// AccessPoint is the caching client connected to the auth server.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ReadDatabaseAccessPoint
 	// Authorizer is responsible for authorizing user identities.
 	Authorizer auth.Authorizer
 	// Tunnel is the reverse tunnel server.
@@ -558,7 +558,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	}, nil
 }
 
-func getConfigForClient(conf *tls.Config, ap auth.AccessPoint, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error

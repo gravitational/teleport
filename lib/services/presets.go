@@ -31,7 +31,7 @@ import (
 func NewPresetEditorRole() types.Role {
 	role := &types.RoleV4{
 		Kind:    types.KindRole,
-		Version: types.V3,
+		Version: types.V4,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -74,7 +74,7 @@ func NewPresetEditorRole() types.Role {
 func NewPresetAccessRole() types.Role {
 	role := &types.RoleV4{
 		Kind:    types.KindRole,
-		Version: types.V3,
+		Version: types.V4,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -116,7 +116,7 @@ func NewPresetAccessRole() types.Role {
 func NewPresetAuditorRole() types.Role {
 	role := &types.RoleV4{
 		Kind:    types.KindRole,
-		Version: types.V3,
+		Version: types.V4,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -133,13 +133,6 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindSession, RO()),
 					types.NewRule(types.KindEvent, RO()),
 				},
-			},
-			Deny: types.RoleConditions{
-				Namespaces:       []string{types.Wildcard},
-				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
 	}
