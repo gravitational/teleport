@@ -57,6 +57,10 @@ func (c *Config) CheckAndSetDefaults() {
 	if c.OfflineThreshold == 0 {
 		c.OfflineThreshold = defaults.KeepAliveInterval
 	}
+
+	if c.ProxyControlCallback == nil {
+		c.ProxyControlCallback = func() {}
+	}
 }
 
 // NewTracker returns a tracker responsible of tracking node to proxy relationships

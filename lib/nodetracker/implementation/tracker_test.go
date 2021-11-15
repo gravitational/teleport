@@ -223,12 +223,10 @@ func BenchmarkTracker(b *testing.B) {
 	// start the benchmark timer.
 	b.ResetTimer()
 
-	// insert 1000000 nodes and proxies relationships
-	// update them 5 times
-	for i := 0; i < 6; i++ {
+	// insert and update 1000000 nodes and proxies relationships
+	for i := 0; i < 10; i++ {
 		for node, proxy := range input {
 			tracker.AddNode(ctx, node, proxy, "cluster", "proxy:3080")
 		}
-		time.Sleep(10 * time.Second)
 	}
 }
