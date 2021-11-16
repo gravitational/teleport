@@ -157,7 +157,7 @@ func (rd *routeDetails) Cleanup(offlineThreshold time.Duration) {
 
 	// remove expired node to proxy relationships
 	for nodeID, proxySet := range rd.route {
-		for proxyID, _ := range proxySet {
+		for proxyID := range proxySet {
 			if _, ok := removedProxies[proxyID]; ok {
 				delete(proxySet, proxyID)
 			}
@@ -187,7 +187,7 @@ func (rd *routeDetails) GetProxies(nodeID string) []api.ProxyDetails {
 	defer rd.RUnlock()
 
 	proxyDetails := make([]api.ProxyDetails, 0)
-	for proxyID, _ := range rd.route[nodeID] {
+	for proxyID := range rd.route[nodeID] {
 		if proxyDetail, ok := rd.details[proxyID]; ok {
 			proxyDetails = append(proxyDetails, proxyDetail)
 		}

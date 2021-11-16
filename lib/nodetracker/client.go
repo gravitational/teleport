@@ -30,7 +30,7 @@ var (
 	cm     sync.RWMutex
 	client api.Client = &noopClient{}
 
-	noopError error = errors.New("nodetracker: noop error")
+	errNOOP = errors.New("nodetracker: noop error")
 )
 
 // SetClient sets the node tracker client interface
@@ -58,15 +58,15 @@ func (c *noopClient) AddNode(
 	clusterName string,
 	addr string,
 ) error {
-	return trace.NotImplemented(noopError.Error())
+	return trace.NotImplemented(errNOOP.Error())
 }
 
 // RemoveNode does nothing
 func (c *noopClient) RemoveNode(ctx context.Context, nodeID string) error {
-	return trace.NotImplemented(noopError.Error())
+	return trace.NotImplemented(errNOOP.Error())
 }
 
 // GetProxies does nothing
 func (c *noopClient) GetProxies(ctx context.Context, nodeID string) ([]api.ProxyDetails, error) {
-	return nil, trace.NotImplemented(noopError.Error())
+	return nil, trace.NotImplemented(errNOOP.Error())
 }
