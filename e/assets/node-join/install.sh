@@ -632,6 +632,11 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
             fi
         fi
         log "Detected distro type: ${DISTRO_TYPE}"
+        # suse uses /etc/systemd/system instead of /lib/systemd/system
+        if [[ ${DISTRO_TYPE} =~ "suse"* ]]; then
+          SYSTEMD_UNIT_PATH="/etc/systemd/system/teleport.service"
+        fi
+
     fi
 elif [[ "${OSTYPE}" == "darwin"* ]]; then
     # macos host, now detect arch
