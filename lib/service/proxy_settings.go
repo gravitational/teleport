@@ -76,7 +76,7 @@ func (p *proxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 		proxySettings.DB.MySQLListenAddr = p.cfg.Proxy.MySQLAddr.String()
 	}
 	if p.cfg.Proxy.Kube.Enabled {
-		proxySettings.Kube.ListenAddr = p.getProxyKubeAddress(proxyListenerMode)
+		proxySettings.Kube.ListenAddr = p.cfg.Proxy.Kube.ListenAddr.String()
 	}
 	return &proxySettings
 }
@@ -113,11 +113,4 @@ func (p *proxySettings) setProxyPublicAddressesSettings(settings *webclient.Prox
 	if len(p.cfg.Proxy.MySQLPublicAddrs) > 0 {
 		settings.DB.MySQLPublicAddr = p.cfg.Proxy.MySQLPublicAddrs[0].String()
 	}
-}
-
-func (p *proxySettings) getProxyKubeAddress(mode types.ProxyListenerMode) string {
-	if !p.cfg.Proxy.DisableALPNSNIListener && !p.cfg.Proxy.DisableTLS && mode == types.ProxyListenerMode_Multiplex {
-		return p.cfg.Proxy.WebAddr.String()
-	}
-	return p.cfg.Proxy.Kube.ListenAddr.String()
 }

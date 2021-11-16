@@ -391,7 +391,7 @@ func (a *Server) runPeriodicOperations() {
 	a.lock.RUnlock()
 	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
-		Duration: apidefaults.ServerKeepAliveTTL * 2,
+		Duration: apidefaults.ServerKeepAliveTTL() * 2,
 		Jitter:   utils.NewSeventhJitter(),
 	})
 	missedKeepAliveCount := 0
@@ -2088,9 +2088,8 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		NotAfter:  a.clock.Now().UTC().Add(defaults.CATTL),
 		DNSNames:  append([]string{}, req.AdditionalPrincipals...),
 	}
-	// HTTPS requests need to specify DNS name that should be present in the
-	// certificate as one of the DNS Names. It is not known in advance,
-	// that is why there is a default one for all certificates
+	// API requests need to specify a DNS name, which must be present in the certificate's DNS Names.
+	// The target DNS is not always known in advance so we add a default one to all certificates.
 	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+constants.APIDomain, constants.APIDomain)
 	}

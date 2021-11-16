@@ -20,10 +20,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -35,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -96,7 +99,7 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnRoot
 				}),
 				withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
-					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnRoot
+					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnLeaf
 				}),
 				withRootClusterPorts(tc.mainClusterPortSetup),
 				withLeafClusterPorts(tc.secondClusterPortSetup),
@@ -274,6 +277,67 @@ func TestALPNSNIProxyKube(t *testing.T) {
 		kubeGroups:          kubeRoleSpec.Allow.KubeUsers,
 		customTLSServerName: localK8SNI,
 		targetAddress:       suite.root.Config.Proxy.WebAddr,
+	})
+	require.NoError(t, err)
+
+	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+}
+
+// TestALPNSNIProxyKubeV2Leaf tests remove cluster kubernetes configuration where root and leaf proxies
+// are using V2 configuration with Multiplex proxy listener.
+func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	const (
+		localK8SNI = "kube.teleport.cluster.local"
+		k8User     = "alice@example.com"
+		k8RoleName = "kubemaster"
+	)
+
+	kubeAPIMockSvr := startKubeAPIMock(t)
+	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvr.URL, localK8SNI))
+
+	username := mustGetCurrentUser(t).Username
+	kubeRoleSpec := types.RoleSpecV4{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			KubeGroups: []string{testImpersonationGroup},
+			KubeUsers:  []string{k8User},
+		},
+	}
+	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
+	require.NoError(t, err)
+
+	suite := newProxySuite(t,
+		withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
+			config.Proxy.Kube.Enabled = true
+			config.Version = defaults.TeleportConfigVersionV2
+		}),
+		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
+			config.Version = defaults.TeleportConfigVersionV2
+			config.Proxy.Kube.Enabled = true
+
+			config.Kube.Enabled = true
+			config.Kube.KubeconfigPath = kubeConfigPath
+			config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
+		}),
+		withRootClusterRoles(kubeRole),
+		withLeafClusterRoles(kubeRole),
+		withRootAndLeafTrustedClusterReset(),
+		withTrustedCluster(),
+	)
+
+	k8Client, _, err := kubeProxyClient(kubeProxyConfig{
+		t:                   suite.root,
+		username:            kubeRoleSpec.Allow.Logins[0],
+		kubeUsers:           kubeRoleSpec.Allow.KubeGroups,
+		kubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+		customTLSServerName: localK8SNI,
+		targetAddress:       suite.root.Config.Proxy.WebAddr,
+		routeToCluster:      suite.leaf.Secrets.SiteName,
 	})
 	require.NoError(t, err)
 

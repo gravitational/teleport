@@ -176,25 +176,25 @@ Role specification consists of two sections: `allow` and `deny`. They are identi
 
 | Name                      | Type        | Description                                                     |
 |---------------------------|-------------|-----------------------------------------------------------------|
-|           `database_names`| string list | List of database names this role is allowed to connect to       |
-|           `database_users`| string list | List of database users this role is allowed to connect as       |
+|                 `db_names`| string list | List of database names this role is allowed to connect to       |
+|                 `db_users`| string list | List of database users this role is allowed to connect as       |
 |        `kubernetes_groups`| string list | List of Kubernetes groups                                       |
 |         `kubernetes_users`| string list | List of Kubernetes users to impersonate                         |
 |                   `logins`| string list | Logins is a list of *nix system logins                          |
 |               `app_labels`|         set | Application labels                                              |
-|          `app_labels.name`|      string | Application name                                                |
+|           `app_labels.key`|      string | Application name                                                |
 |        `app_labels.values`| string list | List of labels                                                  |
 |           `cluster_labels`|         set | Cluster labels                                                  |
-|      `cluster_labels.name`|      string | Cluster name                                                    | 
+|       `cluster_labels.key`|      string | Cluster name                                                    | 
 |    `cluster_labels.values`| string list | List of labels                                                  |
-|          `database_labels`|         set | Database labels                                                 |
-|     `database_labels.name`|      string | Database name                                                   | 
-|   `database_labels.values`| string list | List of labels                                                  |
+|                `db_labels`|         set | Database labels                                                 |
+|            `db_labels.key`|      string | Database name                                                   | 
+|         `db_labels.values`| string list | List of labels                                                  |
 |        `kubernetes_labels`|         set | Kubernetes labels                                               |
-|   `kubernetes_labels.name`|      string | Kubernetes cluster name                                         |
+|    `kubernetes_labels.key`|      string | Kubernetes cluster name                                         |
 | `kubernetes_labels.values`| string list | List of labels                                                  |
 |              `node_labels`|         set | Node labels                                                     |
-|         `node_labels.name`|      string | Node name                                                       | 
+|          `node_labels.key`|      string | Node name                                                       | 
 |       `node_labels.values`| string list | List of labels                                                  |
 |              `impersonate`|      object | Specifies whether users are allowed  to issue certificates for other users or groups |
 |        `impersonate.roles`| string list | list of roles this role is allowed to impersonate               | 
@@ -245,15 +245,15 @@ Options specify session, connection and auditing permissions of the role.
 
 | Name                      | Type        | Description                                                     |
 |---------------------------|-------------|-----------------------------------------------------------------|
-| `bpf`                     | string list | Events to record for the BPF-based session recorder |
-| `certificate_format`      | string      | The format of the user certificate to allow  compatibility with older versions of OpenSSH |
+| `cert_format`             | string      | The format of the user certificate to allow  compatibility with older versions of OpenSSH |
 | `client_idle_timeout`     | duration    | Sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration |
 | `disconnect_expired_cert` | bool        | Sets disconnect clients on expired certificates |
+| `enhanced_recording`      | string list | Events to record for the BPF-based session recorder |
 | `forward_agent`           | bool        | SSH agent forwarding |
 | `max_connections`         | number      | The maximum number of  concurrent connections a user may hold |
 | `max_session_ttl`         | number      | How long a SSH session can last for |
 | `max_sessions`            | number      | Maximum number of  concurrent sessions per connection |
-| `permit_x11forwarding`    | bool        | Authorizes use of X11 forwarding |
+| `permit_x11_forwarding`   | bool        | Authorizes use of X11 forwarding |
 | `port_forwarding`         | bool        | Port forwarding |
 | `request_access`          | string      | Access request strategy (optional|note|always) |
 | `request_prompt`          | string      | An optional message which tells users what they aught to |
@@ -298,18 +298,18 @@ Metadata specifies a resource name, description, labels and optional expiry date
 
 Spec contains parameters of a resource.
 
-| Name                          | Type        | Description                                                     |
-|-------------------------------|-------------|-----------------------------------------------------------------|
-| `client_id`                   | string      | Github OAuth app client ID                                      |
-| `client_secret`               | string      | Github OAuth app client secret                                  |
-| `display`                     | string      | Connector display name                                          |
-| `redirect_url`                | string      | Authorization callback URL                                      |
-| `teams_to_logins`             | set         | Maps Github team memberships onto allowed logins/roles.
-| `teams_to_logins.kube_groups` | string list | List of allowed kubernetes groups for this org/team             |
-| `teams_to_logins.kube_users`  | string list | List of allowed kubernetes users to impersonate for this org/team |
-| `teams_to_logins.logins`      | string list | List of allowed logins for this org/team                        |
-| `teams_to_logins.organization`| string      | Github organization a user belongs to                           |
-| `teams_to_logins.team`        | string      | Team within the organization a user belongs to                  |
+| Name                                | Type        | Description                                                     |
+|-------------------------------------|-------------|-----------------------------------------------------------------|
+| `client_id`                         | string      | Github OAuth app client ID                                      |
+| `client_secret`                     | string      | Github OAuth app client secret                                  |
+| `display`                           | string      | Connector display name                                          |
+| `redirect_url`                      | string      | Authorization callback URL                                      |
+| `teams_to_logins`                   | set         | Maps Github team memberships onto allowed logins/roles.
+| `teams_to_logins.kubernetes_groups` | string list | List of allowed kubernetes groups for this org/team             |
+| `teams_to_logins.kubernetes_users`  | string list | List of allowed kubernetes users to impersonate for this org/team |
+| `teams_to_logins.logins`            | string list | List of allowed logins for this org/team                        |
+| `teams_to_logins.organization`      | string      | Github organization a user belongs to                           |
+| `teams_to_logins.team`              | string      | Team within the organization a user belongs to                  |
 
 ## teleport_oidc_connector
 
@@ -333,7 +333,7 @@ Spec contains parameters of a resource.
 
 | Name                      | Type        | Description                                                     |
 |---------------------------|-------------|-----------------------------------------------------------------|
-| `acr`                     | string      | Authentication Context Class Reference value. The meaning of the ACR  value is context-specific and varies for identity providers |
+| `acr_values`              | string      | Authentication Context Class Reference value. The meaning of the ACR  value is context-specific and varies for identity providers |
 | `client_id`               | string      | The id of the authentication client (Teleport Auth server)      |
 | `client_secret`           | string      | Used to authenticate the client                                 |
 | `display`                 | string      | Connector display name                                          |
@@ -372,7 +372,7 @@ Spec contains parameters of a resource.
 
 | Name                         | Type        | Description                                                                   |
 |------------------------------|-------------|-------------------------------------------------------------------------------|
-| `assertion_consumer_service` | string      | URL for assertion consumer service  on the service provider (Teleport's side) |
+| `acs`                        | string      | URL for assertion consumer service  on the service provider (Teleport's side) |
 | `audience`                   | string      | Audience uniquely identifies our service provider                             |
 | `cert`                       | string      | Cert is the identity provider certificate PEM. IDP signs `Response` responses using this certificate |
 | `display`                    | string      | Connector display name                                                        | 
@@ -386,9 +386,9 @@ Spec contains parameters of a resource.
 | `attributes_to_roles.name`   | string      | Attribute statement name |
 | `attributes_to_roles.roles`  | string list | List of static Teleport roles to map to |
 | `attributes_to_roles.value`  | string      | Attribute statement value to match |
-| `encryption_key_pair`        | object      | Public and private key used for encryption |
-| `encryption_key_pair.cert`   | string      | PEM-encoded x509 certificate |
-| `encryption_key_pair.private_key` | string | PEM-encoded x509 private key |
+| `assertion_key_pair`         | object      | Public and private key used for encryption |
+| `assertion_key_pair.cert`    | string      | PEM-encoded x509 certificate |
+| `assertion_key_pair.private_key` | string | PEM-encoded x509 private key |
 | `signing_key_pair`        | object      | Public and private key used for signing |
 | `signing_key_pair.cert`   | string      | PEM-encoded x509 certificate |
 | `signing_key_pair.private_key` | string | PEM-encoded x509 private key |
@@ -416,8 +416,8 @@ Spec contains parameters of a resource.
 | Name                         | Type        | Description                                                                   |
 |------------------------------|-------------|-------------------------------------------------------------------------------|
 | `enabled`                    | bool        | Indicates if the trusted cluster is enabled or disabled.  Setting Enabled to false has a side effect of deleting the user and host certificate  authority (CA). |
-| `proxy_address`              | string      | The address of the web proxy server of the cluster to join. If not set,  it is derived from `metadata.name:default web proxy server port`. |
-| `reverse_tunnel_address`     | string      | The address of the SSH proxy server of the cluster to join. If  not set, it is derived from `metadata.name:default reverse tunnel port`. |
+| `web_proxy_addr              | string      | The address of the web proxy server of the cluster to join. If not set,  it is derived from `metadata.name:default web proxy server port`. |
+| `tunnel_address`             | string      | The address of the SSH proxy server of the cluster to join. If  not set, it is derived from `metadata.name:default reverse tunnel port`. |
 | `roles`                      | string list | List of roles that users will be assuming when connecting to this cluster |
 | `token`                      | string      | The authorization token provided by another cluster needed by this cluster to join |
 | `role_map`                   | set         | Role mappings to remote roles |
@@ -442,6 +442,8 @@ Metadata specifies a resource description, labels and optional expiry date and t
 **spec**
 
 Spec contains parameters of a resource.
+
+{/* TODO(codingllama): Add and document Terraform support for WebAuthn. */}
 
 | Name                         | Type        | Description                                                                   |
 |------------------------------|-------------|-------------------------------------------------------------------------------|

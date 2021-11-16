@@ -262,7 +262,7 @@ github.com/creack/pty
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
-# github.com/dgrijalva/jwt-go v3.2.0+incompatible
+# github.com/dgrijalva/jwt-go v3.2.0+incompatible => github.com/golang-jwt/jwt v3.2.1+incompatible
 ## explicit
 github.com/dgrijalva/jwt-go
 # github.com/docker/spdystream v0.0.0-20170912183627-bc6354cbbc29

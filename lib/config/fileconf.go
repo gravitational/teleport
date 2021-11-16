@@ -1325,4 +1325,8 @@ type LDAPConfig struct {
 	Username string `yaml:"username"`
 	// PasswordFile is a text file containing the password for LDAP authentication.
 	PasswordFile string `yaml:"password_file"`
+	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
+	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
 }
