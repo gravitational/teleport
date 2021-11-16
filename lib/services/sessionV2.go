@@ -44,8 +44,18 @@ type sessionV2 struct {
 	bk backend.Backend
 }
 
-func NewSessionV2Service(bk backend.Backend) SessionV2 {
-	return &sessionV2{bk}
+func NewSessionV2Service(bk backend.Backend) (SessionV2, error) {
+	data, err := utils.FastMarshal([]string{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = bk.Create(context.TODO(), backend.Item{Key: backend.Key(sessionV2Prefix, sessionV2List), Value: data})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &sessionV2{bk}, nil
 }
 
 func (s *sessionV2) GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error) {
@@ -149,7 +159,6 @@ func (s *sessionV2) RemoveSessionTracker(ctx context.Context, sessionID string) 
 	return trace.Wrap(s.bk.Delete(ctx, backend.Key(sessionV2Prefix, sessionID)))
 }
 
-// TODO(joel): handle concurrency and list doesn't exist
 func (s *sessionV2) addSessionToList(ctx context.Context, sessionID string) error {
 	listItem, err := s.bk.Get(ctx, backend.Key(sessionV2Prefix, sessionV2List))
 	if err != nil {
@@ -169,7 +178,7 @@ func (s *sessionV2) addSessionToList(ctx context.Context, sessionID string) erro
 	}
 
 	newListItem := backend.Item{Key: backend.Key(sessionV2Prefix, sessionV2List), Value: listJSON}
-	_, err = s.bk.Update(ctx, newListItem)
+	_, err = s.bk.CompareAndSwap(ctx, *listItem, newListItem)
 	return trace.Wrap(err)
 }
 

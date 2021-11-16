@@ -146,7 +146,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
 	if cfg.SessionV2 == nil {
-		cfg.SessionV2 = services.NewSessionV2Service(cfg.Backend)
+		cfg.SessionV2, err = services.NewSessionV2Service(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
 		cfg.KeyStoreConfig.RSAKeyPairSource = cfg.Authority.GenerateKeyPair
