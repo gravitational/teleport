@@ -1033,7 +1033,7 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 	// Pass along the remote address the request came from to the registration function.
 	req.RemoteAddr = r.RemoteAddr
 
-	certs, err := auth.RegisterUsingToken(req)
+	certs, err := auth.RegisterUsingToken(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

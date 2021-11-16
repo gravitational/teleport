@@ -49,8 +49,6 @@ const (
 	acceptJSON                     = "application/json"
 )
 
-var signedHeadersRe = regexp.MustCompile(`^AWS4-HMAC-SHA256 Credential=\S+, SignedHeaders=(\S+), Signature=\S+$`)
-
 // validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
 // request is valid and includes the challenge as a signed header. An example of
 // a valid request looks like:
@@ -252,51 +250,71 @@ func generateChallenge() (string, error) {
 	return string(challengeBase64), nil
 }
 
-// RegisterUsingIAMMethod is used to register new nodes to the cluster using the
-// IAM join method.
-func (a *Server) RegisterUsingIAMMethod(srv proto.AuthService_RegisterUsingIAMMethodServer) error {
-	ctx := srv.Context()
-
+// RegisterUsingIAMMethod registers the caller using the IAM join method and
+// returns signed certs to join the cluster.
+//
+// The server will generate a base64-encoded crypto-random challenge and
+// send it on the challenge channel. The caller is expected to respond on
+// the request channel with a RegisterUsingTokenRequest including a signed
+// sts:GetCallerIdentity request with the challenge string.
+func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeChan chan<- string, reqChan <-chan *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return trace.AccessDenied("failed to read peer information from gRPC context")
+		return nil, trace.AccessDenied("failed to read peer information from gRPC context")
 	}
 	remoteAddr := p.Addr.String()
 
 	challenge, err := generateChallenge()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	// send the challenge to the node
-	if err := srv.Send(&proto.RegisterUsingIAMMethodResponse{
-		Challenge: challenge,
-	}); err != nil {
-		return trace.Wrap(err)
+	select {
+	case challengeChan <- challenge:
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
 	}
 
-	req, err := srv.Recv()
-	if err != nil {
-		return trace.Wrap(err)
+	var req *types.RegisterUsingTokenRequest
+	select {
+	case req = <-reqChan:
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
 	}
 
 	// fill in the client remote addr to the register request
 	req.RemoteAddr = remoteAddr
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// check that the GetCallerIdentity request is valid and matches the token
 	if err := a.checkIAMRequest(ctx, http.DefaultClient, challenge, req); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	// pass on to the regular token checking logic
-	certs, err := a.RegisterUsingToken(*req)
+	// perform common token checks
+	if err := a.checkTokenJoinRequestCommon(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// generate and return host certificate and keys
+	certs, err := a.GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:               req.HostID,
+			NodeName:             req.NodeName,
+			Role:                 req.Role,
+			AdditionalPrincipals: req.AdditionalPrincipals,
+			PublicTLSKey:         req.PublicTLSKey,
+			PublicSSHKey:         req.PublicSSHKey,
+			RemoteAddr:           req.RemoteAddr,
+			DNSNames:             req.DNSNames,
+		})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	return trace.Wrap(srv.Send(&proto.RegisterUsingIAMMethodResponse{
-		Certs: certs,
-	}))
+	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
+	return certs, nil
 }
 
 // createSignedSTSIdentityRequest is called on the client side and returns an

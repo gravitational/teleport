@@ -557,7 +557,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 
 			ctx := context.WithValue(context.Background(), ec2ClientKey{}, tc.ec2Client)
 
-			err = a.CheckEC2Request(ctx, tc.request)
+			err = a.checkEC2JoinRequest(ctx, &tc.request)
 			require.True(t, tc.expectError(err))
 
 			err = a.DeleteToken(context.Background(), token.GetName())
@@ -575,7 +575,7 @@ func TestAWSCerts(t *testing.T) {
 	}
 }
 
-// TestHostUniqueCheck tests the uniqueness check used by CheckEC2Request
+// TestHostUniqueCheck tests the uniqueness check used by checkEC2JoinRequest
 func TestHostUniqueCheck(t *testing.T) {
 	a := newAuthServer(t)
 	a.clock = clockwork.NewFakeClockAt(instance1.pendingTime)
@@ -704,7 +704,7 @@ func TestHostUniqueCheck(t *testing.T) {
 			}
 
 			// request works with no existing host
-			err = a.CheckEC2Request(ctx, request)
+			err = a.checkEC2JoinRequest(ctx, &request)
 			require.NoError(t, err)
 
 			// add the server
@@ -712,7 +712,7 @@ func TestHostUniqueCheck(t *testing.T) {
 			tc.upserter(name)
 
 			// request should fail
-			err = a.CheckEC2Request(ctx, request)
+			err = a.checkEC2JoinRequest(ctx, &request)
 			require.Error(t, err)
 		})
 	}

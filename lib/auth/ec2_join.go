@@ -258,7 +258,7 @@ func dbExists(ctx context.Context, presence services.Presence, hostID string) (b
 // only allow the roles which will actually be used by all expected instances so
 // that a stolen IID could not be used to join the cluster with a different
 // role.
-func (a *Server) checkInstanceUnique(ctx context.Context, req types.RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
+func (a *Server) checkInstanceUnique(ctx context.Context, req *types.RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
 	requestedHostID := req.HostID
 	expectedHostID := utils.NodeIDFromIID(iid)
 	if requestedHostID != expectedHostID {
@@ -294,7 +294,7 @@ func (a *Server) checkInstanceUnique(ctx context.Context, req types.RegisterUsin
 	return nil
 }
 
-// CheckEC2Request checks register requests which use EC2 Simplified Node
+// checkEC2JoinRequest checks register requests which use EC2 Simplified Node
 // Joining. This method checks that:
 // 1. The given Instance Identity Document has a valid signature (signed by AWS).
 // 2. A node has not already joined the cluster from this EC2 instance (to
@@ -304,29 +304,11 @@ func (a *Server) checkInstanceUnique(ctx context.Context, req types.RegisterUsin
 // If the request does not include an Instance Identity Document, and the
 // token does not include any allow rules, this method returns nil and the
 // normal token checking logic resumes.
-func (a *Server) CheckEC2Request(ctx context.Context, req types.RegisterUsingTokenRequest) error {
-	requestIncludesIID := req.EC2IdentityDocument != nil
+func (a *Server) checkEC2JoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
 	tokenName := req.Token
 	provisionToken, err := a.GetCache().GetToken(ctx, tokenName)
 	if err != nil {
-		if trace.IsNotFound(err) && !requestIncludesIID {
-			// This is not a Simplified Node Joining request, pass on to the
-			// regular token checking logic in case this is a static token.
-			return nil
-		}
 		return trace.Wrap(err)
-	}
-	if err = provisionToken.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if provisionToken.GetJoinMethod() != types.JoinMethodEC2 {
-		if requestIncludesIID {
-			return trace.BadParameter("an EC2 Identity Document is included in a register request for a token which does not expect it")
-		}
-		// not a simplified node joining request, pass on to the regular token
-		// checking logic
-		return nil
 	}
 
 	log.Debugf("Received Simplified Node Joining request for host %q", req.HostID)

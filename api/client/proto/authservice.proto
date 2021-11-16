@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2021-2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "types.proto";
 import "github.com/gravitational/teleport/api/types/types.proto";
 import "github.com/gravitational/teleport/api/types/webauthn/webauthn.proto";
 import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
@@ -143,18 +144,6 @@ message WatchKind {
     map<string, string> Filter = 4 [ (gogoproto.jsontag) = "filter,omitempty" ];
     // SubKind is a resource subkind to watch
     string SubKind = 5 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
-}
-
-// Set of certificates corresponding to a single public key.
-message Certs {
-    // SSH X509 cert (PEM-encoded).
-    bytes SSH = 1 [ (gogoproto.jsontag) = "ssh,omitempty" ];
-    // TLS X509 cert (PEM-encoded).
-    bytes TLS = 2 [ (gogoproto.jsontag) = "tls,omitempty" ];
-    // TLSCACerts is a list of TLS certificate authorities.
-    repeated bytes TLSCACerts = 3 [ (gogoproto.jsontag) = "tls_ca_certs,omitempty" ];
-    // SSHCACerts is a list of SSH certificate authorities.
-    repeated bytes SSHCACerts = 4 [ (gogoproto.jsontag) = "ssh_ca_certs,omitempty" ];
 }
 
 // HostCertsRequest specifies certificate-generation parameters
@@ -1202,16 +1191,6 @@ message CRL {
     bytes CRL = 1;
 }
 
-// RegisterUsingIAMMethodResponse is a stream response and will contain either a
-// Challenge or Certs.
-message RegisterUsingIAMMethodResponse {
-    // Challenge is a crypto-random string that should be included in the signed
-    // sts:GetCallerIdentity request.
-    string Challenge = 1;
-    // Certs is the returned signed certs.
-    Certs Certs = 2;
-}
-
 // ChangeUserAuthenticationRequest defines a request to change a password and if enabled
 // also adds a new MFA device from a user reset or from a new user invite. After successful changing
 // of authentications a new web session is created. Users may also receive new recovery codes if the
@@ -1888,11 +1867,6 @@ service AuthService {
     // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
     // is used to gain access to privileged actions eg: deleting/adding a MFA device.
     rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
-
-    // RegisterUsingIAMMethod is used to register a new node to the cluster using
-    // the IAM join method.
-    rpc RegisterUsingIAMMethod(stream types.RegisterUsingTokenRequest)
-        returns (stream RegisterUsingIAMMethodResponse);
 
     // ListResources retrieves a paginated list of resources.
     rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);

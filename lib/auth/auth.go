@@ -2174,43 +2174,77 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 	return true
 }
 
-// RegisterUsingToken adds a new node to the Teleport cluster using previously issued token.
-// A node must also request a specific role (and the role must match one of the roles
-// the token was generated for).
-//
-// If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
-// If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
-// after a successful registration.
-func (a *Server) RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
-
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If the request uses Simplified Node Joining check that the identity is
-	// valid and matches the token allow rules.
-	err := a.CheckEC2Request(context.Background(), req)
+func (a *Server) tokenJoinMethod(ctx context.Context, tokenName string) types.JoinMethod {
+	provisionToken, err := a.GetCache().GetToken(ctx, tokenName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// could not find dynamic token, assume static token. If it does not
+		// exist this will be caught later.
+		return types.JoinMethodToken
 	}
+	return provisionToken.GetJoinMethod()
+}
 
+// checkTokenJoinRequestCommon checks all token join rules that are common to
+// all join methods, including token existence, token TTL, and allowed roles.
+func (a *Server) checkTokenJoinRequestCommon(req *types.RegisterUsingTokenRequest) error {
 	// make sure the token is valid
 	roles, _, err := a.ValidateToken(req.Token)
 	if err != nil {
 		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
-		return nil, trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
+		return trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
 	}
 
-	// make sure the caller is requested the role allowed by the token
+	// make sure the caller is requesting a role allowed by the token
 	if !roles.Include(req.Role) {
 		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", req.NodeName, req.HostID, req.Role)
 		log.Warn(msg)
-		return nil, trace.BadParameter(msg)
+		return trace.BadParameter(msg)
+	}
+
+	return nil
+}
+
+// RegisterUsingToken returns credentials for a new node to join the Teleport
+// cluster using a previously issued token.
+//
+// A node must also request a specific role (and the role must match one of the roles
+// the token was generated for.)
+//
+// If a token was generated with a TTL, it gets enforced (can't register new
+// nodes after TTL expires.)
+//
+// If the token includes a specific join method, the rules for that join method
+// will be checked.
+func (a *Server) RegisterUsingToken(ctx context.Context, req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch a.tokenJoinMethod(ctx, req.Token) {
+	case types.JoinMethodEC2:
+		if err := a.checkEC2JoinRequest(ctx, &req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.JoinMethodIAM:
+		// IAM join method must use the gRPC RegisterUsingIAMMethod
+		return nil, trace.AccessDenied("this token is only valid for the IAM join method")
+	case types.JoinMethodToken:
+		// carry on to common token checking logic
+	default:
+		// this is a logic error, all valid join methods should be captured
+		// above (empty join method will be set to JoinMethodToken by
+		// CheckAndSetDefaults)
+		return nil, trace.BadParameter("unrecognized token join method")
+	}
+
+	// perform common token checks
+	if err := a.checkTokenJoinRequestCommon(&req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// generate and return host certificate and keys
-	certs, err := a.GenerateHostCerts(context.Background(),
+	certs, err := a.GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{
 			HostID:               req.HostID,
 			NodeName:             req.NodeName,

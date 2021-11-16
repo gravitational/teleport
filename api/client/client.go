@@ -1,5 +1,5 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -71,6 +71,9 @@ type Client struct {
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
 	grpc proto.AuthServiceClient
+	// joinServiceClient is a client for the JoinService, which runs on both the
+	// auth and proxy.
+	*JoinServiceClient
 	// closedFlag is set to indicate that the connnection is closed.
 	// It's a pointer to allow the Client struct to be copied.
 	closedFlag *int32
@@ -369,6 +372,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		return trace.Wrap(err)
 	}
 	c.grpc = proto.NewAuthServiceClient(c.conn)
+	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
 	return nil
 }
@@ -2322,13 +2326,6 @@ func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRe
 func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
 	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req)
 	return resp, trail.FromGRPC(err)
-}
-
-// RegisterUsingIAMMethod is used to register a new node to the cluster using
-// the IAM join method.
-func (c *Client) RegisterUsingIAMMethod(ctx context.Context) (proto.AuthService_RegisterUsingIAMMethodClient, error) {
-	stream, err := c.grpc.RegisterUsingIAMMethod(ctx)
-	return stream, trail.FromGRPC(err)
 }
 
 // ListResources returns a paginated list of nodes that the user has access to.

@@ -272,12 +272,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*WebAPIHandler, error) {
 	// OIDC connectors and auth preferences
 	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 
-	// clusterca endpoint returns the cluster name and the auth servers' TLS CAs
-	// and is used to bootstrap trust of the auth server when a client is
-	// connecting through a proxy using TLS routing. The proxy can be trusted
-	// based on PKI.
-	h.GET("/webapi/clusterca", httplib.MakeHandler(h.getClusterCA))
-
 	// Unauthenticated access to JWT public keys.
 	h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwks))
 
@@ -768,17 +762,6 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
-	}, nil
-}
-
-func (h *Handler) getClusterCA(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	localCAResponse, err := h.cfg.ProxyClient.GetClusterCACert()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return webclient.ClusterCAResponse{
-		ClusterName: h.auth.clusterName,
-		ClusterCAs:  localCAResponse.TLSCA,
 	}, nil
 }
 
@@ -2335,7 +2318,7 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	authClient := h.cfg.ProxyClient
-	certs, err := authClient.RegisterUsingToken(req)
+	certs, err := authClient.RegisterUsingToken(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

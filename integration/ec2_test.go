@@ -23,18 +23,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,6 +50,26 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
+	config.DataDir = t.TempDir()
+	config.AuthServers = append(config.AuthServers, authAddr)
+	return config
+}
+
+func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
+	config := service.MakeDefaultConfig()
+	config.Version = defaults.TeleportConfigVersionV2
+	config.Token = tokenName
+	config.JoinMethod = joinMethod
+	config.SSH.Enabled = false
+	config.Auth.Enabled = false
+
+	proxyAddr := net.JoinHostPort(Host, ports.Pop())
+	config.Proxy.Enabled = true
+	config.Proxy.DisableWebInterface = true
+	config.Proxy.WebAddr.Addr = proxyAddr
+	config.Proxy.EnableProxyProtocol = true
+	config.Log.SetLevel(logrus.DebugLevel)
+
 	config.DataDir = t.TempDir()
 	config.AuthServers = append(config.AuthServers, authAddr)
 	return config
@@ -63,19 +87,15 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 
 	config := service.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
+	config.Log.SetLevel(logrus.DebugLevel)
 	config.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
-	config.Auth.PublicAddrs = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        Host,
-		},
-	}
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "testcluster",
 	})
 	require.NoError(t, err)
 	config.AuthServers = append(config.AuthServers, config.Auth.SSHAddr)
 	config.Auth.StorageConfig = storageConfig
+	config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
@@ -96,10 +116,12 @@ func getIID(t *testing.T) imds.InstanceIdentityDocument {
 }
 
 func getCallerIdentity(t *testing.T) *sts.GetCallerIdentityOutput {
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+	sess, err := session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	})
 	require.NoError(t, err)
-	stsClient := sts.NewFromConfig(cfg)
-	output, err := stsClient.GetCallerIdentity(context.TODO(), nil)
+	stsService := sts.New(sess)
+	output, err := stsService.GetCallerIdentity(nil)
 	require.NoError(t, err)
 	return output
 }
@@ -148,7 +170,7 @@ func TestEC2NodeJoin(t *testing.T) {
 	require.NoError(t, err)
 
 	// sanity check there are no nodes to start with
-	nodes, err := authServer.GetNodes(context.Background(), defaults.Namespace)
+	nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, nodes)
 
@@ -161,7 +183,7 @@ func TestEC2NodeJoin(t *testing.T) {
 
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
-		nodes, err := authServer.GetNodes(context.Background(), defaults.Namespace)
+		nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
 		require.NoError(t, err)
 		return len(nodes) > 0
 	}, time.Minute, time.Second, "waiting for node to join cluster")
@@ -181,7 +203,6 @@ func TestIAMNodeJoin(t *testing.T) {
 	authSvc, err := service.NewTeleport(authConfig)
 	require.NoError(t, err)
 	require.NoError(t, authSvc.Start())
-	t.Cleanup(func() { require.NoError(t, authSvc.Close()) })
 
 	authServer := authSvc.GetAuthServer()
 
@@ -193,7 +214,7 @@ func TestIAMNodeJoin(t *testing.T) {
 		tokenName,
 		time.Now().Add(time.Hour),
 		types.ProvisionTokenSpecV2{
-			Roles: []types.SystemRole{types.RoleNode},
+			Roles: []types.SystemRole{types.RoleNode, types.RoleProxy},
 			Allow: []*types.TokenRule{
 				&types.TokenRule{
 					AWSAccount: *id.Account,
@@ -206,21 +227,42 @@ func TestIAMNodeJoin(t *testing.T) {
 	err = authServer.UpsertToken(context.Background(), token)
 	require.NoError(t, err)
 
+	// sanity check there are no proxies to start with
+	proxies, err := authServer.GetProxies()
+	require.NoError(t, err)
+	require.Empty(t, proxies)
+
+	// create and start the proxy
+	proxyConfig := newProxyConfig(t, authConfig.Auth.SSHAddr, tokenName, types.JoinMethodIAM)
+	proxySvc, err := service.NewTeleport(proxyConfig)
+	require.NoError(t, err)
+	require.NoError(t, proxySvc.Start())
+
+	// the proxy should eventually join the cluster and heartbeat
+	require.Eventually(t, func() bool {
+		proxies, err := authServer.GetProxies()
+		require.NoError(t, err)
+		return len(proxies) > 0
+	}, time.Minute, time.Second, "waiting for proxy to join cluster")
+
+	// InsecureDevMode needed for node to trust proxy
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
 	// sanity check there are no nodes to start with
-	nodes, err := authServer.GetNodes(context.Background(), defaults.Namespace)
+	nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, nodes)
 
-	// create and start the node
-	nodeConfig := newNodeConfig(t, authConfig.Auth.SSHAddr, tokenName, types.JoinMethodIAM)
+	// create and start a node
+	nodeConfig := newNodeConfig(t, proxyConfig.Proxy.WebAddr, tokenName, types.JoinMethodIAM)
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
-	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
-		nodes, err := authServer.GetNodes(context.Background(), defaults.Namespace)
+		nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
 		require.NoError(t, err)
 		return len(nodes) > 0
 	}, time.Minute, time.Second, "waiting for node to join cluster")

@@ -18,23 +18,26 @@ package auth
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/net/http2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // LocalRegister is used to generate host keys when a node or proxy is running
@@ -150,15 +153,9 @@ func Register(params RegisterParams) (*Identity, error) {
 	}
 	registerThroughAuth := registerMethod{registerThroughAuth, "with auth server"}
 	registerThroughProxy := registerMethod{registerThroughProxy, "via proxy server"}
-	registerUsingIAMMethod := registerMethod{registerUsingIAMMethod, "with IAM method"}
 
-	// by default, try to register directly through auth first, then proxy
 	registerMethods := []registerMethod{registerThroughAuth, registerThroughProxy}
-	if params.JoinMethod == types.JoinMethodIAM {
-		// if using IAM method, that is the only option
-		log.Debugf("Registering with IAM method.")
-		registerMethods = []registerMethod{registerUsingIAMMethod}
-	} else if params.GetHostCredentials == nil {
+	if params.GetHostCredentials == nil {
 		log.Debugf("Missing client, it is not possible to register through proxy.")
 		registerMethods = []registerMethod{registerThroughAuth}
 	} else if authServerIsProxy(params.Servers) {
@@ -197,10 +194,70 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 		return nil, trace.BadParameter("no auth servers set")
 	}
 
-	certs, err := params.GetHostCredentials(context.Background(),
-		params.Servers[0].String(),
-		lib.IsInsecureDevMode(),
-		types.RegisterUsingTokenRequest{
+	var certs *proto.Certs
+	if params.JoinMethod == types.JoinMethodIAM {
+		// IAM join method requires gRPC client
+		client, err := proxyJoinServiceClient(params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certs, err = registerUsingIAMMethod(client, token, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// non-IAM join methods use GetHostCredentials function passed through
+		// params to call proxy HTTP endpoint
+		var err error
+		certs, err = params.GetHostCredentials(context.Background(),
+			params.Servers[0].String(),
+			lib.IsInsecureDevMode(),
+			types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+				EC2IdentityDocument:  params.EC2IdentityDocument,
+			})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
+}
+
+// registerThroughAuth is used to register through the auth server.
+func registerThroughAuth(token string, params RegisterParams) (*Identity, error) {
+	var client *Client
+	var err error
+
+	// Build a client to the Auth Server. If a CA pin is specified require the
+	// Auth Server is validated. Otherwise attempt to use the CA file on disk
+	// but if it's not available connect without validating the Auth Server CA.
+	switch {
+	case len(params.CAPins) != 0:
+		client, err = pinRegisterClient(params)
+	default:
+		client, err = insecureRegisterClient(params)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer client.Close()
+
+	var certs *proto.Certs
+	if params.JoinMethod == types.JoinMethodIAM {
+		// IAM method uses unique gRPC endpoint
+		certs, err = registerUsingIAMMethod(client, token, params)
+	} else {
+		// non-IAM join methods use HTTP endpoint
+		// Get the SSH and X509 certificates for a node.
+		certs, err = client.RegisterUsingToken(context.Background(), types.RegisterUsingTokenRequest{
 			Token:                token,
 			HostID:               params.ID.HostUUID,
 			NodeName:             params.ID.NodeName,
@@ -211,246 +268,236 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 			PublicSSHKey:         params.PublicSSHKey,
 			EC2IdentityDocument:  params.EC2IdentityDocument,
 		})
+	}
 	if err != nil {
-		return nil, trace.Unwrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }
 
-func validateCertificates(certs []*x509.Certificate, clock clockwork.Clock) error {
-	for _, cert := range certs {
-		if err := utils.VerifyCertificateExpiry(cert, clock); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-type unauthenticatedClientConfig struct {
-	Addrs    []string
-	CAPins   []string
-	CAPath   string
-	Insecure bool
-	Clock    clockwork.Clock
-}
-
-// newUnauthenticatedClient creates a new client to the auth server when the
-// client does not yet have any credentials.
-func newUnauthenticatedClient(ctx context.Context, cfg *unauthenticatedClientConfig) (*Client, error) {
-	var clusterName string
-	var rawClusterCAs []byte
-	var err error
-
-	tlsConfig := &tls.Config{
-		Time: cfg.Clock.Now,
+// proxyJoinServiceClient attempts to connect to the join service running on the
+// proxy. The Proxy's TLS cert will be verified using the host's root CA pool
+// (PKI) unless the --insecure flag was passed.
+func proxyJoinServiceClient(params RegisterParams) (services.JoinService, error) {
+	if len(params.Servers) == 0 {
+		return nil, trace.BadParameter("no auth servers set")
 	}
 
-	// first, try to read given CA path
-	if cfg.CAPath != "" {
-		rawClusterCAs, err = utils.ReadPath(cfg.CAPath)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-	}
+	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
+	// set NextProtos for TLS routing, the actual protocol will be h2
+	tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPC), http2.NextProtoTLS}
 
-	// If given a proxy address the client will ask the proxy to use TLS
-	// routing to forward the connection to the auth server. Fetch the
-	// cluster name and the auth server's tls certs here to configure the
-	// connection.
-	for _, proxyAddr := range cfg.Addrs {
-		clusterCAResponse, err := webclient.GetClusterCA(ctx, proxyAddr, cfg.Insecure)
-		if err == nil {
-			clusterName = clusterCAResponse.ClusterName
-			rawClusterCAs = append(rawClusterCAs, clusterCAResponse.ClusterCAs...)
-
-			// set TLS ServerName to encoded cluster name for SNI routing
-			tlsConfig.ServerName = apiutils.EncodeClusterName(clusterName)
-			break
-		}
-		log.WithError(err).Debugf("Failed to retrieve cluster CA certs from proxy "+
-			"endpoint, %q is probably not a proxy", proxyAddr)
-	}
-
-	// parse CAs certs if we have any
-	if len(rawClusterCAs) > 0 {
-		certs, err := tlsca.ParseCertificatePEMs(rawClusterCAs)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := validateCertificates(certs, cfg.Clock); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConfig.RootCAs = x509.NewCertPool()
-		for _, cert := range certs {
-			tlsConfig.RootCAs.AddCert(cert)
-		}
-	} else {
+	if lib.IsInsecureDevMode() {
 		tlsConfig.InsecureSkipVerify = true
+		log.Warnf("Joining cluster without validating the identity of the Proxy Server.")
 	}
 
-	// create a client with certs from above, if any
-	unauthenticatedClient, err := NewClient(client.Config{
-		Addrs: cfg.Addrs,
-		Credentials: []client.Credentials{
-			client.LoadTLS(tlsConfig),
-		},
-		ALPNSNIAuthDialClusterName: clusterName,
-	})
+	conn, err := grpc.Dial(
+		params.Servers[0].String(),
+		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+	)
 	if err != nil {
+		return nil, err
+	}
+
+	return client.NewJoinServiceClient(proto.NewJoinServiceClient(conn)), nil
+}
+
+// insecureRegisterClient attempts to connects to the Auth Server using the
+// CA on disk. If no CA is found on disk, Teleport will not verify the Auth
+// Server it is connecting to.
+func insecureRegisterClient(params RegisterParams) (*Client, error) {
+	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
+
+	cert, err := readCA(params.CAPath)
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
-	if !tlsConfig.InsecureSkipVerify {
-		// successfully got CA certs above, auth server is verified, return this
-		// client
-		return unauthenticatedClient, nil
-	}
+	// If no CA was found, then create a insecure connection to the Auth Server,
+	// otherwise use the CA on disk to validate the Auth Server.
+	if trace.IsNotFound(err) {
+		tlsConfig.InsecureSkipVerify = true
 
-	if tlsConfig.InsecureSkipVerify && len(cfg.CAPins) == 0 {
-		// couldn't get certs from disk or proxy and no CA pins were given
 		log.Warnf("Joining cluster without validating the identity of the Auth " +
 			"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an " +
 			"attacker can gain privileged network access. To remedy this, use the CA pin " +
 			"value provided when join token was generated to validate the identity of " +
 			"the Auth Server.")
-		return unauthenticatedClient, nil
+	} else {
+		certPool := x509.NewCertPool()
+		certPool.AddCert(cert)
+		tlsConfig.RootCAs = certPool
+
+		log.Infof("Joining remote cluster %v, validating connection with certificate on disk.", cert.Subject.CommonName)
 	}
 
-	// try to get certs from auth and compare with ca pins
-	clusterCAResp, err := unauthenticatedClient.GetClusterCACert()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// done with this client, will create a new one which verifies the TLS cert
-	unauthenticatedClient.Close()
-
-	certs, err := tlsca.ParseCertificatePEMs(clusterCAResp.TLSCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := validateCertificates(certs, cfg.Clock); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// check that fetched certs match the given CA pins
-	if err := utils.CheckSPKI(cfg.CAPins, certs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// create a new client which will verify the auth server's TLS cert
-	tlsConfig.RootCAs = x509.NewCertPool()
-	for _, cert := range certs {
-		tlsConfig.RootCAs.AddCert(cert)
-	}
-	tlsConfig.InsecureSkipVerify = false
-
-	unauthenticatedClient, err = NewClient(client.Config{
-		Addrs: cfg.Addrs,
+	client, err := NewClient(client.Config{
+		Addrs: utils.NetAddrsToStrings(params.Servers),
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return unauthenticatedClient, trace.Wrap(err)
+	return client, nil
+}
+
+// readCA will read in CA that will be used to validate the certificate that
+// the Auth Server presents.
+func readCA(path string) (*x509.Certificate, error) {
+	certBytes, err := utils.ReadPath(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := tlsca.ParseCertificatePEM(certBytes)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse certificate at %v", path)
+	}
+	return cert, nil
+}
+
+// pinRegisterClient first connects to the Auth Server using a insecure
+// connection to fetch the root CA. If the root CA matches the provided CA
+// pin, a connection will be re-established and the root CA will be used to
+// validate the certificate presented. If both conditions hold true, then we
+// know we are connecting to the expected Auth Server.
+func pinRegisterClient(params RegisterParams) (*Client, error) {
+	// Build a insecure client to the Auth Server. This is safe because even if
+	// an attacker were to MITM this connection the CA pin will not match below.
+	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.Time = params.Clock.Now
+	authClient, err := NewClient(client.Config{
+		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	// Fetch the root CA from the Auth Server. The NOP role has access to the
+	// GetClusterCACert endpoint.
+	localCA, err := authClient.GetClusterCACert()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, err := tlsca.ParseCertificatePEMs(localCA.TLSCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check that the SPKI pin matches the CA we fetched over a insecure
+	// connection. This makes sure the CA fetched over a insecure connection is
+	// in-fact the expected CA.
+	err = utils.CheckSPKI(params.CAPins, certs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, cert := range certs {
+		// Check that the fetched CA is valid at the current time.
+		err = utils.VerifyCertificateExpiry(cert, params.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	}
+	log.Infof("Joining remote cluster %v with CA pin.", certs[0].Subject.CommonName)
+
+	// Create another client, but this time with the CA provided to validate
+	// that the Auth Server was issued a certificate by the same CA.
+	tlsConfig = utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
+	certPool := x509.NewCertPool()
+	for _, cert := range certs {
+		certPool.AddCert(cert)
+	}
+	tlsConfig.RootCAs = certPool
+
+	authClient, err = NewClient(client.Config{
+		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return authClient, nil
 }
 
 // registerUsingIAMMethod is used to register using the IAM join method. It is
 // able to register through a proxy or through the auth server directly.
-func registerUsingIAMMethod(token string, params RegisterParams) (*Identity, error) {
-	ctx := context.Background()
+func registerUsingIAMMethod(joinService services.JoinService, token string, params RegisterParams) (*proto.Certs, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	challengeChan := make(chan string)
+	reqChan := make(chan *types.RegisterUsingTokenRequest)
+	errChan := make(chan error)
 
-	// create a client to the auth server, if given a proxy address then TLS
-	// routing will be used to transparently connect to the auth server
-	authClient, err := newUnauthenticatedClient(ctx, &unauthenticatedClientConfig{
-		Addrs:    utils.NetAddrsToStrings(params.Servers),
-		CAPins:   params.CAPins,
-		CAPath:   params.CAPath,
-		Insecure: lib.IsInsecureDevMode(),
-		Clock:    params.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// set up a goroutine to respond to the challenge with register request
+	go func() {
+		defer close(errChan)
 
-	// initiate the gRPC stream
-	stream, err := authClient.RegisterUsingIAMMethod(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		// wait for the challenge string
+		var challenge string
+		select {
+		case challenge = <-challengeChan:
+		case <-ctx.Done():
+			errChan <- ctx.Err()
+			return
+		}
 
-	// the first value received from the stream will be a challenge string which
-	// must be included in the signed sts:GetCallerIdentity request
-	challenge, err := stream.Recv()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		// create the signed sts:GetCallerIdentity request and include the challenge
+		signedRequest, err := createSignedSTSIdentityRequest(challenge)
+		if err != nil {
+			// cancel the context so that RegisterUsingIAMMethod returns
+			cancel()
+			errChan <- err
+			return
+		}
 
-	// create the signed sts:GetCallerIdentity request and include the challenge
-	signedRequest, err := createSignedSTSIdentityRequest(challenge.Challenge)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		// send the register request including the challenge response
+		registerRequest := &types.RegisterUsingTokenRequest{
+			Token:                token,
+			HostID:               params.ID.HostUUID,
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			STSIdentityRequest:   signedRequest,
+		}
+		select {
+		case reqChan <- registerRequest:
+		case <-ctx.Done():
+			errChan <- ctx.Err()
+		}
+	}()
 
-	// send the RegisterUsingTokenRequest on the gRPC stream
-	if err := stream.Send(&types.RegisterUsingTokenRequest{
-		Token:                token,
-		HostID:               params.ID.HostUUID,
-		NodeName:             params.ID.NodeName,
-		Role:                 params.ID.Role,
-		AdditionalPrincipals: params.AdditionalPrincipals,
-		DNSNames:             params.DNSNames,
-		PublicTLSKey:         params.PublicTLSKey,
-		PublicSSHKey:         params.PublicSSHKey,
-		STSIdentityRequest:   signedRequest,
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// initiate the register request and wait for it to complete
+	certs, registerErr := joinService.RegisterUsingIAMMethod(ctx, challengeChan, reqChan)
 
-	// the second value received from the gRPC stream contains the new signed
-	// host certs
-	certs, err := stream.Recv()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// cancel the context and wait for the goroutine
+	cancel()
+	stsErr := <-errChan
 
-	return ReadIdentityFromKeyPair(params.PrivateKey, certs.Certs)
-}
+	// create aggregate error (will be nil if both are nil)
+	err := trace.NewAggregate(registerErr, stsErr)
 
-// registerThroughAuth is used to register through the auth server.
-func registerThroughAuth(token string, params RegisterParams) (*Identity, error) {
-	// Build a client to the Auth Server. If a CA pin is specified require the
-	// Auth Server is validated. Otherwise attempt to use the CA file on disk
-	// but if it's not available connect without validating the Auth Server CA.
-	client, err := newUnauthenticatedClient(context.TODO(), &unauthenticatedClientConfig{
-		Addrs:    utils.NetAddrsToStrings(params.Servers),
-		CAPath:   params.CAPath,
-		CAPins:   params.CAPins,
-		Insecure: lib.IsInsecureDevMode(),
-		Clock:    params.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Get the SSH and X509 certificates for a node.
-	certs, err := client.RegisterUsingToken(types.RegisterUsingTokenRequest{
-		Token:                token,
-		HostID:               params.ID.HostUUID,
-		NodeName:             params.ID.NodeName,
-		Role:                 params.ID.Role,
-		AdditionalPrincipals: params.AdditionalPrincipals,
-		DNSNames:             params.DNSNames,
-		PublicTLSKey:         params.PublicTLSKey,
-		PublicSSHKey:         params.PublicSSHKey,
-		EC2IdentityDocument:  params.EC2IdentityDocument,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
+	return certs, trace.Wrap(err)
 }
 
 // ReRegisterParams specifies parameters for re-registering
