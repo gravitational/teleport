@@ -19,6 +19,7 @@ package types
 import (
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -67,6 +68,8 @@ type ClusterAuditConfig interface {
 	WriteMinCapacity() int64
 	// WriteTargetValue is the ratio of consumed write to provisioned capacity.
 	WriteTargetValue() float64
+	// Clone performs a deep copy.
+	Clone() ClusterAuditConfig
 }
 
 // NewClusterAuditConfig is a convenience method to to create ClusterAuditConfigV2.
@@ -223,6 +226,11 @@ func (c *ClusterAuditConfigV2) WriteMinCapacity() int64 {
 // WriteTargetValue is the ratio of consumed write to provisioned capacity.
 func (c *ClusterAuditConfigV2) WriteTargetValue() float64 {
 	return c.Spec.WriteTargetValue
+}
+
+// Clone performs a deep copy.
+func (c *ClusterAuditConfigV2) Clone() ClusterAuditConfig {
+	return proto.Clone(c).(*ClusterAuditConfigV2)
 }
 
 // setStaticFields sets static resource header and metadata fields.

@@ -1,5 +1,5 @@
-//go:build desktop_access_beta
-// +build desktop_access_beta
+//go:build desktop_access_rdp
+// +build desktop_access_rdp
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -52,8 +52,14 @@ package rdpclient
 
 /*
 // Flags to include the static Rust library.
-#cgo linux LDFLAGS: -L${SRCDIR}/target/release -l:librdp_client.a -lpthread -lcrypto -ldl -lssl -lm
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -L${SRCDIR}/target/release -lrdp_client -lpthread -lcrypto -ldl -lssl -lm
+#cgo linux,386 LDFLAGS: -L${SRCDIR}/target/i686-unknown-linux-gnu/release
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/target/x86_64-unknown-linux-gnu/release
+#cgo linux,arm LDFLAGS: -L${SRCDIR}/target/arm-unknown-linux-gnueabihf/release
+#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/target/aarch64-unknown-linux-gnu/release
+#cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm -latomic
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/target/x86_64-apple-darwin/release
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/target/aarch64-apple-darwin/release
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
 #include <librdprs.h>
 */
 import "C"
@@ -62,22 +68,42 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"os"
+	"runtime/cgo"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/sirupsen/logrus"
 )
 
 func init() {
-	// Call the init function in Rust, initializes their logger.
-	//
-	// TODO(zmb3): the Rust logger won't work unless RUST_LOG env var is set.
-	// Consider setting it here explicitly if not set, matching the logging
-	// level of Teleport.
+	// initialize the Rust logger by setting $RUST_LOG based
+	// on the logrus log level
+	// (unless RUST_LOG is already explicitly set, then we
+	// assume the user knows what they want)
+	if rl := os.Getenv("RUST_LOG"); rl != "" {
+		var rustLogLevel string
+		switch l := logrus.GetLevel(); l {
+		case logrus.TraceLevel:
+			rustLogLevel = "trace"
+		case logrus.DebugLevel:
+			rustLogLevel = "debug"
+		case logrus.InfoLevel:
+			rustLogLevel = "info"
+		case logrus.WarnLevel:
+			rustLogLevel = "warn"
+		default:
+			rustLogLevel = "error"
+		}
+
+		os.Setenv("RUST_LOG", rustLogLevel)
+	}
+
 	C.init()
 }
 
@@ -132,8 +158,6 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	return c, nil
 }
 
-// TODO(zmb3): allow passing a ctx or otherwise configuring a timeout here
-// (if we cannot route to the host this will hang indefinitely)
 func (c *Client) readClientUsername() error {
 	for {
 		msg, err := c.cfg.InputMessage()
@@ -212,12 +236,12 @@ func (c *Client) start() {
 		defer c.Close()
 		defer c.cfg.Log.Info("RDP output streaming finished")
 
-		clientRef := registerClient(c)
-		defer unregisterClient(clientRef)
+		h := cgo.NewHandle(c)
+		defer h.Delete()
 
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
-		if err := cgoError(C.read_rdp_output(c.rustClient, C.int64_t(clientRef))); err != nil {
+		if err := cgoError(C.read_rdp_output(c.rustClient, C.uintptr_t(h))); err != nil {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
 		}
 	}()
@@ -333,8 +357,8 @@ func (c *Client) start() {
 }
 
 //export handle_bitmap
-func handle_bitmap(ci C.int64_t, cb C.CGOBitmap) C.CGOError {
-	return findClient(int64(ci)).handleBitmap(cb)
+func handle_bitmap(handle C.uintptr_t, cb C.CGOBitmap) C.CGOError {
+	return cgo.Handle(handle).Value().(*Client).handleBitmap(cb)
 }
 
 func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
@@ -414,33 +438,4 @@ func cgoError(s C.CGOError) error {
 //export free_go_string
 func free_go_string(s *C.char) {
 	C.free(unsafe.Pointer(s))
-}
-
-// Global registry of active clients. This allows Rust to reference a specific
-// client without sending actual objects around.
-// TODO(zmb3) replace this with cgo.Handle when we move to Go 1.17
-var (
-	clientsMu    = &sync.RWMutex{}
-	clients      = make(map[int64]*Client)
-	clientsIndex = int64(-1)
-)
-
-func registerClient(c *Client) int64 {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-	clientsIndex++
-	clients[clientsIndex] = c
-	return clientsIndex
-}
-
-func unregisterClient(i int64) {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-	delete(clients, i)
-}
-
-func findClient(i int64) *Client {
-	clientsMu.RLock()
-	defer clientsMu.RUnlock()
-	return clients[i]
 }

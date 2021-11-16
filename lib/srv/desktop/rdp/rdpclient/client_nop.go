@@ -1,5 +1,5 @@
-//go:build !desktop_access_beta
-// +build !desktop_access_beta
+//go:build !desktop_access_rdp
+// +build !desktop_access_rdp
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -18,7 +18,7 @@ limitations under the License.
 */
 
 // This file lets us compile /lib/srv/desktop without including the real RDP
-// implementation yet. Use the desktop_access_beta build tag to include the
+// implementation. Use the desktop_access_rdp build tag to include the
 // real implementation.
 
 package rdpclient

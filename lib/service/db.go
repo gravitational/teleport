@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -60,21 +59,24 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if !ok {
 		return trace.BadParameter("unsupported event payload type %q", event.Payload)
 	}
+	accessPoint, err := process.newLocalCacheForDatabase(conn.Client, []string{teleport.ComponentDatabase})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resp, err := accessPoint.GetClusterNetworkingConfig(process.ExitContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	var tunnelAddr string
 	if conn.TunnelProxy() != "" {
 		tunnelAddr = conn.TunnelProxy()
 	} else {
-		if tunnelAddr, ok = process.singleProcessMode(); !ok {
+		if tunnelAddr, ok = process.singleProcessMode(resp.GetProxyListenerMode()); !ok {
 			return trace.BadParameter("failed to find reverse tunnel address, " +
 				"if running in a single-process mode, make sure auth_service, " +
 				"proxy_service, and db_service are all enabled")
 		}
-	}
-
-	accessPoint, err := process.newLocalCache(conn.Client, cache.ForDatabases, []string{teleport.ComponentDatabase})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	// Start uploader that will scan a path on disk and upload completed

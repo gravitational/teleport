@@ -16,7 +16,7 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-RUNTIME ?= go1.16.2
+RUNTIME ?= go1.17.2
 BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
 LIBBPF_VERSION ?= 0.3.1
 
@@ -334,3 +334,9 @@ test-docs: DOCS_VERSION := $(shell grep -E ^VERSION $(MAKEFILE_ROOT_DIR)/Makefil
 test-docs: docsbox
 	docker run -i $(NOROOT) -v $$(pwd)/..:/src/content/$(DOCS_VERSION) $(DOCSBOX) \
 		/bin/sh -c "yarn markdown-lint-external-links"
+
+# build-centos6-assets builds assets needed by CentOS 6 in a container.
+.PHONY: build-centos6-assets
+build-centos6-assets:
+	docker build -t buildbox-centos6-assets -f Dockerfile-centos6-assets .
+	docker run -v $$(pwd):/centos6.assets -it buildbox-centos6-assets cp /centos6-assets.tar.gz /centos6.assets

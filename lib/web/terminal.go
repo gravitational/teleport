@@ -252,7 +252,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient, error) {
-	clientConfig, err := makeTeleportClientConfig(t.ctx)
+	clientConfig, err := makeTeleportClientConfig(ws.Request().Context(), t.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -361,6 +361,13 @@ func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMF
 				})
 			}
 			chal = &auth.MFAAuthenticateChallenge{
+				AuthenticateChallenge: &u2f.AuthenticateChallenge{
+					// Get the common challenge fields from the first item.
+					// All of these fields should be identical for all u2fChals.
+					Challenge: u2fChals[0].Challenge,
+					AppID:     u2fChals[0].AppID,
+					Version:   u2fChals[0].Version,
+				},
 				U2FChallenges: u2fChals,
 			}
 		default:
@@ -492,16 +499,6 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
 		}
 		return
-	}
-
-	// Check if remote process exited with error code, eg: RemoteCommandFailure (255).
-	if t.sshSession != nil {
-		if err := t.sshSession.Wait(); err != nil {
-			if exitErr, ok := err.(*ssh.ExitError); ok {
-				t.log.Warnf("Remote shell exited with error code: %v", exitErr.ExitStatus())
-				return
-			}
-		}
 	}
 
 	// Send close envelope to web terminal upon exit without an error.
