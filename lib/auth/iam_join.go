@@ -49,8 +49,6 @@ const (
 	acceptJSON                     = "application/json"
 )
 
-var signedHeadersRe = regexp.MustCompile(`^AWS4-HMAC-SHA256 Credential=\S+, SignedHeaders=(\S+), Signature=\S+$`)
-
 // validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
 // request is valid and includes the challenge as a signed header. An example of
 // a valid request looks like:
