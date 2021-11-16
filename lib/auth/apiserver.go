@@ -885,6 +885,7 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 	return string(cert), nil
 }
 
+// DELETE IN 10.0
 func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req GenerateTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {

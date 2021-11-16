@@ -1680,6 +1680,21 @@ message PresenceMFAChallengeSend {
     }
 }
 
+// GenerateTokenRequest is a request to generate auth token
+message GenerateTokenRequest {
+    // Token if provided sets the token value, otherwise will be auto generated
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+    // Roles is a list of roles this token authenticates as
+    repeated string Roles = 2 [
+        (gogoproto.jsontag) = "roles",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+    // TTL specifies how long the generated token is valid for.
+    int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+    // Labels is a label-based matcher if non-empty.
+    map<string, string> Labels = 4 [ (gogoproto.jsontag) = "labels" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
@@ -2002,6 +2017,8 @@ service AuthService {
     rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
     // UpsertToken upserts a token in a backend.
     rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+    // GenerateToken generates a new auth token.
+    rpc GenerateToken(GenerateTokenRequest) returns (types.ProvisionTokenV2);
     // DeleteToken deletes an existing token in a backend described by the given request.
     rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 

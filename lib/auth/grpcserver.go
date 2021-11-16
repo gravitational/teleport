@@ -2530,6 +2530,34 @@ func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionToke
 	return &empty.Empty{}, nil
 }
 
+// GenerateToken generates a new auth token.
+func (g *GRPCServer) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (*types.ProvisionTokenV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokenString, err := auth.ServerWithRoles.GenerateToken(ctx, GenerateTokenRequest{
+		Token:  req.Token,
+		Roles:  req.Roles,
+		TTL:    req.TTL.Get(),
+		Labels: req.Labels,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := auth.ServerWithRoles.GetToken(ctx, tokenString)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected token type: %T", token)
+	}
+	return tokenV2, nil
+}
+
 // DeleteToken deletes a token by name.
 func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
