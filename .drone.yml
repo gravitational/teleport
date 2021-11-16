@@ -1126,19 +1126,19 @@ steps:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
       # build major version images which are just teleport:x
-      CURRENT_VERSION_ROOT: v7
-      PREVIOUS_VERSION_ONE_ROOT: v6
-      PREVIOUS_VERSION_TWO_ROOT: v5
+      CURRENT_VERSION_ROOT: v8
+      PREVIOUS_VERSION_ONE_ROOT: v7
+      PREVIOUS_VERSION_TWO_ROOT: v6
     commands:
       - apk --update --no-cache add curl
       - mkdir -p /go/build && cd /go/build
-      # CURRENT_VERSION (7)
+      # CURRENT_VERSION (8)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $CURRENT_VERSION_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/CURRENT_VERSION_TAG.txt
       - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_ONE (6)
+      # PREVIOUS_VERSION_ONE (7)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_ONE_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_ONE_TAG.txt
       - echo "$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_TWO (5)
+      # PREVIOUS_VERSION_TWO (6)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_TWO_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_TWO_TAG.txt
       - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       # list versions
@@ -4500,6 +4500,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 133ae570a8876dfc189b0d952866a3f92b1d95a14ca9bcafef1122fddac84862
+hmac: 206e5f9533f17035fbfe7da5e8e6bbbe26835a9feb70d91ab52aef65203c0bbf
 
 ...
