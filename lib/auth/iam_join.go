@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/utils/aws"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -44,7 +45,6 @@ const (
 	stsHost                        = "sts.amazonaws.com"
 	challengeHeaderKey             = "X-Teleport-Challenge"
 	normalizedChallengeHeaderKey   = "x-teleport-challenge"
-	authHeaderKey                  = "Authorization"
 	acceptHeaderKey                = "Accept"
 	acceptJSON                     = "application/json"
 )
@@ -81,30 +81,24 @@ func validateSTSIdentityRequest(req *http.Request, challenge string) error {
 		return trace.AccessDenied("sts identity request does not include challenge header or it does not match")
 	}
 
-	authHeader := req.Header.Get(authHeaderKey)
-	matches := signedHeadersRe.FindStringSubmatch(authHeader)
-	// first match should be the full header, second is the SignedHeaders
-	if len(matches) < 2 {
-		return trace.AccessDenied("sts identity request Authorization header is invalid")
+	authHeader := req.Header.Get(aws.AuthorizationHeader)
+
+	sigV4, err := aws.ParseSigV4(authHeader)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	signedHeadersString := matches[1]
-	signedHeaders := strings.Split(signedHeadersString, ";")
-	if !utils.SliceContainsStr(signedHeaders, normalizedChallengeHeaderKey) {
+	if !utils.SliceContainsStr(sigV4.SignedHeaders, normalizedChallengeHeaderKey) {
 		return trace.AccessDenied("sts identity request auth header %q does not include "+
 			normalizedChallengeHeaderKey+" as a signed header", authHeader)
 	}
 
-	// read the request body to make sure it matches
-	body, err := io.ReadAll(req.Body)
+	body, err := aws.GetAndReplaceReqBody(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if !bytes.Equal([]byte(expectedSTSIdentityRequestBody), body) {
 		return trace.BadParameter("sts request body %q does not equal expected %q", string(body), expectedSTSIdentityRequestBody)
 	}
-
-	// replace the request body since it was "drained" when read above
-	req.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	return nil
 }
