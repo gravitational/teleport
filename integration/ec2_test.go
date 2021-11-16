@@ -33,6 +33,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
@@ -92,6 +93,15 @@ func getIID(t *testing.T) imds.InstanceIdentityDocument {
 	output, err := imdsClient.GetInstanceIdentityDocument(context.TODO(), nil)
 	require.NoError(t, err)
 	return output.InstanceIdentityDocument
+}
+
+func getCallerIdentity(t *testing.T) *sts.GetCallerIdentityOutput {
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	require.NoError(t, err)
+	stsClient := sts.NewFromConfig(cfg)
+	output, err := stsClient.GetCallerIdentity(context.TODO(), nil)
+	require.NoError(t, err)
+	return output
 }
 
 // TestEC2NodeJoin is an integration test which asserts that the EC2 method for
@@ -175,8 +185,8 @@ func TestIAMNodeJoin(t *testing.T) {
 
 	authServer := authSvc.GetAuthServer()
 
-	// fetch the EC2 IID to find the AWS account
-	iid := getIID(t)
+	// fetch the caller identity to find the AWS account and create the token
+	id := getCallerIdentity(t)
 
 	tokenName := "test_token"
 	token, err := types.NewProvisionTokenFromSpec(
@@ -186,7 +196,7 @@ func TestIAMNodeJoin(t *testing.T) {
 			Roles: []types.SystemRole{types.RoleNode},
 			Allow: []*types.TokenRule{
 				&types.TokenRule{
-					AWSAccount: iid.AccountID,
+					AWSAccount: *id.Account,
 				},
 			},
 			JoinMethod: types.JoinMethodIAM,
