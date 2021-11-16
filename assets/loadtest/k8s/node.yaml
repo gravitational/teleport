@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    teleport-role: node
+  name: node
+  namespace: loadtest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      teleport-role: node
+      node: regular
+  template:
+    metadata:
+      labels:
+        teleport-role: node
+        node: regular
+    spec:
+      containers:
+        - image: quay.io/gravitational/teleport-ent:8.0.0
+          name: teleport
+          args: ["-d", "--insecure"]
+          ports:
+            - name: nodessh
+              containerPort: 3022
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+      volumes:
+        - configMap:
+            name: node-config
+          name: config
