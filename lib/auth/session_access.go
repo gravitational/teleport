@@ -98,7 +98,6 @@ func (ctx *SessionAccessContext) GetResource() (types.Resource, error) {
 	return nil, trace.BadParameter("resource unsupported")
 }
 
-// TODO(joel): handle modes
 func (e *SessionAccessEvaluator) matchesPolicy(ctx *SessionAccessContext, require *types.SessionRequirePolicy, allow *types.SessionJoinPolicy) (bool, error) {
 	if !contains(require.Kinds, e.kind) || !contains(allow.Kinds, e.kind) {
 		return false, nil

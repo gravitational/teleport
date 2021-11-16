@@ -236,23 +236,35 @@ func hasLocalUserRole(checker services.AccessChecker) bool {
 	return ok
 }
 
-// TODO(joel): check access
 func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
 	return a.authServer.CreateSessionTracker(ctx, req)
 }
 
-// TODO(joel): filter out sessions based on RBAC rules
 func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error) {
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
 	return a.authServer.GetActiveSessionTrackers(ctx)
 }
 
-// TODO(joel): check access
 func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) {
+		return trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
 	return a.authServer.RemoveSessionTracker(ctx, sessionID)
 }
 
-// TODO(joel): check access
 func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionRequest) error {
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) {
+		return trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
 	return a.authServer.UpdateSessionTracker(ctx, req)
 }
 
