@@ -55,7 +55,7 @@ func (c *Config) CheckAndSetDefaults() {
 	}
 
 	if c.OfflineThreshold == 0 {
-		c.OfflineThreshold = defaults.KeepAliveInterval
+		c.OfflineThreshold = defaults.KeepAliveInterval()
 	}
 
 	if c.ProxyControlCallback == nil {

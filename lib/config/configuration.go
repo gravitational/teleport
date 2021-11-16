@@ -1301,7 +1301,7 @@ func applyNodeTrackerConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	if fc.NodeTracker.ProxyKeepAliveInterval == 0 {
-		cfg.NodeTracker.ProxyKeepAliveInterval = types.NewDuration(apidefaults.KeepAliveInterval)
+		cfg.NodeTracker.ProxyKeepAliveInterval = types.NewDuration(apidefaults.KeepAliveInterval())
 	} else {
 		cfg.NodeTracker.ProxyKeepAliveInterval = fc.NodeTracker.ProxyKeepAliveInterval
 	}

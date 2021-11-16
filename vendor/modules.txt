@@ -327,6 +327,8 @@ github.com/gogo/protobuf/types
 # github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
 ## explicit
 github.com/gokyle/hotp
+# github.com/golang-jwt/jwt v3.2.2+incompatible
+## explicit
 # github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
 ## explicit
 github.com/golang/groupcache/lru

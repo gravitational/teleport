@@ -19,23 +19,27 @@ package implementation
 import (
 	"fmt"
 	"net"
-	"os"
+	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/nodetracker"
-	"github.com/gravitational/teleport/lib/nodetracker/api"
 
-	"github.com/bojand/ghz/printer"
-	"github.com/bojand/ghz/runner"
-	"github.com/golang/protobuf/proto"
-	"github.com/jhump/protoreflect/desc"
-	"github.com/pborman/uuid"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	requests    = 1000000
+	connections = 10
+	data        = `{"node_id":"{{newUUID}}", "proxy_id":"{{newUUID}}", "cluster_name":"cluster", "addr":"proxy:3080"}`
+)
+
 // BenchmarkServer benchmarks and load tests the grpc server
+// This does not use the golang benchmarking capabilities but instead uses ghz
+// For more info visit https://ghz.sh
 func BenchmarkServer(b *testing.B) {
+	// TODO(NajiObeid): update this test when the grpc server supports mtls
 	listener, err := net.Listen("tcp", ":0")
 	require.Nil(b, err)
 
@@ -44,33 +48,57 @@ func BenchmarkServer(b *testing.B) {
 		err := nodetracker.GetServer().Start()
 		require.Nil(b, err)
 	}()
+	defer nodetracker.GetServer().Stop()
 
-	report, err := runner.Run(
-		"api.NodeTrackerService.AddNode",
-		listener.Addr().String(),
-		runner.WithProtoFile("../api/nodetracker.proto", []string{"../../../vendor/github.com/gogo/protobuf"}),
-		runner.WithBinaryDataFunc(
-			func(mtd *desc.MethodDescriptor, cd *runner.CallData) []byte {
-				msg := &api.AddNodeRequest{
-					NodeID:      uuid.New(),
-					ProxyID:     uuid.New(),
-					ClusterName: "cluster",
-					Addr:        "proxy:3080",
-				}
-				binData, _ := proto.Marshal(msg)
-				return binData
-			},
-		),
-		runner.WithTotalRequests(1000000),
-		runner.WithInsecure(true),
-	)
-	require.Nil(b, err)
+	// It is unfortunate ghz.sh does not play well with Teleport dependencies
+	// And I don't think this test warrants dealing with all the dependency
+	// updates.
+	//
+	// So instead of using ghz as a library, we will be using the CLI if it exists
+	// on the system.
+	//
+	// Here's what the original code looked like
+	/*
+		report, err := runner.Run(
+			"api.NodeTrackerService.AddNode",
+			listener.Addr().String(),
+			runner.WithProtoFile("../api/nodetracker.proto", []string{"../../../vendor/github.com/gogo/protobuf"}),
+			runner.WithDataFromJSON(data),
+			runner.WithTotalRequests(requests),
+			runner.WithConnections(connections),
+			runner.WithInsecure(true),
+		)
+		require.Nil(b, err)
+		printer := printer.ReportPrinter{
+			Out:    os.Stdout,
+			Report: report,
+		}
+		printer.Print("summary")
+	*/
 
-	printer := printer.ReportPrinter{
-		Out:    os.Stdout,
-		Report: report,
+	ghzCLI, err := exec.LookPath("ghz")
+	if err != nil {
+		log.Warn("Could not find ghz cli: skipping benchmark")
+		return
 	}
 
-	printer.Print("summary")
-	nodetracker.GetServer().Stop()
+	args := []string{
+		"--insecure",
+		"--proto=../api/nodetracker.proto",
+		"--import-paths=../../../vendor/github.com/gogo/protobuf",
+		"--call=api.NodeTrackerService.AddNode",
+		"--data=" + data,
+		fmt.Sprintf("--total=%d", requests),
+		fmt.Sprintf("--connections=%d", connections),
+		listener.Addr().String(),
+	}
+
+	cmd := exec.Command(ghzCLI, args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Warnf("Error running ghz benchmark: %+v\n%s", err, output)
+		return
+	}
+
+	log.Infof("%s", output)
 }
