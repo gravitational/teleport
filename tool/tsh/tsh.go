@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -988,7 +989,12 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tc.TLS, err = key.TeleportClientTLSConfig(nil)
+
+	rootCluster, err := key.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.TLS, err = key.TeleportClientTLSConfig(nil, []string{rootCluster})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1744,10 +1750,20 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		hostAuthFunc, err := key.HostKeyCallback(cf.InsecureSkipVerify)
+
+		rootCluster, err := key.RootClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		clusters := []string{rootCluster}
+		if cf.SiteName != "" {
+			clusters = append(clusters, cf.SiteName)
+		}
+		hostAuthFunc, err = key.HostKeyCallbackForClusters(cf.InsecureSkipVerify, apiutils.Deduplicate(clusters))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if hostAuthFunc != nil {
 			c.HostKeyCallback = hostAuthFunc
 		} else {
@@ -1781,7 +1797,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		}
 
 		if len(key.TLSCert) > 0 {
-			c.TLS, err = key.TeleportClientTLSConfig(nil)
+			c.TLS, err = key.TeleportClientTLSConfig(nil, clusters)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

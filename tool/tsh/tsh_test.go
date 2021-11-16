@@ -81,6 +81,12 @@ func init() {
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe. Used to test tsh ssh command.
+	if len(os.Args) == 2 && (os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+		srv.RunAndExit(os.Args[1])
+		return
+	}
 	os.Exit(m.Run())
 }
 
@@ -431,7 +437,7 @@ func TestMakeClient(t *testing.T) {
 	// different from the default.
 	conf = CLIConf{
 		Proxy:              proxyWebAddr.String(),
-		IdentityFileIn:     "../../fixtures/certs/identities/key-cert-ca.pem",
+		IdentityFileIn:     "../../fixtures/certs/identities/tls.pem",
 		Context:            context.Background(),
 		InsecureSkipVerify: true,
 	}
@@ -502,7 +508,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NotNil(t, k.TLSCert)
 
 	// generate a TLS client config
-	conf, err := k.TeleportClientTLSConfig(nil)
+	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
 	require.NoError(t, err)
 	require.NotNil(t, conf)
 
@@ -949,6 +955,20 @@ func withAuthConfig(fn func(cfg *service.AuthConfig)) testServerOptFunc {
 	}
 }
 
+func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
+	for _, event := range events {
+		eventCh := make(chan service.Event, 1)
+		svc.WaitForEvent(svc.ExitContext(), event, eventCh)
+		select {
+		case <-eventCh:
+		case <-time.After(30 * time.Second):
+			// in reality, the auth server should start *much* sooner than this.  we use a very large
+			// timeout here because this isn't the kind of problem that this test is meant to catch.
+			t.Fatalf("service server didn't receved %v event after 30s", event)
+		}
+	}
+}
+
 func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
 	var options testServersOpts
 	for _, opt := range opts {
@@ -969,7 +989,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleNode},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
@@ -993,16 +1013,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		auth.Close()
 	})
 
-	// Wait for proxy to become ready.
-	eventCh := make(chan service.Event, 1)
-	auth.WaitForEvent(auth.ExitContext(), service.AuthTLSReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(30 * time.Second):
-		// in reality, the auth server should start *much* sooner than this.  we use a very large
-		// timeout here because this isn't the kind of problem that this test is meant to catch.
-		t.Fatal("auth server didn't start after 30s")
-	}
+	waitForEvents(t, auth, service.AuthTLSReady)
 
 	authAddr, err := auth.AuthSSHAddr()
 	require.NoError(t, err)
@@ -1031,13 +1042,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		proxy.Close()
 	})
 
-	// Wait for proxy to become ready.
-	proxy.WaitForEvent(proxy.ExitContext(), service.ProxyWebServerReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("proxy web server didn't start after 10s")
-	}
+	waitForEvents(t, proxy, service.ProxyWebServerReady)
 
 	return auth, proxy
 }

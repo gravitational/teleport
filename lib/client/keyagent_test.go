@@ -254,6 +254,7 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	// By default user has not refused any hosts.
 	c.Assert(lka.UserRefusedHosts(), check.Equals, false)
 
+	lka.AddKey(s.key)
 	// Create a CA, generate a keypair for the CA, and add it to the known
 	// hosts cache (done by "tsh login").
 	keygen := testauthority.New()
@@ -264,6 +265,11 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	caPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
 	c.Assert(err, check.IsNil)
 	err = lka.keyStore.AddKnownHostKeys("example.com", s.hostname, []ssh.PublicKey{caPublicKey})
+	c.Assert(err, check.IsNil)
+
+	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
+	// CA file certs.pem to per cluster CA files in cas profile directory.
+	err = lka.keyStore.SaveTrustedCerts(s.hostname, nil)
 	c.Assert(err, check.IsNil)
 
 	// Generate a host certificate for node with role "node".
@@ -339,6 +345,8 @@ func (s *KeyAgentTestSuite) TestHostKeyVerification(c *check.C) {
 		Insecure:   true,
 	})
 	c.Assert(err, check.IsNil)
+
+	lka.AddKey(s.key)
 
 	// by default user has not refused any hosts:
 	c.Assert(lka.UserRefusedHosts(), check.Equals, false)
