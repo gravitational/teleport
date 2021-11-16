@@ -57,7 +57,7 @@ func getRequirePolicies(participant []types.Role) []*types.SessionRequirePolicy 
 func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPolicy {
 	var policies []*types.SessionJoinPolicy
 
-	for _, role := range participant.roles {
+	for _, role := range participant.Roles {
 		policies = append(policies, role.GetSessionJoinPolicies(types.Allow)...)
 	}
 
@@ -75,8 +75,7 @@ func contains(s []string, e types.SessionKind) bool {
 }
 
 type SessionAccessContext struct {
-	user  types.User
-	roles []types.Role
+	Roles []types.Role
 }
 
 func (ctx *SessionAccessContext) GetIdentifier(fields []string) (interface{}, error) {
@@ -84,9 +83,12 @@ func (ctx *SessionAccessContext) GetIdentifier(fields []string) (interface{}, er
 		if len(fields) == 2 {
 			switch fields[1] {
 			case "roles":
-				return ctx.user.GetRoles(), nil
-			case "traits":
-				return ctx.user.GetTraits(), nil
+				var roles []string
+				for _, role := range ctx.Roles {
+					roles = append(roles, role.GetName())
+				}
+
+				return roles, nil
 			}
 		}
 	}

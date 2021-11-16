@@ -608,6 +608,8 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		r.log.Errorf("Failed to create new session: %v.", err)
 	}
 
+	initiator := []types.Role(ctx.Identity.RoleSet)
+
 	sess := &session{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, r.srv.Component()),
@@ -623,10 +625,9 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		startTime:    startTime,
 		serverCtx:    ctx.srv.Context(),
 		state:        types.SessionState_SessionStatePending,
-		// TODO(joel): fetch initiator
-		access:      auth.NewSessionAccessEvaluator(nil, types.SSHSessionKind),
-		checkAccess: make(chan struct{}),
-		stateUpdate: broadcast.NewBroadcaster(1),
+		access:       auth.NewSessionAccessEvaluator(initiator, types.SSHSessionKind),
+		checkAccess:  make(chan struct{}),
+		stateUpdate:  broadcast.NewBroadcaster(1),
 	}
 	return sess, nil
 }
@@ -1308,11 +1309,17 @@ func (s *session) heartbeat(ctx *ServerContext) {
 }
 
 func (s *session) checkIfStart() (bool, error) {
+	var participants []auth.SessionAccessContext
+
 	s.mu.Lock()
+
+	for _, party := range s.parties {
+		participants = append(participants, auth.SessionAccessContext{Roles: party.ctx.Identity.RoleSet})
+	}
+
 	defer s.mu.Unlock()
 
-	// TODO(joel): fetch participants
-	shouldStart, err := s.access.FulfilledFor(nil)
+	shouldStart, err := s.access.FulfilledFor(participants)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
