@@ -40,6 +40,18 @@ apps: []
 databases: []
 
 ################################################################
+# Optional values if Database access is enabled.
+################################################################
+
+# Autodiscovery settings. Example:
+# aws_autodiscovery:
+# - types: ["rds"]
+#   regions: ["us-west-1"] # AWS regions to fetch databases from
+#   tags: # AWS database resource tags to match
+#     "*": "*"
+db_autodiscovery: []
+
+################################################################
 # Values that you may need to change.
 ################################################################
 

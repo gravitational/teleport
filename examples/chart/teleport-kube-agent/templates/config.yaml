@@ -62,9 +62,13 @@ data:
           {{- end }}
         {{- end }}
         {{- required "'databases' map is required in chart values when db role is enabled, see README" .Values.databases | toYaml | nindent 8 }}
+      {{- if contains "db_autodiscovery" (.Values | toString) }}
+      aws: {{- .Values.db_autodiscovery | toYaml | nindent 8 }}
+      {{- end }}
       {{- else }}
       enabled: false
       {{- end }}
+      
     {{- end }}
 
     auth_service:
