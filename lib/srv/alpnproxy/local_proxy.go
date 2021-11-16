@@ -30,13 +30,11 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/agentconn"
 )
 
 // LocalProxy allows upgrading incoming connection to TLS where custom TLS values are set SNI ALPN and
@@ -108,7 +106,7 @@ func NewLocalProxy(cfg LocalProxyConfig) (*LocalProxy, error) {
 
 // SSHProxy is equivalent of `ssh -o 'ForwardAgent yes' -p port  %r@host -s proxy:%h:%p` but established SSH
 // connection to RemoteProxyAddr is wrapped with TLS protocol.
-func (l *LocalProxy) SSHProxy() error {
+func (l *LocalProxy) SSHProxy(localAgent *client.LocalKeyAgent) error {
 	if l.cfg.ClientTLSConfig == nil {
 		return trace.BadParameter("client TLS config is missing")
 	}
@@ -124,14 +122,10 @@ func (l *LocalProxy) SSHProxy() error {
 	}
 	defer upstreamConn.Close()
 
-	sshAgent, err := getAgent()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	client, err := makeSSHClient(upstreamConn, l.cfg.RemoteProxyAddr, &ssh.ClientConfig{
 		User: l.cfg.SSHUser,
 		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(sshAgent.Signers),
+			ssh.PublicKeysCallback(localAgent.Signers),
 		},
 		HostKeyCallback: l.cfg.SSHHostKeyCallback,
 	})
@@ -145,15 +139,6 @@ func (l *LocalProxy) SSHProxy() error {
 		return trace.Wrap(err)
 	}
 	defer sess.Close()
-
-	err = agent.ForwardToAgent(client, sshAgent)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = agent.RequestAgentForwarding(sess)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	if err = sess.RequestSubsystem(proxySubsystemName(l.cfg.SSHUserHost, l.cfg.SSHTrustedCluster)); err != nil {
 		return trace.Wrap(err)
@@ -298,19 +283,6 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		}
 	}
 	return trace.NewAggregate(errs...)
-}
-
-func getAgent() (agent.ExtendedAgent, error) {
-	agentSocket := os.Getenv(teleport.SSHAuthSock)
-	if agentSocket == "" {
-		return nil, trace.NotFound("failed to connect to SSH agent, %s env var not set", teleport.SSHAuthSock)
-	}
-
-	conn, err := agentconn.Dial(agentSocket)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return agent.NewClient(conn), nil
 }
 
 func (l *LocalProxy) Close() error {

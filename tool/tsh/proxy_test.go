@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
@@ -55,7 +56,12 @@ func TestProxySSHDial(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access", "ssh-login"})
 
-	authProcess, proxyProcess := makeTestServers(t, connector, alice, sshLoginRole)
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(connector, alice, sshLoginRole),
+		withAuthConfig(func(cfg *service.AuthConfig) {
+			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+	)
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)

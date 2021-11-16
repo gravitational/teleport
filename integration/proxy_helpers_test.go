@@ -132,7 +132,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	}
 	leafConfig := options.leafConfigFunc(suite)
 	for _, v := range options.leafConfigModFunc {
-		v(rootConfig)
+		v(leafConfig)
 	}
 	err = lc.CreateEx(t, leafTrustedSecrets, leafConfig)
 	require.NoError(t, err)
