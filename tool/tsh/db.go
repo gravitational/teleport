@@ -233,6 +233,10 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	rootCluster, err := tc.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// Postgres proxy listens on web proxy port while MySQL proxy listens on
 	// a separate port due to the specifics of the protocol.
 	var host string
@@ -265,7 +269,7 @@ Cert:      %v
 Key:       %v
 `,
 			database.ServiceName, host, port, database.Username,
-			database.Database, profile.CACertPath(),
+			database.Database, profile.CACertPathForCluster(rootCluster),
 			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName), profile.KeyPath())
 	}
 	return nil
@@ -329,7 +333,16 @@ func onDatabaseConnect(cf *CLIConf) error {
 		// When connecting over TLS, psql only validates hostname against presented certificate's
 		// DNS names. As such, connecting to 127.0.0.1 will fail validation, so connect to localhost.
 		host := "localhost"
-		opts = append(opts, WithLocalProxy(host, addr.Port(0), profile.CACertPath()))
+		key, err := tc.LocalAgent().GetCoreKey()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		rootClusterName, err := key.RootClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		opts = append(opts, WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)))
 	}
 	cmd, err := getConnectCommand(cf, tc, profile, database, opts...)
 	if err != nil {
@@ -520,10 +533,12 @@ func getConnectCommand(cf *CLIConf, tc *client.TeleportClient, profile *client.P
 
 	switch db.Protocol {
 	case defaults.ProtocolPostgres:
-		return getPostgresCommand(tc, profile, db, host, port, options), nil
+		cmd, err := getPostgresCommand(tc, profile, db, host, port, options)
+		return cmd, trace.Wrap(err)
 
 	case defaults.ProtocolCockroachDB:
-		return getCockroachCommand(tc, profile, db, host, port, options), nil
+		cmd, err := getCockroachCommand(tc, profile, db, host, port, options)
+		return cmd, trace.Wrap(err)
 
 	case defaults.ProtocolMySQL:
 		return getMySQLCommand(tc, profile, db, options), nil
@@ -535,21 +550,28 @@ func getConnectCommand(cf *CLIConf, tc *client.TeleportClient, profile *client.P
 	return nil, trace.BadParameter("unsupported database protocol: %v", db)
 }
 
-func getPostgresCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
-	return exec.Command(postgresBin,
-		postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
+func getPostgresCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) (*exec.Cmd, error) {
+	clusterName, err := tc.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dp := dbprofile.New(tc, *db, *profile, clusterName, host, port)
+	return exec.Command(postgresBin, postgres.GetConnString(*dp)), nil
 }
 
-func getCockroachCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
+func getCockroachCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) (*exec.Cmd, error) {
+	clusterName, err := tc.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dp := dbprofile.New(tc, *db, *profile, clusterName, host, port)
 	// If cockroach CLI client is not available, fallback to psql.
 	if _, err := exec.LookPath(cockroachBin); err != nil {
 		log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
 			cockroachBin, postgresBin, err)
-		return exec.Command(postgresBin,
-			postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
+		return exec.Command(postgresBin, postgres.GetConnString(*dp)), nil
 	}
-	return exec.Command(cockroachBin, "sql", "--url",
-		postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
+	return exec.Command(cockroachBin, "sql", "--url", postgres.GetConnString(*dp)), nil
 }
 
 func getMySQLCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {

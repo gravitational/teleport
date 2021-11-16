@@ -411,11 +411,11 @@ func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
 	return p.ValidUntil.Sub(clock.Now()) <= 0
 }
 
-// CACertPath returns path to the CA certificate for this profile.
+// CACertPathForCluster returns path to the cluster CA certificate for this profile.
 //
-// It's stored in <profile-dir>/keys/<proxy>/certs.pem by default.
-func (p *ProfileStatus) CACertPath() string {
-	return keypaths.TLSCAsPath(p.Dir, p.Name)
+// It's stored in  <profile-dir>/keys/<proxy>/cas/<cluster>.pem by default.
+func (p *ProfileStatus) CACertPathForCluster(cluster string) string {
+	return filepath.Join(keypaths.ProxyKeyDir(p.Dir, p.Name), "cas", cluster+".pem")
 }
 
 // KeyPath returns path to the private key for this profile.
@@ -1117,7 +1117,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		// if the client was passed an agent in the configuration and skip local auth, use
 		// the passed in agent.
 		if c.Agent != nil {
-			tc.localAgent = &LocalKeyAgent{Agent: c.Agent, keyStore: noLocalKeyStore{}}
+			tc.localAgent = &LocalKeyAgent{Agent: c.Agent, keyStore: noLocalKeyStore{}, siteName: tc.SiteName}
 		}
 	} else {
 		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
@@ -1139,6 +1139,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			Username:   c.Username,
 			KeysOption: c.AddKeysToAgent,
 			Insecure:   c.InsecureSkipVerify,
+			SiteName:   tc.SiteName,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1185,6 +1186,19 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 // LocalAgent is a getter function for the client's local agent
 func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 	return tc.localAgent
+}
+
+// RootClusterName returns root cluster name.
+func (tc *TeleportClient) RootClusterName() (string, error) {
+	key, err := tc.LocalAgent().GetCoreKey()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	name, err := key.RootClusterName()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return name, nil
 }
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
@@ -2999,7 +3013,13 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
 	}
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil)
+
+	rootCluster, err := tlsKey.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{rootCluster})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
