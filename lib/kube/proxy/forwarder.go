@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
+	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -726,7 +726,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 	var recorder events.SessionRecorder
 	var emitter apievents.Emitter
-	sessionID := session.NewID()
+	sessionID := tsession.NewID()
 	if sess.noAuditEvents {
 		// All events should be recorded by kubernetes_service and not proxy_service
 		emitter = events.NewDiscardEmitter()
@@ -759,7 +759,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		emitter = recorder
 		defer recorder.Close(f.ctx)
 		request.onResize = func(resize remotecommand.TerminalSize) {
-			params := session.TerminalParams{
+			params := tsession.TerminalParams{
 				W: int(resize.Width),
 				H: int(resize.Height),
 			}
@@ -804,7 +804,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	if request.tty {
 		// Emit "new session created" event. There are no initial terminal
 		// parameters per k8s protocol, so set up with any default
-		termParams := session.TerminalParams{
+		termParams := tsession.TerminalParams{
 			W: 100,
 			H: 100,
 		}
@@ -948,8 +948,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					LocalAddr:  sess.kubeAddress,
 					Protocol:   events.EventProtocolKube,
 				},
-				Interactive: true,
-				// There can only be 1 participant, k8s sessions are not join-able.
+				Interactive:               true,
 				Participants:              []string{ctx.User.GetName()},
 				StartTime:                 sessionStart,
 				EndTime:                   f.cfg.Clock.Now().UTC(),
