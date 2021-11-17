@@ -350,10 +350,11 @@ func hasAllRequiredApprovalsAtCommit(commitSHA string, reviews map[string]review
 // invalidateApprovals dismisses all approved reviews on a pull request.
 func (c *Bot) invalidateApprovals(ctx context.Context, reviews map[string]review) error {
 	pr := c.Environment.Metadata
+	clt := c.Environment.Client
 	msg := dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author))
 	for _, v := range reviews {
 		if pr.HeadSHA != v.commitID && v.status != ci.Commented {
-			_, _, err := c.Environment.Client.PullRequests.DismissReview(ctx,
+			_, _, err := clt.PullRequests.DismissReview(ctx,
 				pr.RepoOwner,
 				pr.RepoName,
 				pr.Number,
@@ -365,5 +366,7 @@ func (c *Bot) invalidateApprovals(ctx context.Context, reviews map[string]review
 			}
 		}
 	}
-	return nil
+	// Re-assign reviewers when dismissing so the
+	// pull request shows up in their review requests again.
+	return c.Assign(ctx)
 }
