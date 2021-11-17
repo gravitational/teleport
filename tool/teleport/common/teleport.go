@@ -226,9 +226,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
 	dump.Flag("test", "Path to a configuration file to test.").ExistingFileVar(&dumpFlags.testConfigFile)
 	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV2).StringVar(&dumpFlags.Version)
-	dump.Flag("public-addr", "A list of public addresses that the proxy advertises for the HTTP endpoint.").StringsVar(&dumpFlags.PublicAddr)
-	dump.Flag("cert-file", "Path to a TLS certificate file").ExistingFileVar(&dumpFlags.CertFile)
-	dump.Flag("key-file", "Path to a TLS key file").ExistingFileVar(&dumpFlags.KeyFile)
+	dump.Flag("public-addr", "A list of public addresses that the proxy advertises for the HTTP endpoint.").StringsVar(&dumpFlags.PublicAddrs)
+	dump.Flag("cert-file", "Path to a TLS certificate file for the proxy.").ExistingFileVar(&dumpFlags.CertFile)
+	dump.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)
@@ -370,11 +370,17 @@ func onConfigDump(flags dumpFlags) error {
 	}
 
 	if flags.KeyFile != "" && !filepath.IsAbs(flags.KeyFile) {
-		return trace.BadParameter("please use absolute path for --key-file %q", flags.KeyFile)
+		flags.KeyFile, err = filepath.Abs(flags.KeyFile)
+		if err != nil {
+			return trace.BadParameter("could not find absolute path for --key-file %q", flags.KeyFile)
+		}
 	}
 
 	if flags.CertFile != "" && !filepath.IsAbs(flags.CertFile) {
-		return trace.BadParameter("please use absolute path for --cert-file %q", flags.CertFile)
+		flags.CertFile, err = filepath.Abs(flags.CertFile)
+		if err != nil {
+			return trace.BadParameter("could not find absolute path for --cert-file %q", flags.CertFile)
+		}
 	}
 
 	sfc, err := config.MakeSampleFileConfig(flags.SampleFlags)

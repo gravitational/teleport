@@ -109,14 +109,14 @@ func TestMain(m *testing.M) {
 
 func TestSampleConfig(t *testing.T) {
 	testCases := []struct {
-		name                  string
-		input                 SampleFlags
-		expectError           bool
-		expectClusterName     ClusterName
-		expectLicenseFile     string
-		expectProxyPublicAddr apiutils.Strings
-		expectProxyWebAddr    string
-		expectProxyKeyPairs   []KeyPair
+		name                   string
+		input                  SampleFlags
+		expectError            bool
+		expectClusterName      ClusterName
+		expectLicenseFile      string
+		expectProxyPublicAddrs apiutils.Strings
+		expectProxyWebAddr     string
+		expectProxyKeyPairs    []KeyPair
 	}{
 		{
 			name: "ACMEEnabled",
@@ -126,19 +126,19 @@ func TestSampleConfig(t *testing.T) {
 				ACMEEmail:   "alice@example.com",
 				LicensePath: "/tmp/license.pem",
 			},
-			expectClusterName:     ClusterName("cookie.localhost"),
-			expectLicenseFile:     "/tmp/license.pem",
-			expectProxyPublicAddr: apiutils.Strings{"cookie.localhost:443"},
-			expectProxyWebAddr:    "0.0.0.0:443",
+			expectClusterName:      ClusterName("cookie.localhost"),
+			expectLicenseFile:      "/tmp/license.pem",
+			expectProxyPublicAddrs: apiutils.Strings{"cookie.localhost:443"},
+			expectProxyWebAddr:     "0.0.0.0:443",
 		},
 		{
 			name: "certs provided",
 			input: SampleFlags{
-				PublicAddr: []string{"tele.example.com:443"},
-				KeyFile:    "/var/lib/teleport/privkey.pem",
-				CertFile:   "/var/lib/teleport/fullchain.pem",
+				PublicAddrs: []string{"tele.example.com:443"},
+				KeyFile:     "/var/lib/teleport/privkey.pem",
+				CertFile:    "/var/lib/teleport/fullchain.pem",
 			},
-			expectProxyPublicAddr: apiutils.Strings{"tele.example.com:443"},
+			expectProxyPublicAddrs: apiutils.Strings{"tele.example.com:443"},
 			expectProxyKeyPairs: []KeyPair{KeyPair{
 				PrivateKey:  "/var/lib/teleport/privkey.pem",
 				Certificate: "/var/lib/teleport/fullchain.pem",
@@ -197,7 +197,7 @@ func TestSampleConfig(t *testing.T) {
 			require.Equal(t, testCase.expectClusterName, fc.Auth.ClusterName)
 			require.Equal(t, testCase.expectLicenseFile, fc.Auth.LicenseFile)
 			require.Equal(t, testCase.expectProxyWebAddr, fc.Proxy.WebAddr)
-			require.ElementsMatch(t, testCase.expectProxyPublicAddr, fc.Proxy.PublicAddr)
+			require.ElementsMatch(t, testCase.expectProxyPublicAddrs, fc.Proxy.PublicAddr)
 			require.ElementsMatch(t, testCase.expectProxyKeyPairs, fc.Proxy.KeyPairs)
 
 			require.False(t, lib.IsInsecureDevMode())

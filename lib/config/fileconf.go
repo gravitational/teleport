@@ -18,6 +18,7 @@ package config
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -137,8 +138,8 @@ type SampleFlags struct {
 	ACMEEnabled bool
 	// Version is the Teleport Configuration version.
 	Version string
-	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
-	PublicAddr []string
+	// PublicAddrs sets the hostport the proxy advertises for the HTTP endpoint.
+	PublicAddrs []string
 	// KeyFile is a TLS key file
 	KeyFile string
 	// CertFile is a TLS Certificate file
@@ -154,10 +155,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 
 	if flags.ACMEEnabled {
 		if flags.ClusterName == "" {
-			return nil, trace.BadParameter("please provide --cluster-name when using acme, for example --cluster-name=example.com")
+			return nil, trace.BadParameter("please provide --cluster-name when using ACME, for example --cluster-name=example.com")
 		}
 		if flags.CertFile != "" {
-			return nil, trace.BadParameter("Cannot use --key-file/--cert-file when ACME is enabled.")
+			return nil, trace.BadParameter("could not use --key-file/--cert-file when ACME is enabled")
 		}
 	}
 
@@ -211,10 +212,14 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
 		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
 	}
-	if len(flags.PublicAddr) > 0 {
-		p.PublicAddr = apiutils.Strings(flags.PublicAddr)
+	if len(flags.PublicAddrs) > 0 {
+		p.PublicAddr = apiutils.Strings(flags.PublicAddrs)
 	}
 	if flags.KeyFile != "" && flags.CertFile != "" {
+		if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
+			return nil, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
+		}
+
 		p.KeyPairs = append(p.KeyPairs, KeyPair{
 			PrivateKey:  flags.KeyFile,
 			Certificate: flags.CertFile,
