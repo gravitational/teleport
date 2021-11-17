@@ -2660,6 +2660,11 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	}
 
 	tc.TLSRoutingEnabled = proxySettings.TLSRoutingEnabled
+	if tc.TLSRoutingEnabled {
+		// If proxy supports TLS Routing all k8s requests will be sent to the WebProxyAddr where TLS Routing will identify
+		// k8s requests by "kube." SNI prefix and route to the kube proxy service.
+		tc.KubeProxyAddr = tc.WebProxyAddr
+	}
 
 	return nil
 }
