@@ -503,7 +503,7 @@ type session struct {
 	registry *SessionRegistry
 
 	// this writer is used to broadcast terminal I/O to different clients
-	writer *multiWriter
+	writer *MultiWriter
 
 	// parties is the set of current connected clients/users. This map may grow
 	// and shrink as members join and leave the session.
@@ -618,7 +618,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		registry:     r,
 		parties:      make(map[rsession.ID]*party),
 		participants: make(map[rsession.ID]*party),
-		writer:       newMultiWriter(),
+		writer:       NewMultiWriter(),
 		login:        ctx.Identity.Login,
 		closeC:       make(chan bool),
 		lingerTTL:    defaults.SessionIdlePeriod,
@@ -714,7 +714,7 @@ func (s *session) monitorAccess() error {
 	}
 }
 
-func termWrite(w *multiWriter, s string) error {
+func termWrite(w *MultiWriter, s string) error {
 	_, err := w.Write([]byte(s))
 	return trace.Wrap(err)
 }
@@ -774,7 +774,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			return trace.Wrap(err)
 		}
 	}
-	s.writer.addWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder), true)
+	s.writer.AddWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder), true)
 
 	go s.monitorAccess()
 	if err := termWrite(s.writer, "Creating session with uuid "+string(s.id)+"..."); err != nil {
@@ -1209,7 +1209,7 @@ func (s *session) removeParty(p *party) error {
 	// Removes participant from in-memory map of party members.
 	s.removePartyMember(p)
 
-	s.writer.deleteWriter(string(p.id))
+	s.writer.DeleteWriter(string(p.id))
 	s.checkAccess <- struct{}{}
 	return nil
 }
@@ -1355,7 +1355,7 @@ func (s *session) addParty(p *party) error {
 	}
 
 	// Register this party as one of the session writers (output will go to it).
-	s.writer.addWriter(string(p.id), p, true)
+	s.writer.AddWriter(string(p.id), p, true)
 	p.ctx.AddCloser(p)
 	s.term.AddParty(1)
 
@@ -1397,11 +1397,11 @@ func (s *session) getParties() (parties []*party) {
 	return parties
 }
 
-func newMultiWriter() *multiWriter {
-	return &multiWriter{writers: make(map[string]writerWrapper)}
+func NewMultiWriter() *MultiWriter {
+	return &MultiWriter{writers: make(map[string]writerWrapper)}
 }
 
-type multiWriter struct {
+type MultiWriter struct {
 	mu           sync.RWMutex
 	writers      map[string]writerWrapper
 	recentWrites [][]byte
@@ -1412,19 +1412,19 @@ type writerWrapper struct {
 	closeOnError bool
 }
 
-func (m *multiWriter) addWriter(id string, w io.WriteCloser, closeOnError bool) {
+func (m *MultiWriter) AddWriter(id string, w io.WriteCloser, closeOnError bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.writers[id] = writerWrapper{WriteCloser: w, closeOnError: closeOnError}
 }
 
-func (m *multiWriter) deleteWriter(id string) {
+func (m *MultiWriter) DeleteWriter(id string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.writers, id)
 }
 
-func (m *multiWriter) lockedAddRecentWrite(p []byte) {
+func (m *MultiWriter) lockedAddRecentWrite(p []byte) {
 	// make a copy of it (this slice is based on a shared buffer)
 	clone := make([]byte, len(p))
 	copy(clone, p)
@@ -1437,7 +1437,7 @@ func (m *multiWriter) lockedAddRecentWrite(p []byte) {
 
 // Write multiplexes the input to multiple sub-writers. The entire point
 // of multiWriter is to do this
-func (m *multiWriter) Write(p []byte) (n int, err error) {
+func (m *MultiWriter) Write(p []byte) (n int, err error) {
 	// lock and make a local copy of available writers:
 	getWriters := func() (writers []writerWrapper) {
 		m.mu.RLock()
@@ -1470,7 +1470,7 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (m *multiWriter) getRecentWrites() []byte {
+func (m *MultiWriter) getRecentWrites() []byte {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	data := make([]byte, 0, 1024)

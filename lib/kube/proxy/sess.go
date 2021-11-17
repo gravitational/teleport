@@ -17,7 +17,9 @@ limitations under the License.
 package proxy
 
 import (
+	"context"
 	"io"
+	"net/http"
 	"sync"
 
 	broadcast "github.com/dustin/go-broadcast"
@@ -25,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -99,8 +103,17 @@ func (p *party) Close() {
 	})
 }
 
+// TODO(joel): handle transition to pending on leave
 type session struct {
 	mu sync.RWMutex
+
+	ctx authContext
+
+	forwarder *Forwarder
+
+	req *http.Request
+
+	id uuid.UUID
 
 	parties map[string]*party
 
@@ -108,9 +121,13 @@ type session struct {
 
 	log *log.Entry
 
-	writer utils.TrackingWriter
+	clients_stdin *utils.TrackingReader
 
-	reader utils.TrackingReader
+	clients_stdout *utils.TrackingWriter
+
+	clients_stderr *utils.TrackingWriter
+
+	terminalSizeQueue remotecommand.TerminalSizeQueue
 
 	state types.SessionState
 
@@ -121,15 +138,83 @@ type session struct {
 	recorder events.StreamWriter
 
 	closeC chan struct{}
+
+	closeOnce sync.Once
 }
 
-func newSession(ctx authContext, parentLog log.Entry) *session {
+func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, parentLog log.Entry) *session {
 	id := uuid.New()
+	// TODO(joel): supply roles
+	accessEvaluator := auth.NewSessionAccessEvaluator(nil, types.KubernetesSessionKind)
 
 	return &session{
+		ctx:               ctx,
+		forwarder:         forwarder,
+		req:               req,
+		id:                id,
 		parties:           make(map[string]*party),
 		partiesHistorical: make(map[string]*party),
 		log:               log.WithField("session", id.String()),
+		clients_stdin:     utils.NewTrackingReader(kubeutils.NewMultiReader()),
+		clients_stdout:    utils.NewTrackingWriter(srv.NewMultiWriter()),
+		clients_stderr:    utils.NewTrackingWriter(srv.NewMultiWriter()),
 		state:             types.SessionState_SessionStatePending,
+		stateUpdate:       broadcast.NewBroadcaster(1),
+		accessEvaluator:   accessEvaluator,
 	}
+}
+
+func (s *session) launch() error {
+	sess, err := s.forwarder.newClusterSession(s.ctx)
+	if err != nil {
+		s.log.Errorf("Failed to create cluster session: %v.", err)
+		return trace.Wrap(err)
+	}
+
+	executor, err := s.forwarder.getExecutor(s.ctx, sess, s.req)
+	if err != nil {
+		s.log.WithError(err).Warning("Failed creating executor.")
+		return trace.Wrap(err)
+	}
+
+	options := remotecommand.StreamOptions{
+		Stdin:             s.clients_stdin,
+		Stdout:            s.clients_stdout,
+		Stderr:            s.clients_stderr,
+		Tty:               true,
+		TerminalSizeQueue: s.terminalSizeQueue,
+	}
+
+	if err = executor.Stream(options); err != nil {
+		s.log.WithError(err).Warning("Executor failed while streaming.")
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (s *session) join(p *party) {
+	panic("not implemented")
+}
+
+func (s *session) leave(id uuid.UUID) {
+	panic("not implemented")
+}
+
+func (s *session) canStart() (bool, error) {
+	// TODO(joel): supply participants
+	yes, err := s.accessEvaluator.FulfilledFor(nil)
+	return yes, trace.Wrap(err)
+}
+
+func (s *session) Close() error {
+	s.closeOnce.Do(func() {
+		s.log.Infof("Closing session %v.", s.id.String)
+		if s.recorder != nil {
+			s.recorder.Close(context.TODO())
+		}
+		close(s.closeC)
+	})
+
+	return nil
 }
