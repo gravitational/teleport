@@ -134,13 +134,11 @@ func TestSampleConfig(t *testing.T) {
 		{
 			name: "certs provided",
 			input: SampleFlags{
-				WebAddr:    ":443",
 				PublicAddr: []string{"tele.example.com:443"},
 				KeyFile:    "/var/lib/teleport/privkey.pem",
 				CertFile:   "/var/lib/teleport/fullchain.pem",
 			},
 			expectProxyPublicAddr: apiutils.Strings{"tele.example.com:443"},
-			expectProxyWebAddr:    ":443",
 			expectProxyKeyPairs: []KeyPair{KeyPair{
 				PrivateKey:  "/var/lib/teleport/privkey.pem",
 				Certificate: "/var/lib/teleport/fullchain.pem",
@@ -157,6 +155,16 @@ func TestSampleConfig(t *testing.T) {
 			name: "cluster name missing",
 			input: SampleFlags{
 				ACMEEnabled: true,
+			},
+			expectError: true,
+		},
+		{
+			name: "ACMEEnabled conflict with key file",
+			input: SampleFlags{
+				ClusterName: "cookie.localhost",
+				ACMEEnabled: true,
+				KeyFile:     "/var/lib/teleport/privkey.pem",
+				CertFile:    "/var/lib/teleport/fullchain.pem",
 			},
 			expectError: true,
 		},

@@ -226,7 +226,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
 	dump.Flag("test", "Path to a configuration file to test.").ExistingFileVar(&dumpFlags.testConfigFile)
 	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV2).StringVar(&dumpFlags.Version)
-	dump.Flag("web-addr", "Web UI listen address.").StringVar(&dumpFlags.WebAddr)
 	dump.Flag("public-addr", "A list of public addresses that the proxy advertises for the HTTP endpoint.").StringsVar(&dumpFlags.PublicAddr)
 	dump.Flag("cert-file", "Path to a TLS certificate file").ExistingFileVar(&dumpFlags.CertFile)
 	dump.Flag("key-file", "Path to a TLS key file").ExistingFileVar(&dumpFlags.KeyFile)
