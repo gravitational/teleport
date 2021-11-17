@@ -899,7 +899,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
   ```yaml
   extraVolumeMounts:
   - name: myvolume
-    path: /path/to/mount/volume
+    mountPath: /path/to/mount/volume
   ```
   </TabItem>
   <TabItem label="--set">
@@ -1038,6 +1038,29 @@ Kubernetes Tolerations to set for pod assignment.
   --set tolerations[0].operator=Equal \
   --set tolerations[0].value=teleport \
   --set tolerations[0].effect=NoSchedule
+  ```
+  </TabItem>
+</Tabs>
+
+## `priorityClassName`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `string` | `""` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+
+Kubernetes PriorityClass to set for pod.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  priorityClassName: "system-cluster-critical"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set priorityClassName=system-cluster-critical
   ```
   </TabItem>
 </Tabs>
@@ -1956,7 +1979,7 @@ mounts will also be mounted into any `initContainers` configured by the chart.
   ```yaml
   extraVolumeMounts:
   - name: myvolume
-    path: /path/to/mount/volume
+    mountPath: /path/to/mount/volume
   ```
   </TabItem>
   <TabItem label="--set">

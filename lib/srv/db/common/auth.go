@@ -127,7 +127,7 @@ func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
   %v
 
 Make sure that Teleport database agent's IAM policy is attached and has "rds-connect"
-permissions:
+permissions (note that IAM changes may take a few minutes to propagate):
 
 %v
 `, err, sessionCtx.Database.GetIAMPolicy())
@@ -160,7 +160,8 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
   %v
 
 Make sure that Teleport database agent's IAM policy is attached and has permissions
-to generate Redshift credentials:
+to generate Redshift credentials (note that IAM changes may take a few minutes to
+propagate):
 
 %v
 `, err, sessionCtx.Database.GetIAMPolicy())

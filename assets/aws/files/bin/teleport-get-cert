@@ -24,7 +24,7 @@ then
 fi
 
 echo "No certs/keys found in ${TELEPORT_S3_BUCKET}. Going to request certificate for ${TELEPORT_DOMAIN_NAME}."
-/usr/local/bin/certbot certonly -n --agree-tos --email ${TELEPORT_DOMAIN_ADMIN_EMAIL} --dns-route53 -d ${TELEPORT_DOMAIN_NAME}
-echo "Got certificate for ${TELEPORT_DOMAIN_NAME}. Syncing to S3."
+/usr/local/bin/certbot certonly -n --agree-tos --email ${TELEPORT_DOMAIN_ADMIN_EMAIL} --dns-route53 -d "${TELEPORT_DOMAIN_NAME}" -d "*.${TELEPORT_DOMAIN_NAME}"
+echo "Got wildcard certificate for ${TELEPORT_DOMAIN_NAME}. Syncing to S3."
 
 aws s3 sync /etc/letsencrypt/ s3://${TELEPORT_S3_BUCKET} --sse=AES256

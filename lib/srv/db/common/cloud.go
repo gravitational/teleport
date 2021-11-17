@@ -210,10 +210,11 @@ func (c *cloudClients) initGCPSQLAdminClient(ctx context.Context) (*sqladmin.Ser
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RDS      rdsiface.RDSAPI
-	Redshift redshiftiface.RedshiftAPI
-	IAM      iamiface.IAMAPI
-	STS      stsiface.STSAPI
+	RDS          rdsiface.RDSAPI
+	RDSPerRegion map[string]rdsiface.RDSAPI
+	Redshift     redshiftiface.RedshiftAPI
+	IAM          iamiface.IAMAPI
+	STS          stsiface.STSAPI
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -223,6 +224,9 @@ func (c *TestCloudClients) GetAWSSession(region string) (*awssession.Session, er
 
 // GetAWSRDSClient returns AWS RDS client for the specified region.
 func (c *TestCloudClients) GetAWSRDSClient(region string) (rdsiface.RDSAPI, error) {
+	if len(c.RDSPerRegion) != 0 {
+		return c.RDSPerRegion[region], nil
+	}
 	return c.RDS, nil
 }
 

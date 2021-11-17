@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -158,9 +159,11 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 			// 1st step of the login ceremony.
 			assertion, err := webLogin.Begin(ctx, user)
 			require.NoError(t, err)
-			// We care about RPID and AppID, for everything else defaults are OK.
+			// We care about a few specific settings, for everything else defaults are
+			// OK.
 			require.Equal(t, webConfig.RPID, assertion.Response.RelyingPartyID)
 			require.Equal(t, u2fConfig.AppID, assertion.Response.Extensions["appid"])
+			require.Equal(t, protocol.VerificationDiscouraged, assertion.Response.UserVerification)
 			// Did we record the SessionData in storage?
 			require.Len(t, identity.SessionData, 1)
 			// Retrieve session data without guessing the "sessionID" component of the

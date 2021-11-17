@@ -63,7 +63,7 @@ type ProxyConfig struct {
 	// IdentityTLSConfig is the TLS ProxyRole identity used in servers with localhost SANs values.
 	IdentityTLSConfig *tls.Config
 	// AccessPoint is the auth server client.
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.ReadProxyAccessPoint
 	// ClusterName is the name of the teleport cluster.
 	ClusterName string
 }
@@ -156,6 +156,10 @@ type HandlerDecs struct {
 	// If is evaluated to true the current HandleDesc will be used
 	// for connection handling.
 	MatchFunc MatchFunc
+	// TLSConfig is TLS configuration that allows switching TLS settings for the handle.
+	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connection
+	// but if HandleDesc.TLSConfig is present it will take precedence over ProxyConfig TLS configuration.
+	TLSConfig *tls.Config
 }
 
 func (h *HandlerDecs) CheckAndSetDefaults() error {
@@ -164,6 +168,10 @@ func (h *HandlerDecs) CheckAndSetDefaults() error {
 	}
 	if h.MatchFunc == nil {
 		return trace.BadParameter("missing param MatchFunc")
+	}
+
+	if h.ForwardTLS && h.TLSConfig != nil {
+		return trace.BadParameter("the ForwardTLS flag and TLSConfig can't be used at the same time")
 	}
 	return nil
 }
@@ -262,10 +270,15 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			// service handler returned will break service logic.
 			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
 			if err := p.handleConn(ctx, clientConn); err != nil {
-				if err := clientConn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-					p.log.WithError(err).Warnf("Failed to close client connection.")
+				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
+					p.log.WithError(cerr).Warnf("Failed to close client connection.")
 				}
-				p.log.WithError(err).Warnf("Failed to handle client connection.")
+
+				if trace.IsBadParameter(err) {
+					p.log.Warnf("Failed to handle client connection: %v", err)
+				} else if !utils.IsOKNetworkError(err) {
+					p.log.WithError(err).Warnf("Failed to handle client connection.")
+				}
 			}
 		}()
 	}
@@ -313,7 +326,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
 	}
 
-	tlsConn := tls.Server(conn, p.cfg.WebTLSConfig)
+	tlsConn := tls.Server(conn, p.getTLSConfig(handlerDesc))
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -332,6 +345,15 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, connInfo))
 	}
 	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
+}
+
+// getTLSConfig returns HandlerDecs.TLSConfig if custom TLS configuration was set for the handler
+// otherwise the ProxyConfig.WebTLSConfig is used.
+func (p *Proxy) getTLSConfig(desc *HandlerDecs) *tls.Config {
+	if desc.TLSConfig != nil {
+		return desc.TLSConfig
+	}
+	return p.cfg.WebTLSConfig
 }
 
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
@@ -426,25 +448,31 @@ func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHe
 
 // getHandleDescBasedOnALPNVal returns the HandlerDesc base on ALPN field read from ClientHelloInfo message.
 func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
-	protocol := common.ProtocolDefault
-	if len(clientHelloInfo.SupportedProtos) != 0 {
-		protocol = common.Protocol(clientHelloInfo.SupportedProtos[0])
+	// Add the HTTP protocol as a default protocol. If client supported
+	// list is empty the default HTTP handler will be returned.
+	clientProtocols := clientHelloInfo.SupportedProtos
+	if len(clientProtocols) == 0 {
+		clientProtocols = []string{string(common.ProtocolHTTP)}
 	}
 
-	if isDBTLSProtocol(protocol) {
-		return &HandlerDecs{
-			MatchFunc:           MatchByProtocol(protocol),
-			HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,
-			ForwardTLS:          false,
-		}, nil
-	}
+	for _, v := range clientProtocols {
+		protocol := common.Protocol(v)
+		if isDBTLSProtocol(protocol) {
+			return &HandlerDecs{
+				MatchFunc:           MatchByProtocol(protocol),
+				HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,
+				ForwardTLS:          false,
+			}, nil
+		}
 
-	for _, h := range p.cfg.Router.alpnHandlers {
-		if ok := h.MatchFunc(clientHelloInfo.ServerName, string(protocol)); ok {
-			return h, nil
+		for _, h := range p.cfg.Router.alpnHandlers {
+			if ok := h.MatchFunc(clientHelloInfo.ServerName, string(protocol)); ok {
+				return h, nil
+			}
 		}
 	}
-	return nil, trace.BadParameter("unsupported ALPN protocol %q", protocol)
+	return nil, trace.BadParameter(
+		"failed to find ALPN handler based on received client supported protocols %q", clientProtocols)
 }
 
 func shouldRouteToKubeService(sni string) bool {

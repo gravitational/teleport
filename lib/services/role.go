@@ -170,6 +170,18 @@ func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 	return role
 }
 
+// ValidateRoleName checks that the role name is allowed to be created.
+func ValidateRoleName(role types.Role) error {
+	// System role names are not allowed.
+	systemRoles := types.SystemRoles([]types.SystemRole{
+		types.SystemRole(role.GetMetadata().Name),
+	})
+	if err := systemRoles.Check(); err == nil {
+		return trace.BadParameter("reserved role: %s", role.GetMetadata().Name)
+	}
+	return nil
+}
+
 // ValidateRole parses validates the role, and sets default values.
 func ValidateRole(r types.Role) error {
 	if err := r.CheckAndSetDefaults(); err != nil {
@@ -719,24 +731,8 @@ type RoleGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 
-// ExtractFromCertificate will extract roles and traits from a *ssh.Certificate
-// or from the backend if they do not exist in the certificate.
-func ExtractFromCertificate(access UserGetter, cert *ssh.Certificate) ([]string, wrappers.Traits, error) {
-	// For legacy certificates, fetch roles and traits from the services.User
-	// object in the backend.
-	if isFormatOld(cert) {
-		u, err := access.GetUser(cert.KeyId, false)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		log.Warnf("User %v using old style SSH certificate, fetching roles and traits "+
-			"from backend. If the identity provider allows username changes, this can "+
-			"potentially allow an attacker to change the role of the existing user. "+
-			"It's recommended to upgrade to standard SSH certificates.", cert.KeyId)
-		return u.GetRoles(), u.GetTraits(), nil
-	}
-
-	// Standard certificates have the roles and traits embedded in them.
+// ExtractFromCertificate will extract roles and traits from a *ssh.Certificate.
+func ExtractFromCertificate(cert *ssh.Certificate) ([]string, wrappers.Traits, error) {
 	roles, err := ExtractRolesFromCert(cert)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -796,18 +792,6 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 		return nil, trace.Wrap(err)
 	}
 	return NewRoleSet(roles...), nil
-}
-
-// isFormatOld returns true if roles and traits were not found in the
-// *ssh.Certificate.
-func isFormatOld(cert *ssh.Certificate) bool {
-	_, hasRoles := cert.Extensions[teleport.CertExtensionTeleportRoles]
-	_, hasTraits := cert.Extensions[teleport.CertExtensionTeleportTraits]
-
-	if hasRoles || hasTraits {
-		return false
-	}
-	return true
 }
 
 // missingIdentity returns true if the identity is missing or the identity
@@ -1878,6 +1862,9 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		return nil, trace.Wrap(err)
 	}
 	parseWhere := func(rule types.Rule) (types.WhereExpr, error) {
+		if rule.Where == "" {
+			return types.WhereExpr{Literal: true}, nil
+		}
 		out, err := parser.Parse(rule.Where)
 		if err != nil {
 			return types.WhereExpr{}, trace.Wrap(err)
@@ -1899,6 +1886,9 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		}
 		rules := MakeRuleSet(role.GetRules(types.Deny))
 		for _, rule := range rules[resource] {
+			if !rule.HasVerb(verb) && !rule.HasVerb(types.Wildcard) {
+				continue
+			}
 			expr, err := parseWhere(rule)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -1928,13 +1918,16 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		}
 		rules := MakeRuleSet(role.GetRules(types.Allow))
 		for _, rule := range rules[resource] {
+			if !rule.HasVerb(verb) && !rule.HasVerb(types.Wildcard) {
+				continue
+			}
 			expr, err := parseWhere(rule)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			if b, ok := expr.Literal.(bool); ok {
 				if b {
-					return nil, nil
+					return denyCond, nil
 				}
 				continue
 			}

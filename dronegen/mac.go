@@ -49,6 +49,8 @@ func darwinPushPipeline() pipeline {
 			},
 			Commands: pushCheckoutCommandsDarwin(),
 		},
+		installGoToolchainStep(),
+		installRustToolchainStep(p.Workspace.Path),
 		{
 			Name: "Build Mac artifacts",
 			Environment: map[string]value{
@@ -60,6 +62,7 @@ func darwinPushPipeline() pipeline {
 			},
 			Commands: darwinTagBuildCommands(),
 		},
+		cleanUpToolchainsStep(p.Workspace.Path),
 		cleanUpExecStorageStep(p.Workspace.Path),
 		{
 			Name:        "Send Slack notification (exec)",
@@ -164,6 +167,61 @@ func setUpExecStorageStep(path string) step {
 	}
 }
 
+func installGoToolchainStep() step {
+	return step{
+		Name: "Install Go Toolchain",
+		Environment: map[string]value{
+			"RUNTIME": goRuntime,
+		},
+		Commands: []string{
+			`set -u`,
+			`mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz`,
+			`tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz`,
+			`rm -rf $RUNTIME.darwin-amd64.tar.gz`,
+		},
+	}
+}
+
+func installRustToolchainStep(path string) step {
+	return step{
+		Name:        "Install Rust Toolchain",
+		Environment: map[string]value{"WORKSPACE_DIR": {raw: path}},
+		Commands: []string{
+			`set -u`,
+			`export PATH=/Users/build/.cargo/bin:$PATH`,
+			`mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)`,
+			`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`export RUST_HOME=$CARGO_HOME`,
+			`rustup toolchain install $RUST_VERSION`,
+		},
+	}
+}
+
+func cleanUpToolchainsStep(path string) step {
+	return step{
+		Name:        "Clean up toolchains (post)",
+		Environment: map[string]value{"WORKSPACE_DIR": {raw: path}},
+		When: &condition{
+			Status: []string{"success", "failure"},
+		},
+		Commands: []string{
+			`set -u`,
+			`export PATH=/Users/build/.cargo/bin:$PATH`,
+			`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+			`export RUST_HOME=$CARGO_HOME`,
+			`export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)`,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
+			// clean up the rust toolchain even though we're about to delete the directory
+			// this ensures we don't leave behind a broken link
+			`rustup override unset`,
+			`rustup toolchain uninstall $RUST_VERSION`,
+			`rm -rf ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+		},
+	}
+}
+
 func cleanUpExecStorageStep(path string) step {
 	return step{
 		Name:        "Clean up exec runner storage (post)",
@@ -187,7 +245,12 @@ func darwinTagCheckoutCommands() []string {
 func darwinTagBuildCommands() []string {
 	return []string{
 		`set -u`,
+		`export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)`,
+		`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
+		`export RUST_HOME=$CARGO_HOME`,
+		`export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
+		`rustup override set $RUST_VERSION`,
 		`make clean release OS=$OS ARCH=$ARCH`,
 	}
 }

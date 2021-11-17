@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 func TestAuthSignKubeconfig(t *testing.T) {
@@ -223,18 +224,22 @@ type mockClient struct {
 
 	clusterName    types.ClusterName
 	userCerts      *proto.Certs
+	userCertsReq   *proto.UserCertsRequest
 	dbCertsReq     *proto.DatabaseCertRequest
 	dbCerts        *proto.DatabaseCertResponse
 	cas            []types.CertAuthority
 	proxies        []types.Server
 	remoteClusters []types.RemoteCluster
 	kubeServices   []types.Server
+	appServices    []types.AppServer
+	appSession     types.WebSession
 }
 
 func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
-func (c *mockClient) GenerateUserCerts(context.Context, proto.UserCertsRequest) (*proto.Certs, error) {
+func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.UserCertsRequest) (*proto.Certs, error) {
+	c.userCertsReq = &userCertsReq
 	return c.userCerts, nil
 }
 func (c *mockClient) GetCertAuthorities(types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
@@ -252,6 +257,14 @@ func (c *mockClient) GetKubeServices(context.Context) ([]types.Server, error) {
 func (c *mockClient) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	c.dbCertsReq = req
 	return c.dbCerts, nil
+}
+
+func (c *mockClient) GetApplicationServers(context.Context, string) ([]types.AppServer, error) {
+	return c.appServices, nil
+}
+
+func (c *mockClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+	return c.appSession, nil
 }
 
 func TestCheckKubeCluster(t *testing.T) {
@@ -483,6 +496,104 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.outCA, caBytes, "CA certificates match")
 			}
+		})
+	}
+}
+
+// TestGenerateAppCertificates verifies cert/key pair generation for applications.
+func TestGenerateAppCertificates(t *testing.T) {
+	const appName = "app-1"
+	const clusterNameStr = "example.com"
+	const publicAddr = "https://app-1.example.com"
+	const sessionID = "foobar"
+
+	clusterName, err := services.NewClusterNameWithRandomID(
+		types.ClusterNameSpecV2{
+			ClusterName: clusterNameStr,
+		})
+	require.NoError(t, err)
+
+	authClient := &mockClient{
+		clusterName: clusterName,
+		userCerts: &proto.Certs{
+			SSH: []byte("SSH cert"),
+			TLS: []byte("TLS cert"),
+		},
+		appServices: []types.AppServer{
+			&types.AppServerV3{
+				Metadata: types.Metadata{
+					Name: appName,
+				},
+				Spec: types.AppServerSpecV3{
+					App: &types.AppV3{
+						Spec: types.AppSpecV3{
+							PublicAddr: publicAddr,
+						},
+					},
+				},
+			},
+		},
+		appSession: &types.WebSessionV2{
+			Metadata: types.Metadata{
+				Name: sessionID,
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		outDir      string
+		outFileBase string
+		appName     string
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			name:        "app happy path",
+			outDir:      t.TempDir(),
+			outFileBase: "app-1",
+			appName:     "app-1",
+			assertErr:   require.NoError,
+		},
+		{
+			name:        "app non-existent",
+			outDir:      t.TempDir(),
+			outFileBase: "app-2",
+			appName:     "app-2",
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			output := filepath.Join(tc.outDir, tc.outFileBase)
+			ac := AuthCommand{
+				output:        output,
+				outputFormat:  identityfile.FormatTLS,
+				signOverwrite: true,
+				genTTL:        time.Hour,
+				appName:       tc.appName,
+			}
+			err = ac.generateUserKeys(authClient)
+			tc.assertErr(t, err)
+			if err != nil {
+				return
+			}
+
+			expectedRouteToApp := proto.RouteToApp{
+				Name:        tc.appName,
+				SessionID:   sessionID,
+				PublicAddr:  publicAddr,
+				ClusterName: clusterNameStr,
+			}
+			require.Equal(t, proto.UserCertsRequest_App, authClient.userCertsReq.Usage)
+			require.Equal(t, expectedRouteToApp, authClient.userCertsReq.RouteToApp)
+
+			certBytes, err := ioutil.ReadFile(filepath.Join(tc.outDir, tc.outFileBase+".crt"))
+			require.NoError(t, err)
+			require.Equal(t, authClient.userCerts.TLS, certBytes, "certificates match")
 		})
 	}
 }

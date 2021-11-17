@@ -170,7 +170,7 @@ type privilegeTokenRequest struct {
 	// U2FSignResponse is u2f sign response for a u2f challenge.
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2fSignResponse"`
 	// WebauthnResponse is the response from authenticators.
-	WebauthnResponse *wanlib.CredentialAssertionResponse
+	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // createPrivilegeTokenHandle creates and returns a privilege token.

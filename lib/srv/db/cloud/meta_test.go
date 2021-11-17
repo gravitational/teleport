@@ -34,7 +34,7 @@ import (
 func TestAWSMetadata(t *testing.T) {
 	// Configure RDS API mock.
 	rds := &RDSMock{
-		dbInstances: []*rds.DBInstance{
+		DBInstances: []*rds.DBInstance{
 			// Standalone RDS instance.
 			{
 				DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:1234567890:db:postgres-rds"),
@@ -49,7 +49,7 @@ func TestAWSMetadata(t *testing.T) {
 				DBClusterIdentifier:  aws.String("postgres-aurora"),
 			},
 		},
-		dbClusters: []*rds.DBCluster{
+		DBClusters: []*rds.DBCluster{
 			// Aurora cluster.
 			{
 				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:1234567890:cluster:postgres-aurora"),
@@ -61,7 +61,7 @@ func TestAWSMetadata(t *testing.T) {
 
 	// Configure Redshift API mock.
 	redshift := &RedshiftMock{
-		clusters: []*redshift.Cluster{
+		Clusters: []*redshift.Cluster{
 			{
 				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-west-1:1234567890:namespace:namespace-id"),
 				ClusterIdentifier:   aws.String("redshift-cluster-1"),

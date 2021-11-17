@@ -3,8 +3,6 @@ title: Database Access Configuration Reference
 description: Configuration reference for Teleport Database Access.
 ---
 
-# Database Access Configuration Reference
-
 ## Database service configuration
 
 The following snippet shows full YAML configuration of a Database Service
@@ -14,8 +12,23 @@ appearing in `teleport.yaml` configuration file:
 db_service:
   # Enables the Database Service.
   enabled: "yes"
-  # This section contains definitions of all databases proxied by this
-  # service, it can contain multiple database instances.
+
+  # Matchers for database resources created with "tctl create" command.
+  resources:
+  - labels:
+      "*": "*"
+
+  # Matchers for registering AWS-hosted databases.
+  aws:
+    # Database types, only "rds" is supported currently.
+  - types: ["rds"]
+    # AWS regions to register databases from.
+    regions: ["us-west-1", "us-east-2"]
+    # AWS resource tags to match when registering databases.
+    tags:
+      "*": "*"
+
+  # Lists statically registered databases proxied by this agent.
   databases:
     # Name of the database proxy instance, used to reference in CLI.
   - name: "prod"
@@ -80,4 +93,50 @@ proxy_service:
   postgres_public_addr: "postgres.teleport.example.com:443"
   # Address advertised to MySQL clients. If not set, public_addr is used.
   mysql_public_addr: "mysql.teleport.example.com:3306"
+```
+
+## Database resource
+
+Full YAML spec of database resources managed by `tctl` resource commands:
+
+```yaml
+kind: db
+version: v3
+metadata:
+  # Database resource name.
+  name: example
+  # Database resource description.
+  description: "Example database"
+  # Database resource static labels.
+  labels:
+    env: example
+spec:
+  # Database protocol.
+  protocol: "postgres"
+  # Database connection endpoint.
+  uri: "localhost:5432"
+  # Optional CA for validating the database certificate.
+  ca_cert: |
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
+  # Optional AWS configuration for RDS/Aurora/Redshift. Can be auto-detected from the endpoint.
+  aws:
+    # Region the database is deployed in.
+    region: "us-east-1"
+    # Redshift specific configuration.
+    redshift:
+      # Redshift cluster identifier.
+      cluster_id: "redshift-cluster-1"
+  # Optional GCP configuration for Cloud SQL.
+  gcp:
+    # GCP project ID.
+    project_id: "xxx-1234"
+    # Cloud SQL instance ID.
+    instance_id: "example"
+  # Optional dynamic labels.
+  dynamic_labels:
+  - name: "hostname"
+    command: ["hostname"]
+    period: 1m0s
 ```

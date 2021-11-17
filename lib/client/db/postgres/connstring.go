@@ -19,6 +19,7 @@ package postgres
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -29,7 +30,10 @@ import (
 func GetConnString(c profile.ConnectProfile) string {
 	connStr := "postgres://"
 	if c.User != "" {
-		connStr += c.User + "@"
+		// Username may contain special characters in which case it should
+		// be percent-encoded. For example, when connecting to a Postgres
+		// instance on GCP user looks like "name@project-id.iam".
+		connStr += url.QueryEscape(c.User) + "@"
 	}
 	connStr += net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
 	if c.Database != "" {

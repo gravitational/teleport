@@ -178,8 +178,8 @@ Role specification consists of two sections: `allow` and `deny`. They are identi
 |---------------------------|-------------|-----------------------------------------------------------------|
 |           `database_names`| string list | List of database names this role is allowed to connect to       |
 |           `database_users`| string list | List of database users this role is allowed to connect as       |
-|              `kube_groups`| string list | List of Kubernetes groups                                       |
-|               `kube_users`| string list | List of Kubernetes users to impersonate                         |
+|        `kubernetes_groups`| string list | List of Kubernetes groups                                       |
+|         `kubernetes_users`| string list | List of Kubernetes users to impersonate                         |
 |                   `logins`| string list | Logins is a list of *nix system logins                          |
 |               `app_labels`|         set | Application labels                                              |
 |          `app_labels.name`|      string | Application name                                                |
@@ -442,6 +442,8 @@ Metadata specifies a resource description, labels and optional expiry date and t
 **spec**
 
 Spec contains parameters of a resource.
+
+{/* TODO(codingllama): Add and document Terraform support for WebAuthn. */}
 
 | Name                         | Type        | Description                                                                   |
 |------------------------------|-------------|-------------------------------------------------------------------------------|
