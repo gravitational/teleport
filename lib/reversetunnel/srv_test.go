@@ -152,7 +152,7 @@ func (mockSSHConnMetadata) User() string         { return "conn-user" }
 func (mockSSHConnMetadata) RemoteAddr() net.Addr { return &net.TCPAddr{} }
 
 type mockAccessPoint struct {
-	auth.AccessPoint
+	auth.ProxyAccessPoint
 	ca types.CertAuthority
 }
 

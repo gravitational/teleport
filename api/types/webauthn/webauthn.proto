@@ -72,9 +72,8 @@ message PublicKeyCredentialRequestOptions {
     repeated CredentialDescriptor allow_credentials = 4;
     // Extensions supplied by the Relying Party.
     AuthenticationExtensionsClientInputs extensions = 5;
-
-    // Notes:
-    // * User verification omitted (assume default/preferred).
+    // User verification requirement.
+    string user_verification = 6;
 }
 
 // Assertion response returned by the authenticator.
@@ -140,10 +139,8 @@ message PublicKeyCredentialCreationOptions {
     string attestation = 7;
     // Extensions supplied by the Relying Party.
     AuthenticationExtensionsClientInputs extensions = 8;
-
-    // Notes:
-    // * Authenticator Selection omitted (assume empty attachment, no resident
-    //   key requirements and user verification default/preferred).
+    // Authenticator selection criteria for the new credential.
+    AuthenticatorSelection authenticator_selection = 9;
 }
 
 // Credential creation response returned by the authenticator.
@@ -196,6 +193,19 @@ message AuthenticationExtensionsClientOutputs {
     // the rpIdHash accordingly.
     // https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
     bool app_id = 1;
+}
+
+// Authenticator selection criteria.
+// Restricts the choice of authenticator for credential creation.
+message AuthenticatorSelection {
+    // Authenticator attachment, empty means no particular attachment is
+    // required.
+    string authenticator_attachment = 1;
+    // Resident key requirement, if true the authenticator must create a resident
+    // key.
+    bool require_resident_key = 2;
+    // User verification requirement for authenticators.
+    string user_verification = 3;
 }
 
 // Public key credential descriptor.

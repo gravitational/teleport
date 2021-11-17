@@ -3,8 +3,6 @@ title: Application Access Reference Documentation
 description: Configuration and CLI reference documentation for Teleport Application Access.
 ---
 
-# Application Access Reference
-
 ## Configuration
 
 (!docs/pages/includes/backup-warning.mdx!)
@@ -20,6 +18,10 @@ app_service:
   # working correctly. It'll output JWTs so it can be useful for when
   # extending your application.
   debug_app: true
+  # Matchers for application resources created with "tctl create" command.
+  resources:
+  - labels:
+      "*": "*"
   # This section contains definitions of all applications proxied by this
   # service. It can contain multiple items.
   apps:
@@ -37,6 +39,10 @@ app_service:
       # host with the public address of this application.
       redirect:
       - "grafana.internal.dev"
+      # Headers passthrough configuration.
+      headers:
+      - "X-Custom-Header: example"
+      - "X-External-Trait: {{external.env}}"
     # Disable application certificate validation.
     insecure_skip_verify: true
     # Optional static labels to assign to the app. Used in RBAC.
@@ -47,6 +53,45 @@ app_service:
     - name: "hostname"
       command: ["hostname"]
       period: 1m0s
+```
+
+## Application resource
+
+Full YAML spec of application resources managed by `tctl` resource commands:
+
+```yaml
+kind: app
+version: v3
+metadata:
+  # Application name.
+  name: example
+  # Application description.
+  description: "Example application"
+  # Application static labels.
+  labels:
+    env: local
+spec:
+  # URI and port application is available at.
+  uri: http://localhost:4321
+  # Optional application public address.
+  public_addr: test.example.com
+  # Disable application certificate validation.
+  insecure_skip_verify: true
+  # Rewrites configuration.
+  rewrite:
+    # Rewrite the "Location" header on redirect responses replacing the
+    # host with the public address of this application.
+    redirect:
+    - "grafana.internal.dev"
+    # Headers passthrough configuration.
+    headers:
+    - "X-Custom-Header: example"
+    - "X-External-Trait: {{external.env}}"
+  # Optional dynamic labels.
+  dynamic_labels:
+  - name: "hostname"
+    command: ["hostname"]
+    period: 1m0s
 ```
 
 ## CLI

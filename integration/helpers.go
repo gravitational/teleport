@@ -75,11 +75,17 @@ const (
 )
 
 // SetTestTimeouts affects global timeouts inside Teleport, making connections
-// work faster but consuming more CPU (useful for integration testing)
+// work faster but consuming more CPU (useful for integration testing).
+// NOTE: This function modifies global values for timeouts, etc. If your tests
+// call this function, they MUST NOT BE RUN IN PARALLEL, as they may stomp on
+// other tests.
 func SetTestTimeouts(t time.Duration) {
-	apidefaults.KeepAliveInterval = t
+	// TODO(tcsc): Remove this altogether and replace with per-test timeout
+	//             config (as per #8913)
+
+	apidefaults.SetTestTimeouts(t, t)
+
 	defaults.ResyncInterval = t
-	apidefaults.ServerKeepAliveTTL = t
 	defaults.SessionRefreshPeriod = t
 	defaults.HeartbeatCheckPeriod = t
 	defaults.CachePollPeriod = t
@@ -710,10 +716,8 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.Token = "token"
 	tconf.UploadEventsC = i.UploadEventsC
-	var ttl time.Duration
 	tconf.CachePolicy = service.CachePolicy{
-		Enabled:   true,
-		RecentTTL: &ttl,
+		Enabled: true,
 	}
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
 		{
@@ -877,10 +881,8 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	tconf.Hostname = name
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.DataDir = dataDir
-	var ttl time.Duration
 	tconf.CachePolicy = service.CachePolicy{
-		Enabled:   true,
-		RecentTTL: &ttl,
+		Enabled: true,
 	}
 
 	tconf.Auth.Enabled = false

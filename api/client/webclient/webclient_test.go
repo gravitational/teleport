@@ -177,16 +177,51 @@ func TestTunnelAddr(t *testing.T) {
 		settings:           ProxySettings{SSH: SSHProxySettings{}},
 		expectedTunnelAddr: "proxy.example.com:3024",
 	}))
-	t.Run("should use PublicAddr and WebAddrPort if TLSRoutingEnabled was enabled", testTunnelAddr(testCase{
+	t.Run("should use PublicAddr with ProxyWebPort if TLSRoutingEnabled was enabled", testTunnelAddr(testCase{
 		proxyAddr: "proxy.example.com:443",
 		settings: ProxySettings{
 			SSH: SSHProxySettings{
 				PublicAddr:       "public.example.com",
 				TunnelListenAddr: "[::]:5024",
+				TunnelPublicAddr: "tpa.example.com:3032",
 			},
 			TLSRoutingEnabled: true,
 		},
 		expectedTunnelAddr: "public.example.com:443",
+	}))
+	t.Run("should use PublicAddr with custom port if TLSRoutingEnabled was enabled", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com:443",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				PublicAddr:       "public.example.com:443",
+				TunnelListenAddr: "[::]:5024",
+				TunnelPublicAddr: "tpa.example.com:3032",
+			},
+			TLSRoutingEnabled: true,
+		},
+		expectedTunnelAddr: "public.example.com:443",
+	}))
+	t.Run("should use proxyAddr with custom ProxyWebPort if TLSRoutingEnabled was enabled", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com:443",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				TunnelListenAddr: "[::]:5024",
+				TunnelPublicAddr: "tpa.example.com:3032",
+			},
+			TLSRoutingEnabled: true,
+		},
+		expectedTunnelAddr: "proxy.example.com:443",
+	}))
+	t.Run("should use proxyAddr with default https port if TLSRoutingEnabled was enabled", testTunnelAddr(testCase{
+		proxyAddr: "proxy.example.com",
+		settings: ProxySettings{
+			SSH: SSHProxySettings{
+				TunnelListenAddr: "[::]:5024",
+				TunnelPublicAddr: "tpa.example.com:3032",
+			},
+			TLSRoutingEnabled: true,
+		},
+		expectedTunnelAddr: "proxy.example.com:443",
 	}))
 }
 
