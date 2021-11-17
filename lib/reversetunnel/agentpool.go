@@ -50,8 +50,11 @@ type AgentPool struct {
 	log          *log.Entry
 	cfg          AgentPoolConfig
 	proxyTracker *track.Tracker
-	ctx          context.Context
-	cancel       context.CancelFunc
+
+	// ctx controls the lifespan of the agent pool, and is used to control
+	// all of the sub-processes it spawns.
+	ctx    context.Context
+	cancel context.CancelFunc
 	// spawnLimiter limits agent spawn rate
 	spawnLimiter utils.Retry
 
@@ -186,6 +189,10 @@ func (m *AgentPool) Wait() {
 	<-m.ctx.Done()
 }
 
+// processSeekEvents receives acquisition messages from the ProxyTracker
+// (i.e. "I've found a proxy that you may not know about") and routes the
+// new proxy address to the AgentPool, which will manage the connection
+// to that address.
 func (m *AgentPool) processSeekEvents() {
 	limiter := m.spawnLimiter.Clone()
 	for {
@@ -193,9 +200,14 @@ func (m *AgentPool) processSeekEvents() {
 		case <-m.ctx.Done():
 			m.log.Debugf("Halting seek event processing (pool closing)")
 			return
+
+		// The proxy tracker has given us permission to act on a given
+		// tunnel address
 		case lease := <-m.proxyTracker.Acquire():
 			m.log.Debugf("Seeking: %+v.", lease.Key())
 			m.withLock(func() {
+				// Note that ownership of the lease is transferred to agent
+				// pool for the lifetime of the connection
 				if err := m.addAgent(lease); err != nil {
 					m.log.WithError(err).Errorf("Failed to add agent.")
 				}
@@ -267,6 +279,9 @@ func (m *AgentPool) getReverseTunnelDetails(addr utils.NetAddr) *reverseTunnelDe
 	return agents[0].reverseTunnelDetails
 }
 
+// addAgent adds a new agent to the pool. Note that ownership of the lease
+// transfers into the AgentPool, and will be released when the AgentPool
+// is done with it.
 func (m *AgentPool) addAgent(lease track.Lease) error {
 	addr := lease.Key().(utils.NetAddr)
 	agent, err := NewAgent(AgentConfig{
