@@ -22,7 +22,9 @@ const (
 	// objects.
 	DefaultImplicitRole = "default-implicit-role"
 
-	// APIDomain is a default domain name for Auth server API
+	// APIDomain is a default domain name for Auth server API. It is often
+	// used as an SNI to pass TLS handshakes regardless of the server address
+	// since we register "teleport.cluster.local" as a DNS in Certificates.
 	APIDomain = "teleport.cluster.local"
 
 	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
