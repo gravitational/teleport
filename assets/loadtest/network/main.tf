@@ -4,6 +4,14 @@ provider "google" {
   zone        = var.zone
 }
 
+terraform {
+  required_version = ">= 0.12"
+  backend "gcs" {
+    bucket  = "loadtest-tf-state"
+    prefix  = "terraform/state"
+  }
+}
+
 resource "google_compute_address" "proxy_ip" {
   name         = "proxy-ip"
   address_type = "EXTERNAL"
