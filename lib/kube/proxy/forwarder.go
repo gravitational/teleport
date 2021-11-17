@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -1110,8 +1111,8 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	req.RequestURI = req.URL.Path + "?" + req.URL.RawQuery
 
 	// We only have a direct host to provide when using local creds.
-	// Otherwise, use teleport.cluster.local to pass TLS handshake.
-	req.URL.Host = constants.APIDomain
+	// Otherwise, use kube.teleport.cluster.local to pass TLS handshake and leverage TLS Routing.
+	req.URL.Host = fmt.Sprintf("%s.%s", alpnproxy.KubeSNIPrefix, constants.APIDomain)
 	if sess.creds != nil {
 		req.URL.Host = sess.creds.targetAddr
 	}

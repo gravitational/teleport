@@ -142,7 +142,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			Component:       cfg.Component,
 			Announcer:       cfg.AuthClient,
 			GetServerInfo:   server.GetServerInfo,
-			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 			ServerTTL:       apidefaults.ServerAnnounceTTL,
 			CheckPeriod:     defaults.HeartbeatCheckPeriod,

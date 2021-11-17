@@ -36,16 +36,11 @@ const (
 		"\tcheck-reviewers \n\t checks pull request for required reviewers.\n" +
 		"\tdismiss-runs \n\t dismisses stale workflow runs for external contributors.\n"
 
-	reviewersHelp = `reviewers is a string representing a json object that maps authors to 
-	required reviewers for that author. example: "{\"author1\": [\"reviewer0\", \"reviewer1\"], \"author2\": 
-	[\"reviewer2\", \"reviewer3\"],\"*\": [\"default-reviewer0\", \"default-reviewer1\"]}"`
-
 	workflowRunTimeout = time.Minute
 )
 
 func main() {
 	var token = flag.String("token", "", "token is the Github authentication token.")
-	var reviewers = flag.String("reviewers", "", reviewersHelp)
 	flag.Parse()
 
 	if len(os.Args) < 2 {
@@ -53,10 +48,10 @@ func main() {
 	}
 	subcommand := os.Args[len(os.Args)-1]
 
-	// Cancel run if it takes longer than `workflowRunTimeout`. 
-	// Note: To re-run a job go to the Actions tab in the Github repo, 
-	// go to the run that failed, and click the `Re-run all jobs` button 
-	// in the top right corner. 
+	// Cancel run if it takes longer than `workflowRunTimeout`.
+	// Note: To re-run a job go to the Actions tab in the Github repo,
+	// go to the run that failed, and click the `Re-run all jobs` button
+	// in the top right corner.
 	ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
 	defer cancel()
 
@@ -64,7 +59,7 @@ func main() {
 	switch subcommand {
 	case ci.AssignSubcommand:
 		log.Println("Assigning reviewers.")
-		bot, err := constructBot(ctx, client, *reviewers)
+		bot, err := constructBot(ctx, client)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -75,7 +70,7 @@ func main() {
 		log.Print("Assign completed.")
 	case ci.CheckSubcommand:
 		log.Println("Checking reviewers.")
-		bot, err := constructBot(ctx, client, *reviewers)
+		bot, err := constructBot(ctx, client)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -103,9 +98,9 @@ func main() {
 	}
 }
 
-func constructBot(ctx context.Context, clt *github.Client, reviewers string) (*bots.Bot, error) {
+func constructBot(ctx context.Context, clt *github.Client) (*bots.Bot, error) {
 	env, err := environment.New(environment.Config{Client: clt,
-		Reviewers: reviewers,
+		Reviewers: ci.Reviewers,
 		Context:   ctx,
 	})
 	if err != nil {

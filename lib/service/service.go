@@ -52,6 +52,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1431,7 +1432,7 @@ func (process *TeleportProcess) initAuthService() error {
 			srv.SetExpiry(process.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 			return &srv, nil
 		},
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
@@ -2980,6 +2981,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return nil
 	})
 
+	clusterNetworkConfig, err := accessPoint.GetClusterNetworkingConfig(process.ExitContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create and register reverse tunnel AgentPool.
 	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
 		HostUUID:            conn.ServerIdentity.ID.HostUUID,
@@ -2987,7 +2993,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AccessPoint:         accessPoint,
 		HostSigner:          conn.ServerIdentity.KeySigner,
 		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-		KubeDialAddr:        utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
+		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
 	})
@@ -3243,6 +3249,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	return nil
 }
 
+// kubeDialAddr returns Proxy Kube service address used for dialing local kube service
+// by remote trusted cluster.
+// If the proxy is running with Multiplex mode the WebPort is returned
+// where connections are forwarded to kube service by ALPN SNI router.
+func kubeDialAddr(config ProxyConfig, mode types.ProxyListenerMode) utils.NetAddr {
+	if mode == types.ProxyListenerMode_Multiplex {
+		return config.WebAddr
+	}
+	return config.Kube.ListenAddr
+}
+
 func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
 	cfg := process.Config
 	var tlsConfig *tls.Config
@@ -3276,6 +3293,12 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		tlsConfig = m.TLSConfig()
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
+
+		// If ACME protocol was enabled add all known TLS Routing protocols.
+		// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
+		// the TLS handshake will fail.
+		supportedProtocols := alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)
+		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, supportedProtocols...))
 	}
 
 	for _, pair := range process.Config.Proxy.KeyPairs {

@@ -49,7 +49,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	authProcess, proxyProcess := makeTestServers(t, connector, alice)
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
 	makeTestDatabaseServer(t, authProcess, proxyProcess, service.Database{
 		Name:     "postgres",
 		Protocol: defaults.ProtocolPostgres,
