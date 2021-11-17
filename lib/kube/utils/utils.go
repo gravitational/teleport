@@ -19,6 +19,7 @@ package utils
 import (
 	"context"
 	"encoding/hex"
+	"io"
 	"sort"
 
 	"github.com/gravitational/teleport/api/types"
@@ -195,4 +196,12 @@ func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClus
 		return teleportClusterName, nil
 	}
 	return kubeClusterNames[0], nil
+}
+
+type WriterCloserWrapper struct {
+	io.Writer
+}
+
+func (w WriterCloserWrapper) Close() error {
+	return nil
 }

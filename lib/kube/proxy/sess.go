@@ -97,10 +97,14 @@ func newParty(ctx authContext, client remoteClient) *party {
 	}
 }
 
-func (p *party) Close() {
+func (p *party) Close() error {
+	var err error
+
 	p.closeOnce.Do(func() {
-		p.Client.Close()
+		err = p.Client.Close()
 	})
+
+	return trace.Wrap(err)
 }
 
 // TODO(joel): handle transition to pending on leave
@@ -115,9 +119,9 @@ type session struct {
 
 	id uuid.UUID
 
-	parties map[string]*party
+	parties map[uuid.UUID]*party
 
-	partiesHistorical map[string]*party
+	partiesHistorical map[uuid.UUID]*party
 
 	log *log.Entry
 
@@ -152,8 +156,8 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, parent
 		forwarder:         forwarder,
 		req:               req,
 		id:                id,
-		parties:           make(map[string]*party),
-		partiesHistorical: make(map[string]*party),
+		parties:           make(map[uuid.UUID]*party),
+		partiesHistorical: make(map[uuid.UUID]*party),
 		log:               log.WithField("session", id.String()),
 		clients_stdin:     utils.NewTrackingReader(kubeutils.NewMultiReader()),
 		clients_stdout:    utils.NewTrackingWriter(srv.NewMultiWriter()),
@@ -193,12 +197,62 @@ func (s *session) launch() error {
 	return nil
 }
 
-func (s *session) join(p *party) {
-	panic("not implemented")
+// TODO(joel): write to session recorder
+func (s *session) join(p *party) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stringId := p.Id.String()
+	s.parties[p.Id] = p
+	s.partiesHistorical[p.Id] = p
+	s.clients_stdin.R.(*kubeutils.MultiReader).AddReader(stringId, p.Client.stdinStream())
+
+	stdout := kubeutils.WriterCloserWrapper{Writer: p.Client.stdoutStream()}
+	s.clients_stdout.W.(*srv.MultiWriter).AddWriter(stringId, stdout, false)
+
+	stderr := kubeutils.WriterCloserWrapper{Writer: p.Client.stderrStream()}
+	s.clients_stderr.W.(*srv.MultiWriter).AddWriter(stringId, stderr, false)
+
+	canStart, err := s.canStart()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if canStart {
+		go func() {
+			if err := s.launch(); err != nil {
+				s.log.WithError(err).Warning("Failed to launch Kubernetes session.")
+			}
+		}()
+	}
+
+	return nil
 }
 
-func (s *session) leave(id uuid.UUID) {
-	panic("not implemented")
+func (s *session) leave(id uuid.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stringId := id.String()
+	party := s.parties[id]
+	delete(s.parties, id)
+	s.clients_stdin.R.(*kubeutils.MultiReader).RemoveReader(stringId)
+	s.clients_stdout.W.(*srv.MultiWriter).DeleteWriter(stringId)
+	s.clients_stderr.W.(*srv.MultiWriter).DeleteWriter(stringId)
+
+	err := party.Close()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(s.parties) == 0 {
+		err := s.Close()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 func (s *session) canStart() (bool, error) {
@@ -207,6 +261,7 @@ func (s *session) canStart() (bool, error) {
 	return yes, trace.Wrap(err)
 }
 
+// TODO(joel): disconnect parties
 func (s *session) Close() error {
 	s.closeOnce.Do(func() {
 		s.log.Infof("Closing session %v.", s.id.String)
