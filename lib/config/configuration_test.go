@@ -132,21 +132,23 @@ func TestSampleConfig(t *testing.T) {
 			expectProxyWebAddr:     "0.0.0.0:443",
 		},
 		{
-			name: "certs provided",
+			name: "public addrs",
 			input: SampleFlags{
 				PublicAddrs: []string{"tele.example.com:443"},
-				KeyFile:     "/var/lib/teleport/privkey.pem",
-				CertFile:    "/var/lib/teleport/fullchain.pem",
 			},
 			expectProxyPublicAddrs: apiutils.Strings{"tele.example.com:443"},
-			expectProxyKeyPairs: []KeyPair{KeyPair{
-				PrivateKey:  "/var/lib/teleport/privkey.pem",
-				Certificate: "/var/lib/teleport/fullchain.pem",
-			}},
 		},
 		{
 			name: "key file missing",
 			input: SampleFlags{
+				CertFile: "/var/lib/teleport/fullchain.pem",
+			},
+			expectError: true,
+		},
+		{
+			name: "load x509 key pair failed",
+			input: SampleFlags{
+				KeyFile:  "/var/lib/teleport/key.pem",
 				CertFile: "/var/lib/teleport/fullchain.pem",
 			},
 			expectError: true,
