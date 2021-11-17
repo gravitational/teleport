@@ -22,3 +22,8 @@ destroy:
 .PHONY: get-cluster-name
 get-cluster-name:
 	@terraform output -raw cluster_name
+
+# print project name
+.PHONY: get-project
+get-project:
+	@terraform output -raw project

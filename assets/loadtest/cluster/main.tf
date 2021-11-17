@@ -1,7 +1,7 @@
 provider "google" {
-  project     = var.project
-  region      = var.region
-  zone        = var.zone
+  project = var.project
+  region  = var.region
+  zone    = var.zone
 }
 
 terraform {

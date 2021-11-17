@@ -24,7 +24,7 @@ Teleports manual release test plan.
 ### Creating the Cluster
 
 First create a cluster, if you are running this automation for the first time, you may be asked to run
-`terraform init` before continuing. To resize the cluster, edit [`terraform.tfvars`](./cluster/terraform.tfvars) as needed.
+`terraform init` from the cluster directory before continuing. To resize the cluster, edit [`terraform.tfvars`](./cluster/terraform.tfvars) as needed.
 
 ```bash
 $ make create-cluster
@@ -77,11 +77,9 @@ $ make delpoy-etcd-cluster
 ### Firestore Backend
 
 To use the firestore backend you must have a GCP service account key with `Cloud Datastore User`, `Cloud Datastore Index Admin`
-`Storage Object Creator`, `Storage Object Viewer`. Set `GCP_CREDS_LOCATION` to the location that you saved the service account key. You
-must also set the `GCP_PROJECT` variable to the name of the GCP project.
+`Storage Object Creator`, `Storage Object Viewer`. Set `GCP_CREDS_LOCATION` to the location that you saved the service account key.
 
 ```bash
-$ export GCP_PROJECT=loadtest-project
 $ export GCP_CREDS_LOCATION=/path/to/service/account/key
 $ make delpoy-firestore-cluster
 ```

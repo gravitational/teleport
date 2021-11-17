@@ -1,14 +1,14 @@
 provider "google" {
-  project     = var.project
-  region      = var.region
-  zone        = var.zone
+  project = var.project
+  region  = var.region
+  zone    = var.zone
 }
 
 terraform {
   required_version = ">= 0.12"
   backend "gcs" {
-    bucket  = "loadtest-tf-state"
-    prefix  = "terraform/state"
+    bucket = "loadtest-tf-state"
+    prefix = "terraform/state"
   }
 }
 
