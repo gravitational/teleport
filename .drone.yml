@@ -1126,19 +1126,19 @@ steps:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
       # build major version images which are just teleport:x
-      CURRENT_VERSION_ROOT: v7
-      PREVIOUS_VERSION_ONE_ROOT: v6
-      PREVIOUS_VERSION_TWO_ROOT: v5
+      CURRENT_VERSION_ROOT: v8
+      PREVIOUS_VERSION_ONE_ROOT: v7
+      PREVIOUS_VERSION_TWO_ROOT: v6
     commands:
       - apk --update --no-cache add curl
       - mkdir -p /go/build && cd /go/build
-      # CURRENT_VERSION (7)
+      # CURRENT_VERSION (8)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $CURRENT_VERSION_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/CURRENT_VERSION_TAG.txt
       - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_ONE (6)
+      # PREVIOUS_VERSION_ONE (7)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_ONE_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_ONE_TAG.txt
       - echo "$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_TWO (5)
+      # PREVIOUS_VERSION_TWO (6)
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_TWO_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_TWO_TAG.txt
       - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       # list versions
@@ -2584,6 +2584,27 @@ steps:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Install Go Toolchain
+  commands:
+  - set -u
+  - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz
+  - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
+  - rm -rf $RUNTIME.darwin-amd64.tar.gz
+  environment:
+    RUNTIME: go1.17.2
+- name: Install Rust Toolchain
+  commands:
+  - set -u
+  - export PATH=/Users/build/.cargo/bin:$PATH
+  - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile
+    | cut -d= -f2)
+  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export RUST_HOME=$CARGO_HOME
+  - rustup toolchain install $RUST_VERSION
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Build Mac release artifacts
   commands:
   - set -u
@@ -2625,6 +2646,24 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Clean up toolchains (post)
+  commands:
+  - set -u
+  - export PATH=/Users/build/.cargo/bin:$PATH
+  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export RUST_HOME=$CARGO_HOME
+  - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile
+    | cut -d= -f2)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - rustup override unset
+  - rustup toolchain uninstall $RUST_VERSION
+  - rm -rf ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64
+  when:
+    status:
+    - success
+    - failure
 - name: Clean up exec runner storage (post)
   commands:
   - set -u
@@ -4286,6 +4325,49 @@ steps:
         make change-amis-to-public-ent
         make change-amis-to-public-ent-fips
 
+  # Download all previously packaged charts. This is needed to rebuild the
+  # index and re-publish the repository.
+  - name: "Helm: Download chart repository"
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+    commands:
+      - mkdir -p /go/chart
+      - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
+
+  - name: "Helm: Package chart repository"
+    image: alpine/helm:latest
+    commands:
+      - cd /go/chart
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-cluster
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-kube-agent
+      # copy index.html to root of the S3 bucket.
+      - cp /go/src/github.com/gravitational/teleport/examples/chart/index.html /go/chart
+      # this will index all previous versions of the charts downloaded from the S3 bucket,
+      # plus the just-packaged charts listed above
+      - helm repo index /go/chart
+      - ls /go/chart
+
+  - name: "Helm: Publish chart repository to S3"
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+      access_key:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+      region: us-east-2
+      acl: public-read
+      source: /go/chart/*
+      target: /
+      strip_prefix: /go/chart
+
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
   #
@@ -4461,6 +4543,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: e60dc8b2dfa64a222ba26968ddb786c484693cc1061b03b6221eaa0bede46307
+hmac: 28314d2ef716fd998f2d888cf53b403e3aa7139833d30481e7c28678f10975c3
 
 ...
