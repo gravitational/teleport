@@ -107,35 +107,94 @@ func TestMain(m *testing.M) {
 	os.Exit(res)
 }
 
-func TestConfig(t *testing.T) {
-	t.Run("SampleConfig", func(t *testing.T) {
-		// generate sample config and write it into a temp file:
-		sfc, err := MakeSampleFileConfig(SampleFlags{
-			ClusterName: "cookie.localhost",
-			ACMEEnabled: true,
-			ACMEEmail:   "alice@example.com",
-			LicensePath: "/tmp/license.pem",
+func TestSampleConfig(t *testing.T) {
+	testCases := []struct {
+		name                  string
+		input                 SampleFlags
+		expectError           bool
+		expectClusterName     ClusterName
+		expectLicenseFile     string
+		expectProxyPublicAddr apiutils.Strings
+		expectProxyWebAddr    string
+		expectProxyKeyPairs   []KeyPair
+	}{
+		{
+			name: "ACMEEnabled",
+			input: SampleFlags{
+				ClusterName: "cookie.localhost",
+				ACMEEnabled: true,
+				ACMEEmail:   "alice@example.com",
+				LicensePath: "/tmp/license.pem",
+			},
+			expectClusterName:     ClusterName("cookie.localhost"),
+			expectLicenseFile:     "/tmp/license.pem",
+			expectProxyPublicAddr: apiutils.Strings{"cookie.localhost:443"},
+			expectProxyWebAddr:    "0.0.0.0:443",
+		},
+		{
+			name: "certs provided",
+			input: SampleFlags{
+				WebAddr:    ":443",
+				PublicAddr: []string{"tele.example.com:443"},
+				KeyFile:    "/var/lib/teleport/privkey.pem",
+				CertFile:   "/var/lib/teleport/fullchain.pem",
+			},
+			expectProxyPublicAddr: apiutils.Strings{"tele.example.com:443"},
+			expectProxyWebAddr:    ":443",
+			expectProxyKeyPairs: []KeyPair{KeyPair{
+				PrivateKey:  "/var/lib/teleport/privkey.pem",
+				Certificate: "/var/lib/teleport/fullchain.pem",
+			}},
+		},
+		{
+			name: "key file missing",
+			input: SampleFlags{
+				CertFile: "/var/lib/teleport/fullchain.pem",
+			},
+			expectError: true,
+		},
+		{
+			name: "cluster name missing",
+			input: SampleFlags{
+				ACMEEnabled: true,
+			},
+			expectError: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			sfc, err := MakeSampleFileConfig(testCase.input)
+
+			if testCase.expectError {
+				require.Error(t, err)
+				require.Nil(t, sfc)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, sfc)
+
+			fn := filepath.Join(t.TempDir(), "default-config.yaml")
+			err = os.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
+			require.NoError(t, err)
+
+			// make sure it could be parsed:
+			fc, err := ReadFromFile(fn)
+			require.NoError(t, err)
+
+			// validate a couple of values:
+			require.Equal(t, fc.Global.DataDir, defaults.DataDir)
+			require.Equal(t, fc.Logger.Severity, "INFO")
+			require.Equal(t, testCase.expectClusterName, fc.Auth.ClusterName)
+			require.Equal(t, testCase.expectLicenseFile, fc.Auth.LicenseFile)
+			require.Equal(t, testCase.expectProxyWebAddr, fc.Proxy.WebAddr)
+			require.ElementsMatch(t, testCase.expectProxyPublicAddr, fc.Proxy.PublicAddr)
+			require.ElementsMatch(t, testCase.expectProxyKeyPairs, fc.Proxy.KeyPairs)
+
+			require.False(t, lib.IsInsecureDevMode())
 		})
-		require.NoError(t, err)
-		require.NotNil(t, sfc)
-		fn := filepath.Join(t.TempDir(), "default-config.yaml")
-		err = os.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
-		require.NoError(t, err)
-
-		// make sure it could be parsed:
-		fc, err := ReadFromFile(fn)
-		require.NoError(t, err)
-
-		// validate a couple of values:
-		require.Equal(t, defaults.DataDir, fc.Global.DataDir)
-		require.Equal(t, "INFO", fc.Logger.Severity)
-		require.Equal(t, fc.Auth.ClusterName, ClusterName("cookie.localhost"))
-		require.Equal(t, fc.Auth.LicenseFile, "/tmp/license.pem")
-		require.Equal(t, fc.Proxy.PublicAddr, apiutils.Strings{"cookie.localhost:443"})
-		require.Equal(t, fc.Proxy.WebAddr, "0.0.0.0:443")
-
-		require.False(t, lib.IsInsecureDevMode())
-	})
+	}
 }
 
 // TestBooleanParsing tests that boolean options

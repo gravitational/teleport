@@ -137,6 +137,14 @@ type SampleFlags struct {
 	ACMEEnabled bool
 	// Version is the Teleport Configuration version.
 	Version string
+	// WebAddr is a web UI listen address
+	WebAddr string
+	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
+	PublicAddr []string
+	// KeyFile is a TLS key file
+	KeyFile string
+	// CertFile is a TLS Certificate file
+	CertFile string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -144,6 +152,9 @@ type SampleFlags struct {
 func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	if flags.ACMEEnabled && flags.ClusterName == "" {
 		return nil, trace.BadParameter("please provide --cluster-name when using acme, for example --cluster-name=example.com")
+	}
+	if (flags.KeyFile == "") != (flags.CertFile == "") { // xor
+		return nil, trace.BadParameter("please provide both --key-file and --cert-file")
 	}
 
 	conf := service.MakeDefaultConfig()
@@ -195,6 +206,18 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
 		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
 		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
+	}
+	if flags.WebAddr != "" {
+		p.WebAddr = flags.WebAddr
+	}
+	if len(flags.PublicAddr) > 0 {
+		p.PublicAddr = apiutils.Strings(flags.PublicAddr)
+	}
+	if flags.KeyFile != "" && flags.CertFile != "" {
+		p.KeyPairs = append(p.KeyPairs, KeyPair{
+			PrivateKey:  flags.KeyFile,
+			Certificate: flags.CertFile,
+		})
 	}
 
 	fc = &FileConfig{
