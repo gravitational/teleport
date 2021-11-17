@@ -86,7 +86,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 // CompleteUpload completes the upload
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
 	start := time.Now()
-	defer func() { h.Infof("UploadPart(%v) completed in %v.", upload.ID, time.Since(start)) }()
+	defer func() { h.Infof("CompleteUpload(%v) completed in %v.", upload.ID, time.Since(start)) }()
 
 	// Parts must be sorted in PartNumber order.
 	sort.Slice(parts, func(i, j int) bool {
@@ -99,6 +99,25 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			ETag:       aws.String(parts[i].ETag),
 			PartNumber: aws.Int64(parts[i].Number),
 		}
+	}
+
+	if len(parts) == 0 {
+		// complete on a zero-part upload means that teleport created an upload, but hit some
+		// kind of unrecoverable error (e.g. crashing immediately after session start).
+		h.Warnf("Complete called on empty upload for session %q, attempting cleanup.", upload.SessionID)
+
+		params := &s3.AbortMultipartUploadInput{
+			Bucket:   aws.String(h.Bucket),
+			Key:      aws.String(h.path(upload.SessionID)),
+			UploadId: aws.String(upload.ID),
+		}
+
+		_, err := h.client.AbortMultipartUploadWithContext(ctx, params)
+		if err != nil {
+			h.WithError(err).Warnf("Cleanup failed for empty upload (sid=%q)", upload.SessionID)
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
 	params := &s3.CompleteMultipartUploadInput{
