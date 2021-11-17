@@ -14,6 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import DesktopList, { stripRdpPort } from './DesktopList';
-export { stripRdpPort };
+import DesktopList from './DesktopList';
 export default DesktopList;

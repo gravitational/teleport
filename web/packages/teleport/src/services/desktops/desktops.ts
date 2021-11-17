@@ -20,10 +20,16 @@ import cfg from 'teleport/config';
 import makeDesktop from './makeDesktop';
 
 class DesktopService {
-  fetchDesktops(clusterId?: string) {
+  fetchDesktops(clusterId: string) {
     return api
       .get(cfg.getDesktopsUrl(clusterId))
       .then(json => map(json, makeDesktop));
+  }
+
+  fetchDesktop(clusterId: string, desktopPath: string) {
+    return api
+      .get(cfg.getDesktopUrl(clusterId, desktopPath))
+      .then(json => makeDesktop(json));
   }
 }
 

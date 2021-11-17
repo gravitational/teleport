@@ -100,8 +100,9 @@ const cfg = {
     nodesPath: '/v1/webapi/sites/:clusterId/nodes',
     databasesPath: `/v1/webapi/sites/:clusterId/databases`,
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops`,
+    desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopId`,
     desktopWsAddr:
-      'wss://:fqdm/v1/webapi/sites/:clusterId/desktop/:desktopId/connect?access_token=:token',
+      'wss://:fqdm/v1/webapi/sites/:clusterId/desktops/:desktopId/connect?access_token=:token',
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     ttyWsAddr:
       'wss://:fqdm/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
@@ -310,6 +311,10 @@ const cfg = {
 
   getDesktopsUrl(clusterId: string) {
     return generatePath(cfg.api.desktopsPath, { clusterId });
+  },
+
+  getDesktopUrl(clusterId: string, desktopId: string) {
+    return generatePath(cfg.api.desktopPath, { clusterId, desktopId });
   },
 
   getApplicationsUrl(clusterId: string) {

@@ -19,8 +19,6 @@ import { useParams } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { UrlDesktopParams } from 'teleport/config';
 import Ctx from 'teleport/teleportContext';
-import { Desktop } from 'teleport/services/desktops';
-import { stripRdpPort } from '../Desktops/DesktopList';
 import { useTdpClientCanvas } from './TdpClientCanvas';
 
 export default function useDesktopSession(ctx: Ctx) {
@@ -39,18 +37,12 @@ export default function useDesktopSession(ctx: Ctx) {
     hostname,
   ]);
 
-  // creates hostname string from list of desktops based on url's desktopId
-  const makeHostname = (desktops: Desktop[]) => {
-    const desktop = desktops.find(d => d.name === desktopId);
-    if (!desktop) {
-      // throw error here so that runFetchDesktopAttempt knows to set the attempt to failed
-      throw new Error('Desktop not found');
-    }
-    setHostname(stripRdpPort(desktop.addr));
-  };
-
   useEffect(() => {
-    run(() => ctx.desktopService.fetchDesktops(clusterId).then(makeHostname));
+    run(() =>
+      ctx.desktopService
+        .fetchDesktop(clusterId, desktopId)
+        .then(desktop => setHostname(desktop.addr))
+    );
   }, [clusterId, desktopId]);
 
   return {

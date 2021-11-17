@@ -108,19 +108,10 @@ function DesktopList(props: Props) {
   );
 }
 
-// Strips default rdp port from an ip address since this unimportant to display
-export const stripRdpPort = (addr: string): string => {
-  const splitAddr = addr.split(':');
-  if (splitAddr.length > 1 && splitAddr[1] === '3389') {
-    return splitAddr[0];
-  }
-  return addr;
-};
-
 const AddressCell = props => {
   // If default RDP port (3389) is present, don't show it
   const { rowIndex, data, columnKey, ...rest } = props;
-  const addr = stripRdpPort(data[rowIndex][columnKey]);
+  const addr = data[rowIndex][columnKey];
 
   return <Cell {...rest}>{addr}</Cell>;
 };
