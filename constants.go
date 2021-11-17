@@ -346,6 +346,9 @@ const (
 	// Insecure is an optional switch to use HTTP instead of HTTPS
 	Insecure = "insecure"
 
+	// ACL is the canned ACL to send to S3
+	ACL = "acl"
+
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption = "disablesse"
 

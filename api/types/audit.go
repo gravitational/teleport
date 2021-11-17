@@ -67,9 +67,6 @@ type ClusterAuditConfig interface {
 	WriteMinCapacity() int64
 	// WriteTargetValue is the ratio of consumed write to provisioned capacity.
 	WriteTargetValue() float64
-	// BucketOwnerFullControl is used to enable the S3 bucket owner to take control of audit
-	// session objects uploaded to it.
-	BucketOwnerFullControl() bool
 }
 
 // NewClusterAuditConfig is a convenience method to to create ClusterAuditConfigV2.

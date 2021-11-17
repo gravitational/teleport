@@ -48,8 +48,8 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 	if !h.Config.DisableServerSideEncryption {
 		input.ServerSideEncryption = aws.String(s3.ServerSideEncryptionAwsKms)
 	}
-	if h.Config.BucketOwnerFullControl {
-		input.ACL = aws.String("bucket-owner-full-control")
+	if h.Config.ACL != "" {
+		input.ACL = aws.String(h.Config.ACL)
 	}
 
 	resp, err := h.client.CreateMultipartUploadWithContext(ctx, input)
