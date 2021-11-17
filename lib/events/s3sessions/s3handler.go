@@ -54,7 +54,7 @@ type Config struct {
 	Insecure bool
 	//DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
-	// ACL is canned ACL
+	// ACL is the canned ACL to send to S3
 	ACL string
 	// Session is an optional existing AWS client session
 	Session *awssession.Session
