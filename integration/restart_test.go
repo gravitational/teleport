@@ -58,7 +58,7 @@ func TestLostConnectionToAuthCausesReload(t *testing.T) {
 		HostID:      "auth",
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Ports:       standardPortSetup(),
+		Ports:       ports.PopIntSlice(6),
 		log:         log,
 	})
 
