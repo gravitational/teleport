@@ -109,13 +109,13 @@ type Session struct {
 	ClusterName string `json:"cluster_name"`
 }
 
-// Users returns a list of users involved in this session as strings.
-func (s *Session) Users() []string {
-	users := make([]string, 0, len(s.Parties))
+// Participants returns the usernames of the current session participants.
+func (s *Session) Participants() []string {
+	participants := make([]string, 0, len(s.Parties))
 	for _, p := range s.Parties {
-		users = append(users, p.User)
+		participants = append(participants, p.User)
 	}
-	return users
+	return participants
 }
 
 // RemoveParty helper allows to remove a party by it's ID from the
@@ -316,7 +316,7 @@ func (s *server) GetSessions(namespace string, cond *types.WhereExpr) ([]Session
 				return nil, trace.Wrap(err)
 			}
 			// Replace the Party structs with names of the involved users.
-			fields["parties"] = session.Users()
+			fields["participants"] = session.Participants()
 			// Omit this session if it does not satisfy the where condition.
 			if !(*fieldsCond)(fields) {
 				continue

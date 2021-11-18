@@ -51,7 +51,7 @@ func TestAPIServer_ActiveSessions_whereConditions(t *testing.T) {
 	alpacaRole.SetRules(types.Deny, append(alpacaRole.GetRules(types.Deny), types.Rule{
 		Resources: []string{"ssh_session"},
 		Verbs:     []string{"list", "read", "update", "delete"},
-		Where:     "!contains(ssh_session.parties, user.metadata.name)",
+		Where:     "!contains(ssh_session.participants, user.metadata.name)",
 	}))
 	_, err := CreateUser(authServer, alpaca, alpacaRole)
 	require.NoError(t, err)

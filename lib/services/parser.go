@@ -267,9 +267,8 @@ type ctxSession struct {
 	ServerAddr string `json:"server_addr"`
 	// ClusterName is the name of cluster that this session belongs to.
 	ClusterName string `json:"cluster_name"`
-	// Parties is a list of session participants expressed as usernames.
-	// Changed from a []session.Party in the original session.Session.
-	Parties []string `json:"parties"`
+	// Participants is a list of session participants expressed as usernames.
+	Participants []string `json:"participants"`
 }
 
 func toCtxSession(s *session.Session) ctxSession {
@@ -285,7 +284,7 @@ func toCtxSession(s *session.Session) ctxSession {
 		ServerHostname: s.ServerHostname,
 		ServerAddr:     s.ServerAddr,
 		ClusterName:    s.ClusterName,
-		Parties:        s.Users(),
+		Participants:   s.Participants(),
 	}
 }
 
