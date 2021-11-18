@@ -25,11 +25,11 @@ export default function useDesktopSession(ctx: Ctx) {
   // Tracks combination of tdpclient/websocket and api call state,
   // as well as whether the tdp client for this session was intentionally disconnected.
   const { attempt: fetchAttempt, run } = useAttempt('processing');
-  const { username, desktopId, clusterId } = useParams<UrlDesktopParams>();
+  const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
   const [hostname, setHostname] = useState<string>('');
   const clientCanvasProps = useTdpClientCanvas({
     username,
-    desktopId,
+    desktopName,
     clusterId,
   });
 
@@ -40,10 +40,10 @@ export default function useDesktopSession(ctx: Ctx) {
   useEffect(() => {
     run(() =>
       ctx.desktopService
-        .fetchDesktop(clusterId, desktopId)
+        .fetchDesktop(clusterId, desktopName)
         .then(desktop => setHostname(desktop.addr))
     );
-  }, [clusterId, desktopId]);
+  }, [clusterId, desktopName]);
 
   return {
     hostname,

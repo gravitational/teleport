@@ -23,7 +23,7 @@ import { ButtonState, ScrollAxis } from 'teleport/lib/tdp/codec';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 export default function useTdpClientCanvas(props: Props) {
-  const { username, desktopId, clusterId } = props;
+  const { username, desktopName, clusterId } = props;
   // status === '' means disconnected
   const {
     attempt: connectionAttempt,
@@ -35,11 +35,11 @@ export default function useTdpClientCanvas(props: Props) {
     const addr = cfg.api.desktopWsAddr
       .replace(':fqdm', getHostName())
       .replace(':clusterId', clusterId)
-      .replace(':desktopId', desktopId)
+      .replace(':desktopName', desktopName)
       .replace(':token', getAccessToken());
 
     return new TdpClient(addr, username);
-  }, [clusterId, username, desktopId]);
+  }, [clusterId, username, desktopName]);
 
   const syncCanvasSizeToClientSize = (canvas: HTMLCanvasElement) => {
     // Calculate the size of the canvas to be displayed.
@@ -143,6 +143,6 @@ export default function useTdpClientCanvas(props: Props) {
 
 type Props = {
   username: string;
-  desktopId: string;
+  desktopName: string;
   clusterId: string;
 };

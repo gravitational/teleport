@@ -32,17 +32,17 @@ export default function useDesktops(ctx: Ctx) {
 
   const [desktops, setDesktops] = useState<Desktop[]>([]);
 
-  const getWindowsLoginOptions = (desktopId: string) =>
-    makeOptions(clusterId, desktopId, windowsLogins);
+  const getWindowsLoginOptions = (desktopName: string) =>
+    makeOptions(clusterId, desktopName, windowsLogins);
 
   useEffect(() => {
     run(() => ctx.desktopService.fetchDesktops(clusterId).then(setDesktops));
   }, [clusterId]);
 
-  const openRemoteDesktopTab = (username: string, desktopId: string) => {
+  const openRemoteDesktopTab = (username: string, desktopName: string) => {
     const url = cfg.getDesktopRoute({
       clusterId,
-      desktopId,
+      desktopName,
       username,
     });
 
@@ -63,13 +63,13 @@ export default function useDesktops(ctx: Ctx) {
 
 function makeOptions(
   clusterId: string,
-  desktopId = '',
+  desktopName = '',
   logins = [] as string[]
 ) {
   return logins.map(username => {
     const url = cfg.getDesktopRoute({
       clusterId,
-      desktopId,
+      desktopName,
       username,
     });
 

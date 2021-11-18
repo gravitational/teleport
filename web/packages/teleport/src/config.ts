@@ -59,7 +59,7 @@ const cfg = {
     recordings: '/web/cluster/:clusterId/recordings',
     databases: '/web/cluster/:clusterId/databases',
     desktops: '/web/cluster/:clusterId/desktops',
-    desktop: '/web/cluster/:clusterId/desktops/:desktopId/:username',
+    desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
@@ -100,9 +100,9 @@ const cfg = {
     nodesPath: '/v1/webapi/sites/:clusterId/nodes',
     databasesPath: `/v1/webapi/sites/:clusterId/databases`,
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops`,
-    desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopId`,
+    desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdm/v1/webapi/sites/:clusterId/desktops/:desktopId/connect?access_token=:token',
+      'wss://:fqdm/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token',
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     ttyWsAddr:
       'wss://:fqdm/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
@@ -235,10 +235,10 @@ const cfg = {
     });
   },
 
-  getDesktopRoute({ clusterId, username, desktopId }) {
+  getDesktopRoute({ clusterId, username, desktopName }) {
     return generatePath(cfg.routes.desktop, {
       clusterId,
-      desktopId,
+      desktopName,
       username,
     });
   },
@@ -313,8 +313,8 @@ const cfg = {
     return generatePath(cfg.api.desktopsPath, { clusterId });
   },
 
-  getDesktopUrl(clusterId: string, desktopId: string) {
-    return generatePath(cfg.api.desktopPath, { clusterId, desktopId });
+  getDesktopUrl(clusterId: string, desktopName: string) {
+    return generatePath(cfg.api.desktopPath, { clusterId, desktopName });
   },
 
   getApplicationsUrl(clusterId: string) {
@@ -421,10 +421,10 @@ export interface UrlPlayerParams {
   sid: string;
 }
 
-// /web/cluster/:clusterId/desktops/:desktopId/:username
+// /web/cluster/:clusterId/desktops/:desktopName/:username
 export interface UrlDesktopParams {
   username?: string;
-  desktopId?: string;
+  desktopName?: string;
   clusterId: string;
 }
 
