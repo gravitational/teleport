@@ -327,6 +327,8 @@ github.com/gogo/protobuf/types
 # github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
 ## explicit
 github.com/gokyle/hotp
+# github.com/golang-jwt/jwt v3.2.2+incompatible
+## explicit
 # github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
 ## explicit
 github.com/golang/groupcache/lru
@@ -439,7 +441,7 @@ github.com/gravitational/teleport/api/utils
 github.com/gravitational/teleport/api/utils/keypaths
 github.com/gravitational/teleport/api/utils/sshutils
 github.com/gravitational/teleport/api/utils/tlsutils
-# github.com/gravitational/trace v1.1.16-0.20210617142343-5335ac7a6c19
+# github.com/gravitational/trace v1.1.16-0.20211111002323-2897205b8d7f
 ## explicit
 github.com/gravitational/trace
 github.com/gravitational/trace/internal
@@ -509,7 +511,7 @@ github.com/klauspost/compress/huff0
 github.com/klauspost/compress/snappy
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/kr/pretty v0.2.1
+# github.com/kr/pretty v0.3.0
 ## explicit; go 1.12
 github.com/kr/pretty
 # github.com/kr/pty v1.1.8
@@ -618,12 +620,15 @@ github.com/prometheus/procfs/internal/util
 # github.com/rivo/uniseg v0.2.0
 ## explicit; go 1.12
 github.com/rivo/uniseg
-# github.com/russellhaering/gosaml2 v0.6.0
+# github.com/rogpeppe/go-internal v1.8.0
+## explicit; go 1.11
+github.com/rogpeppe/go-internal/fmtsort
+# github.com/russellhaering/gosaml2 v0.6.1-0.20210916051624-757d23f1bc28
 ## explicit; go 1.13
 github.com/russellhaering/gosaml2
 github.com/russellhaering/gosaml2/types
 github.com/russellhaering/gosaml2/uuid
-# github.com/russellhaering/goxmldsig v1.1.0
+# github.com/russellhaering/goxmldsig v1.1.1
 ## explicit; go 1.15
 github.com/russellhaering/goxmldsig
 github.com/russellhaering/goxmldsig/etreeutils
