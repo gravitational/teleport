@@ -1333,7 +1333,7 @@ func (s *APIServer) getSessions(auth ClientI, w http.ResponseWriter, r *http.Req
 	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	sessions, err := auth.GetSessions(namespace, nil)
+	sessions, err := auth.GetSessions(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

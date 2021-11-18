@@ -114,7 +114,7 @@ func TestAPIServer_activeSessions_whereConditions(t *testing.T) {
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				sessions, err := test.clt.GetSessions(apidefaults.Namespace, nil /* cond */)
+				sessions, err := test.clt.GetSessions(apidefaults.Namespace)
 				require.NoError(t, err)
 
 				got := make([]session.ID, len(sessions))

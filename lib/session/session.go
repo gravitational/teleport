@@ -238,7 +238,7 @@ const MaxSessionSliceLength = 1000
 type Service interface {
 	// GetSessions returns a list of currently active sessions matching
 	// the given condition.
-	GetSessions(namespace string, cond *types.WhereExpr) ([]Session, error)
+	GetSessions(namespace string) ([]Session, error)
 
 	// GetSession returns a session with it's parties by ID.
 	GetSession(namespace string, id ID) (*Session, error)
@@ -284,7 +284,7 @@ func activeKey(namespace string, key string) []byte {
 
 // GetSessions returns a list of active sessions.
 // Returns an empty slice if no sessions are active
-func (s *server) GetSessions(namespace string, _ *types.WhereExpr) ([]Session, error) {
+func (s *server) GetSessions(namespace string) ([]Session, error) {
 	prefix := activePrefix(namespace)
 	result, err := s.bk.GetRange(context.TODO(), prefix, backend.RangeEnd(prefix), MaxSessionSliceLength)
 	if err != nil {
@@ -464,7 +464,7 @@ func NewDiscardSessionServer() Service {
 }
 
 // GetSessions returns an empty list of sessions.
-func (d *discardSessionServer) GetSessions(namespace string, cond *types.WhereExpr) ([]Session, error) {
+func (d *discardSessionServer) GetSessions(namespace string) ([]Session, error) {
 	return []Session{}, nil
 }
 

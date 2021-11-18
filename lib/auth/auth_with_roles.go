@@ -258,13 +258,13 @@ func (a *ServerWithRoles) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHL
 	return a.authServer.AuthenticateSSHUser(req)
 }
 
-func (a *ServerWithRoles) GetSessions(namespace string, _ *types.WhereExpr) ([]session.Session, error) {
+func (a *ServerWithRoles) GetSessions(namespace string) ([]session.Session, error) {
 	cond, err := a.actionForListWithCondition(namespace, types.KindSSHSession, services.SSHSessionIdentifier)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sessions, err := a.sessions.GetSessions(namespace, nil)
+	sessions, err := a.sessions.GetSessions(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
