@@ -1130,6 +1130,19 @@ func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 	return resp, nil
 }
 
+// GetInvalidRole returns a potentially-invalid role by name.
+// Most callers should use GetRole instead.
+func (c *Client) GetInvalidRole(ctx context.Context, name string) (types.Role, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing name")
+	}
+	resp, err := c.grpc.GetInvalidRole(ctx, &proto.GetRoleRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
 // GetRoles returns a list of roles
 func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	resp, err := c.grpc.GetRoles(ctx, &empty.Empty{}, c.callOpts...)

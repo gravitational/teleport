@@ -1589,6 +1589,24 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	return downgraded, nil
 }
 
+// GetInvalidRole retrieves a potentially-invalid role by name.
+// Most callers should use GetRole instead.
+func (g *GRPCServer) GetInvalidRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV4, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role, err := auth.ServerWithRoles.GetInvalidRole(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleV4, ok := role.(*types.RoleV4)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected role type")
+	}
+	return roleV4, nil
+}
+
 // GetRoles retrieves all roles.
 func (g *GRPCServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRolesResponse, error) {
 	auth, err := g.authenticate(ctx)

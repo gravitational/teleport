@@ -1977,6 +1977,20 @@ func (s SortedRoles) Swap(i, j int) {
 
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
+	role, err := UnmarshalInvalidRole(bytes, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := ValidateRole(role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return role, nil
+}
+
+// UnmarshalInvalidRole unmarshals a Role resource from JSON *without*
+// validation.
+// Most callers should use UnmarshalRole.
+func UnmarshalInvalidRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
@@ -1990,18 +2004,13 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 
 	switch h.Version {
 	case types.V4:
-		// V4 roles are identical to V3 except for their defaults
+		// V4 roles are identical to V3 except for their defaults.
 		fallthrough
 	case types.V3:
 		var role types.RoleV4
 		if err := utils.FastUnmarshal(bytes, &role); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-
-		if err := ValidateRole(&role); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		if cfg.ID != 0 {
 			role.SetResourceID(cfg.ID)
 		}

@@ -42,6 +42,15 @@ type Access interface {
 	DeleteAllRoles() error
 	// GetRole returns role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
+	// GetInvalidRole is an alternate version of GetRole that returns a role
+	// *regardless* of it being valid.
+	// An invalid role may be present in the system due to a Teleport version
+	// downgrade, for example. In this scenario, GetInvalidRole allows admins to
+	// read the bad role and attempt to fix it, without interfering with other
+	// parts of Teleport.
+	// Most callers should use GetRole. Do not use this without an outstanding
+	// reason to do so.
+	GetInvalidRole(ctx context.Context, name string) (types.Role, error)
 	// DeleteRole deletes role by name.
 	DeleteRole(ctx context.Context, name string) error
 
@@ -50,7 +59,7 @@ type Access interface {
 	UpsertLock(context.Context, types.Lock) error
 	// DeleteLock deletes a lock.
 	DeleteLock(context.Context, string) error
-	// DeleteLock deletes all/in-force locks.
+	// DeleteAllLocks deletes all/in-force locks.
 	DeleteAllLocks(context.Context) error
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error

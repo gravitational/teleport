@@ -135,6 +135,23 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
+// GetInvalidRole returns a potentially-invalid role by name.
+// Most callers should use GetRole instead.
+func (s *AccessService) GetInvalidRole(ctx context.Context, name string) (types.Role, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing role name")
+	}
+	item, err := s.Get(ctx, backend.Key(rolesPrefix, name, paramsPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("role %v is not found", name)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalInvalidRole(item.Value,
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+}
+
 // DeleteRole deletes a role from the backend
 func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {

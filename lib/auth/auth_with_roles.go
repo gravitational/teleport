@@ -2149,6 +2149,20 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 	return a.authServer.GetRole(ctx, name)
 }
 
+// GetInvalidRole returns a potentially-invalid role by name.
+// Most callers should use GetRole instead.
+func (a *ServerWithRoles) GetInvalidRole(ctx context.Context, name string) (types.Role, error) {
+	// Current-user exception: we always allow users to read roles
+	// that they hold.  This requirement is checked first to avoid
+	// misleading denial messages in the logs.
+	if !apiutils.SliceContainsStr(a.context.User.GetRoles(), name) {
+		if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return a.authServer.GetInvalidRole(ctx, name)
+}
+
 // DeleteRole deletes role by name
 func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbDelete); err != nil {
