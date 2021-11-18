@@ -93,17 +93,11 @@ Generate a configuration file for Teleport using `teleport configure`.
   Configure teleport:
 
   ```code
-  $ sudo teleport configure --cluster-name=tele.example.com -o file
-  $ sed -i '/^\s*https_keypairs/d' /etc/teleport.yaml
-  # Replace `tele.example.com` with your domain name.
-  $ export TELEPORT_PUBLIC_DNS_NAME="tele.example.com"
-  $ cat >> /etc/teleport.yaml <<EOF
-    public_addr: $TELEPORT_PUBLIC_DNS_NAME:443
-    web_listen_addr: 0.0.0.0:443
-    https_keypairs:
-    - key_file: /var/lib/teleport/privkey.pem
-      cert_file: /var/lib/teleport/fullchain.pem
-  EOF
+  $ sudo teleport configure -o file \
+      --cluster-name=tele.example.com \
+      --public-addr=tele.example.com:443 \
+      --cert-file=/var/lib/teleport/fullchain.pem \
+      --key-file=/var/lib/teleport/privkey.pem
   ```
   </TabItem>
 
