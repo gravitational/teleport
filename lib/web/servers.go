@@ -88,9 +88,9 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	desktopUUID := p.ByName("desktopUUID")
+	desktopName := p.ByName("desktopName")
 
-	windowsDesktop, err := clt.GetWindowsDesktop(r.Context(), desktopUUID)
+	windowsDesktop, err := clt.GetWindowsDesktop(r.Context(), desktopName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
