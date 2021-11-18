@@ -47,8 +47,8 @@ is given an [`AuditWriter`](https://github.com/gravitational/teleport/blob/bfe7f
 
 ```go
 printEvent := SessionPrint {
-	// Metadata is a common event metadata
-	Metadata: {
+  // Metadata is a common event metadata
+  Metadata: {
     // Index is a monotonicaly incremented index in the event sequence
     Index: 10 // AuditWriter.eventIndex++
     // Type is the event type
@@ -62,17 +62,17 @@ printEvent := SessionPrint {
     // ClusterName identifies the originating teleport cluster
     ClusterName: "cluster-name"
   }
-	// ChunkIndex is a monotonicaly incremented index for ordering print events
-	ChunkIndex: 0
-	// Data is data transferred, it is not marshaled to JSON format
-	Data: []byte{0, 1, 0, 6, 4, 3}
-	// Bytes says how many bytes have been written into the session
-	// during "print" event
-	Bytes: 6
-	// DelayMilliseconds is the delay in milliseconds from the start of the session
-	DelayMilliseconds: 5000
-	// Offset is the offset in bytes in the session file
-	Offset: 100
+  // ChunkIndex is a monotonicaly incremented index for ordering print events
+  ChunkIndex: 0
+  // Data is data transferred, it is not marshaled to JSON format
+  Data: []byte{0, 1, 0, 6, 4, 3}
+  // Bytes says how many bytes have been written into the session
+  // during "print" event
+  Bytes: 6
+  // DelayMilliseconds is the delay in milliseconds from the start of the session
+  DelayMilliseconds: 5000
+  // Offset is the offset in bytes in the session file
+  Offset: 100
 }
 ```
 
@@ -156,8 +156,8 @@ TODO: presumably this was pieced together by appending the `Data` fields in each
 
 ```go
 printEvent := SessionPrint {
-	// Metadata is a common event metadata
-	Metadata: {
+  // Metadata is a common event metadata
+  Metadata: {
     // Index is a monotonicaly incremented index in the event sequence
     Index: 10 // AuditWriter.eventIndex++
     // Type is the event type
@@ -171,17 +171,17 @@ printEvent := SessionPrint {
     // ClusterName identifies the originating teleport cluster
     ClusterName: "cluster-name"
   }
-	// ChunkIndex is a monotonicaly incremented index for ordering print events
-	ChunkIndex: 0
-	// Data is data transferred, it is not marshaled to JSON format
-	Data: []byte{0, 1, 0, 6, 4, 3}
-	// Bytes says how many bytes have been written into the session
-	// during "print" event
-	Bytes: 6
-	// DelayMilliseconds is the delay in milliseconds from the start of the session
-	DelayMilliseconds: 5000
-	// Offset is the offset in bytes in the session file
-	Offset: 100
+  // ChunkIndex is a monotonicaly incremented index for ordering print events
+  ChunkIndex: 0
+  // Data is data transferred, it is not marshaled to JSON format
+  Data: []byte{0, 1, 0, 6, 4, 3}
+  // Bytes says how many bytes have been written into the session
+  // during "print" event
+  Bytes: 6
+  // DelayMilliseconds is the delay in milliseconds from the start of the session
+  DelayMilliseconds: 5000
+  // Offset is the offset in bytes in the session file
+  Offset: 100
 }
 ```
 
