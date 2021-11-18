@@ -1549,6 +1549,10 @@ service AuthService {
 
     // GetRole retrieves a role described by the given request.
     rpc GetRole(GetRoleRequest) returns (types.RoleV4);
+    // GetInvalidRole retrieves a potentially-invalid role described by the
+    // given request.
+    // Most callers should use GetRole instead.
+    rpc GetInvalidRole(GetRoleRequest) returns (types.RoleV4);
     // GetRole retrieves all roles.
     rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
     // UpsertRole upserts a role in a backend.
