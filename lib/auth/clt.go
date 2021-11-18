@@ -305,8 +305,8 @@ func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	return &re, nil
 }
 
-// GetSessions returns a list of active sessions in the cluster
-// as reported by auth server
+// GetSessions returns a list of active sessions in the cluster as reported by
+// the auth server.
 func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
