@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAPIServer_ActiveSessions_whereConditions(t *testing.T) {
+func TestAPIServer_activeSessions_whereConditions(t *testing.T) {
 	t.Parallel()
 
 	tlsServer := newTestTLSServer(t)

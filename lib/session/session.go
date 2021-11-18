@@ -30,8 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
 	"github.com/pborman/uuid"
@@ -284,49 +282,24 @@ func activeKey(namespace string, key string) []byte {
 	return backend.Key("namespaces", namespace, "sessions", "active", key)
 }
 
-// GetSessions returns a list of active sessions. Returns an empty slice
-// if no sessions are active
-func (s *server) GetSessions(namespace string, cond *types.WhereExpr) ([]Session, error) {
-	var fieldsCond *utils.FieldsCondition
-	if cond != nil {
-		convertedCond, err := utils.ToFieldsCondition(cond)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		fieldsCond = &convertedCond
-	}
-
+// GetSessions returns a list of active sessions.
+// Returns an empty slice if no sessions are active
+func (s *server) GetSessions(namespace string, _ *types.WhereExpr) ([]Session, error) {
 	prefix := activePrefix(namespace)
 	result, err := s.bk.GetRange(context.TODO(), prefix, backend.RangeEnd(prefix), MaxSessionSliceLength)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make(Sessions, 0, len(result.Items))
 
-	for i := range result.Items {
-		val := result.Items[i].Value
-		var session Session
-		if err := json.Unmarshal(val, &session); err != nil {
+	sessions := make(Sessions, len(result.Items))
+	for i, item := range result.Items {
+		if err := json.Unmarshal(item.Value, &sessions[i]); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if fieldsCond != nil {
-			var fields utils.Fields
-			if err := json.Unmarshal(val, &fields); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			// Replace the Party structs with names of the involved users.
-			fields["participants"] = session.Participants()
-			// Omit this session if it does not satisfy the where condition.
-			if !(*fieldsCond)(fields) {
-				continue
-			}
-		}
-
-		out = append(out, session)
 	}
-	sort.Stable(out)
-	return out, nil
+
+	sort.Stable(sessions)
+	return sessions, nil
 }
 
 // Sessions type is created over []Session to implement sort.Interface to

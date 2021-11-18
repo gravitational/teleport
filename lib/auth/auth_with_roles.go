@@ -258,18 +258,31 @@ func (a *ServerWithRoles) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHL
 	return a.authServer.AuthenticateSSHUser(req)
 }
 
-func (a *ServerWithRoles) GetSessions(namespace string, cond *types.WhereExpr) ([]session.Session, error) {
-	if cond != nil {
-		return nil, trace.BadParameter("cond is an internal parameter, should not be set by client")
-	}
-
-	var err error
-	cond, err = a.actionForListWithCondition(namespace, types.KindSSHSession, services.SSHSessionIdentifier)
+func (a *ServerWithRoles) GetSessions(namespace string, _ *types.WhereExpr) ([]session.Session, error) {
+	cond, err := a.actionForListWithCondition(namespace, types.KindSSHSession, services.SSHSessionIdentifier)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.sessions.GetSessions(namespace, cond)
+	sessions, err := a.sessions.GetSessions(namespace, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cond == nil {
+		return sessions, nil
+	}
+
+	// Filter sessions according to cond.
+	filteredSessions := make([]session.Session, 0, len(sessions))
+	ruleCtx := &services.Context{User: a.context.User}
+	for _, s := range sessions {
+		ruleCtx.SSHSession = &s
+		if err := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, types.KindSSHSession, types.VerbList, true /* silent */); err != nil {
+			continue
+		}
+		filteredSessions = append(filteredSessions, s)
+	}
+	return filteredSessions, nil
 }
 
 func (a *ServerWithRoles) GetSession(namespace string, id session.ID) (*session.Session, error) {
