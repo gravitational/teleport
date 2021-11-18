@@ -30,8 +30,15 @@ import (
 
 // Check checks if all the reviewers have approved the pull request in the current context.
 func (c *Bot) Check(ctx context.Context) error {
-	pr := c.Environment.Metadata
-	if c.Environment.IsInternal(pr.Author) {
+	author := c.Environment.Metadata.Author
+	// Assign reviewers that may have not been assigned by the assign workflow.
+	// Github requests the diff who the bot is requesting and who was already
+	// requested.
+	err := c.Assign(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if c.Environment.IsInternal(author) {
 		return c.checkInternal(ctx)
 	}
 	return c.checkExternal(ctx)
