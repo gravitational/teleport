@@ -1093,12 +1093,14 @@ message KubeRequest {
 // AppMetadata contains common application information.
 message AppMetadata {
     // AppURI is the application endpoint.
-    string AppURI = 1 [ (gogoproto.jsontag) = "app_uri" ];
+    string AppURI = 1 [ (gogoproto.jsontag) = "app_uri,omitempty" ];
     // AppPublicAddr is the configured application public address.
     string AppPublicAddr = 2 [ (gogoproto.jsontag) = "app_public_addr,omitempty" ];
     // AppLabels are the configured application labels.
     map<string, string> AppLabels = 3
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "app_labels,omitempty" ];
+    // AppName is the configured application name.
+    string AppName = 4 [ (gogoproto.jsontag) = "app_name,omitempty" ];
 }
 
 // AppCreate is emitted when a new application resource is created.
@@ -1169,7 +1171,12 @@ message AppSessionStart {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
     // PublicAddr is the public address of the application being requested.
-    string PublicAddr = 7 [ (gogoproto.jsontag) = "public_addr" ];
+    // DELETE IN 10.0: this information is also present on the AppMetadata.
+    string PublicAddr = 7 [ (gogoproto.jsontag) = "public_addr", deprecated = true ];
+
+    // App is a common application resource metadata.
+    AppMetadata App = 8
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // AppSessionChunk is emitted at the start of a 5 minute chunk on each
@@ -1199,6 +1206,10 @@ message AppSessionChunk {
     // SessionChunkID is the ID of the session that was created for this 5 minute
     // application log chunk.
     string SessionChunkID = 6 [ (gogoproto.jsontag) = "session_chunk_id" ];
+
+    // App is a common application resource metadata.
+    AppMetadata App = 7
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // AppSessionRequest is an HTTP request and response.
@@ -1215,6 +1226,9 @@ message AppSessionRequest {
     string RawQuery = 4 [ (gogoproto.jsontag) = "raw_query" ];
     // Method is the request HTTP method, like GET/POST/DELETE/etc.
     string Method = 5 [ (gogoproto.jsontag) = "method" ];
+    // App is a common application resource metadata.
+    AppMetadata App = 6
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // DatabaseMetadata contains common database information.

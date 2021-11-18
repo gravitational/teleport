@@ -65,6 +65,8 @@ type TestAuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
+	// Streamer allows a test to set its own audit events streamer.
+	Streamer events.Streamer
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -230,6 +232,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		Access:                 access,
 		Identity:               identity,
 		AuditLog:               srv.AuditLog,
+		Streamer:               cfg.Streamer,
 		SkipPeriodicOperations: true,
 		Emitter:                localLog,
 	}, WithClock(cfg.Clock))
