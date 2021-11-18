@@ -484,16 +484,9 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 }
 
 func migrateLegacyResources(ctx context.Context, asrv *Server) error {
-	err := migrateRemoteClusters(ctx, asrv)
-	if err != nil {
+	if err := migrateRemoteClusters(ctx, asrv); err != nil {
 		return trace.Wrap(err)
 	}
-
-	err = migrateRoleOptions(ctx, asrv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := migrateCertAuthorities(ctx, asrv); err != nil {
 		return trace.Wrap(err, "fail to migrate certificate authorities to the v7 storage format: %v; please report this at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md including the *redacted* output of 'tctl get cert_authority'", err)
 	}
@@ -993,32 +986,6 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 			}
 		}
 		log.Infof("Migrations: added remote cluster resource for cert authority %q.", certAuthority.GetName())
-	}
-
-	return nil
-}
-
-// DELETE IN: 4.3.0.
-// migrateRoleOptions adds the "enhanced_recording" option to all roles.
-func migrateRoleOptions(ctx context.Context, asrv *Server) error {
-	roles, err := asrv.GetRoles(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, role := range roles {
-		options := role.GetOptions()
-		if options.BPF == nil {
-			log.Debugf("Migrating role %v. Added default enhanced events.", role.GetName())
-			options.BPF = apidefaults.EnhancedEvents()
-		} else {
-			continue
-		}
-		role.SetOptions(options)
-		err := asrv.UpsertRole(ctx, role)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	return nil
