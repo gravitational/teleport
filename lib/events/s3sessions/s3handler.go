@@ -86,6 +86,9 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 		s.DisableServerSideEncryption = disableServerSideEncryption
 	}
 	if acl := in.Query().Get(teleport.ACL); acl != "" {
+		if _, ok := teleport.S3AllowedACL[acl]; !ok {
+			return trace.BadParameter("failed to parse URI %q flag %q - %q is not a valid canned ACL", in.String(), teleport.ACL, acl)
+		}
 		s.ACL = acl
 	}
 	s.Region = region
