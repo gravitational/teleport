@@ -127,7 +127,82 @@ $SESSION_ID-0.chunks.gz
 $SESSION_ID-0.events.gz
 ```
 
-<!-- TODO inspect these files for clues, then contact Sasha/rj/bj for help -->
+`$SESSION_ID.tar` is the file in `$DATA_DIR/log/records/$SESSION_ID.tar`, copied over.
+
+`$SESSION_ID.index` looks like
+
+```
+{"file_name":"$SESSION_ID.events.gz","type":"events","index":0,"offset":0}
+{"file_name":"$SESSION_ID.chunks.gz","type":"chunks","index":0,"offset":0}
+```
+
+TODO: presumably this is useful in the case of a long playback that gets broken up into many chunks.
+
+`$SESSION_ID-0.chunks` apppears to be the raw byte stream from the session
+
+```
+^[]0;root@localhost: ~^Groot@localhost:~# ls
+^[]0;root@localhost: ~^Groot@localhost:~# echo "Something"
+Something
+^[]0;root@localhost: ~^Groot@localhost:~# ls
+^[]0;root@localhost: ~^Groot@localhost:~# ^[[H^[[2J^[]0;root@localhost: ~^Groot@localhost:~# cd /
+^[]0;root@localhost: /^Groot@localhost:/# ls
+^[[0m^[[01;36mbin^[[0m  ^[[01;34mboot^[[0m  ^[[01;34mdev^[[0m  ^[[01;34metc^[[0m  ^[[01;34mhome^[[0m  ^[[01;36mlib^[[0m  ^[[01;36mlib32^[[0m  >
+^[]0;root@localhost: /^Groot@localhost:/# tree
+...
+```
+
+TODO: presumably this was pieced together by appending the `Data` fields in each `SessionPrint` event saved (in some unknown format) in the `$SESSION_ID.tar`
+
+```go
+printEvent := SessionPrint {
+	// Metadata is a common event metadata
+	Metadata: {
+    // Index is a monotonicaly incremented index in the event sequence
+    Index: 10 // AuditWriter.eventIndex++
+    // Type is the event type
+    Type: "print" // SessionPrintEvent
+    // ID is a unique event identifier
+    ID: "" // empty for SessionPrintEvent, see checkAndSetEventFields
+    // Code is a unique event code
+    Code "" // empty for SessionPrintEvent events, see checkAndSetEventFields
+    // Time is event time
+    Time: time.Now().UTC().Round(time.Millisecond)
+    // ClusterName identifies the originating teleport cluster
+    ClusterName: "cluster-name"
+  }
+	// ChunkIndex is a monotonicaly incremented index for ordering print events
+	ChunkIndex: 0
+	// Data is data transferred, it is not marshaled to JSON format
+	Data: []byte{0, 1, 0, 6, 4, 3}
+	// Bytes says how many bytes have been written into the session
+	// during "print" event
+	Bytes: 6
+	// DelayMilliseconds is the delay in milliseconds from the start of the session
+	DelayMilliseconds: 5000
+	// Offset is the offset in bytes in the session file
+	Offset: 100
+}
+```
+
+`$SESSION_ID-0.chunks.gz` is just the LZ77 encoded `$SESSION_ID-0.chunks`, presumably used for sending over the wire. TODO: is there a reason an unzipped version of this persists in the directory, whereas there's no correlary unzipped version of `$SESSION_ID-0.events.gz`?
+
+`$SESSION_ID-0.events.gz` is an LZ77 encoded file containing what appears to be a list of all the events in the session (including non-print events), in a format that ignores the actual data in each print event.
+
+```
+{"ei":0,"event":"session.start","uid":"c06685ff-1b59-4858-b3a3-5e9467a77616","code":"T2000I","time":"2021-11-18T15:33:59.792Z","cluster_name":"teleport.zacazure.grvpoc.com","user":"joe","login":"root","sid":"9b6ec731-80f7-4751-9154-4214ecdc812a","namespace":"default","server_id":"ade010d6-4e75-4ed8-9f92-886a4f49eb26","server_hostname":"localhost","server_addr":"173.230.128.45:45350","addr.remote":"173.160.69.53:56544","size":"80:25","session_recording":"node"}
+{"ei":1,"event":"resize","uid":"c13d7ba5-42d0-4dbe-9c16-7fc772093055","code":"T2002I","time":"2021-11-18T15:33:59.862Z","cluster_name":"teleport.zacazure.grvpoc.com","user":"joe","login":"root","sid":"9b6ec731-80f7-4751-9154-4214ecdc812a","namespace":"default","server_id":"ade010d6-4e75-4ed8-9f92-886a4f49eb26","server_hostname":"localhost","server_addr":"173.230.128.45:45350","size":"168:44"}
+{"ei":2,"event":"print","time":"2021-11-18T15:34:00.069Z","cluster_name":"teleport.zacazure.grvpoc.com","ci":0,"bytes":40,"ms":0,"offset":0}
+{"ei":3,"event":"print","time":"2021-11-18T15:34:00.769Z","cluster_name":"teleport.zacazure.grvpoc.com","ci":1,"bytes":1,"ms":700,"offset":40}
+{"ei":4,"event":"print","time":"2021-11-18T15:34:00.859Z","cluster_name":"teleport.zacazure.grvpoc.com","ci":2,"bytes":1,"ms":790,"offset":41}
+{"ei":5,"event":"print","time":"2021-11-18T15:34:01.025Z","cluster_name":"teleport.zacazure.grvpoc.com","ci":3,"bytes":2,"ms":956,"offset":42}
+{"ei":6,"event":"print","time":"2021-11-18T15:34:01.028Z","cluster_name":"teleport.zacazure.grvpoc.com","ci":4,"bytes":40,"ms":959,"offset":44}
+{"ei":7,"event":"print","time":"2021-11-18T15:34:02.239Z","cluster_name":"teleport.zacazure.grvpoc.com","ci":5,"bytes":1,"ms":2170,"offset":84}
+{"ei":8,"event":"print","time":"2021-11-18T15:34:02.556Z","cluster_name":"teleport.zacazure.grvpoc.com","ci":6,"bytes":2,"ms":2487,"offset":85}
+{"ei":9,"event":"print","time":"2021-11-18T15:34:02.584Z","cluster_name":"teleport.zacazure.grvpoc.com","ci":7,"bytes":1,"ms":2515,"offset":87}
+```
+
+TODO: My guess is that this file was generated from the `SESSION_ID.tar` file (which I guess contains the full version of the events, including the raw data stream). My first thouth is that its likely cross-referenced by the frontend to decide the time to display the bytes during playback. However it's unclear why this would need to be kept in a separate file, assuming the `SESSION_ID.tar` indeed includes some representation of the print events with the raw data.
 
 ### Overview
 
