@@ -35,6 +35,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -477,6 +478,25 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 	}
 }
 
+func TestValidRedirectURL(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		desc, url string
+		valid     bool
+	}{
+		{"valid absolute https url", "https://example.com?a=1", true},
+		{"valid absolute http url", "http://example.com?a=1", true},
+		{"valid relative url", "/path/to/something", true},
+		{"garbage", "fjoiewjwpods302j09", false},
+		{"empty string", "", false},
+		{"block bad protocol", "javascript:alert('xss')", false},
+	} {
+		t.Run(tt.desc, func(t *testing.T) {
+			require.Equal(t, tt.valid, isValidRedirectURL(tt.url))
+		})
+	}
+}
+
 func (s *WebSuite) TestSAMLSuccess(c *C) {
 	input := fixtures.SAMLOktaConnectorV2
 
@@ -525,7 +545,8 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	c.Assert(err, IsNil)
 
 	// we got a redirect
-	locationURL := re.Headers().Get("Location")
+	urlPattern := regexp.MustCompile(`URL='([^']*)'`)
+	locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
 	u, err := url.Parse(locationURL)
 	c.Assert(err, IsNil)
 	c.Assert(u.Scheme+"://"+u.Host+u.Path, Equals, fixtures.SAMLOktaSSO)
