@@ -34,13 +34,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/service"
@@ -572,6 +577,63 @@ func TestAppAccessRewriteHeadersLeaf(t *testing.T) {
 	require.NotContains(t, resp, "rewritten-x-forwarded-server-header")
 }
 
+func TestAppAuditEvents(t *testing.T) {
+	// Create cluster, user, sessions, and credentials package.
+	pack := setup(t)
+	inCookie := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
+
+	status, body, err := pack.makeRequest(inCookie, http.MethodGet, "/")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	require.Contains(t, body, pack.rootMessage)
+
+	// session start event
+	pack.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) {
+		expectedEvent := &apievents.AppSessionStart{
+			Metadata: apievents.Metadata{
+				Type:        events.AppSessionStartEvent,
+				Code:        events.AppSessionStartCode,
+				ClusterName: pack.rootAppClusterName,
+			},
+			AppMetadata: apievents.AppMetadata{
+				AppURI:        pack.rootAppURI,
+				AppPublicAddr: pack.rootAppPublicAddr,
+				AppName:       pack.rootAppName,
+			},
+			PublicAddr: pack.rootAppPublicAddr,
+		}
+		require.Empty(t, cmp.Diff(
+			expectedEvent,
+			event,
+			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
+		))
+	})
+
+	// session chunk event
+	pack.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) {
+		expectedEvent := &apievents.AppSessionChunk{
+			Metadata: apievents.Metadata{
+				Type:        events.AppSessionChunkEvent,
+				Code:        events.AppSessionChunkCode,
+				ClusterName: pack.rootAppClusterName,
+			},
+			AppMetadata: apievents.AppMetadata{
+				AppURI:        pack.rootAppURI,
+				AppPublicAddr: pack.rootAppPublicAddr,
+				AppName:       pack.rootAppName,
+			},
+		}
+		require.Empty(t, cmp.Diff(
+			expectedEvent,
+			event,
+			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
+			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+		))
+	})
+}
+
 // pack contains identity as well as initialized Teleport clusters and instances.
 type pack struct {
 	username string
@@ -592,14 +654,17 @@ type pack struct {
 	rootAppPublicAddr  string
 	rootAppClusterName string
 	rootMessage        string
+	rootAppURI         string
 
 	rootWSAppName    string
 	rootWSPublicAddr string
 	rootWSMessage    string
+	rootWSAppURI     string
 
 	rootWSSAppName    string
 	rootWSSPublicAddr string
 	rootWSSMessage    string
+	rootWSSAppURI     string
 
 	jwtAppName        string
 	jwtAppPublicAddr  string
@@ -613,22 +678,27 @@ type pack struct {
 	leafAppPublicAddr  string
 	leafAppClusterName string
 	leafMessage        string
+	leafAppURI         string
 
 	leafWSAppName    string
 	leafWSPublicAddr string
 	leafWSMessage    string
+	leafWSAppURI     string
 
 	leafWSSAppName    string
 	leafWSSPublicAddr string
 	leafWSSMessage    string
+	leafWSSAppURI     string
 
 	headerAppName        string
 	headerAppPublicAddr  string
 	headerAppClusterName string
+	headerAppURI         string
 
 	flushAppName        string
 	flushAppPublicAddr  string
 	flushAppClusterName string
+	flushAppURI         string
 }
 
 type appTestOptions struct {
@@ -764,7 +834,15 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	}))
 	t.Cleanup(flushServer.Close)
 
+	p.rootAppURI = rootServer.URL
+	p.rootWSAppURI = rootWSServer.URL
+	p.rootWSSAppURI = rootWSSServer.URL
+	p.leafAppURI = leafServer.URL
+	p.leafWSAppURI = leafWSServer.URL
+	p.leafWSSAppURI = leafWSSServer.URL
 	p.jwtAppURI = jwtServer.URL
+	p.headerAppURI = headerServer.URL
+	p.flushAppURI = flushServer.URL
 
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
 	require.NoError(t, err)
@@ -1093,6 +1171,27 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 	require.NoError(t, err)
 
 	return casResp.CookieValue
+}
+
+func (p *pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(event apievents.AuditEvent)) {
+	require.Eventuallyf(t, func() bool {
+		events, _, err := p.rootCluster.Process.GetAuthServer().SearchEvents(
+			time.Now().Add(-time.Hour),
+			time.Now().Add(time.Hour),
+			apidefaults.Namespace,
+			[]string{eventType},
+			1,
+			types.EventOrderDescending,
+			"",
+		)
+		require.NoError(t, err)
+		if len(events) == 0 {
+			return false
+		}
+
+		checkEvent(events[0])
+		return true
+	}, 500*time.Millisecond, 50*time.Millisecond, "failed to fetch audit event \"%s\"", eventType)
 }
 
 // initCertPool initializes root cluster CA pool.
