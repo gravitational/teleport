@@ -109,7 +109,7 @@ type Session struct {
 	ClusterName string `json:"cluster_name"`
 }
 
-// Users returns a list of users involved in this session as parties.
+// Users returns a list of users involved in this session as strings.
 func (s *Session) Users() []string {
 	users := make([]string, 0, len(s.Parties))
 	for _, p := range s.Parties {

@@ -377,8 +377,8 @@ type searchEventsFilter struct {
 	condition  utils.FieldsCondition
 }
 
-// Close closes the audit log, which inluces closing all file handles and releasing
-// all session loggers
+// Close closes the audit log, which includes closing all file handles and
+// releasing all session loggers.
 func (l *FileLog) Close() error {
 	l.rw.Lock()
 	defer l.rw.Unlock()
