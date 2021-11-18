@@ -383,7 +383,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// Create presets - convenience and example resources.
-	err = createPresets(ctx, asrv)
+	err = createPresets(asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -493,8 +493,8 @@ func migrateLegacyResources(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
-// createPresets creates preset resources - roles
-func createPresets(ctx context.Context, asrv *Server) error {
+// createPresets creates preset resources (eg, roles).
+func createPresets(asrv *Server) error {
 	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
@@ -1003,7 +1003,7 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 			continue
 		}
 		for _, ca := range cas {
-			if err := migrateCertAuthority(ctx, asrv, ca); err != nil {
+			if err := migrateCertAuthority(asrv, ca); err != nil {
 				errors = append(errors, trace.Wrap(err, "failed to migrate %v: %v", ca, err))
 				continue
 			}
@@ -1020,7 +1020,7 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
-func migrateCertAuthority(ctx context.Context, asrv *Server, ca types.CertAuthority) error {
+func migrateCertAuthority(asrv *Server, ca types.CertAuthority) error {
 	// Check if we need to migrate.
 	if needsMigration, err := services.CertAuthorityNeedsMigration(ca); err != nil || !needsMigration {
 		return trace.Wrap(err)
