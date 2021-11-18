@@ -33,19 +33,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	libsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+	"go.uber.org/atomic"
 	"gopkg.in/check.v1"
 )
 
@@ -73,9 +77,13 @@ type Suite struct {
 	clientCertificate     tls.Certificate
 	awsConsoleCertificate tls.Certificate
 
+	onEmitAuditEventCallbacks []EmitEventCallbackFunc
+
 	user types.User
 	role types.Role
 }
+
+type EmitEventCallbackFunc func(event apievents.AuditEvent)
 
 var _ = check.Suite(&Suite{})
 
@@ -84,15 +92,35 @@ func TestApp(t *testing.T) { check.TestingT(t) }
 func (s *Suite) SetUpSuite(c *check.C) {
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = c.MkDir()
+	s.onEmitAuditEventCallbacks = make([]EmitEventCallbackFunc, 0)
 
 	var err error
+	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
+		Inner: events.NewDiscardEmitter(),
+		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
+			for _, f := range s.onEmitAuditEventCallbacks {
+				f(event)
+			}
+
+			return nil
+		},
+	})
+	c.Assert(err, check.IsNil)
+
 	// Create Auth Server.
 	s.authServer, err = auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "root.example.com",
 		Dir:         s.dataDir,
 		Clock:       s.clock,
+		Streamer:    serverStreamer,
 	})
 	c.Assert(err, check.IsNil)
+
+	err = s.authServer.AuthServer.SetSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+		Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
+	})
+	c.Assert(err, check.IsNil)
+
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	c.Assert(err, check.IsNil)
 
@@ -394,6 +422,97 @@ func (s *Suite) TestAWSConsoleRedirect(c *check.C) {
 	})
 }
 
+// TestRequestAuditEvent verifies that audit events regarding application access
+// are being generated with the correct metadata.
+// This test configures the server to record the session sync, meaning that the
+// events will be forwarded to the auth server. On the server-side, it defines a
+// CallbackStreamer, which is going to be used to "intercept" the
+// app.session.request events.
+func (s *Suite) TestRequestAuditEvents(c *check.C) {
+	requestEventsReceived := atomic.NewUint64(0)
+	s.addOnEmitAuditEvent(func(event apievents.AuditEvent) {
+		if event.GetType() == events.AppSessionRequestEvent {
+			requestEventsReceived.Inc()
+
+			expectedEvent := &apievents.AppSessionRequest{
+				Metadata: apievents.Metadata{
+					Type: events.AppSessionRequestEvent,
+					Code: events.AppSessionRequestCode,
+				},
+				AppMetadata: apievents.AppMetadata{
+					AppURI:        s.testhttp.URL,
+					AppPublicAddr: "foo.example.com",
+					AppName:       "foo",
+				},
+				StatusCode: 200,
+				Method:     "GET",
+				Path:       "/",
+			}
+			c.Assert(cmp.Diff(
+				expectedEvent,
+				event,
+				cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+				cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
+				cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+			), check.Equals, "")
+		}
+	})
+
+	// make a request to generate events.
+	s.checkHTTPResponse(c, s.clientCertificate, func(_ *http.Response) {
+		// wait until request events are emitted.
+		ticker := time.NewTicker(50 * time.Millisecond)
+		defer ticker.Stop()
+		timeout := time.After(500 * time.Millisecond)
+
+		for {
+			select {
+			case <-ticker.C:
+				if requestEventsReceived.Load() == 1 {
+					return
+				}
+			case <-timeout:
+				c.Fatal("app.request event not generated")
+			}
+		}
+	})
+
+	expectedEvent := &apievents.AppSessionChunk{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionChunkEvent,
+			Code: events.AppSessionChunkCode,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        s.testhttp.URL,
+			AppPublicAddr: "foo.example.com",
+			AppName:       "foo",
+		},
+	}
+
+	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 100, types.EventOrderDescending, "")
+	c.Assert(err, check.IsNil)
+
+	// there can be multiple events because the instance is shared, so we have
+	// to take a look on the list to see if there is an event matching our
+	// parameters.
+	hasDesiredEvent := false
+	for _, event := range searchEvents {
+		hasDesiredEvent = cmp.Equal(
+			expectedEvent,
+			event,
+			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName"),
+			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+		)
+
+		if hasDesiredEvent {
+			break
+		}
+	}
+
+	c.Assert(hasDesiredEvent, check.Equals, true, check.Commentf("no session chunk event found"))
+}
+
 // checkHTTPResponse checks expected HTTP response.
 func (s *Suite) checkHTTPResponse(c *check.C, clientCert tls.Certificate, checkResp func(*http.Response)) {
 	pr, pw := net.Pipe()
@@ -448,6 +567,10 @@ func (s *Suite) checkHTTPResponse(c *check.C, clientCert tls.Certificate, checkR
 	// Wait for the application server to actually stop serving before
 	// closing the test. This will make sure the server removes the listeners
 	wg.Wait()
+}
+
+func (s *Suite) addOnEmitAuditEvent(f EmitEventCallbackFunc) {
+	s.onEmitAuditEventCallbacks = append(s.onEmitAuditEventCallbacks, f)
 }
 
 func testRotationGetter(role types.SystemRole) (*types.Rotation, error) {
