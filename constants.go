@@ -740,5 +740,5 @@ const UserSingleUseCertTTL = time.Minute
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
 
-// StandardRDPPort is the default port used for rdp.
+// StandardRDPPort is the default port used for RDP.
 const StandardRDPPort = 3389

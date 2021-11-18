@@ -210,7 +210,7 @@ type Desktop struct {
 	Labels []Label `json:"labels"`
 }
 
-// MakeDesktops converts a desktop from its API form to a type the UI can display.
+// MakeDesktop converts a desktop from its API form to a type the UI can display.
 func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {

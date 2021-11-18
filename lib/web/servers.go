@@ -81,7 +81,7 @@ func (h *Handler) getDesktopsHandle(w http.ResponseWriter, r *http.Request, p ht
 	return ui.MakeDesktops(windowsDesktops), nil
 }
 
-// getDesktopsHandle returns a desktop.
+// getDesktopHandle returns a desktop.
 func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
