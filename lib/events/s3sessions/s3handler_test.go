@@ -62,21 +62,24 @@ func TestStreams(t *testing.T) {
 func TestACL(t *testing.T) {
 	t.Parallel()
 	baseUrl := "s3://mybucket/path"
-	for _, tc := range []struct{
-		desc, query string
-		isError bool
+	for _, tc := range []struct {
+		desc, acl string
+		isError   bool
 	}{
 		{"no ACL", "", false},
-		{"correct ACL", "?acl=bucket-owner-full-control", false},
-		{"incorrect ACL", "?acl=something-else", true},
+		{"correct ACL", "bucket-owner-full-control", false},
+		{"incorrect ACL", "something-else", true},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			url := baseUrl + tc.query
-			err := SetFromURL(url, "")
+			url, err := url.Parse(fmt.Sprintf("%s?acl=%s", baseUrl, tc.acl))
+			require.Nil(t, err)
+			conf := Config{}
+			err = conf.SetFromURL(url, "")
 			if tc.isError {
 				require.Error(t, err)
 			} else {
-				require.NotError(t, err)
+				require.Nil(t, err)
+				require.Equal(t, tc.acl, conf.ACL)
 			}
 		})
 	}
