@@ -596,6 +596,8 @@ type DatabasesConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers match AWS hosted databases.
 	AWSMatchers []services.AWSMatcher
+	// Limiter limits the connection and request rates.
+	Limiter limiter.Config
 }
 
 // Database represents a single database that's being proxied.
@@ -722,6 +724,9 @@ type AppsConfig struct {
 
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
+
+	// Limiter limits the connection and request rates.
+	Limiter limiter.Config
 }
 
 // App is the specific application that will be proxied by the application

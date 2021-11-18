@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
@@ -65,6 +66,9 @@ type Config struct {
 
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
+
+	// ConnectionLimiter limits the number of active connections per client IP.
+	ConnectionLimiter *limiter.ConnectionsLimiter
 
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
@@ -142,6 +146,13 @@ func (c *Config) CheckAndSetDefaults() error {
 		}
 		c.Cloud = cloud
 	}
+	if c.ConnectionLimiter == nil {
+		connectionLimiter, err := limiter.NewConnectionsLimiter(limiter.Config{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.ConnectionLimiter = connectionLimiter
+	}
 
 	return nil
 }
@@ -161,6 +172,9 @@ type Server struct {
 	mu            sync.RWMutex
 	heartbeats    map[string]*srv.Heartbeat
 	dynamicLabels map[string]*labels.Dynamic
+
+	// limiter limits the number of active connections per client IP.
+	limiter *limiter.ConnectionsLimiter
 
 	// apps are all apps this server currently proxies. Proxied apps are
 	// reconciled against monitoredApps below.
@@ -228,6 +242,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
 		awsSigner:     awsSigner,
+		limiter:       c.ConnectionLimiter,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
@@ -544,6 +559,18 @@ func (s *Server) ForceHeartbeat() error {
 // HandleConnection takes a connection and wraps it in a listener so it can
 // be passed to http.Serve to process as a HTTP request.
 func (s *Server) HandleConnection(conn net.Conn) {
+	remoteAddr := conn.RemoteAddr().String()
+
+	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
+		s.log.WithError(err).Error("Exceeded connection limit.")
+		if err := conn.Close(); err != nil {
+			s.log.WithError(err).Error("Failed to close connection.")
+			return
+		}
+		return
+	}
+	defer s.limiter.ReleaseConnection(remoteAddr)
+
 	// Wrap the listener in a TLS authorizing listener.
 	listener := newListener(s.closeContext, conn)
 	tlsListener := tls.NewListener(listener, s.tlsConfig)

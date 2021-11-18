@@ -325,6 +325,7 @@ type Server struct {
 	// if not set, cache uses itself
 	cache Cache
 
+	// limiter limits the number of active connections per client IP.
 	limiter *limiter.ConnectionsLimiter
 
 	// Emitter is events emitter, used to submit discrete events

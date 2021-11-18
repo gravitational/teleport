@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
@@ -162,6 +163,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
+	connLimiter, err := limiter.NewConnectionsLimiter(process.Config.Databases.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
 		Clock:       process.Clock,
@@ -174,6 +180,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		},
 		Authorizer:       authorizer,
 		TLSConfig:        tlsConfig,
+		Limiter:          connLimiter,
 		GetRotation:      process.getRotation,
 		Hostname:         process.Config.Hostname,
 		HostID:           process.Config.HostUUID,

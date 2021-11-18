@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -61,6 +62,8 @@ type Config struct {
 	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
+	// Limiter limits the number of active connections per client IP.
+	Limiter *limiter.ConnectionsLimiter
 	// Authorizer is used to authorize requests coming from proxy.
 	Authorizer auth.Authorizer
 	// GetRotation returns the certificate rotation state.
@@ -169,6 +172,12 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			return trace.Wrap(err)
 		}
 	}
+	if c.Limiter == nil {
+		c.Limiter, err = limiter.NewConnectionsLimiter(limiter.Config{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -195,6 +204,8 @@ type Server struct {
 	// monitoredDatabases contains all cluster databases the proxied databases
 	// are reconciled against.
 	monitoredDatabases monitoredDatabases
+	// limiter limits the number of active connections per client IP.
+	limiter *limiter.ConnectionsLimiter
 	// reconcileCh triggers reconciliation of proxied databases.
 	reconcileCh chan struct{}
 	// mu protects access to server infos and databases.
@@ -253,6 +264,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		dynamicLabels:    make(map[string]*labels.Dynamic),
 		heartbeats:       make(map[string]*srv.Heartbeat),
 		proxiedDatabases: config.Databases.ToMap(),
+		limiter:          config.Limiter,
 		monitoredDatabases: monitoredDatabases{
 			static: config.Databases,
 		},
@@ -609,7 +621,20 @@ func (s *Server) ForceHeartbeat() error {
 // upgrades it to TLS, extracts identity information from it, performs
 // authorization and dispatches to the appropriate database engine.
 func (s *Server) HandleConnection(conn net.Conn) {
-	log := s.log.WithField("addr", conn.RemoteAddr())
+	remoteAddr := conn.RemoteAddr().String()
+	log := s.log.WithField("addr", remoteAddr)
+
+	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
+		log.WithError(err).Error("Exceeded connection limit.")
+		err := conn.Close()
+		if err != nil {
+			log.WithError(err).Error("Failed to close connection.")
+			return
+		}
+		return
+	}
+	defer s.limiter.ReleaseConnection(remoteAddr)
+
 	log.Debug("Accepted connection.")
 	// Upgrade the connection to TLS since the other side of the reverse
 	// tunnel connection (proxy) will initiate a handshake.
@@ -617,7 +642,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Make sure to close the upgraded connection, not "conn", otherwise
 	// the other side may not detect that connection has closed.
 	defer tlsConn.Close()
-	// Perform the hanshake explicitly, normally it should be performed
+	// Perform the handshake explicitly, normally it should be performed
 	// on the first read/write but when the connection is passed over
 	// reverse tunnel it doesn't happen for some reason.
 	err := tlsConn.Handshake()
