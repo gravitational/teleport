@@ -1231,7 +1231,6 @@ func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.Plugin
 		return a.authServer.GetPluginData(ctx, filter)
 
 	case types.KindUser:
-		// TODO: Put correct auth checks here
 		if err := a.action(apidefaults.Namespace, types.KindUserPluginData, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1254,8 +1253,7 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 		}
 		return a.authServer.UpdatePluginData(ctx, params)
 	case types.KindUser:
-		// TODO: Put correct auth checks here
-		if err := a.action(apidefaults.Namespace, types.KindUserPluginData, types.VerbUpdate); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindUserPluginData, types.VerbUpdate, types.VerbCreate); err != nil {
 			return trace.Wrap(err)
 		}
 		return a.authServer.UpdatePluginData(ctx, params)

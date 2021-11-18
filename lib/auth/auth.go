@@ -3354,19 +3354,11 @@ func (a *Server) DeleteNetworkRestrictions(ctx context.Context) error {
 
 // GetPluginData loads all plugin data matching the supplied filter.
 func (a *Server) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
-	if !isAllowedPluginDataKind(filter.Kind) {
-		return nil, trace.BadParameter("unsupported resource kind %q", filter.Kind)
-	}
-
 	return a.Services.PluginData.GetPluginData(ctx, filter)
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
 func (a *Server) UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
-	if !isAllowedPluginDataKind(params.Kind) {
-		return trace.BadParameter("unsupported resource kind %q", params.Kind)
-	}
-
 	// Load parent resource expiration value. Nil means that a parent resource does not exist.
 	// Non-existent parent resource is fine on update. There are the cases when we need to access
 	// PluginData of a just deleted resource. We need to prevent creation of PluginData entries
@@ -3380,11 +3372,6 @@ func (a *Server) UpdatePluginData(ctx context.Context, params types.PluginDataUp
 	}
 
 	return a.PluginData.UpsertPluginData(ctx, params, expires)
-}
-
-// isAllowedPluginDataKind returns true if PluginData can be attached to a resource kind.
-func isAllowedPluginDataKind(kind string) bool {
-	return kind == types.KindAccessRequest || kind == types.KindUser
 }
 
 // getResourceExpiry returns a resource expiration time or nil if a resource does not exist

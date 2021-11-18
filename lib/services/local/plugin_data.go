@@ -25,6 +25,10 @@ func NewPluginDataService(backend backend.Backend) *PluginDataService {
 
 // GetPluginData loads all plugin data matching the supplied filter.
 func (s *PluginDataService) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
+	if !isAllowedPluginDataKind(filter.Kind) {
+		return nil, trace.BadParameter("unsupported resource kind %q", filter.Kind)
+	}
+
 	data, err := s.getPluginData(ctx, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -84,14 +88,13 @@ func (s *PluginDataService) getPluginData(ctx context.Context, filter types.Plug
 
 // UpsertsPluginData upserts a per-resource PluginData entry.
 func (s *PluginDataService) UpsertPluginData(ctx context.Context, params types.PluginDataUpdateParams, parentExpiresAt *time.Time) error {
-	return trace.Wrap(s.upsertPluginData(ctx, params, parentExpiresAt))
-}
+	if !isAllowedPluginDataKind(params.Kind) {
+		return trace.BadParameter("unsupported resource kind %q", params.Kind)
+	}
 
-// updatePluginData updates or creates PluginData using CAS
-func (s *PluginDataService) upsertPluginData(ctx context.Context, params types.PluginDataUpdateParams, parentExpiresAt *time.Time) error {
 	retryPeriod := retryPeriodMs * time.Millisecond
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step: retryPeriod / 7,
+		Step: retryPeriod / maxCmpAttempts,
 		Max:  retryPeriod,
 	})
 	if err != nil {
@@ -179,6 +182,10 @@ func (s *PluginDataService) upsertPluginData(ctx context.Context, params types.P
 
 // pluginDataKey constructs PluginData entry backend key
 func pluginDataKey(kind string, name string) []byte {
+	if kind == types.KindUser {
+		return backend.Key(webPrefix, usersPrefix, name, pluginDataPrefix, paramsPrefix)
+	}
+
 	return backend.Key(pluginDataPrefix, kind, name, paramsPrefix)
 }
 
@@ -210,6 +217,11 @@ func itemToPluginData(item backend.Item) (types.PluginData, error) {
 		return nil, trace.Wrap(err)
 	}
 	return data, nil
+}
+
+// isAllowedPluginDataKind returns true if PluginData can be attached to a resource kind.
+func isAllowedPluginDataKind(kind string) bool {
+	return kind == types.KindAccessRequest || kind == types.KindUser
 }
 
 const (
