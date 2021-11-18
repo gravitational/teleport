@@ -40,33 +40,12 @@ recording:
 <!-- TODO: brief overview of how SSH recordings work, so we can keep that context in
 mind for the rest of the doc -->
 
-Teleport SSH connections each have their own [session](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/session/session.go#L82-L109) (distinct from [web sessions](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/api/types/session.go#L53-L91); we currently do not have anything analogous for desktop sessions).
+#### Recording
 
-TODO: how are the above session id's connected to those of `session` below, if at all?
-
-In standard operation where we are recording sessions directly on the node (rather than through the proxy), each SSH [session](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/srv/sess.go#L480-L534)
-is given an [`AuditWriter`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/auditwriter.go#L147-L166) as its [`recorder`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/srv/sess.go#L679-L691), which is then [added as one of the `multiWriter`s of that `session`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/srv/sess.go#L696). All input and output of the session will be [written to that `s.writer`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/srv/sess.go#L799), which is a struct that registers `io.WriteCloser`'s and writes to all of them on `Write`. Therefore, along with any `io.WriteCloser`'s corresponding to each party (person) in the session, all input and output bytes are written by the [`AuditWriter`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/auditwriter.go#L192-L228), which sets up part of a protobuf-generated struct named [`SessionPrint`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/api/types/events/events.pb.go#L540-L559) and then calls [`EmitAuditEvent`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/auditwriter.go#L267-L359), which finalizes event setup by calling [setupEvent](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/auditwriter.go#L555-L590) (which itself calls [checkAndSetEventFields](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/emitter.go#L175-L197)) before [writing it to the `AuditWriter`'s `eventsCh`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/auditwriter.go#L291) (note that there is some complex backoff logic below that line in case of a bottleneck). By the time that channel is written to, your event will look something like the following:
+In standard operation where we are recording sessions directly on the node (rather than through the proxy), each SSH [session](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/srv/sess.go#L480-L534)
+is given an [`AuditWriter`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/auditwriter.go#L147-L166) as its [`recorder`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/srv/sess.go#L679-L691), which is then [added as one of the `multiWriter`s of that `session`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/srv/sess.go#L696). All input and output of the session will be [written to that `s.writer`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/srv/sess.go#L799), which is a struct that registers `io.WriteCloser`'s and writes to all of them on `Write`. Therefore, along with any `io.WriteCloser`'s corresponding to each party (person) in the session, all input and output bytes are written by the [`AuditWriter`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/auditwriter.go#L192-L228), which sets up part of a protobuf-generated struct named [`SessionPrint`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/api/types/events/events.pb.go#L540-L559) and then calls [`EmitAuditEvent`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/auditwriter.go#L267-L359), which finalizes event setup by calling [setupEvent](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/auditwriter.go#L555-L590) (which itself calls [checkAndSetEventFields](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/emitter.go#L175-L197)) before [writing it to the `AuditWriter`'s `eventsCh`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/auditwriter.go#L291) (note that there is some complex backoff logic below that line in case of a bottleneck). By the time that channel is written to, your event will look something like the following:
 
 ```go
-// TODO: How do we know which session this event belongs to?
-// It seems as though the session ID may be registered in the filepath,
-// as when I look in the audit log in the UI I find:
-// {
-//   "cluster_name": "teleport.zacazure.grvpoc.com",
-//   "code": "T2005I",
-//   "ei": 2147483647,
-//   "event": "session.upload",
-//   "sid": "f9cc2921-c655-47f9-9179-6ae546fc04a8",
-//   "time": "2021-11-16T21:30:26.865Z",
-//   "url": "file:///home/zmb/datadir/log/records/multi/f9cc2921-c655-47f9-9179-6ae546fc04a8"
-// }
-// However, the home/zmb/datadir/log/records/multi directory is empty. I do see a
-// home/zmb/datadir/log/records/f9cc2921-c655-47f9-9179-6ae546fc04a8.tar, however when I try a
-// `tar -tvf f9cc2921-c655-47f9-9179-6ae546fc04a8.tar`
-// I get back
-// tar: This does not look like a tar archive
-// tar: Skipping to next header
-// tar: Exiting with failure status due to previous errors
 printEvent := SessionPrint {
 	// Metadata is a common event metadata
 	Metadata: {
@@ -97,21 +76,58 @@ printEvent := SessionPrint {
 }
 ```
 
-The `eventsCh` is read from a [`processEvents`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/auditwriter.go#L65) loop, which calls [`EmitAuditEvent`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/auditwriter.go#L421) of an [`AuditStream`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/auditwriter.go#L43) wrapped in a [`CheckingStream`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/auditwriter.go#L52) (Note that the `CheckingStream` is superfluous in the code path described here, though may not be in some other path we're not following). In the codepath we're following (which traverses through [`startInteractive`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/srv/sess.go#L675)), that `AuditStream` is a [`TeeStreamer`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/srv/sess.go#L1074) which creates a `TeeStream` whose [`EmitAuditEvent`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/emitter.go#L553-L570) writes all events to a [`filesessions.NewStreamer`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/srv/sess.go#L1067) object, which [creates a `ProtoStreamer`](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/srv/sess.go#L1067) that is ultimately responsible for uploading the audit stream [to a storage backend](https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/stream.go#L116-L118).
+The `eventsCh` is read from a [`processEvents`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/auditwriter.go#L65) loop, which calls [`EmitAuditEvent`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/auditwriter.go#L421) of an [`AuditStream`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/auditwriter.go#L43) wrapped in a [`CheckingStream`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/auditwriter.go#L52). In the codepath we're following (which traverses through [`startInteractive`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/srv/sess.go#L675)), that `AuditStream` is a [`TeeStreamer`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/srv/sess.go#L1074) which creates a `TeeStream` whose [`EmitAuditEvent`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/emitter.go#L553-L570) writes all events to a [`filesessions.NewStreamer`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/srv/sess.go#L1067) object, which [creates a `ProtoStreamer`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/srv/sess.go#L1067) that is ultimately responsible for uploading the audit stream [to a storage backend](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/stream.go#L116-L118). The `TeeStream` also writes events via [`t.emitter.EmitAuditEvent`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/emitter.go#L566), which is (presumably) another object asynchronously writing to the audit log on the auth server ([`ctx.srv`](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/srv/sess.go#L1074)), but is [skipping](https://github.com/gravitational/teleport/blob/bfe7f9878a05bce08129ce92ee8773bace7fd75b/lib/events/emitter.go#L563) the following events: `ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, ""`.
 
+Zooming out, as a session is being recorded the node creates the path
 
-<!-- AuditWriter (https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/events/auditwriter.go#L37-L69) ultimately gets called by https://github.com/gravitational/teleport/blob/dbc032a31fd49cdd2f72636075a84d97557f62b3/lib/sshutils/server.go#L407-L544, see the comment
-// HandleConnection is called every time an SSH server accepts a new
-// connection from a client.
-//
-// this is the foundation of all SSH connections in Teleport (between clients
-// and proxies, proxies and servers, servers and auth, etc).
-//
- -->
+```bash
+# TODO: What is $UID_1? Presumably something related to multi.
+# TODO: what is $DATA_DIR/log/upload/sessions for?
+# TODO: "default" is presumably the default namespace -- is this a vestigial feature at this point, or does teleport still support namespaces?
+$DATA_DIR/log/upload/streaming/default/multi/$UID_1/$SESSION_ID
+```
 
-<!-- NOTE: the ssh session-id is a url param -->
+When the session ends, it appears that it's corresponding file is uploaded to the auth server (TODO: confirm its auth) under
 
-<!-- TODO: almost certainly these are used to record sessions. confirm that, then -- do we need ours to be analogous in the sense that users should be able to rejoin existing sessions? how are we handling the fact that multiple different users could log in to the same machine with the same account? How are we handling rdp sessions? -->
+```bash
+# TODO: while the file is named .tar, it doesn't seem to be recognized by the system as such.
+# When I try a `tar -tvf $SESSION_ID.tar`
+# I get back
+# tar: This does not look like a tar archive
+# tar: Skipping to next header
+# tar: Exiting with failure status due to previous errors
+$DATA_DIR/log/records/$SESSION_ID.tar
+```
+
+TODO: figure out how file upload works. Is the file saved (what's its final file name? right now I've only discovered the path) and then a job periodically uploads saved files to the server, deleting upon success? Or else is the upload attempted immediately after the session ends?
+
+There is also a
+
+```bash
+$DATA_DIR/log/records/multi
+```
+
+which presumably is going unused in my experiments because a multi-part upload wasn't required. TODO: if this was a multi-part upload, would the files be saved under
+
+```bash
+$DATA_DIR/log/records/multi/$UID_1/$SESSION_ID.tar
+```
+
+? if so, how would we later discover that for playback, which appears to be identified by `sessionId`?
+
+#### Playback
+
+When a session playback is requested, a new set of files are created in `$DATA_DIR/log/playbacks/sessions/default`:
+
+```bash
+$SESSION_ID.tar
+$SESSION_ID.index
+$SESSION_ID-0.chunks
+$SESSION_ID-0.chunks.gz
+$SESSION_ID-0.events.gz
+```
+
+<!-- TODO inspect these files for clues, then contact Sasha/rj/bj for help -->
 
 ### Overview
 
