@@ -132,11 +132,20 @@ func TestSampleConfig(t *testing.T) {
 			expectProxyWebAddr:     "0.0.0.0:443",
 		},
 		{
-			name: "public addrs",
+			name: "public and web addr",
 			input: SampleFlags{
-				PublicAddrs: []string{"tele.example.com:443"},
+				PublicAddr: "tele.example.com:4422",
 			},
-			expectProxyPublicAddrs: apiutils.Strings{"tele.example.com:443"},
+			expectProxyPublicAddrs: apiutils.Strings{"tele.example.com:4422"},
+			expectProxyWebAddr:     "0.0.0.0:4422",
+		},
+		{
+			name: "public and web addr with default port",
+			input: SampleFlags{
+				PublicAddr: "tele.example.com",
+			},
+			expectProxyPublicAddrs: apiutils.Strings{"tele.example.com"},
+			expectProxyWebAddr:     "0.0.0.0:443",
 		},
 		{
 			name: "key file missing",
