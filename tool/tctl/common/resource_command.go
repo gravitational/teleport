@@ -378,11 +378,11 @@ func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownR
 	}
 
 	roleName := role.GetName()
-	_, err = client.GetRole(ctx, roleName)
+	_, err = client.GetInvalidRole(ctx, roleName)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	roleExists := (err == nil)
+	roleExists := err == nil
 	if roleExists && !rc.IsForced() {
 		return trace.AlreadyExists("role '%s' already exists", roleName)
 	}
@@ -998,7 +998,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			}
 			return &roleCollection{roles: roles}, nil
 		}
-		role, err := client.GetRole(ctx, rc.ref.Name)
+		role, err := client.GetInvalidRole(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
