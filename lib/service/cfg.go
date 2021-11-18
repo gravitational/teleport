@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -60,6 +61,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
+
+// Rate describes a rate ratio, i.e. the number of "events" that happen over
+// some unit time period
+type Rate struct {
+	Amount int
+	Time   time.Duration
+}
 
 // Config structure is used to initialize _all_ services Teleport can run.
 // Some settings are global (like DataDir) while others are grouped into
@@ -230,6 +238,15 @@ type Config struct {
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
+
+	// RotationConnectionInterval is the interval between connection
+	// attempts as used by the rotation state service
+	RotationConnectionInterval time.Duration
+
+	// RestartThreshold describes the number of connection failures per
+	// unit time that the node can sustain before restarting itself, as
+	// measured by the rotation state service.
+	RestartThreshold Rate
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -283,23 +300,6 @@ type CachePolicy struct {
 	Type string
 	// Enabled enables or disables caching
 	Enabled bool
-	// TTL sets maximum TTL for the cached values
-	// without explicit TTL set
-	TTL time.Duration
-	// NeverExpires means that cache values without TTL
-	// set by the auth server won't expire
-	NeverExpires bool
-	// RecentTTL is the recently accessed items cache TTL
-	RecentTTL *time.Duration
-}
-
-// GetRecentTTL either returns TTL that was set,
-// or default recent TTL value
-func (c *CachePolicy) GetRecentTTL() time.Duration {
-	if c.RecentTTL == nil {
-		return defaults.RecentCacheTTL
-	}
-	return *c.RecentTTL
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -320,19 +320,7 @@ func (c CachePolicy) String() string {
 	if !c.Enabled {
 		return "no cache policy"
 	}
-	recentCachePolicy := ""
-	if c.GetRecentTTL() == 0 {
-		recentCachePolicy = "will not cache frequently accessed items"
-	} else {
-		recentCachePolicy = fmt.Sprintf("will cache frequently accessed items for %v", c.GetRecentTTL())
-	}
-	if c.NeverExpires {
-		return fmt.Sprintf("%v cache that will not expire in case if connection to database is lost, %v", c.Type, recentCachePolicy)
-	}
-	if c.TTL == 0 {
-		return fmt.Sprintf("%v cache that will expire after connection to database is lost after %v, %v", c.Type, defaults.CacheTTL, recentCachePolicy)
-	}
-	return fmt.Sprintf("%v cache that will expire after connection to database is lost after %v, %v", c.Type, c.TTL, recentCachePolicy)
+	return fmt.Sprintf("%v cache will store frequently accessed items", c.Type)
 }
 
 // ProxyConfig specifies configuration for proxy service
@@ -846,6 +834,10 @@ type WindowsDesktopConfig struct {
 	PublicAddrs []utils.NetAddr
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig
+
+	// Discovery configures automatic desktop discovery via LDAP.
+	Discovery LDAPDiscoveryConfig
+
 	// Hosts is an optional list of static Windows hosts to expose through this
 	// service.
 	Hosts []utils.NetAddr
@@ -853,6 +845,16 @@ type WindowsDesktopConfig struct {
 	ConnLimiter limiter.Config
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
 	HostLabels HostLabelRules
+}
+
+type LDAPDiscoveryConfig struct {
+	// BaseDN is the base DN to search for desktops.
+	// Use the value '*' to search from the root of the domain,
+	// or leave blank to disable desktop discovery.
+	BaseDN string `yaml:"base_dn"`
+	// Filters are additional LDAP filters to apply to the search.
+	// See: https://ldap.com/ldap-filters/
+	Filters []string `yaml:"filters"`
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
@@ -892,6 +894,10 @@ type LDAPConfig struct {
 	Username string
 	// Password for LDAP authentication.
 	Password string
+	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
+	InsecureSkipVerify bool
+	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
+	CA *x509.Certificate
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -1031,6 +1037,12 @@ func ApplyDefaults(cfg *Config) {
 	// Windows desktop service is disabled by default.
 	cfg.WindowsDesktop.Enabled = false
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
+
+	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
+	cfg.RestartThreshold = Rate{
+		Amount: defaults.MaxConnectionErrorsBeforeRestart,
+		Time:   defaults.ConnectionErrorMeasurementPeriod,
+	}
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

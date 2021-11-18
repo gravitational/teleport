@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -427,6 +428,28 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 	}
 }
 
+// TestDesktopAccessFIPS makes sure that Desktop Access can not be started in
+// FIPS mode. Remove this test once Rust code has been updated to use
+// BoringCrypto instead of OpenSSL.
+func TestDesktopAccessFIPS(t *testing.T) {
+	t.Parallel()
+
+	// Create and configure a default Teleport configuration.
+	cfg := MakeDefaultConfig()
+	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.Clock = clockwork.NewFakeClock()
+	cfg.DataDir = t.TempDir()
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = false
+
+	// Enable FIPS mode and Desktop Access, this should fail.
+	cfg.FIPS = true
+	cfg.WindowsDesktop.Enabled = true
+	_, err := NewTeleport(cfg)
+	require.Error(t, err)
+}
+
 func waitForStatus(diagAddr string, statusCodes ...int) error {
 	tickCh := time.Tick(100 * time.Millisecond)
 	timeoutCh := time.After(10 * time.Second)
@@ -448,5 +471,72 @@ func waitForStatus(diagAddr string, statusCodes ...int) error {
 		case <-timeoutCh:
 			return trace.BadParameter("timeout waiting for status: %v; last status: %v", statusCodes, lastStatus)
 		}
+	}
+}
+
+type mockAccessPoint struct {
+	auth.ProxyAccessPoint
+}
+
+type mockReverseTunnelServer struct {
+	reversetunnel.Server
+}
+
+func TestSetupProxyTLSConfig(t *testing.T) {
+	testCases := []struct {
+		name           string
+		acmeEnabled    bool
+		wantNextProtos []string
+	}{
+		{
+			name:        "ACME enabled, teleport ALPN protocols should be appended",
+			acmeEnabled: true,
+			wantNextProtos: []string{
+				"h2",
+				"http/1.1",
+				"acme-tls/1",
+				"teleport-postgres",
+				"teleport-mysql",
+				"teleport-mongodb",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
+			},
+		},
+		{
+			name:        "ACME disabled",
+			acmeEnabled: false,
+			// If server NextProtos list is empty server allows for connection with any protocol.
+			wantNextProtos: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := MakeDefaultConfig()
+			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
+			cfg.DataDir = t.TempDir()
+			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
+			process := TeleportProcess{
+				Config: cfg,
+			}
+			conn := &Connector{
+				ServerIdentity: &auth.Identity{
+					Cert: &ssh.Certificate{
+						Permissions: ssh.Permissions{
+							Extensions: map[string]string{},
+						},
+					},
+				},
+			}
+			tls, err := process.setupProxyTLSConfig(
+				conn,
+				&mockReverseTunnelServer{},
+				&mockAccessPoint{},
+				"cluster",
+			)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantNextProtos, tls.NextProtos)
+		})
 	}
 }

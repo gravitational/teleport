@@ -1,0 +1,86 @@
+---
+title: Dynamic Database Registration
+description: Register/unregister databases without restarting Teleport.
+---
+
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["oss", "enterprise"]}
+  scopeOnly={true}
+  min="8.0"
+>
+  Dynamic database registration is available starting from Teleport `8.0`.
+</Details>
+
+Dynamic database registration allows Teleport administrators to register new
+databases (or update/unregister existing ones) without having to update the
+static configuration and restarting the database agents.
+
+To enable dynamic registration, include a `resources` section in your database
+agent configuration with a list of resource label selectors you'd like this
+agent to monitor:
+
+```yaml
+db_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "*": "*"
+```
+
+You can use a wildcard selector to monitor all database resources in the cluster,
+or provide a specific set of labels to monitor a subset:
+
+```yaml
+resources:
+- labels:
+    "env": "prod"
+    "engine": "postgres"
+- labels:
+    "env": "test"
+    "engine": "mysql"
+```
+
+Next define a database resource:
+
+```yaml
+kind: db
+version: v3
+metadata:
+  name: example
+  description: "Example database"
+  labels:
+    env: prod
+    engine: postgres
+spec:
+  protocol: "postgres"
+  uri: "localhost:5432"
+```
+
+See the full database resource spec [reference](../reference/configuration.mdx#database-resource).
+
+To create a database resource, run:
+
+```code
+$ tctl create database.yaml
+```
+
+After the resource has been created, it will appear among the list of available
+databases (in `tsh db ls` or UI) as long as at least one database agent picks
+it up according to its label selectors.
+
+To update an existing database resource, run:
+
+```code
+$ tctl create -f database.yaml
+```
+
+If the updated resource's labels no longer match a particular database agent, it
+will unregister and stop proxying it.
+
+To delete a database resource, run:
+
+```code
+$ tctl rm db/example
+```

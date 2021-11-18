@@ -52,6 +52,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -813,6 +814,14 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.WindowsDesktop.Enabled {
+		// FedRAMP/FIPS is not supported for Desktop Access. Desktop Access uses
+		// Rust for the underlying RDP protocol implementation which in turn uses
+		// OpenSSL. Return an error if the user attempts to start Desktop Access in
+		// FedRAMP/FIPS mode for now until we can swap out OpenSSL for BoringCrypto.
+		if cfg.FIPS {
+			return nil, trace.BadParameter("FedRAMP/FIPS 140-2 compliant configuration for Desktop Access not supported in Teleport %v", teleport.Version)
+		}
+
 		process.initWindowsDesktopService()
 		serviceStarted = true
 	} else {
@@ -1423,7 +1432,7 @@ func (process *TeleportProcess) initAuthService() error {
 			srv.SetExpiry(process.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 			return &srv, nil
 		},
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
@@ -1598,55 +1607,137 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}))
 }
 
-// setupCachePolicy sets up cache policy based on teleport configuration,
-// it is a wrapper function, that sets up configuration
-func (process *TeleportProcess) setupCachePolicy(in cache.SetupConfigFn) cache.SetupConfigFn {
-	return func(c cache.Config) cache.Config {
-		config := in(c)
-		config.PreferRecent = cache.PreferRecent{
-			Enabled:      process.Config.CachePolicy.Enabled,
-			NeverExpires: process.Config.CachePolicy.NeverExpires,
-			MaxTTL:       process.Config.CachePolicy.TTL,
-		}
-		return config
+// newLocalCacheForNode returns new instance of access point configured for a local proxy.
+func (process *TeleportProcess) newLocalCacheForNode(clt auth.ClientI, cacheName []string) (auth.NodeAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
 	}
+
+	cache, err := process.newLocalCache(clt, cache.ForNode, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewNodeWrapper(clt, cache), nil
+}
+
+// newLocalCacheForKubernetes returns new instance of access point configured for a kubernetes service.
+func (process *TeleportProcess) newLocalCacheForKubernetes(clt auth.ClientI, cacheName []string) (auth.KubernetesAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForKubernetes, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewKubernetesWrapper(clt, cache), nil
+}
+
+// newLocalCacheForDatabase returns new instance of access point configured for a database service.
+func (process *TeleportProcess) newLocalCacheForDatabase(clt auth.ClientI, cacheName []string) (auth.DatabaseAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForDatabases, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewDatabaseWrapper(clt, cache), nil
 }
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
-func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForProxy, cacheName)
+func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.ProxyAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForProxy, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewProxyWrapper(clt, cache), nil
 }
 
-// newLocalCacheForRemoteProxy returns new instance of access point configured
-// for a remote proxy.
-func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
+// newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
+func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewRemoteProxyWrapper(clt, cache), nil
 }
 
 // DELETE IN: 8.0.0
 //
 // newLocalCacheForOldRemoteProxy returns new instance of access point
 // configured for an old remote proxy.
-func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
-	return process.newLocalCache(clt, cache.ForOldRemoteProxy, cacheName)
-}
-
-// newLocalCache returns new instance of access point
-func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.AccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
 	}
-	cache, err := process.newAccessCache(accessCacheConfig{
-		inMemory:  process.Config.CachePolicy.Type == memory.GetName(),
-		services:  clt,
-		setup:     process.setupCachePolicy(setupConfig),
-		cacheName: cacheName,
-	})
+
+	cache, err := process.newLocalCache(clt, cache.ForOldRemoteProxy, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.NewWrapper(clt, cache), nil
+
+	return auth.NewRemoteProxyWrapper(clt, cache), nil
+}
+
+// newLocalCacheForApps returns new instance of access point configured for a remote proxy.
+func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName []string) (auth.AppsAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForApps, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewAppsWrapper(clt, cache), nil
+}
+
+// newLocalCacheForApps returns new instance of access point configured for a windows desktop service.
+func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.newLocalCache(clt, cache.ForWindowsDesktop, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.NewWindowsDesktopWrapper(clt, cache), nil
+}
+
+// newLocalCache returns new instance of access point
+func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
+	return process.newAccessCache(accessCacheConfig{
+		inMemory:  process.Config.CachePolicy.Type == memory.GetName(),
+		services:  clt,
+		setup:     setupConfig,
+		cacheName: cacheName,
+	})
 }
 
 func (process *TeleportProcess) getRotation(role types.SystemRole) (*types.Rotation, error) {
@@ -1723,7 +1814,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		authClient, err := process.newLocalCache(conn.Client, cache.ForNode, []string{teleport.ComponentNode})
+		authClient, err := process.newLocalCacheForNode(conn.Client, []string{teleport.ComponentNode})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1990,7 +2081,7 @@ func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, ev
 	})
 }
 
-func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint, auditLog events.IAuditLog) error {
+func (process *TeleportProcess) initUploaderService(streamer events.Streamer, auditLog events.IAuditLog) error {
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentAuditLog, process.id),
 	})
@@ -2061,7 +2152,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	// Delete this comment once the uploader above is phased out.
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
 		ScanDir:  filepath.Join(streamingDir...),
-		Streamer: accessPoint,
+		Streamer: streamer,
 		AuditLog: auditLog,
 		EventsC:  process.Config.UploadEventsC,
 	})
@@ -2858,7 +2949,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		"",
 		process.proxyPublicAddr(),
 		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(tsrv),
+		regular.SetProxyMode(tsrv, accessPoint),
 		regular.SetSessionServer(conn.Client),
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
@@ -2890,6 +2981,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return nil
 	})
 
+	clusterNetworkConfig, err := accessPoint.GetClusterNetworkingConfig(process.ExitContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create and register reverse tunnel AgentPool.
 	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
 		HostUUID:            conn.ServerIdentity.ID.HostUUID,
@@ -2897,7 +2993,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AccessPoint:         accessPoint,
 		HostSigner:          conn.ServerIdentity.KeySigner,
 		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-		KubeDialAddr:        utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
+		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
 	})
@@ -3153,7 +3249,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	return nil
 }
 
-func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.AccessPoint, clusterName string) (*tls.Config, error) {
+// kubeDialAddr returns Proxy Kube service address used for dialing local kube service
+// by remote trusted cluster.
+// If the proxy is running with Multiplex mode the WebPort is returned
+// where connections are forwarded to kube service by ALPN SNI router.
+func kubeDialAddr(config ProxyConfig, mode types.ProxyListenerMode) utils.NetAddr {
+	if mode == types.ProxyListenerMode_Multiplex {
+		return config.WebAddr
+	}
+	return config.Kube.ListenAddr
+}
+
+func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
 	cfg := process.Config
 	var tlsConfig *tls.Config
 	acmeCfg := process.Config.Proxy.ACME
@@ -3186,6 +3293,12 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		tlsConfig = m.TLSConfig()
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
+
+		// If ACME protocol was enabled add all known TLS Routing protocols.
+		// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
+		// the TLS handshake will fail.
+		supportedProtocols := alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)
+		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, supportedProtocols...))
 	}
 
 	for _, pair := range process.Config.Proxy.KeyPairs {
@@ -3351,7 +3464,7 @@ func (process *TeleportProcess) initApps() {
 		}
 		// Create a caching client to the Auth Server. It is to reduce load on
 		// the Auth Server.
-		accessPoint, err := process.newLocalCache(conn.Client, cache.ForApps, []string{component})
+		accessPoint, err := process.newLocalCacheForApps(conn.Client, []string{component})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3810,7 +3923,7 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
+func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -3830,7 +3943,7 @@ func getPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
 }
 
 // findPublicAddr tries to resolve the public address of the proxy of this cluster.
-func findPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
+func findPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 	// If the application has a public address already set, use it.
 	if a.PublicAddr != "" {
 		return a.PublicAddr, nil
