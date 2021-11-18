@@ -144,7 +144,7 @@ func TestSampleConfig(t *testing.T) {
 			input: SampleFlags{
 				PublicAddr: "tele.example.com",
 			},
-			expectProxyPublicAddrs: apiutils.Strings{"tele.example.com"},
+			expectProxyPublicAddrs: apiutils.Strings{"tele.example.com:443"},
 			expectProxyWebAddr:     "0.0.0.0:443",
 		},
 		{

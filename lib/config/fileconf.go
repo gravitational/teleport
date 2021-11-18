@@ -213,13 +213,14 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
 	}
 	if flags.PublicAddr != "" {
-		p.PublicAddr = apiutils.Strings{flags.PublicAddr}
-
-		// use same port for web addr, or default to 443 if port is not specified
-		publicAddr, err := utils.ParseAddr(flags.PublicAddr)
+		// default to 443 if port is not specified
+		publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
+		p.PublicAddr = apiutils.Strings{publicAddr.String()}
+
+		// use same port for web addr
 		webPort := publicAddr.Port(teleport.StandardHTTPSPort)
 		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
 	}
