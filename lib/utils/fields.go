@@ -34,8 +34,7 @@ func (f Fields) GetString(key string) string {
 	if !found {
 		return ""
 	}
-	v, _ := val.(string)
-	return v
+	return val.(string)
 }
 
 // GetStrings returns a slice-of-strings representation of a field.
