@@ -610,7 +610,7 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
 	if limit <= 0 {
-		limit = backend.DefaultLargeLimit
+		limit = backend.DefaultRangeLimit
 	}
 
 	// When in mirror mode, don't set the current time so the SELECT query
@@ -646,6 +646,9 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if len(result.Items) == backend.DefaultRangeLimit {
+		l.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 	}
 	return &result, nil
 }
