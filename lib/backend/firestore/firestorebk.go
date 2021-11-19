@@ -358,7 +358,7 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey []byte, endKey []by
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
 	if limit <= 0 {
-		limit = backend.DefaultLargeLimit
+		limit = backend.DefaultRangeLimit
 	}
 	docs, err := b.svc.Collection(b.CollectionName).
 		Where(keyDocProperty, ">=", startKey).
@@ -376,7 +376,12 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey []byte, endKey []by
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return append(docs, legacyDocs...), nil
+
+	allDocs := append(docs, legacyDocs...)
+	if len(allDocs) >= backend.DefaultRangeLimit {
+		b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+	}
+	return allDocs, nil
 }
 
 // GetRange returns range of elements
@@ -407,7 +412,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
-	docSnaps, err := b.getRangeDocs(ctx, startKey, endKey, backend.DefaultLargeLimit)
+	docSnaps, err := b.getRangeDocs(ctx, startKey, endKey, backend.DefaultRangeLimit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
