@@ -108,6 +108,9 @@ type CLIConf struct {
 	NodePort int32
 	// Login on a remote SSH host
 	NodeLogin string
+	// Defines a specific node label; if defined, results of 'tsh ls' will be ordered based on
+	// the value of that label first, then by hostname.
+	NodeOrderByLabel string
 	// InsecureSkipVerify bypasses verification of HTTPS certificate when talking to web proxy
 	InsecureSkipVerify bool
 	// Remote SSH session to join
@@ -446,6 +449,7 @@ func Run(args []string, opts ...cliOption) error {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
+	ls.Flag("order-by", "If label specified, node list will be ordered first by label value then by hostname").StringVar(&cf.NodeOrderByLabel)
 	ls.Flag("verbose", "One-line output (for text format), including node UUIDs").Short('v').BoolVar(&cf.Verbose)
 	ls.Flag("format", "Format output (text, json, names)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
 	// clusters
@@ -1168,7 +1172,17 @@ func onListNodes(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	sort.Slice(nodes, func(i, j int) bool {
-		return nodes[i].GetHostname() < nodes[j].GetHostname()
+		// Default case: sort by hostname order only
+		if cf.NodeOrderByLabel == "" {
+			return nodes[i].GetHostname() < nodes[j].GetHostname()
+		}
+
+		// If order-by is specified, sort by label value (if present) order
+		// first, then by hostname order
+		orderLeft := nodes[i].GetLabels()[cf.NodeOrderByLabel] + nodes[i].GetHostname()
+		orderRight := nodes[j].GetLabels()[cf.NodeOrderByLabel] + nodes[j].GetHostname()
+
+		return orderLeft < orderRight
 	})
 
 	if err := printNodes(nodes, cf.Format, cf.Verbose); err != nil {
