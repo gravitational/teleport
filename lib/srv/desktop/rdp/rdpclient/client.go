@@ -142,55 +142,21 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		readyForInput: 0,
 	}
 
-	if err := c.readClientUsername(); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	c.username = c.cfg.Username
+
 	if err := cfg.AuthorizeFn(c.username); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := c.readClientSize(); err != nil {
-		return nil, trace.Wrap(err)
-	}
+
+	c.clientWidth = uint16(strconv.Atoi(cfg.Width))
+	c.clientHeight = uint16(strconv.Atoi(cfg.Height))
+
 	if err := c.connect(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	c.start()
 	return c, nil
-}
-
-func (c *Client) readClientUsername() error {
-	for {
-		msg, err := c.cfg.InputMessage()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		u, ok := msg.(tdp.ClientUsername)
-		if !ok {
-			c.cfg.Log.Debugf("Expected ClientUsername message, got %T", msg)
-			continue
-		}
-		c.cfg.Log.Debugf("Got RDP username %q", u.Username)
-		c.username = u.Username
-		return nil
-	}
-}
-
-func (c *Client) readClientSize() error {
-	for {
-		msg, err := c.cfg.InputMessage()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s, ok := msg.(tdp.ClientScreenSpec)
-		if !ok {
-			c.cfg.Log.Debugf("Expected ClientScreenSpec message, got %T", msg)
-			continue
-		}
-		c.cfg.Log.Debugf("Got RDP screen size %dx%d", s.Width, s.Height)
-		c.clientWidth = uint16(s.Width)
-		c.clientHeight = uint16(s.Height)
-		return nil
-	}
 }
 
 func (c *Client) connect(ctx context.Context) error {

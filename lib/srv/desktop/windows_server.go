@@ -588,7 +588,13 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 		return
 	}
 
-	// Fetch the target desktop info. Name of the desktop is passed via SNI.
+	// Fetch the target desktop parameters passed via SNI.
+	// "login.width.height.desktopName.SNISuffix"
+	targetParams := strings.Split(strings.TrimSuffix(tlsConn.ConnectionState().ServerName, SNISuffix), ".")
+	if len(targetParams) != 4 {
+		log.Errorf("received incorrect number of target params in SNI, got %v but expected the format %v",
+			tlsConn.ConnectionState().ServerName, "login.width.height.desktopName"+SNISuffix)
+	}
 	desktopName := strings.TrimSuffix(tlsConn.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-name", desktopName)
 
@@ -602,13 +608,27 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tlsConn, desktop, authContext); err != nil {
+	if err := s.connectRDP(ctx, log, tlsConn, desktop, authContext,
+		struct {
+			Login  string
+			Width  string
+			Height string
+		}{
+			Login:  targetParams[0],
+			Width:  targetParams[0],
+			Height: targetParams[0],
+		}); err != nil {
 		log.WithError(err).Error("RDP connection failed")
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, conn net.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, conn net.Conn, desktop types.WindowsDesktop, authCtx *auth.Context,
+	params struct {
+		Login  string
+		Width  string
+		Height string
+	}) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)

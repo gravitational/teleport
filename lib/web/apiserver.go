@@ -411,7 +411,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// Desktop access endpoints.
 	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.getDesktopsHandle))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
-	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.handleDesktopAccessWebsocket))
+	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.handleDesktopAccessWebsocket)) // ?access_token=bearer_token&params=<urlencoded json-structure>
 
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template

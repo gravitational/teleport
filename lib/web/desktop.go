@@ -18,10 +18,13 @@ package web
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"io"
 	"math/rand"
 	"net"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/websocket"
@@ -34,6 +37,27 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// TerminalRequest describes a request to create a web-based terminal
+// to a remote SSH server.
+type DesktopAccessQueryParams struct {
+	// Login is Windows username to connect as.
+	Login string `json:"login"`
+
+	// Screen is the initial screen size.
+	Screen struct {
+		W int `json:"w"`
+		H int `json:"h"`
+	} `json:"screen"`
+}
+
+// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=bearer_token&params=<urlencoded json-structure>
+//
+// Due to the nature of websocket we can't POST parameters as is, so we have
+// to add query parameters. The params query parameter is a URL-encoded JSON structure:
+//
+// {"login": "Administrator", "screen": {"h": 120, "w": 100}}
+//
+// Successful response is a websocket stream that allows streams TDP to/from the server.
 func (h *Handler) handleDesktopAccessWebsocket(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -46,7 +70,20 @@ func (h *Handler) handleDesktopAccessWebsocket(
 		return nil, trace.BadParameter("missing desktopName in request URL")
 	}
 	log := ctx.log.WithField("desktop-uuid", desktopName)
-	log.Debug("New desktop access websocket connection")
+
+	q := r.URL.Query()
+	params := q.Get("params")
+	if params == "" {
+		return nil, trace.BadParameter("missing params")
+	}
+
+	var queryParams *DesktopAccessQueryParams
+	if err := json.Unmarshal([]byte(params), &queryParams); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Debugf("New desktop access websocket connection requested with login=%s, initial width=%s, initial height=%s",
+		queryParams.Login, queryParams.Screen.W, queryParams.Screen.H)
 
 	winServices, err := ctx.unsafeCachedAuthClient.GetWindowsDesktopServices(r.Context())
 	if err != nil {
@@ -79,8 +116,12 @@ func (h *Handler) handleDesktopAccessWebsocket(
 	}
 	defer serviceCon.Close()
 	tlsConfig := ctx.clt.Config()
-	// Pass target desktop UUID via SNI.
-	tlsConfig.ServerName = desktopName + desktop.SNISuffix
+	// Pass target parameters via SNI: "login.width.height.desktopName.SNISuffix".
+	tlsConfig.ServerName = strings.Join([]string{
+		queryParams.Login,
+		strconv.Itoa(queryParams.Screen.W),
+		strconv.Itoa(queryParams.Screen.H),
+		desktopName}, ".") + desktop.SNISuffix
 	serviceConTLS := tls.Client(serviceCon, ctx.clt.Config())
 	log.Debug("Connected to windows_desktop_service")
 

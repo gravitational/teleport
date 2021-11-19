@@ -32,6 +32,13 @@ type Config struct {
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
 
+	// Login is the Windows login name.
+	Login string
+	// Width is the initial screen width.
+	Width string
+	// Height is the initial screen Height.
+	Height string
+
 	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
 	AuthorizeFn func(login string) error
 
@@ -58,6 +65,16 @@ func (c *Config) checkAndSetDefaults() error {
 	if c.GenerateUserCert == nil {
 		return trace.BadParameter("missing GenerateUserCert in rdpclient.Config")
 	}
+	if c.Login == "" {
+		return trace.BadParameter("missing Login in rdpclient.Config")
+	}
+	if c.Width == "" {
+		return trace.BadParameter("missing Width in rdpclient.Config")
+	}
+	if c.Height == "" {
+		return trace.BadParameter("missing Height in rdpclient.Config")
+	}
+
 	if c.InputMessage == nil {
 		return trace.BadParameter("missing InputMessage in rdpclient.Config")
 	}
