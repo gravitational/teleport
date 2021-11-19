@@ -138,8 +138,8 @@ type SampleFlags struct {
 	ACMEEnabled bool
 	// Version is the Teleport Configuration version.
 	Version string
-	// PublicAddrs sets the hostport the proxy advertises for the HTTP endpoint.
-	PublicAddrs []string
+	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
+	PublicAddr string
 	// KeyFile is a TLS key file
 	KeyFile string
 	// CertFile is a TLS Certificate file
@@ -212,8 +212,17 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
 		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
 	}
-	if len(flags.PublicAddrs) > 0 {
-		p.PublicAddr = apiutils.Strings(flags.PublicAddrs)
+	if flags.PublicAddr != "" {
+		// default to 443 if port is not specified
+		publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		p.PublicAddr = apiutils.Strings{publicAddr.String()}
+
+		// use same port for web addr
+		webPort := publicAddr.Port(teleport.StandardHTTPSPort)
+		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
 	}
 	if flags.KeyFile != "" && flags.CertFile != "" {
 		if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
