@@ -354,7 +354,12 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey []byte, endKey []by
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return append(docs, legacyDocs...), nil
+
+	allDocs := append(docs, legacyDocs...)
+	if len(allDocs) == backend.DefaultLargeLimit {
+		b.Warnf("Range query hit backend limit (startKey=%q, limit=%d).", startKey, backend.DefaultLargeLimit)
+	}
+	return allDocs, nil
 }
 
 // GetRange returns range of elements

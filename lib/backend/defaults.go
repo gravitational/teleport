@@ -18,5 +18,5 @@ const (
 	DefaultEventsTTL = 10 * time.Minute
 	// DefaultLargeLimit is used to specify some very large limit when limit is not specified
 	// explicitly to prevent OOM
-	DefaultLargeLimit = 30000
+	DefaultLargeLimit = 200000
 )

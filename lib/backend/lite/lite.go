@@ -646,6 +646,9 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if len(result.Items) == backend.DefaultLargeLimit {
+		l.Warnf("Range query hit backend limit (startKey=%q, limit=%d).", startKey, backend.DefaultLargeLimit)
+	}
 	return &result, nil
 }
 

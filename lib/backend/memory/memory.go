@@ -326,6 +326,9 @@ func (m *Memory) GetRange(ctx context.Context, startKey []byte, endKey []byte, l
 	defer m.Unlock()
 	m.removeExpired()
 	re := m.getRange(ctx, startKey, endKey, limit)
+	if len(re.Items) == backend.DefaultLargeLimit {
+		m.Warnf("Range query hit backend limit (startKey=%q, limit=%d).", startKey, backend.DefaultLargeLimit)
+	}
 	return &re, nil
 }
 
