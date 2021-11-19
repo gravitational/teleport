@@ -110,8 +110,8 @@ type suiteConfig struct {
 	Apps types.Apps
 	// ServerStreamer is the auth server audit events streamer.
 	ServerStreamer events.Streamer
-	// HttpHandler is a test sever connection handler.
-	HttpHandler func(w http.ResponseWriter, r *http.Request)
+	// HTTPHandler is a test sever connection handler.
+	HTTPHandler func(w http.ResponseWriter, r *http.Request)
 	// ConnectionLimiter allows setting connection limiter for the test server.
 	ConnectionLimiter limiter.Config
 }
@@ -173,13 +173,13 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.message = uuid.New()
 
 	// Set dummy HTTP handler if not provided in the config.
-	if config.HttpHandler == nil {
-		config.HttpHandler = func(w http.ResponseWriter, r *http.Request) {
+	if config.HTTPHandler == nil {
+		config.HTTPHandler = func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, s.message)
 		}
 	}
 
-	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(config.HttpHandler))
+	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(config.HTTPHandler))
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
 	s.testhttp.Start()
 
@@ -579,7 +579,7 @@ func TestConnectionLimit(t *testing.T) {
 
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ConnectionLimiter: limiter.Config{MaxConnections: connsNumber},
-		HttpHandler: func(w http.ResponseWriter, r *http.Request) {
+		HTTPHandler: func(w http.ResponseWriter, r *http.Request) {
 			// Signal when a new connection is established.
 			wgHandler.Done()
 
