@@ -100,6 +100,8 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// Delete invalid reviews from map that will be
+	// checked for required approvals.
 	for _, invalidReview := range invalidReviews {
 		delete(mostRecentReviews, invalidReview.name)
 	}
@@ -109,7 +111,6 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
-
 	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
 	err = hasRequiredApprovals(mostRecentReviews, c.Environment.GetReviewersForAuthor(pr.Author))
 	if err != nil {
@@ -119,7 +120,7 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 }
 
 // getInvalidReviews gets invalid reviews which are reviews that were submitted before
-// a new commit was pushed with a file change.
+// a new non-empty commit was pushed.
 func (c *Bot) getInvalidReviews(ctx context.Context, reviews map[string]review) (map[string]review, error) {
 	headSHA := c.Environment.Metadata.HeadSHA
 	invalidReviews := map[string]review{}
