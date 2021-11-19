@@ -129,7 +129,7 @@ CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
 CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 
-CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
+CARGO_TARGET := ${CARGO_TARGET_${OS}_${ARCH}}
 
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
@@ -244,20 +244,50 @@ endif
 # Requires a recent version of Rust and Cargo installed (tested rustc >= 1.52.1 and cargo >= 1.52.0)
 #
 ifeq ("$(with_roletester)", "yes")
+
+# Copy pre-built Rust artifacts into the target directory, if they exist.
+# This should never be the case for local builds, as this build cache is
+# only populated in our buildbox Docker image.
+#
+# This approach prevents us from needing to run a new cargo build, allowing us to
+# link libraries that depend on older versions of glibc.
+ifneq ($(wildcard /teleport-rust-build-cache/roletester/target/.),)
+$(shell mkdir -p lib/datalog/roletester/target)
+$(shell cp -r /teleport-rust-build-cache/roletester/target/* lib/datalog/roletester/target/)
+endif
+
 .PHONY: roletester
-roletester:
-	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release $(CARGO_TARGET)
+roletester: lib/datalog/roletester/target/$(CARGO_TARGET)/release/librole_tester.a
+	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release --target=$(CARGO_TARGET)
+
+-include lib/datalog/roletester/target/$(CARGO_TARGET)/release/librole_tester.d
+
+lib/datalog/roletester/target/$(CARGO_TARGET)/release/librole_tester.a:
+	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release --target=$(CARGO_TARGET)
+
 else
 .PHONY: roletester
 roletester:
 endif
 
 ifeq ("$(with_rdpclient)", "yes")
+
+# Copy pre-built RDP client library, just like we do for roletester.
+ifneq ($(wildcard /teleport-rust-build-cache/rdpclient/target/.),)
+$(shell mkdir -p lib/srv/desktop/rdp/rdpclient/target)
+$(shell cp -r /teleport-rust-build-cache/rdpclient/target/* lib/srv/desktop/rdp/rdpclient/target/)
+endif
+
 .PHONY: rdpclient
-rdpclient:
-	cargo build --manifest-path=lib/srv/desktop/rdp/rdpclient/Cargo.toml --release $(CARGO_TARGET)
+rdpclient: lib/srv/desktop/rdp/rdpclient/target/$(CARGO_TARGET)/release/librdp_client.a
 	cargo install cbindgen
 	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
+
+-include lib/srv/desktop/rdp/rdpclient/target/$(CARGO_TARGET)/release/librdp_client.d
+
+lib/srv/desktop/rdp/rdpclient/target/$(CARGO_TARGET)/release/librdp_client.a:
+	cargo build --manifest-path=lib/srv/desktop/rdp/rdpclient/Cargo.toml --release --target=$(CARGO_TARGET)
+
 else
 .PHONY: rdpclient
 rdpclient:
@@ -624,7 +654,7 @@ version: $(VERSRC)
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 	# Update api module path, but don't fail on error.
-	$(MAKE) update-api-module-path || true
+	- $(MAKE) update-api-module-path
 
 # This rule updates the api module path to be in sync with the current api release version.
 # e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY
@@ -698,17 +728,17 @@ remove-temp-files:
 # Dockerized build: useful for making Linux releases on OSX
 .PHONY:docker
 docker:
-	make -C build.assets build
+	$(MAKE) -C build.assets build
 
 # Dockerized build: useful for making Linux binaries on OSX
 .PHONY:docker-binaries
 docker-binaries: clean
-	make -C build.assets build-binaries
+	$(MAKE) -C build.assets build-binaries
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of)
 .PHONY:enter
 enter:
-	make -C build.assets enter
+	$(MAKE) -C build.assets enter
 
 # grpc generates GRPC stubs from service definitions
 .PHONY: grpc

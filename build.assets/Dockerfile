@@ -1,15 +1,72 @@
 # This Dockerfile makes the "build box": the container used to build official
 # releases of Teleport and its documentation.
 
-# Use Ubuntu 18.04 as base to get an older glibc version.
-# Using a newer base image will build against a newer glibc, which creates a
-# runtime requirement for the host to have newer glibc too. For example,
-# teleport built on any newer Ubuntu version will not run on Centos 7 because
-# of this.
+# Set the desired Rust version once.
+ARG RUST_VERSION=1.56.1
+FROM rust:$RUST_VERSION AS officialrust
+
+# Run the Rust builds from a Centos 7 container, to link against a glibc version
+# compatible with Centos 7. Using a newer base image will build against a newer
+# glibc, which creates a runtime requirement for the host to have a newer glibc
+# too.
+FROM centos:7 AS rustbuilder
+ARG RUST_VERSION
+
+# OS/ARCH for pre-building the Rust libraries
+ARG OS
+ARG ARCH
+
+# Install Rust
+#
+# Rust installation based on official Dockerfile here:
+#   https://github.com/rust-lang/docker-rust/blob/master/$RUST_VERSION/bullseye/Dockerfile
+#
+# The original Rust docker image uses a script to install `rustup`, and from
+# there rustc and associated tools.
+#
+# Rather than execute an arbitrary `rustup` installation script, we are cherry-
+# picking the appropriate files off the official docker image and then installing
+# the extra tooling/targets we need.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
+
+COPY --from=officialrust /usr/local/rustup /usr/local/rustup
+COPY --from=officialrust /usr/local/cargo /usr/local/cargo
+
+# Install dev tools (make, etc) and a Perl package needed to compile OpenSSL.
+RUN yum groupinstall -y "Development Tools"
+RUN yum install -y perl-IPC-Cmd
+
+# TODO: install Go (for GOPATH, GOARCH, etc)
+
+RUN set -eux \
+    make -v; \
+    rustup --version; \
+    cargo --version; \
+    rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy; \
+    chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
+    rustup target add i686-unknown-linux-gnu; \
+    rustup target add arm-unknown-linux-gnueabihf; \
+    rustup target add aarch64-unknown-linux-gnu; \
+    rustup target list | grep installed; \
+    rustc --version;
+
+RUN git clone https://github.com/gravitational/teleport.git /teleport-source
+WORKDIR /teleport-source
+# TODO: switch to correct branch
+RUN make rdpclient
+RUN make roletester
+
 FROM ubuntu:18.04
+ARG RUST_VERSION
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
+
+COPY --from=rustbuilder /teleport-source/lib/srv/desktop/rdp/rdpclient/target /teleport-rust-build-cache/rdpclient/target
+COPY --from=rustbuilder /teleport-source/lib/datalog/roletester/target /teleport-rust-build-cache/roletester/target
 
 ENV LANGUAGE="en_US.UTF-8" \
     LANG="en_US.UTF-8" \
@@ -68,29 +125,19 @@ ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
-# Install Rust
-#
-# Rust installation based on official rust image Dockerfile here:
-#   https://github.com/rust-lang/docker-rust/blob/master/1.56.0/bullseye/Dockerfile
-#
-# The original Rust docker image uses a script to install `rustup`, and from
-# there rustc and associated tools.
-#
-# Rather than execute an arbitrary `rustup` installation script, we are cherry-
-# picking the appropriate files off the official docker image and then installing
-# the extra tooling/targets we need.
 
- ENV RUSTUP_HOME=/usr/local/rustup \
-     CARGO_HOME=/usr/local/cargo \
-     PATH=/usr/local/cargo/bin:$PATH \
-     RUST_VERSION=1.56.1
+# Install Rust, using the same process as above.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
 
-COPY --from=rust:1.56.1 /usr/local/rustup /usr/local/rustup
-COPY --from=rust:1.56.1 /usr/local/cargo /usr/local/cargo
+COPY --from=officialrust /usr/local/rustup /usr/local/rustup
+COPY --from=officialrust /usr/local/cargo /usr/local/cargo
 RUN set -eux \
     rustup --version; \
     cargo --version; \
-    rustup component add --toolchain 1.56.1-x86_64-unknown-linux-gnu rustfmt clippy; \
+    rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy; \
     chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
     rustup target add i686-unknown-linux-gnu; \
     rustup target add arm-unknown-linux-gnueabihf; \
