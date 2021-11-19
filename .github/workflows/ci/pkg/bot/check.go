@@ -96,17 +96,17 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 	// not carry over to when new changes are added. Github does
 	// not do this automatically, so we must dismiss the reviews
 	// manually if there is a file change.
-	invalidReviews, err := c.getInvalidReviews(ctx, mostRecentReviews)
+	staleReviews, err := c.getStaleReviews(ctx, mostRecentReviews)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Delete invalid reviews from map that will be
 	// checked for required approvals.
-	for _, invalidReview := range invalidReviews {
-		delete(mostRecentReviews, invalidReview.name)
+	for _, staleReview := range staleReviews {
+		delete(mostRecentReviews, staleReview.name)
 	}
-	if len(invalidReviews) != 0 {
-		err = c.invalidateApprovals(ctx, invalidReviews)
+	if len(staleReviews) != 0 {
+		err = c.invalidateApprovals(ctx, staleReviews)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -119,21 +119,20 @@ func (c *Bot) checkExternal(ctx context.Context) error {
 	return nil
 }
 
-// getInvalidReviews gets invalid reviews which are reviews that were submitted before
-// a new non-empty commit was pushed.
-func (c *Bot) getInvalidReviews(ctx context.Context, reviews map[string]review) (map[string]review, error) {
+// getStaleReviews gets reviews that were submitted before a new non-empty commit was pushed.
+func (c *Bot) getStaleReviews(ctx context.Context, reviews map[string]review) (map[string]review, error) {
 	headSHA := c.Environment.Metadata.HeadSHA
-	invalidReviews := map[string]review{}
+	staleReviews := map[string]review{}
 	for _, review := range reviews {
-		detectedFileChange, err := c.hasFileDiff(ctx, review.commitID, headSHA)
+		detectedFileChange, err := c.hasFileDiff(ctx, review.commitID, headSHA, c.compareCommits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if detectedFileChange {
-			invalidReviews[review.name] = review
+			staleReviews[review.name] = review
 		}
 	}
-	return invalidReviews, nil
+	return staleReviews, nil
 }
 
 // splitReviews splits a list of reviews into two lists: `valid` (those reviews that refer to
@@ -276,10 +275,9 @@ func dismissMessage(pr *environment.Metadata, required []string) string {
 }
 
 // hasFileDiff compares two commits and checks if there are changes.
-func (c *Bot) hasFileDiff(ctx context.Context, base, head string) (bool, error) {
+func (c *Bot) hasFileDiff(ctx context.Context, base, head string, compare commitComparer) (bool, error) {
 	pr := c.Environment.Metadata
-	clt := c.Environment.Client
-	comparison, _, err := clt.Repositories.CompareCommits(ctx, pr.RepoOwner, pr.RepoName, base, head)
+	comparison, _, err := compare.CompareCommits(ctx, pr.RepoOwner, pr.RepoName, base, head)
 	if err != nil {
 		return true, trace.Wrap(err)
 	}
@@ -289,7 +287,7 @@ func (c *Bot) hasFileDiff(ctx context.Context, base, head string) (bool, error) 
 	return false, nil
 }
 
-// invalidateApprovals dismisses all approved reviews on a pull request.
+// invalidateApprovals dismisses the specified reviews on a pull request.
 func (c *Bot) invalidateApprovals(ctx context.Context, reviews map[string]review) error {
 	pr := c.Environment.Metadata
 	clt := c.Environment.Client
