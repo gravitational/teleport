@@ -629,6 +629,22 @@ func TestConnectionLimit(t *testing.T) {
 	wgConns.Wait()
 }
 
+// stubAddr is stub that implement's net.Addr interface.
+type stubAddr struct{}
+
+func (stubAddr) Network() string { return "1.2.3.4:54235" }
+func (stubAddr) String() string  { return "1.2.3.4:54235" }
+
+// mockConn is a wrapper around net.Conn used for mocking.
+type mockConn struct {
+	net.Conn
+}
+
+// RemoteAddr always return the same valid IPv4 address.
+func (*mockConn) RemoteAddr() net.Addr {
+	return stubAddr{}
+}
+
 // checkHTTPResponse checks expected HTTP response.
 func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, checkResp func(*http.Response)) {
 	pr, pw := net.Pipe()
@@ -663,7 +679,8 @@ func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, chec
 
 	// Handle the connection in another goroutine.
 	go func() {
-		s.appServer.HandleConnection(pw)
+		// Wrap connection in mockConn to override the RemoteAddr - required to pass connection limit check.
+		s.appServer.HandleConnection(&mockConn{pw})
 		wg.Done()
 	}()
 
