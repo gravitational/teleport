@@ -743,6 +743,31 @@ $ tctl users add joe joe,root
 $ tctl users add joe
 ```
 
+### tctl users update
+
+Update user account:
+
+```code
+$ tctl users update [<flags>] <account>
+```
+
+#### Arguments
+
+- `<account>` - The Teleport user account name.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--set-roles` | none | a role name | Comma-separated list of roles for the user to assume |
+
+#### Examples
+
+```code
+$ tctl users update joe --set-roles=access,editor
+# Assigns roles "access" and "editor" to user "joe"
+```
+
 ### tctl users ls
 
 Lists all user accounts:
