@@ -80,7 +80,7 @@ func (l *Limiter) RegisterRequestWithCustomRate(token string, customRate *rateli
 	return l.rateLimiter.RegisterRequest(token, customRate)
 }
 
-// Add limiter to the handle
+// WrapHandle adds limiter to the handle
 func (l *Limiter) WrapHandle(h http.Handler) {
 	l.rateLimiter.Wrap(h)
 	l.ConnLimiter.Wrap(l.rateLimiter)

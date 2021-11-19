@@ -626,8 +626,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
 		log.WithError(err).Error("Exceeded connection limit.")
-		err := conn.Close()
-		if err != nil {
+		if err := conn.Close(); err != nil {
 			log.WithError(err).Error("Failed to close connection.")
 			return
 		}

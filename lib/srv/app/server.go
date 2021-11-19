@@ -68,7 +68,7 @@ type Config struct {
 	TLSConfig *tls.Config
 
 	// ConnectionLimiter limits the number of active connections per client IP.
-	ConnectionLimiter *limiter.ConnectionsLimiter
+	ConnectionLimiter *limiter.Limiter
 
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
@@ -147,7 +147,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Cloud = cloud
 	}
 	if c.ConnectionLimiter == nil {
-		connectionLimiter, err := limiter.NewConnectionsLimiter(limiter.Config{})
+		connectionLimiter, err := limiter.NewLimiter(limiter.Config{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -173,8 +173,8 @@ type Server struct {
 	heartbeats    map[string]*srv.Heartbeat
 	dynamicLabels map[string]*labels.Dynamic
 
-	// limiter limits the number of active connections per client IP.
-	limiter *limiter.ConnectionsLimiter
+	// connLimiter limits the number of active connections per client IP.
+	connLimiter *limiter.ConnectionsLimiter
 
 	// apps are all apps this server currently proxies. Proxied apps are
 	// reconciled against monitoredApps below.
@@ -242,12 +242,14 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
 		awsSigner:     awsSigner,
-		limiter:       c.ConnectionLimiter,
+		connLimiter:   c.ConnectionLimiter.ConnectionsLimiter,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
 		reconcileCh: make(chan struct{}),
 	}
+
+	c.ConnectionLimiter.WrapHandle(s)
 
 	s.closeContext, s.closeFunc = context.WithCancel(ctx)
 
@@ -559,18 +561,6 @@ func (s *Server) ForceHeartbeat() error {
 // HandleConnection takes a connection and wraps it in a listener so it can
 // be passed to http.Serve to process as a HTTP request.
 func (s *Server) HandleConnection(conn net.Conn) {
-	remoteAddr := conn.RemoteAddr().String()
-
-	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
-		s.log.WithError(err).Error("Exceeded connection limit.")
-		if err := conn.Close(); err != nil {
-			s.log.WithError(err).Error("Failed to close connection.")
-			return
-		}
-		return
-	}
-	defer s.limiter.ReleaseConnection(remoteAddr)
-
 	// Wrap the listener in a TLS authorizing listener.
 	listener := newListener(s.closeContext, conn)
 	tlsListener := tls.NewListener(listener, s.tlsConfig)
@@ -582,6 +572,20 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 // ServeHTTP will forward the *http.Request to the target application.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		s.log.WithError(err).Errorf("Could not parse client IP from %q", r.RemoteAddr)
+		return
+	}
+
+	// Check connection limits.
+	if err := s.connLimiter.AcquireConnection(remoteAddr); err != nil {
+		s.log.WithError(err).Warning("Connection limit exceeded, rejecting connection")
+		http.Error(w, "Too many requests", http.StatusTooManyRequests)
+		return
+	}
+	defer s.connLimiter.ReleaseConnection(remoteAddr)
+
 	if err := s.serveHTTP(w, r); err != nil {
 		s.log.Warnf("Failed to serve request: %v.", err)
 
