@@ -22,7 +22,10 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/limiter"
 
+	"github.com/jackc/pgconn"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,5 +59,56 @@ func TestDatabaseServerStart(t *testing.T) {
 	for _, server := range servers {
 		require.Equal(t, map[string]string{"echo": "test"},
 			server.GetDatabase().GetAllLabels())
+	}
+}
+
+func TestDatabaseServerLimiting(t *testing.T) {
+	const (
+		user      = "bob"
+		role      = "admin"
+		dbName    = "postgres"
+		dbUser    = user
+		connLimit = int64(5) // Arbitrary number
+	)
+
+	ctx := context.Background()
+	allowDbUsers := []string{types.Wildcard}
+	allowDbNames := []string{types.Wildcard}
+
+	testCtx := setupTestContext(ctx, t,
+		withSelfHostedPostgres("postgres"),
+	)
+
+	connLimiter, err := limiter.NewLimiter(limiter.Config{MaxConnections: connLimit})
+	require.NoError(t, err)
+
+	// Set connection limit
+	testCtx.server.limiter = connLimiter.ConnectionsLimiter
+
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, user, role, allowDbUsers, allowDbNames)
+
+	dbConns := make([]*pgconn.PgConn, 0)
+
+	// Connect the maximum allowed number of clients.
+	for i := int64(0); i < connLimit; i++ {
+		pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
+		require.NoError(t, err)
+
+		// Save all connection, so we can close them later.
+		dbConns = append(dbConns, pgConn)
+	}
+
+	// We keep the previous connections open, so this one should be rejected, because we exhausted the limit.
+	_, err = testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to connect")
+
+	// Disconnect all clients.
+	for _, pgConn := range dbConns {
+		err = pgConn.Close(ctx)
+		require.NoError(t, err)
 	}
 }

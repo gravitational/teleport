@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -922,6 +923,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	})
 	require.NoError(t, err)
 
+	// Create default limiter.
+	connLimiter, err := limiter.NewLimiter(limiter.Config{})
+	require.NoError(t, err)
+
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
 		Clock:            clockwork.NewFakeClockAt(time.Now()),
@@ -933,6 +938,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		Hostname:         constants.APIDomain,
 		HostID:           p.HostID,
 		TLSConfig:        tlsConfig,
+		Limiter:          connLimiter.ConnectionsLimiter,
 		Auth:             testAuth,
 		Databases:        p.Databases,
 		ResourceMatchers: p.ResourceMatchers,
