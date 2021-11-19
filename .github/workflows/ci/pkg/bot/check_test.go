@@ -201,7 +201,6 @@ func (m *mockCommitComparer) CompareCommits(ctx context.Context, repoOwner, repo
 	// return a non-empty CommitFile list in the CommitComparison.
 	if base == "ReviewHasFileChangeFromHead" {
 		return &github.CommitsComparison{Files: []*github.CommitFile{{}, {}}}, nil, nil
-
 	}
 	return &github.CommitsComparison{Files: []*github.CommitFile{}}, nil, nil
 }
