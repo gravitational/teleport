@@ -31,9 +31,11 @@ type Pool struct {
 	mu       sync.Mutex
 	leaseIDs *atomic.Uint64
 	groups   map[interface{}]*group
-	grantC   chan Lease
-	ctx      context.Context
-	cancel   context.CancelFunc
+	// grantC is an unbuffered channel that funnels available leases from the
+	// workgroups to the outside world
+	grantC chan Lease
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewPool(ctx context.Context) *Pool {
@@ -50,6 +52,9 @@ func NewPool(ctx context.Context) *Pool {
 // Acquire is the channel which must be received on to acquire
 // new leases.  Each lease acquired in this way *must* have its
 // Release method called when the lease is no longer needed.
+// Note this channel will deliver leases from all active work
+// groups. It's up to the receiver to differentiate what group
+// the lease refers to and act accordingly.
 func (p *Pool) Acquire() <-chan Lease {
 	return p.grantC
 }
@@ -103,6 +108,10 @@ func (p *Pool) start(key interface{}, target uint64) {
 		cancel:   cancel,
 	}
 	p.groups[key] = g
+
+	// Start a routine to monitor the group's lease acquisition
+	// and handle notifications when a lease is returned to the
+	// pool
 	go g.run()
 }
 
@@ -192,32 +201,44 @@ func (g *group) setTarget(target uint64) {
 	g.notify()
 }
 
+// run manages the issuing of leases and handling their return to the pool for
+// a given work group.
 func (g *group) run() {
 	var counts Counts
 	var nextLease Lease
 	var grant chan Lease
 	for {
+		// Are we able to grant new leases? We are only allowed to grant a lease
+		// while the number of outstanding leases is less than the target value.
+		// If anyone else wants one after that, they will have to wait until a
+		// lease is returned to the pool.
 		counts = g.loadCounts()
 		if counts.Active < counts.Target {
-			// we are in a "granting" state; ensure that the
-			// grant channel is non-nil, and initialize `nextLease`
-			// if it hasn't been already.
+			// We are in a "granting" state; prepare to issue the lease to the
+			// next person who asks.
 			grant = g.grantC
 			if nextLease.id == 0 {
 				nextLease = newLease(g)
 			}
 		} else {
-			// we are not in a "granting" state, ensure that the
-			// grant channel is nil (prevents sends).
+			// we are in a non-"granting" state; prepare to block until a new
+			// event wakes the routine.
 			grant = nil
 		}
-		// if grant is nil, this select statement blocks until
-		// notify() is called, or the context is canceled.
+
+		// Remembering that writes to a `nil` channel block indefinitely,
+		// if we're in a non-granting state this select blocks until `notify()`
+		// is called (usually by a lease being returned), or the context is
+		// canceled.
+		//
+		// Otherwise we post the lease to the outside world and block on
+		// someone picking it up (or cancellation)
 		select {
 		case grant <- nextLease:
 			g.incrActive()
 			nextLease = Lease{}
 		case <-g.notifyC:
+			// some event has woken the dispatch routine. Go back around.
 		case <-g.ctx.Done():
 			return
 		}
@@ -256,8 +277,8 @@ func (l Lease) IsZero() bool {
 	return l == Lease{}
 }
 
-// Release relenquishes this lease.  Each lease is unique,
-// so double-calling Release on the same Lease has no effect.
+// Release relinquishes this lease. Each lease is unique,
+// so double-calling Release() on the same Lease has no effect.
 func (l Lease) Release() {
 	if l.IsZero() {
 		return
