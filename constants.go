@@ -585,25 +585,11 @@ const (
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
 
-// S3AllowedACL is the set of canned ACLs that S3 accepts
-var S3AllowedACL map[string]struct{}
-
 func init() {
 	// Per https://github.com/gravitational/teleport/blob/master/rfd/0012-teleport-versioning.md,
 	// only one major version backwards is supported for clients.
 	ver := semver.New(Version)
 	MinClientVersion = fmt.Sprintf("%d.0.0", ver.Major-1)
-
-	S3AllowedACL = map[string]struct{}{
-		"private":                   {},
-		"public-read":               {},
-		"public-read-write":         {},
-		"aws-exec-read":             {},
-		"authenticated-read":        {},
-		"bucket-owner-read":         {},
-		"bucket-owner-full-control": {},
-		"log-delivery-write":        {},
-	}
 }
 
 const (

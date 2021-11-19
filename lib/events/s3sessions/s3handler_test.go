@@ -78,7 +78,7 @@ func TestACL(t *testing.T) {
 			if tc.isError {
 				require.Error(t, err)
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, tc.acl, conf.ACL)
 			}
 		})

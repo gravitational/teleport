@@ -40,6 +40,23 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// s3AllowedACL is the set of canned ACLs that S3 accepts
+var s3AllowedACL = map[string]struct{}{
+	"private":                   {},
+	"public-read":               {},
+	"public-read-write":         {},
+	"aws-exec-read":             {},
+	"authenticated-read":        {},
+	"bucket-owner-read":         {},
+	"bucket-owner-full-control": {},
+	"log-delivery-write":        {},
+}
+
+func isCannedACL(acl string) bool {
+	_, ok := s3AllowedACL[acl]
+	return ok
+}
+
 // Config is handler configuration
 type Config struct {
 	// Bucket is S3 bucket name
@@ -86,7 +103,7 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 		s.DisableServerSideEncryption = disableServerSideEncryption
 	}
 	if acl := in.Query().Get(teleport.ACL); acl != "" {
-		if _, ok := teleport.S3AllowedACL[acl]; !ok {
+		if !isCannedACL(acl) {
 			return trace.BadParameter("failed to parse URI %q flag %q - %q is not a valid canned ACL", in.String(), teleport.ACL, acl)
 		}
 		s.ACL = acl
