@@ -222,11 +222,11 @@ $DomainDN="DC=domain-controller,DC=example,DC=com" # replace this with your doma
 $TeleportLDAPGroupName="svc-teleport-group" # replace this with your Group name if different
 
 # Gives Teleport the ability to create LDAP containers in the CDP container.
-dsacls "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G “$($TeleportLDAPGroupName):CC;container;"
+dsacls "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($TeleportLDAPGroupName):CC;container;"
 # Gives Teleport the ability to create and delete cRLDistributionPoint objects in the CDP/Teleport container.
-dsacls "CN=TELEPORT,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G “$($TeleportLDAPGroupName):CCDC;cRLDistributionPoint;"
+dsacls "CN=TELEPORT,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($TeleportLDAPGroupName):CCDC;cRLDistributionPoint;"
 # Gives Teleport the ability to write the certificateRevocationList property in the CDP/Teleport container.
-dsacls "CN=TELEPORT,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN " /I:T /G “$($TeleportLDAPGroupName):WP;certificateRevocationList;"
+dsacls "CN=TELEPORT,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN " /I:T /G "$($TeleportLDAPGroupName):WP;certificateRevocationList;"
 # Gives Teleport the ability to create and delete certificationAuthority objects in the NTAuthCertificates container.
 dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($TeleportLDAPGroupName):CCDC;certificationAuthority;"
 # Gives Teleport the ability to write the cACertificate property in the NTAuthCertificates container.
@@ -281,7 +281,7 @@ windows_desktop_service:
   public_addr: "desktop-access.example.com:3028"
   ldap:
     # Address of the Domain Controller for LDAP connections. Usually, this
-    # address will use port 389, like: domain-controller.example.com:389.
+    # address will use port 636, like: domain-controller.example.com:636.
     addr:     '$LDAP_SERVER_ADDRESS'
     # Active Directory domain name you are connecting to, like: domain-controller.example.com.
     domain:   '$LDAP_DOMAIN_NAME'
