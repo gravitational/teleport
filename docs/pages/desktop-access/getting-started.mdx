@@ -218,7 +218,7 @@ If you aren't sure, you can get the DN by running `(Get-ADDomain).DistinguishedN
 Run the PowerShell script below, replacing variable values where appropriate.
 
 ```powershell
-$DomainDN="DC=domain-controller,DC=example,DC=com" # replace this with your domain
+$DomainDN="DC=domain-controller,DC=example,DC=com" # replace this with your Domain Controller's domain
 $TeleportLDAPGroupName="svc-teleport-group" # replace this with your Group name if different
 
 # Gives Teleport the ability to create LDAP containers in the CDP container.
