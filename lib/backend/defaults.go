@@ -16,7 +16,7 @@ const (
 	DefaultPollStreamPeriod = time.Second
 	// DefaultEventsTTL is a default events TTL period
 	DefaultEventsTTL = 10 * time.Minute
-	// DefaultLargeLimit is used to specify some very large limit when limit is not specified
-	// explicitly to prevent OOM
-	DefaultLargeLimit = 30000
+	// DefaultRangeLimit is used to specify some very large limit when limit is not specified
+	// explicitly to prevent OOM due to infinite loops or other issues along those lines.
+	DefaultRangeLimit = 200_000
 )
