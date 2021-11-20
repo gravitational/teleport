@@ -52,6 +52,7 @@ type kubeCommands struct {
 	login       *kubeLoginCommand
 	sessions    *kubeSessionsCommand
 	exec        *kubeExecCommand
+	join        *kubeJoinCommand
 }
 
 func newKubeCommand(app *kingpin.Application) kubeCommands {
@@ -62,8 +63,28 @@ func newKubeCommand(app *kingpin.Application) kubeCommands {
 		login:       newKubeLoginCommand(kube),
 		sessions:    newKubeSessionsCommand(kube),
 		exec:        newKubeExecCommand(kube),
+		join:        newKubeJoinCommand(kube),
 	}
 	return cmds
+}
+
+type kubeJoinCommand struct {
+	*kingpin.CmdClause
+	session string
+}
+
+func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
+	c := &kubeJoinCommand{
+		CmdClause: parent.Command("join", "Join an active Kubernetes session."),
+	}
+
+	c.Flag("session", "The ID of the target session.").Required().StringVar(&c.session)
+
+	return c
+}
+
+func (c *kubeJoinCommand) run(cf *CLIConf) error {
+	panic("not implemented")
 }
 
 func kubeExecCommandAssembler(c *kubeExecCommand) []string {
