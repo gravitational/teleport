@@ -230,7 +230,7 @@ func (c *Client) start() {
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
-			msg, err := c.cfg.InputMessage()
+			msg, err := c.cfg.TDPConn.InputMessage()
 			if err != nil {
 				c.cfg.Log.Warningf("Failed reading RDP input message: %v", err)
 				return
@@ -358,7 +358,7 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	})
 	copy(img.Pix, data)
 
-	if err := c.cfg.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
+	if err := c.cfg.TDPConn.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
 		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
 	}
 	return nil

@@ -42,13 +42,8 @@ type Config struct {
 	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
 	AuthorizeFn func(login string) error
 
-	// TODO(zmb3): replace these callbacks with a tdp.Conn
-
-	// InputMessage is called to receive a message from the client for the RDP
-	// server. This function should block until there is a message.
-	InputMessage func() (tdp.Message, error)
-	// OutputMessage is called to send a message from RDP server to the client.
-	OutputMessage func(tdp.Message) error
+	// TDPConn is the TDP connection.
+	TDPConn *tdp.Conn
 
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
@@ -75,11 +70,8 @@ func (c *Config) checkAndSetDefaults() error {
 		return trace.BadParameter("missing Height in rdpclient.Config")
 	}
 
-	if c.InputMessage == nil {
-		return trace.BadParameter("missing InputMessage in rdpclient.Config")
-	}
-	if c.OutputMessage == nil {
-		return trace.BadParameter("missing OutputMessage in rdpclient.Config")
+	if c.TDPConn == nil {
+		return trace.BadParameter("missing tdpConn in rdpclient.Config")
 	}
 	if c.AuthorizeFn == nil {
 		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")

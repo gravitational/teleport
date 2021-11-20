@@ -614,9 +614,8 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain())
 		},
-		Addr:          desktop.GetAddr(),
-		InputMessage:  tdpConn.InputMessage,
-		OutputMessage: tdpConn.OutputMessage,
+		Addr:    desktop.GetAddr(),
+		TDPConn: tdpConn,
 		AuthorizeFn: func(login string) error {
 			return authContext.Checker.CheckAccess(
 				desktop,

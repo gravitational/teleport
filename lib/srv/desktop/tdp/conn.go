@@ -41,6 +41,7 @@ func NewConn(rw io.ReadWriter) *Conn {
 }
 
 // InputMessage reads the next incoming message from the connection.
+// Blocks until there is a message.
 func (c *Conn) InputMessage() (Message, error) {
 	m, err := decode(c.bufr)
 	return m, trace.Wrap(err)
