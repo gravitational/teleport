@@ -700,6 +700,15 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		}
 	}()
 
+	session := newSession(*ctx, f, req, p)
+	client := &kubeProxyClientStreams{}
+	party := newParty(*ctx, client)
+
+	err = session.join(party)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return nil, nil
 }
 

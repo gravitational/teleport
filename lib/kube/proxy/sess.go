@@ -81,7 +81,7 @@ func (p *kubeProxyClientStreams) stderrStream() io.Writer {
 	return p.stderr
 }
 
-func (p *kubeProxyClientStreams) resizeIn() remotecommand.TerminalSizeQueue {
+func (p *kubeProxyClientStreams) resizeQueue() remotecommand.TerminalSizeQueue {
 	return p.sizeQueue
 }
 
@@ -157,7 +157,7 @@ type session struct {
 	closeOnce sync.Once
 }
 
-func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params, parentLog log.Entry) *session {
+func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params) *session {
 	id := uuid.New()
 	// TODO(joel): supply roles
 	accessEvaluator := auth.NewSessionAccessEvaluator(nil, types.KubernetesSessionKind)
@@ -170,7 +170,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		id:                id,
 		parties:           make(map[uuid.UUID]*party),
 		partiesHistorical: make(map[uuid.UUID]*party),
-		log:               log.WithField("session", id.String()),
+		log:               forwarder.log.WithField("session", id.String()),
 		clients_stdin:     utils.NewTrackingReader(kubeutils.NewMultiReader()),
 		clients_stdout:    utils.NewTrackingWriter(srv.NewMultiWriter()),
 		clients_stderr:    utils.NewTrackingWriter(srv.NewMultiWriter()),
