@@ -23,8 +23,8 @@ import "github.com/gravitational/teleport/api/constants"
 const (
 	// SNISuffix is the server name suffix used during SNI to specify the
 	// target desktop to connect to. The client (proxy_service) will use SNI
-	// like "${UUID}.desktop.teleport.cluster.local" to pass the UUID of the
-	// desktop.
+	// like "login_width_height_desktopName.desktop.teleport.cluster.local"
+	// to pass the UUID of the desktop.
 	SNISuffix = ".desktop." + constants.APIDomain
 	// WildcardServiceDNS is a wildcard DNS address to embed in the service TLS
 	// certificate for SNI-based routing. Note: this is different from ALPN SNI

@@ -608,27 +608,33 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tlsConn, desktop, authContext,
-		struct {
-			Login  string
-			Width  string
-			Height string
-		}{
-			Login:  targetParams[0],
-			Width:  targetParams[1],
-			Height: targetParams[2],
-		}); err != nil {
+	tdpConn := tdp.NewConn(tlsConn)
+	rdpCfg := rdpclient.Config{
+		Log: log,
+		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
+			return s.generateCredentials(ctx, username, desktop.GetDomain())
+		},
+		Addr:          desktop.GetAddr(),
+		InputMessage:  tdpConn.InputMessage,
+		OutputMessage: tdpConn.OutputMessage,
+		AuthorizeFn: func(login string) error {
+			return authContext.Checker.CheckAccess(
+				desktop,
+				services.AccessMFAParams{Verified: true},
+				services.NewWindowsLoginMatcher(login))
+		},
+		Login:  targetParams[0],
+		Width:  targetParams[1],
+		Height: targetParams[2],
+	}
+
+	if err := s.connectRDP(ctx, log, tlsConn, desktop, authContext, rdpCfg); err != nil {
 		log.WithError(err).Error("RDP connection failed")
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, conn net.Conn, desktop types.WindowsDesktop, authCtx *auth.Context,
-	params struct {
-		Login  string
-		Width  string
-		Height string
-	}) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, conn net.Conn, desktop types.WindowsDesktop, authCtx *auth.Context, rdpCfg rdpclient.Config) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -643,31 +649,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	sessionID := session.NewID()
 
-	var windowsUser string
-	authorize := func(login string) error {
-		windowsUser = login // capture attempted login user
-		return authCtx.Checker.CheckAccess(
-			desktop,
-			services.AccessMFAParams{Verified: true},
-			services.NewWindowsLoginMatcher(login))
-	}
-
-	tdpConn := tdp.NewConn(conn)
-	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
-		Log: log,
-		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
-			return s.generateCredentials(ctx, username, desktop.GetDomain())
-		},
-		Addr:          desktop.GetAddr(),
-		InputMessage:  tdpConn.InputMessage,
-		OutputMessage: tdpConn.OutputMessage,
-		AuthorizeFn:   authorize,
-		Login:         params.Login,
-		Width:         params.Width,
-		Height:        params.Height,
-	})
+	rdpc, err := rdpclient.New(ctx, rdpCfg)
 	if err != nil {
-		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, &identity, rdpCfg.Login, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
@@ -694,13 +678,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
 		rdpc.Close()
-		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, &identity, rdpCfg.Login, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
-	s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, nil)
+	s.onSessionStart(ctx, &identity, rdpCfg.Login, string(sessionID), desktop, nil)
 	err = rdpc.Wait()
-	s.onSessionEnd(ctx, &identity, windowsUser, string(sessionID), desktop)
+	s.onSessionEnd(ctx, &identity, rdpCfg.Login, string(sessionID), desktop)
 
 	return trace.Wrap(err)
 }
