@@ -116,7 +116,7 @@ func (h *Handler) handleDesktopAccessWebsocket(
 	}
 	defer serviceCon.Close()
 	tlsConfig := ctx.clt.Config()
-	// Pass target parameters via SNI: "login.width.height.desktopName.SNISuffix".
+	// Pass target parameters via SNI: "login_width_height_desktopName.SNISuffix".
 	tlsConfig.ServerName = strings.Join([]string{
 		queryParams.Login,
 		strconv.Itoa(queryParams.Screen.W),
