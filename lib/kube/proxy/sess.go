@@ -283,6 +283,10 @@ func (s *session) launch() error {
 		}
 	}
 
+	if err := s.forwarder.setupForwardingHeaders(sess, s.req); err != nil {
+		return trace.Wrap(err)
+	}
+
 	executor, err := s.forwarder.getExecutor(s.ctx, sess, s.req)
 	if err != nil {
 		s.log.WithError(err).Warning("Failed creating executor.")
