@@ -590,12 +590,12 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 
 	// Fetch the target desktop parameters passed via SNI.
 	// "login.width.height.desktopName.SNISuffix"
-	targetParams := strings.Split(strings.TrimSuffix(tlsConn.ConnectionState().ServerName, SNISuffix), ".")
+	targetParams := strings.Split(strings.TrimSuffix(tlsConn.ConnectionState().ServerName, SNISuffix), "_")
 	if len(targetParams) != 4 {
 		log.Errorf("received incorrect number of target params in SNI, got %v but expected the format %v",
 			tlsConn.ConnectionState().ServerName, "login.width.height.desktopName"+SNISuffix)
 	}
-	desktopName := strings.TrimSuffix(tlsConn.ConnectionState().ServerName, SNISuffix)
+	desktopName := targetParams[3]
 	log = log.WithField("desktop-name", desktopName)
 
 	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopName)
@@ -615,8 +615,8 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 			Height string
 		}{
 			Login:  targetParams[0],
-			Width:  targetParams[0],
-			Height: targetParams[0],
+			Width:  targetParams[1],
+			Height: targetParams[2],
 		}); err != nil {
 		log.WithError(err).Error("RDP connection failed")
 		return
@@ -662,6 +662,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		InputMessage:  tdpConn.InputMessage,
 		OutputMessage: tdpConn.OutputMessage,
 		AuthorizeFn:   authorize,
+		Login:         params.Login,
+		Width:         params.Width,
+		Height:        params.Height,
 	})
 	if err != nil {
 		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)

@@ -70,6 +70,7 @@ import (
 	"image"
 	"os"
 	"runtime/cgo"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -142,14 +143,22 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		readyForInput: 0,
 	}
 
-	c.username = c.cfg.Username
+	c.username = c.cfg.Login
 
 	if err := cfg.AuthorizeFn(c.username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	c.clientWidth = uint16(strconv.Atoi(cfg.Width))
-	c.clientHeight = uint16(strconv.Atoi(cfg.Height))
+	clientWidth, err := strconv.Atoi(cfg.Width)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientHeight, err := strconv.Atoi(cfg.Height)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.clientWidth = uint16(clientWidth)
+	c.clientHeight = uint16(clientHeight)
 
 	if err := c.connect(ctx); err != nil {
 		return nil, trace.Wrap(err)

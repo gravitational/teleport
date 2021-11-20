@@ -121,7 +121,7 @@ func (h *Handler) handleDesktopAccessWebsocket(
 		queryParams.Login,
 		strconv.Itoa(queryParams.Screen.W),
 		strconv.Itoa(queryParams.Screen.H),
-		desktopName}, ".") + desktop.SNISuffix
+		desktopName}, "_") + desktop.SNISuffix
 	serviceConTLS := tls.Client(serviceCon, ctx.clt.Config())
 	log.Debug("Connected to windows_desktop_service")
 
