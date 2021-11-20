@@ -24,13 +24,17 @@ import (
 
 	broadcast "github.com/dustin/go-broadcast"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/remotecommand"
 )
@@ -117,6 +121,8 @@ type session struct {
 
 	req *http.Request
 
+	params httprouter.Params
+
 	id uuid.UUID
 
 	parties map[uuid.UUID]*party
@@ -141,12 +147,14 @@ type session struct {
 
 	recorder events.StreamWriter
 
+	emitter apievents.Emitter
+
 	closeC chan struct{}
 
 	closeOnce sync.Once
 }
 
-func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, parentLog log.Entry) *session {
+func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params, parentLog log.Entry) *session {
 	id := uuid.New()
 	// TODO(joel): supply roles
 	accessEvaluator := auth.NewSessionAccessEvaluator(nil, types.KubernetesSessionKind)
@@ -155,6 +163,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, parent
 		ctx:               ctx,
 		forwarder:         forwarder,
 		req:               req,
+		params:            params,
 		id:                id,
 		parties:           make(map[uuid.UUID]*party),
 		partiesHistorical: make(map[uuid.UUID]*party),
@@ -165,14 +174,113 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, parent
 		state:             types.SessionState_SessionStatePending,
 		stateUpdate:       broadcast.NewBroadcaster(1),
 		accessEvaluator:   accessEvaluator,
+		emitter:           events.NewDiscardEmitter(),
 	}
 }
 
+// TODO(joel): audit events
+//   - resize
+//   - session end
+//   - session recording
+
 func (s *session) launch() error {
+	q := s.req.URL.Query()
+	request := remoteCommandRequest{
+		podNamespace:       s.params.ByName("podNamespace"),
+		podName:            s.params.ByName("podName"),
+		containerName:      q.Get("container"),
+		cmd:                q["command"],
+		stdin:              utils.AsBool(q.Get("stdin")),
+		stdout:             utils.AsBool(q.Get("stdout")),
+		stderr:             utils.AsBool(q.Get("stderr")),
+		tty:                utils.AsBool(q.Get("tty")),
+		httpRequest:        s.req,
+		httpResponseWriter: nil,
+		context:            s.req.Context(),
+		pingPeriod:         s.forwarder.cfg.ConnPingPeriod,
+	}
+
 	sess, err := s.forwarder.newClusterSession(s.ctx)
 	if err != nil {
 		s.log.Errorf("Failed to create cluster session: %v.", err)
 		return trace.Wrap(err)
+	}
+
+	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
+
+	if !sess.noAuditEvents && request.tty {
+		streamer, err := s.forwarder.newStreamer(&s.ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		recorder, err := events.NewAuditWriter(events.AuditWriterConfig{
+			// Audit stream is using server context, not session context,
+			// to make sure that session is uploaded even after it is closed
+			Context:      s.forwarder.ctx,
+			Streamer:     streamer,
+			Clock:        s.forwarder.cfg.Clock,
+			SessionID:    tsession.ID(s.id.String()),
+			ServerID:     s.forwarder.cfg.ServerID,
+			Namespace:    s.forwarder.cfg.Namespace,
+			RecordOutput: s.ctx.recordingConfig.GetMode() != types.RecordOff,
+			Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+			ClusterName:  s.forwarder.cfg.ClusterName,
+		})
+
+		s.recorder = recorder
+		s.emitter = recorder
+		defer recorder.Close(s.forwarder.ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+	} else if !sess.noAuditEvents {
+		s.emitter = s.forwarder.cfg.StreamEmitter
+	}
+
+	if request.tty {
+		termParams := tsession.TerminalParams{
+			W: 100,
+			H: 100,
+		}
+
+		sessionStartEvent := &apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				Type:        events.SessionStartEvent,
+				Code:        events.SessionStartCode,
+				ClusterName: s.forwarder.cfg.ClusterName,
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerID:        s.forwarder.cfg.ServerID,
+				ServerNamespace: s.forwarder.cfg.Namespace,
+				ServerHostname:  sess.teleportCluster.name,
+				ServerAddr:      sess.kubeAddress,
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: s.id.String(),
+				WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
+			},
+			UserMetadata: apievents.UserMetadata{
+				User:         s.ctx.User.GetName(),
+				Login:        s.ctx.User.GetName(),
+				Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: s.req.RemoteAddr,
+				LocalAddr:  sess.kubeAddress,
+				Protocol:   events.EventProtocolKube,
+			},
+			TerminalSize:              termParams.Serialize(),
+			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+			KubernetesPodMetadata:     eventPodMeta,
+			InitialCommand:            q["command"],
+			SessionRecording:          s.ctx.recordingConfig.GetMode(),
+		}
+
+		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
+			s.forwarder.log.WithError(err).Warn("Failed to emit event.")
+		}
 	}
 
 	executor, err := s.forwarder.getExecutor(s.ctx, sess, s.req)
