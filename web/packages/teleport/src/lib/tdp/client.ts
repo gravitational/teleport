@@ -73,12 +73,6 @@ export default class Client extends EventEmitter {
     };
   }
 
-  // After websocket is connected, caller can initialize the tdp connection by calling connect.
-  connect(initialWidth: number, initialHeight: number) {
-    this.sendUsername(this.username);
-    this.resize(initialWidth, initialHeight);
-  }
-
   processMessage(buffer: ArrayBuffer) {
     const messageType = this.codec.decodeMessageType(buffer);
     try {

@@ -32,11 +32,27 @@ export default function useTdpClientCanvas(props: Props) {
 
   // Build a client based on url parameters.
   const tdpClient = useMemo(() => {
+    // Calculate the size of the canvas to be displayed.
+    // Setting flex to "1" ensures the canvas will fill out the area available to it,
+    // which we calculate based on the window dimensions and TopBarHeight below.
+    const width = window.innerWidth;
+    const height = window.innerHeight - TopBarHeight;
+
+    const params = JSON.stringify({
+      login: username,
+      screen: {
+        w: width,
+        h: height,
+      },
+    });
+    const encodedParams = window.encodeURI(params);
+
     const addr = cfg.api.desktopWsAddr
       .replace(':fqdm', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':desktopName', desktopName)
-      .replace(':token', getAccessToken());
+      .replace(':token', getAccessToken())
+      .replace(':params', encodedParams);
 
     return new TdpClient(addr, username);
   }, [clusterId, username, desktopName]);
@@ -58,7 +74,6 @@ export default function useTdpClientCanvas(props: Props) {
   const onInit = (cli: TdpClient, canvas: HTMLCanvasElement) => {
     setConnectionAttempt({ status: 'processing' });
     syncCanvasSizeToClientSize(canvas);
-    cli.connect(canvas.width, canvas.height);
   };
 
   const onConnect = () => {

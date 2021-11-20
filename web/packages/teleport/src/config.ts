@@ -104,7 +104,7 @@ const cfg = {
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdm/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token',
+      'wss://:fqdm/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&params=:params',
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     ttyWsAddr:
       'wss://:fqdm/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
