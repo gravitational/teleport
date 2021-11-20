@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -55,7 +56,11 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 		role, err := services.UnmarshalRole(item.Value,
 			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			// Try to get the role name for the error, it allows admins to take action
+			// against the "bad" role.
+			h := &types.ResourceHeader{}
+			_ = json.Unmarshal(item.Value, h)
+			return nil, trace.WrapWithMessage(err, "role %q", h.GetName())
 		}
 		out = append(out, role)
 	}
