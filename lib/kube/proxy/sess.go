@@ -437,6 +437,7 @@ func (s *session) launch() error {
 	return nil
 }
 
+// TODO(joel): handle noninteractive sessions
 func (s *session) join(p *party) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
