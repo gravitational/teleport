@@ -18,8 +18,10 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	broadcast "github.com/dustin/go-broadcast"
@@ -37,6 +39,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/remotecommand"
+	utilexec "k8s.io/client-go/util/exec"
 )
 
 type remoteClient interface {
@@ -178,10 +181,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 }
 
-// TODO(joel): audit events
-//   - resize
-//   - session end
-//   - session recording
+// TODO(joel): resize events
 
 func (s *session) launch() error {
 	q := s.req.URL.Query()
@@ -201,6 +201,7 @@ func (s *session) launch() error {
 	}
 
 	sess, err := s.forwarder.newClusterSession(s.ctx)
+	sessionStart := s.forwarder.cfg.Clock.Now().UTC()
 	if err != nil {
 		s.log.Errorf("Failed to create cluster session: %v.", err)
 		return trace.Wrap(err)
@@ -293,6 +294,133 @@ func (s *session) launch() error {
 		return trace.Wrap(err)
 	}
 
+	defer func() {
+		// TODO(joel); send error to client proxy here
+		//if err := s.proxy.sendStatus(err); err != nil {
+		//	f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
+		//}
+
+		if request.tty {
+			sessionDataEvent := &apievents.SessionData{
+				Metadata: apievents.Metadata{
+					Type:        events.SessionDataEvent,
+					Code:        events.SessionDataCode,
+					ClusterName: s.forwarder.cfg.ClusterName,
+				},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerID:        s.forwarder.cfg.ServerID,
+					ServerNamespace: s.forwarder.cfg.Namespace,
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: s.id.String(),
+					WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:         s.ctx.User.GetName(),
+					Login:        s.ctx.User.GetName(),
+					Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					RemoteAddr: s.req.RemoteAddr,
+					LocalAddr:  sess.kubeAddress,
+					Protocol:   events.EventProtocolKube,
+				},
+				// Bytes transmitted from user to pod.
+				BytesTransmitted: s.clients_stdin.Count(),
+				// Bytes received from pod by user.
+				BytesReceived: s.clients_stdout.Count() + s.clients_stderr.Count(),
+			}
+
+			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionDataEvent); err != nil {
+				s.forwarder.log.WithError(err).Warn("Failed to emit session data event.")
+			}
+
+			sessionEndEvent := &apievents.SessionEnd{
+				Metadata: apievents.Metadata{
+					Type:        events.SessionEndEvent,
+					Code:        events.SessionEndCode,
+					ClusterName: s.forwarder.cfg.ClusterName,
+				},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerID:        s.forwarder.cfg.ServerID,
+					ServerNamespace: s.forwarder.cfg.Namespace,
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: s.id.String(),
+					WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:         s.ctx.User.GetName(),
+					Login:        s.ctx.User.GetName(),
+					Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					RemoteAddr: s.req.RemoteAddr,
+					LocalAddr:  sess.kubeAddress,
+					Protocol:   events.EventProtocolKube,
+				},
+				Interactive: true,
+				// TODO(joel): participant list here
+				Participants:              []string{s.ctx.User.GetName()},
+				StartTime:                 sessionStart,
+				EndTime:                   s.forwarder.cfg.Clock.Now().UTC(),
+				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+				KubernetesPodMetadata:     eventPodMeta,
+				InitialCommand:            request.cmd,
+				SessionRecording:          s.ctx.recordingConfig.GetMode(),
+			}
+
+			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
+				s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
+			}
+		} else {
+			// send an exec event
+			execEvent := &apievents.Exec{
+				Metadata: apievents.Metadata{
+					Type:        events.ExecEvent,
+					ClusterName: s.forwarder.cfg.ClusterName,
+				},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerID:        s.forwarder.cfg.ServerID,
+					ServerNamespace: s.forwarder.cfg.Namespace,
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: s.id.String(),
+					WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:         s.ctx.User.GetName(),
+					Login:        s.ctx.User.GetName(),
+					Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					RemoteAddr: s.req.RemoteAddr,
+					LocalAddr:  sess.kubeAddress,
+					Protocol:   events.EventProtocolKube,
+				},
+				CommandMetadata: apievents.CommandMetadata{
+					Command: strings.Join(request.cmd, " "),
+				},
+				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+				KubernetesPodMetadata:     eventPodMeta,
+			}
+
+			if err != nil {
+				execEvent.Code = events.ExecFailureCode
+				execEvent.Error = err.Error()
+				if exitErr, ok := err.(utilexec.ExitError); ok && exitErr.Exited() {
+					execEvent.ExitCode = fmt.Sprintf("%d", exitErr.ExitStatus())
+				}
+			} else {
+				execEvent.Code = events.ExecCode
+			}
+
+			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, execEvent); err != nil {
+				s.forwarder.log.WithError(err).Warn("Failed to emit event.")
+			}
+		}
+	}()
+
 	options := remotecommand.StreamOptions{
 		Stdin:             s.clients_stdin,
 		Stdout:            s.clients_stdout,
@@ -309,7 +437,6 @@ func (s *session) launch() error {
 	return nil
 }
 
-// TODO(joel): write to session recorder
 func (s *session) join(p *party) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
