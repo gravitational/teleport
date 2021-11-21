@@ -27,12 +27,12 @@ import (
 
 	broadcast "github.com/dustin/go-broadcast"
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -54,31 +54,31 @@ type remoteClient interface {
 }
 
 type websocketClientStreams struct {
-	ws *websocket.Conn
+	stream *streamproto.SessionStream
 }
 
 func (p *websocketClientStreams) stdinStream() io.Reader {
-	panic("not implemented")
+	return p.stream
 }
 
 func (p *websocketClientStreams) stdoutStream() io.Writer {
-	panic("not implemented")
+	return p.stream
 }
 
 func (p *websocketClientStreams) stderrStream() io.Writer {
-	panic("not implemented")
+	return p.stream
 }
 
 func (p *websocketClientStreams) resizeQueue() chan *remotecommand.TerminalSize {
-	panic("not implemented")
+	return p.stream.ResizeQueue()
 }
 
 func (p *websocketClientStreams) sendStatus(err error) error {
-	panic("not implemented")
+	return nil
 }
 
 func (p *websocketClientStreams) Close() error {
-	panic("not implemented")
+	return trace.Wrap(p.stream.Close())
 }
 
 type kubeProxyClientStreams struct {

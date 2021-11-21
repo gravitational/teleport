@@ -75,11 +75,11 @@ func (s *SessionStream) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func (s *SessionStream) Write(data []byte) error {
+func (s *SessionStream) Write(data []byte) (int, error) {
 	s.writeSync.Lock()
 	defer s.writeSync.Unlock()
 
-	return s.conn.WriteMessage(websocket.BinaryMessage, data)
+	return len(data), s.conn.WriteMessage(websocket.BinaryMessage, data)
 }
 
 func (s *SessionStream) Resize(size *remotecommand.TerminalSize) error {
