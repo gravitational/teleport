@@ -713,6 +713,10 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.NotFound("session %v not found", sessionId)
 	}
 
+	if !session.tty {
+		return nil, trace.NotFound("session %v is not interactive", sessionId)
+	}
+
 	ws, err := f.upgrader.Upgrade(w, req, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
