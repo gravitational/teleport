@@ -407,9 +407,8 @@ func (s *session) launch() error {
 					LocalAddr:  sess.kubeAddress,
 					Protocol:   events.EventProtocolKube,
 				},
-				Interactive: true,
-				// TODO(joel): participant list here
-				Participants:              []string{s.ctx.User.GetName()},
+				Interactive:               true,
+				Participants:              s.allParticipants(),
 				StartTime:                 sessionStart,
 				EndTime:                   s.forwarder.cfg.Clock.Now().UTC(),
 				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
@@ -543,6 +542,15 @@ func (s *session) leave(id uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func (s *session) allParticipants() []string {
+	var participants []string
+	for _, p := range s.partiesHistorical {
+		participants = append(participants, p.Ctx.User.GetName())
+	}
+
+	return participants
 }
 
 func (s *session) canStart() (bool, error) {
