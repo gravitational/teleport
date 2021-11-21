@@ -236,6 +236,8 @@ func (s *session) launch() error {
 			return trace.Wrap(err)
 		}
 
+		s.clients_stdout.W.(*srv.MultiWriter).AddWriter("recorder", kubeutils.WriterCloserWrapper{Writer: recorder}, false)
+		s.clients_stderr.W.(*srv.MultiWriter).AddWriter("recorder", kubeutils.WriterCloserWrapper{Writer: recorder}, false)
 	} else if !sess.noAuditEvents {
 		s.emitter = s.forwarder.cfg.StreamEmitter
 	}
