@@ -52,14 +52,14 @@ type remoteClient interface {
 }
 
 type kubeProxyClientStreams struct {
-	proxy     remoteCommandProxy
+	proxy     *remoteCommandProxy
 	sizeQueue remotecommand.TerminalSizeQueue
 	stdin     io.Reader
 	stdout    io.Writer
 	stderr    io.Writer
 }
 
-func newKubeProxyClientStreams(proxy remoteCommandProxy) *kubeProxyClientStreams {
+func newKubeProxyClientStreams(proxy *remoteCommandProxy) *kubeProxyClientStreams {
 	options := proxy.options()
 
 	return &kubeProxyClientStreams{
@@ -228,8 +228,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		terminalSizeQueue: &multiResizeQueue{},
 	}
 }
-
-// TODO(joel): resize events
 
 func (s *session) launch() error {
 	q := s.req.URL.Query()

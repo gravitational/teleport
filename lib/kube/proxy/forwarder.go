@@ -700,8 +700,25 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		}
 	}()
 
+	q := req.URL.Query()
+	request := remoteCommandRequest{
+		podNamespace:       p.ByName("podNamespace"),
+		podName:            p.ByName("podName"),
+		containerName:      q.Get("container"),
+		cmd:                q["command"],
+		stdin:              utils.AsBool(q.Get("stdin")),
+		stdout:             utils.AsBool(q.Get("stdout")),
+		stderr:             utils.AsBool(q.Get("stderr")),
+		tty:                utils.AsBool(q.Get("tty")),
+		httpRequest:        req,
+		httpResponseWriter: w,
+		context:            req.Context(),
+		pingPeriod:         f.cfg.ConnPingPeriod,
+	}
+
+	proxy, err := createRemoteCommandProxy(request)
 	session := newSession(*ctx, f, req, p)
-	client := &kubeProxyClientStreams{}
+	client := newKubeProxyClientStreams(proxy)
 	party := newParty(*ctx, client)
 
 	err = session.join(party)
