@@ -174,6 +174,7 @@ type party struct {
 	Ctx       authContext
 	Id        uuid.UUID
 	Client    remoteClient
+	closeC    chan struct{}
 	closeOnce sync.Once
 }
 
@@ -182,6 +183,7 @@ func newParty(ctx authContext, client remoteClient) *party {
 		Ctx:    ctx,
 		Id:     uuid.New(),
 		Client: client,
+		closeC: make(chan struct{}),
 	}
 }
 
@@ -189,6 +191,7 @@ func (p *party) Close() error {
 	var err error
 
 	p.closeOnce.Do(func() {
+		close(p.closeC)
 		err = p.Client.Close()
 	})
 

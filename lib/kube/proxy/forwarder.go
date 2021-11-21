@@ -724,6 +724,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
+	<-party.closeC
 	return nil, nil
 }
 
@@ -771,6 +772,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
+	<-party.closeC
 	return nil, nil
 }
 
