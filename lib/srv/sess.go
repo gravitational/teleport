@@ -729,8 +729,11 @@ func (s *session) waitForAccess() error {
 	defer s.stateUpdate.Unregister(ch)
 
 	for {
-		// TODO(joel): handle breaking here
-		state := <-ch
+		state, ok := <-ch
+		if !ok {
+			return trace.ConnectionProblem(nil, "session state update channel closed")
+		}
+
 		if state == types.SessionState_SessionStateRunning {
 			break
 		}
