@@ -425,7 +425,7 @@ func (s *session) launch() error {
 		Stdin:             s.clients_stdin,
 		Stdout:            s.clients_stdout,
 		Stderr:            s.clients_stderr,
-		Tty:               true,
+		Tty:               request.tty,
 		TerminalSizeQueue: s.terminalSizeQueue,
 	}
 
