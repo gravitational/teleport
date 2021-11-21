@@ -48,6 +48,7 @@ type remoteClient interface {
 	stdoutStream() io.Writer
 	stderrStream() io.Writer
 	resizeQueue() chan *remotecommand.TerminalSize
+	sendStatus(error) error
 	io.Closer
 }
 
@@ -96,6 +97,10 @@ func (p *kubeProxyClientStreams) resizeQueue() chan *remotecommand.TerminalSize 
 	}()
 
 	return ch
+}
+
+func (p *kubeProxyClientStreams) sendStatus(err error) error {
+	return trace.Wrap(p.proxy.sendStatus(err))
 }
 
 func (p *kubeProxyClientStreams) Close() error {
@@ -347,10 +352,11 @@ func (s *session) launch() error {
 	}
 
 	defer func() {
-		// TODO(joel); send error to client proxy here
-		//if err := s.proxy.sendStatus(err); err != nil {
-		//	f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
-		//}
+		for _, party := range s.parties {
+			if err := party.Client.sendStatus(err); err != nil {
+				s.forwarder.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
+			}
+		}
 
 		if request.tty {
 			sessionDataEvent := &apievents.SessionData{
