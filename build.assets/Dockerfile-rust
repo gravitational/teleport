@@ -1,0 +1,65 @@
+# This Dockerfile makes the build box for Teleport Rust libraries.
+# The Rust libraries are intentionally built against a distro with
+# an older version of glibc in order to avoid creating a runtime
+# dependency on a newer glibc version.
+
+FROM centos:7
+ARG RUST_VERSION
+
+ARG OS
+ARG ARCH
+
+ENV LANGUAGE=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    LC_CTYPE=en_US.UTF-8
+
+ARG UID
+ARG GID
+RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
+     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
+
+# Install dev tools (make, etc) and a Perl package needed to build OpenSSL.
+RUN yum groupinstall -y "Development Tools"
+RUN yum install -y perl-IPC-Cmd
+
+# Install etcd.
+RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
+     cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+
+# Install Go.
+ARG RUNTIME
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-amd64.tar.gz | tar xz && \
+    mkdir -p /go/src/github.com/gravitational/teleport && \
+    chmod a+w /go && \
+    chmod a+w /var/lib && \
+    /opt/go/bin/go version
+
+RUN chmod a-w /
+
+# Install Rust.
+ENV RUSTUP_HOME=/opt/bin/rustup \
+    CARGO_HOME=/opt/bin/cargo \
+    PATH=/opt/bin/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
+
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy && \
+    rustup target add i686-unknown-linux-gnu && \
+    rustup target add arm-unknown-linux-gnueabihf && \
+    rustup target add aarch64-unknown-linux-gnu && \
+    cargo install cbindgen
+
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+VOLUME ["/go/src/github.com/gravitational/teleport"]
+EXPOSE 6600 2379 2380

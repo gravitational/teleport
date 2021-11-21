@@ -244,18 +244,6 @@ endif
 # Requires a recent version of Rust and Cargo installed (tested rustc >= 1.52.1 and cargo >= 1.52.0)
 #
 ifeq ("$(with_roletester)", "yes")
-
-# Copy pre-built Rust artifacts into the target directory, if they exist.
-# This should never be the case for local builds, as this build cache is
-# only populated in our buildbox Docker image.
-#
-# This approach prevents us from needing to run a new cargo build, allowing us to
-# link libraries that depend on older versions of glibc.
-ifneq ($(wildcard /teleport-rust-build-cache/roletester/target/.),)
-$(shell mkdir -p lib/datalog/roletester/target)
-$(shell cp -r /teleport-rust-build-cache/roletester/target/* lib/datalog/roletester/target/)
-endif
-
 .PHONY: roletester
 roletester: lib/datalog/roletester/target/$(CARGO_TARGET)/release/librole_tester.a
 	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release --target=$(CARGO_TARGET)
@@ -270,14 +258,11 @@ else
 roletester:
 endif
 
+#
+# librdp_client.a
+# Requires a recent version of Rust and Cargo installed
+#
 ifeq ("$(with_rdpclient)", "yes")
-
-# Copy pre-built RDP client library, just like we do for roletester.
-ifneq ($(wildcard /teleport-rust-build-cache/rdpclient/target/.),)
-$(shell mkdir -p lib/srv/desktop/rdp/rdpclient/target)
-$(shell cp -r /teleport-rust-build-cache/rdpclient/target/* lib/srv/desktop/rdp/rdpclient/target/)
-endif
-
 .PHONY: rdpclient
 rdpclient: lib/srv/desktop/rdp/rdpclient/target/$(CARGO_TARGET)/release/librdp_client.a
 	cargo install cbindgen
@@ -301,6 +286,7 @@ endif
 .PHONY:full
 full: $(ASSETS_BUILDDIR)/webassets
 ifneq ("$(OS)", "windows")
+	- $(MAKE) copy-rust-build-cache
 	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
 
@@ -436,6 +422,26 @@ release-windows: release-windows-unsigned
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
 	@echo "---> Created $(RELEASE).zip."
+
+#
+# If the Rust build cache exists at /opt/teleport-rust-build-cache,
+# then copy the pre-built artifacts into the correct locations.
+#
+# This should only affect release builds, where we intentionally mount
+# this directory with Rust libraries that were built in a container with
+# an old version of glibc.
+#
+.PHONY:copy-rust-build-cache
+copy-rust-build-cache:
+	@echo "---> Copying pre-built Rust libraries into source tree."
+ifneq ($(wildcard /opt/teleport-rust-build-cache/roletester/target/.),)
+	mkdir -p lib/datalog/roletester/target/$(CARGO_TARGET)/release; \
+	cp -r /opt/teleport-rust-build-cache/roletester/$(CARGO_TARGET)/release lib/datalog/roletester/target/$(CARGO_TARGET)
+endif
+ifneq ($(wildcard /opt/teleport-rust-build-cache/rdpclient/target/.),)
+	mkdir -p lib/srv/desktop/rdp/rdpclient/target/$(CARGO_TARGET)/release; \
+	cp -r /opt/teleport-rust-build-cache/rdpclient/$(CARGO_TARGET)/release lib/srv/desktop/rdp/rdpclient/target/$(CARGO_TARGET)
+endif
 
 #
 # Remove trailing whitespace in all markdown files under docs/.
@@ -739,6 +745,11 @@ docker-binaries: clean
 .PHONY:enter
 enter:
 	$(MAKE) -C build.assets enter
+
+# Interactively enters the Docker container for building Rust libraries
+.PHONY:enter-rust
+enter-rust:
+	$(MAKE) -C build.assets enter-rust
 
 # grpc generates GRPC stubs from service definitions
 .PHONY: grpc
