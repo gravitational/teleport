@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -46,7 +47,7 @@ type remoteClient interface {
 	stdinStream() io.Reader
 	stdoutStream() io.Writer
 	stderrStream() io.Writer
-	resizeQueue() remotecommand.TerminalSizeQueue
+	resizeQueue() chan *remotecommand.TerminalSize
 	io.Closer
 }
 
@@ -81,12 +82,58 @@ func (p *kubeProxyClientStreams) stderrStream() io.Writer {
 	return p.stderr
 }
 
-func (p *kubeProxyClientStreams) resizeQueue() remotecommand.TerminalSizeQueue {
-	return p.sizeQueue
+func (p *kubeProxyClientStreams) resizeQueue() chan *remotecommand.TerminalSize {
+	ch := make(chan *remotecommand.TerminalSize)
+	go func() {
+		for {
+			size := p.sizeQueue.Next()
+			if size == nil {
+				break
+			}
+
+			ch <- size
+		}
+	}()
+
+	return ch
 }
 
 func (p *kubeProxyClientStreams) Close() error {
 	return trace.Wrap(p.proxy.Close())
+}
+
+type multiResizeQueue struct {
+	queues map[string]chan *remotecommand.TerminalSize
+	cases  []reflect.SelectCase
+}
+
+func (r *multiResizeQueue) rebuild() {
+	r.cases = nil
+	for _, queue := range r.queues {
+		r.cases = append(r.cases, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(queue),
+		})
+	}
+}
+
+func (r *multiResizeQueue) add(id string, queue chan *remotecommand.TerminalSize) {
+	r.queues[id] = queue
+	r.rebuild()
+}
+
+func (r *multiResizeQueue) remove(id string) {
+	delete(r.queues, id)
+	r.rebuild()
+}
+
+func (r *multiResizeQueue) Next() *remotecommand.TerminalSize {
+	_, value, ok := reflect.Select(r.cases)
+	if !ok {
+		return nil
+	}
+
+	return value.Interface().(*remotecommand.TerminalSize)
 }
 
 type party struct {
@@ -140,7 +187,7 @@ type session struct {
 
 	clients_stderr *utils.TrackingWriter
 
-	terminalSizeQueue remotecommand.TerminalSizeQueue
+	terminalSizeQueue *multiResizeQueue
 
 	state types.SessionState
 
@@ -178,6 +225,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		stateUpdate:       broadcast.NewBroadcaster(1),
 		accessEvaluator:   accessEvaluator,
 		emitter:           events.NewDiscardEmitter(),
+		terminalSizeQueue: &multiResizeQueue{},
 	}
 }
 
@@ -447,6 +495,7 @@ func (s *session) join(p *party) error {
 	stringId := p.Id.String()
 	s.parties[p.Id] = p
 	s.partiesHistorical[p.Id] = p
+	s.terminalSizeQueue.add(stringId, p.Client.resizeQueue())
 	s.clients_stdin.R.(*kubeutils.MultiReader).AddReader(stringId, p.Client.stdinStream())
 
 	stdout := kubeutils.WriterCloserWrapper{Writer: p.Client.stdoutStream()}
@@ -478,6 +527,7 @@ func (s *session) leave(id uuid.UUID) error {
 	stringId := id.String()
 	party := s.parties[id]
 	delete(s.parties, id)
+	s.terminalSizeQueue.remove(stringId)
 	s.clients_stdin.R.(*kubeutils.MultiReader).RemoveReader(stringId)
 	s.clients_stdout.W.(*srv.MultiWriter).DeleteWriter(stringId)
 	s.clients_stderr.W.(*srv.MultiWriter).DeleteWriter(stringId)
