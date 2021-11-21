@@ -213,15 +213,9 @@ type session struct {
 
 func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params) (*session, error) {
 	id := uuid.New()
-	var roles []types.Role
-
-	for _, roleName := range ctx.Context.Identity.GetIdentity().Groups {
-		role, err := forwarder.cfg.CachingAuthClient.GetRole(context.TODO(), roleName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		roles = append(roles, role)
+	roles, err := getRolesByName(forwarder, ctx.Context.Identity.GetIdentity().Groups)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	accessEvaluator := auth.NewSessionAccessEvaluator(roles, types.KubernetesSessionKind)
@@ -579,8 +573,18 @@ func (s *session) allParticipants() []string {
 }
 
 func (s *session) canStart() (bool, error) {
-	// TODO(joel): supply participants
-	yes, err := s.accessEvaluator.FulfilledFor(nil)
+	var participants []auth.SessionAccessContext
+	for _, party := range s.parties {
+		roleNames := party.Ctx.Identity.GetIdentity().Groups
+		roles, err := getRolesByName(s.forwarder, roleNames)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		participants = append(participants, auth.SessionAccessContext{Roles: roles})
+	}
+
+	yes, err := s.accessEvaluator.FulfilledFor(participants)
 	return yes, trace.Wrap(err)
 }
 
@@ -601,4 +605,19 @@ func (s *session) Close() error {
 	})
 
 	return nil
+}
+
+func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, error) {
+	var roles []types.Role
+
+	for _, roleName := range roleNames {
+		role, err := forwarder.cfg.CachingAuthClient.GetRole(context.TODO(), roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		roles = append(roles, role)
+	}
+
+	return roles, nil
 }
