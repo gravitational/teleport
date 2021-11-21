@@ -559,10 +559,16 @@ func (s *session) canStart() (bool, error) {
 	return yes, trace.Wrap(err)
 }
 
-// TODO(joel): disconnect parties
 func (s *session) Close() error {
 	s.closeOnce.Do(func() {
 		s.log.Infof("Closing session %v.", s.id.String)
+		for _, party := range s.parties {
+			err := party.Close()
+			if err != nil {
+				s.log.WithError(err).Error("Failed to disconnect party.")
+			}
+		}
+
 		if s.recorder != nil {
 			s.recorder.Close(context.TODO())
 		}
