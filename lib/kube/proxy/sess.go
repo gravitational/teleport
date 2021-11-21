@@ -199,6 +199,8 @@ type session struct {
 
 	emitter apievents.Emitter
 
+	tty bool
+
 	closeC chan struct{}
 
 	closeOnce sync.Once
@@ -226,6 +228,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		accessEvaluator:   accessEvaluator,
 		emitter:           events.NewDiscardEmitter(),
 		terminalSizeQueue: &multiResizeQueue{},
+		tty:               false,
 	}
 }
 
@@ -246,6 +249,7 @@ func (s *session) launch() error {
 		pingPeriod:         s.forwarder.cfg.ConnPingPeriod,
 	}
 
+	s.tty = request.tty
 	sess, err := s.forwarder.newClusterSession(s.ctx)
 	sessionStart := s.forwarder.cfg.Clock.Now().UTC()
 	if err != nil {
@@ -484,7 +488,6 @@ func (s *session) launch() error {
 	return nil
 }
 
-// TODO(joel): handle noninteractive sessions
 func (s *session) join(p *party) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -492,14 +495,6 @@ func (s *session) join(p *party) error {
 	stringId := p.Id.String()
 	s.parties[p.Id] = p
 	s.partiesHistorical[p.Id] = p
-	s.terminalSizeQueue.add(stringId, p.Client.resizeQueue())
-	s.clients_stdin.R.(*kubeutils.MultiReader).AddReader(stringId, p.Client.stdinStream())
-
-	stdout := kubeutils.WriterCloserWrapper{Writer: p.Client.stdoutStream()}
-	s.clients_stdout.W.(*srv.MultiWriter).AddWriter(stringId, stdout, false)
-
-	stderr := kubeutils.WriterCloserWrapper{Writer: p.Client.stderrStream()}
-	s.clients_stderr.W.(*srv.MultiWriter).AddWriter(stringId, stderr, false)
 
 	canStart, err := s.canStart()
 	if err != nil {
@@ -512,7 +507,20 @@ func (s *session) join(p *party) error {
 				s.log.WithError(err).Warning("Failed to launch Kubernetes session.")
 			}
 		}()
+	} else if !s.tty {
+		return trace.AccessDenied("insufficient permissions to launch non-interactive session")
 	}
+
+	if s.tty {
+		s.terminalSizeQueue.add(stringId, p.Client.resizeQueue())
+		s.clients_stdin.R.(*kubeutils.MultiReader).AddReader(stringId, p.Client.stdinStream())
+	}
+
+	stdout := kubeutils.WriterCloserWrapper{Writer: p.Client.stdoutStream()}
+	s.clients_stdout.W.(*srv.MultiWriter).AddWriter(stringId, stdout, false)
+
+	stderr := kubeutils.WriterCloserWrapper{Writer: p.Client.stderrStream()}
+	s.clients_stderr.W.(*srv.MultiWriter).AddWriter(stringId, stderr, false)
 
 	return nil
 }
