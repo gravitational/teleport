@@ -575,6 +575,10 @@ func (s *session) allParticipants() []string {
 func (s *session) canStart() (bool, error) {
 	var participants []auth.SessionAccessContext
 	for _, party := range s.parties {
+		if party.Ctx.User.GetName() == s.ctx.User.GetName() {
+			continue
+		}
+
 		roleNames := party.Ctx.Identity.GetIdentity().Groups
 		roles, err := getRolesByName(s.forwarder, roleNames)
 		if err != nil {
