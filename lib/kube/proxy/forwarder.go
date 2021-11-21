@@ -717,7 +717,15 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	proxy, err := createRemoteCommandProxy(request)
-	session := newSession(*ctx, f, req, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := newSession(*ctx, f, req, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	client := newKubeProxyClientStreams(proxy)
 	party := newParty(*ctx, client)
 

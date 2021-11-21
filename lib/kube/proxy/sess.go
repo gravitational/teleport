@@ -166,7 +166,7 @@ func (p *party) Close() error {
 	return trace.Wrap(err)
 }
 
-// TODO(joel): handle transition to pending on leave
+// TODO(joel): transition to pending on leave
 type session struct {
 	mu sync.RWMutex
 
@@ -211,10 +211,20 @@ type session struct {
 	closeOnce sync.Once
 }
 
-func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params) *session {
+func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params) (*session, error) {
 	id := uuid.New()
-	// TODO(joel): supply roles
-	accessEvaluator := auth.NewSessionAccessEvaluator(nil, types.KubernetesSessionKind)
+	var roles []types.Role
+
+	for _, roleName := range ctx.Context.Identity.GetIdentity().Groups {
+		role, err := forwarder.cfg.CachingAuthClient.GetRole(context.TODO(), roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		roles = append(roles, role)
+	}
+
+	accessEvaluator := auth.NewSessionAccessEvaluator(roles, types.KubernetesSessionKind)
 
 	return &session{
 		ctx:               ctx,
@@ -234,7 +244,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		emitter:           events.NewDiscardEmitter(),
 		terminalSizeQueue: &multiResizeQueue{},
 		tty:               false,
-	}
+	}, nil
 }
 
 func (s *session) launch() error {
@@ -494,6 +504,7 @@ func (s *session) launch() error {
 	return nil
 }
 
+// TODO(joel): error and kick participants that can't join
 func (s *session) join(p *party) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
