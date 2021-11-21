@@ -498,10 +498,25 @@ func (s *session) launch() error {
 	return nil
 }
 
-// TODO(joel): error and kick participants that can't join
 func (s *session) join(p *party) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
+		roleNames := p.Ctx.Identity.GetIdentity().Groups
+		roles, err := getRolesByName(s.forwarder, roleNames)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		accessContext := auth.SessionAccessContext{
+			Roles: roles,
+		}
+
+		if !s.accessEvaluator.CanJoin(accessContext) {
+			return trace.AccessDenied("insufficient permissions to join sessions")
+		}
+	}
 
 	stringId := p.Id.String()
 	s.parties[p.Id] = p
@@ -611,6 +626,7 @@ func (s *session) Close() error {
 	return nil
 }
 
+// TODO(joel): get roles from correct cluster?
 func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, error) {
 	var roles []types.Role
 

@@ -28,14 +28,16 @@ import (
 type SessionAccessEvaluator struct {
 	kind     types.SessionKind
 	requires []*types.SessionRequirePolicy
+	roles    []types.Role
 }
 
-func NewSessionAccessEvaluator(initiator []types.Role, kind types.SessionKind) SessionAccessEvaluator {
-	requires := getRequirePolicies(initiator)
+func NewSessionAccessEvaluator(roles []types.Role, kind types.SessionKind) SessionAccessEvaluator {
+	requires := getRequirePolicies(roles)
 
 	return SessionAccessEvaluator{
 		kind,
 		requires,
+		roles,
 	}
 }
 
@@ -100,7 +102,7 @@ func (ctx *SessionAccessContext) GetResource() (types.Resource, error) {
 	return nil, trace.BadParameter("resource unsupported")
 }
 
-func (e *SessionAccessEvaluator) matchesPolicy(ctx *SessionAccessContext, require *types.SessionRequirePolicy, allow *types.SessionJoinPolicy) (bool, error) {
+func (e *SessionAccessEvaluator) matchesPredicate(ctx *SessionAccessContext, require *types.SessionRequirePolicy, allow *types.SessionJoinPolicy) (bool, error) {
 	if !contains(require.Kinds, e.kind) || !contains(allow.Kinds, e.kind) {
 		return false, nil
 	}
@@ -123,6 +125,32 @@ func (e *SessionAccessEvaluator) matchesPolicy(ctx *SessionAccessContext, requir
 	return fn(), nil
 }
 
+func (e *SessionAccessEvaluator) matchesJoin(allow *types.SessionJoinPolicy) bool {
+	if !contains(allow.Kinds, e.kind) {
+		return false
+	}
+
+	for _, requireRole := range e.roles {
+		for _, allowRole := range allow.Roles {
+			if requireRole.GetName() == allowRole {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) bool {
+	for _, allowPolicy := range getAllowPolicies(user) {
+		if e.matchesJoin(allowPolicy) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, error) {
 	if len(e.requires) == 0 {
 		return true, nil
@@ -134,12 +162,12 @@ func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContex
 		for _, participant := range participants {
 			allowPolicies := getAllowPolicies(participant)
 			for _, allowPolicy := range allowPolicies {
-				matches, err := e.matchesPolicy(&participant, requirePolicy, allowPolicy)
+				matchesPredicate, err := e.matchesPredicate(&participant, requirePolicy, allowPolicy)
 				if err != nil {
 					return false, trace.Wrap(err)
 				}
 
-				if matches {
+				if matchesPredicate && e.matchesJoin(allowPolicy) {
 					left--
 					break
 				}
