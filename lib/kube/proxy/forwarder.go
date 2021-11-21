@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
 	fwdutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
@@ -236,6 +237,10 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		ctx:               closeCtx,
 		close:             close,
 		sessions:          make(map[uuid.UUID]*session),
+		upgrader: websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		},
 	}
 
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
@@ -246,6 +251,8 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
+
+	fwd.router.GET("/api/teleport/:ver/join/:session", fwd.withAuth(fwd.join))
 
 	fwd.router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
@@ -280,6 +287,8 @@ type Forwarder struct {
 	creds map[string]*kubeCreds
 	// sessions tracks in-flight sessions
 	sessions map[uuid.UUID]*session
+	// upgrades connections to websockets
+	upgrader websocket.Upgrader
 }
 
 // Close signals close to all outstanding or background operations
@@ -688,6 +697,34 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	// to the audit log in async mode, while buffering all
 	// events on disk for further upload at the end of the session
 	return events.NewTeeStreamer(fileStreamer, f.cfg.StreamEmitter), nil
+}
+
+// join joins an existing session over a websocket connection
+func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+	sessionIdString := p.ByName("session")
+	sessionId, err := uuid.Parse(sessionIdString)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session := f.sessions[sessionId]
+	if session == nil {
+		return nil, trace.NotFound("session %v not found", sessionId)
+	}
+
+	ws, err := f.upgrader.Upgrade(w, req, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client := &websocketClientStreams{ws}
+	party := newParty(*ctx, client)
+	err = session.join(party)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
 }
 
 // exec forwards all exec requests to the target server, captures

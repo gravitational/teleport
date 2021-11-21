@@ -27,6 +27,7 @@ import (
 
 	broadcast "github.com/dustin/go-broadcast"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -50,6 +51,34 @@ type remoteClient interface {
 	resizeQueue() chan *remotecommand.TerminalSize
 	sendStatus(error) error
 	io.Closer
+}
+
+type websocketClientStreams struct {
+	ws *websocket.Conn
+}
+
+func (p *websocketClientStreams) stdinStream() io.Reader {
+	panic("not implemented")
+}
+
+func (p *websocketClientStreams) stdoutStream() io.Writer {
+	panic("not implemented")
+}
+
+func (p *websocketClientStreams) stderrStream() io.Writer {
+	panic("not implemented")
+}
+
+func (p *websocketClientStreams) resizeQueue() chan *remotecommand.TerminalSize {
+	panic("not implemented")
+}
+
+func (p *websocketClientStreams) sendStatus(err error) error {
+	panic("not implemented")
+}
+
+func (p *websocketClientStreams) Close() error {
+	panic("not implemented")
 }
 
 type kubeProxyClientStreams struct {

@@ -42,6 +42,7 @@ require (
 	github.com/google/go-cmp v0.5.6
 	github.com/google/gops v0.3.14
 	github.com/google/uuid v1.2.0
+	github.com/gorilla/websocket v1.4.2
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 	github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible
@@ -150,7 +151,6 @@ require (
 	github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/imdario/mergo v0.3.5 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
