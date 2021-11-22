@@ -201,7 +201,7 @@ func (p *party) Close() error {
 	return trace.Wrap(err)
 }
 
-// TODO(joel): transition to pending on leave
+// : transition to pending on leave
 type session struct {
 	mu sync.RWMutex
 
