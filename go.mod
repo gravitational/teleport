@@ -47,7 +47,7 @@ require (
 	github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
 	github.com/gravitational/roundtrip v1.0.1
 	github.com/gravitational/teleport/api v0.0.0
-	github.com/gravitational/trace v1.1.16-0.20210617142343-5335ac7a6c19
+	github.com/gravitational/trace v1.1.16-0.20211111002323-2897205b8d7f
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jackc/pgconn v1.8.0
@@ -71,8 +71,8 @@ require (
 	github.com/prometheus/client_golang v1.9.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.17.0
-	github.com/russellhaering/gosaml2 v0.6.0
-	github.com/russellhaering/goxmldsig v1.1.0
+	github.com/russellhaering/gosaml2 v0.6.1-0.20210916051624-757d23f1bc28
+	github.com/russellhaering/goxmldsig v1.1.1
 	github.com/sethvargo/go-diceware v0.2.1
 	github.com/siddontang/go-mysql v1.1.0
 	github.com/sirupsen/logrus v1.8.1-0.20210219125412-f104497f2b21
@@ -134,6 +134,7 @@ require (
 	github.com/go-asn1-ber/asn1-ber v1.5.1 // indirect
 	github.com/go-logr/logr v0.2.0 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
+	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/certificate-transparency-go v1.0.21 // indirect
@@ -152,7 +153,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
 	github.com/klauspost/compress v1.9.5 // indirect
-	github.com/kr/pretty v0.2.1 // indirect
+	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
@@ -171,6 +172,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/procfs v0.2.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect

@@ -1088,7 +1088,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			},
 			disconnectTimeout: 4 * time.Second,
 		}, {
-			//"verify that concurrent connection limits are applied when recording at node",
+			// "verify that concurrent connection limits are applied when recording at node",
 			recordingMode: types.RecordAtNode,
 			options: types.RoleOptions{
 				MaxConnections: 1,

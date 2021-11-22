@@ -285,6 +285,7 @@ type connectParams struct {
 	sshConfig *ssh.ClientConfig
 }
 
+// authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	dialer := NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
@@ -294,6 +295,7 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+// tunnelConnect connects to the Teleport Auth Server through the proxy's reverse tunnel.
 func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
@@ -306,6 +308,7 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+// proxyConnect connects to the Teleport Auth Server through the proxy.
 func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
@@ -318,6 +321,8 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+// dialerConnect connects to the Teleport Auth Server through a custom dialer.
+// The dialer must provide the address in a custom ContextDialerFunc function.
 func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.dialer == nil {
 		if params.cfg.Dialer == nil {
@@ -326,15 +331,15 @@ func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 		params.dialer = params.cfg.Dialer
 	}
 	clt := newClient(params.cfg, params.dialer, params.tlsConfig)
+	// Since the client uses a custom dialer to connect to the server and SNI
+	// is used for the TLS handshake, the address dialed here is arbitrary.
 	if err := clt.dialGRPC(ctx, constants.APIDomain); err != nil {
 		return nil, trace.Wrap(err, "failed to connect using pre-defined dialer")
 	}
 	return clt, nil
 }
 
-// dialGRPC dials a connection between server and client. If withBlock is true,
-// the dial will block until the connection is up, rather than returning
-// immediately and connecting to the server in the background.
+// dialGRPC dials a connection between server and client.
 func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
@@ -416,7 +421,8 @@ type Config struct {
 	// Credentials are a list of credentials to use when attempting
 	// to connect to the server.
 	Credentials []Credentials
-	// Dialer is a custom dialer used to dial a server. If set, Dialer
+	// Dialer is a custom dialer used to dial a server. The Dialer should
+	// have custom logic to provide an address to the dialer. If set, Dialer
 	// takes precedence over all other connection options.
 	Dialer ContextDialer
 	// DialOpts define options for dialing the client connection.
@@ -1699,11 +1705,6 @@ func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
-// DeleteClusterNetworkingConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterNetworkingConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetSessionRecordingConfig gets session recording configuration.
 func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	resp, err := c.grpc.GetSessionRecordingConfig(ctx, &empty.Empty{}, c.callOpts...)
@@ -1727,11 +1728,6 @@ func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.
 func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
 	_, err := c.grpc.ResetSessionRecordingConfig(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
-}
-
-// DeleteSessionRecordingConfig not implemented: can only be called locally.
-func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GetAuthPreference gets cluster auth preference.
@@ -1759,11 +1755,6 @@ func (c *Client) ResetAuthPreference(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
-// DeleteAuthPreference not implemented: can only be called locally.
-func (c *Client) DeleteAuthPreference(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetClusterAuditConfig gets cluster audit configuration.
 func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	resp, err := c.grpc.GetClusterAuditConfig(ctx, &empty.Empty{}, c.callOpts...)
@@ -1771,16 +1762,6 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
-}
-
-// SetClusterAuditConfig not implemented: can only be called locally.
-func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteClusterAuditConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GetLock gets a lock by name.
@@ -1832,11 +1813,6 @@ func (c *Client) DeleteLock(ctx context.Context, name string) error {
 	}
 	_, err := c.grpc.DeleteLock(ctx, &proto.DeleteLockRequest{Name: name}, c.callOpts...)
 	return trail.FromGRPC(err)
-}
-
-// DeleteAllLocks not implemented: can only be called locally.
-func (c *Client) DeleteAllLocks(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
