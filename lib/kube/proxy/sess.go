@@ -137,8 +137,9 @@ func (p *kubeProxyClientStreams) Close() error {
 }
 
 type multiResizeQueue struct {
-	queues map[string]chan *remotecommand.TerminalSize
-	cases  []reflect.SelectCase
+	queues   map[string]chan *remotecommand.TerminalSize
+	cases    []reflect.SelectCase
+	callback func(*remotecommand.TerminalSize)
 }
 
 func (r *multiResizeQueue) rebuild() {
@@ -167,7 +168,9 @@ func (r *multiResizeQueue) Next() *remotecommand.TerminalSize {
 		return nil
 	}
 
-	return value.Interface().(*remotecommand.TerminalSize)
+	size := value.Interface().(*remotecommand.TerminalSize)
+	r.callback(size)
+	return size
 }
 
 type party struct {
@@ -299,6 +302,50 @@ func (s *session) launch() error {
 	}
 
 	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
+
+	if s.tty {
+		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {
+			params := tsession.TerminalParams{
+				W: int(resize.Width),
+				H: int(resize.Height),
+			}
+
+			resizeEvent := &apievents.Resize{
+				Metadata: apievents.Metadata{
+					Type:        events.ResizeEvent,
+					Code:        events.TerminalResizeCode,
+					ClusterName: s.forwarder.cfg.ClusterName,
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					RemoteAddr: s.req.RemoteAddr,
+					Protocol:   events.EventProtocolKube,
+				},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerNamespace: s.forwarder.cfg.Namespace,
+				},
+				SessionMetadata: apievents.SessionMetadata{
+					SessionID: s.id.String(),
+					WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User:         s.ctx.User.GetName(),
+					Login:        s.ctx.User.GetName(),
+					Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
+				},
+				TerminalSize:              params.Serialize(),
+				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+				KubernetesPodMetadata:     eventPodMeta,
+			}
+
+			// Report the updated window size to the event log (this is so the sessions
+			// can be replayed correctly).
+			if err := s.recorder.EmitAuditEvent(s.forwarder.ctx, resizeEvent); err != nil {
+				s.forwarder.log.WithError(err).Warn("Failed to emit terminal resize event.")
+			}
+		}
+	} else {
+		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {}
+	}
 
 	if !sess.noAuditEvents && request.tty {
 		streamer, err := s.forwarder.newStreamer(&s.ctx)
