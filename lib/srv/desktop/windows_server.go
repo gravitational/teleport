@@ -76,6 +76,10 @@ type WindowsService struct {
 
 	lc *ldapClient
 
+	// lastDisoveryResults stores the results of the most recent LDAP search
+	// when desktop discovery is enabled
+	lastDiscoveryResults types.ResourcesWithLabels
+
 	// Windows hosts discovered via LDAP likely won't resolve with the
 	// default DNS resolver, so we need a custom resolver that will
 	// query the domain controller.
@@ -334,7 +338,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// for now, the only valid base DN is '*'
 	// TODO(zmb3): allow further customizing the search
 	if s.cfg.DiscoveryBaseDN == types.Wildcard {
-		if err := s.startDiscoveredHostHeartbeats(); err != nil {
+		if err := s.startDesktopDiscovery(ctx); err != nil {
 			s.Close()
 			return nil, trace.Wrap(err)
 		}
@@ -393,61 +397,103 @@ const (
 	attrOSVersion   = "operatingSystemVersion"
 )
 
-// startDiscoveredHostHeartbeats kicks off background processing to discover Windows
-// hosts via LDAP and perform heartbeats to record them with the auth server
-func (s *WindowsService) startDiscoveredHostHeartbeats() error {
-	// here we're searching for computers using an empty ldapPath
-	// in order to search from the root
-	entries, err := s.lc.read(ldapPath{}, computerClass, computerAttribtes)
+// startDesktopDiscovery starts fetching desktops from LDAP, periodically
+// registering and unregistering them as necessary.
+// Desktop discovery runs in the background until the context is canceled.
+func (s *WindowsService) startDesktopDiscovery(ctx context.Context) error {
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig{
+		// Use a matcher that matches all resources, since our desktops are
+		// pre-filtered by nature of using an LDAP search with filters.
+		Matcher: func(r types.ResourceWithLabels) bool { return true },
+
+		GetCurrentResources: func() types.ResourcesWithLabels { return s.lastDiscoveryResults },
+		GetNewResources:     s.getDesktopsFromLDAP,
+		OnCreate:            s.createDesktop,
+		OnUpdate:            s.updateDesktop,
+		OnDelete:            s.deleteDesktop,
+		Log:                 s.cfg.Log,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	s.cfg.Log.Infof("discovered %d Windows hosts", len(entries))
-
-	// NOTE: for now, we only search for hosts once, and then kick off a heartbeat
-	// for each discovered host.
-	//
-	// TODO(zmb3): periodically refresh hosts from LDAP in order to detect new hosts
-	// and stop heartbeating for hosts that no longer exist
-	// (this may require updates to srv.Heartbeat)
-	for _, entry := range entries {
-		desktop := *entry // make a copy to avoid capturing a loop variable that may change
-
-		heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-			Context:   s.closeCtx,
-			Component: teleport.ComponentWindowsDesktop,
-			Mode:      srv.HeartbeatModeWindowsDesktop,
-			Announcer: s.cfg.AccessPoint,
-			GetServerInfo: func() (types.Resource, error) {
-				return s.dynamicHostHeartbeatInfo(s.closeCtx, &desktop, s.cfg.HostLabelsFn)
-			},
-			// Larger than normal periods are due to the fact that we don't currently refresh
-			// the list of hosts from LDAP. Since the heartbeat data is static we don't need
-			// to announce it as frequently as we do for dynamic resources.
-			// TODO(zmb3): reconsider timeouts when #8644 is addressed
-			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL() * 2,
-			AnnouncePeriod:  apidefaults.ServerAnnounceTTL + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-			CheckPeriod:     defaults.HeartbeatCheckPeriod * 60,
-			ServerTTL:       apidefaults.ServerAnnounceTTL,
-		})
-		if err != nil {
-			return trace.Wrap(err)
+	go func() {
+		// reconcile once before starting the ticker, so that desktops show up immediately
+		if err := reconciler.Reconcile(ctx); err != nil && err != context.Canceled {
+			s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
 		}
 
-		go func() {
-			if err := heartbeat.Run(); err != nil {
-				s.cfg.Log.WithError(err).Errorf("heartbeat for Windows host %v ended with error", desktop.DN)
+		// TODO(zmb3): consider making the discovery period configurable
+		// (it's currently hard coded to 5 minutes in order to match DB access discovery behavior)
+		t := s.cfg.Clock.NewTicker(5 * time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.Chan():
+				if err := reconciler.Reconcile(ctx); err != nil && err != context.Canceled {
+					s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
+				}
 			}
-		}()
-	}
+		}
+	}()
 
 	return nil
 }
 
-// dynamicHostHeartbeatInfo generates the Windows Desktop resource
-// for heartbeating hosts discovered via LDAP
-func (s *WindowsService) dynamicHostHeartbeatInfo(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.Resource, error) {
+// getDesktopsFromLDAP discovers Windows hosts via LDAP
+func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabels {
+	// search for computers using an empty ldapPath to search from the root
+	// TODO(zmb3): use discovery base DN instead
+	// TODO(zmb3): use LDAP filters from cfg
+	entries, err := s.lc.read(ldapPath{}, computerClass, computerAttribtes)
+	if err != nil {
+		s.cfg.Log.Warnf("could not discover Windows Desktops: %v", err)
+		return nil
+	}
+
+	s.cfg.Log.Debugf("discovered %d Windows Desktops", len(entries))
+
+	var result types.ResourcesWithLabels
+	for _, entry := range entries {
+		desktop, err := s.ldapEntryToWindowsDesktop(s.closeCtx, entry, s.cfg.HostLabelsFn)
+		if err != nil {
+			s.cfg.Log.Warnf("could not create Windows Desktop from LDAP entry: %v", err)
+			continue
+		}
+		result = append(result, desktop)
+	}
+
+	// capture the result, which will be used on the next reconcile loop
+	s.lastDiscoveryResults = result
+
+	return result
+}
+
+func (s *WindowsService) createDesktop(ctx context.Context, r types.ResourceWithLabels) error {
+	d, ok := r.(types.WindowsDesktop)
+	if !ok {
+		return trace.Errorf("create: expected a WindowsDesktop, got %T", r)
+	}
+	return s.cfg.AccessPoint.CreateWindowsDesktop(ctx, d)
+}
+
+func (s *WindowsService) updateDesktop(ctx context.Context, r types.ResourceWithLabels) error {
+	d, ok := r.(types.WindowsDesktop)
+	if !ok {
+		return trace.Errorf("update: expected a WindowsDesktop, got %T", r)
+	}
+	return s.cfg.AccessPoint.UpdateWindowsDesktop(ctx, d)
+}
+
+func (s *WindowsService) deleteDesktop(ctx context.Context, r types.ResourceWithLabels) error {
+	return s.cfg.AuthClient.DeleteWindowsDesktop(ctx, r.GetName())
+}
+
+// ldapEntryToWindowsDesktop generates the Windows Desktop resource
+// from an LDAP search result
+func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.ResourceWithLabels, error) {
 	hostname := entry.GetAttributeValue(attrDNSHostName)
 
 	labels := getHostLabels(hostname)
