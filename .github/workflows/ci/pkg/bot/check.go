@@ -30,9 +30,8 @@ import (
 // Check checks if all the reviewers have approved the pull request in the current context.
 func (c *Bot) Check(ctx context.Context) error {
 	author := c.Environment.Metadata.Author
-	// Assign reviewers that may have not been assigned by the assign workflow.
-	// Github requests the diff who the bot is requesting and who was already
-	// requested.
+	// Assign reviewers again, as the required reviewers may have changed since
+	// the initial assign workflow (due to new changes, for example)
 	err := c.Assign(ctx)
 	if err != nil {
 		return trace.Wrap(err)
