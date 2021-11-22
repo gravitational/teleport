@@ -155,6 +155,12 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		// a new one.
 	}
 
+	session, err := client.NewKubeSession(cf.Context, tc, meta, k)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session.Wait()
 	return nil
 }
 
