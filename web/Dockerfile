@@ -1,4 +1,4 @@
-FROM node:12-slim
+FROM node:16.3-slim
 RUN apt-get update && apt-get install git -y
 
 RUN mkdir -p web-apps

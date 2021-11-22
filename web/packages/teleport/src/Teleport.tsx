@@ -18,7 +18,6 @@ limitations under the License.
 import { History } from 'history';
 import { hot } from 'react-hot-loader/root';
 import React from 'react';
-import { useFavicon } from 'shared/hooks';
 import ThemeProvider from 'design/ThemeProvider';
 import { Router, Route, Switch } from 'teleport/components/Router';
 import CatchError from 'teleport/components/CatchError';
@@ -34,10 +33,7 @@ import TeleportContextProvider from './teleportContextProvider';
 import TeleportContext from './teleportContext';
 import cfg from './config';
 
-const teleportIco = require('./favicon.ico').default;
-
 const Teleport: React.FC<Props> = props => {
-  useFavicon(teleportIco);
   const { ctx, history } = props;
   const publicRoutes = props.renderPublicRoutes || renderPublicRoutes;
   const privateRoutes = props.renderPrivateRoutes || renderPrivateRoutes;

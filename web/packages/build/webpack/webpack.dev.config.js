@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const webpack = require('webpack');
 const createConfig = require('./webpack.base');
 
 process.env.BABEL_ENV = 'development';
@@ -54,11 +53,6 @@ var cfg = {
       baseCfg.rules.css(),
     ],
   },
-
-  plugins: [
-    new webpack.HotModuleReplacementPlugin(),
-    baseCfg.plugins.createIndexHtml(),
-  ],
 };
 
 module.exports = cfg;
