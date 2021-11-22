@@ -218,13 +218,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			HostUUID:    cfg.HostUUID,
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.Hosts,
-			OnHeartbeat: func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentWindowsDesktop})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentWindowsDesktop})
-				}
-			},
+			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
 		LDAPConfig:      desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
 		DiscoveryBaseDN: cfg.WindowsDesktop.Discovery.BaseDN,
