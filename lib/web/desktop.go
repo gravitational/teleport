@@ -22,6 +22,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/websocket"
@@ -31,9 +32,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/desktop"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&initial_width=<initialWidth>&initial_height=<initialHeight>
 func (h *Handler) handleDesktopAccessWebsocket(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -47,6 +50,40 @@ func (h *Handler) handleDesktopAccessWebsocket(
 	}
 	log := ctx.log.WithField("desktop-uuid", desktopName)
 	log.Debug("New desktop access websocket connection")
+
+	q := r.URL.Query()
+	username := q.Get("username")
+	if username == "" {
+		errStr := "missing username"
+		log.Error(errStr)
+		return nil, trace.BadParameter(errStr)
+	}
+	initialWidthStr := q.Get("initial_width")
+	if initialWidthStr == "" {
+		errStr := "missing initial_width"
+		log.Error(errStr)
+		return nil, trace.BadParameter(errStr)
+	}
+	initialWidth, err := strconv.Atoi(initialWidthStr)
+	if err != nil {
+		errStr := "initial_width could not be converted to an integer"
+		log.Error(errStr)
+		return nil, trace.Wrap(err, errStr)
+	}
+	initialHeightStr := q.Get("initial_height")
+	if initialHeightStr == "" {
+		errStr := "missing initial_height"
+		log.Error(errStr)
+		return nil, trace.BadParameter(errStr)
+	}
+	initialHeight, err := strconv.Atoi(initialHeightStr)
+	if err != nil {
+		errStr := "initial_height could not be converted to an integer"
+		log.Error(errStr)
+		return nil, trace.Wrap(err, errStr)
+	}
+
+	log.Debugf("Attempting to connect to desktop using username=%v, initial_width=%v, initial_height=%v\n", username, initialWidth, initialHeight)
 
 	winServices, err := ctx.unsafeCachedAuthClient.GetWindowsDesktopServices(r.Context())
 	if err != nil {
@@ -83,6 +120,11 @@ func (h *Handler) handleDesktopAccessWebsocket(
 	tlsConfig.ServerName = desktopName + desktop.SNISuffix
 	serviceConTLS := tls.Client(serviceCon, ctx.clt.Config())
 	log.Debug("Connected to windows_desktop_service")
+
+	// Write username, initial width, and initial height to the windows desktop service using TDP
+	tdpConn := tdp.NewConn(serviceConTLS)
+	tdpConn.OutputMessage(tdp.ClientUsername{Username: username})
+	tdpConn.OutputMessage(tdp.ClientScreenSpec{Width: uint32(initialWidth), Height: uint32(initialHeight)})
 
 	websocket.Handler(func(conn *websocket.Conn) {
 		if err := proxyWebsocketConn(conn, serviceConTLS); err != nil {
