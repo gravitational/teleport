@@ -84,7 +84,53 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 }
 
 func (c *kubeJoinCommand) run(cf *CLIConf) error {
-	panic("not implemented")
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var k *client.Key
+
+	// Try loading existing keys.
+	k, err = tc.LocalAgent().GetKey("teleport-cluster", client.WithKubeCerts{})
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	// Loaded existing credentials and have a cert for this cluster? Return it
+	// right away.
+	if err == nil {
+		crt, err := k.KubeTLSCertificate("kube-cluster")
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
+			log.Debugf("Re-using existing TLS cert for kubernetes cluster %q", "kube-cluster")
+		} else {
+			err = client.RetryWithRelogin(cf.Context, tc, func() error {
+				var err error
+				k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+					RouteToCluster:    "teleport-cluster",
+					KubernetesCluster: "kube-cluster",
+				})
+
+				return trace.Wrap(err)
+			})
+
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			// Cache the new cert on disk for reuse.
+			if _, err := tc.LocalAgent().AddKey(k); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		// Otherwise, cert for this k8s cluster is missing or expired. Request
+		// a new one.
+	}
+
+	return nil
 }
 
 func kubeExecCommandAssembler(c *kubeExecCommand) []string {
