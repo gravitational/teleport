@@ -462,6 +462,7 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 }
 
 func TestValidRedirectURL(t *testing.T) {
+	t.Parallel()
 	for _, tt := range []struct {
 		desc, url string
 		valid     bool
@@ -473,9 +474,7 @@ func TestValidRedirectURL(t *testing.T) {
 		{"empty string", "", false},
 		{"block bad protocol", "javascript:alert('xss')", false},
 	} {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			t.Parallel()
 			require.Equal(t, tt.valid, isValidRedirectURL(tt.url))
 		})
 	}
@@ -529,7 +528,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	c.Assert(err, IsNil)
 
 	// we got a redirect
-	urlPattern := regexp.MustCompile(`window.location = '([^']*)'`)
+	urlPattern := regexp.MustCompile(`URL='([^']*)'`)
 	locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
 	u, err := url.Parse(locationURL)
 	c.Assert(err, IsNil)
