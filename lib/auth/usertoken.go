@@ -24,6 +24,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -46,6 +48,20 @@ const (
 	// UserTokenTypeRecoveryStart describes a recovery token issued to users who
 	// successfully verified their recovery code.
 	UserTokenTypeRecoveryStart = "recovery_start"
+	// UserTokenTypeRecoveryApproved describes a recovery token issued to users who
+	// successfully verified their second auth credential (either password or a second factor) and
+	// can now start changing their password or add a new second factor device.
+	// This token is also used to allow users to delete exisiting second factor devices
+	// and retrieve their new set of recovery codes as part of the recovery flow.
+	UserTokenTypeRecoveryApproved = "recovery_approved"
+	// UserTokenTypePrivilege describes a token type that grants access to a privileged action
+	// that requires users to re-authenticate with their second factor while looged in. This
+	// token is issued to users who has successfully re-authenticated.
+	UserTokenTypePrivilege = "privilege"
+	// UserTokenTypePrivilegeException describes a token type that allowed a user to bypass
+	// second factor re-authentication which in other cases would be required eg:
+	// allowing user to add a mfa device if they don't have any registered.
+	UserTokenTypePrivilegeException = "privilege_exception"
 )
 
 // CreateUserTokenRequest is a request to create a new user token.
@@ -98,7 +114,11 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 	case UserTokenTypeRecoveryStart:
 		r.TTL = defaults.RecoveryStartTokenTTL
 
-	// TODO (kimlisa): add RecoveryApprovedToken type
+	case UserTokenTypeRecoveryApproved:
+		r.TTL = defaults.RecoveryApprovedTokenTTL
+
+	case UserTokenTypePrivilege, UserTokenTypePrivilegeException:
+		r.TTL = defaults.PrivilegeTokenTTL
 
 	default:
 		return trace.BadParameter("unknown user token request type(%v)", r.Type)
@@ -223,6 +243,8 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 	return fmt.Sprintf("%v@%v", username, proxyHost), nil
 }
 
+// DELETE IN 9.0.0 replaced by CreateRegisterChallenge.
+//
 // RotateUserTokenSecrets rotates secrets for a given tokenID.
 // It gets called every time a user fetches 2nd-factor secrets during registration attempt.
 // This ensures that an attacker that gains the user token link can not view it,
@@ -234,14 +256,20 @@ func (s *Server) RotateUserTokenSecrets(ctx context.Context, tokenID string) (ty
 		return nil, trace.Wrap(err)
 	}
 
-	key, _, err := s.newTOTPKey(token.GetUser())
+	otpKey, _, err := s.newTOTPKey(token.GetUser())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	secrets, err := s.createTOTPUserTokenSecrets(ctx, token, otpKey)
+	return secrets, trace.Wrap(err)
+}
+
+// createTOTPUserTokenSecrets creates new UserTokenSecretes resource for the given token.
+func (s *Server) createTOTPUserTokenSecrets(ctx context.Context, token types.UserToken, otpKey *otp.Key) (types.UserTokenSecrets, error) {
 	// Create QR code.
 	var otpQRBuf bytes.Buffer
-	otpImage, err := key.Image(456, 456)
+	otpImage, err := otpKey.Image(456, 456)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -249,11 +277,11 @@ func (s *Server) RotateUserTokenSecrets(ctx context.Context, tokenID string) (ty
 		return nil, trace.Wrap(err)
 	}
 
-	secrets, err := types.NewUserTokenSecrets(tokenID)
+	secrets, err := types.NewUserTokenSecrets(token.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	secrets.SetOTPKey(key.Secret())
+	secrets.SetOTPKey(otpKey.Secret())
 	secrets.SetQRCode(otpQRBuf.Bytes())
 	secrets.SetExpiry(token.Expiry())
 	err = s.UpsertUserTokenSecrets(ctx, secrets)
@@ -396,8 +424,7 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 
 // createRecoveryToken creates a user token for account recovery.
 func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType string, usage types.UserTokenUsage) (types.UserToken, error) {
-	// TODO (kimlisa): add RecoveryApprovedToken type
-	if tokenType != UserTokenTypeRecoveryStart {
+	if tokenType != UserTokenTypeRecoveryStart && tokenType != UserTokenTypeRecoveryApproved {
 		return nil, trace.BadParameter("invalid recovery token type: %s", tokenType)
 	}
 
@@ -444,4 +471,127 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 	}
 
 	return newToken, nil
+}
+
+// CreatePrivilegeToken implements AuthService.CreatePrivilegeToken.
+func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	username, err := GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPref, err := s.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authPref.GetAllowLocalAuth() {
+		return nil, trace.AccessDenied("local auth needs to be enabled")
+	}
+
+	// For a user to add a device, second factor must be enabled.
+	// A nil request will be interpreted as a user who has second factor enabled
+	// but does not have any MFA registered, as can be the case with second factor optional.
+	if authPref.GetSecondFactor() == constants.SecondFactorOff {
+		return nil, trace.AccessDenied("second factor must be enabled")
+	}
+
+	tokenKind := UserTokenTypePrivilege
+
+	switch {
+	case req.GetExistingMFAResponse() == nil:
+		// Allows users with no devices to bypass second factor re-auth.
+		devices, err := s.Identity.GetMFADevices(ctx, username, false)
+		switch {
+		case err != nil:
+			return nil, trace.Wrap(err)
+		case len(devices) > 0:
+			return nil, trace.BadParameter("second factor authentication required")
+		}
+
+		tokenKind = UserTokenTypePrivilegeException
+
+	default:
+		if err := s.WithUserLock(username, func() error {
+			_, err := s.validateMFAAuthResponse(ctx, username, req.GetExistingMFAResponse(), s.Identity)
+			return err
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Delete any existing user tokens for user before creating.
+	if err := s.deleteUserTokens(ctx, username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := s.createPrivilegeToken(ctx, username, tokenKind)
+	return token, trace.Wrap(err)
+}
+
+func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind string) (*types.UserTokenV3, error) {
+	if tokenKind != UserTokenTypePrivilege && tokenKind != UserTokenTypePrivilegeException {
+		return nil, trace.BadParameter("invalid privilege token type")
+	}
+
+	req := CreateUserTokenRequest{
+		Name: username,
+		Type: tokenKind,
+	}
+
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newToken, err := s.newUserToken(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := s.Identity.CreateUserToken(ctx, newToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
+		Metadata: apievents.Metadata{
+			Type: events.PrivilegeTokenCreateEvent,
+			Code: events.PrivilegeTokenCreateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: username,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    req.Name,
+			TTL:     req.TTL.String(),
+			Expires: s.GetClock().Now().UTC().Add(req.TTL),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit create privilege token event.")
+	}
+
+	convertedToken, ok := token.(*types.UserTokenV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected UserToken type %T", token)
+	}
+
+	return convertedToken, nil
+}
+
+// verifyUserToken verifies that the token is not expired and is of the allowed kinds.
+func (s *Server) verifyUserToken(token types.UserToken, allowedKinds ...string) error {
+	if token.Expiry().Before(s.clock.Now().UTC()) {
+		// Provide obscure message on purpose, while logging the real error server side.
+		log.Debugf("Expired token(%s) type(%s)", token.GetName(), token.GetSubKind())
+		return trace.AccessDenied("invalid token")
+	}
+
+	for _, kind := range allowedKinds {
+		if token.GetSubKind() == kind {
+			return nil
+		}
+	}
+
+	log.Debugf("Invalid token(%s) type(%s), expected type: %v", token.GetName(), token.GetSubKind(), allowedKinds)
+	return trace.AccessDenied("invalid token")
 }

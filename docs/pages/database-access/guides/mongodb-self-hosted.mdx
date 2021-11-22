@@ -162,7 +162,7 @@ file and restart the database:
   net:
     ssl:
       mode: requireSSL
-      PEMKeyFile: /etc/certs/mongo.pem
+      PEMKeyFile: /etc/certs/mongo.crt
       CAFile: /etc/certs/mongo.cas
   ```
   </TabItem>
@@ -171,7 +171,7 @@ file and restart the database:
   net:
     tls:
       mode: requireTLS
-      certificateKeyFile: /etc/certs/mongo.pem
+      certificateKeyFile: /etc/certs/mongo.crt
       CAFile: /etc/certs/mongo.cas
   ```
   </TabItem>

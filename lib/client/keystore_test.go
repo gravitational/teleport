@@ -259,7 +259,7 @@ func TestProxySSHConfig(t *testing.T) {
 		HostID:        "127.0.0.1",
 		NodeName:      "127.0.0.1",
 		ClusterName:   "host-cluster-name",
-		Roles:         types.SystemRoles{types.RoleNode},
+		Role:          types.RoleNode,
 	})
 	require.NoError(t, err)
 
@@ -273,7 +273,7 @@ func TestProxySSHConfig(t *testing.T) {
 		[]ssh.Signer{hostSigner},
 		sshutils.AuthMethods{
 			PublicKey: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-				certChecker := utils.CertChecker{
+				certChecker := apisshutils.CertChecker{
 					CertChecker: ssh.CertChecker{
 						IsUserAuthority: func(cert ssh.PublicKey) bool {
 							// Makes sure that user presented key signed by or with trusted authority.

@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestFanoutWatcherClose tests fanout watcher close
@@ -32,8 +32,8 @@ func TestFanoutWatcherClose(t *testing.T) {
 	f := NewFanout(eventsCh)
 	w, err := f.NewWatcher(context.TODO(),
 		types.Watch{Name: "test", Kinds: []types.WatchKind{{Name: "test"}}})
-	assert.NoError(t, err)
-	assert.Equal(t, f.Len(), 1)
+	require.NoError(t, err)
+	require.Equal(t, f.Len(), 1)
 
 	err = w.Close()
 	select {
@@ -41,6 +41,32 @@ func TestFanoutWatcherClose(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatalf("Timeout waiting for event")
 	}
-	assert.NoError(t, err)
-	assert.Equal(t, f.Len(), 0)
+	require.NoError(t, err)
+	require.Equal(t, f.Len(), 0)
+}
+
+// TestFanoutInit verifies that Init event is sent exactly once.
+func TestFanoutInit(t *testing.T) {
+	f := NewFanout()
+
+	w, err := f.NewWatcher(context.TODO(), types.Watch{
+		Name:  "test",
+		Kinds: []types.WatchKind{{Name: "spam"}, {Name: "eggs"}},
+	})
+	require.NoError(t, err)
+
+	f.SetInit()
+
+	select {
+	case e := <-w.Events():
+		require.Equal(t, types.OpInit, e.Type)
+	default:
+		t.Fatalf("Expected init event")
+	}
+
+	select {
+	case e := <-w.Events():
+		t.Fatalf("Unexpected second event: %+v", e)
+	default:
+	}
 }

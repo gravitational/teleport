@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/identityfile"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -107,7 +108,7 @@ func NewKey() (key *Key, err error) {
 // KeyFromIdentityFile loads the private key + certificate
 // from an identity file into a Key.
 func KeyFromIdentityFile(path string) (*Key, error) {
-	ident, err := identityfile.Read(path)
+	ident, err := identityfile.ReadFile(path)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse identity file")
 	}
@@ -214,7 +215,7 @@ func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte) (*tls.Co
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert")
 	}
-	tlsConfig.ServerName = auth.EncodeClusterName(leaf.Issuer.CommonName)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(leaf.Issuer.CommonName)
 	return tlsConfig, nil
 }
 
@@ -404,7 +405,7 @@ func (k *Key) CheckCert() error {
 
 	// A valid principal is always passed in because the principals are not being
 	// checked here, but rather the validity period, signature, and algorithms.
-	certChecker := utils.CertChecker{
+	certChecker := sshutils.CertChecker{
 		FIPS: isFIPS(),
 	}
 	err = certChecker.CheckCert(cert.ValidPrincipals[0], cert)
@@ -421,8 +422,8 @@ func (k *Key) CheckCert() error {
 // If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
 // This causes golang.org/x/crypto/ssh to prompt the user to verify host key
 // fingerprint (same as OpenSSH does for an unknown host).
-func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
-	return sshutils.HostKeyCallback(k.SSHCAs())
+func (k *Key) HostKeyCallback(withHostKeyFallback bool) (ssh.HostKeyCallback, error) {
+	return sshutils.HostKeyCallback(k.SSHCAs(), withHostKeyFallback)
 }
 
 // RootClusterName extracts the root cluster name from the issuer

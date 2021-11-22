@@ -47,6 +47,7 @@ $ docker-compose -f teleport-lab.yml down
 Let's jump into container with setup clients and explore Teleport:
 
 ```code
+# From your local terminal
 $ docker exec -ti term /bin/bash
 ```
 
@@ -60,18 +61,21 @@ Let's Try a couple of commands to get started.
 Teleport speaks SSH. You can SSH into it using OpenSSH:
 
 ```code
+# From term container
 $ ssh root@luna.teleport
 ```
 
 Teleport is a bastion server for your OpenSSH hosts. SSH into OpenSSH server and record all commands:
 
 ```code
+# From term container
 $ ssh root@mars.openssh.teleport
 ```
 
 You can also run ansible on Teleport nodes and OpenSSH servers:
 
 ```code
+# From term container
 $ cd /etc/teleport.d/ansible && ansible all -m ping
 ```
 
@@ -79,12 +83,14 @@ Try Teleport's client command: `tsh`. It's like `ssh`, but with superpowers.
 Find all hosts matching label `env=example` and run `hostname` command:
 
 ```code
+# From term container
 $ tsh ssh root@env=example hostname
 ```
 
 You can see Teleport's nodes registered in the cluster using `tsh ls` command:
 
 ```code
+# From term container
 $ tsh ls
 # Node Name     Address        Labels                     
 # ------------- -------------- -------------------------- 
@@ -93,22 +99,19 @@ $ tsh ls
 
 ## Step 3/3. Explore web UI
 
-To create a user inside your Teleport container, use `docker exec`.
-
-This example command will create a Teleport user called `testuser` which is allowed to log in as either operating system user `root` or `ubuntu`:
-
-From terminal:
+Create a Teleport user called `testuser` which is allowed to log in as either operating system user `root` or `ubuntu`.
 
 ```code
-$ tctl users add testuser --roles=editor,access --logins=root,ubuntu,ec2-user
+# From term container
+$ tctl users add testuser --roles=editor,access --logins=root,ubuntu
 ```
 
 Teleport will output a URL that you must open to complete the user sign-up process:
 
 ```code
-User testuser has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s:
-https://localhost:443/web/invite/your-token-here
-NOTE: Make sure localhost:443 points at a Teleport proxy which users can access.
+User "testuser" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://proxy.luna.teleport:443/web/invite/your-token-here
+NOTE: Make sure proxy.luna.teleport:443 points at a Teleport proxy which users can access.
 ```
 
 The Web UI will be available at the displayed URL. 

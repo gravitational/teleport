@@ -22,20 +22,58 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 
 	radix "github.com/armon/go-radix"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
+
+type bufferConfig struct {
+	gracePeriod time.Duration
+	capacity    int
+	clock       clockwork.Clock
+}
+
+type BufferOption func(*bufferConfig)
+
+// BufferCapacity sets the event capacity of the circular buffer.
+func BufferCapacity(c int) BufferOption {
+	return func(cfg *bufferConfig) {
+		if c > 0 {
+			cfg.capacity = c
+		}
+	}
+}
+
+// BacklogGracePeriod sets the amount of time a watcher with a backlog will be tolerated.
+func BacklogGracePeriod(d time.Duration) BufferOption {
+	return func(cfg *bufferConfig) {
+		if d > 0 {
+			cfg.gracePeriod = d
+		}
+	}
+}
+
+// BufferClock sets a custom clock for the buffer (used in tests).
+func BufferClock(c clockwork.Clock) BufferOption {
+	return func(cfg *bufferConfig) {
+		if c != nil {
+			cfg.clock = c
+		}
+	}
+}
 
 // CircularBuffer implements in-memory circular buffer
 // of predefined size, that is capable of fan-out of the backend events.
 type CircularBuffer struct {
 	sync.Mutex
 	*log.Entry
+	cfg          bufferConfig
 	events       []Event
 	start        int
 	end          int
@@ -45,21 +83,26 @@ type CircularBuffer struct {
 }
 
 // NewCircularBuffer returns a new uninitialized instance of circular buffer.
-func NewCircularBuffer(size int) (*CircularBuffer, error) {
-	if size <= 0 {
-		return nil, trace.BadParameter("circular buffer size should be > 0")
+func NewCircularBuffer(opts ...BufferOption) *CircularBuffer {
+	cfg := bufferConfig{
+		gracePeriod: DefaultBacklogGracePeriod,
+		capacity:    DefaultBufferCapacity,
+		clock:       clockwork.NewRealClock(),
 	}
-	buf := &CircularBuffer{
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return &CircularBuffer{
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentBuffer,
 		}),
-		events:   make([]Event, size),
+		cfg:      cfg,
+		events:   make([]Event, cfg.capacity),
 		start:    -1,
 		end:      -1,
 		size:     0,
 		watchers: newWatcherTree(),
 	}
-	return buf, nil
 }
 
 // Clear clears all events from the queue and closes all active watchers,
@@ -134,11 +177,6 @@ func (c *CircularBuffer) Close() error {
 	return nil
 }
 
-// Size returns circular buffer size
-func (c *CircularBuffer) Size() int {
-	return c.size
-}
-
 // Events returns a copy of records as arranged from start to end
 func (c *CircularBuffer) Events() []Event {
 	c.Lock()
@@ -205,15 +243,13 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 		if watcher.MetricComponent != "" {
 			watcherQueues.WithLabelValues(watcher.MetricComponent).Set(float64(len(watcher.eventsC)))
 		}
-		select {
-		case watcher.eventsC <- r:
-		default:
+		if !watcher.emit(r) {
 			watchersToDelete = append(watchersToDelete, watcher)
 		}
 	})
 
 	for _, watcher := range watchersToDelete {
-		c.Warningf("Closing %v, buffer overflow at %v elements.", watcher, len(watcher.eventsC))
+		c.Warningf("Closing %v, buffer overflow at %v (backlog=%v).", watcher, len(watcher.eventsC), watcher.backlogLen())
 		watcher.closeWatcher()
 		c.watchers.rm(watcher)
 	}
@@ -291,7 +327,7 @@ func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
 		c.Warningf("Internal logic error: %v.", trace.DebugReport(trace.BadParameter("empty watcher")))
 		return
 	}
-	c.Debugf("Removed watcher %p via external close.", watcher)
+	c.Debugf("Removing watcher %p via external close.", watcher)
 	found := c.watchers.rm(watcher)
 	if !found {
 		c.Debugf("Could not find watcher %v.", watcher)
@@ -303,7 +339,12 @@ func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
 type BufferWatcher struct {
 	buffer *CircularBuffer
 	Watch
-	eventsC  chan Event
+	eventsC chan Event
+
+	bmu          sync.Mutex
+	backlog      []Event
+	backlogSince time.Time
+
 	ctx      context.Context
 	cancel   context.CancelFunc
 	initOnce sync.Once
@@ -317,14 +358,71 @@ func (w *BufferWatcher) String() string {
 	return fmt.Sprintf("Watcher(name=%v, prefixes=%v, capacity=%v, size=%v)", w.Name, string(bytes.Join(w.Prefixes, []byte(", "))), w.capacity, len(w.eventsC))
 }
 
-// Events returns events channel
+// Events returns events channel.  This method performs internal work and should be re-called after each event
+// is received, rather than having its output cached.
 func (w *BufferWatcher) Events() <-chan Event {
+	w.bmu.Lock()
+	defer w.bmu.Unlock()
+	// it is possible that the channel has been drained, but events exist in
+	// the backlog, so make sure to flush the backlog.  we can ignore the result
+	// of the flush here since we don't actually care if the backlog was fully
+	// flushed, only that the event channel is non-empty if a backlog does exist.
+	w.flushBacklog()
 	return w.eventsC
 }
 
 // Done channel is closed when watcher is closed
 func (w *BufferWatcher) Done() <-chan struct{} {
 	return w.ctx.Done()
+}
+
+// flushBacklog attempts to push any backlogged events into the
+// event channel.  returns true if backlog is empty.
+func (w *BufferWatcher) flushBacklog() (ok bool) {
+	for i, e := range w.backlog {
+		select {
+		case w.eventsC <- e:
+		default:
+			w.backlog = w.backlog[i:]
+			return false
+		}
+	}
+	w.backlogSince = time.Time{}
+	w.backlog = nil
+	return true
+}
+
+// emit attempts to emit an event. Returns false if the watcher has
+// exceeded the backlog grace period.
+func (w *BufferWatcher) emit(e Event) (ok bool) {
+	w.bmu.Lock()
+	defer w.bmu.Unlock()
+
+	if !w.flushBacklog() {
+		if w.buffer.cfg.clock.Now().After(w.backlogSince.Add(w.buffer.cfg.gracePeriod)) {
+			// backlog has existed for longer than grace period,
+			// this watcher needs to be removed.
+			return false
+		}
+		// backlog exists, but we are still within grace period.
+		w.backlog = append(w.backlog, e)
+		return true
+	}
+
+	select {
+	case w.eventsC <- e:
+	default:
+		// primary event buffer is full; start backlog.
+		w.backlog = append(w.backlog, e)
+		w.backlogSince = w.buffer.cfg.clock.Now()
+	}
+	return true
+}
+
+func (w *BufferWatcher) backlogLen() int {
+	w.bmu.Lock()
+	defer w.bmu.Unlock()
+	return len(w.backlog)
 }
 
 // init transmits the OpInit event.  safe to double-call.

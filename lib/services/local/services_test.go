@@ -58,7 +58,7 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 	configService, err := NewClusterConfigurationService(s.bk)
 	c.Assert(err, check.IsNil)
 
-	eventsService := NewEventsService(s.bk, configService.GetClusterConfig)
+	eventsService := NewEventsService(s.bk)
 	presenceService := NewPresenceService(s.bk)
 
 	s.suite = &suite.ServicesTestSuite{

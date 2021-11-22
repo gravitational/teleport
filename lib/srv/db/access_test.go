@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"os"
 	"sort"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -91,7 +93,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "no access to databases",
@@ -101,7 +103,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{types.Wildcard},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "no access to users",
@@ -111,7 +113,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "access allowed to specific user/database",
@@ -130,7 +132,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{"alice"},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 	}
 
@@ -195,7 +197,7 @@ func TestAccessMySQL(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{},
 			dbUser:       "root",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "access allowed to specific user",
@@ -210,7 +212,7 @@ func TestAccessMySQL(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
 			dbUser:       "root",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 	}
 
@@ -278,7 +280,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -289,7 +291,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{types.Wildcard},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -300,7 +302,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -323,7 +325,7 @@ func TestAccessMongoDB(t *testing.T) {
 			dbName:       "metrics",
 			dbUser:       "alice",
 			connectErr:   "",
-			queryErr:     "access to database denied",
+			queryErr:     "access to db denied",
 		},
 	}
 
@@ -391,6 +393,63 @@ func TestAccessDisabled(t *testing.T) {
 	_, err := testCtx.postgresClient(ctx, userName, "postgres", dbUser, dbName)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for database access")
+}
+
+// TestPostgresInjectionDatabase makes sure Postgres connection is not
+// susceptible to malicious database name injections.
+func TestPostgresInjectionDatabase(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	go testCtx.startHandlingConnections()
+
+	postgresServer := testCtx.postgres["postgres"].db
+
+	// Make sure the role allows wildcard database users and names.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Connect and make sure connection parameters are as expected.
+	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "alice", "test&user=bob")
+	require.NoError(t, err)
+
+	select {
+	case p := <-postgresServer.ParametersCh():
+		require.Equal(t, map[string]string{"user": "alice", "database": "test&user=bob"}, p)
+	case <-time.After(time.Second):
+		t.Fatal("didn't receive startup message parameters after 1s")
+	}
+
+	err = psql.Close(ctx)
+	require.NoError(t, err)
+}
+
+// TestPostgresInjectionUser makes sure Postgres connection is not
+// susceptible to malicious user name injections.
+func TestPostgresInjectionUser(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	go testCtx.startHandlingConnections()
+
+	postgresServer := testCtx.postgres["postgres"].db
+
+	// Make sure the role allows wildcard database users and names.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Construct malicious username that simulates the connection string.
+	user := fmt.Sprintf("alice@localhost:%v?database=prod&foo=", postgresServer.Port())
+
+	// Connect and make sure startup parameters are as expected.
+	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", user, "test")
+	require.NoError(t, err)
+
+	select {
+	case p := <-postgresServer.ParametersCh():
+		require.Equal(t, map[string]string{"user": user, "database": "test"}, p)
+	case <-time.After(time.Second):
+		t.Fatal("didn't receive startup message parameters after 1s")
+	}
+
+	err = psql.Close(ctx)
+	require.NoError(t, err)
 }
 
 // TestCompatibilityWithOldAgents verifies that older database agents where
@@ -765,8 +824,8 @@ type agentParams struct {
 	Databases types.Databases
 	// HostID is an optional host id.
 	HostID string
-	// Selectors are optional database resource selectors.
-	Selectors []services.Selector
+	// ResourceMatchers are optional database resource matchers.
+	ResourceMatchers []services.ResourceMatcher
 	// GetServerInfoFn overrides heartbeat's server info function.
 	GetServerInfoFn func(database types.Database) func() (types.Resource, error)
 	// OnReconcile sets database resource reconciliation callback.
@@ -811,19 +870,19 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
-		Clock:           clockwork.NewFakeClockAt(time.Now()),
-		DataDir:         t.TempDir(),
-		AuthClient:      c.authClient,
-		AccessPoint:     c.authClient,
-		StreamEmitter:   c.authClient,
-		Authorizer:      dbAuthorizer,
-		Hostname:        constants.APIDomain,
-		HostID:          p.HostID,
-		TLSConfig:       tlsConfig,
-		Auth:            testAuth,
-		Databases:       p.Databases,
-		Selectors:       p.Selectors,
-		GetServerInfoFn: p.GetServerInfoFn,
+		Clock:            clockwork.NewFakeClockAt(time.Now()),
+		DataDir:          t.TempDir(),
+		AuthClient:       c.authClient,
+		AccessPoint:      c.authClient,
+		StreamEmitter:    c.authClient,
+		Authorizer:       dbAuthorizer,
+		Hostname:         constants.APIDomain,
+		HostID:           p.HostID,
+		TLSConfig:        tlsConfig,
+		Auth:             testAuth,
+		Databases:        p.Databases,
+		ResourceMatchers: p.ResourceMatchers,
+		GetServerInfoFn:  p.GetServerInfoFn,
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
@@ -839,6 +898,12 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		},
 		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
+		CloudClients: &common.TestCloudClients{
+			STS:      &cloud.STSMock{},
+			RDS:      &cloud.RDSMock{},
+			Redshift: &cloud.RedshiftMock{},
+			IAM:      &cloud.IAMMock{},
+		},
 	})
 	require.NoError(t, err)
 

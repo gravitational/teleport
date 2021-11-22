@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 )
@@ -88,6 +89,24 @@ type Backend interface {
 	// Migrate performs any data migration necessary between Teleport versions.
 	// Migrate must be called BEFORE using any other methods of the Backend.
 	Migrate(context.Context) error
+}
+
+// IterateRange is a helper for stepping over a range
+func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byte, limit int, fn func([]Item) (stop bool, err error)) error {
+	for {
+		rslt, err := bk.GetRange(ctx, startKey, endKey, limit)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		stop, err := fn(rslt.Items)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if stop || len(rslt.Items) < limit {
+			return nil
+		}
+		startKey = nextKey(rslt.Items[limit-1].Key)
+	}
 }
 
 // Batch implements some batch methods
@@ -181,6 +200,14 @@ type Item struct {
 	// LeaseID is a lease ID, could be set on objects
 	// with TTL
 	LeaseID int64
+}
+
+func (e Event) String() string {
+	val := string(e.Item.Value)
+	if len(val) > 20 {
+		val = val[:20] + "..."
+	}
+	return fmt.Sprintf("%v %s=%s", e.Type, e.Item.Key, val)
 }
 
 // Config is used for 'storage' config section. It's a combination of
@@ -327,7 +354,11 @@ const Separator = '/'
 // Key joins parts into path separated by Separator,
 // makes sure path always starts with Separator ("/")
 func Key(parts ...string) []byte {
-	return []byte(strings.Join(append([]string{""}, parts...), string(Separator)))
+	return internalKey("", parts...)
+}
+
+func internalKey(internalPrefix string, parts ...string) []byte {
+	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
 }
 
 // NoMigrations implements a nop Migrate method of Backend.

@@ -19,9 +19,13 @@ import (
 )
 
 const (
-	// DefaultBufferSize is a default circular buffer size
+	// DefaultBufferCapacity is a default circular buffer size
 	// used by backends to fan out events
-	DefaultBufferSize = 1024
+	DefaultBufferCapacity = 1024
+	// DefaultBacklogGracePeriod is the default amount of time
+	// that the circular buffer will tolerate an event backlog
+	// in one of its watchers.
+	DefaultBacklogGracePeriod = time.Second * 30
 	// DefaultPollStreamPeriod is a default event poll stream period
 	DefaultPollStreamPeriod = time.Second
 	// DefaultEventsTTL is a default events TTL period

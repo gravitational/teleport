@@ -23,6 +23,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -254,40 +255,49 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts .
 
 // ListNodes returns a paginated list of registered servers.
 // StartKey is a resource name, which is the suffix of its key.
-func (s *PresenceService) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
-	if namespace == "" {
+func (s *PresenceService) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
+	// NOTE: changes to the outward behavior of this method may require updating cache.Cache.ListNodes, since that method
+	// emulates this one but relies on a different implementation internally.
+	if req.Namespace == "" {
 		return nil, "", trace.BadParameter("missing namespace value")
 	}
+	limit := int(req.Limit)
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
 	}
 
 	// Get all items in the bucket within the given range.
-	rangeStart := backend.Key(nodesPrefix, namespace, startKey)
-	keyPrefix := backend.Key(nodesPrefix, namespace)
+	rangeStart := backend.Key(nodesPrefix, req.Namespace, req.StartKey)
+	keyPrefix := backend.Key(nodesPrefix, req.Namespace)
 	rangeEnd := backend.RangeEnd(keyPrefix)
-	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+
+	var servers []types.Server
+	err = backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, limit, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(servers) == limit {
+				break
+			}
+			server, err := services.UnmarshalServer(
+				item.Value,
+				types.KindNode,
+				services.WithResourceID(item.ID),
+				services.WithExpires(item.Expires),
+			)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if server.MatchAgainst(req.Labels) {
+				servers = append(servers, server)
+			}
+		}
+		return len(servers) == limit, nil
+	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	// Marshal values into a []services.Server slice.
-	servers := make([]types.Server, len(result.Items))
-	for i, item := range result.Items {
-		server, err := services.UnmarshalServer(
-			item.Value,
-			types.KindNode,
-			services.WithResourceID(item.ID),
-			services.WithExpires(item.Expires),
-		)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		servers[i] = server
-	}
-
 	// If a full page was filled, set nextKey using the last node.
-	if len(result.Items) == limit {
+	if len(servers) == limit {
 		nextKey = backend.NextPaginationKey(servers[len(servers)-1])
 	}
 
@@ -464,6 +474,9 @@ func (s *PresenceService) GetReverseTunnels(opts ...services.MarshalOption) ([]t
 		return nil, trace.Wrap(err)
 	}
 	tunnels := make([]types.ReverseTunnel, len(result.Items))
+	if len(result.Items) == 0 {
+		return tunnels, nil
+	}
 	for i, item := range result.Items {
 		tunnel, err := services.UnmarshalReverseTunnel(
 			item.Value, services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
@@ -1182,7 +1195,115 @@ func (s *PresenceService) DeleteAllDatabaseServers(ctx context.Context, namespac
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
+// GetApplicationServers returns all registered application servers.
+func (s *PresenceService) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing namespace")
+	}
+	servers, err := s.getApplicationServers(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	legacyServers, err := s.getApplicationServersLegacy(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(servers, legacyServers...), nil
+}
+
+func (s *PresenceService) getApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	startKey := backend.Key(appServersPrefix, namespace)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make([]types.AppServer, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.UnmarshalAppServer(
+			item.Value,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[i] = server
+	}
+	return servers, nil
+}
+
+// getApplicationServersLegacy fetches legacy application servers that are
+// represented by types.Server and adapts them to the types.AppServer type.
+//
+// DELETE IN 9.0.
+func (s *PresenceService) getApplicationServersLegacy(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	legacyServers, err := s.GetAppServers(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var servers []types.AppServer
+	for _, legacyServer := range legacyServers {
+		appServers, err := types.NewAppServersV3FromServer(legacyServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers = append(servers, appServers...)
+	}
+	return servers, nil
+}
+
+// UpsertApplicationServer registers an application server.
+func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalAppServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Since an app server represents a single proxied application, there may
+	// be multiple database servers on a single host, so they are stored under
+	// the following path in the backend:
+	//   /appServers/<namespace>/<host-uuid>/<name>
+	lease, err := s.Put(ctx, backend.Item{
+		Key: backend.Key(appServersPrefix,
+			server.GetNamespace(),
+			server.GetHostID(),
+			server.GetName()),
+		Value:   value,
+		Expires: server.Expiry(),
+		ID:      server.GetResourceID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if server.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:      types.KeepAlive_APP,
+		LeaseID:   lease.ID,
+		Name:      server.GetName(),
+		Namespace: server.GetNamespace(),
+		HostID:    server.GetHostID(),
+		Expires:   server.Expiry(),
+	}, nil
+}
+
+// DeleteApplicationServer removes specified application server.
+func (s *PresenceService) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+	key := backend.Key(appServersPrefix, namespace, hostID, name)
+	return s.Delete(ctx, key)
+}
+
+// DeleteAllApplicationServers removes all registered application servers.
+func (s *PresenceService) DeleteAllApplicationServers(ctx context.Context, namespace string) error {
+	startKey := backend.Key(appServersPrefix, namespace)
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
 // GetAppServers gets all application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServers.
 func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace")
@@ -1214,6 +1335,8 @@ func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, o
 }
 
 // UpsertAppServer adds an application server.
+//
+// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
 func (s *PresenceService) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -1243,12 +1366,16 @@ func (s *PresenceService) UpsertAppServer(ctx context.Context, server types.Serv
 }
 
 // DeleteAppServer removes an application server.
+//
+// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
 func (s *PresenceService) DeleteAppServer(ctx context.Context, namespace string, name string) error {
 	key := backend.Key(appsPrefix, serversPrefix, namespace, name)
 	return s.Delete(ctx, key)
 }
 
 // DeleteAllAppServers removes all application servers.
+//
+// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
 func (s *PresenceService) DeleteAllAppServers(ctx context.Context, namespace string) error {
 	startKey := backend.Key(appsPrefix, serversPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
@@ -1266,7 +1393,11 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 	case constants.KeepAliveNode:
 		key = backend.Key(nodesPrefix, h.Namespace, h.Name)
 	case constants.KeepAliveApp:
-		key = backend.Key(appsPrefix, serversPrefix, h.Namespace, h.Name)
+		if h.HostID != "" {
+			key = backend.Key(appServersPrefix, h.Namespace, h.HostID, h.Name)
+		} else { // DELETE IN 9.0. Legacy app server is heartbeating back.
+			key = backend.Key(appsPrefix, serversPrefix, h.Namespace, h.Name)
+		}
 	case constants.KeepAliveDatabase:
 		key = backend.Key(dbServersPrefix, h.Namespace, h.HostID, h.Name)
 	case constants.KeepAliveWindowsDesktopService:
@@ -1359,6 +1490,7 @@ const (
 	appsPrefix                   = "apps"
 	serversPrefix                = "servers"
 	dbServersPrefix              = "databaseServers"
+	appServersPrefix             = "appServers"
 	namespacesPrefix             = "namespaces"
 	authServersPrefix            = "authservers"
 	proxiesPrefix                = "proxies"

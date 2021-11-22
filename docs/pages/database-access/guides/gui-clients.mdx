@@ -62,6 +62,14 @@ In the "SSL" tab, set "SSL Mode" to `Verify-Full`:
 
 Click "Save", and pgAdmin should immediately connect.
 
+<Admonition type="note">
+  On a Windows client, use terminal to export a PG Service File env variable:
+
+ `$ setx PGSERVICEFILE <path_to_.pg_service.conf_file>`
+
+  Restart the pgAdmin client.
+</Admonition>
+
 ## MySQL Workbench
 
 [MySQL Workbench](https://www.mysql.com/products/workbench/) is a visual tool
@@ -106,3 +114,44 @@ endpoint. Client key and certificate locations are shown by `tsh db config`.
 ![MongoDB Compass more options](../../../img/database-access/compass-more-options@2x.png)
 
 Click on the "Connect" button.
+
+## DBeaver
+
+DBeaver is a SQL client software application and database administration tool.
+
+### MySQL 
+
+<Admonition type="note">
+  Teleport's DBeaver MySQL integration only supports MySQL server (=mysql.dbeaver_min_ver=) or older.
+</Admonition>
+
+Right-click in the "Database Navigator" menu in the main view and select Create > Connection:
+
+![DBeaver Add Server](../../../img/database-access/dbeaver-add-server.png)
+
+In the search bar of the "Connect to a database" window that opens up type "mysql", select the MySQL driver, and click "Next":
+
+![DBeaver Select Driver](../../../img/database-access/dbeaver-select-driver.png)
+
+In the newly-opened "Connection Settings" Main tab copy the `Server Host` and `Port` from the `tsh db config` output into the DBeaver config fields:
+
+![DBeaver Select Configure Server](../../../img/database-access/dbeaver-configure-server.png)
+
+In that same tab set the username to match the one that you are connecting to using the Teleport db certs and uncheck the 'Save password locally' box:
+
+![DBeaver Select Configure User](../../../img/database-access/dbeaver-configure-user.png)
+
+Click the "Edit Driver Settings" button on the "Main" tab, check the "No Authentication" box, and click "Ok" to save:
+
+![DBeaver Driver Settings](../../../img/database-access/dbeaver-driver-settings.png)
+
+Once you are back in the "Connection Settings" window navigate to the "Driver Properties" tab, scroll down to find the `enabledTLSProtocols` field and enter "TLSv1.2" into the `Value` field:
+
+![DBeaver TLS Settings](../../../img/database-access/dbeaver-tls-settings.png)
+
+Navigate to the "SSL" tab, check the "Use SSL" box, uncheck the "Verify Server Certificates" box, and copy the `CA Certificate`, `Client Certificate`, and `Client Private Key` paths from the `tsh db config` output:
+
+![DBeaver SSL](../../../img/database-access/dbeaver-ssl.png)
+
+Click "Ok" to finish and DBeaver should connect to the remote MySQL server automatically.
+

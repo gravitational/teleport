@@ -85,6 +85,9 @@ func ValidateMFADevice(d *types.MFADevice) error {
 		if err := u2f.ValidateDevice(dd.U2F); err != nil {
 			return trace.Wrap(err)
 		}
+	case *types.MFADevice_Webauthn:
+		// TODO(codingllama): Refactor Webauthn device validation so it runs here as
+		//  well?
 	default:
 		return trace.BadParameter("MFADevice has Device field of unknown type %T", d.Device)
 	}

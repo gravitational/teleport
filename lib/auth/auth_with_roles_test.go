@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -321,7 +322,10 @@ func TestListNodes(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// listing nodes 0-4 should list first 5 nodes
-	nodes, _, err := clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	nodes, _, err := clt.ListNodes(ctx, proto.ListNodesRequest{
+		Namespace: defaults.Namespace,
+		Limit:     5,
+	})
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes := testNodes[:5]
@@ -332,7 +336,10 @@ func TestListNodes(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// listing nodes 0-4 should skip the third node and add the fifth to the end.
-	nodes, _, err = clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	nodes, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+		Namespace: defaults.Namespace,
+		Limit:     5,
+	})
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
@@ -609,6 +616,71 @@ func TestGetDatabaseServers(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.DatabaseServer{}, servers))
 }
 
+// TestGetApplicationServers verifies RBAC is applied when fetching app servers.
+func TestGetApplicationServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test app servers.
+	for i := 0; i < 5; i++ {
+		name := fmt.Sprintf("app-%v", i)
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: map[string]string{"name": name},
+		},
+			types.AppSpecV3{URI: "localhost"})
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3FromApp(app, "host", "hostid")
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to get the first app
+	role.SetAppLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, len(servers))
+	require.Empty(t, cmp.Diff(testServers[0:1], servers))
+
+	// permit user to get all apps
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers), len(servers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+
+	// deny user to get the first app
+	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Empty(t, cmp.Diff(testServers[1:], servers))
+
+	// deny user to get all apps
+	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, len(servers))
+}
+
 func TestGetAppServers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -624,6 +696,7 @@ func TestGetAppServers(t *testing.T) {
 				Apps: []*types.App{{
 					Name:         name,
 					StaticLabels: map[string]string{"name": name},
+					URI:          "localhost",
 				}},
 			},
 			nil,
@@ -694,6 +767,141 @@ func TestGetAppServers(t *testing.T) {
 	require.Empty(t, cmp.Diff(testServers, servers))
 }
 
+// TestApps verifies RBAC is applied to app resources.
+func TestApps(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Setup a couple of users:
+	// - "dev" only has access to apps with labels env=dev
+	// - "admin" has access to all apps
+	dev, devRole, err := CreateUserAndRole(srv.Auth(), "dev", nil)
+	require.NoError(t, err)
+	devRole.SetAppLabels(types.Allow, types.Labels{"env": {"dev"}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, devRole))
+	devClt, err := srv.NewClient(TestUser(dev.GetName()))
+	require.NoError(t, err)
+
+	admin, adminRole, err := CreateUserAndRole(srv.Auth(), "admin", nil)
+	require.NoError(t, err)
+	adminRole.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, adminRole))
+	adminClt, err := srv.NewClient(TestUser(admin.GetName()))
+	require.NoError(t, err)
+
+	// Prepare a couple of app resources.
+	devApp, err := types.NewAppV3(types.Metadata{
+		Name:   "dev",
+		Labels: map[string]string{"env": "dev", types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+	adminApp, err := types.NewAppV3(types.Metadata{
+		Name:   "admin",
+		Labels: map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost2",
+	})
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to create prod app...
+	err = devClt.CreateApp(ctx, adminApp)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can create dev app.
+	err = devClt.CreateApp(ctx, devApp)
+	require.NoError(t, err)
+
+	// Admin can create prod app.
+	err = adminClt.CreateApp(ctx, adminApp)
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to update prod app...
+	err = devClt.UpdateApp(ctx, adminApp)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can update dev app.
+	err = devClt.UpdateApp(ctx, devApp)
+	require.NoError(t, err)
+
+	// Dev shouldn't be able to update labels on the prod app.
+	adminApp.SetStaticLabels(map[string]string{"env": "dev", types.OriginLabel: types.OriginDynamic})
+	err = devClt.UpdateApp(ctx, adminApp)
+	require.True(t, trace.IsAccessDenied(err))
+	adminApp.SetStaticLabels(map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic}) // Reset.
+
+	// Dev shouldn't be able to get prod app...
+	_, err = devClt.GetApp(ctx, adminApp.GetName())
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can get dev app.
+	app, err := devClt.GetApp(ctx, devApp.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(devApp, app,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin can get both apps.
+	app, err = adminClt.GetApp(ctx, adminApp.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(adminApp, app,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+	app, err = adminClt.GetApp(ctx, devApp.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(devApp, app,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// When listing apps, dev should only see one.
+	apps, err := devClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{devApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin should see both.
+	apps, err = adminClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp, devApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Dev shouldn't be able to delete dev app...
+	err = devClt.DeleteApp(ctx, adminApp.GetName())
+	require.True(t, trace.IsAccessDenied(err))
+
+	// ... but can delete dev app.
+	err = devClt.DeleteApp(ctx, devApp.GetName())
+	require.NoError(t, err)
+
+	// Admin should be able to delete admin app.
+	err = adminClt.DeleteApp(ctx, adminApp.GetName())
+	require.NoError(t, err)
+
+	// Create both apps again to test "delete all" functionality.
+	require.NoError(t, devClt.CreateApp(ctx, devApp))
+	require.NoError(t, adminClt.CreateApp(ctx, adminApp))
+
+	// Dev should only be able to delete dev app.
+	err = devClt.DeleteAllApps(ctx)
+	require.NoError(t, err)
+	apps, err = adminClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Admin should be able to delete all.
+	err = adminClt.DeleteAllApps(ctx)
+	require.NoError(t, err)
+	apps, err = adminClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Len(t, apps, 0)
+}
+
 // TestReplaceRemoteLocksRBAC verifies that only a remote proxy may replace the
 // remote locks associated with its cluster.
 func TestReplaceRemoteLocksRBAC(t *testing.T) {
@@ -752,4 +960,224 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 			require.True(t, test.checkErr(err), trace.DebugReport(err))
 		})
 	}
+}
+
+// TestIsMFARequiredMFADB tests isMFARequest logic per database protocol where different role matchers are used.
+func TestIsMFARequiredMFADB(t *testing.T) {
+	const (
+		databaseName = "test-database"
+		userName     = "test-username"
+	)
+
+	type modifyRoleFunc func(role types.Role)
+	tests := []struct {
+		name               string
+		userRoleRequireMFA bool
+		checkMFA           require.BoolAssertionFunc
+		modifyRoleFunc     modifyRoleFunc
+		dbProtocol         string
+		req                *proto.IsMFARequiredRequest
+	}{
+		{
+			name:       "RequireSessionMFA enabled MySQL protocol doesn't match database name",
+			dbProtocol: libdefaults.ProtocolMySQL,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolMySQL,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = true
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, nil)
+			},
+			checkMFA: require.True,
+		},
+		{
+			name:       "RequireSessionMFA disabled",
+			dbProtocol: libdefaults.ProtocolMySQL,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolMySQL,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = false
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, nil)
+			},
+			checkMFA: require.False,
+		},
+		{
+			name:       "RequireSessionMFA enabled Postgres protocol database name doesn't match",
+			dbProtocol: libdefaults.ProtocolPostgres,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolPostgres,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = true
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, nil)
+			},
+			checkMFA: require.False,
+		},
+		{
+			name:       "RequireSessionMFA enabled Postgres protocol database name matches",
+			dbProtocol: libdefaults.ProtocolPostgres,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolPostgres,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = true
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, []string{"example"})
+			},
+			checkMFA: require.True,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+
+			// Enable MFA support.
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				U2F: &types.U2F{
+					AppID:  "teleport",
+					Facets: []string{"teleport"},
+				},
+			})
+			require.NoError(t, err)
+			err = srv.Auth().SetAuthPreference(ctx, authPref)
+			require.NoError(t, err)
+
+			database, err := types.NewDatabaseServerV3(
+				types.Metadata{
+					Name: databaseName,
+					Labels: map[string]string{
+						"env": "dev",
+					},
+				},
+				types.DatabaseServerSpecV3{
+					Protocol: tc.dbProtocol,
+					URI:      "example.com",
+					Hostname: "host",
+					HostID:   "hostID",
+				},
+			)
+			require.NoError(t, err)
+
+			_, err = srv.Auth().UpsertDatabaseServer(ctx, database)
+			require.NoError(t, err)
+
+			user, role, err := CreateUserAndRole(srv.Auth(), userName, []string{"test-role"})
+			require.NoError(t, err)
+
+			if tc.modifyRoleFunc != nil {
+				tc.modifyRoleFunc(role)
+			}
+			err = srv.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
+
+			cl, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			resp, err := cl.IsMFARequired(ctx, tc.req)
+			require.NoError(t, err)
+			tc.checkMFA(t, resp.GetRequired())
+		})
+	}
+}
+
+// TestKindClusterConfig verifies that types.KindClusterConfig can be used
+// as an alternative privilege to provide access to cluster configuration
+// resources.
+func TestKindClusterConfig(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
+		authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestUser(user.GetName()).I))
+		require.NoError(t, err, trace.DebugReport(err))
+		s := &ServerWithRoles{
+			authServer: srv.AuthServer,
+			sessions:   srv.SessionServer,
+			alog:       srv.AuditLog,
+			context:    *authContext,
+		}
+		_, err1 := s.GetClusterAuditConfig(ctx)
+		_, err2 := s.GetClusterNetworkingConfig(ctx)
+		_, err3 := s.GetSessionRecordingConfig(ctx)
+		return []error{err1, err2, err3}
+	}
+
+	t.Run("without KindClusterConfig privilege", func(t *testing.T) {
+		user, err := CreateUser(srv.AuthServer, "test-user")
+		require.NoError(t, err)
+		for _, err := range getClusterConfigResources(ctx, user) {
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
+		}
+	})
+
+	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
+		role, err := types.NewRole("test-role", types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),
+				},
+			},
+		})
+		require.NoError(t, err)
+		user, err := CreateUser(srv.AuthServer, "test-user", role)
+		require.NoError(t, err)
+		for _, err := range getClusterConfigResources(ctx, user) {
+			require.NoError(t, err)
+		}
+	})
 }

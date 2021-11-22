@@ -22,7 +22,9 @@ const (
 	// objects.
 	DefaultImplicitRole = "default-implicit-role"
 
-	// APIDomain is a default domain name for Auth server API
+	// APIDomain is a default domain name for Auth server API. It is often
+	// used as an SNI to pass TLS handshakes regardless of the server address
+	// since we register "teleport.cluster.local" as a DNS in Certificates.
 	APIDomain = "teleport.cluster.local"
 
 	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
@@ -106,6 +108,9 @@ const (
 	AWSConsoleURL = "https://console.aws.amazon.com"
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
+
+	// RSAKeySize is the size of the RSA key.
+	RSAKeySize = 2048
 )
 
 // SecondFactorType is the type of 2FA authentication.
@@ -159,4 +164,7 @@ const (
 	// RemoteAuthServer is a special non-resolvable address that indicates client
 	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
+
+	// ALPNSNIAuthProtocol allows dialing local/remote auth service based on SNI cluster name value.
+	ALPNSNIAuthProtocol = "teleport-auth@"
 )

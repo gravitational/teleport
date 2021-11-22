@@ -25,14 +25,14 @@ import (
 	"errors"
 
 	"github.com/flynn/u2f/u2ftoken"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
 
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
 // Registration sequence:
@@ -159,7 +159,7 @@ func RegisterSignChallenge(ctx context.Context, c RegisterChallenge, facet strin
 	}
 
 	var regRespRaw []byte
-	if err := pollLocalDevices(ctx, func(t *u2ftoken.Token) error {
+	if err := wancli.RunOnU2FDevices(ctx, func(t wancli.Token) error {
 		var err error
 		regRespRaw, err = t.Register(regReq)
 		return err

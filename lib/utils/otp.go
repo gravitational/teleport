@@ -56,7 +56,7 @@ func GenerateOTPURL(typ string, label string, parameters map[string][]byte) stri
 	u.Host = typ
 	u.Path = label
 
-	var params url.Values = make(url.Values)
+	params := make(url.Values)
 	for k, v := range parameters {
 		if k == "secret" {
 			v = []byte(base32.StdEncoding.EncodeToString(v))

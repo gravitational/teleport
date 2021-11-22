@@ -5,7 +5,7 @@
 This package enables Teleport auth server to store secrets in 
 [DynamoDB](https://aws.amazon.com/dynamodb/) on AWS.
 
-WARNING: Using DynamoDB involves reccuring charge from AWS.
+WARNING: Using DynamoDB involves recurring charge from AWS.
 
 The table created by the backend will provision 5/5 R/W capacity.
 It should be covered by the free tier.
