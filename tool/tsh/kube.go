@@ -82,16 +82,40 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 	return c
 }
 
+func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.TeleportClient) (types.Session, error) {
+	sessions, err := tc.GetActiveSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		if session.GetID() == c.session {
+			return session, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// TODO(joel): set kube cluster field when creating session resource in service
+
 func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	meta, err := c.getSessionMeta(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cluster := meta.GetClustername()
+	kubeCluster := meta.GetKubeCluster()
 	var k *client.Key
 
 	// Try loading existing keys.
-	k, err = tc.LocalAgent().GetKey("teleport-cluster", client.WithKubeCerts{})
+	k, err = tc.LocalAgent().GetKey(cluster, client.WithKubeCerts{})
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -99,18 +123,18 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		crt, err := k.KubeTLSCertificate("kube-cluster")
+		crt, err := k.KubeTLSCertificate(kubeCluster)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			log.Debugf("Re-using existing TLS cert for kubernetes cluster %q", "kube-cluster")
+			log.Debugf("Re-using existing TLS cert for kubernetes cluster %q", kubeCluster)
 		} else {
 			err = client.RetryWithRelogin(cf.Context, tc, func() error {
 				var err error
 				k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
-					RouteToCluster:    "teleport-cluster",
-					KubernetesCluster: "kube-cluster",
+					RouteToCluster:    cluster,
+					KubernetesCluster: kubeCluster,
 				})
 
 				return trace.Wrap(err)

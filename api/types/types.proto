@@ -2801,6 +2801,9 @@ message SessionSpecV3 {
 
     // Participants is a list of session participants.
     repeated Participant Participants = 16 [ (gogoproto.jsontag) = "participants,omitempty" ];
+
+    // The Kubernetes cluster this session belongs to.
+    string KubernetesCluster = 17 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
 }
 
 // Participant stores information about a participant in the session.

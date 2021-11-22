@@ -70,6 +70,8 @@ type Session interface {
 	AddParticipant(*Participant)
 
 	RemoveParticipant(string) error
+
+	GetKubeCluster() string
 }
 
 func NewSession(spec SessionSpecV3) (Session, error) {
@@ -244,4 +246,8 @@ func (s *SessionV3) RemoveParticipant(id string) error {
 	}
 
 	return trace.BadParameter("participant %v not found", id)
+}
+
+func (s *SessionV3) GetKubeCluster() string {
+	return s.Spec.KubernetesCluster
 }
