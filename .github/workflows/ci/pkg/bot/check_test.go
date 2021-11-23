@@ -15,6 +15,7 @@ package bot
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-github/v37/github"
 	"github.com/gravitational/teleport/.github/workflows/ci/pkg/environment"
@@ -23,7 +24,7 @@ import (
 )
 
 func TestApproved(t *testing.T) {
-	bot := &Bot{Environment: &environment.PullRequestEnvironment{}}
+	bot := &Bot{Config{Environment: &environment.PullRequestEnvironment{}}}
 	pull := &environment.Metadata{Author: "test"}
 	tests := []struct {
 		botInstance    *Bot
@@ -142,7 +143,8 @@ func TestGetStaleReviews(t *testing.T) {
 		HeadSHA:   "ecabd9d",
 	}
 	env := &environment.PullRequestEnvironment{Metadata: metadata}
-	bot := Bot{Environment: env}
+
+	bot := Bot{Config{Environment: env}}
 	tests := []struct {
 		mockC    mockCommitComparer
 		reviews  map[string]review
@@ -193,6 +195,123 @@ func TestGetStaleReviews(t *testing.T) {
 
 }
 
+func TestGetMostRecentReviews(t *testing.T) {
+	// Bot setup.
+	metadata := &environment.Metadata{Author: "quinqu",
+		RepoName:  "test-name",
+		RepoOwner: "test-owner",
+		HeadSHA:   "ecabd9d",
+		Number:    1,
+	}
+	env := &environment.PullRequestEnvironment{Metadata: metadata}
+	cfg := Config{Environment: env, listReviews: &mockReviewLister{}}
+	bot := Bot{cfg}
+	// Test login usernames.
+	testLogin1 := "test-reviewer1"
+	testLogin2 := "test-reviewer2"
+	// Review state types.
+	typeCommented := "COMMENTED"
+	typeApproved := "APPROVED"
+	// Test IDs.
+	testCommitID := "commitID"
+	testID := int64(1)
+	// Test times.
+	testSubmittedAtNow := time.Now()
+	testSubmittedAtMostRecent := testSubmittedAtNow.Add(10 * time.Minute)
+
+	tests := []struct {
+		reviewList mockReviewLister
+		expected   map[string]review
+		desc       string
+	}{
+		{
+			reviewList: mockReviewLister{reviews: []*github.PullRequestReview{
+				{
+					User:        &github.User{Login: &testLogin1},
+					State:       &typeCommented,
+					CommitID:    &testCommitID,
+					ID:          &testID,
+					SubmittedAt: &testSubmittedAtMostRecent,
+				},
+				{
+					User:        &github.User{Login: &testLogin2},
+					State:       &typeCommented,
+					CommitID:    &testCommitID,
+					ID:          &testID,
+					SubmittedAt: &testSubmittedAtMostRecent,
+				},
+			},
+			},
+			expected: map[string]review{},
+			desc:     "All pull request review statuses are COMMENTED.",
+		},
+		{
+			reviewList: mockReviewLister{reviews: []*github.PullRequestReview{
+				{
+					User:        &github.User{Login: &testLogin1},
+					State:       &typeCommented,
+					CommitID:    &testCommitID,
+					ID:          &testID,
+					SubmittedAt: &testSubmittedAtMostRecent,
+				},
+				{
+					User:        &github.User{Login: &testLogin2},
+					State:       &typeApproved,
+					CommitID:    &testCommitID,
+					ID:          &testID,
+					SubmittedAt: &testSubmittedAtMostRecent,
+				},
+				{
+					User:        &github.User{Login: &testLogin2},
+					State:       &typeCommented,
+					CommitID:    &testCommitID,
+					ID:          &testID,
+					SubmittedAt: &testSubmittedAtNow,
+				},
+			},
+			},
+			expected: map[string]review{
+				testLogin2: {name: testLogin2, status: typeApproved, commitID: testCommitID, id: testID, submittedAt: &testSubmittedAtMostRecent},
+			},
+			desc: "Pull request has a commented review and approved review by the same reviewer, the only one in the result should be the approved review. ",
+		},
+		{
+			reviewList: mockReviewLister{reviews: []*github.PullRequestReview{
+				{
+					User:        &github.User{Login: &testLogin1},
+					State:       &typeApproved,
+					CommitID:    &testCommitID,
+					ID:          &testID,
+					SubmittedAt: &testSubmittedAtNow,
+				},
+				{
+					User:        &github.User{Login: &testLogin2},
+					State:       &typeApproved,
+					CommitID:    &testCommitID,
+					ID:          &testID,
+					SubmittedAt: &testSubmittedAtMostRecent,
+				},
+			},
+			},
+			expected: map[string]review{
+				testLogin1: {name: testLogin1, status: typeApproved, commitID: testCommitID, id: testID, submittedAt: &testSubmittedAtNow},
+				testLogin2: {name: testLogin2, status: typeApproved, commitID: testCommitID, id: testID, submittedAt: &testSubmittedAtMostRecent},
+			},
+			desc: "All pull request review statuses are APPROVED.",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			bot.listReviews = &test.reviewList
+			revs, err := bot.getMostRecentReviews(context.TODO())
+			require.Nil(t, err)
+			require.EqualValues(t, test.expected, revs)
+		})
+	}
+
+}
+
 type mockCommitComparer struct {
 }
 
@@ -203,4 +322,12 @@ func (m *mockCommitComparer) CompareCommits(ctx context.Context, repoOwner, repo
 		return &github.CommitsComparison{Files: []*github.CommitFile{{}, {}}}, nil, nil
 	}
 	return &github.CommitsComparison{Files: []*github.CommitFile{}}, nil, nil
+}
+
+type mockReviewLister struct {
+	reviews []*github.PullRequestReview
+}
+
+func (m *mockReviewLister) ListReviews(ctx context.Context, repoOwner, repoName string, number int, listOptions *github.ListOptions) ([]*github.PullRequestReview, *github.Response, error) {
+	return m.reviews, nil, nil
 }

@@ -31,17 +31,20 @@ type Config struct {
 	Environment    *environment.PullRequestEnvironment
 	GithubClient   *github.Client
 	compareCommits commitComparer
+	listReviews    reviewLister
 }
 
 type commitComparer interface {
 	CompareCommits(context.Context, string, string, string, string) (*github.CommitsComparison, *github.Response, error)
 }
 
+type reviewLister interface {
+	ListReviews(context.Context, string, string, int, *github.ListOptions) ([]*github.PullRequestReview, *github.Response, error)
+}
+
 // Bot assigns reviewers and checks assigned reviewers for a pull request
 type Bot struct {
-	Environment    *environment.PullRequestEnvironment
-	GithubClient   GithubClient
-	compareCommits commitComparer
+	Config
 }
 
 // GithubClient is a wrapper around the Github client
@@ -59,11 +62,7 @@ func New(c Config) (*Bot, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &Bot{
-		Environment: c.Environment,
-		GithubClient: GithubClient{
-			Client: c.GithubClient,
-		},
-		compareCommits: c.compareCommits,
+		Config: c,
 	}, nil
 }
 
@@ -74,6 +73,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.compareCommits == nil {
 		c.compareCommits = c.GithubClient.Repositories
+	}
+	if c.listReviews == nil {
+		c.listReviews = c.GithubClient.PullRequests
 	}
 	return nil
 }

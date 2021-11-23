@@ -173,9 +173,8 @@ func hasRequiredApprovals(mostRecentReviews map[string]review, required []string
 }
 
 func (c *Bot) getMostRecentReviews(ctx context.Context) (map[string]review, error) {
-	env := c.Environment
 	pr := c.Environment.Metadata
-	reviews, _, err := env.Client.PullRequests.ListReviews(ctx, pr.RepoOwner,
+	reviews, _, err := c.listReviews.ListReviews(ctx, pr.RepoOwner,
 		pr.RepoName,
 		pr.Number,
 		&github.ListOptions{})
