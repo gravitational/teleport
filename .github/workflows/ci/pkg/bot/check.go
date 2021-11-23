@@ -59,9 +59,11 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 	// If an admin approves a pull request, allow the check workflow run to pass.
 	// This is used in the event the pull request needs the bypassing
 	// of the required reviewers.
-	if repoAdminHasApproved(mostRecentReviews) {
+	if adminName := repoAdminHasApproved(mostRecentReviews); adminName != "" {
+		log.Printf("Admin @%s approved, bypassing required reviewers.", adminName)
 		return nil
 	}
+
 	log.Printf("Checking if %v has approvals from the required reviewers %+v", pr.Author, c.Environment.GetReviewersForAuthor(pr.Author))
 	err = hasRequiredApprovals(mostRecentReviews, c.Environment.GetReviewersForAuthor(pr.Author))
 	if err != nil {
@@ -71,13 +73,13 @@ func (c *Bot) checkInternal(ctx context.Context) error {
 }
 
 // repoAdminHasApproved checks that at least one listed admin has approved.
-func repoAdminHasApproved(reviews map[string]review) bool {
+func repoAdminHasApproved(reviews map[string]review) string {
 	for _, adminName := range ci.RepoAdmins {
 		if hasApproved(adminName, reviews) {
-			return true
+			return adminName
 		}
 	}
-	return false
+	return ""
 }
 
 // checkExternal is called to check if a PR reviewed and approved by the
@@ -160,6 +162,8 @@ func hasRequiredApprovals(mostRecentReviews map[string]review, required []string
 		ok := hasApproved(requiredReviewer, mostRecentReviews)
 		if !ok {
 			waitingOnApprovalsFrom = append(waitingOnApprovalsFrom, requiredReviewer)
+		} else {
+			log.Printf("Required reviewer @%s has approved.", requiredReviewer)
 		}
 	}
 	if len(waitingOnApprovalsFrom) > 0 {
