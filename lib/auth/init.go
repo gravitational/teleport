@@ -383,7 +383,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// Create presets - convenience and example resources.
-	err = createPresets(ctx, asrv)
+	err = createPresets(asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -484,24 +484,17 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 }
 
 func migrateLegacyResources(ctx context.Context, asrv *Server) error {
-	err := migrateRemoteClusters(ctx, asrv)
-	if err != nil {
+	if err := migrateRemoteClusters(ctx, asrv); err != nil {
 		return trace.Wrap(err)
 	}
-
-	err = migrateRoleOptions(ctx, asrv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := migrateCertAuthorities(ctx, asrv); err != nil {
 		return trace.Wrap(err, "fail to migrate certificate authorities to the v7 storage format: %v; please report this at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md including the *redacted* output of 'tctl get cert_authority'", err)
 	}
 	return nil
 }
 
-// createPresets creates preset resources - roles
-func createPresets(ctx context.Context, asrv *Server) error {
+// createPresets creates preset resources (eg, roles).
+func createPresets(asrv *Server) error {
 	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
@@ -998,32 +991,6 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
-// DELETE IN: 4.3.0.
-// migrateRoleOptions adds the "enhanced_recording" option to all roles.
-func migrateRoleOptions(ctx context.Context, asrv *Server) error {
-	roles, err := asrv.GetRoles(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, role := range roles {
-		options := role.GetOptions()
-		if options.BPF == nil {
-			log.Debugf("Migrating role %v. Added default enhanced events.", role.GetName())
-			options.BPF = apidefaults.EnhancedEvents()
-		} else {
-			continue
-		}
-		role.SetOptions(options)
-		err := asrv.UpsertRole(ctx, role)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
 // DELETE IN: 8.0.0
 // migrateCertAuthorities migrates the keypair storage format in cert
 // authorities to the new format.
@@ -1036,7 +1003,7 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 			continue
 		}
 		for _, ca := range cas {
-			if err := migrateCertAuthority(ctx, asrv, ca); err != nil {
+			if err := migrateCertAuthority(asrv, ca); err != nil {
 				errors = append(errors, trace.Wrap(err, "failed to migrate %v: %v", ca, err))
 				continue
 			}
@@ -1053,7 +1020,7 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
-func migrateCertAuthority(ctx context.Context, asrv *Server, ca types.CertAuthority) error {
+func migrateCertAuthority(asrv *Server, ca types.CertAuthority) error {
 	// Check if we need to migrate.
 	if needsMigration, err := services.CertAuthorityNeedsMigration(ca); err != nil || !needsMigration {
 		return trace.Wrap(err)
