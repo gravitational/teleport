@@ -30,12 +30,6 @@ import (
 // Check checks if all the reviewers have approved the pull request in the current context.
 func (c *Bot) Check(ctx context.Context) error {
 	author := c.Environment.Metadata.Author
-	// Assign reviewers again, as the required reviewers may have changed since
-	// the initial assign workflow (due to new changes, for example)
-	err := c.Assign(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	if c.Environment.IsInternal(author) {
 		return c.checkInternal(ctx)
 	}
@@ -312,7 +306,5 @@ func (c *Bot) invalidateApprovals(ctx context.Context, reviews map[string]review
 			}
 		}
 	}
-	// Re-assign reviewers when dismissing so the
-	// pull request shows up in their review requests again.
-	return c.Assign(ctx)
+	return nil
 }
