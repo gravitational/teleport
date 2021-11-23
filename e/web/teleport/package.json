@@ -4,8 +4,8 @@
   "description": "Enterprise version of Gravitational Teleport Web UI",
   "main": "index.js",
   "scripts": {
-    "start": "g-start",
-    "build": "rm -rf ./dist; mkdir ./dist; g-build --progress --bail",
+    "start": "g-start --config $(pwd)/webpack.dev.config.js",
+    "build": "rm -rf ./dist; mkdir ./dist; g-build --config webpack.prod.config.js --progress --bail",
     "test": "npx jest",
     "tdd": "npx jest . --watch"
   },
