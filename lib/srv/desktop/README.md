@@ -59,7 +59,7 @@ In the wizard, select:
 - Features: click `Next`
 - AD CS: click `Next`
 - Role Services: select `Certification Authority` and click `Next`
-- Confirmation: do not select `Restart the destination server automatically if
+- Confirmation: **do not select** `Restart the destination server automatically if
   required`, click `Install`, wait for completion
 - Results: click `Configure Active Directory Certificate Services on the
   destination server` blue link
@@ -79,119 +79,9 @@ Another wizard (AD CS configuration) will open:
 
 Restart the VM after configuring AD CS.
 
-### Start Teleport
+## Follow The Docs
 
-If this is an existing cluster, you need to rotate the CA (to enable CRL
-creation required by Windows). Run `tctl auth rotate --grace-period=1m`.
-
-Add the following to `teleport.yaml`:
-
-```yaml
-windows_desktop_service:
-  enabled: yes
-  listen_addr: "localhost:3028"
-  ldap:
-    addr:     "VM_IP:389"
-    domain:   "DOMAIN_NAME"
-    username: 'NETBIOS_DOMAIN_NAME\Administrator'
-    password: 'PASSWORD'
-  hosts:
-  - "VM_IP"
-```
-
-Where:
-- `VM_IP` is the IP address of your Windows VM (run `ipconfig.exe` from
-  PowerShell to get this)
-- `DOMAIN_NAME` is the AD domain name
-- `NETBIOS_DOMAIN_NAME` is the NetBIOS domain name
-- `PASSWORD` is the password for the `Administrator` user on the VM
-
-Start `teleport`.
-
-### Update AD group policy
-
-On the VM, open "Start" menu and run "Group Policy Management". On the left
-pane, select `your forest > Domains > your domain`. Right click on "Default
-Domain Policy" and select "Edit...".
-
-#### Enable remote RDP connections
-
-In the group policy editor, select:
-
-```
-Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Connections
-```
-
-Right click on `Allow users to connect remotely by using Remote Desktop
-Services` and select "Edit". Select "Enable" and "OK".
-
-Under:
-
-```
-Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
-```
-
-Right click `Require user authentication for remote connections by using
-Network Level Authentication`, edit, select **"Disable"** and "OK".
-
-#### Install Teleport CA into Group Policy
-
-Get the Teleport CA cert using `tctl auth export --type=windows >user-ca.cer`.
-Transfer the `user-ca.cer` file to your VM (e.g. using a shared folder in
-VirtualBox).
-
-In the group policy editor, select:
-
-```
-Computer Configuration > Policies > Windows Settings > Security Settings > Public Key
-Policies
-```
-
-Right click on `Trusted Root Certification Authorities` and select `Import`.
-Click through the wizard, selecting your CA file.
-
-To make sure that all Group Policy settings have synced, run `gpupdate.exe
-/force` from PowerShell.
-
-#### Enable Smart Card service
-
-In the group policy editor, select:
-
-```
-Computer Configuration > Policies > Windows Settings > Security Settings > System Services
-```
-
-Double click on `Smart Card`, select `Define this policy setting` and switch to
-`Automatic`. Click "OK".
-
-#### Open RDP port in firewall
-
-In the group policy editor, select:
-
-```
-Computer Configuration > Policies > Windows Settings > Security Settings > Windows Firewall and Advanced Security
-```
-
-Right click on `Inbound Rules` and select `New Rule...`. Under `Predefined`
-select `Remote Desktop`. Only select the rule for `User Mode (TCP-in)`. On the
-next screen, select `Allow the connection` and finish.
-
-**Warning**: sometimes, firewall rules mysteriously disappear from the Group
-Policy, I don't know why. If your desktop connections hang, check Group Policy
-and re-add the rule if needed.
-
-#### Sync group policy changes
-
-After making changes, Windows should eventually sync local settings with the
-group policy. If it's taking too long, you can force a sync by running
-`gpupdate /force` from PowerShell.
-
-### Try to log in
-
-Go to the Teleport web UI. Under Desktops, click Connect next to your VM entry,
-type in `Administrator` (or other existing account name) and hit Enter.
-
-You should see the login screen for a few seconds, then it will auto-login you.
+Now follow the [Getting Started](https://goteleport.com/docs/desktop-access/introduction/) documentation on the Teleport website to complete the installation.
 
 ## Appendix: VirtualBox notes
 
