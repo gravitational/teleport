@@ -300,7 +300,7 @@ func (c *Bot) invalidateApprovals(ctx context.Context, reviews map[string]review
 	clt := c.Environment.Client
 	msg := dismissMessage(pr, c.Environment.GetReviewersForAuthor(pr.Author))
 	for _, v := range reviews {
-		if v.status != ci.Commented {
+		if v.status != ci.Commented && v.status != ci.Dismissed {
 			_, _, err := clt.PullRequests.DismissReview(ctx,
 				pr.RepoOwner,
 				pr.RepoName,
