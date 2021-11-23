@@ -24,7 +24,7 @@ import (
 )
 
 func TestApproved(t *testing.T) {
-	bot := &Bot{Config{Environment: &environment.PullRequestEnvironment{}}}
+	bot := &Bot{Config: Config{Environment: &environment.PullRequestEnvironment{}}}
 	pull := &environment.Metadata{Author: "test"}
 	tests := []struct {
 		botInstance    *Bot
@@ -144,7 +144,7 @@ func TestGetStaleReviews(t *testing.T) {
 	}
 	env := &environment.PullRequestEnvironment{Metadata: metadata}
 
-	bot := Bot{Config{Environment: env}}
+	bot := Bot{Config: Config{Environment: env}}
 	tests := []struct {
 		mockC    mockCommitComparer
 		reviews  map[string]review
@@ -205,7 +205,7 @@ func TestGetMostRecentReviews(t *testing.T) {
 	}
 	env := &environment.PullRequestEnvironment{Metadata: metadata}
 	cfg := Config{Environment: env, listReviews: &mockReviewLister{}}
-	bot := Bot{cfg}
+	bot := Bot{Config: cfg}
 	// Test login usernames.
 	testLogin1 := "test-reviewer1"
 	testLogin2 := "test-reviewer2"

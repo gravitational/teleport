@@ -45,6 +45,7 @@ type reviewLister interface {
 // Bot assigns reviewers and checks assigned reviewers for a pull request
 type Bot struct {
 	Config
+	GithubClient GithubClient
 }
 
 // GithubClient is a wrapper around the Github client
@@ -63,6 +64,9 @@ func New(c Config) (*Bot, error) {
 	}
 	return &Bot{
 		Config: c,
+		GithubClient: GithubClient{
+			Client: c.GithubClient,
+		},
 	}, nil
 }
 
