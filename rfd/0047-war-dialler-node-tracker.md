@@ -10,7 +10,7 @@ state: draft
 This is part one of a two part RFD that aims to improve node-to-proxy connectivity by allowing node agents to connect to a single proxy and be reachable through any other proxy in the same cluster.
 
 This RFD proposes a new service that tracks node-to-proxy relationships, in other terms which nodes are connected to which proxies.
-The second RFD proposes a new proxy-to-proxy communication system, and can be tracked [here](insert rfd link here)
+The second RFD proposes a new proxy-to-proxy tunneling system, and can be tracked [here](insert rfd link here)
 
 ## Why
 
