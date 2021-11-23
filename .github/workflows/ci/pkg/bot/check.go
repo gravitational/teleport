@@ -184,6 +184,10 @@ func (c *Bot) getMostRecentReviews(ctx context.Context) (map[string]review, erro
 	}
 	currentReviewsSlice := []review{}
 	for _, rev := range reviews {
+		// Do not count pull request review comments as reviews.
+		if rev.GetState() == ci.Commented {
+			continue
+		}
 		// Because PRs can be submitted by anyone, input here is attacker controlled
 		// and do strict validation of input.
 		err := validateReviewFields(rev)
