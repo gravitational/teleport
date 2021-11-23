@@ -206,15 +206,19 @@ func TestGetMostRecentReviews(t *testing.T) {
 	env := &environment.PullRequestEnvironment{Metadata: metadata}
 	cfg := Config{Environment: env, listReviews: &mockReviewLister{}}
 	bot := Bot{Config: cfg}
+
 	// Test login usernames.
 	testLogin1 := "test-reviewer1"
 	testLogin2 := "test-reviewer2"
+
 	// Review state types.
 	typeCommented := "COMMENTED"
 	typeApproved := "APPROVED"
+
 	// Test IDs.
 	testCommitID := "commitID"
 	testID := int64(1)
+
 	// Test times.
 	testSubmittedAtNow := time.Now()
 	testSubmittedAtMostRecent := testSubmittedAtNow.Add(10 * time.Minute)
