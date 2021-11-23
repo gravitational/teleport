@@ -245,10 +245,10 @@ skip LDAPS certificate verification by setting the `insecure_skip_verify` config
 
 {/* Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server */}
 1. Begin by navigating to `Start > Control Panel > Administrative Tools > Certificate Authority` to open the CA Microsoft Management Console (MMC) GUI.
-2. Right click on your CA computer and select "Properties".
-3. From "General" tab, click "View Certificate".
-4. Select the "Details" view and click "Copy to File".
-5. Click "Next" in the Certificate Export Wizard, and ensure that "DER encoded binary X.509 (.CER)" is selected
+2. Right click on your CA computer and select `Properties`.
+3. From `General` tab, click `View Certificate`.
+4. Select the `Details` view and click `Copy to File`.
+5. Click `Next` in the Certificate Export Wizard, and ensure that `DER encoded binary X.509 (.CER)` is selected
 6. Select a name and location for you certificate and click through the wizard.
 
 Now transfer the exported file to the system where you're running Teleport. You can either add this certificate to your system's

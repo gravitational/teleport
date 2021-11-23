@@ -19,6 +19,7 @@ First, we need to install Active Directory Domain Services (AD DS). From Server
 Manager, in the top-right select `Manage > Add Roles and Features`.
 
 In the wizard, select:
+
 - Before you Begin: click `Next`
 - Installation Type: `Role-based or feature-based installation`
 - Server Selection: click `Next` (should be only one server - current one)
@@ -29,11 +30,11 @@ In the wizard, select:
 - Results: click `Promote this server to a domain controller` blue link
 
 Another wizard (AD DS configuration) will open:
+
 - Deployment Configuration: select `Add a new forest`, type in the Root domain
   name. Any DNS-like name will work, for example `example.com`, **write down
   this name for later**. Click `Next`.
-- Domain Controller Options: type in a `Directory Services Restore Mode (DSRM)
-  password` and click `Next`.
+- Domain Controller Options: type in a `Directory Services Restore Mode (DSRM) password` and click `Next`.
 - DNS Options: click `Next`
 - Additional Options: wait for the NetBIOS name to be generated, **write it
   down for later**, click `Next.`
@@ -51,31 +52,12 @@ Manager, in the top-right select `Manage > Add Roles and Features`. (Note: you
 won't be able to install both AD DS and AD CS at the same time, they need to be
 separate).
 
-In the wizard, select:
-- Before you Begin: click `Next`
-- Installation Type: `Role-based or feature-based installation`
-- Server Selection: click `Next` (should be only one server - current one)
-- Server Roles: select `Active Directory Certificate Services`, in the popup click `Add Features`
-- Features: click `Next`
-- AD CS: click `Next`
-- Role Services: select `Certification Authority` and click `Next`
-- Confirmation: **do not select** `Restart the destination server automatically if
-  required`, click `Install`, wait for completion
-- Results: click `Configure Active Directory Certificate Services on the
-  destination server` blue link
+Open a PowerShell prompt and run
 
-Another wizard (AD CS configuration) will open:
-- Credentials: click `Next`.
-- Role Services: select `Certification Authority`, click `Next`.
-- Setup Type: select `Enterprise CA`, click `Next`.
-- CA Type: select `Root CA`, click `Next`.
-- Private Key: select `Create a new private key`, click `Next`.
-- Cryptography: click `Next`.
-- CA Name: click `Next`.
-- Validity Period: click `Next`.
-- Certificate Database: click `Next`.
-- Confirmation: click `Configure`.
-- Results: click `Close`.
+```powershell
+Add-WindowsFeature Adcs-Cert-Authority -IncludeManagementTools
+Install-AdcsCertificationAuthority -CAType EnterpriseRootCA
+```
 
 Restart the VM after configuring AD CS.
 
