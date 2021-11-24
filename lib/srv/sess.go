@@ -1408,17 +1408,19 @@ type MultiWriter struct {
 	mu           sync.RWMutex
 	writers      map[string]writerWrapper
 	recentWrites [][]byte
+	OnError      func(string)
 }
 
 type writerWrapper struct {
 	io.WriteCloser
 	closeOnError bool
+	id           string
 }
 
 func (m *MultiWriter) AddWriter(id string, w io.WriteCloser, closeOnError bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.writers[id] = writerWrapper{WriteCloser: w, closeOnError: closeOnError}
+	m.writers[id] = writerWrapper{WriteCloser: w, closeOnError: closeOnError, id: id}
 }
 
 func (m *MultiWriter) DeleteWriter(id string) {
@@ -1460,6 +1462,10 @@ func (m *MultiWriter) Write(p []byte) (n int, err error) {
 	for _, w := range getWriters() {
 		n, err = w.Write(p)
 		if err != nil {
+			if m.OnError != nil {
+				m.OnError(w.id)
+			}
+
 			if w.closeOnError {
 				return
 			}

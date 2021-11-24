@@ -315,6 +315,18 @@ func (s *session) launch() error {
 
 	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
 
+	onWriterError := func(idString string) {
+		s.log.Errorf("Encountered error with party %v. Disconnecting them from the session.", idString)
+		id, _ := uuid.Parse(idString)
+		err := s.leave(id)
+		if err != nil {
+			s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
+		}
+	}
+
+	s.clients_stdout.W.(*srv.MultiWriter).OnError = onWriterError
+	s.clients_stderr.W.(*srv.MultiWriter).OnError = onWriterError
+
 	if s.tty {
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {
 			params := tsession.TerminalParams{

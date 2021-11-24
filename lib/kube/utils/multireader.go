@@ -19,6 +19,8 @@ package utils
 import (
 	"io"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type MultiReader struct {
@@ -37,7 +39,13 @@ func NewMultiReader() *MultiReader {
 func (r *MultiReader) Read(p []byte) (int, error) {
 	r.RLock()
 	defer r.RUnlock()
-	return r.multi.Read(p)
+
+	read, err := r.multi.Read(p)
+	if err != nil {
+		log.Warn("failed to read from multireader, continuing")
+	}
+
+	return read, nil
 }
 
 func (r *MultiReader) AddReader(name string, reader io.Reader) {
