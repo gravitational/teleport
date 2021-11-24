@@ -81,6 +81,8 @@ aws:
   # The container will need an appropriately-provisioned IAM role with permissions to create DynamoDB tables.
   # This MUST NOT be the same table name as used for 'backendTable' as the schemas are different.
   auditLogTable: ""
+  # Set this to true if you want to log both to dynamoDB and to stdout
+  auditLogToStdoutAsWell: false
   # The S3 bucket name to use for recorded session storage. Teleport will attempt to create this bucket automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create S3 buckets.
   sessionRecordingBucket: ""
@@ -149,11 +151,20 @@ highAvailability:
 image: quay.io/gravitational/teleport
 # Enterprise version of the image
 enterpriseImage: quay.io/gravitational/teleport-ent
+# Logging configuration. Possible output values to disk via '/var/lib/teleport/teleport.log',
+# 'stdout', 'stderr' and 'syslog'. 
+logOutput: stderr
 # Log level for the Teleport process.
 # Available log levels are: DEBUG, INFO, WARNING, ERROR.
 # The default is INFO, which is recommended in production.
 # DEBUG is useful during first-time setup or to see more detailed logs for debugging.
 logLevel: INFO
+# Log format configuration
+# Possible output values are 'json' and 'text' (default).
+logFormat: text
+# Possible extra_fields values include: timestamp, component, caller, and level.
+# All extra fields are included by default.
+logExtraFields: ["level", "timestamp", "component", "caller"]
 
 
 ##################################

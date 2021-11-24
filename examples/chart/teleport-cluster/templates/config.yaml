@@ -12,13 +12,20 @@ data:
     teleport:
       log:
         severity: {{ .Values.logLevel }}
-        output: stderr
+        output: {{ .Values.logOutput }}
+        format:
+          output: {{ .Values.logFormat }}
+          extra_fields: {{ .Values.logExtraFields | toJson }}
   {{- if eq .Values.chartMode "aws" }}
       storage:
         type: dynamodb
         region: {{ required "aws.region is required in chart values" .Values.aws.region }}
         table_name: {{ required "aws.backendTable is required in chart values" .Values.aws.backendTable }}
-        audit_events_uri: ['dynamodb://{{ required "aws.auditLogTable is required in chart values" .Values.aws.auditLogTable }}']
+        audit_events_uri: ['dynamodb://{{ required "aws.auditLogTable is required in chart values" .Values.aws.auditLogTable }}'
+        {{- if .Values.aws.auditLogToStdoutAsWell -}},
+          'stdout'
+        {{- end -}}
+        ]
         audit_sessions_uri: s3://{{ required "aws.sessionRecordingBucket is required in chart values" .Values.aws.sessionRecordingBucket }}
         continuous_backups: {{ required "aws.backups is required in chart values" .Values.aws.backups }}
   {{- else if eq .Values.chartMode "gcp" }}
