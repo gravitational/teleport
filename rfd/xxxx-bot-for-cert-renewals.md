@@ -1,5 +1,5 @@
 ---
-authors: Zac Bergquist (zac.bergquist@goteleport.com)
+authors: Zac Bergquist (zac.bergquist@goteleport.com), Tim Buckley (tim@goteleport.com)
 state: draft
 ---
 
@@ -8,7 +8,7 @@ state: draft
 ## What
 
 RFD TBD defines the high-level goals and architecture for a new agent that can
-continuosly renew Teleport-issued certificates.
+continuously renew Teleport-issued certificates.
 
 ## Why
 
@@ -92,32 +92,89 @@ Next, the `tbot` agent will be started using the generated token (full set of op
 omitted here for brevity):
 
 ```
-$ tbot start --name=foo --auth-server=proxy.example.com:3080 --token=13b74f49d27536dd5c514073097c197b ...
+$ tbot start \
+  --name=foo \
+  --output=file:/home/ubuntu/.tbot \
+  --auth-server=proxy.example.com:3080 \
+  --token=13b74f49d27536dd5c514073097c197b \
+  --ca-pin=sha256:...
+  ...
 ```
 
-Note that both direct dialing or connecting through a Teleport proxy are supported.
+Note that both direct dialing or connecting through a Teleport proxy are
+supported.
 
 The bot joins the cluster and can be seen with the `tctl` command:
 
 ```
 $ tctl bots ls
-ID            NAME       LOCKED    ROLES     CERTIFICATES
-0123-4567     foo        false     dev,ssh   ssh (/home/ubuntu/.ssh/id_rsa-cert.pub)
+ID            NAME       LOCKED    ROLES
+0123-4567     foo        false     dev,ssh
 ```
 
-When the bot starts, it generates a set of keys, and uses the join token that
-was provided to request one or more signed certificates from the auth server.
-These certificates are placed in the specified destination, and renew as necessary.
-
-TODO: the following is pending based on whether we'll continue to allow the bot
-to manage multiple sets of certs.
+When the bot starts, it generates a set of keys, and uses the provided join
+token to request a signed, renewable certificate from the auth server. These
+certificates are stored in a restricted location, such as `/var/lib/tbot`, and
+renewed continuously. They are exclusively used by the bot for renewal and to
+issue secondary end-user certificates. Secondary certificates are written to
+the user-specified location and are useful for connecting to resources.
 
 Note: the join token can only be used once, and is invalidated after first use
 or when its TTL expires (whichever comes first). If the bot fails to renew its
 certificates before they expire, it will be unable to authenticate with the
 cluster and must re-join with a new token.
 
-##### Security
+In the above example, as no additional client configuration has been specified,
+the bot will generate only a single set of end-user certificates with access to
+the sum of all roles specified. Users with additional security requirements may
+opt to issue one or more sets of certificates to different locations and with
+access to a different set of roles.
+
+For example, given the following command to create a bot:
+
+```
+$ tctl bots add --name=example --roles=a,b,c
+```
+
+... users may create a configuration file, such as `/etc/tbot.yaml`:
+
+```yaml
+sinks:
+  - directory: /home/alice/.tbot
+    roles: [a, b, c]
+
+  - directory: /home/bob/.tbot
+    roles: [b, c]
+
+  - kubernetesSecret:
+      kubeconfig: /home/user/kubeconfig
+      namespace: example
+      secretName: example-secret
+    roles: [c]
+
+  - webhook: http://localhost:8001
+    roles: [a]
+```
+
+The user then starts the bot with the configuration file:
+
+```
+$ tbot start -c /etc/tbot.yaml
+```
+
+Once the bot fetches its own certificate, it then fetches additional
+impersonated certificates for each specified certificate sink and writes them
+via the appropriate backend implementation. This may be particularly useful for
+CI/CD use cases where untrusted workers run as a particular user, or as
+Kubernetes tasks.
+
+(TODO: how will we handle the advanced file permissions needed to make split
+certificates useful? We can't recommend running the bot as root, but also need
+each set of certificates to be scoped to just a single Unix user otherwise the
+entire point is moot, and with appropriate Unix permissions to keep tools like
+SSH happy. Perhaps Linux FACLs can help?)
+
+### Security
 
 It is important to consider the security implications of a credential that can
 be continuously renewed. In order to minimize the blast radius of an attack, we
@@ -143,6 +200,46 @@ While out of scope for the initial implementation, the security of this approach
 can be further improved in the future by pinning the certificates to a certain
 machine.
 
+#### Impersonation
+
+In a naive implementation, the bot might receive a single set of certificates
+that would be both renewable and granted the sum of all attached roles. If
+these certificates were compromised, an attacker would have unfettered access
+to cluster resources until either the certificates expire (assuming they don't
+bother to renew them) or until a cluster admin notices and locks the bot.
+
+We can mitigate these risks using impersonation. First, impersonation forces us
+to split responsibilities for renewal and access. The bot would still be given
+(and be responsible for continuously renewing) a user certificate, however this
+certificate would be otherwise useless for end users as it would not provide 
+access to any resources.
+
+Next, users separately configure one or more certificate outputs. As part of
+each renewal event, the bot generates an additional set of *non-*-renewable
+certificates and stores them in the designated output. Each of these outputs
+may optionally be scoped to a subset of all roles the bot is capable of
+assuming.
+
+This design is meant to encourage deployments where the bot's own data
+directory, containing the renewable certificate, is separate and inaccessible
+to other users on the system, via the native security methods of the output
+sink (e.g. Unix permissions, Kubernetes RBAC, etc). The secondary certificates
+may be written with relaxed permissions to enable use by end users. If these
+certificates are stolen, not only will they not be renewable, but may also have
+only a subset of the permissions granted to the bot.
+
+Unfortunately, Teleport today does not fully support the impersonation UX we
+would like to provide with the bot. As is, impersonation requires two `User`
+resources: one for the impersonator, and one for the impersonatee. Today, we
+could require that users manually create a Teleport user for each set of roles
+the bot may assume, however this UX is undesirable. Therefore, we propose
+adding the ability to, when requesting user certificates, allow the bot to
+"impersonate" its own `User`, but with a set of additional roles as specified
+in its certificate. This would enable use of the previously-described
+`tctl bots add --roles=...` UX. If desired, this UX remains compatible with
+other-user impersonation should we wish to add an additional `--users=...`
+flag.
+
 #### Renewals
 
 There are several scenarios under which the bot will initiate a renewal:
@@ -155,20 +252,86 @@ There are several scenarios under which the bot will initiate a renewal:
    bot will expose an API endpoint that can be used to trigger a renewal. This
    API will be accessible on the loopback interface only.
 
-##### API Client Refresh
+While the bot generates multiple sets of certificates - that is, one primary
+renewable certificate and many secondary end-user certificates - they are all
+renewed at roughly the same time, and secondary certificates have an expiration
+matching the primary certificate. It may be possible in the future to have
+secondary certificates with a shorter TTL than the primary (probably 1/n
+durations) but this is out of scope for the initial implementation.
+
+*TODO (Tim):* I think the renewal interval should be some fraction of the total
+TTL (at most 1/2) rather than 75%. For example, given a 4 hour TTL, we should
+attempt to renew certificates every 1 or 2 hours. This allows at least 1 full
+renewal interval's worth of time in the event that renewals fail.
+
+#### Preventing Certificate Propagation
+
+Renewable certificates present an obvious security concern as they can be
+renewed indefinitely, at least until a cluster admin decides to remove or lock
+the bot user. Additionally, as renewing a certificate does not invalidate
+previously-issued certificates, one compromised certificate can lead to an
+unlimited number of indefinitely-renewable descendent certificates. To make
+things worse, in Teleport today, this certificate propagation is somewhat
+difficult to detect.
+
+As a mitigation strategy, we propose adding a new certificate generation
+counter (as a certificate extension) that increments each time a certificate
+is renewed. This latest generation count is additionally stored on the auth
+server as metadata for the bot [user? resource?].
+
+On subsequent renewals, while generating user certificates on the auth server,
+the current certificate is inspected and its current generation is compared to
+the stored version on the auth server. If this generation counter is less than
+the auth server's stored counter, this implies that multiple bots are competing
+for renewals.
+
+Exact behavior for what to do next remains undetermined (TODO), but we have
+several possible courses of action:
+ * Immediately lock the bot. This has the downside of also breaking
+   legitimate-but-accidental double-starts of a bot, if for example a user
+   accidentally misconfigures their system. Users would then need to manually
+   unlock the bot.
+ * Simply deny the renewal. In practice, we can't know (short of some future
+   HSM support) whether a particular renewal is malicious or not. This means
+   that regardless of whether or not we lock the bot, the first client to renew
+   the certificate gains access to the system for a fairly long period of time
+   (and malicious users would of course do so immediately). One might speculate
+   that a malicious user would not need a full hour to spawn a remote shell on
+   every node the bot user can access.
+
+   Presumably, legitimate users should notice that their certificate bot has
+   failed to renew (this should be a very loud error). If they accidentally
+   started the bot twice, there's at least a 50% chance that no further
+   action is required on their end to resolve the issue (if the correct bot
+   wins or if the start ordering didn't matter).
+
+Another traceability enhancement would be to ensure renewable certificates
+have a unique serial number. Upon renewal, we can embed the previous
+certificate serial as another metadata / extension field. Should a certificate
+be compromised, it will then be possible to trace the the tree of certificate
+renewals. (*TODO (Tim): I suppose in practice the generation counter ensures
+a flat hierarchy, so this may not be useful.*)
+
+Lastly, regardless of the initial certificate's TTL, we can have the auth
+server ensure that, when renewing, renewed certificate TTLs may only decrease
+in length. This would prevent an attacker from stealing a renewable certificate
+and immediately requesting a new certificate with the auth server's max
+renewable TTL.
+
+#### API Client Refresh
 
 As of now, our [API client](./0010-api.md) is initialized with a set of TLS
 credentials and expects those credentials be valid for the lifetime of the
 client.
 
-In order to continue communicating with the cluster, the bot will need to inform
-the API client of the new credentials after a renewal. As part of this effort,
-the client will be updated to allow for refreshing itself. This process
+In order to continue communicating with the cluster, the bot will need to
+inform the API client of the new credentials after a renewal. As part of this
+effort, the client will be updated to allow for refreshing itself. This process
 initializes a new client that attempts to connect with the new credentials, and
-closes the original client when the new client is succesfully connected with the
-cluster.
+closes the original client when the new client is successfully connected with
+the cluster.
 
-```
+```go
 func (c *Client) Refresh(ctx context.Context) error {
     // use the existing config to generate a new client
     newClient, err := connect(ctx, c.c)
@@ -182,7 +345,7 @@ func (c *Client) Refresh(ctx context.Context) error {
 It will be the responsibility of the caller of `Refresh` to reinitialize any
 watches or streams that the client may have been running prior to the refresh.
 
-#### Certificate Specification
+### Certificate Specification
 
 The bot will be configured with one or more certificate specs, which can be
 supplied on the command line in the format of:
@@ -193,7 +356,11 @@ supplied on the command line in the format of:
 
 *TODO*: how can a user specify DNS names to include in the certs?
 
-##### Mode
+*TODO* (Tim): Non-filesystem destinations are likely to be very difficult to
+encode as CLI flags (e.g. k8s secrets). Perhaps the CLI should only support
+local FS and other sinks should defer to `tbot.yaml`?
+
+#### Mode
 
 The mode tells the bot which type of certificate to generate. 
 
@@ -215,20 +382,20 @@ that the client can be configured to trust the server.
 
 The mode also controls what the output of `tbot config` looks like.
 
-##### Destination
+#### Destination
 
 The destination tells the bot where to store the certificates it generates. The
 syntax for a destination specifier is `type:location`. Initially, the only
 supported type will be `dir` which indicates that the certificates should be
 placed in a directory on the local filesystem. In the future, we may support
-additional destinations such as Kubernetes secrets, credendial managers, or
+additional destinations such as Kubernetes secrets, credential managers, or
 CI/CD systems. If multiple `--cert` specifiers are provided, the bot will check
 for overlapping destinations on startup, and fail fast if this is the case.
 
-##### Reload Commmand
+#### Reload Command
 
 The reload command is an optional command that `tbot` will execute after a
-succesful renewal. This can be used, for example, to restart an OpenSSH server
+successful renewal. This can be used, for example, to restart an OpenSSH server
 after new certificates are written to disk. Note: this command is executed with
 Go's `os/exec` package, meaning that a system shell is not invoked, so shell
 features such as glob patterns, redirection, or environment variable expansion
@@ -236,6 +403,14 @@ are not supported.
 
 We will list a few example reload commands for common use cases (OpenSSH, NGINX)
 in our docs.
+
+*TODO (Tim)*: How will we ensure the bot is able to send signals / execute
+commands in a way that doesn't require it to run as the target Unix user or as
+root? Simple command exec is less useful than it appears when all the system 
+components are deployed securely. Perhaps users can rely on FS change
+notifications (e.g. inotify) and we can provide examples using them.
+Alternatively, we can deliver webhooks to another running service on the
+system.
 
 #### Configuration Assist
 
@@ -253,9 +428,15 @@ Teleport's user CA.
 Initially, `tbot config` will be limited to supporting OpenSSH configuration
 (client and server).
 
+*TODO (Tim):* Per learnings from the demo, generating config may require an
+active API client (auth, proxy, etc). E.g. SSH does to generate `known_hosts`
+and to fetch the proxy address/port/etc. Perhaps it might make sense (where
+it makes sense) to generate these during the renew loop and configure them via
+`tbot.yaml`?
+
 #### Join Script
 
-We intend to develop a bot join script, similar in functionailty to the node
+We intend to develop a bot join script, similar in functionality to the node
 join script that exists in Teleport enterprise. While not required, this will
 make it even easier to install and run the bot as a systemd service on the
 target machine.
@@ -299,14 +480,41 @@ the `tctl bots` subcommand.
 #### `tbot` configuration
 
 The goal is to keep tbot configuration to a minimum to make for a quick getting
-started experience. Ideally, all configuration is provided via the command line
-and there is no tbot-specific configuration file. This has several advantages:
+started experience, however we recognize many use cases may quickly become
+difficult to encode on the command line.
 
-- Our users are less likely to mix up a tbot configuration file and a
-  teleport.yaml.
-- The command used to invoke tbot is all that is needed to run the same
-  configuration. This makes it easy to troubleshoot or recreate a customer
-  issue.
+To that end, we'd like to follow the philosophy of "keep simple things simple
+but make complex things possible": the simplest / most popular use cases should
+ideally require minimal (zero?) configuration beyond a concise CLI, but more
+complicated use cases can make use of a `tbot.yaml` configuration file.
+
+An example `tbot.yaml` with all advanced options specified:
+
+```yaml
+# Storage for the bot's private data
+storage:
+  # can also support any backend supporting both store + fetch
+  directory: /var/lib/tbot
+
+sinks:
+  - directory: /home/alice/.tbot
+    roles: [a, b, c]
+
+  # TODO: probably need to specify permissions (this will be ugly)
+  - directory: /home/bob/.tbot
+    roles: [b, c]
+
+  # k8s secrets support store and fetch
+  - kubernetesSecret:
+      kubeconfig: /home/user/kubeconfig
+      namespace: example
+      secretName: example-secret
+    roles: [c]
+
+  # Webhooks support only store
+  - webhook: http://localhost:8001
+    roles: [a]
+```
 
 #### External Configuration Assist
 
@@ -377,3 +585,4 @@ The auth server will emit new events to the audit log when:
 - a certificate is renewed
 - a bot is locked
 - a bot is removed (likely due to failed heartbeating or expired certificates)
+- a certificate generation counter conflict is detected (certificate possibly compromised)
