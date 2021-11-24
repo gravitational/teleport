@@ -39,8 +39,11 @@ func NewRestrictionsWatcher(cfg RestrictionsWatcherConfig) (*RestrictionsWatcher
 		return nil, trace.Wrap(err)
 	}
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step: cfg.RetryPeriod / 10,
-		Max:  cfg.RetryPeriod,
+		First:  utils.HalfJitter(defaults.HighResPollingPeriod),
+		Step:   cs.Config.RetryPeriod / 2,
+		Max:    cs.Config.RetryPeriod,
+		Jitter: utils.NewSeventhJitter(),
+		Clock:  cs.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -98,7 +101,7 @@ func (cfg *RestrictionsWatcherConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter RestrictionsC")
 	}
 	if cfg.RetryPeriod == 0 {
-		cfg.RetryPeriod = defaults.HighResPollingPeriod
+		cfg.RetryPeriod = time.Minute
 	}
 	if cfg.ReloadPeriod == 0 {
 		cfg.ReloadPeriod = defaults.LowResPollingPeriod

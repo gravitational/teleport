@@ -45,7 +45,17 @@ import (
 // reconnectToAuthService continuously attempts to reconnect to the auth
 // service until succeeds or process gets shut down
 func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*Connector, error) {
-	retryTime := defaults.HighResPollingPeriod
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		First:  utils.HalfJitter(defaults.HighResPollingPeriod),
+		Step:   20 * time.Second,
+		Max:    3 * time.Minute,
+		Clock:  process.Clock,
+		Jitter: utils.NewSeventhJitter(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	for {
 		connector, err := process.connectToAuthService(role)
 		if err == nil {
@@ -67,8 +77,10 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		process.log.Errorf("%v failed to establish connection to cluster: %v.", role, err)
 
 		// Wait in between attempts, but return if teleport is shutting down
+		process.log.Debugf("Retrying connection to auth server in %v", retry)
 		select {
-		case <-time.After(retryTime):
+		case <-retry.After():
+			retry.Inc()
 		case <-process.ExitContext().Done():
 			process.log.Infof("%v stopping connection attempts, teleport is shutting down.", role)
 			return nil, ErrTeleportExited
@@ -120,12 +132,12 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 			}, nil
 		}
 		process.log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
-		client, err := process.newClient(process.Config.AuthServers, identity)
+		clt, err := process.newClient(process.Config.AuthServers, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &Connector{
-			Client:         client,
+			Client:         clt,
 			ClientIdentity: identity,
 			ServerIdentity: identity,
 		}, nil
@@ -140,12 +152,12 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 					ServerIdentity: identity,
 				}, nil
 			}
-			client, err := process.newClient(process.Config.AuthServers, identity)
+			clt, err := process.newClient(process.Config.AuthServers, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &Connector{
-				Client:         client,
+				Client:         clt,
 				ClientIdentity: identity,
 				ServerIdentity: identity,
 			}, nil
@@ -162,12 +174,12 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 					ServerIdentity: identity,
 				}, nil
 			}
-			client, err := process.newClient(process.Config.AuthServers, newIdentity)
+			clt, err := process.newClient(process.Config.AuthServers, newIdentity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &Connector{
-				Client:         client,
+				Client:         clt,
 				ClientIdentity: newIdentity,
 				ServerIdentity: identity,
 			}, nil
@@ -184,12 +196,12 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 					ServerIdentity: newIdentity,
 				}, nil
 			}
-			client, err := process.newClient(process.Config.AuthServers, newIdentity)
+			clt, err := process.newClient(process.Config.AuthServers, newIdentity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &Connector{
-				Client:         client,
+				Client:         clt,
 				ClientIdentity: newIdentity,
 				ServerIdentity: newIdentity,
 			}, nil
@@ -204,12 +216,12 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 					ServerIdentity: identity,
 				}, nil
 			}
-			client, err := process.newClient(process.Config.AuthServers, identity)
+			clt, err := process.newClient(process.Config.AuthServers, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &Connector{
-				Client:         client,
+				Client:         clt,
 				ClientIdentity: identity,
 				ServerIdentity: identity,
 			}, nil
@@ -386,14 +398,14 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			ServerIdentity: identity,
 		}
 	} else {
-		client, err := process.newClient(process.Config.AuthServers, identity)
+		clt, err := process.newClient(process.Config.AuthServers, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		connector = &Connector{
 			ClientIdentity: identity,
 			ServerIdentity: identity,
-			Client:         client,
+			Client:         clt,
 		}
 	}
 

@@ -76,6 +76,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	KubeDialAddr utils.NetAddr
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
+	// Log is the logger
+	Log logrus.FieldLogger
 }
 
 func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
@@ -138,7 +140,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 	w.mu.Unlock()
 
 	if err := w.Sync(ctx); err != nil {
-		logrus.Warningf("Failed to sync reverse tunnels: %v.", err)
+		w.cfg.Log.Warningf("Failed to sync reverse tunnels: %v.", err)
 	}
 
 	ticker := time.NewTicker(defaults.ResyncInterval)
@@ -147,11 +149,11 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			logrus.Debugf("Closing.")
+			w.cfg.Log.Debugf("Closing.")
 			return
 		case <-ticker.C:
 			if err := w.Sync(ctx); err != nil {
-				logrus.Warningf("Failed to sync reverse tunnels: %v.", err)
+				w.cfg.Log.Warningf("Failed to sync reverse tunnels: %v.", err)
 				continue
 			}
 		}

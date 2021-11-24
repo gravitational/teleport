@@ -553,7 +553,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 	if c.RetryPeriod == 0 {
-		c.RetryPeriod = defaults.HighResPollingPeriod
+		c.RetryPeriod = time.Minute
 	}
 	if c.WatcherInitTimeout == 0 {
 		c.WatcherInitTimeout = time.Minute
@@ -660,8 +660,11 @@ func New(config Config) (*Cache, error) {
 	}
 
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step: cs.Config.RetryPeriod / 10,
-		Max:  cs.Config.RetryPeriod,
+		First:  utils.HalfJitter(defaults.HighResPollingPeriod),
+		Step:   cs.Config.RetryPeriod / 2,
+		Max:    cs.Config.RetryPeriod * 2,
+		Jitter: utils.NewSeventhJitter(),
+		Clock:  cs.Clock,
 	})
 	if err != nil {
 		cs.Close()
@@ -725,7 +728,7 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 			c.Warningf("Re-init the cache on error: %v.", err)
 		}
 		// events cache should be closed as well
-		c.Debugf("Reloading %v.", retry)
+		c.Debugf("Reloading cache %v.", retry)
 		select {
 		case <-retry.After():
 			retry.Inc()
