@@ -58,6 +58,13 @@
           ]
         },
         {
+          "title": "Security",
+          "slug": "/setup/security/",
+          "entries":[
+            {"title": "Reducing the Blast Radius of Attacks", "slug": "/setup/security/reduce-blast-radius/"}
+          ]
+        },
+        {
           "title": "Integrations",
           "slug": "/setup/guides/",
           "entries": [
