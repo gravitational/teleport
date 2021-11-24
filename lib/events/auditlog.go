@@ -98,7 +98,14 @@ var (
 		},
 	)
 
-	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit}
+	auditEmitEvent = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "audit_emit_events",
+			Help: "Number of audit events emitted",
+		},
+	)
+
+	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit, auditEmitEvent}
 )
 
 // AuditLog is a new combined facility to record Teleport events and
