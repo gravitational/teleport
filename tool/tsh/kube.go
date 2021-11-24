@@ -155,7 +155,21 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		// a new one.
 	}
 
-	session, err := client.NewKubeSession(cf.Context, tc, meta, k)
+	if _, err := tc.Ping(cf.Context); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if tc.KubeProxyAddr == "" {
+		// Kubernetes support disabled, don't touch kubeconfig.
+		return trace.AccessDenied("this cluster does not support kubernetes")
+	}
+
+	var tlsServer string
+	if tc.TLSRoutingEnabled {
+		tlsServer = getKubeTLSServerName(tc)
+	}
+
+	session, err := client.NewKubeSession(cf.Context, tc, meta, k, tc.KubeProxyAddr, tlsServer)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -18,7 +18,10 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -36,27 +39,13 @@ type KubeSession struct {
 	closeWait *sync.WaitGroup
 }
 
-func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key) (*KubeSession, error) {
+func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key, kubeAddr string, tlsServer string) (*KubeSession, error) {
 	close := utils.NewCloseBroadcaster()
 	closeWait := &sync.WaitGroup{}
 
-	if _, err := tc.Ping(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	joinEndpoint := kubeAddr + "/api/teleport/v1/join/" + meta.GetID()
 
-	if tc.KubeProxyAddr == "" {
-		// Kubernetes support disabled, don't touch kubeconfig.
-		return nil, trace.AccessDenied("this cluster does not support kubernetes")
-	}
-
-	joinEndpoint := tc.KubeProxyAddr + "/api/teleport/v1/join/" + meta.GetID()
-
-	// TODO(joel): deal with TLS routing
-	//if tc.TLSRoutingEnabled {
-	//	kubeStatus.tlsServerName = getKubeTLSServerName(tc)
-	//}
-
-	// TODO(joel): use correct credentials
+	// TODO(joel): use correct credentials and do tls server override
 	ws, _, err := websocket.DefaultDialer.Dial(joinEndpoint, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -72,10 +61,10 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 	}
 
 	closeWait.Add(1)
-	defer func() {
+	go func() {
+		<-close.C
 		terminal.Close()
 		closeWait.Done()
-		close.Close()
 	}()
 
 	if terminal.IsAttached() {
@@ -83,6 +72,13 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 		// pipeInOut() as it may replace streams.
 		terminal.InitRaw(true)
 	}
+
+	exit := make(chan os.Signal, 1)
+	signal.Notify(exit, os.Interrupt)
+	go func() {
+		<-exit
+		close.Close()
+	}()
 
 	s := &KubeSession{stream, terminal, close, closeWait}
 	s.pipeInOut()
@@ -98,10 +94,24 @@ func (s *KubeSession) pipeInOut() {
 		}
 	}()
 
-	s.closeWait.Add(1)
 	go func() {
-		defer s.closeWait.Done()
 		defer s.close.Close()
+		buf := make([]byte, 128)
+		stdin := s.terminal.Stdin()
+		for {
+			n, err := stdin.Read(buf)
+			if err != nil {
+				fmt.Fprintf(s.terminal.Stderr(), "\r\n%v\r\n", trace.Wrap(err))
+				return
+			}
+
+			if n > 0 {
+				_, err := s.stream.Write(buf[:n])
+				if err != nil {
+					return
+				}
+			}
+		}
 	}()
 }
 
