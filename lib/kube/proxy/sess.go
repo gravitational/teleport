@@ -50,6 +50,7 @@ type remoteClient interface {
 	stderrStream() io.Writer
 	resizeQueue() chan *remotecommand.TerminalSize
 	sendStatus(error) error
+	waitOnCloseRequest()
 	io.Closer
 }
 
@@ -77,6 +78,10 @@ func (p *websocketClientStreams) sendStatus(err error) error {
 	return nil
 }
 
+func (p *websocketClientStreams) waitOnCloseRequest() {
+	p.stream.WaitOnClose()
+}
+
 func (p *websocketClientStreams) Close() error {
 	return trace.Wrap(p.stream.Close())
 }
@@ -87,6 +92,7 @@ type kubeProxyClientStreams struct {
 	stdin     io.Reader
 	stdout    io.Writer
 	stderr    io.Writer
+	close     chan struct{}
 }
 
 func newKubeProxyClientStreams(proxy *remoteCommandProxy) *kubeProxyClientStreams {
@@ -97,6 +103,7 @@ func newKubeProxyClientStreams(proxy *remoteCommandProxy) *kubeProxyClientStream
 		stdin:  options.Stdin,
 		stdout: options.Stdout,
 		stderr: options.Stderr,
+		close:  make(chan struct{}),
 	}
 }
 
@@ -128,11 +135,16 @@ func (p *kubeProxyClientStreams) resizeQueue() chan *remotecommand.TerminalSize 
 	return ch
 }
 
+func (p *kubeProxyClientStreams) waitOnCloseRequest() {
+	<-p.close
+}
+
 func (p *kubeProxyClientStreams) sendStatus(err error) error {
 	return trace.Wrap(p.proxy.sendStatus(err))
 }
 
 func (p *kubeProxyClientStreams) Close() error {
+	close(p.close)
 	return trace.Wrap(p.proxy.Close())
 }
 

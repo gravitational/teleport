@@ -31,12 +31,15 @@ type SessionStream struct {
 	currentIn   []byte
 	resizeQueue chan *remotecommand.TerminalSize
 	writeSync   sync.Mutex
+	closeC      chan struct{}
+	closedC     sync.Once
 }
 
 func NewSessionStream(conn *websocket.Conn) *SessionStream {
 	s := &SessionStream{
-		conn: conn,
-		in:   make(chan []byte),
+		conn:   conn,
+		in:     make(chan []byte),
+		closeC: make(chan struct{}),
 	}
 
 	go s.readTask()
@@ -61,6 +64,10 @@ func (s *SessionStream) readTask() {
 			}
 
 			s.resizeQueue <- msg
+		}
+
+		if ty == websocket.CloseMessage {
+			s.closedC.Do(func() { close(s.closeC) })
 		}
 	}
 }
@@ -98,6 +105,11 @@ func (s *SessionStream) ResizeQueue() chan *remotecommand.TerminalSize {
 	return s.resizeQueue
 }
 
+func (s *SessionStream) WaitOnClose() {
+	<-s.closeC
+}
+
 func (s *SessionStream) Close() error {
+	s.closedC.Do(func() { close(s.closeC) })
 	return trace.Wrap(s.conn.Close())
 }
