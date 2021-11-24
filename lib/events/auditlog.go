@@ -982,14 +982,12 @@ func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEven
 	}
 	err := emitAuditEvent(ctx, event)
 	if err != nil {
-		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// EmitAuditEventLegacy adds a new event to the log. If emitting fails, a Prometheus
-// counter is incremented.
+// EmitAuditEventLegacy adds a new event to the log.
 func (l *AuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	// If an external logger has been set, use it as the emitter, otherwise
 	// fallback to the local disk based emitter.
@@ -1000,11 +998,8 @@ func (l *AuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 		emitAuditEvent = l.getLocalLog().EmitAuditEventLegacy
 	}
 
-	// Emit the event. If it fails for any reason a Prometheus counter is
-	// incremented.
 	err := emitAuditEvent(event, fields)
 	if err != nil {
-		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
 
