@@ -33,7 +33,7 @@ spec:
               mountPath: /etc/telegraf/telegraf.conf
               subPath: telegraf.conf
         - name: teleport
-          image: quay.io/gravitational/teleport-ent:8.0.0
+          image: gcr.io/teleport-loadtest/teleport:8.0.0-tross.dev.1
           args: ["-d", "--insecure"]
           ports:
             - name: diag

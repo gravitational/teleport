@@ -6,7 +6,7 @@ metadata:
   labels:
     teleport-role: auth
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       teleport-role: auth
@@ -39,7 +39,7 @@ spec:
               subPath: telegraf.conf
               readOnly: true
         - name: teleport
-          image: quay.io/gravitational/teleport-ent:8.0.0
+          image: gcr.io/teleport-loadtest/teleport:8.0.0-tross.dev.1
           args: ["-d", "--insecure"]
           ports:
             - name: diag

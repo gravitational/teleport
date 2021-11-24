@@ -18,7 +18,7 @@ spec:
         node: iot
     spec:
       containers:
-        - image: quay.io/gravitational/teleport-ent:8.0.0
+        - image: gcr.io/teleport-loadtest/teleport:8.0.0-tross.dev.1
           name: teleport
           args: ["-d", "--insecure"]
           ports:
