@@ -404,7 +404,7 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 	}
 
 	existingUser, err := a.GetUser(p.username, false)
-	fmt.Printf("--> createGithubUser: existingUser: %v, err: %v.\n", err)
+	fmt.Printf("--> createGithubUser: existingUser: %v, err: %v.\n", existingUser, err)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}

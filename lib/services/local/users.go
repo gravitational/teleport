@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"time"
 
@@ -147,12 +148,15 @@ func (s *IdentityService) CreateUser(user services.User) error {
 
 // UpdateUser updates an existing user.
 func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) error {
+	fmt.Printf("--> users.go UpdateUser: %v.\n", user.GetName())
+
 	if err := services.ValidateUser(user); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Confirm user exists before updating.
 	if _, err := s.GetUser(user.GetName(), false); err != nil {
+		fmt.Printf("--> users.go UpdateUser: GetUser(%v): %v.\n", user.GetName(), err)
 		return trace.Wrap(err)
 	}
 
@@ -160,14 +164,17 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	key := backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix)
+	fmt.Printf("--> users.go UpdateUser: key: %v.\n", string(key))
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Key:     key,
 		Value:   value,
 		Expires: user.Expiry(),
 		ID:      user.GetResourceID(),
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {
+		fmt.Printf("--> users.go UpdateUser: Update(%v): %v.\n", string(key), err)
 		return trace.Wrap(err)
 	}
 	if auth := user.GetLocalAuth(); auth != nil {
@@ -213,8 +220,11 @@ func (s *IdentityService) GetUser(user string, withSecrets bool) (services.User,
 	if user == "" {
 		return nil, trace.BadParameter("missing user name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, paramsPrefix))
+	key := backend.Key(webPrefix, usersPrefix, user, paramsPrefix)
+	fmt.Printf("--> users.go GetUser: key: %v.\n", string(key))
+	item, err := s.Get(context.TODO(), key)
 	if err != nil {
+		fmt.Printf("--> users.go GetUser: Get(%v): %v.\n", string(key), err)
 		return nil, trace.NotFound("user %q is not found", user)
 	}
 	u, err := services.UnmarshalUser(
