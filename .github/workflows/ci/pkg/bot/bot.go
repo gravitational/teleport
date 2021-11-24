@@ -14,6 +14,7 @@ limitations under the License.
 package bot
 
 import (
+	"context"
 	"os"
 	"regexp"
 	"strings"
@@ -27,14 +28,20 @@ import (
 
 // Config is used to configure Bot
 type Config struct {
-	Environment  *environment.PullRequestEnvironment
-	GithubClient *github.Client
+	Environment    *environment.PullRequestEnvironment
+	GithubClient   *github.Client
+	compareCommits commitComparer
+}
+
+type commitComparer interface {
+	CompareCommits(context.Context, string, string, string, string) (*github.CommitsComparison, *github.Response, error)
 }
 
 // Bot assigns reviewers and checks assigned reviewers for a pull request
 type Bot struct {
-	Environment  *environment.PullRequestEnvironment
-	GithubClient GithubClient
+	Environment    *environment.PullRequestEnvironment
+	GithubClient   GithubClient
+	compareCommits commitComparer
 }
 
 // GithubClient is a wrapper around the Github client
@@ -54,15 +61,19 @@ func New(c Config) (*Bot, error) {
 	return &Bot{
 		Environment: c.Environment,
 		GithubClient: GithubClient{
-		  Client: c.GithubClient,
+			Client: c.GithubClient,
 		},
-	  }, nil
+		compareCommits: c.compareCommits,
+	}, nil
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
 func (c *Config) CheckAndSetDefaults() error {
 	if c.GithubClient == nil {
 		return trace.BadParameter("missing parameter GithubClient")
+	}
+	if c.compareCommits == nil {
+		c.compareCommits = c.GithubClient.Repositories
 	}
 	return nil
 }
