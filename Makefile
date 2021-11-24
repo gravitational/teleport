@@ -500,7 +500,7 @@ integration: FLAGS ?= -v -race
 integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -p 1 -timeout 30m -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -timeout 30m -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -511,7 +511,7 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES := $(shell go list ./... | grep integration)
 integration-root:
-	$(CGOFLAG) go test -p 1 -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
 # Lint the source code.
