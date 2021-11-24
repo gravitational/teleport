@@ -12,7 +12,7 @@ test('empty state for enterprise or oss, with create perms', async () => {
 test('empty state for cant create or leaf cluster', async () => {
   const { findByText } = render(<Empty {...props} canCreate={false} />);
 
-  expect(await findByText(/There are no servers for the/i)).toBeVisible();
+  expect(await findByText(/Either there are no servers in the/i)).toBeVisible();
 });
 
 const props: Props = {
@@ -39,7 +39,7 @@ const props: Props = {
     videoLink: 'https://www.youtube.com/watch?v=tUXYtwP-Kvw',
     readOnly: {
       title: 'No Servers Found',
-      message: 'There are no servers for the "',
+      resource: 'servers',
     },
   },
 };

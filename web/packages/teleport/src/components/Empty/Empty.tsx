@@ -40,7 +40,7 @@ export default function Empty(props: Props) {
         p={8}
         mt={4}
         mx="auto"
-        maxWidth="600px"
+        maxWidth="664px"
         textAlign="center"
         color="text.primary"
         bg="primary.light"
@@ -50,11 +50,11 @@ export default function Empty(props: Props) {
           {readOnly.title}
         </Text>
         <Text>
-          {readOnly.message}
+          Either there are no {readOnly.resource} in the "
           <Text as="span" bold>
             {clusterId}
           </Text>
-          " cluster.
+          " cluster, or your roles don't grant you access.
         </Text>
       </Box>
     );
@@ -119,7 +119,7 @@ export type EmptyStateInfo = {
   videoLink: string;
   readOnly: {
     title: string;
-    message: string;
+    resource: string;
   };
 };
 

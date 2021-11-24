@@ -126,6 +126,6 @@ const emptyStateInfo: EmptyStateInfo = {
   videoLink: 'https://www.youtube.com/watch?v=tUXYtwP-Kvw',
   readOnly: {
     title: 'No Servers Found',
-    message: 'There are no servers for the "',
+    resource: 'servers',
   },
 };

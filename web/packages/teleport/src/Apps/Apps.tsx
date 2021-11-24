@@ -107,6 +107,6 @@ const emptyStateInfo: EmptyStateInfo = {
   buttonText: 'ADD APPLICATION',
   readOnly: {
     title: 'No Applications Found',
-    message: 'There are no applications for the "',
+    resource: 'applications',
   },
 };

@@ -112,6 +112,6 @@ const emptyStateInfo: EmptyStateInfo = {
   buttonText: 'VIEW DOCUMENTATION',
   readOnly: {
     title: 'No Kubernetes Clusters Found',
-    message: 'There are no kubernetes clusters for the "',
+    resource: 'kubernetes clusters',
   },
 };

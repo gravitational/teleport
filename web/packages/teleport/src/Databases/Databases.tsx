@@ -131,6 +131,6 @@ const emptyStateInfo: EmptyStateInfo = {
   buttonText: 'ADD DATABASE',
   readOnly: {
     title: 'No Databases Found',
-    message: 'There are no databases for the "',
+    resource: 'databases',
   },
 };
