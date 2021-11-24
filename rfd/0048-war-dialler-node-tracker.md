@@ -3,7 +3,7 @@ authors: Naji Obeid (naji@goteleport.com), David Boslee (david@goteleport.com)
 state: draft
 ---
 
-# RFD 47 - Node Tracker Service
+# RFD 48 - Node Tracker Service
 
 ## What
 
@@ -54,7 +54,7 @@ Here's a small example comparing how proxies would interact with the node tracke
 	Case 1 - connection 1:
 	1- A client connects to proxy-1 that can't reach the requested node.
 	2- Proxy-1 sends a lookup request to the node tracker asking which proxy is connected to the requested node. The node tracker replies with the address of proxy-2.
-	3- Proxy-1 opens a tunnel (RFD 48?) to proxy-2 and asks proxy-2 to dial the requested node.
+	3- Proxy-1 opens a tunnel (RFD 49?) to proxy-2 and asks proxy-2 to dial the requested node.
 
 	Case 2 - connection 2:
 	nothing changes when a client connects to a proxy that has got a direct connection to the requested node.
