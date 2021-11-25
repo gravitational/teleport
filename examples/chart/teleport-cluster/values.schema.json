@@ -192,7 +192,8 @@
                     "required": [
                         "enabled",
                         "issuerName",
-                        "issuerKind"
+                        "issuerKind",
+			"issuerGroup"
                     ],
                     "properties": {
                         "enabled": {
@@ -209,6 +210,11 @@
                             "$id": "#/properties/highAvailability/properties/certManager/properties/issuerKind",
                             "type": "string",
                             "default": "Issuer"
+                        },
+                        "issuerGroup": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerGroup",
+                            "type": "string",
+                            "default": "cert-manager.io"
                         }
                     }
                 },

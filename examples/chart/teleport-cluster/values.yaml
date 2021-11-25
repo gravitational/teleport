@@ -139,6 +139,9 @@ highAvailability:
     # Kind of Issuer that cert-manager should look for.
     # This defaults to 'Issuer' to keep everything contained within the teleport namespace.
     issuerKind: Issuer
+    # Group of Issuer that cert-manager should look for.
+    # This defaults to 'cert-manager.io' which is the default Issuer group.
+    issuerGroup: cert-manager.io
 
 
 ##################################################
