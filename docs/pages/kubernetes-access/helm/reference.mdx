@@ -546,6 +546,29 @@ scoped to a single namespace.
   </TabItem>
 </Tabs>
 
+### `highAvailability.certManager.issuerGroup`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `cert-manager.io` | ❌ | None |
+
+Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-manager`. Defaults to `cert-manager.io` to use built-in issuers
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      issuerGroup: cert-manager.io
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set highAvailability.certManager.issuerKind=cert-manager.io
+  ```
+  </TabItem>
+</Tabs>
+
 ## `image`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -1826,7 +1849,7 @@ Kubernetes affinity to set for pod assignments.
 | - | - |
 | `object` | `{}` |
 
-`nodeSelector` can be used to add a map of key-value pairs to constrain the nodes the agent pods will run on. 
+`nodeSelector` can be used to add a map of key-value pairs to constrain the nodes the agent pods will run on.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/)
 
