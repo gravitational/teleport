@@ -702,7 +702,7 @@ func onPlay(cf *CLIConf) error {
 			if err != nil {
 				return trace.ConvertSystemError(err)
 			}
-			if err := client.PlayFile(context.TODO(), tarFile, sid); err != nil {
+			if err := client.PlayFile(cf.Context, tarFile, sid); err != nil {
 				return trace.Wrap(err)
 			}
 		default:
@@ -710,7 +710,7 @@ func onPlay(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
+			if err := tc.Play(cf.Context, cf.Namespace, cf.SessionID); err != nil {
 				return trace.Wrap(err)
 			}
 		}
