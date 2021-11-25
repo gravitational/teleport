@@ -39,14 +39,24 @@ type KubeSession struct {
 	closeWait *sync.WaitGroup
 }
 
-func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key, kubeAddr string, tlsServer string) (*KubeSession, error) {
+func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key, kubeAddr string) (*KubeSession, error) {
 	close := utils.NewCloseBroadcaster()
 	closeWait := &sync.WaitGroup{}
 
 	joinEndpoint := kubeAddr + "/api/teleport/v1/join/" + meta.GetID()
 
-	// TODO(joel): use correct credentials and do tls server override
-	ws, _, err := websocket.DefaultDialer.Dial(joinEndpoint, nil)
+	kubeCluster := meta.GetKubeCluster()
+	ciphers := utils.DefaultCipherSuites()
+	tlsConfig, err := key.KubeClientTLSConfig(ciphers, kubeCluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dialer := &websocket.Dialer{
+		TLSClientConfig: tlsConfig,
+	}
+
+	ws, _, err := dialer.Dial(joinEndpoint, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
