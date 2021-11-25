@@ -504,7 +504,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 // readProfile reads in the profile as well as the associated certificate
 // and returns a *ProfileStatus which can be used to print the status of the
 // profile.
-func readProfile(profileDir string, profileName string) (*ProfileStatus, error) {
+func readProfile(profileDir string, profileName string, clusterOverwrite string) (*ProfileStatus, error) {
 	var err error
 
 	if profileDir == "" {
@@ -515,6 +515,11 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	profile, err := profile.FromDir(profileDir, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Overwrite cluster name
+	if clusterOverwrite != "" {
+		profile.SiteName = clusterOverwrite
 	}
 
 	// Read in the SSH certificate for the user logged into this proxy.
@@ -654,7 +659,17 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 
 // StatusCurrent returns the active profile status.
 func StatusCurrent(profileDir, proxyHost string) (*ProfileStatus, error) {
-	active, _, err := Status(profileDir, proxyHost)
+	profile, err := StatusCurrentOfCluster(profileDir, proxyHost, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return profile, err
+}
+
+// StatusCurrentOfCluster returns the active profile status.
+// If clusterOverwrite is specified, that cluster name will be instead of the one saved in the profile.
+func StatusCurrentOfCluster(profileDir, proxyHost, clusterOverwrite string) (*ProfileStatus, error) {
+	active, _, err := StatusOfCluster(profileDir, proxyHost, clusterOverwrite)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -682,6 +697,17 @@ func StatusFor(profileDir, proxyHost, username string) (*ProfileStatus, error) {
 // Status returns the active profile as well as a list of available profiles.
 // If no profile is active, Status returns a nil error and nil profile.
 func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, error) {
+	active, others, err := StatusOfCluster(profileDir, proxyHost, "")
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return active, others, nil
+}
+
+// StatusOfCluster returns the active profile as well as a list of available profiles.
+// If no profile is active, Status returns a nil error and nil profile.
+// If clusterOverwrite is specified, that cluster name will be instead of the one saved in the profile.
+func StatusOfCluster(profileDir, proxyHost string, clusterOverwrite string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
 	var profileStatus *ProfileStatus
 	var others []*ProfileStatus
@@ -728,7 +754,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	// Read in the target profile first. If readProfile returns trace.NotFound,
 	// that means the profile may have been corrupted (for example keys were
 	// deleted but profile exists), treat this as the user not being logged in.
-	profileStatus, err = readProfile(profileDir, profileName)
+	profileStatus, err = readProfile(profileDir, profileName, clusterOverwrite)
 	if err != nil {
 		log.Debug(err)
 		if !trace.IsNotFound(err) {
@@ -749,7 +775,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 			// already loaded this one
 			continue
 		}
-		ps, err := readProfile(profileDir, name)
+		ps, err := readProfile(profileDir, name, clusterOverwrite)
 		if err != nil {
 			log.Debug(err)
 			// parts of profile are missing?

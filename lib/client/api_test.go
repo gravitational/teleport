@@ -500,3 +500,48 @@ func TestApplyProxySettings(t *testing.T) {
 		})
 	}
 }
+
+func TestStatus(t *testing.T) {
+	// setup store
+	store, cleanup := newTest(t)
+	store.regenerateKeyPair = false
+	defer cleanup()
+
+	// setup profile
+	profile := Config{
+		WebProxyAddr: "sam.host",
+		Username:     "sam",
+		SiteName:     "root",
+	}
+	require.NoError(t, profile.SaveProfile(store.storeDir, true))
+
+	// generate some keys
+	for _, idx := range []KeyIndex{
+		{"sam.host", "sam", "root"},
+		{"sam.host", "sam", "leaf"},
+	} {
+		key := store.makeSignedKey(t, idx, false)
+		require.NoError(t, store.addKey(key))
+	}
+
+	// run test cases
+	t.Run("StatusCurrent", func(t *testing.T) {
+		status, err := StatusCurrent(store.storeDir, "sam.host") // cluster defaults to SiteName in profile
+		require.NoError(t, err)
+		require.Equal(t, "sam", status.Username)
+		require.Equal(t, "sam.host", status.ProxyURL.Host)
+		require.Equal(t, "root", status.Cluster)
+		require.Len(t, status.Databases, 1)
+		require.Equal(t, "example-db-root", status.Databases[0].ServiceName)
+	})
+
+	t.Run("StatusCurrentOfCluster", func(t *testing.T) {
+		status, err := StatusCurrentOfCluster(store.storeDir, "sam.host", "leaf")
+		require.NoError(t, err)
+		require.Equal(t, "sam", status.Username)
+		require.Equal(t, "sam.host", status.ProxyURL.Host)
+		require.Equal(t, "leaf", status.Cluster)
+		require.Len(t, status.Databases, 1)
+		require.Equal(t, "example-db-leaf", status.Databases[0].ServiceName)
+	})
+}

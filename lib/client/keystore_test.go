@@ -359,6 +359,11 @@ type keyStoreTest struct {
 	keygen    *testauthority.Keygen
 	tlsCA     *tlsca.CertAuthority
 	tlsCACert auth.TrustedCerts
+
+	// cache generated key pair for reuse
+	regenerateKeyPair bool
+	priv              []byte
+	pub               []byte
 }
 
 func (s *keyStoreTest) addKey(key *Key) error {
@@ -372,10 +377,13 @@ func (s *keyStoreTest) addKey(key *Key) error {
 // makeSignedKey helper returns all 3 components of a user key (signed by CAPriv key)
 func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bool) *Key {
 	var (
-		err             error
-		priv, pub, cert []byte
+		err  error
+		cert []byte
 	)
-	priv, pub, _ = s.keygen.GenerateKeyPair("")
+
+	if s.priv == nil || s.pub == nil || s.regenerateKeyPair {
+		s.priv, s.pub, _ = s.keygen.GenerateKeyPair("")
+	}
 	allowedLogins := []string{idx.Username, "root"}
 	ttl := 20 * time.Minute
 	if makeExpired {
@@ -383,11 +391,14 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	}
 
 	// reuse the same RSA keys for SSH and TLS keys
-	cryptoPubKey, err := sshutils.CryptoPublicKey(pub)
+	cryptoPubKey, err := sshutils.CryptoPublicKey(s.pub)
 	require.NoError(t, err)
 	clock := clockwork.NewRealClock()
+	dbServiceName := fmt.Sprintf("example-db-%s", idx.ClusterName)
 	identity := tlsca.Identity{
-		Username: idx.Username,
+		Username:        idx.Username,
+		Groups:          []string{"admin"},
+		RouteToDatabase: tlsca.RouteToDatabase{ServiceName: dbServiceName},
 	}
 	subject, err := identity.Subject()
 	require.NoError(t, err)
@@ -405,7 +416,7 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	cert, err = s.keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
 		CASigningAlg:          defaults.CASignatureAlgorithm,
-		PublicUserKey:         pub,
+		PublicUserKey:         s.pub,
 		Username:              idx.Username,
 		AllowedLogins:         allowedLogins,
 		TTL:                   ttl,
@@ -415,12 +426,12 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	require.NoError(t, err)
 	return &Key{
 		KeyIndex:   idx,
-		Priv:       priv,
-		Pub:        pub,
+		Priv:       s.priv,
+		Pub:        s.pub,
 		Cert:       cert,
 		TLSCert:    tlsCert,
 		TrustedCA:  []auth.TrustedCerts{s.tlsCACert},
-		DBTLSCerts: map[string][]byte{"example-db": tlsCert},
+		DBTLSCerts: map[string][]byte{dbServiceName: tlsCert},
 	}
 }
 
@@ -451,9 +462,10 @@ func newTest(t *testing.T) (keyStoreTest, func()) {
 	require.NoError(t, err)
 
 	s := keyStoreTest{
-		keygen:   testauthority.New(),
-		storeDir: dir,
-		store:    store,
+		keygen:            testauthority.New(),
+		storeDir:          dir,
+		store:             store,
+		regenerateKeyPair: true,
 	}
 	require.True(t, utils.IsDir(s.store.KeyDir))
 
