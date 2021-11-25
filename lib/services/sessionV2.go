@@ -18,7 +18,9 @@ package services
 
 import (
 	"context"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -83,7 +85,26 @@ func (s *sessionV2) GetActiveSessionTrackers(ctx context.Context) ([]types.Sessi
 }
 
 func (s *sessionV2) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error) {
-	spec := types.SessionSpecV3{}
+	id := uuid.New().String()
+	now := time.Now().UTC()
+
+	spec := types.SessionSpecV3{
+		SessionID:         id,
+		Namespace:         req.Namespace,
+		Type:              req.Type,
+		State:             types.SessionState_SessionStatePending,
+		Created:           now,
+		LastActive:        now,
+		Reason:            req.Reason,
+		Invited:           req.Invited,
+		Hostname:          req.Hostname,
+		Address:           req.Address,
+		ClusterName:       req.ClusterName,
+		Login:             req.Login,
+		Participants:      []*types.Participant{req.Initiator},
+		Expires:           req.Expires,
+		KubernetesCluster: req.KubernetesCluster,
+	}
 
 	session, err := types.NewSession(spec)
 	if err != nil {

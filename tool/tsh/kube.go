@@ -99,8 +99,6 @@ func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.Telepor
 	return nil, trace.NotFound("session %q not found", c.session)
 }
 
-// TODO(joel): set kube cluster field when creating session resource in service
-
 func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	tc, err := makeClient(cf, true)
 	if err != nil {
