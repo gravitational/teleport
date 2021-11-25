@@ -729,7 +729,7 @@ func (s *session) Close() error {
 	return nil
 }
 
-// TODO(joel): get roles from correct cluster?
+// : get roles from correct cluster?
 func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, error) {
 	var roles []types.Role
 

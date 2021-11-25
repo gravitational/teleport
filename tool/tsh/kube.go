@@ -73,8 +73,6 @@ type kubeJoinCommand struct {
 	session string
 }
 
-// TODO(joel): filter responses from list sessions
-
 func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 	c := &kubeJoinCommand{
 		CmdClause: parent.Command("join", "Join an active Kubernetes session."),

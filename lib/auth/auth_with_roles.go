@@ -249,7 +249,47 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
-	return a.authServer.GetActiveSessionTrackers(ctx)
+	sessions, err := a.authServer.GetActiveSessionTrackers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	filteredSessions := make([]types.Session, 0, len(sessions))
+
+	for _, session := range sessions {
+		participants := session.GetParticipants()
+		if len(participants) == 0 {
+			continue
+		}
+
+		hostName := participants[0].User
+		host, err := a.authServer.GetUser(hostName, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var hostRoles []types.Role
+		for _, roleName := range host.GetRoles() {
+			role, err := a.GetRole(context.TODO(), roleName)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			hostRoles = append(hostRoles, role)
+		}
+
+		evaluator := NewSessionAccessEvaluator(hostRoles, session.GetSessionKind())
+		joinerRoles, err := a.GetRoles(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if evaluator.CanJoin(SessionAccessContext{Roles: joinerRoles}) {
+			filteredSessions = append(filteredSessions, session)
+		}
+	}
+
+	return filteredSessions, nil
 }
 
 func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
