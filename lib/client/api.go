@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -302,6 +303,10 @@ type Config struct {
 	// NoRemoteExec will not execute a remote command after connecting to a host,
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
 	NoRemoteExec bool
+
+	// SelectRandomNode instructs the ssh command to select a random matching node to connect to or execute commands on.
+	// If not specified, a session is opened on the first matching node, and commands are executed on all matching nodes.
+	SelectRandomNode bool
 
 	// Browser can be used to pass the name of a browser to override the system default
 	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
@@ -1354,9 +1359,19 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.BadParameter("no target host specified")
 	}
 
+	var selectedNode string
+	if tc.SelectRandomNode {
+		rand.Seed(time.Now().UnixNano())
+		selectedNode = nodeAddrs[rand.Intn(len(nodeAddrs))]
+		log.Debugf("Selected random node from matched nodes: %s\n", selectedNode)
+	} else {
+		selectedNode = nodeAddrs[0]
+		log.Debugf("Selected first node from matched nodes: %s\n", selectedNode)
+	}
+
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
-		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},
+		NodeAddr{Addr: selectedNode, Namespace: tc.Namespace, Cluster: siteInfo.Name},
 		tc.Config.HostLogin,
 		false)
 	if err != nil {
@@ -1393,8 +1408,11 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	// Issue "exec" request(s) to run on remote node(s).
 	if len(command) > 0 {
 		if len(nodeAddrs) > 1 {
-			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.")
-			return tc.runCommandOnNodes(ctx, siteInfo.Name, nodeAddrs, proxyClient, command)
+			if !tc.SelectRandomNode {
+				fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.")
+				return tc.runCommandOnNodes(ctx, siteInfo.Name, nodeAddrs, proxyClient, command)
+			}
+			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on selected random node: %v\n", selectedNode)
 		}
 		// Reuse the existing nodeClient we connected above.
 		return tc.runCommand(ctx, nodeClient, command)
@@ -1402,7 +1420,11 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 
 	// Issue "shell" request to run single node.
 	if len(nodeAddrs) > 1 {
-		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
+		if tc.SelectRandomNode {
+			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking selected random node: %v\n", selectedNode)
+		} else {
+			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first node: %v\n", selectedNode)
+		}
 	}
 	return tc.runShell(nodeClient, nil)
 }

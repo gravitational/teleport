@@ -128,6 +128,9 @@ type CLIConf struct {
 	ProxyJump string
 	// --local flag for ssh
 	LocalExec bool
+	// SelectRandomNode instructs the ssh command to select a random matching node to connect to or execute commands on.
+	// If not specified, a session is opened on the first matching node, and commands are executed on all matching nodes.
+	SelectRandomNode bool
 	// SiteName specifies remote site go login to
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
@@ -369,6 +372,7 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
+	ssh.Flag("random-node", "Don't connect to first matching node and don't exec on all matching nodes. Instead, randomly pick a matching node to connect to or exec on").BoolVar(&cf.SelectRandomNode)
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
@@ -1870,6 +1874,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 
 	// Don't execute remote command, used when port forwarding.
 	c.NoRemoteExec = cf.NoRemoteExec
+
+	// Configure how many nodes execution happens on, and which nodes are selected.
+	c.SelectRandomNode = cf.SelectRandomNode
 
 	// Allow the default browser used to open tsh login links to be overridden
 	// (not currently implemented) or set to 'none' to suppress browser opening entirely.

@@ -190,6 +190,7 @@ $ tsh ssh [<flags>] <[user@]host> [<command>...]
 | `-L, --forward` | none | none | Forward localhost connections to remote server |
 | `-D, --dynamic-forward` | none | none | Forward localhost connections to remote server using SOCKS5 |
 | `-N, -no-remote-exec` | none | none | Don't execute remote command, useful for port forwarding |
+| `--random-node` | none | | Don't connect to first matching node and don't exec on all matching nodes. Instead, randomly pick a matching node to connect to or exec on |
 | `--local` | none | | Execute command on localhost after connecting to SSH node |
 | `-t, --tty` | `file` | | Allocate TTY |
 | `--cluster` | none | | Specify the cluster to connect |
