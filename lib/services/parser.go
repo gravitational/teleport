@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -178,6 +179,8 @@ type Context struct {
 	// Session is an optional session.end event. These events hold information
 	// about session recordings.
 	Session *events.SessionEnd
+	// SSHSession is an optional (active) SSH session.
+	SSHSession *session.Session
 }
 
 // String returns user friendly representation of this context
@@ -192,6 +195,8 @@ const (
 	ResourceIdentifier = "resource"
 	// SessionIdentifier refers to a session (recording) in the rules.
 	SessionIdentifier = "session"
+	// SSHSessionIdentifier refers to an (active) SSH session in the rules.
+	SSHSessionIdentifier = "ssh_session"
 	// ImpersonateRoleIdentifier is a role to impersonate
 	ImpersonateRoleIdentifier = "impersonate_role"
 	// ImpersonateUserIdentifier is a user to impersonate
@@ -232,8 +237,54 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 			session = ctx.Session
 		}
 		return predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
+	case SSHSessionIdentifier:
+		// Do not expose the original session.Session, instead transform it into a
+		// ctxSession so the exposed fields match our desired API.
+		return predicate.GetFieldByTag(toCtxSession(ctx.SSHSession), teleport.JSON, fields[1:])
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
+	}
+}
+
+// ctxSession represents the public contract of a session.Session, as exposed
+// to a Context rule.
+// See RFD 45:
+// https://github.com/gravitational/teleport/blob/master/rfd/0045-ssh_session-where-condition.md#replacing-parties-by-usernames.
+type ctxSession struct {
+	// Namespace is a session namespace, separating sessions from each other.
+	Namespace string `json:"namespace"`
+	// Login is a login used by all parties joining the session.
+	Login string `json:"login"`
+	// Created records the information about the time when session was created.
+	Created time.Time `json:"created"`
+	// LastActive holds the information about when the session was last active.
+	LastActive time.Time `json:"last_active"`
+	// ServerID of session.
+	ServerID string `json:"server_id"`
+	// ServerHostname of session.
+	ServerHostname string `json:"server_hostname"`
+	// ServerAddr of session.
+	ServerAddr string `json:"server_addr"`
+	// ClusterName is the name of cluster that this session belongs to.
+	ClusterName string `json:"cluster_name"`
+	// Participants is a list of session participants expressed as usernames.
+	Participants []string `json:"participants"`
+}
+
+func toCtxSession(s *session.Session) ctxSession {
+	if s == nil {
+		return ctxSession{}
+	}
+	return ctxSession{
+		Namespace:      s.Namespace,
+		Login:          s.Login,
+		Created:        s.Created,
+		LastActive:     s.LastActive,
+		ServerID:       s.ServerID,
+		ServerHostname: s.ServerHostname,
+		ServerAddr:     s.ServerAddr,
+		ClusterName:    s.ClusterName,
+		Participants:   s.Participants(),
 	}
 }
 
