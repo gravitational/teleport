@@ -254,7 +254,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 		return nil, trace.Wrap(err)
 	}
 
-	filteredSessions := make([]types.Session, 0, len(sessions))
+	var filteredSessions []types.Session
 
 	for _, session := range sessions {
 		participants := session.GetParticipants()
