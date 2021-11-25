@@ -145,19 +145,19 @@ func (r *Reconciler) processNewResource(ctx context.Context, currentResources ty
 	registered := currentResources.Find(new.GetName())
 	if registered == nil {
 		if r.cfg.Matcher(new) {
-			r.log.Infof("%v matches, creating.", new)
+			r.log.Infof("%v %v matches, creating.", new.GetKind(), new.GetMetadata().Name)
 			if err := r.cfg.OnCreate(ctx, new); err != nil {
 				return trace.Wrap(err, "failed to create %v", new)
 			}
 			return nil
 		}
-		r.log.Debugf("%v doesn't match, not creating.", new)
+		r.log.Debugf("%v %v doesn't match, not creating.", new.GetKind(), new.GetMetadata().Name)
 		return nil
 	}
 
 	// Don't overwrite resource of a different origin.
 	if registered.Origin() != new.Origin() {
-		r.log.Debugf("%v has different origin (%v vs %v), not updating.", new,
+		r.log.Debugf("%v has different origin (%v vs %v), not updating.", new.GetMetadata().Name,
 			new.Origin(), registered.Origin())
 		return nil
 	}
@@ -166,19 +166,19 @@ func (r *Reconciler) processNewResource(ctx context.Context, currentResources ty
 	// labels still match.
 	if CompareResources(new, registered) != Equal {
 		if r.cfg.Matcher(new) {
-			r.log.Infof("%v updated, updating.", new)
+			r.log.Infof("%v %v updated, updating.", new.GetKind(), new.GetMetadata().Name)
 			if err := r.cfg.OnUpdate(ctx, new); err != nil {
 				return trace.Wrap(err, "failed to update %v", new)
 			}
 			return nil
 		}
-		r.log.Infof("%v updated and no longer matches, deleting.", new)
+		r.log.Infof("%v %v updated and no longer matches, deleting.", new.GetKind(), new.GetMetadata().Name)
 		if err := r.cfg.OnDelete(ctx, registered); err != nil {
 			return trace.Wrap(err, "failed to delete %v", new)
 		}
 		return nil
 	}
 
-	r.log.Debugf("%v is already registered.", new)
+	r.log.Debugf("%v %v is already registered.", new.GetKind(), new.GetMetadata().Name)
 	return nil
 }
