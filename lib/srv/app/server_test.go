@@ -115,6 +115,7 @@ func (s *Suite) SetUpSuite(c *check.C) {
 		Streamer:    serverStreamer,
 	})
 	c.Assert(err, check.IsNil)
+	t.Cleanup(func() { s.authServer.Close() })
 
 	err = s.authServer.AuthServer.SetSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
 		Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
