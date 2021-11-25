@@ -41,11 +41,11 @@ func (h *Handler) handleDesktopAccessWebsocket(
 	ctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
-	desktopUUID := p.ByName("desktopUUID")
-	if desktopUUID == "" {
-		return nil, trace.BadParameter("missing desktopUUID in request URL")
+	desktopName := p.ByName("desktopName")
+	if desktopName == "" {
+		return nil, trace.BadParameter("missing desktopName in request URL")
 	}
-	log := ctx.log.WithField("desktop-uuid", desktopUUID)
+	log := ctx.log.WithField("desktop-uuid", desktopName)
 	log.Debug("New desktop access websocket connection")
 
 	winServices, err := ctx.unsafeCachedAuthClient.GetWindowsDesktopServices(r.Context())
@@ -80,7 +80,7 @@ func (h *Handler) handleDesktopAccessWebsocket(
 	defer serviceCon.Close()
 	tlsConfig := ctx.clt.Config()
 	// Pass target desktop UUID via SNI.
-	tlsConfig.ServerName = desktopUUID + desktop.SNISuffix
+	tlsConfig.ServerName = desktopName + desktop.SNISuffix
 	serviceConTLS := tls.Client(serviceCon, ctx.clt.Config())
 	log.Debug("Connected to windows_desktop_service")
 

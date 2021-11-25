@@ -13,8 +13,10 @@ limitations under the License.
 package bot
 
 import (
+	"context"
 	"testing"
 
+	"github.com/google/go-github/v37/github"
 	"github.com/gravitational/teleport/.github/workflows/ci/pkg/environment"
 
 	"github.com/stretchr/testify/require"
@@ -133,42 +135,72 @@ func TestHasRequiredApprovals(t *testing.T) {
 
 }
 
-func TestHasRequiredApprovalsFromLastCommit(t *testing.T) {
-
+func TestGetStaleReviews(t *testing.T) {
+	metadata := &environment.Metadata{Author: "quinqu",
+		RepoName:  "test-name",
+		RepoOwner: "test-owner",
+		HeadSHA:   "ecabd9d",
+	}
+	env := &environment.PullRequestEnvironment{Metadata: metadata}
+	bot := Bot{Environment: env}
 	tests := []struct {
-		commitSHA string
-		reviews   map[string]review
-		required  []string
-		desc      string
-		checkErr  require.ErrorAssertionFunc
+		mockC    mockCommitComparer
+		reviews  map[string]review
+		expected []string
+		desc     string
 	}{
 		{
+			mockC: mockCommitComparer{},
 			reviews: map[string]review{
-				"foo": {name: "foo", status: "APPROVED", commitID: "fe324c", id: 1},
-				"bar": {name: "bar", status: "Commented", commitID: "fe324c", id: 2},
-				"baz": {name: "baz", status: "APPROVED", commitID: "fe324c", id: 3},
+				"foo": {commitID: "ReviewHasFileChangeFromHead", name: "foo"},
+				"bar": {commitID: "ReviewHasFileChangeFromHead", name: "bar"},
 			},
-			commitSHA: "fe324c",
-			required:  []string{"foo", "baz"},
-			checkErr:  require.NoError,
-			desc:      "has required approvals at commit",
+			expected: []string{"foo", "bar"},
+			desc:     "All pull request reviews are stale.",
 		},
 		{
+			mockC: mockCommitComparer{},
 			reviews: map[string]review{
-				"foo": {name: "foo", status: "APPROVED", commitID: "fe324c", id: 1},
-				"bar": {name: "bar", status: "Commented", commitID: "fe324c", id: 2},
-				"baz": {name: "baz", status: "APPROVED", commitID: "fe324c", id: 3},
+				"foo": {commitID: "ecabd94", name: "foo"},
+				"bar": {commitID: "abcde67", name: "bar"},
 			},
-			commitSHA: "65fab3",
-			required:  []string{"foo", "baz"},
-			checkErr:  require.Error,
-			desc:      "has no approvals at commit, all required approvers reviewed",
+			expected: []string{},
+			desc:     "Pull request has no stale reviews.",
+		},
+		{
+			mockC: mockCommitComparer{},
+			reviews: map[string]review{
+				"foo":  {commitID: "ReviewHasFileChangeFromHead", name: "foo"},
+				"bar":  {commitID: "ReviewHasFileChangeFromHead", name: "bar"},
+				"fizz": {commitID: "ecabd9d", name: "fizz"},
+			},
+			expected: []string{"foo", "bar"},
+			desc:     "Pull request has two stale reviews.",
 		},
 	}
+
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			err := hasAllRequiredApprovalsAtCommit(test.commitSHA, test.reviews, test.required)
-			test.checkErr(t, err)
+			bot.compareCommits = &test.mockC
+			staleReviews, _ := bot.getStaleReviews(context.TODO(), test.reviews)
+			for _, name := range test.expected {
+				_, ok := staleReviews[name]
+				require.Equal(t, true, ok)
+			}
+			require.Equal(t, len(test.expected), len(staleReviews))
 		})
 	}
+
+}
+
+type mockCommitComparer struct {
+}
+
+func (m *mockCommitComparer) CompareCommits(ctx context.Context, repoOwner, repoName, base, head string) (*github.CommitsComparison, *github.Response, error) {
+	// FOR TESTS ONLY: Using the string "ReviewHasFileChangeFromHead" as an indicator that this test method should
+	// return a non-empty CommitFile list in the CommitComparison.
+	if base == "ReviewHasFileChangeFromHead" {
+		return &github.CommitsComparison{Files: []*github.CommitFile{{}, {}}}, nil, nil
+	}
+	return &github.CommitsComparison{Files: []*github.CommitFile{}}, nil, nil
 }

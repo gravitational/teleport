@@ -45,6 +45,9 @@ const (
 	// Commented is a pull request review status.
 	Commented = "COMMENTED"
 
+	// Dismissed is a pull request review status.
+	Dismissed = "DISMISSED"
+
 	// Token is the env variable name that stores the Github authentication token
 	Token = "GITHUB_TOKEN"
 
@@ -114,9 +117,11 @@ var Reviewers = map[string][]string{
 	"atburke":       {"nklaassen", "fspmarshall"},
 	"codingllama":   {"rosstimothy", "quinqu"},
 	"fspmarshall":   {"rosstimothy", "codingllama"},
-	"gabrielcorado": {"r0mant", "smallinsky"},
+	"gabrielcorado": {"r0mant", "smallinsky", "jakule"},
+	"greedy52":      {"jakule", "r0mant", "gabrielcorado"},
 	"gzdunek":       {"alex-kovoy", "kimlisa"},
 	"ibeckermayer":  {"zmb3", "alex-kovoy"},
+	"jakule":        {"smallinsky", "r0mant", "greedy52"},
 	"Joerger":       {"zmb3", "atburke"},
 	"kimlisa":       {"alex-kovoy", "rudream"},
 	"klizhentas":    {"russjones", "r0mant"},
