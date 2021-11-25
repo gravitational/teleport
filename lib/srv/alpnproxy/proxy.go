@@ -193,8 +193,10 @@ type Proxy struct {
 	cfg                ProxyConfig
 	supportedProtocols []common.Protocol
 	log                logrus.FieldLogger
-	cancelFunc         context.CancelFunc
-	mu                 sync.Mutex
+
+	// mu guards cancel
+	mu     sync.Mutex
+	cancel context.CancelFunc
 }
 
 // CheckAndSetDefaults checks and sets default values of ProxyConfig
@@ -255,7 +257,14 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 func (p *Proxy) Serve(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	p.setCancelFunc(cancel)
+
+	p.mu.Lock()
+	if p.cancel != nil {
+		p.mu.Unlock()
+		return trace.BadParameter("Serve may only be called once")
+	}
+	p.cancel = cancel
+	p.mu.Unlock()
 
 	p.cfg.WebTLSConfig.NextProtos = common.ProtocolsToString(p.supportedProtocols)
 	for {
@@ -481,23 +490,13 @@ func shouldRouteToKubeService(sni string) bool {
 	return strings.HasPrefix(sni, KubeSNIPrefix)
 }
 
-func (p *Proxy) setCancelFunc(f context.CancelFunc) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.cancelFunc = f
-}
-
-func (p *Proxy) cancel() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.cancelFunc != nil {
-		p.cancelFunc()
-	}
-}
-
 // Close the Proxy server.
 func (p *Proxy) Close() error {
-	p.cancel()
+	p.mu.Lock()
+	if p.cancel != nil {
+		p.cancel()
+	}
+	p.mu.Unlock()
 
 	if err := p.cfg.Listener.Close(); err != nil {
 		return trace.Wrap(err)
