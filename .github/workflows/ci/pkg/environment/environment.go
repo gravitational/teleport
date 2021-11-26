@@ -118,6 +118,7 @@ func New(c Config) (*PullRequestEnvironment, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// Check if the pull request has changes to the `docs/` directory as that will affect who
 	// the required reviewers are.
 	docChanges, codeChanges, err := hasChanges(c.Context, pr, c.Client)
@@ -230,6 +231,9 @@ func GetMetadata(path string) (*Metadata, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	log.Infof("Handling action: %q", actionType.Action)
+
 	return getMetadata(body, actionType.Action)
 }
 
