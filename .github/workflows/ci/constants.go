@@ -82,7 +82,10 @@ const (
 	// Created is an event type that is triggered when a pull request review is created.
 	Created = "created"
 
-	// AnyAuthor is the symbol used to get reviewers for external contributors/contrtibutors who
+	// Edit events are emitted when a PR Title or Description is edited
+	Edited = "edited"
+
+	// AnyAuthor is the symbol used to get reviewers for external contributors/contributors who
 	// do not have designated reviewers.
 	AnyAuthor = "*"
 )

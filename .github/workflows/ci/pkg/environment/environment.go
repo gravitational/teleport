@@ -247,7 +247,7 @@ func getMetadata(body []byte, action string) (*Metadata, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case ci.Assigned, ci.Opened, ci.Reopened, ci.Ready:
+	case ci.Assigned, ci.Opened, ci.Reopened, ci.Ready, ci.Edited:
 		var pull PullRequestEvent
 		err := json.Unmarshal(body, &pull)
 		if err != nil {
