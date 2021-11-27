@@ -72,6 +72,8 @@ type Session interface {
 	RemoveParticipant(string) error
 
 	GetKubeCluster() string
+
+	GetHostUser() string
 }
 
 func NewSession(spec SessionSpecV3) (Session, error) {
@@ -250,4 +252,8 @@ func (s *SessionV3) RemoveParticipant(id string) error {
 
 func (s *SessionV3) GetKubeCluster() string {
 	return s.Spec.KubernetesCluster
+}
+
+func (s *SessionV3) GetHostUser() string {
+	return s.Spec.HostUser
 }

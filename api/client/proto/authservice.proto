@@ -1439,6 +1439,10 @@ message CreateSessionRequest {
 
     // The Kubernetes cluster this session belongs to.
     string KubernetesCluster = 11 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+
+    // HostUser is the user regarded as the owner of this session, RBAC checks are performed
+    // against the require policies of this user.
+    string HostUser = 12 [ (gogoproto.jsontag) = "host_user,omitempty" ];
 }
 
 // GetActiveSessionsResponse is a response containing active sessions.

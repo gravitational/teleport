@@ -257,12 +257,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 	var filteredSessions []types.Session
 
 	for _, session := range sessions {
-		participants := session.GetParticipants()
-		if len(participants) == 0 {
-			continue
-		}
-
-		hostName := participants[0].User
+		hostName := session.GetHostUser()
 		host, err := a.authServer.GetUser(hostName, false)
 		if err != nil {
 			return nil, trace.Wrap(err)

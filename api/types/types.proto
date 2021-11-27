@@ -2804,6 +2804,10 @@ message SessionSpecV3 {
 
     // The Kubernetes cluster this session belongs to.
     string KubernetesCluster = 17 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+
+    // HostUser is the user regarded as the owner of this session, RBAC checks are performed
+    // against the require policies of this user.
+    string HostUser = 18 [ (gogoproto.jsontag) = "host_user,omitempty" ];
 }
 
 // Participant stores information about a participant in the session.

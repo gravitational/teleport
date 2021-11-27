@@ -104,6 +104,7 @@ func (s *sessionV2) CreateSessionTracker(ctx context.Context, req *proto.CreateS
 		Participants:      []*types.Participant{req.Initiator},
 		Expires:           req.Expires,
 		KubernetesCluster: req.KubernetesCluster,
+		HostUser:          req.HostUser,
 	}
 
 	session, err := types.NewSession(spec)
