@@ -24,10 +24,13 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	broadcast "github.com/dustin/go-broadcast"
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -213,7 +216,6 @@ func (p *party) Close() error {
 	return trace.Wrap(err)
 }
 
-// : transition to pending on leave
 type session struct {
 	mu sync.RWMutex
 
@@ -253,12 +255,14 @@ type session struct {
 
 	tty bool
 
+	podName string
+
 	closeC chan struct{}
 
 	closeOnce sync.Once
 }
 
-func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params) (*session, error) {
+func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params, initiator *party) (*session, error) {
 	id := uuid.New()
 	roles, err := getRolesByName(forwarder, ctx.Context.Identity.GetIdentity().Groups)
 	if err != nil {
@@ -267,7 +271,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 
 	accessEvaluator := auth.NewSessionAccessEvaluator(roles, types.KubernetesSessionKind)
 
-	return &session{
+	s := &session{
 		ctx:               ctx,
 		forwarder:         forwarder,
 		req:               req,
@@ -285,7 +289,14 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		emitter:           events.NewDiscardEmitter(),
 		terminalSizeQueue: &multiResizeQueue{},
 		tty:               false,
-	}, nil
+	}
+
+	err = s.trackerCreate(initiator)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return s, nil
 }
 
 func (s *session) launch() error {
@@ -303,6 +314,11 @@ func (s *session) launch() error {
 		httpResponseWriter: nil,
 		context:            s.req.Context(),
 		pingPeriod:         s.forwarder.cfg.ConnPingPeriod,
+	}
+
+	err := s.trackerUpdateState(types.SessionState_SessionStateRunning)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	s.tty = request.tty
@@ -625,6 +641,11 @@ func (s *session) join(p *party) error {
 	s.parties[p.Id] = p
 	s.partiesHistorical[p.Id] = p
 
+	err := s.trackerAddParticipant(p)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	canStart, err := s.canStart()
 	if err != nil {
 		return trace.Wrap(err)
@@ -666,7 +687,12 @@ func (s *session) leave(id uuid.UUID) error {
 	s.clients_stdout.W.(*srv.MultiWriter).DeleteWriter(stringId)
 	s.clients_stderr.W.(*srv.MultiWriter).DeleteWriter(stringId)
 
-	err := party.Close()
+	err := s.trackerRemoveParticipant(party.Id.String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = party.Close()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -713,6 +739,12 @@ func (s *session) canStart() (bool, error) {
 func (s *session) Close() error {
 	s.closeOnce.Do(func() {
 		s.log.Infof("Closing session %v.", s.id.String)
+		err := s.trackerRemove()
+		if err != nil {
+			s.log.Error("Failed to remove session tracker resource.")
+		}
+
+		close(s.closeC)
 		for _, party := range s.parties {
 			err := party.Close()
 			if err != nil {
@@ -723,13 +755,11 @@ func (s *session) Close() error {
 		if s.recorder != nil {
 			s.recorder.Close(context.TODO())
 		}
-		close(s.closeC)
 	})
 
 	return nil
 }
 
-// : get roles from correct cluster?
 func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, error) {
 	var roles []types.Role
 
@@ -743,4 +773,79 @@ func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, err
 	}
 
 	return roles, nil
+}
+
+func (s *session) trackerCreate(p *party) error {
+	initator := &types.Participant{
+		ID:         p.Id.String(),
+		User:       p.Ctx.User.GetName(),
+		LastActive: time.Now().UTC(),
+	}
+
+	req := &proto.CreateSessionRequest{
+		ID:                s.id.String(),
+		Namespace:         defaults.Namespace,
+		Type:              string(types.KubernetesSessionKind),
+		Hostname:          s.podName,
+		ClusterName:       s.ctx.teleportCluster.name,
+		Login:             "root",
+		Initiator:         initator,
+		Expires:           time.Now(),
+		KubernetesCluster: s.ctx.kubeCluster,
+		HostUser:          initator.User,
+	}
+
+	_, err := s.forwarder.cfg.AuthClient.CreateSessionTracker(s.forwarder.ctx, req)
+	return trace.Wrap(err)
+}
+
+func (s *session) trackerRemove() error {
+	err := s.forwarder.cfg.AuthClient.RemoveSessionTracker(s.forwarder.ctx, s.id.String())
+	return trace.Wrap(err)
+}
+
+func (s *session) trackerAddParticipant(participant *party) error {
+	req := &proto.UpdateSessionRequest{
+		SessionID: s.id.String(),
+		Update: &proto.UpdateSessionRequest_AddParticipant{
+			AddParticipant: &proto.AddParticipant{
+				Participant: &types.Participant{
+					ID:         participant.Id.String(),
+					User:       participant.Ctx.User.GetName(),
+					LastActive: time.Now().UTC(),
+				},
+			},
+		},
+	}
+
+	err := s.forwarder.cfg.AuthClient.UpdateSessionTracker(s.forwarder.ctx, req)
+	return trace.Wrap(err)
+}
+
+func (s *session) trackerRemoveParticipant(participantID string) error {
+	req := &proto.UpdateSessionRequest{
+		SessionID: s.id.String(),
+		Update: &proto.UpdateSessionRequest_RemoveParticipant{
+			RemoveParticipant: &proto.RemoveParticipant{
+				ParticipantID: participantID,
+			},
+		},
+	}
+
+	err := s.forwarder.cfg.AuthClient.UpdateSessionTracker(s.forwarder.ctx, req)
+	return trace.Wrap(err)
+}
+
+func (s *session) trackerUpdateState(state types.SessionState) error {
+	req := &proto.UpdateSessionRequest{
+		SessionID: s.id.String(),
+		Update: &proto.UpdateSessionRequest_UpdateState{
+			UpdateState: &proto.UpdateState{
+				State: state,
+			},
+		},
+	}
+
+	err := s.forwarder.cfg.AuthClient.UpdateSessionTracker(s.forwarder.ctx, req)
+	return trace.Wrap(err)
 }
