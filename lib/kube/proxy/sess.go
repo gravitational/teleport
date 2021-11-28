@@ -727,7 +727,7 @@ func (s *session) join(p *party) error {
 		return trace.Wrap(err)
 	}
 
-	if s.started {
+	if s.started && canStart {
 		s.state = types.SessionState_SessionStateRunning
 		s.stateUpdate.Submit(types.SessionState_SessionStateRunning)
 		return nil
