@@ -304,8 +304,8 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	return s, nil
 }
 
-func broadcastText(w func(p []byte) (int, error), text string) error {
-	data := []byte(text)
+func broadcastMessage(w func(p []byte) (int, error), text string) error {
+	data := []byte(text + "\n\r")
 	for len(data) > 0 {
 		n, err := w(data)
 		if err != nil {
@@ -321,7 +321,7 @@ func (s *session) waitOnAccess() {
 	s.clients_stdin.Off()
 	s.clients_stdout.Off()
 	s.clients_stderr.Off()
-	broadcastText(s.clients_stdout.WriteUnconditional, "Session paused, Waiting for required participants...")
+	broadcastMessage(s.clients_stdout.WriteUnconditional, "Session paused, Waiting for required participants...")
 
 	c := make(chan interface{})
 	s.stateUpdate.Register(c)
@@ -341,7 +341,7 @@ outer:
 		}
 	}
 
-	broadcastText(s.clients_stdout.WriteUnconditional, "Resuming session...")
+	broadcastMessage(s.clients_stdout.WriteUnconditional, "Resuming session...")
 	s.clients_stdin.On()
 	s.clients_stdout.On()
 	s.clients_stderr.On()
@@ -661,7 +661,7 @@ func (s *session) launch() error {
 		TerminalSizeQueue: s.terminalSizeQueue,
 	}
 
-	err = broadcastText(s.clients_stdout.WriteUnconditional, fmt.Sprintf("Creating session with ID: %v\n", s.id.String()))
+	err = broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("Creating session with ID: %v", s.id.String()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
