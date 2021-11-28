@@ -707,6 +707,10 @@ func (s *session) leave(id uuid.UUID) error {
 	}
 
 	canStart, options, err := s.canStart()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if !canStart {
 		if options.TerminateOnLeave {
 			go func() {
@@ -716,7 +720,7 @@ func (s *session) leave(id uuid.UUID) error {
 				}
 			}()
 		} else {
-
+			// TODO(joel): handle this case
 		}
 	}
 
