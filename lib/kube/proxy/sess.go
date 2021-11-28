@@ -348,6 +348,13 @@ outer:
 }
 
 func (s *session) launch() error {
+	defer func() {
+		err := s.Close()
+		if err != nil {
+			log.WithError(err).Errorf("Failed to close session: %v", s.id)
+		}
+	}()
+
 	s.log.Debugf("Launching session: %v", s.id)
 	s.mu.Lock()
 
@@ -384,6 +391,8 @@ func (s *session) launch() error {
 	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
 
 	onWriterError := func(idString string) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 		s.log.Errorf("Encountered error with party %v. Disconnecting them from the session.", idString)
 		id, _ := uuid.Parse(idString)
 		err := s.leave(id)
@@ -461,7 +470,6 @@ func (s *session) launch() error {
 
 		s.recorder = recorder
 		s.emitter = recorder
-		defer recorder.Close(s.forwarder.ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -747,9 +755,6 @@ func (s *session) join(p *party) error {
 }
 
 func (s *session) leave(id uuid.UUID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	stringId := id.String()
 	party := s.parties[id]
 	delete(s.parties, id)
@@ -834,6 +839,7 @@ func (s *session) Close() error {
 	defer s.mu.Unlock()
 
 	s.closeOnce.Do(func() {
+		s.clients_stdin.Close()
 		s.stateUpdate.Submit(types.SessionState_SessionStateTerminated)
 		s.stateUpdate.Close()
 
@@ -844,15 +850,15 @@ func (s *session) Close() error {
 		}
 
 		close(s.closeC)
-		for _, party := range s.parties {
-			err := party.Close()
+		for id, party := range s.parties {
+			err = party.Close()
 			if err != nil {
-				s.log.WithError(err).Error("Failed to disconnect party.")
+				s.log.WithError(err).Errorf("Failed to disconnect party %v", id.String())
 			}
 		}
 
 		if s.recorder != nil {
-			s.recorder.Close(context.TODO())
+			s.recorder.Close(s.forwarder.ctx)
 		}
 	})
 

@@ -18,6 +18,7 @@ package utils
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -41,10 +42,13 @@ type BreakReader struct {
 	in        chan []byte
 	on        bool
 	R         *utils.TrackingReader
+	closed    *int32
 }
 
 func NewBreakReader(r *utils.TrackingReader) *BreakReader {
 	data := make(chan []byte)
+	closedVal := int32(0)
+	closed := &closedVal
 
 	go func() {
 		for {
@@ -55,15 +59,20 @@ func NewBreakReader(r *utils.TrackingReader) *BreakReader {
 				return
 			}
 
+			if atomic.LoadInt32(closed) == 1 {
+				return
+			}
+
 			data <- buf[:n]
 		}
 	}()
 
 	return &BreakReader{
-		cond: sync.NewCond(&sync.Mutex{}),
-		in:   data,
-		on:   true,
-		R:    r,
+		cond:   sync.NewCond(&sync.Mutex{}),
+		in:     data,
+		on:     true,
+		R:      r,
+		closed: closed,
 	}
 }
 
@@ -120,6 +129,10 @@ func (r *BreakReader) Read(p []byte) (int, error) {
 			return n, nil
 		}
 	}
+}
+
+func (r *BreakReader) Close() {
+	atomic.StoreInt32(r.closed, 1)
 }
 
 type SwitchWriter struct {
