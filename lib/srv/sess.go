@@ -1322,7 +1322,7 @@ func (s *session) checkIfStart() (bool, error) {
 
 	defer s.mu.Unlock()
 
-	shouldStart, err := s.access.FulfilledFor(participants)
+	shouldStart, _, err := s.access.FulfilledFor(participants)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

@@ -715,6 +715,8 @@ func (s *session) leave(id uuid.UUID) error {
 					s.log.Errorf("Failed to close session: %v.", err)
 				}
 			}()
+		} else {
+
 		}
 	}
 
