@@ -659,22 +659,25 @@ func readProfile(profileDir string, profileName string, clusterOverwrite string)
 
 // StatusCurrent returns the active profile status.
 func StatusCurrent(profileDir, proxyHost string) (*ProfileStatus, error) {
-	profile, err := StatusCurrentOfCluster(profileDir, proxyHost, "")
+	active, _, err := Status(profileDir, proxyHost)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return profile, err
+	if active == nil {
+		return nil, trace.NotFound("not logged in")
+	}
+	return active, nil
 }
 
 // StatusCurrentOfCluster returns the active profile status.
-// If clusterOverwrite is specified, that cluster name will be instead of the one saved in the profile.
+// If clusterOverwrite is specified, that cluster name will be used instead of the one saved in the profile.
 func StatusCurrentOfCluster(profileDir, proxyHost, clusterOverwrite string) (*ProfileStatus, error) {
 	active, _, err := StatusOfCluster(profileDir, proxyHost, clusterOverwrite)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if active == nil {
-		return nil, trace.NotFound("not logged in")
+		return nil, trace.NotFound("not logged in to cluster %s", clusterOverwrite)
 	}
 	return active, nil
 }
@@ -706,7 +709,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 
 // StatusOfCluster returns the active profile as well as a list of available profiles.
 // If no profile is active, Status returns a nil error and nil profile.
-// If clusterOverwrite is specified, that cluster name will be instead of the one saved in the profile.
+// If clusterOverwrite is specified, that cluster name will be used instead of the one saved in the profile.
 func StatusOfCluster(profileDir, proxyHost string, clusterOverwrite string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
 	var profileStatus *ProfileStatus
