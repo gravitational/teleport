@@ -1601,7 +1601,8 @@ message SessionRequirePolicy {
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
     string Filter = 2 [ (gogoproto.jsontag) = "filter" ];
     repeated string Kinds = 3 [ (gogoproto.jsontag) = "kinds" ];
-    int32 count = 4 [ (gogoproto.jsontag) = "count" ];
+    int32 Count = 4 [ (gogoproto.jsontag) = "count" ];
+    bool SoftLeave = 5 [ (gogoproto.jsontag) = "soft_leave" ];
 }
 
 message SessionJoinPolicy {

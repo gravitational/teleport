@@ -151,9 +151,13 @@ func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) bool {
 	return false
 }
 
-func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, error) {
+type PolicyOptions struct {
+	TerminateOnLeave bool
+}
+
+func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {
 	if len(e.requires) == 0 {
-		return true, nil
+		return true, PolicyOptions{}, nil
 	}
 
 	for _, requirePolicy := range e.requires {
@@ -164,7 +168,7 @@ func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContex
 			for _, allowPolicy := range allowPolicies {
 				matchesPredicate, err := e.matchesPredicate(&participant, requirePolicy, allowPolicy)
 				if err != nil {
-					return false, trace.Wrap(err)
+					return false, PolicyOptions{}, trace.Wrap(err)
 				}
 
 				if matchesPredicate && e.matchesJoin(allowPolicy) {
@@ -174,10 +178,14 @@ func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContex
 			}
 
 			if left <= 0 {
-				return true, nil
+				options := PolicyOptions{
+					TerminateOnLeave: !requirePolicy.SoftLeave,
+				}
+
+				return true, options, nil
 			}
 		}
 	}
 
-	return false, nil
+	return false, PolicyOptions{}, nil
 }

@@ -646,7 +646,7 @@ func (s *session) join(p *party) error {
 		return trace.Wrap(err)
 	}
 
-	canStart, err := s.canStart()
+	canStart, _, err := s.canStart()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -698,9 +698,23 @@ func (s *session) leave(id uuid.UUID) error {
 	}
 
 	if len(s.parties) == 0 {
-		err := s.Close()
-		if err != nil {
-			return trace.Wrap(err)
+		go func() {
+			err := s.Close()
+			if err != nil {
+				s.log.Errorf("Failed to close session: %v.", err)
+			}
+		}()
+	}
+
+	canStart, options, err := s.canStart()
+	if !canStart {
+		if options.TerminateOnLeave {
+			go func() {
+				err := s.Close()
+				if err != nil {
+					s.log.Errorf("Failed to close session: %v.", err)
+				}
+			}()
 		}
 	}
 
@@ -716,7 +730,7 @@ func (s *session) allParticipants() []string {
 	return participants
 }
 
-func (s *session) canStart() (bool, error) {
+func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 	var participants []auth.SessionAccessContext
 	for _, party := range s.parties {
 		if party.Ctx.User.GetName() == s.ctx.User.GetName() {
@@ -726,17 +740,20 @@ func (s *session) canStart() (bool, error) {
 		roleNames := party.Ctx.Identity.GetIdentity().Groups
 		roles, err := getRolesByName(s.forwarder, roleNames)
 		if err != nil {
-			return false, trace.Wrap(err)
+			return false, auth.PolicyOptions{}, trace.Wrap(err)
 		}
 
 		participants = append(participants, auth.SessionAccessContext{Roles: roles})
 	}
 
-	yes, err := s.accessEvaluator.FulfilledFor(participants)
-	return yes, trace.Wrap(err)
+	yes, options, err := s.accessEvaluator.FulfilledFor(participants)
+	return yes, options, trace.Wrap(err)
 }
 
 func (s *session) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.closeOnce.Do(func() {
 		s.log.Infof("Closing session %v.", s.id.String)
 		err := s.trackerRemove()
