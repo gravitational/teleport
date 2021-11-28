@@ -235,11 +235,11 @@ type session struct {
 
 	log *log.Entry
 
-	clients_stdin *utils.TrackingReader
+	clients_stdin *kubeutils.BreakReader
 
-	clients_stdout *utils.TrackingWriter
+	clients_stdout *kubeutils.SwitchWriter
 
-	clients_stderr *utils.TrackingWriter
+	clients_stderr *kubeutils.SwitchWriter
 
 	terminalSizeQueue *multiResizeQueue
 
@@ -256,6 +256,8 @@ type session struct {
 	tty bool
 
 	podName string
+
+	started bool
 
 	closeC chan struct{}
 
@@ -280,9 +282,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		parties:           make(map[uuid.UUID]*party),
 		partiesHistorical: make(map[uuid.UUID]*party),
 		log:               forwarder.log.WithField("session", id.String()),
-		clients_stdin:     utils.NewTrackingReader(kubeutils.NewMultiReader()),
-		clients_stdout:    utils.NewTrackingWriter(srv.NewMultiWriter()),
-		clients_stderr:    utils.NewTrackingWriter(srv.NewMultiWriter()),
+		clients_stdin:     kubeutils.NewBreakReader(utils.NewTrackingReader(kubeutils.NewMultiReader())),
+		clients_stdout:    kubeutils.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter())),
+		clients_stderr:    kubeutils.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter())),
 		state:             types.SessionState_SessionStatePending,
 		stateUpdate:       broadcast.NewBroadcaster(1),
 		accessEvaluator:   accessEvaluator,
@@ -299,7 +301,37 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	return s, nil
 }
 
+func (s *session) waitOnAccess() {
+	s.clients_stdin.Off()
+	s.clients_stdout.Off()
+	s.clients_stderr.Off()
+
+	c := make(chan interface{})
+	s.stateUpdate.Register(c)
+	defer s.stateUpdate.Unregister(c)
+
+outer:
+	for {
+		state := <-c
+		actualState := state.(types.SessionState)
+		switch actualState {
+		case types.SessionState_SessionStatePending:
+			continue
+		case types.SessionState_SessionStateTerminated:
+			return
+		case types.SessionState_SessionStateRunning:
+			break outer
+		}
+	}
+
+	s.clients_stdin.On()
+	s.clients_stdout.On()
+	s.clients_stderr.On()
+}
+
 func (s *session) launch() error {
+	s.mu.Lock()
+
 	q := s.req.URL.Query()
 	request := remoteCommandRequest{
 		podNamespace:       s.params.ByName("podNamespace"),
@@ -321,6 +353,7 @@ func (s *session) launch() error {
 		return trace.Wrap(err)
 	}
 
+	s.started = true
 	s.tty = request.tty
 	sess, err := s.forwarder.newClusterSession(s.ctx)
 	sessionStart := s.forwarder.cfg.Clock.Now().UTC()
@@ -340,8 +373,8 @@ func (s *session) launch() error {
 		}
 	}
 
-	s.clients_stdout.W.(*srv.MultiWriter).OnError = onWriterError
-	s.clients_stderr.W.(*srv.MultiWriter).OnError = onWriterError
+	s.clients_stdout.W.W.(*srv.MultiWriter).OnError = onWriterError
+	s.clients_stderr.W.W.(*srv.MultiWriter).OnError = onWriterError
 
 	if s.tty {
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {
@@ -414,8 +447,8 @@ func (s *session) launch() error {
 			return trace.Wrap(err)
 		}
 
-		s.clients_stdout.W.(*srv.MultiWriter).AddWriter("recorder", kubeutils.WriterCloserWrapper{Writer: recorder}, false)
-		s.clients_stderr.W.(*srv.MultiWriter).AddWriter("recorder", kubeutils.WriterCloserWrapper{Writer: recorder}, false)
+		s.clients_stdout.W.W.(*srv.MultiWriter).AddWriter("recorder", kubeutils.WriterCloserWrapper{Writer: recorder}, false)
+		s.clients_stderr.W.W.(*srv.MultiWriter).AddWriter("recorder", kubeutils.WriterCloserWrapper{Writer: recorder}, false)
 	} else if !sess.noAuditEvents {
 		s.emitter = s.forwarder.cfg.StreamEmitter
 	}
@@ -507,9 +540,9 @@ func (s *session) launch() error {
 					Protocol:   events.EventProtocolKube,
 				},
 				// Bytes transmitted from user to pod.
-				BytesTransmitted: s.clients_stdin.Count(),
+				BytesTransmitted: s.clients_stdin.R.Count(),
 				// Bytes received from pod by user.
-				BytesReceived: s.clients_stdout.Count() + s.clients_stderr.Count(),
+				BytesReceived: s.clients_stdout.W.Count() + s.clients_stderr.W.Count(),
 			}
 
 			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionDataEvent); err != nil {
@@ -609,6 +642,7 @@ func (s *session) launch() error {
 		TerminalSizeQueue: s.terminalSizeQueue,
 	}
 
+	s.mu.Unlock()
 	if err = executor.Stream(options); err != nil {
 		s.log.WithError(err).Warning("Executor failed while streaming.")
 		return trace.Wrap(err)
@@ -646,9 +680,19 @@ func (s *session) join(p *party) error {
 		return trace.Wrap(err)
 	}
 
+	if s.state != types.SessionState_SessionStatePending {
+		return nil
+	}
+
 	canStart, _, err := s.canStart()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if s.started {
+		s.state = types.SessionState_SessionStateRunning
+		s.stateUpdate.Submit(types.SessionState_SessionStateRunning)
+		return nil
 	}
 
 	if canStart {
@@ -663,14 +707,14 @@ func (s *session) join(p *party) error {
 
 	if s.tty {
 		s.terminalSizeQueue.add(stringId, p.Client.resizeQueue())
-		s.clients_stdin.R.(*kubeutils.MultiReader).AddReader(stringId, p.Client.stdinStream())
+		s.clients_stdin.R.R.(*kubeutils.MultiReader).AddReader(stringId, p.Client.stdinStream())
 	}
 
 	stdout := kubeutils.WriterCloserWrapper{Writer: p.Client.stdoutStream()}
-	s.clients_stdout.W.(*srv.MultiWriter).AddWriter(stringId, stdout, false)
+	s.clients_stdout.W.W.(*srv.MultiWriter).AddWriter(stringId, stdout, false)
 
 	stderr := kubeutils.WriterCloserWrapper{Writer: p.Client.stderrStream()}
-	s.clients_stderr.W.(*srv.MultiWriter).AddWriter(stringId, stderr, false)
+	s.clients_stderr.W.W.(*srv.MultiWriter).AddWriter(stringId, stderr, false)
 
 	return nil
 }
@@ -683,9 +727,9 @@ func (s *session) leave(id uuid.UUID) error {
 	party := s.parties[id]
 	delete(s.parties, id)
 	s.terminalSizeQueue.remove(stringId)
-	s.clients_stdin.R.(*kubeutils.MultiReader).RemoveReader(stringId)
-	s.clients_stdout.W.(*srv.MultiWriter).DeleteWriter(stringId)
-	s.clients_stderr.W.(*srv.MultiWriter).DeleteWriter(stringId)
+	s.clients_stdin.R.R.(*kubeutils.MultiReader).RemoveReader(stringId)
+	s.clients_stdout.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
+	s.clients_stderr.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
 
 	err := s.trackerRemoveParticipant(party.Id.String())
 	if err != nil {
@@ -720,7 +764,9 @@ func (s *session) leave(id uuid.UUID) error {
 				}
 			}()
 		} else {
-			// TODO(joel): handle this case
+			s.state = types.SessionState_SessionStatePending
+			s.stateUpdate.Submit(types.SessionState_SessionStatePending)
+			go s.waitOnAccess()
 		}
 	}
 
@@ -761,6 +807,9 @@ func (s *session) Close() error {
 	defer s.mu.Unlock()
 
 	s.closeOnce.Do(func() {
+		s.stateUpdate.Submit(types.SessionState_SessionStateTerminated)
+		s.stateUpdate.Close()
+
 		s.log.Infof("Closing session %v.", s.id.String)
 		err := s.trackerRemove()
 		if err != nil {
