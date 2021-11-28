@@ -292,15 +292,17 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	return s, nil
 }
 
-func broadcastText(w func(p []byte) (int, error), text string) {
+func broadcastText(w func(p []byte) (int, error), text string) error {
 	data := []byte(text)
 	for len(data) > 0 {
 		n, err := w(data)
 		if err != nil {
-			return
+			return trace.Wrap(err)
 		}
 		data = data[n:]
 	}
+
+	return nil
 }
 
 func (s *session) waitOnAccess() {
@@ -644,6 +646,11 @@ func (s *session) launch() error {
 		Stderr:            s.clients_stderr,
 		Tty:               request.tty,
 		TerminalSizeQueue: s.terminalSizeQueue,
+	}
+
+	err = broadcastText(s.clients_stdout.WriteUnconditional, fmt.Sprintf("Creating session with ID: %v", s.id.String()))
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	s.mu.Unlock()
