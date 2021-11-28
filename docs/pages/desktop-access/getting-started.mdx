@@ -3,12 +3,10 @@ title: Getting Started With Desktop Access
 description: Connect Teleport to Active Directory and log into a Windows Desktop
 ---
 
-<Admonition
-  type="warning"
-  title="Warning"
->
-  Desktop Access is currently in Preview. Do not use this feature for any critical
-  infrastructure and keep a backup option for accessing your desktop hosts.
+<Admonition type="warning" title="Warning">
+  Desktop Access is currently in Preview. Do not use this feature for any
+  critical infrastructure and keep a backup option for accessing your desktop
+  hosts.
 </Admonition>
 
 # Getting Started
@@ -27,111 +25,123 @@ This guide requires you to have:
 - A Linux server to run the Teleport Desktop Access service on
   - You can reuse an existing server running any other Teleport instance
 
-## Step 1/6: Create a User, Group, and Group Policy Object
+## Step 1/6. Create a restrictive service account `User`.
 
 Teleport requires a service account to connect to your Active Directory domain. We recommend creating a dedicated service account with restrictive permissions
-(described below) for maximal security.
+for maximal security.
 
-### Create a User and Group
+To create the service account, open a PowerShell prompt and copy-paste in the commands below. Be sure to note down the password you choose (you will be prompted to
+enter it in the PowerShell), as you will need to provide it to the Teleport configuration yaml later.
 
-#### Create a User
+```powershell
+$Name="Teleport Service Account"
+$SamAccountName="svc-teleport"
+New-ADUser `
+  -Name $Name `
+  -SamAccountName $SamAccountName `
+  -AccountPassword (Read-Host "Set Password (and note it down)" -AsSecureString) `
+  -Enabled $true
+```
 
-1. From the start menu of your Domain Controller, search for `Active Directory Users and Computers` and open the corresponding program.
-2. Find your domain in the side menu, and right click the container you want the service account to live in (typically `Users`).
-3. From the context menu, select `New > User`.
-4. Fill out the fields for your Teleport LDAP Service Account. For the `User logon name` field, you can use `svc-teleport`.
-5. On the password screen, **unselect**  “User must change password at next login” and **select** “Password never expires”. Make a note of what values you put
-for user logon name and password, which will be used in your `teleport.yaml` configuration file later, and then click through the rest of the wizard.
+Next, in the same PowerShell prompt, enter the following commands to limit your service account's TODO permissions to the bare minimum necessary for
+Teleport to operate.
 
-<Admonition
-  type="note"
-  title="Default User Permissions"
->
-  By default, domain users have Read and List permissions throughout Active Directory. If you have configured
-  any restrictions to Domain Users, you may have to adjust which groups this account is a member of.
-</Admonition>
+```powershell
+# Save your domain's distinguished name to a variable.
+$DomainDN=$((Get-ADDomain).DistinguishedName)
 
-<Figure align="left" bordered caption="Create Service Account">
-  ![Create Service Account](../../img/desktop-access/ad-new-user.png)
-</Figure>
+# Create the CDP/Teleport container.
+# If the command fails with "New-ADObject : An attempt was made to add an object to the directory with a name that is already in use",
+# it means the object already exists and you can move on to the next step.
+New-ADObject -Name "Teleport" -Type "container" -Path "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN"
 
-#### Create a Group and Add User
+# Gives Teleport the ability to create LDAP containers in the CDP container.
+dsacls "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CC;container;"
+# Gives Teleport the ability to create and delete cRLDistributionPoint objects in the CDP/Teleport container.
+dsacls "CN=TELEPORT,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;cRLDistributionPoint;"
+# Gives Teleport the ability to write the certificateRevocationList property in the CDP/Teleport container.
+dsacls "CN=TELEPORT,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN " /I:T /G "$($SamAccountName):WP;certificateRevocationList;"
+# Gives Teleport the ability to create and delete certificationAuthority objects in the NTAuthCertificates container.
+dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;certificationAuthority;"
+# Gives Teleport the ability to write the cACertificate property in the NTAuthCertificates container.
+dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):WP;cACertificate;"
 
-1. Right click the same container you did before, and select `New > Group`.
-2. Enter a Group name such as `svc-teleport-group`, **noting down what you choose** as it will be used later for the PowerShell variable `$TeleportLDAPGroupName`.
-3. Ensure that `Global` is selected for Group scope, and `Security` for Group type, then hit `OK`.
-4. Finally, add the User to the Group you just made by right clicking the User and selecting `Add to group`. Type the name of the Group, and confirm correctness
-by clicking the `Check Names` button, then click `OK`. You should see a dialog saying “The Add to Group operation was successfully completed.”
+```
 
-### Create and Apply Group Policy Object
+## Step 2/6. Prevent the service account from performing interactive logins.
 
-1. To create the Group Policy Object (GPO), first open the "Start" menu and run "Group Policy Management".
+The Teleport service account is only needed to authenticate over LDAP, meaning that it needn't be able to login to windows machines like an ordinary user.
+Restrict it from doing so by creating a new Group Policy Object (GPO) linked to your entire domain, and then deny it interactive login.
+
+### Create a GPO
+
+1. Open the `Start` menu and run `Group Policy Management`.
 2. On the left pane, navigate to `$FOREST > Domains > $DOMAIN`, selecting your forest and domain names respectively.
-3. Right click `$DOMAIN` and select `Create a GPO in this domain, and Link it here...` from the context menu.
-4. Give your GPO a name like `svc-teleport-gpo` and ensure `(none)` is selected for Source Starter GPO, then hit `OK`.
+3. Right click on `$DOMAIN` and select `Create a GPO in this domain, and Link it here...` from the context menu.
+4. Give your GPO a name like `Block Interactive Login` and ensure `(none)` is selected for `Source Starter GPO`, then hit `OK`.
 
 <Figure align="left" bordered caption="Create and Link GPO">
   ![Create and Link GPO](../../img/desktop-access/create-and-link-gpo.png)
 </Figure>
 
-5. Now, in the left pane navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects` and click on the GPO you just created (`svc-teleport-gpo`).
-6. In the `Scope` tab, under `Security Filtering`, select `Authenticated Users` and then click the `Remove` button and hit `OK`.
+### Deny interactive login
 
-<Figure align="left" bordered caption="Remove Authenticated">
-  ![Remove Authenticated](../../img/desktop-access/remove-authenticated.png)
+1. From the `Group Policy Management` window, right-click on the GPO you just created (`Block Interactive Login`) and select `Edit...` from the context menu.
+2. Select:
+
+```text
+Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment
+```
+
+3. Double click `Deny log on locally` and in the popup, check `Define these policy settings`.
+4. Then click `Add User or Group...`, `Browse ...`, enter the SAM account name of the user you created above (`svc-teleport`) and hit `Check Names` select your Group, and then hit `OK` on all the windows.
+5. Repeat steps 3 and 4 for `Deny log on through Remote Desktop Services` (in lieu of `Deny log on locally`).
+
+<Figure align="left" bordered caption="Deny Interactive Login">
+  ![Deny Interactive Login](../../img/desktop-access/deny-interactive-login.png)
 </Figure>
 
-The `Remove` step prevents the GPO from being applied to all authenticated users in this domain, since we only want it to apply to members
-of the security Group created above (`svc-teleport-group`), of which only the User created above is a member (`svc-teleport`).
+## Step 3/6: Configure a GPO to allow Teleport connections.
 
-To make that the case:
+Next, we need to configure a GPO to tell your computers to trust Teleport's CA, allow the certificate-based mechanism that Teleport uses under the hood
+(smart cards), and allow Teleport to make RDP connections.
 
-7. In the same `Security Filtering` pane select `Add...`.
-8. Enter the name of the Group (`svc-teleport-group`) in the resultant popup, clicking `Check Names` to confirm the spelling before pressing `OK`.
+### Export The Teleport CA
 
-After this step, only the `svc-teleport-group` should be displayed in the "Security Filtering" pane:
-
-<Figure align="left" bordered caption="Apply GPO">
-  ![Apply GPO](../../img/desktop-access/apply-gpo.png)
-</Figure>
-
-## Step 2/6. Configure Group Policy to allow Teleport connections
-
-{/* TODO: script this using PowerShell */}
-
-Next, we need to configure our GPO (`svc-teleport-gpo`) to trust Teleport for user
-authentication and allow the certificate-based mechanism that Teleport uses under the hood
-(smart cards).
-
-<Admonition
-  type="note"
-  title="Requires Existing Cluster"
->
-  The following step requires an existing cluster. If you don't already have a Teleport cluster up and running,
-  see our general [Getting Started](https://goteleport.com/docs/getting-started/) guide.
+<Admonition type="note" title="Requires Existing Cluster">
+  The following step requires an existing cluster. If you don't already have a
+  Teleport cluster up and running, see our general [Getting
+  Started](https://goteleport.com/docs/getting-started/) guide.
 </Admonition>
 
-1. Get the Teleport user CA certificate by running:
+1. From the machine running your existing Teleport cluster, get the Teleport user CA certificate by running:
 
 ```
 $ tctl auth export --type=windows > user-ca.cer
 ```
 
 2. Transfer the `user-ca.cer` file to your Domain Controller.
-3. Then, on your Domain Controller, again open the "Group Policy Management" window.
-4. On the left pane, navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`
-5. Right click on the Group Policy Object you made previously (`svc-teleport-gpo`), and select `Edit...`.
 
-### Import Teleport CA
+### Create Another GPO and Import the Teleport CA
 
-1. In the group policy editor, select:
+<Admonition type="note" title="Domain Wide Policy">
+  For the purposes of this example, we apply the GPO we are about to create to
+  our entire AD domain. In the case where you wish for only a subset of
+  computers within your AD domain to be accessible via Teleport, you should
+  apply the GPO to an OU that includes only such computers.
+</Admonition>
+
+1. Back on your Domain Controller, create a new GPO like you did in step 2 above, this time giving it a name like `Teleport Access Policy`.
+2. Again open the `Group Policy Management` program, and on the left pane, navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`.
+3. Right click on the GPO you just made (`Teleport Access Policy`), and select `Edit...`.
+4. In the group policy editor, select:
 
 ```text
 Computer Configuration > Policies > Windows Settings > Security Settings > Public Key Policies
 ```
 
-2. Right click on `Trusted Root Certification Authorities` and select `Import`.
-3. Click through the wizard, selecting your CA file.
+5. Right click on `Trusted Root Certification Authorities` and select `Import`.
+6. Click through the wizard, selecting your CA file.
 
 <Figure align="left" bordered caption="Import Teleport CA">
   ![Import Teleport CA](../../img/desktop-access/ca.png)
@@ -141,7 +151,7 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Publi
 
 Teleport performs certificate based authentication by emulating a smart card.
 
-1. To enable the smart card service, select:
+1. Still editing your `Teleport Access Policy`, select:
 
 ```text
 Computer Configuration > Policies > Windows Settings > Security Settings > System Services
@@ -166,22 +176,9 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Windo
 4. Only select the rule for `User Mode (TCP-in)`.
 5. On the next screen, select `Allow the connection` and finish.
 
-### Deny interactive login
-
-1. Select:
-
-```text
-Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment
-```
-
-2. Double click `Deny log on locally` and in the popup, check `Define these policy settings`.
-3. Then click `Add User or Group...`, `Browse ...`, enter the name of the group you created above (`svc-teleport-group`) and hit `Check Names` select your Group, and then hit `OK` on all the windows.
-4. Repeat 1 through 3 above for `Deny log on through Remote Desktop Services`.
-
-<Figure align="left" bordered caption="Deny Interactive Login">
-  ![Deny Interactive Login](../../img/desktop-access/deny-interactive-login.png)
+<Figure align="left" bordered caption="Open the Firewall">
+  ![Open the Firewall](../../img/desktop-access/firewall.png)
 </Figure>
-
 
 ### Allow remote RDP connections
 
@@ -193,11 +190,6 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
 
 2. Right click on `Allow users to connect remotely by using Remote Desktop Services` and select `Edit`. Select `Enabled` and `OK`.
 
-<Figure align="left" bordered caption="Enable Remote Desktop Services">
-  ![Enable RDP](../../img/desktop-access/rdp.png)
-</Figure>
-
-
 3. Select:
 
 ```text
@@ -206,44 +198,21 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
 
 4. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select **`Disable`** and `OK`.
 
+<Figure align="left" bordered caption="Disable Require user authentication...">
+  ![Disable Require](../../img/desktop-access/disable.png)
+</Figure>
 
-## Step 3/6. Configure Group to allow Teleport connections
-
-Now, complete the service account's configuration by giving its corresponding Group the minimum necessary permissions for Teleport to work.
-Open a PowerShell terminal and run:
-
-```powershell
-$TeleportLDAPGroupName="svc-teleport-group" # replace this with your Group name if different
-$DomainDN=$((Get-ADDomain).DistinguishedName)
-
-# Create the CDP/Teleport container.
-# If the command fails with "New-ADObject : An attempt was made to add an object to the directory with a name that is already in use",
-# it means the object already exists and you can move on to the next step.
-New-ADObject -Name "Teleport" -Type "container" -Path "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN"
-
-# Gives Teleport the ability to create LDAP containers in the CDP container.
-dsacls "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($TeleportLDAPGroupName):CC;container;"
-# Gives Teleport the ability to create and delete cRLDistributionPoint objects in the CDP/Teleport container.
-dsacls "CN=TELEPORT,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($TeleportLDAPGroupName):CCDC;cRLDistributionPoint;"
-# Gives Teleport the ability to write the certificateRevocationList property in the CDP/Teleport container.
-dsacls "CN=TELEPORT,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN " /I:T /G "$($TeleportLDAPGroupName):WP;certificateRevocationList;"
-# Gives Teleport the ability to create and delete certificationAuthority objects in the NTAuthCertificates container.
-dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($TeleportLDAPGroupName):CCDC;certificationAuthority;"
-# Gives Teleport the ability to write the cACertificate property in the NTAuthCertificates container.
-dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($TeleportLDAPGroupName):WP;cACertificate;"
-
-```
-
-## Step 4/6. Export your Domain Controller's CA Certificate
+## Step 4/6. Export your Domain Controller's CA certificate.
 
 Teleport connects to your Domain Controller via LDAPS. This means that you must let Teleport know that the certificate sent
 by your Domain Controller during the initial SSL connection is trusted. If your Domain Controller's certificate is trusted by
 the system repository on the system running Teleport, you can skip this step. Atlernately, if you trust your network, you can
 skip LDAPS certificate verification by setting the `insecure_skip_verify` configuration variable to `false`.
 
-### To Export a CA Certificate
+### To Export a CA certificate
 
 {/* Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server */}
+
 1. Begin by navigating to `Start > Control Panel > Administrative Tools > Certificate Authority` to open the CA Microsoft Management Console (MMC) GUI.
 2. Right click on your CA computer and select `Properties`.
 3. From `General` tab, click `View Certificate`.
@@ -254,22 +223,19 @@ skip LDAPS certificate verification by setting the `insecure_skip_verify` config
 Now transfer the exported file to the system where you're running Teleport. You can either add this certificate to your system's
 trusted repository or provide the filepath to the `der_ca_file` configuration variable.
 
-## Step 5/6. Configure Teleport
+## Step 5/6. Configure Teleport.
 
-<Admonition
-  type="note"
-  title="Teleport CA"
->
+<Admonition type="note" title="Teleport CA">
   Prior to v8.0, the Teleport CA was not compatible with Windows logins. If
   you're setting up Desktop Access in an existing cluster created before v8.0,
-  you must first perform a [CA rotation](../setup/operations/ca-rotation.mdx)
-  in order to resolve this.
+  you must first perform a [CA rotation](../setup/operations/ca-rotation.mdx) in
+  order to resolve this.
 </Admonition>
 
 In order to enable Desktop Access in Teleport, add the
 following section in `teleport.yaml` on your Linux server:
 
-```yaml
+````yaml
 windows_desktop_service:
   enabled: yes
   # This is the address that windows_desktop_service will listen on.
@@ -282,9 +248,9 @@ windows_desktop_service:
   ldap:
     # Address of the Domain Controller for LDAP connections. Usually, this
     # address will use port 636, like: domain-controller.example.com:636.
-    addr:     '$LDAP_SERVER_ADDRESS'
+    addr: "$LDAP_SERVER_ADDRESS"
     # Active Directory domain name you are connecting to, like: domain-controller.example.com.
-    domain:   '$LDAP_DOMAIN_NAME'
+    domain: "$LDAP_DOMAIN_NAME"
     # LDAP username for authentication. This will be the user logon name you chose for the service
     # account User in step 1 (svc-teleport). This username must include the domain NetBIOS name.
     #
@@ -297,7 +263,7 @@ windows_desktop_service:
     # ```
     # (Get-ADDomain).NetBIOSName
     # ```
-    username: '$LDAP_USERNAME'
+    username: "$LDAP_USERNAME"
     # Plain text file containing the LDAP password for authentication.
     # This is the same password you chose in step 1.
     password_file: /var/lib/ldap-pass
@@ -317,13 +283,10 @@ windows_desktop_service:
   discovery:
     # This setting will tell Teleport to discover all the hosts connected to the LDAP domain
     # controller configured above.
-    base_dn: '*'
-
-
-```
+    base_dn: "*"
+````
 
 After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
-
 
 ## Step 6/6. Log in using Teleport
 
@@ -332,6 +295,7 @@ After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
 {/* TODO: remove the "/ver/8.0/" in the link once these docs are the primary version */}
 In order to gain access to a remote desktop, a Teleport user needs to have the appropriate permissions for that desktop.
 For example, you can create a role that gives its users access to all windows desktop labels and the `"Administrator"` user:
+
 ```yaml
 kind: role
 version: v4
@@ -347,7 +311,7 @@ spec:
 See the [RBAC section](https://goteleport.com/docs/ver/8.0/desktop-access/reference/#rbac) in the Reference documentation
 for more information about setting up windows desktop permissions.
 
-See the Access Controls [Getting Started](https://goteleport.com/docs/access-controls/getting-started/#step-13-add-local-users-with-preset-roles)
+See the [Access Controls Getting Started](https://goteleport.com/docs/access-controls/getting-started/#step-13-add-local-users-with-preset-roles)
 guide for instructions on how to create or update a user with a given role.
 
 ### Connect to Your Desktop
