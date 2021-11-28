@@ -131,7 +131,8 @@ type SwitchWriter struct {
 
 func NewSwitchWriter(w *utils.TrackingWriter) *SwitchWriter {
 	return &SwitchWriter{
-		W: w,
+		W:  w,
+		on: true,
 	}
 }
 

@@ -661,7 +661,7 @@ func (s *session) launch() error {
 		TerminalSizeQueue: s.terminalSizeQueue,
 	}
 
-	err = broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("Creating session with ID: %v", s.id.String()))
+	err = broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("Creating session with ID: %v...", s.id.String()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
