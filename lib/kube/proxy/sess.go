@@ -97,11 +97,12 @@ func newKubeProxyClientStreams(proxy *remoteCommandProxy) *kubeProxyClientStream
 	options := proxy.options()
 
 	return &kubeProxyClientStreams{
-		proxy:  proxy,
-		stdin:  options.Stdin,
-		stdout: options.Stdout,
-		stderr: options.Stderr,
-		close:  make(chan struct{}),
+		proxy:     proxy,
+		stdin:     options.Stdin,
+		stdout:    options.Stdout,
+		stderr:    options.Stderr,
+		close:     make(chan struct{}),
+		sizeQueue: proxy.resizeQueue,
 	}
 }
 
@@ -146,6 +147,12 @@ type multiResizeQueue struct {
 	queues   map[string]chan *remotecommand.TerminalSize
 	cases    []reflect.SelectCase
 	callback func(*remotecommand.TerminalSize)
+}
+
+func newMultiResizeQueue() *multiResizeQueue {
+	return &multiResizeQueue{
+		queues: make(map[string]chan *remotecommand.TerminalSize),
+	}
 }
 
 func (r *multiResizeQueue) rebuild() {
@@ -257,6 +264,8 @@ type session struct {
 
 func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params, initiator *party) (*session, error) {
 	id := uuid.New()
+	log := forwarder.log.WithField("session", id.String())
+	log.Debug("Creating session")
 	roles, err := getRolesByName(forwarder, ctx.Context.Identity.GetIdentity().Groups)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -264,6 +273,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 
 	accessEvaluator := auth.NewSessionAccessEvaluator(roles, types.KubernetesSessionKind)
 
+	q := req.URL.Query()
 	s := &session{
 		ctx:               ctx,
 		forwarder:         forwarder,
@@ -272,7 +282,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		id:                id,
 		parties:           make(map[uuid.UUID]*party),
 		partiesHistorical: make(map[uuid.UUID]*party),
-		log:               forwarder.log.WithField("session", id.String()),
+		log:               log,
 		clients_stdin:     kubeutils.NewBreakReader(utils.NewTrackingReader(kubeutils.NewMultiReader())),
 		clients_stdout:    kubeutils.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter())),
 		clients_stderr:    kubeutils.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter())),
@@ -280,8 +290,10 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		stateUpdate:       broadcast.NewBroadcaster(1),
 		accessEvaluator:   accessEvaluator,
 		emitter:           events.NewDiscardEmitter(),
-		terminalSizeQueue: &multiResizeQueue{},
-		tty:               false,
+		tty:               utils.AsBool(q.Get("tty")),
+		terminalSizeQueue: newMultiResizeQueue(),
+		started:           false,
+		closeC:            make(chan struct{}),
 	}
 
 	err = s.trackerCreate(initiator)
@@ -336,6 +348,7 @@ outer:
 }
 
 func (s *session) launch() error {
+	s.log.Debugf("Launching session: %v", s.id)
 	s.mu.Lock()
 
 	q := s.req.URL.Query()
@@ -354,13 +367,13 @@ func (s *session) launch() error {
 		pingPeriod:         s.forwarder.cfg.ConnPingPeriod,
 	}
 
+	s.podName = request.podName
 	err := s.trackerUpdateState(types.SessionState_SessionStateRunning)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	s.started = true
-	s.tty = request.tty
 	sess, err := s.forwarder.newClusterSession(s.ctx)
 	sessionStart := s.forwarder.cfg.Clock.Now().UTC()
 	if err != nil {
@@ -382,7 +395,7 @@ func (s *session) launch() error {
 	s.clients_stdout.W.W.(*srv.MultiWriter).OnError = onWriterError
 	s.clients_stderr.W.W.(*srv.MultiWriter).OnError = onWriterError
 
-	if s.tty {
+	if !sess.noAuditEvents && s.tty {
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {
 			params := tsession.TerminalParams{
 				W: int(resize.Width),
@@ -691,6 +704,20 @@ func (s *session) join(p *party) error {
 		return trace.Wrap(err)
 	}
 
+	if s.tty {
+		s.log.Debug("adding stdin and resize streams")
+		s.terminalSizeQueue.add(stringId, p.Client.resizeQueue())
+		s.clients_stdin.R.R.(*kubeutils.MultiReader).AddReader(stringId, p.Client.stdinStream())
+	}
+
+	s.log.Debug("adding stdout stream")
+	stdout := kubeutils.WriterCloserWrapper{Writer: p.Client.stdoutStream()}
+	s.clients_stdout.W.W.(*srv.MultiWriter).AddWriter(stringId, stdout, false)
+
+	s.log.Debug("adding stderr stream")
+	stderr := kubeutils.WriterCloserWrapper{Writer: p.Client.stderrStream()}
+	s.clients_stderr.W.W.(*srv.MultiWriter).AddWriter(stringId, stderr, false)
+
 	if s.state != types.SessionState_SessionStatePending {
 		return nil
 	}
@@ -715,17 +742,6 @@ func (s *session) join(p *party) error {
 	} else if !s.tty {
 		return trace.AccessDenied("insufficient permissions to launch non-interactive session")
 	}
-
-	if s.tty {
-		s.terminalSizeQueue.add(stringId, p.Client.resizeQueue())
-		s.clients_stdin.R.R.(*kubeutils.MultiReader).AddReader(stringId, p.Client.stdinStream())
-	}
-
-	stdout := kubeutils.WriterCloserWrapper{Writer: p.Client.stdoutStream()}
-	s.clients_stdout.W.W.(*srv.MultiWriter).AddWriter(stringId, stdout, false)
-
-	stderr := kubeutils.WriterCloserWrapper{Writer: p.Client.stderrStream()}
-	s.clients_stderr.W.W.(*srv.MultiWriter).AddWriter(stringId, stderr, false)
 
 	return nil
 }
@@ -859,6 +875,7 @@ func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, err
 }
 
 func (s *session) trackerCreate(p *party) error {
+	s.log.Debug("Creating tracker")
 	initator := &types.Participant{
 		ID:         p.Id.String(),
 		User:       p.Ctx.User.GetName(),
@@ -883,11 +900,13 @@ func (s *session) trackerCreate(p *party) error {
 }
 
 func (s *session) trackerRemove() error {
+	s.log.Debug("Removing tracker")
 	err := s.forwarder.cfg.AuthClient.RemoveSessionTracker(s.forwarder.ctx, s.id.String())
 	return trace.Wrap(err)
 }
 
 func (s *session) trackerAddParticipant(participant *party) error {
+	s.log.Debugf("Tracking participant: %v", participant.Id.String())
 	req := &proto.UpdateSessionRequest{
 		SessionID: s.id.String(),
 		Update: &proto.UpdateSessionRequest_AddParticipant{
@@ -906,6 +925,7 @@ func (s *session) trackerAddParticipant(participant *party) error {
 }
 
 func (s *session) trackerRemoveParticipant(participantID string) error {
+	s.log.Debugf("Not tracking participant: %v", participantID)
 	req := &proto.UpdateSessionRequest{
 		SessionID: s.id.String(),
 		Update: &proto.UpdateSessionRequest_RemoveParticipant{

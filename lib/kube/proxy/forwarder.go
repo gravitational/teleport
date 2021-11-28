@@ -758,6 +758,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		httpResponseWriter: w,
 		context:            req.Context(),
 		pingPeriod:         f.cfg.ConnPingPeriod,
+		onResize:           func(remotecommand.TerminalSize) {},
 	}
 
 	proxy, err := createRemoteCommandProxy(request)

@@ -77,7 +77,11 @@ type Session interface {
 }
 
 func NewSession(spec SessionSpecV3) (Session, error) {
-	session := &SessionV3{Spec: spec}
+	meta := Metadata{
+		Name: spec.SessionID,
+	}
+
+	session := &SessionV3{Metadata: meta, Spec: spec}
 
 	if err := session.Metadata.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -144,7 +148,6 @@ func (c *SessionV3) SetSubKind(sk string) {
 func (s *SessionV3) CheckAndSetDefaults() error {
 	s.Kind = KindSessionTracker
 	s.Version = V3
-	s.Metadata.Name = MetaNameSessionTracker
 
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)

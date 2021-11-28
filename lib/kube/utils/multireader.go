@@ -42,7 +42,7 @@ func (r *MultiReader) Read(p []byte) (int, error) {
 
 	read, err := r.multi.Read(p)
 	if err != nil {
-		log.Warn("failed to read from multireader, continuing")
+		log.Warnf("failed to read from multireader: %v", err)
 	}
 
 	return read, nil
