@@ -170,3 +170,9 @@ func (w *SwitchWriter) Write(p []byte) (int, error) {
 	w.buffer = append(w.buffer, p...)
 	return len(p), nil
 }
+
+func (w *SwitchWriter) WriteUnconditional(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.W.Write(p)
+}

@@ -53,7 +53,6 @@ type remoteClient interface {
 	stderrStream() io.Writer
 	resizeQueue() chan *remotecommand.TerminalSize
 	sendStatus(error) error
-	waitOnCloseRequest()
 	io.Closer
 }
 
@@ -79,10 +78,6 @@ func (p *websocketClientStreams) resizeQueue() chan *remotecommand.TerminalSize 
 
 func (p *websocketClientStreams) sendStatus(err error) error {
 	return nil
-}
-
-func (p *websocketClientStreams) waitOnCloseRequest() {
-	p.stream.WaitOnClose()
 }
 
 func (p *websocketClientStreams) Close() error {
@@ -136,10 +131,6 @@ func (p *kubeProxyClientStreams) resizeQueue() chan *remotecommand.TerminalSize 
 	}()
 
 	return ch
-}
-
-func (p *kubeProxyClientStreams) waitOnCloseRequest() {
-	<-p.close
 }
 
 func (p *kubeProxyClientStreams) sendStatus(err error) error {
@@ -301,10 +292,22 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	return s, nil
 }
 
+func broadcastText(w func(p []byte) (int, error), text string) {
+	data := []byte(text)
+	for len(data) > 0 {
+		n, err := w(data)
+		if err != nil {
+			return
+		}
+		data = data[n:]
+	}
+}
+
 func (s *session) waitOnAccess() {
 	s.clients_stdin.Off()
 	s.clients_stdout.Off()
 	s.clients_stderr.Off()
+	broadcastText(s.clients_stdout.WriteUnconditional, "Session paused, Waiting for required participants...")
 
 	c := make(chan interface{})
 	s.stateUpdate.Register(c)
@@ -324,6 +327,7 @@ outer:
 		}
 	}
 
+	broadcastText(s.clients_stdout.WriteUnconditional, "Resuming session...")
 	s.clients_stdin.On()
 	s.clients_stdout.On()
 	s.clients_stderr.On()
