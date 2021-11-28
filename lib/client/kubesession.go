@@ -43,7 +43,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 	close := utils.NewCloseBroadcaster()
 	closeWait := &sync.WaitGroup{}
 
-	joinEndpoint := kubeAddr + "/api/teleport/v1/join/" + meta.GetID()
+	joinEndpoint := kubeAddr + "/api/v1/teleport/join/" + meta.GetID()
 
 	kubeCluster := meta.GetKubeCluster()
 	ciphers := utils.DefaultCipherSuites()

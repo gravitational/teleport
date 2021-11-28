@@ -46,17 +46,31 @@ type sessionV2 struct {
 }
 
 func NewSessionV2Service(bk backend.Backend) (SessionV2, error) {
-	data, err := utils.FastMarshal([]string{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = bk.Create(context.TODO(), backend.Item{Key: backend.Key(sessionV2Prefix, sessionV2List), Value: data})
-	if err != nil {
+	_, err := bk.Get(context.TODO(), backend.Key(sessionV2Prefix, sessionV2List))
+	if trace.IsNotFound(err) {
+		err := createList(bk)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &sessionV2{bk}, nil
+}
+
+func createList(bk backend.Backend) error {
+	data, err := utils.FastMarshal([]string{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = bk.Create(context.TODO(), backend.Item{Key: backend.Key(sessionV2Prefix, sessionV2List), Value: data})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *sessionV2) GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error) {
