@@ -24,7 +24,7 @@ import (
 
 const (
 	SSHSessionKind        SessionKind            = "ssh"
-	KubernetesSessionKind SessionKind            = "kubernetes"
+	KubernetesSessionKind SessionKind            = "k8s"
 	SessionObserverMode   SessionParticipantMode = "observer"
 	SessionModeratorMode  SessionParticipantMode = "moderator"
 	SessionPeerMode       SessionParticipantMode = "peer"
