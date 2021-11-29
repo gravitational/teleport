@@ -37,10 +37,17 @@ run-soak-tests:
 	@make -C k8s run-soak-tests SOAK_TEST_DURATION=$(SOAK_TEST_DURATION)	
 
 # run 500 node trusted cluster scaling test
+# This installs 500 trusted clusters, waits for a period of time and then
+# deletes all 500. When they are all removed from auth the process is repeated once more.
+# The test helps identify any potential memory leaks caused by remote clusters
 .PHONY: run-tc-scaling-test
 run-tc-scaling-test:
 	@make -C k8s run-tc-scaling-test
 
+# run the 10k scaling test
+# This tests installs 10,000 IoT nodes and then removes all 10,000 nodes after a fixed period of time.
+# The process repeats once more and then the same is done for non-IoT nodes. The test helps identify any
+# potential memory leaks caused by large clusters for both non-IoT and IoT nodes.
 .PHONY: run-scaling-test
 run-scaling-test:
 	@make -C k8s run-scaling-test

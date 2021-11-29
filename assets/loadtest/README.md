@@ -71,7 +71,7 @@ before attempting to deploy Teleport to the cluster.
 ### etcd Backend
 
 ```bash
-$ make delpoy-etcd-cluster
+$ make deploy-etcd-cluster
 ```
 
 ### Firestore Backend
@@ -81,7 +81,7 @@ To use the firestore backend you must have a GCP service account key with `Cloud
 
 ```bash
 $ export GCP_CREDS_LOCATION=/path/to/service/account/key
-$ make delpoy-firestore-cluster
+$ make deploy-firestore-cluster
 ```
 
 ## Running Tests

@@ -7,7 +7,6 @@
 # 	client-key.pem  : private key of the client
 .PHONY:all
 all: ca-cert.pem server-cert.pem client-cert.pem
-	@rm -rf *csr
 
 client-cert.pem:
 	# generate client key:
@@ -23,11 +22,11 @@ client-cert.pem:
 	openssl ca -batch \
 		-extensions etcd_client \
 		-config openssl.cnf \
-	    -keyfile ca-key.pem \
-	    -cert ca-cert.pem \
-	    -out client-cert.pem \
+		-keyfile ca-key.pem \
+		-cert ca-cert.pem \
+		-out client-cert.pem \
 		-infiles client.csr
-	@rm -rf *old index* serial* 01.pem 03.pem
+	@rm -rf *old index* serial* 01.pem 03.pem client.csr
 
 server-cert.pem:
 	# generate server key:
@@ -43,11 +42,11 @@ server-cert.pem:
 	openssl ca -batch \
 		-extensions etcd_server \
 		-config openssl.cnf \
-	    -keyfile ca-key.pem \
-	    -cert ca-cert.pem \
-	    -out server-cert.pem \
+		-keyfile ca-key.pem \
+		-cert ca-cert.pem \
+		-out server-cert.pem \
 		-infiles server.csr
-	@rm -rf *old index* serial*
+	@rm -rf *old index* serial* server.csr
 
 # Generates the "root" private key+cert which will become the trusted CA 
 # which can sign client certificates
@@ -65,4 +64,4 @@ ca-cert.pem:
 # removes everything
 .PHONY:clean
 clean:
-	rm -rf *pem *csr *crt index* serial *-pass influx-token
+	rm -rf *pem *csr *crt index* serial

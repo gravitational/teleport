@@ -11,7 +11,6 @@ USE_CERT_MANAGER ?= yes
 # 3) installs cert-manager
 # 4) creates and applies secrets
 .PHONY: setup
-.PHONY: setup
 setup:
 ifeq ($(BACKEND), etcd)
 	make -C ../etcd/certs all

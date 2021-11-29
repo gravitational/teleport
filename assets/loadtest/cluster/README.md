@@ -1,6 +1,6 @@
 # cluster
 
-Automation for creating the `loadtest` kuberentes cluster.
+Automation for creating the `loadtest` kubernetes cluster.
 
 ## Usage
 
