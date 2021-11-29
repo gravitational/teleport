@@ -83,7 +83,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set connection limit
-	testCtx.server.limiter = connLimiter.ConnectionsLimiter
+	testCtx.server.cfg.Limiter = connLimiter.ConnectionsLimiter
 
 	go testCtx.startHandlingConnections()
 

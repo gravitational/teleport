@@ -173,7 +173,11 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		}
 	}
 	if c.Limiter == nil {
-		c.Limiter, err = limiter.NewConnectionsLimiter(limiter.Config{})
+		// Set default limiter if one is not provided.
+		connLimiter := limiter.Config{}
+		defaults.ConfigureLimiter(&connLimiter)
+
+		c.Limiter, err = limiter.NewConnectionsLimiter(connLimiter)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -204,8 +208,6 @@ type Server struct {
 	// monitoredDatabases contains all cluster databases the proxied databases
 	// are reconciled against.
 	monitoredDatabases monitoredDatabases
-	// limiter limits the number of active connections per client IP.
-	limiter *limiter.ConnectionsLimiter
 	// reconcileCh triggers reconciliation of proxied databases.
 	reconcileCh chan struct{}
 	// mu protects access to server infos and databases.
@@ -264,7 +266,6 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		dynamicLabels:    make(map[string]*labels.Dynamic),
 		heartbeats:       make(map[string]*srv.Heartbeat),
 		proxiedDatabases: config.Databases.ToMap(),
-		limiter:          config.Limiter,
 		monitoredDatabases: monitoredDatabases{
 			static: config.Databases,
 		},
@@ -662,10 +663,10 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	clientIP := sessionCtx.Identity.ClientIP
 	s.log.Debugf("Real client IP %s", clientIP)
 
-	if err := s.limiter.AcquireConnection(clientIP); err != nil {
+	if err := s.cfg.Limiter.AcquireConnection(clientIP); err != nil {
 		return trace.WrapWithMessage(err, "Exceeded connection limit.")
 	}
-	defer s.limiter.ReleaseConnection(clientIP)
+	defer s.cfg.Limiter.ReleaseConnection(clientIP)
 
 	streamWriter, err := s.newStreamWriter(sessionCtx)
 	if err != nil {
