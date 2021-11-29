@@ -17,7 +17,9 @@ limitations under the License.
 package streamproto
 
 import (
+	"io"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/teleport/lib/utils"
@@ -37,9 +39,10 @@ type SessionStream struct {
 
 func NewSessionStream(conn *websocket.Conn) *SessionStream {
 	s := &SessionStream{
-		conn:   conn,
-		in:     make(chan []byte),
-		closeC: make(chan struct{}),
+		conn:        conn,
+		in:          make(chan []byte),
+		closeC:      make(chan struct{}),
+		resizeQueue: make(chan *remotecommand.TerminalSize, 1),
 	}
 
 	go s.readTask()
@@ -48,6 +51,7 @@ func NewSessionStream(conn *websocket.Conn) *SessionStream {
 
 func (s *SessionStream) readTask() {
 	for {
+		defer s.closedC.Do(func() { close(s.closeC) })
 		ty, data, err := s.conn.ReadMessage()
 		if err != nil {
 			return
@@ -67,14 +71,19 @@ func (s *SessionStream) readTask() {
 		}
 
 		if ty == websocket.CloseMessage {
-			s.closedC.Do(func() { close(s.closeC) })
+			s.conn.Close()
+			return
 		}
 	}
 }
 
 func (s *SessionStream) Read(p []byte) (int, error) {
-	if s.currentIn == nil {
-		s.currentIn = <-s.in
+	if len(s.currentIn) == 0 {
+		select {
+		case s.currentIn = <-s.in:
+		case <-s.closeC:
+			return 0, io.EOF
+		}
 	}
 
 	n := copy(p, s.currentIn)
@@ -110,6 +119,15 @@ func (s *SessionStream) WaitOnClose() {
 }
 
 func (s *SessionStream) Close() error {
-	s.closedC.Do(func() { close(s.closeC) })
-	return trace.Wrap(s.conn.Close())
+	err := s.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	select {
+	case <-s.closeC:
+	case <-time.After(time.Second * 5):
+	}
+
+	return nil
 }

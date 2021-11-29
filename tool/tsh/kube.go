@@ -160,7 +160,12 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.AccessDenied("this cluster does not support kubernetes")
 	}
 
-	session, err := client.NewKubeSession(cf.Context, tc, meta, k, tc.KubeProxyAddr)
+	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session, err := client.NewKubeSession(cf.Context, tc, meta, k, tc.KubeProxyAddr, kubeStatus.tlsServerName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

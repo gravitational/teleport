@@ -393,12 +393,12 @@ func (s *session) launch() error {
 
 	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
 
-	onWriterError := func(idString string) {
+	onWriterError := func(idString string, err error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		s.log.Errorf("Encountered error with party %v. Disconnecting them from the session.", idString)
+		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
 		id, _ := uuid.Parse(idString)
-		err := s.leave(id)
+		err = s.leave(id)
 		if err != nil {
 			s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
 		}
@@ -716,8 +716,12 @@ func (s *session) join(p *party) error {
 	}
 
 	if s.tty {
-		s.log.Debug("adding stdin and resize streams")
+		s.log.Debug("adding resize stream")
 		s.terminalSizeQueue.add(stringId, p.Client.resizeQueue())
+	}
+
+	if s.tty && p.Ctx.User.GetName() == s.ctx.User.GetName() {
+		s.log.Debug("party is host, adding stdin stream")
 		s.clients_stdin.R.R.(*kubeutils.MultiReader).AddReader(stringId, p.Client.stdinStream())
 	}
 

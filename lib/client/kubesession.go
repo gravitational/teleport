@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"sync"
@@ -39,12 +40,10 @@ type KubeSession struct {
 	closeWait *sync.WaitGroup
 }
 
-func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key, kubeAddr string) (*KubeSession, error) {
+func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key, kubeAddr string, tlsServer string) (*KubeSession, error) {
 	close := utils.NewCloseBroadcaster()
 	closeWait := &sync.WaitGroup{}
-
-	joinEndpoint := kubeAddr + "/api/v1/teleport/join/" + meta.GetID()
-
+	joinEndpoint := "wss://" + kubeAddr + "/api/v1/teleport/join/" + meta.GetID()
 	kubeCluster := meta.GetKubeCluster()
 	ciphers := utils.DefaultCipherSuites()
 	tlsConfig, err := key.KubeClientTLSConfig(ciphers, kubeCluster)
@@ -52,12 +51,19 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 		return nil, trace.Wrap(err)
 	}
 
+	if tlsServer != "" {
+		tlsConfig.ServerName = tlsServer
+	}
+
 	dialer := &websocket.Dialer{
 		TLSClientConfig: tlsConfig,
 	}
 
-	ws, _, err := dialer.Dial(joinEndpoint, nil)
+	ws, resp, err := dialer.Dial(joinEndpoint, nil)
 	if err != nil {
+		body, _ := ioutil.ReadAll(resp.Body)
+		bodyString := string(body)
+		fmt.Printf("handshake failed with status %d\nand body: %v\n", resp.StatusCode, bodyString)
 		return nil, trace.Wrap(err)
 	}
 
@@ -80,7 +86,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 	if terminal.IsAttached() {
 		// Put the terminal into raw mode. Note that this must be done before
 		// pipeInOut() as it may replace streams.
-		terminal.InitRaw(true)
+		terminal.InitRaw(false)
 	}
 
 	exit := make(chan os.Signal, 1)
@@ -100,27 +106,7 @@ func (s *KubeSession) pipeInOut() {
 		defer s.close.Close()
 		_, err := io.Copy(s.terminal.Stdout(), s.stream)
 		if err != nil {
-			log.Errorf(err.Error())
-		}
-	}()
-
-	go func() {
-		defer s.close.Close()
-		buf := make([]byte, 128)
-		stdin := s.terminal.Stdin()
-		for {
-			n, err := stdin.Read(buf)
-			if err != nil {
-				fmt.Fprintf(s.terminal.Stderr(), "\r\n%v\r\n", trace.Wrap(err))
-				return
-			}
-
-			if n > 0 {
-				_, err := s.stream.Write(buf[:n])
-				if err != nil {
-					return
-				}
-			}
+			fmt.Printf("error while reading remote stream: %v\n", err.Error())
 		}
 	}()
 }

@@ -774,12 +774,14 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
+	f.sessions[session.id] = session
 	err = session.join(party)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	<-party.closeC
+	delete(f.sessions, session.id)
 	return nil, nil
 }
 
