@@ -170,6 +170,7 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAss
 
 	origin := parsedResp.Response.CollectedClientData.Origin
 	if err := validateOrigin(origin, f.Webauthn.RPID); err != nil {
+		log.WithError(err).Debugf("WebAuthn: origin validation failed")
 		return nil, trace.Wrap(err)
 	}
 

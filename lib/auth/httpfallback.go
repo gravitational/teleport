@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -597,6 +598,37 @@ func (c *Client) DeleteNode(ctx context.Context, namespace string, name string) 
 	return nil
 }
 
+type nodeClient interface {
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+}
+
+// GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  This is essentially
+// a wrapper around client.GetNodesWithLabels that performs fallback on NotImplemented errors.
+func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
+	nodes, err := client.GetNodesWithLabels(ctx, clt, namespace, labels)
+	if err == nil || !trace.IsNotImplemented(err) {
+		return nodes, trace.Wrap(err)
+	}
+
+	nodes, err = clt.GetNodes(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var filtered []types.Server
+
+	// we had to fallback to a method that does not perform server-side filtering,
+	// so filter here instead.
+	for _, node := range nodes {
+		if node.MatchAgainst(labels) {
+			filtered = append(filtered, node)
+		}
+	}
+
+	return filtered, nil
+}
+
 // GetNodes returns the list of servers registered in the cluster.
 func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if resp, err := c.APIClient.GetNodes(ctx, namespace); err != nil {
@@ -704,12 +736,8 @@ func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var certs proto.Certs
-	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	return &certs, nil
+	return UnmarshalLegacyCerts(out.Bytes())
 }
 
 // DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go

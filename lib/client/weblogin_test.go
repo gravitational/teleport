@@ -24,8 +24,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,10 +47,10 @@ func TestPlainHttpFallback(t *testing.T) {
 				}
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(proto.Certs{})
+				json.NewEncoder(w).Encode(auth.LegacyCerts{})
 			},
 			actionUnderTest: func(ctx context.Context, addr string, insecure bool) error {
-				_, err := HostCredentials(ctx, addr, insecure, auth.RegisterUsingTokenRequest{})
+				_, err := HostCredentials(ctx, addr, insecure, types.RegisterUsingTokenRequest{})
 				return err
 			},
 		},

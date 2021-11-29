@@ -5,14 +5,17 @@ description: Connect SAML and OIDC users to Kubernetes RBAC with Teleport
 
 # Single Sign-On and Kubernetes RBAC
 
-Teleport issues short-lived X.509 certs and updates Kubernetes clients to talk to Teleport proxy using mutual TLS.
-It then intercepts every request and adds [impersonation headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation)
+Teleport issues short-lived X.509 certs and updates Kubernetes clients to talk
+to Teleport proxy using mutual TLS. It then intercepts every request and adds
+[impersonation headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation)
 to map users to Kubernetes users and groups.
 
 ![Impersonation](../../img/k8s/auth.svg)
 
-Teleport's connectors configure single sign-on for OIDC, OAuth, or SAML providers.
-Here are examples of connectors that map SSO users to Kubernetes groups in the Teleport Open Source Edition and Teleport's roles in the Enterprise Edition:
+Teleport's connectors configure single sign-on for OIDC, OAuth, or SAML
+providers. Here are examples of connectors that map SSO users to Kubernetes
+groups in the Teleport Open Source Edition and Teleport's roles in the
+Enterprise Edition:
 
 <Tabs>
   <TabItem label="Open Source">
@@ -55,20 +58,20 @@ Here are examples of connectors that map SSO users to Kubernetes groups in the T
       acs: https://tele.example.com/v1/webapi/saml/acs
       attributes_to_roles:
       # Any user who has SAML `groups` atrribute with value `okta-admin`
-      # will be given the Teleport `admin` role.
-      - {name: "groups", value: "okta-admin", roles: ["admin"]}
+      # will be given the Teleport `kube-access` role.
+      - {name: "groups", value: "okta-admin", roles: ["kube-access"]}
       entity_descriptor: |
         <?xml !!! Make sure to shift all lines in XML descriptor
         with 4 spaces, otherwise things will not work
     ```
 
-    Members of the role `admin` have a property `kubernetes_groups` that assigns them to [Kubernetes groups](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#referring-to-subjects)
+    In this example, the `kube-access` role uses the `kubernetes_groups` property to assign Teleport users to [Kubernetes groups](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#referring-to-subjects)
 
     ```yaml
     kind: role
     version: v3
     metadata:
-      name: admin
+      name: kube-access
     spec:
       allow:
         # If kubernetes integration is enabled, this setting configures which

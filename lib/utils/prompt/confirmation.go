@@ -64,7 +64,8 @@ func PickOne(ctx context.Context, out io.Writer, in *ContextReader, question str
 			return opt, nil
 		}
 	}
-	return "", trace.BadParameter("%q is not a valid option, please specify one of [%s]", answerOrig, strings.Join(options, ", "))
+	return "", trace.BadParameter(
+		"%q is not a valid option, please specify one of [%s]", strings.TrimSpace(string(answerOrig)), strings.Join(options, ", "))
 }
 
 // Input prompts the user for freeform text input.

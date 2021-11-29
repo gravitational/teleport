@@ -1,3 +1,4 @@
+//go:build dynamodb
 // +build dynamodb
 
 /*
@@ -44,7 +45,7 @@ func TestContinuousBackups(t *testing.T) {
 
 	// Remove table after tests are done.
 	t.Cleanup(func() {
-		deleteTable(context.Background(), b.svc, b.Config.TableName)
+		require.NoError(t, deleteTable(context.Background(), b.svc, b.Config.TableName))
 	})
 
 	// Check status of continuous backups.
@@ -70,7 +71,7 @@ func TestAutoScaling(t *testing.T) {
 
 	// Remove table after tests are done.
 	t.Cleanup(func() {
-		deleteTable(context.Background(), b.svc, b.Config.TableName)
+		require.NoError(t, deleteTable(context.Background(), b.svc, b.Config.TableName))
 	})
 
 	// Check auto scaling values match.

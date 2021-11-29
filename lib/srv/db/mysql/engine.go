@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -128,20 +129,16 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		Verified:       sessionCtx.Identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
-	// In MySQL, unlike Postgres, "database" and "schema" are the same thing
-	// and there's no good way to prevent users from performing cross-database
-	// queries once they're connected, apart from granting proper privileges
-	// in MySQL itself.
-	//
-	// As such, checking db_names for MySQL is quite pointless so we only
-	// check db_users. In future, if we implement some sort of access controls
-	// on queries, we might be able to restrict db_names as well e.g. by
-	// detecting full-qualified table names like db.table, until then the
-	// proper way is to use MySQL grants system.
+	dbRoleMatchers := role.DatabaseRoleMatchers(
+		defaults.ProtocolMySQL,
+		sessionCtx.DatabaseUser,
+		sessionCtx.DatabaseName,
+	)
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
 		mfaParams,
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
+		dbRoleMatchers...,
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
@@ -202,10 +199,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
   %v
 
 Make sure that IAM auth is enabled for MySQL user %q and Teleport database
-agent's IAM policy has "rds-connect" permissions:
+agent's IAM policy has "rds-connect" permissions (note that IAM changes may
+take a few minutes to propagate):
 
 %v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetRDSPolicy())
+`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
 		}
 		return nil, trace.Wrap(err)
 	}

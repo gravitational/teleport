@@ -28,6 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
+	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 
@@ -44,6 +46,8 @@ type CloudClients interface {
 	GetAWSSession(region string) (*awssession.Session, error)
 	// GetAWSRDSClient returns AWS RDS client for the specified region.
 	GetAWSRDSClient(region string) (rdsiface.RDSAPI, error)
+	// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
+	GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error)
 	// GetAWSIAMClient returns AWS IAM client for the specified region.
 	GetAWSIAMClient(region string) (iamiface.IAMAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
@@ -92,6 +96,15 @@ func (c *cloudClients) GetAWSRDSClient(region string) (rdsiface.RDSAPI, error) {
 		return nil, trace.Wrap(err)
 	}
 	return rds.New(session), nil
+}
+
+// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
+func (c *cloudClients) GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return redshift.New(session), nil
 }
 
 // GetAWSIAMClient returns AWS IAM client for the specified region.
@@ -197,9 +210,11 @@ func (c *cloudClients) initGCPSQLAdminClient(ctx context.Context) (*sqladmin.Ser
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RDS rdsiface.RDSAPI
-	IAM iamiface.IAMAPI
-	STS stsiface.STSAPI
+	RDS          rdsiface.RDSAPI
+	RDSPerRegion map[string]rdsiface.RDSAPI
+	Redshift     redshiftiface.RedshiftAPI
+	IAM          iamiface.IAMAPI
+	STS          stsiface.STSAPI
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -209,7 +224,15 @@ func (c *TestCloudClients) GetAWSSession(region string) (*awssession.Session, er
 
 // GetAWSRDSClient returns AWS RDS client for the specified region.
 func (c *TestCloudClients) GetAWSRDSClient(region string) (rdsiface.RDSAPI, error) {
+	if len(c.RDSPerRegion) != 0 {
+		return c.RDSPerRegion[region], nil
+	}
 	return c.RDS, nil
+}
+
+// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
+func (c *TestCloudClients) GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error) {
+	return c.Redshift, nil
 }
 
 // GetAWSIAMClient returns AWS IAM client for the specified region.

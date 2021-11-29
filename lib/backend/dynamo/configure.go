@@ -73,7 +73,7 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 	}
 
 	// Define scaling targets. Defines minimum and maximum {read,write} capacity.
-	if _, err := svc.RegisterScalableTarget(&applicationautoscaling.RegisterScalableTargetInput{
+	if _, err := svc.RegisterScalableTargetWithContext(ctx, &applicationautoscaling.RegisterScalableTargetInput{
 		MinCapacity:       aws.Int64(params.ReadMinCapacity),
 		MaxCapacity:       aws.Int64(params.ReadMaxCapacity),
 		ResourceId:        aws.String(resourceID),
@@ -82,7 +82,7 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 	}); err != nil {
 		return convertError(err)
 	}
-	if _, err := svc.RegisterScalableTarget(&applicationautoscaling.RegisterScalableTargetInput{
+	if _, err := svc.RegisterScalableTargetWithContext(ctx, &applicationautoscaling.RegisterScalableTargetInput{
 		MinCapacity:       aws.Int64(params.WriteMinCapacity),
 		MaxCapacity:       aws.Int64(params.WriteMaxCapacity),
 		ResourceId:        aws.String(resourceID),
@@ -94,7 +94,7 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 
 	// Define scaling policy. Defines the ratio of {read,write} consumed capacity to
 	// provisioned capacity DynamoDB will try and maintain.
-	if _, err := svc.PutScalingPolicy(&applicationautoscaling.PutScalingPolicyInput{
+	if _, err := svc.PutScalingPolicyWithContext(ctx, &applicationautoscaling.PutScalingPolicyInput{
 		PolicyName:        aws.String(getReadScalingPolicyName(resourceID)),
 		PolicyType:        aws.String(applicationautoscaling.PolicyTypeTargetTrackingScaling),
 		ResourceId:        aws.String(resourceID),
@@ -109,7 +109,7 @@ func SetAutoScaling(ctx context.Context, svc *applicationautoscaling.Application
 	}); err != nil {
 		return convertError(err)
 	}
-	if _, err := svc.PutScalingPolicy(&applicationautoscaling.PutScalingPolicyInput{
+	if _, err := svc.PutScalingPolicyWithContext(ctx, &applicationautoscaling.PutScalingPolicyInput{
 		PolicyName:        aws.String(getWriteScalingPolicyName(resourceID)),
 		PolicyType:        aws.String(applicationautoscaling.PolicyTypeTargetTrackingScaling),
 		ResourceId:        aws.String(resourceID),

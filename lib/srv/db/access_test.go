@@ -824,8 +824,8 @@ type agentParams struct {
 	Databases types.Databases
 	// HostID is an optional host id.
 	HostID string
-	// Selectors are optional database resource selectors.
-	Selectors []services.Selector
+	// ResourceMatchers are optional database resource matchers.
+	ResourceMatchers []services.ResourceMatcher
 	// GetServerInfoFn overrides heartbeat's server info function.
 	GetServerInfoFn func(database types.Database) func() (types.Resource, error)
 	// OnReconcile sets database resource reconciliation callback.
@@ -870,19 +870,19 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
-		Clock:           clockwork.NewFakeClockAt(time.Now()),
-		DataDir:         t.TempDir(),
-		AuthClient:      c.authClient,
-		AccessPoint:     c.authClient,
-		StreamEmitter:   c.authClient,
-		Authorizer:      dbAuthorizer,
-		Hostname:        constants.APIDomain,
-		HostID:          p.HostID,
-		TLSConfig:       tlsConfig,
-		Auth:            testAuth,
-		Databases:       p.Databases,
-		Selectors:       p.Selectors,
-		GetServerInfoFn: p.GetServerInfoFn,
+		Clock:            clockwork.NewFakeClockAt(time.Now()),
+		DataDir:          t.TempDir(),
+		AuthClient:       c.authClient,
+		AccessPoint:      c.authClient,
+		StreamEmitter:    c.authClient,
+		Authorizer:       dbAuthorizer,
+		Hostname:         constants.APIDomain,
+		HostID:           p.HostID,
+		TLSConfig:        tlsConfig,
+		Auth:             testAuth,
+		Databases:        p.Databases,
+		ResourceMatchers: p.ResourceMatchers,
+		GetServerInfoFn:  p.GetServerInfoFn,
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
@@ -899,9 +899,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
 		CloudClients: &common.TestCloudClients{
-			STS: &cloud.STSMock{},
-			RDS: &cloud.RDSMock{},
-			IAM: &cloud.IAMMock{},
+			STS:      &cloud.STSMock{},
+			RDS:      &cloud.RDSMock{},
+			Redshift: &cloud.RedshiftMock{},
+			IAM:      &cloud.IAMMock{},
 		},
 	})
 	require.NoError(t, err)

@@ -24,7 +24,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/events"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
@@ -78,7 +77,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	cfg := process.Config
 
 	// Create a caching auth client.
-	accessPoint, err := process.newLocalCache(conn.Client, cache.ForKubernetes, []string{teleport.ComponentKube})
+	accessPoint, err := process.newLocalCacheForKubernetes(conn.Client, []string{teleport.ComponentKube})
 	if err != nil {
 		return trace.Wrap(err)
 	}

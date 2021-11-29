@@ -141,7 +141,7 @@ extraVolumes: []
 # Extra volume mounts corresponding to the volumes mounted above
 extraVolumeMounts: []
 #- name: myvolume
-#  path: /path/on/host
+#  mountPath: /path/on/host
 
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 )
 
@@ -56,20 +57,22 @@ type Database interface {
 	SetURI(string)
 	// GetCA returns the database CA certificate.
 	GetCA() string
-	// SetCA sets the database CA certificate.
-	SetCA(string)
+	// SetStatusCA sets the database CA certificate in the status field.
+	SetStatusCA(string)
 	// GetAWS returns the database AWS metadata.
 	GetAWS() AWS
-	// SetAWS sets the database AWS metadata.
-	SetAWS(AWS)
+	// SetStatusAWS sets the database AWS metadata in the status field.
+	SetStatusAWS(AWS)
 	// GetGCP returns GCP information for Cloud SQL databases.
 	GetGCP() GCPCloudSQL
 	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
 	GetType() string
-	// GetRDSPolicy returns RDS IAM policy for the database.
-	GetRDSPolicy() string
-	// GetRedshiftPolicy returns Redshift IAM policy for the database.
-	GetRedshiftPolicy() string
+	// GetIAMPolicy returns AWS IAM policy for the database.
+	GetIAMPolicy() string
+	// GetIAMAction returns AWS IAM action needed to connect to the database.
+	GetIAMAction() string
+	// GetIAMResources returns AWS IAM resources that provide access to the database.
+	GetIAMResources() []string
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
 	// IsRedshift returns true if this is a Redshift database.
@@ -217,22 +220,33 @@ func (d *DatabaseV3) SetURI(uri string) {
 
 // GetCA returns the database CA certificate.
 func (d *DatabaseV3) GetCA() string {
+	if d.Status.CACert != "" {
+		return d.Status.CACert
+	}
 	return d.Spec.CACert
 }
 
-// SetCA sets the database CA certificate.
-func (d *DatabaseV3) SetCA(bytes string) {
-	d.Spec.CACert = bytes
+// SetStatusCA sets the database CA certificate in the status field.
+func (d *DatabaseV3) SetStatusCA(ca string) {
+	d.Status.CACert = ca
+}
+
+// IsEmpty returns true if AWS metadata is empty.
+func (a AWS) IsEmpty() bool {
+	return cmp.Equal(a, AWS{})
 }
 
 // GetAWS returns the database AWS metadata.
 func (d *DatabaseV3) GetAWS() AWS {
+	if !d.Status.AWS.IsEmpty() {
+		return d.Status.AWS
+	}
 	return d.Spec.AWS
 }
 
-// SetAWS sets the database AWS metadata.
-func (d *DatabaseV3) SetAWS(aws AWS) {
-	d.Spec.AWS = aws
+// SetStatusAWS sets the database AWS metadata in the status field.
+func (d *DatabaseV3) SetStatusAWS(aws AWS) {
+	d.Status.AWS = aws
 }
 
 // GetGCP returns GCP information for Cloud SQL databases.
@@ -257,13 +271,13 @@ func (d *DatabaseV3) IsCloudSQL() bool {
 
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
-	if d.Spec.AWS.Redshift.ClusterID != "" {
+	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
 	}
-	if d.Spec.AWS.Region != "" || d.Spec.AWS.RDS.InstanceID != "" || d.Spec.AWS.RDS.ClusterID != "" {
+	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
 		return DatabaseTypeRDS
 	}
-	if d.Spec.GCP.ProjectID != "" {
+	if d.GetGCP().ProjectID != "" {
 		return DatabaseTypeCloudSQL
 	}
 	return DatabaseTypeSelfHosted
@@ -362,8 +376,49 @@ func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 	return parts[0], parts[2], nil
 }
 
-// GetRDSPolicy returns IAM policy document for this RDS database.
-func (d *DatabaseV3) GetRDSPolicy() string {
+// GetIAMPolicy returns AWS IAM policy for this database.
+func (d *DatabaseV3) GetIAMPolicy() string {
+	if d.IsRDS() {
+		return d.getRDSPolicy()
+	} else if d.IsRedshift() {
+		return d.getRedshiftPolicy()
+	}
+	return ""
+}
+
+// GetIAMAction returns AWS IAM action needed to connect to the database.
+func (d *DatabaseV3) GetIAMAction() string {
+	if d.IsRDS() {
+		return "rds-db:connect"
+	} else if d.IsRedshift() {
+		return "redshift:GetClusterCredentials"
+	}
+	return ""
+}
+
+// GetIAMResources returns AWS IAM resources that provide access to the database.
+func (d *DatabaseV3) GetIAMResources() []string {
+	aws := d.GetAWS()
+	if d.IsRDS() {
+		return []string{
+			fmt.Sprintf("arn:aws:rds-db:%v:%v:dbuser:%v/*",
+				aws.Region, aws.AccountID, aws.RDS.ResourceID),
+		}
+	} else if d.IsRedshift() {
+		return []string{
+			fmt.Sprintf("arn:aws:redshift:%v:%v:dbuser:%v/*",
+				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+			fmt.Sprintf("arn:aws:redshift:%v:%v:dbname:%v/*",
+				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+			fmt.Sprintf("arn:aws:redshift:%v:%v:dbgroup:%v/*",
+				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+		}
+	}
+	return nil
+}
+
+// getRDSPolicy returns IAM policy document for this RDS database.
+func (d *DatabaseV3) getRDSPolicy() string {
 	region := d.GetAWS().Region
 	if region == "" {
 		region = "<region>"
@@ -380,8 +435,8 @@ func (d *DatabaseV3) GetRDSPolicy() string {
 		region, accountID, resourceID)
 }
 
-// GetRedshiftPolicy returns IAM policy document for this Redshift database.
-func (d *DatabaseV3) GetRedshiftPolicy() string {
+// getRedshiftPolicy returns IAM policy document for this Redshift database.
+func (d *DatabaseV3) getRedshiftPolicy() string {
 	region := d.GetAWS().Region
 	if region == "" {
 		region = "<region>"
@@ -488,11 +543,11 @@ var (
       "Effect": "Allow",
       "Action": "redshift:GetClusterCredentials",
       "Resource": [
-        "arn:aws:redshift:%[0]v:%[1]v:dbuser:%[2]v/*",
-        "arn:aws:redshift:%[0]v:%[1]v:dbname:%[2]v/*",
-        "arn:aws:redshift:%[0]v:%[1]v:dbgroup:%[2]v/*"
+        "arn:aws:redshift:%[1]v:%[2]v:dbuser:%[3]v/*",
+        "arn:aws:redshift:%[1]v:%[2]v:dbname:%[3]v/*",
+        "arn:aws:redshift:%[1]v:%[2]v:dbgroup:%[3]v/*"
       ]
-    },
+    }
   ]
 }`
 )

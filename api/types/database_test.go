@@ -57,3 +57,22 @@ func TestDatabaseRedshiftEndpoint(t *testing.T) {
 		},
 	}, database.GetAWS())
 }
+
+// TestDatabaseStatus verifies database resource status field usage.
+func TestDatabaseStatus(t *testing.T) {
+	database, err := NewDatabaseV3(Metadata{
+		Name: "test",
+	}, DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+
+	caCert := "test"
+	database.SetStatusCA(caCert)
+	require.Equal(t, caCert, database.GetCA())
+
+	awsMeta := AWS{AccountID: "account-id"}
+	database.SetStatusAWS(awsMeta)
+	require.Equal(t, awsMeta, database.GetAWS())
+}

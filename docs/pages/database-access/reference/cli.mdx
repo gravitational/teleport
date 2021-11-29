@@ -46,12 +46,13 @@ configuring Database Access with self-hosted database instances.
 
 ```code
 $ tctl auth sign --format=db --host=db.example.com --out=db --ttl=2190h
+$ tctl auth sign --format=db --host=host1,localhost,127.0.0.1 --out=db --ttl=2190h
 ```
 
 | Flag | Description |
 | - | - |
 | `--format` | When given value `db`, produces secrets in database compatible format. Use `mongodb` when generating MongoDB secrets. |
-| `--host` | Server name to encode in the certificate. Must match the hostname Teleport will be connecting to the database at. |
+| `--host` | Comma-separated SANs to encode in the certificate. Must contain the hostname Teleport will use to connect to the database. |
 | `--out` | Name prefix for output files. |
 | `--ttl` | Certificate validity period. |
 

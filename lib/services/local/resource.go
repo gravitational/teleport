@@ -454,39 +454,6 @@ func itemToLocalAuthSecrets(items userItems) (*types.LocalAuthSecrets, error) {
 		}
 		auth.Webauthn = wal
 	}
-
-	// DELETE IN 7.0: these items are migrated to items.mfa on 6.0 first
-	// startup.
-	//
-	// Delete starts here...
-	if items.totp != nil {
-		auth.TOTPKey = string(items.totp.Value)
-	}
-	if items.u2fRegistration != nil {
-		var raw struct {
-			Raw              []byte `json:"raw"`
-			KeyHandle        []byte `json:"keyhandle"`
-			MarshalledPubKey []byte `json:"marshalled_pubkey"`
-		}
-		if err := json.Unmarshal(items.u2fRegistration.Value, &raw); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		auth.U2FRegistration = &types.U2FRegistrationData{
-			Raw:       raw.Raw,
-			KeyHandle: raw.KeyHandle,
-			PubKey:    raw.MarshalledPubKey,
-		}
-	}
-	if items.u2fCounter != nil {
-		var raw struct {
-			Counter uint32 `json:"counter"`
-		}
-		if err := json.Unmarshal(items.u2fCounter.Value, &raw); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		auth.U2FCounter = raw.Counter
-	}
-	// ... delete ends here.
 	if err := services.ValidateLocalAuthSecrets(&auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -522,7 +489,7 @@ func itemsFromLocalAuthSecrets(user string, auth types.LocalAuthSecrets) ([]back
 // has order N cost.
 
 // fullUsersPrefix is the entire string preceding the name of a user in a key
-var fullUsersPrefix string = string(backend.Key(webPrefix, usersPrefix)) + "/"
+var fullUsersPrefix = string(backend.Key(webPrefix, usersPrefix)) + "/"
 
 // splitUsernameAndSuffix is a helper for extracting usernames and suffixes from
 // backend key values.
@@ -580,11 +547,6 @@ type userItems struct {
 	pwd               *backend.Item
 	mfa               []*backend.Item
 	webauthnLocalAuth *backend.Item
-
-	// Deprecated fields, only used for migration on auth server startup.
-	totp            *backend.Item
-	u2fRegistration *backend.Item
-	u2fCounter      *backend.Item
 }
 
 // Set attempts to set a field by suffix.
@@ -596,19 +558,6 @@ func (u *userItems) Set(suffix string, item backend.Item) (ok bool) {
 		u.pwd = &item
 	case webauthnLocalAuthPrefix:
 		u.webauthnLocalAuth = &item
-
-	// DELETE IN 7.0: these items are migrated to mfaDevicePrefix on 6.0 first
-	// startup.
-	//
-	// Delete starts here...
-	case totpPrefix:
-		u.totp = &item
-	case u2fRegistrationPrefix:
-		u.u2fRegistration = &item
-	case u2fRegistrationCounterPrefix:
-		u.u2fCounter = &item
-	// ... delete ends here.
-
 	default:
 		if strings.HasPrefix(suffix, mfaDevicePrefix) {
 			u.mfa = append(u.mfa, &item)

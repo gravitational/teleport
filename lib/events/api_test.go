@@ -17,44 +17,19 @@ limitations under the License.
 package events
 
 import (
+	"testing"
 	"time"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
-	"gopkg.in/check.v1"
 )
 
-type AuditAPITestSuite struct{}
+func TestUpdateEventFields(t *testing.T) {
+	t.Parallel()
 
-var _ = check.Suite(&AuditAPITestSuite{})
-
-func (a *AuditAPITestSuite) TestFields(c *check.C) {
-	now := time.Now().Round(time.Minute)
-
-	f := EventFields{
-		"one":  1,
-		"name": "vincent",
-		"time": now,
-	}
-
-	one := f.GetInt("one")
-	c.Assert(one, check.Equals, 1)
-
-	two := f.GetInt("two")
-	c.Assert(two, check.Equals, 0)
-
-	name := f.GetString("name")
-	c.Assert(name, check.Equals, "vincent")
-
-	city := f.GetString("city")
-	c.Assert(city, check.Equals, "")
-
-	t := f.GetTime("time")
-	c.Assert(t, check.Equals, now)
-}
-
-func (a *AuditAPITestSuite) TestUpdateFields(c *check.C) {
 	event := Event{
 		Name: "test.event",
 		Code: "TEST0001I",
@@ -63,15 +38,15 @@ func (a *AuditAPITestSuite) TestUpdateFields(c *check.C) {
 		EventUser:   "test@example.com",
 		LoginMethod: LoginMethodOIDC,
 	}
-	c.Assert(UpdateEventFields(event, fields, clockwork.NewFakeClock(), utils.NewFakeUID()), check.IsNil)
+	require.NoError(t, UpdateEventFields(event, fields, clockwork.NewFakeClock(), utils.NewFakeUID()))
 
 	// Check the fields have been updated appropriately.
-	c.Assert(fields, check.DeepEquals, EventFields{
+	require.Equal(t, EventFields{
 		EventType:   event.Name,
 		EventID:     fixtures.UUID,
 		EventCode:   event.Code,
 		EventTime:   time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC),
 		EventUser:   "test@example.com",
 		LoginMethod: LoginMethodOIDC,
-	})
+	}, fields)
 }

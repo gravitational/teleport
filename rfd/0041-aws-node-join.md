@@ -52,10 +52,10 @@ This will be sent along with the other existing parameters in a
 https://github.com/gravitational/teleport/blob/d4247cb150d720be97521347b74bf9c526ae869f/lib/auth/auth.go#L1538-L1563).
 
 The auth server will then:
-1. Check that the `pendingTime` of the IID, which is the time the instance was
-   launched, is within a 5 minute TTL.
+1. Check that the `PendingTime` of the IID, which is the time the instance was
+   launched, is within the configured TTL.
    - if the node fails to join the cluster during this window, the user can
-     stop and restart the EC2 instance to reset the `pendingTime` (and
+     stop and restart the EC2 instance to reset the `PendingTime` (and
      effectively create a new IID with a new signature)
 2. Check that the AWS join token matches the AWS `account` and `region` in the
    IID, and the requested Teleport service role.
@@ -188,7 +188,7 @@ metadata:
   name: example_aws_token
 spec:
   roles: [Node,Kube,Db]
-  
+
   # existing token fields above
   # new token fields below
 
@@ -214,17 +214,23 @@ spec:
     aws_regions: ["us-gov-east-1"]
   - aws_account: "333333333333"
     aws_role: "arn:aws:iam::333333333333:role/other-example-role"
+
+  # `aws_iid_ttl` is the duration after the IID PendingTime (the time at which
+  # the EC2 instance launched) that the IID will be accepted. The default is
+  # 5 minutes.
+  aws_iid_ttl: 5m
 ```
 
 teleport.yaml on the nodes should be configured so that they will use the new aws join token:
 ```yaml
 teleport:
-  # `aws_token` should be used on nodes which will join the cluster with the
-  # new aws join method, in place of `auth_token`. It is a dict rather than a 
+  # `join_params` should be used on nodes which will join the cluster with the
+  # new aws join method, in place of `auth_token`. It is a dict rather than a
   # scalar so that it can be extended in the future (e.g. to choose EC2 or IAM
   # method if we ever implement both)
-  aws_token:
-    name: "example_aws_token" # should match the name of the token on the auth server
+  join_params:
+    token_name: "example_aws_token" # should match the name of the token on the auth server
+    method: ec2
 ```
 
 ## Appendix I - Example Signed `sts:GetCallerIdentity` Request and Response

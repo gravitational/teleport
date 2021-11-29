@@ -21,6 +21,11 @@ setup_file() {
     export AUTH_BLOCK=$(awk '/auth_service:/,/^$/' ${TELEPORT_CONFIG_PATH?})
     export PROXY_BLOCK=$(awk '/proxy_service:/,/^$/' ${TELEPORT_CONFIG_PATH?})
     export NODE_BLOCK=$(awk '/ssh_service:/,/^$/' ${TELEPORT_CONFIG_PATH?})
+    export KUBE_BLOCK=$(awk '/kubernetes_service:/,/^$/' ${TELEPORT_CONFIG_PATH?})
+    export DB_BLOCK=$(awk '/db_service:/,/^$/' ${TELEPORT_CONFIG_PATH?})
+    export APP_BLOCK=$(awk '/app_service:/,/^$/' ${TELEPORT_CONFIG_PATH?})
+    export DB_DATABASES_BLOCK=$(awk '/databases:/,/^$/' ${TELEPORT_CONFIG_PATH?})
+    export APP_APPS_BLOCK=$(awk '/apps:/,/^$/' ${TELEPORT_CONFIG_PATH?})
 }
 
 teardown_file() {
