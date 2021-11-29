@@ -29,7 +29,7 @@ $safeModeAdminPassword = ConvertTo-SecureString $adminPassword -AsPlainText -For
 echo 'Installing the AD services and administration tools...'
 Install-WindowsFeature AD-Domain-Services,RSAT-AD-AdminCenter,RSAT-ADDS-Tools
 
-echo 'Installing the AD forest (be patient, this may take a while to install)...'
+echo 'Installing AD DS (be patient, this may take a while to install)...'
 Import-Module ADDSDeployment
 Install-ADDSForest `
     -InstallDns `
