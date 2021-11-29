@@ -52,6 +52,7 @@ type remoteClient interface {
 	stdoutStream() io.Writer
 	stderrStream() io.Writer
 	resizeQueue() chan *remotecommand.TerminalSize
+	forceTerminate() chan struct{}
 	sendStatus(error) error
 	io.Closer
 }
@@ -74,6 +75,10 @@ func (p *websocketClientStreams) stderrStream() io.Writer {
 
 func (p *websocketClientStreams) resizeQueue() chan *remotecommand.TerminalSize {
 	return p.stream.ResizeQueue()
+}
+
+func (p *websocketClientStreams) forceTerminate() chan struct{} {
+	return p.stream.ForceTerminate()
 }
 
 func (p *websocketClientStreams) sendStatus(err error) error {
@@ -132,6 +137,10 @@ func (p *kubeProxyClientStreams) resizeQueue() chan *remotecommand.TerminalSize 
 	}()
 
 	return ch
+}
+
+func (p *kubeProxyClientStreams) forceTerminate() chan struct{} {
+	return make(chan struct{})
 }
 
 func (p *kubeProxyClientStreams) sendStatus(err error) error {
@@ -732,6 +741,22 @@ func (s *session) join(p *party) error {
 	s.log.Debug("adding stderr stream")
 	stderr := kubeutils.WriterCloserWrapper{Writer: p.Client.stderrStream()}
 	s.clients_stderr.W.W.(*srv.MultiWriter).AddWriter(stringId, stderr, false)
+
+	go func() {
+		c := p.Client.forceTerminate()
+		select {
+		case <-c:
+			go func() {
+				s.log.Infof("Received force termination request")
+				err := s.Close()
+				if err != nil {
+					s.log.Errorf("Failed to close session: %v.", err)
+				}
+			}()
+		case <-s.closeC:
+			return
+		}
+	}()
 
 	if s.state != types.SessionState_SessionStatePending {
 		return nil

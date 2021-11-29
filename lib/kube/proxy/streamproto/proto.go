@@ -27,22 +27,29 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
+type metaMessage struct {
+	Resize         *remotecommand.TerminalSize `json:"resize,omitempty"`
+	ForceTerminate bool                        `json:"force_terminate,omitempty"`
+}
+
 type SessionStream struct {
-	conn        *websocket.Conn
-	in          chan []byte
-	currentIn   []byte
-	resizeQueue chan *remotecommand.TerminalSize
-	writeSync   sync.Mutex
-	closeC      chan struct{}
-	closedC     sync.Once
+	conn           *websocket.Conn
+	in             chan []byte
+	currentIn      []byte
+	resizeQueue    chan *remotecommand.TerminalSize
+	forceTerminate chan struct{}
+	writeSync      sync.Mutex
+	closeC         chan struct{}
+	closedC        sync.Once
 }
 
 func NewSessionStream(conn *websocket.Conn) *SessionStream {
 	s := &SessionStream{
-		conn:        conn,
-		in:          make(chan []byte),
-		closeC:      make(chan struct{}),
-		resizeQueue: make(chan *remotecommand.TerminalSize, 1),
+		conn:           conn,
+		in:             make(chan []byte),
+		closeC:         make(chan struct{}),
+		resizeQueue:    make(chan *remotecommand.TerminalSize, 1),
+		forceTerminate: make(chan struct{}),
 	}
 
 	go s.readTask()
@@ -51,6 +58,7 @@ func NewSessionStream(conn *websocket.Conn) *SessionStream {
 
 func (s *SessionStream) readTask() {
 	for {
+		terminated := false
 		defer s.closedC.Do(func() { close(s.closeC) })
 		ty, data, err := s.conn.ReadMessage()
 		if err != nil {
@@ -62,12 +70,19 @@ func (s *SessionStream) readTask() {
 		}
 
 		if ty == websocket.TextMessage {
-			var msg *remotecommand.TerminalSize
-			if err := utils.FastUnmarshal(data, msg); err != nil {
+			var msg metaMessage
+			if err := utils.FastUnmarshal(data, &msg); err != nil {
 				return
 			}
 
-			s.resizeQueue <- msg
+			if msg.Resize != nil {
+				s.resizeQueue <- msg.Resize
+			}
+
+			if msg.ForceTerminate && !terminated {
+				terminated = true
+				close(s.forceTerminate)
+			}
 		}
 
 		if ty == websocket.CloseMessage {
@@ -99,7 +114,8 @@ func (s *SessionStream) Write(data []byte) (int, error) {
 }
 
 func (s *SessionStream) Resize(size *remotecommand.TerminalSize) error {
-	json, err := utils.FastMarshal(size)
+	msg := metaMessage{Resize: size}
+	json, err := utils.FastMarshal(msg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -112,6 +128,23 @@ func (s *SessionStream) Resize(size *remotecommand.TerminalSize) error {
 
 func (s *SessionStream) ResizeQueue() chan *remotecommand.TerminalSize {
 	return s.resizeQueue
+}
+
+func (s *SessionStream) ForceTerminate() chan struct{} {
+	return s.forceTerminate
+}
+
+func (s *SessionStream) DoForceTerminate() error {
+	msg := metaMessage{ForceTerminate: true}
+	json, err := utils.FastMarshal(msg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.writeSync.Lock()
+	defer s.writeSync.Unlock()
+
+	return trace.Wrap(s.conn.WriteMessage(websocket.TextMessage, json))
 }
 
 func (s *SessionStream) WaitOnClose() {

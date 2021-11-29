@@ -86,7 +86,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 	if terminal.IsAttached() {
 		// Put the terminal into raw mode. Note that this must be done before
 		// pipeInOut() as it may replace streams.
-		terminal.InitRaw(false)
+		terminal.InitRaw(true)
 	}
 
 	exit := make(chan os.Signal, 1)
@@ -106,7 +106,7 @@ func (s *KubeSession) pipeInOut() {
 		defer s.close.Close()
 		_, err := io.Copy(s.terminal.Stdout(), s.stream)
 		if err != nil {
-			fmt.Printf("error while reading remote stream: %v\n", err.Error())
+			fmt.Printf("error while reading remote stream: %v\n\r", err.Error())
 		}
 	}()
 
@@ -115,13 +115,25 @@ func (s *KubeSession) pipeInOut() {
 
 		for {
 			buf := make([]byte, 1)
-			n, err := s.terminal.Stdin().Read(buf)
-			if n == 0 || err != io.EOF {
+			_, err := s.terminal.Stdin().Read(buf)
+			if err == io.EOF {
 				break
 			}
 
 			// Ctrl-C
 			if buf[0] == '\x03' {
+				fmt.Print("\n\rLeft session\n\r")
+				break
+			}
+
+			// Ctrl-T
+			if buf[0] == 't' {
+				fmt.Print("\n\rForcefully terminated session\n\r")
+				err := s.stream.DoForceTerminate()
+				if err != nil {
+					fmt.Printf("\n\rerror while sending force termination request: %v\n\r", err.Error())
+				}
+
 				break
 			}
 		}
