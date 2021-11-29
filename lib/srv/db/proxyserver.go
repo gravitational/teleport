@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -234,7 +235,14 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serviceConn, authContext, err := s.Connect(ctx, "", "")
+	clientIP, err := dbutils.ClientIPFromConn(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	serviceConn, authContext, err := s.Connect(ctx, common.ConnectParams{
+		ClientIP: clientIP,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -289,8 +297,8 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 // decoded from the client certificate by auth.Middleware.
 //
 // Implements common.Service.
-func (s *ProxyServer) Connect(ctx context.Context, user, database string) (net.Conn, *auth.Context, error) {
-	proxyContext, err := s.authorize(ctx, user, database)
+func (s *ProxyServer) Connect(ctx context.Context, params common.ConnectParams) (net.Conn, *auth.Context, error) {
+	proxyContext, err := s.authorize(ctx, params)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -462,17 +470,20 @@ type proxyContext struct {
 	authContext *auth.Context
 }
 
-func (s *ProxyServer) authorize(ctx context.Context, user, database string) (*proxyContext, error) {
+func (s *ProxyServer) authorize(ctx context.Context, params common.ConnectParams) (*proxyContext, error) {
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
-	if user != "" {
-		identity.RouteToDatabase.Username = user
+	if params.User != "" {
+		identity.RouteToDatabase.Username = params.User
 	}
-	if database != "" {
-		identity.RouteToDatabase.Database = database
+	if params.Database != "" {
+		identity.RouteToDatabase.Database = params.Database
+	}
+	if params.ClientIP != "" {
+		identity.ClientIP = params.ClientIP
 	}
 	cluster, servers, err := s.getDatabaseServers(ctx, identity)
 	if err != nil {

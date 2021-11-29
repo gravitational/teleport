@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 
 	"github.com/jackc/pgproto3/v2"
 
@@ -63,7 +64,14 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serviceConn, authContext, err := p.Service.Connect(ctx, "", "")
+	clientIP, err := dbutils.ClientIPFromConn(clientConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	serviceConn, authContext, err := p.Service.Connect(ctx, common.ConnectParams{
+		ClientIP: clientIP,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

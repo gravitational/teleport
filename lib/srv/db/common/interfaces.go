@@ -30,10 +30,19 @@ type Proxy interface {
 	HandleConnection(context.Context, net.Conn) error
 }
 
+type ConnectParams struct {
+	// User is a database username.
+	User string
+	// Database is a database name/schema.
+	Database string
+	// ClientIP is a client real IP. Currently, used for rate limiting.
+	ClientIP string
+}
+
 // Service defines an interface for connecting to a remote database service.
 type Service interface {
 	// Connect is used to connect to remote database server over reverse tunnel.
-	Connect(ctx context.Context, user, database string) (net.Conn, *auth.Context, error)
+	Connect(ctx context.Context, params ConnectParams) (net.Conn, *auth.Context, error)
 	// Proxy starts proxying between client and service connections.
 	Proxy(ctx context.Context, authContext *auth.Context, clientConn, serviceConn net.Conn) error
 }

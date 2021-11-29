@@ -621,19 +621,7 @@ func (s *Server) ForceHeartbeat() error {
 // upgrades it to TLS, extracts identity information from it, performs
 // authorization and dispatches to the appropriate database engine.
 func (s *Server) HandleConnection(conn net.Conn) {
-	remoteAddr := conn.RemoteAddr().String()
-	log := s.log.WithField("addr", remoteAddr)
-
-	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
-		log.WithError(err).Error("Exceeded connection limit.")
-		if err := conn.Close(); err != nil {
-			log.WithError(err).Error("Failed to close connection.")
-			return
-		}
-		return
-	}
-	defer s.limiter.ReleaseConnection(remoteAddr)
-
+	log := s.log.WithField("addr", conn.RemoteAddr())
 	log.Debug("Accepted connection.")
 	// Upgrade the connection to TLS since the other side of the reverse
 	// tunnel connection (proxy) will initiate a handshake.
@@ -670,6 +658,15 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	clientIP := sessionCtx.Identity.ClientIP
+	s.log.Debugf("Real client IP %s", clientIP)
+
+	if err := s.limiter.AcquireConnection(clientIP); err != nil {
+		return trace.WrapWithMessage(err, "Exceeded connection limit.")
+	}
+	defer s.limiter.ReleaseConnection(clientIP)
+
 	streamWriter, err := s.newStreamWriter(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
