@@ -381,6 +381,7 @@ func (s *session) launch() error {
 	s.log.Debugf("Launching session: %v", s.id)
 	s.mu.Lock()
 
+	broadcastMessage(s.clients_stdout.WriteUnconditional, "Launching session...")
 	q := s.req.URL.Query()
 	request := remoteCommandRequest{
 		podNamespace:       s.params.ByName("podNamespace"),
@@ -892,6 +893,8 @@ func (s *session) Close() error {
 	defer s.mu.Unlock()
 
 	s.closeOnce.Do(func() {
+		broadcastMessage(s.clients_stdout.WriteUnconditional, "Closing session...")
+
 		s.clients_stdin.Close()
 		s.stateUpdate.Submit(types.SessionState_SessionStateTerminated)
 		s.stateUpdate.Close()
