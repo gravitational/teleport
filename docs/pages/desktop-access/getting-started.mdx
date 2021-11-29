@@ -69,6 +69,13 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 
 ## Step 2/6. Prevent the service account from performing interactive logins
 
+<Admonition type="note" title="gpupdate.exe">
+  Throughout this step and the next one, you will be modifying GPO's, and
+  sometimes GPO modifications can take some time to take effect. You can force
+  your GPO changes to take effect immediately at any time by opening a
+  PowerShell prompt and running `gpupdate.exe /force`.
+</Admonition>
+
 The Teleport service account is only needed to authenticate over LDAP, meaning that it needn't be able to login to Windows machines like an ordinary user.
 Restrict it from doing so by creating a new Group Policy Object (GPO) linked to your entire domain, and then deny it interactive login.
 
@@ -123,10 +130,10 @@ $ tctl auth export --type=windows > user-ca.cer
 ### Create another GPO and import the Teleport CA
 
 <Admonition type="note" title="Domain Wide Policy">
-  For the purposes of this guide, we apply the GPO we are about to create to
-  our entire AD domain. In the case where you wish for only a subset of
-  computers within your AD domain to be accessible via Teleport, you should
-  apply the GPO to an OU that includes only such computers.
+  For the purposes of this guide, we apply the GPO we are about to create to our
+  entire AD domain. In the case where you wish for only a subset of computers
+  within your AD domain to be accessible via Teleport, you should apply the GPO
+  to an OU that includes only such computers.
 </Admonition>
 
 1. Create a new GPO like you did in step 2 above, this time giving it a name like `Teleport Access Policy`.
@@ -162,6 +169,13 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Syste
 </Figure>
 
 ### Open firewall to inbound RDP connections
+
+<Admonition type="warning" title="Warning">
+  During testing on a Windows Server 2012 R2 server, we found that the following
+  firewall rule would sometimes mysteriously dissapear. If connections through
+  Teleport later appear to be hanging for a few seconds and then failing, double
+  check that this rule is still in effect.
+</Admonition>
 
 1. Select:
 
@@ -199,6 +213,14 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
 <Figure align="left" bordered caption="Disable Require user authentication...">
   ![Disable Require](../../img/desktop-access/disable.png)
 </Figure>
+
+### Ensure your GPO is updated
+
+If you have not done so already, ensure your GPO is updated by opening a PowerShell prompt and running:
+
+```powershell
+gpupdate.exe /force
+```
 
 ## Step 4/6. Export your LDAP CA certificate
 
