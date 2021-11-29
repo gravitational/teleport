@@ -133,8 +133,8 @@ type Role interface {
 	// SetWindowsLogins sets Windows desktop logins for allow or deny condition.
 	SetWindowsLogins(RoleConditionType, []string)
 
-	GetSessionRequirePolicies(RoleConditionType) []*SessionRequirePolicy
-	GetSessionJoinPolicies(RoleConditionType) []*SessionJoinPolicy
+	GetSessionRequirePolicies() []*SessionRequirePolicy
+	GetSessionJoinPolicies() []*SessionJoinPolicy
 }
 
 // NewRole constructs new standard role
@@ -1061,18 +1061,10 @@ func (e WhereExpr) String() string {
 	return ""
 }
 
-func (r *RoleV4) GetSessionRequirePolicies(condition RoleConditionType) []*SessionRequirePolicy {
-	if condition == Allow {
-		return r.Spec.Allow.RequireSessionJoin
-	}
-
-	return nil
+func (r *RoleV4) GetSessionRequirePolicies() []*SessionRequirePolicy {
+	return r.Spec.Allow.RequireSessionJoin
 }
 
-func (r *RoleV4) GetSessionJoinPolicies(condition RoleConditionType) []*SessionJoinPolicy {
-	if condition == Allow {
-		return r.Spec.Allow.JoinSessions
-	}
-
-	return nil
+func (r *RoleV4) GetSessionJoinPolicies() []*SessionJoinPolicy {
+	return r.Spec.Allow.JoinSessions
 }

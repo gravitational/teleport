@@ -45,9 +45,10 @@ func getRequirePolicies(participant []types.Role) []*types.SessionRequirePolicy 
 	var policies []*types.SessionRequirePolicy
 
 	for _, role := range participant {
-		policiesFromRole := role.GetSessionRequirePolicies(types.Allow)
+		policiesFromRole := role.GetSessionRequirePolicies()
+		log.Errorf("found %v policies for role %v", len(policiesFromRole), role.GetName())
 		if len(policiesFromRole) == 0 {
-			return nil
+			continue
 		}
 
 		policies = append(policies, policiesFromRole...)
@@ -60,7 +61,7 @@ func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPoli
 	var policies []*types.SessionJoinPolicy
 
 	for _, role := range participant.Roles {
-		policies = append(policies, role.GetSessionJoinPolicies(types.Allow)...)
+		policies = append(policies, role.GetSessionJoinPolicies()...)
 	}
 
 	return policies
@@ -157,8 +158,11 @@ type PolicyOptions struct {
 
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {
 	if len(e.requires) == 0 {
+		log.Error("no require policies")
 		return true, PolicyOptions{}, nil
 	}
+
+	log.Error("found require policies")
 
 	for _, requirePolicy := range e.requires {
 		left := requirePolicy.Count
