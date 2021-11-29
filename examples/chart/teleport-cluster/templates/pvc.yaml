@@ -6,6 +6,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+    {{- include "teleport-cluster.labels" . | indent 4 }}
 spec:
   accessModes:
   - ReadWriteOnce

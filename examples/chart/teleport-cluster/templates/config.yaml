@@ -3,6 +3,9 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+    {{- include "teleport-cluster.labels" . | indent 4 }}
   {{- if .Values.annotations.config }}
   annotations:
     {{- toYaml .Values.annotations.config | nindent 4 }}

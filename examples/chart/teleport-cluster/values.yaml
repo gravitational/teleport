@@ -15,6 +15,9 @@ kubeClusterName: ""
 # Values that you may need to change.
 ##################################################
 
+# Additional labels to add into metadata of all resources
+additionalLabels: {}
+
 # Version of teleport image, if different from chart version in Chart.yaml.
 teleportVersionOverride: ""
 

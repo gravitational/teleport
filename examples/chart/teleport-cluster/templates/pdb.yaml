@@ -10,6 +10,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+    {{- include "teleport-cluster.labels" . | indent 4 }}
 spec:
   minAvailable: {{ .Values.highAvailability.podDisruptionBudget.minAvailable }}
   selector:

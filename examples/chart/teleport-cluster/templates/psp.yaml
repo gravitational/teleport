@@ -3,6 +3,9 @@ apiVersion: policy/v1beta1
 kind: PodSecurityPolicy
 metadata:
   name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+    {{- include "teleport-cluster.labels" . | indent 4 }}
   annotations:
     seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'docker/default,runtime/default'
     seccomp.security.alpha.kubernetes.io/defaultProfileName: 'runtime/default'
@@ -38,6 +41,9 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ .Release.Name }}-psp
+  labels:
+    app: {{ .Release.Name }}
+    {{- include "teleport-cluster.labels" . | indent 4 }}
 rules:
 - apiGroups:
   - policy
@@ -52,6 +58,9 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-psp
+  labels:
+    app: {{ .Release.Name }}
+    {{- include "teleport-cluster.labels" . | indent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

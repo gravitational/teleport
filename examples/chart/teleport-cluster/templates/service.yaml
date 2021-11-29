@@ -5,6 +5,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+    {{- include "teleport-cluster.labels" . | indent 4 }}
   {{- if (or (.Values.annotations.service) (eq .Values.chartMode "aws")) }}
   annotations:
     {{- if eq .Values.chartMode "aws" }}
@@ -41,3 +42,4 @@ spec:
     protocol: TCP
   selector:
     app: {{ .Release.Name }}
+    {{- include "teleport-cluster.selectorLabels" . | indent 4 }}

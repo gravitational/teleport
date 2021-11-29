@@ -11,6 +11,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+    {{- include "teleport-cluster.labels" . | indent 4 }}
   {{- if .Values.annotations.deployment }}
   annotations:
     {{- toYaml .Values.annotations.deployment | nindent 4 }}
@@ -24,6 +25,7 @@ spec:
   selector:
     matchLabels:
       app: {{ .Release.Name }}
+      {{- include "teleport-cluster.selectorLabels" . | indent 6 }}
   template:
     metadata:
       annotations:
@@ -34,6 +36,7 @@ spec:
 {{- end }}
       labels:
         app: {{ .Release.Name }}
+        {{- include "teleport-cluster.labels" . | indent 8 }}
     spec:
       {{- if or .Values.affinity (gt (int .Values.highAvailability.replicaCount) 1) }}
       affinity:
