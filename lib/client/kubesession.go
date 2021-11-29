@@ -109,6 +109,23 @@ func (s *KubeSession) pipeInOut() {
 			fmt.Printf("error while reading remote stream: %v\n", err.Error())
 		}
 	}()
+
+	go func() {
+		defer s.close.Close()
+
+		for {
+			buf := make([]byte, 1)
+			n, err := s.terminal.Stdin().Read(buf)
+			if n == 0 || err != io.EOF {
+				break
+			}
+
+			// Ctrl-C
+			if buf[0] == '\x03' {
+				break
+			}
+		}
+	}()
 }
 
 func (s *KubeSession) Wait() {
