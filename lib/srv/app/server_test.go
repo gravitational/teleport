@@ -34,24 +34,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	libsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
@@ -110,10 +107,6 @@ type suiteConfig struct {
 	Apps types.Apps
 	// ServerStreamer is the auth server audit events streamer.
 	ServerStreamer events.Streamer
-	// HTTPHandler is a test sever connection handler.
-	HTTPHandler func(w http.ResponseWriter, r *http.Request)
-	// ConnectionLimiter allows setting connection limiter for the test server.
-	ConnectionLimiter limiter.Config
 }
 
 func SetUpSuite(t *testing.T) *Suite {
@@ -172,14 +165,9 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// will be checked in the client later to ensure a connection was made.
 	s.message = uuid.New()
 
-	// Set dummy HTTP handler if not provided in the config.
-	if config.HTTPHandler == nil {
-		config.HTTPHandler = func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, s.message)
-		}
-	}
-
-	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(config.HTTPHandler))
+	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, s.message)
+	}))
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
 	s.testhttp.Start()
 
@@ -268,27 +256,22 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		apps = config.Apps
 	}
 
-	// Create connection limiter.
-	connLimiter, err := limiter.NewLimiter(config.ConnectionLimiter)
-	require.NoError(t, err)
-
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:             s.clock,
-		DataDir:           s.dataDir,
-		AccessPoint:       s.authClient,
-		AuthClient:        s.authClient,
-		TLSConfig:         tlsConfig,
-		CipherSuites:      utils.DefaultCipherSuites(),
-		HostID:            s.hostUUID,
-		Hostname:          "test",
-		Authorizer:        authorizer,
-		GetRotation:       testRotationGetter,
-		ConnectionLimiter: connLimiter,
-		Apps:              apps,
-		OnHeartbeat:       func(err error) {},
-		Cloud:             &testCloud{},
-		ResourceMatchers:  config.ResourceMatchers,
-		OnReconcile:       config.OnReconcile,
+		Clock:            s.clock,
+		DataDir:          s.dataDir,
+		AccessPoint:      s.authClient,
+		AuthClient:       s.authClient,
+		TLSConfig:        tlsConfig,
+		CipherSuites:     utils.DefaultCipherSuites(),
+		HostID:           s.hostUUID,
+		Hostname:         "test",
+		Authorizer:       authorizer,
+		GetRotation:      testRotationGetter,
+		Apps:             apps,
+		OnHeartbeat:      func(err error) {},
+		Cloud:            &testCloud{},
+		ResourceMatchers: config.ResourceMatchers,
+		OnReconcile:      config.OnReconcile,
 	})
 	require.NoError(t, err)
 
@@ -540,111 +523,6 @@ func TestRequestAuditEvents(t *testing.T) {
 	))
 }
 
-// fakeUserContext is HTTP handler wrapper that allows to inject a fake user to HTTP request.
-type fakeUserContext struct {
-	next http.Handler
-}
-
-func (f *fakeUserContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Create a fake local user
-	lu := auth.LocalUser{
-		Username: "foo",
-		Identity: tlsca.Identity{
-			Username: "foo",
-			Groups:   []string{"user:foo"},
-			Expires:  time.Now().Add(time.Hour),
-			RouteToApp: tlsca.RouteToApp{
-				PublicAddr: "foo.example.com",
-			},
-			Traits: wrappers.Traits(map[string][]string{
-				"login": {"foo"},
-			}),
-		},
-	}
-
-	// Set fake user in the request context.
-	r = r.WithContext(context.WithValue(context.Background(), auth.ContextUser, lu))
-	f.next.ServeHTTP(w, r)
-}
-
-// TestConnectionLimit verifies the
-func TestConnectionLimit(t *testing.T) {
-	// Create a synchronisation channel.
-	done := make(chan struct{})
-	// Number of connection allowed by server, set to some small value.
-	const connsNumber = 5
-
-	var wgHandler sync.WaitGroup
-	wgHandler.Add(connsNumber)
-
-	s := SetUpSuiteWithConfig(t, suiteConfig{
-		ConnectionLimiter: limiter.Config{MaxConnections: connsNumber},
-		HTTPHandler: func(w http.ResponseWriter, r *http.Request) {
-			// Signal when a new connection is established.
-			wgHandler.Done()
-
-			// Keep the connection open.
-			<-done
-		},
-	})
-
-	var wgConns sync.WaitGroup
-	wgConns.Add(connsNumber)
-
-	ts := httptest.NewServer(&fakeUserContext{s.appServer})
-
-	cl := ts.Client()
-	defer ts.Close()
-
-	for i := 0; i < connsNumber; i++ {
-		go func() {
-			defer wgConns.Done()
-
-			// Issue request.
-			resp, err := cl.Get(ts.URL)
-			if resp != nil {
-				defer resp.Body.Close()
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, resp.StatusCode, http.StatusOK)
-		}()
-	}
-
-	// Wait for all connection to be established.
-	wgHandler.Wait()
-
-	// This call should go over the limit
-	resp, err := cl.Get(ts.URL)
-	if resp != nil {
-		defer resp.Body.Close()
-	}
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
-
-	// Close the synchronization channel, so all blocked connection can return.
-	close(done)
-
-	// Clean up
-	wgConns.Wait()
-}
-
-// stubAddr is stub that implement's net.Addr interface.
-type stubAddr struct{}
-
-func (stubAddr) Network() string { return "1.2.3.4:54235" }
-func (stubAddr) String() string  { return "1.2.3.4:54235" }
-
-// mockConn is a wrapper around net.Conn used for mocking.
-type mockConn struct {
-	net.Conn
-}
-
-// RemoteAddr always return the same valid IPv4 address.
-func (*mockConn) RemoteAddr() net.Addr {
-	return stubAddr{}
-}
-
 // checkHTTPResponse checks expected HTTP response.
 func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, checkResp func(*http.Response)) {
 	pr, pw := net.Pipe()
@@ -679,8 +557,7 @@ func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, chec
 
 	// Handle the connection in another goroutine.
 	go func() {
-		// Wrap connection in mockConn to override the RemoteAddr - required to pass connection limit check.
-		s.appServer.HandleConnection(&mockConn{pw})
+		s.appServer.HandleConnection(pw)
 		wg.Done()
 	}()
 

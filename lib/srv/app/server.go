@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
@@ -66,9 +65,6 @@ type Config struct {
 
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
-
-	// ConnectionLimiter limits the number of active connections per client IP.
-	ConnectionLimiter *limiter.Limiter
 
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
@@ -146,13 +142,6 @@ func (c *Config) CheckAndSetDefaults() error {
 		}
 		c.Cloud = cloud
 	}
-	if c.ConnectionLimiter == nil {
-		connectionLimiter, err := limiter.NewLimiter(limiter.Config{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.ConnectionLimiter = connectionLimiter
-	}
 
 	return nil
 }
@@ -172,10 +161,6 @@ type Server struct {
 	mu            sync.RWMutex
 	heartbeats    map[string]*srv.Heartbeat
 	dynamicLabels map[string]*labels.Dynamic
-
-	// connLimiter limits the number of active connections per client IP.
-	connLimiter *limiter.ConnectionsLimiter
-
 	// apps are all apps this server currently proxies. Proxied apps are
 	// reconciled against monitoredApps below.
 	apps map[string]types.Application
@@ -242,14 +227,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
 		awsSigner:     awsSigner,
-		connLimiter:   c.ConnectionLimiter.ConnectionsLimiter,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
 		reconcileCh: make(chan struct{}),
 	}
-
-	c.ConnectionLimiter.WrapHandle(s)
 
 	s.closeContext, s.closeFunc = context.WithCancel(ctx)
 
@@ -558,8 +540,8 @@ func (s *Server) ForceHeartbeat() error {
 	return nil
 }
 
-// HandleConnection takes a connection and wraps it in a listener so it can
-// be passed to http.Serve to process as a HTTP request.
+// HandleConnection takes a connection and wraps it in a listener, so it can
+// be passed to http.Serve to process as an HTTP request.
 func (s *Server) HandleConnection(conn net.Conn) {
 	// Wrap the listener in a TLS authorizing listener.
 	listener := newListener(s.closeContext, conn)
@@ -572,19 +554,27 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 // ServeHTTP will forward the *http.Request to the target application.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		s.log.WithError(err).Errorf("Could not parse client IP from %q", r.RemoteAddr)
-		return
-	}
+	//if s.c.LimiterConfig.RegisterRequest()
+	//remoteAddr := r.Header.Get(forward.XForwardedFor)
+	//if remoteAddr == "" {
+	//	s.log.Errorf("%s header is not set, failed to extract the client IP", forward.XForwardedFor)
+	//	return
+	//}
+	//
+	////s.
+	//
+	////s.c.LimiterConfig.WrapHandle()
+	//
+	//s.log.Debugf("Real client IP: %s", remoteAddr)
+	s.log.Debugf("calling handlerrrrrrrrrrr")
 
 	// Check connection limits.
-	if err := s.connLimiter.AcquireConnection(remoteAddr); err != nil {
-		s.log.WithError(err).Warning("Connection limit exceeded, rejecting connection")
-		http.Error(w, "Too many requests", http.StatusTooManyRequests)
-		return
-	}
-	defer s.connLimiter.ReleaseConnection(remoteAddr)
+	//if err := s.c.LimiterConfig.AcquireConnection(remoteAddr); err != nil {
+	//	s.log.WithError(err).Warningf("Connection limit exceeded, rejecting connection, IP: %s", remoteAddr)
+	//	http.Error(w, "Too many requests", http.StatusTooManyRequests)
+	//	return
+	//}
+	//defer s.c.LimiterConfig.ReleaseConnection(remoteAddr)
 
 	if err := s.serveHTTP(w, r); err != nil {
 		s.log.Warnf("Failed to serve request: %v.", err)

@@ -3568,25 +3568,20 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		connLimiter, err := limiter.NewLimiter(process.Config.Apps.Limiter)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
 		appServer, err = app.New(process.ExitContext(), &app.Config{
-			DataDir:           process.Config.DataDir,
-			AuthClient:        conn.Client,
-			AccessPoint:       accessPoint,
-			Authorizer:        authorizer,
-			TLSConfig:         tlsConfig,
-			CipherSuites:      process.Config.CipherSuites,
-			HostID:            process.Config.HostUUID,
-			Hostname:          process.Config.Hostname,
-			GetRotation:       process.getRotation,
-			ConnectionLimiter: connLimiter,
-			Apps:              applications,
-			ResourceMatchers:  process.Config.Apps.ResourceMatchers,
-			OnHeartbeat:       process.onHeartbeat(teleport.ComponentApp),
+			DataDir:          process.Config.DataDir,
+			AuthClient:       conn.Client,
+			AccessPoint:      accessPoint,
+			Authorizer:       authorizer,
+			TLSConfig:        tlsConfig,
+			CipherSuites:     process.Config.CipherSuites,
+			HostID:           process.Config.HostUUID,
+			Hostname:         process.Config.Hostname,
+			GetRotation:      process.getRotation,
+			Apps:             applications,
+			ResourceMatchers: process.Config.Apps.ResourceMatchers,
+			OnHeartbeat:      process.onHeartbeat(teleport.ComponentApp),
 		})
 		if err != nil {
 			return trace.Wrap(err)

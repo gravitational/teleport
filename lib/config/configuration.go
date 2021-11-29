@@ -350,7 +350,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		&cfg.Auth.Limiter,
 		&cfg.Proxy.Limiter,
 		&cfg.Databases.Limiter,
-		&cfg.Apps.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
 	}
