@@ -257,6 +257,8 @@ type session struct {
 
 	started bool
 
+	initiator uuid.UUID
+
 	closeC chan struct{}
 
 	closeOnce sync.Once
@@ -294,6 +296,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		terminalSizeQueue: newMultiResizeQueue(),
 		started:           false,
 		closeC:            make(chan struct{}),
+		initiator:         initiator.Id,
 	}
 
 	err = s.trackerCreate(initiator)
@@ -773,7 +776,7 @@ func (s *session) leave(id uuid.UUID) error {
 		return trace.Wrap(err)
 	}
 
-	if len(s.parties) == 0 {
+	if len(s.parties) == 0 && id == s.initiator {
 		go func() {
 			err := s.Close()
 			if err != nil {
