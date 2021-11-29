@@ -52,6 +52,7 @@ type remoteClient interface {
 	stdoutStream() io.Writer
 	stderrStream() io.Writer
 	resizeQueue() chan *remotecommand.TerminalSize
+	resize(size *remotecommand.TerminalSize) error
 	forceTerminate() chan struct{}
 	sendStatus(error) error
 	io.Closer
@@ -75,6 +76,10 @@ func (p *websocketClientStreams) stderrStream() io.Writer {
 
 func (p *websocketClientStreams) resizeQueue() chan *remotecommand.TerminalSize {
 	return p.stream.ResizeQueue()
+}
+
+func (p *websocketClientStreams) resize(size *remotecommand.TerminalSize) error {
+	return p.stream.Resize(size)
 }
 
 func (p *websocketClientStreams) forceTerminate() chan struct{} {
@@ -137,6 +142,12 @@ func (p *kubeProxyClientStreams) resizeQueue() chan *remotecommand.TerminalSize 
 	}()
 
 	return ch
+}
+
+func (p *kubeProxyClientStreams) resize(size *remotecommand.TerminalSize) error {
+	escape := fmt.Sprintf("\x1b[8;%d;%dt", size.Height, size.Width)
+	_, err := p.stdout.Write([]byte(escape))
+	return trace.Wrap(err)
 }
 
 func (p *kubeProxyClientStreams) forceTerminate() chan struct{} {
@@ -418,6 +429,16 @@ func (s *session) launch() error {
 
 	if !sess.noAuditEvents && s.tty {
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+
+			for id, p := range s.parties {
+				err := p.Client.resize(resize)
+				if err != nil {
+					s.log.WithError(err).Errorf("Failed to resize client: %v", id.String())
+				}
+			}
+
 			params := tsession.TerminalParams{
 				W: int(resize.Width),
 				H: int(resize.Height),

@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"os"
-	"os/signal"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -31,11 +29,12 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"k8s.io/client-go/tools/remotecommand"
 )
 
 type KubeSession struct {
 	stream    *streamproto.SessionStream
-	terminal  *terminal.Terminal
+	term      *terminal.Terminal
 	close     *utils.CloseBroadcaster
 	closeWait *sync.WaitGroup
 }
@@ -71,7 +70,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 
 	stream := streamproto.NewSessionStream(ws)
 
-	terminal, err := terminal.New(tc.Stdin, tc.Stdout, tc.Stderr)
+	term, err := terminal.New(tc.Stdin, tc.Stdout, tc.Stderr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -79,24 +78,61 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 	closeWait.Add(1)
 	go func() {
 		<-close.C
-		terminal.Close()
+		term.Close()
 		closeWait.Done()
 	}()
 
-	if terminal.IsAttached() {
+	if term.IsAttached() {
 		// Put the terminal into raw mode. Note that this must be done before
 		// pipeInOut() as it may replace streams.
-		terminal.InitRaw(true)
+		term.InitRaw(true)
 	}
 
-	exit := make(chan os.Signal, 1)
-	signal.Notify(exit, os.Interrupt)
 	go func() {
-		<-exit
-		close.Close()
+		queue := stream.ResizeQueue()
+
+		for {
+			select {
+			case <-close.C:
+				return
+			case size := <-queue:
+				if size == nil {
+					return
+				}
+
+				term.Resize(int16(size.Width), int16(size.Height))
+			}
+		}
 	}()
 
-	s := &KubeSession{stream, terminal, close, closeWait}
+	closeWait.Add(1)
+	go func() {
+		defer closeWait.Done()
+		events := term.Subscribe()
+
+		for {
+			event, more := <-events
+			_, ok := event.(terminal.ResizeEvent)
+			if ok {
+				w, h, err := term.Size()
+				if err != nil {
+					return
+				}
+
+				size := remotecommand.TerminalSize{Width: uint16(w), Height: uint16(h)}
+				err = stream.Resize(&size)
+				if err != nil {
+					return
+				}
+			}
+
+			if !more {
+				break
+			}
+		}
+	}()
+
+	s := &KubeSession{stream, term, close, closeWait}
 	s.pipeInOut()
 	return s, nil
 }
@@ -104,7 +140,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 func (s *KubeSession) pipeInOut() {
 	go func() {
 		defer s.close.Close()
-		_, err := io.Copy(s.terminal.Stdout(), s.stream)
+		_, err := io.Copy(s.term.Stdout(), s.stream)
 		if err != nil {
 			fmt.Printf("error while reading remote stream: %v\n\r", err.Error())
 		}
@@ -115,7 +151,7 @@ func (s *KubeSession) pipeInOut() {
 
 		for {
 			buf := make([]byte, 1)
-			_, err := s.terminal.Stdin().Read(buf)
+			_, err := s.term.Stdin().Read(buf)
 			if err == io.EOF {
 				break
 			}
