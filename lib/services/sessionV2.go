@@ -28,8 +28,9 @@ import (
 )
 
 const (
-	sessionV2Prefix = "session_v2"
-	sessionV2List   = "list"
+	sessionV2Prefix               = "session_v2"
+	sessionV2List                 = "list"
+	gcDelay         time.Duration = time.Minute * 5
 )
 
 // SessionV2 is a realtime session service that has information about
@@ -73,6 +74,20 @@ func createList(bk backend.Backend) error {
 	return nil
 }
 
+func (s *sessionV2) loadSession(ctx context.Context, sessionID string) (types.Session, error) {
+	sessionJSON, err := s.bk.Get(ctx, backend.Key(sessionV2Prefix, sessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := unmarshalSession(sessionJSON.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
+}
+
 func (s *sessionV2) GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error) {
 	sessionList, err := s.getSessionList(ctx)
 	if err != nil {
@@ -81,12 +96,7 @@ func (s *sessionV2) GetActiveSessionTrackers(ctx context.Context) ([]types.Sessi
 
 	sessions := make([]types.Session, len(sessionList))
 	for i, sessionID := range sessionList {
-		sessionJSON, err := s.bk.Get(ctx, backend.Key(sessionV2Prefix, sessionID))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		session, err := unmarshalSession(sessionJSON.Value)
+		session, err := s.loadSession(ctx, sessionID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -230,10 +240,23 @@ func (s *sessionV2) removeSessionFromList(ctx context.Context, sessionID string)
 
 	found := false
 	for i, id := range list {
-		if id == sessionID {
+		session, err := s.loadSession(ctx, id)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		doGC := session.GetCreated().Add(gcDelay).Before(time.Now().UTC()) && session.GetState() == types.SessionState_SessionStateTerminated
+		if id == sessionID || doGC {
 			list = append(list[:i], list[i+1:]...)
 			found = true
 			break
+		}
+
+		if doGC {
+			err := s.RemoveSessionTracker(ctx, id)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 

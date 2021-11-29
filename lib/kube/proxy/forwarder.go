@@ -702,6 +702,7 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 
 // join joins an existing session over a websocket connection
 func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+	f.log.Debugf("Join %v.", req.URL.String())
 	sessionIdString := p.ByName("session")
 	sessionId, err := uuid.Parse(sessionIdString)
 	if err != nil {

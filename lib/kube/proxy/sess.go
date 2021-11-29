@@ -845,13 +845,12 @@ func (s *session) Close() error {
 		s.clients_stdin.Close()
 		s.stateUpdate.Submit(types.SessionState_SessionStateTerminated)
 		s.stateUpdate.Close()
-
-		s.log.Infof("Closing session %v.", s.id.String)
-		err := s.trackerRemove()
+		err := s.trackerUpdateState(types.SessionState_SessionStateTerminated)
 		if err != nil {
-			s.log.Error("Failed to remove session tracker resource.")
+			s.log.Error("Failed to mark session tracker as terminated.")
 		}
 
+		s.log.Infof("Closing session %v.", s.id.String)
 		close(s.closeC)
 		for id, party := range s.parties {
 			err = party.Close()
@@ -905,12 +904,6 @@ func (s *session) trackerCreate(p *party) error {
 	}
 
 	_, err := s.forwarder.cfg.AuthClient.CreateSessionTracker(s.forwarder.ctx, req)
-	return trace.Wrap(err)
-}
-
-func (s *session) trackerRemove() error {
-	s.log.Debug("Removing tracker")
-	err := s.forwarder.cfg.AuthClient.RemoveSessionTracker(s.forwarder.ctx, s.id.String())
 	return trace.Wrap(err)
 }
 

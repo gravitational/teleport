@@ -27,6 +27,7 @@ const (
 	KubernetesSessionKind SessionKind            = "kubernetes"
 	SessionObserverMode   SessionParticipantMode = "observer"
 	SessionModeratorMode  SessionParticipantMode = "moderator"
+	SessionPeerMode       SessionParticipantMode = "peer"
 )
 
 type SessionKind string
