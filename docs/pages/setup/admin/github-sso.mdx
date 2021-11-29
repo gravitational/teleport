@@ -1,7 +1,7 @@
 ---
 title: GitHub SSO
 description: Setting up Github SSO
-videoBanner: CWOkKi9NicA
+videoBanner: XjgN2WWFCX8
 ---
 
 This guide explains how to set up Github SSO with Open Source, Enterprise Teleport,
@@ -96,12 +96,8 @@ Configure Teleport Auth Service Github for authentication:
     name: cluster-auth-preference
   spec:
     type: github
-    u2f:
-      app_id: 'https://example.teleport.sh'
-      facets:
-      - 'https://example.teleport.sh:443'
-      - 'https://example.teleport.sh'
-      - 'example.teleport.sh'
+    webauthn:
+      rp_id: 'example.teleport.sh'
   version: v2
   ```
 

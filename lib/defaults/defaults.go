@@ -165,6 +165,9 @@ const (
 	// RecoveryApprovedTokenTTL is a default expiry time for a recovery approved token.
 	RecoveryApprovedTokenTTL = 15 * time.Minute
 
+	// PrivilegeTokenTTL is a default expiry time for a privilege token.
+	PrivilegeTokenTTL = 5 * time.Minute
+
 	// ResetPasswordLength is the length of the reset user password
 	ResetPasswordLength = 16
 
@@ -407,6 +410,18 @@ var (
 
 	// AsyncBufferSize is a default buffer size for async emitters
 	AsyncBufferSize = 1024
+
+	// ConnectionErrorMeasurementPeriod is the maximum age of a connection error
+	// to be considered when deciding to restart the process. The process will
+	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
+	// errors in the preceding `ConnectionErrorMeasurementPeriod`
+	ConnectionErrorMeasurementPeriod = 2 * time.Minute
+
+	// MaxConnectionErrorsBeforeRestart is the number or allowable network errors
+	// in the previous `ConnectionErrorMeasurementPeriod`. The process will
+	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
+	// errors in the preceding `ConnectionErrorMeasurementPeriod`
+	MaxConnectionErrorsBeforeRestart = 5
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
@@ -461,6 +476,8 @@ const (
 	RoleApp = "app"
 	// RoleDatabase is a database proxy role.
 	RoleDatabase = "db"
+	// RoleWindowsDesktop is a Windows desktop service.
+	RoleWindowsDesktop = "windowsdesktop"
 )
 
 const (
@@ -470,6 +487,12 @@ const (
 	ProtocolMySQL = "mysql"
 	// ProtocolMongoDB is the MongoDB database protocol.
 	ProtocolMongoDB = "mongodb"
+	// ProtocolCockroachDB is the CockroachDB database protocol.
+	//
+	// Technically it's the same as the Postgres protocol but it's used to
+	// differentiate between Cockroach and Postgres databases e.g. when
+	// selecting a CLI client to use.
+	ProtocolCockroachDB = "cockroachdb"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -477,6 +500,7 @@ var DatabaseProtocols = []string{
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
+	ProtocolCockroachDB,
 }
 
 const (
@@ -638,6 +662,9 @@ const (
 
 	// WebsocketU2FChallenge is sending a U2F challenge.
 	WebsocketU2FChallenge = "u"
+
+	// WebsocketWebauthnChallenge is sending a webauthn challenge.
+	WebsocketWebauthnChallenge = "n"
 )
 
 // The following are cryptographic primitives Teleport does not support in
@@ -748,3 +775,10 @@ func Transport() (*http.Transport, error) {
 
 	return tr, nil
 }
+
+const (
+	// TeleportConfigVersionV1 is the teleport proxy configuration v1 version.
+	TeleportConfigVersionV1 string = "v1"
+	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
+	TeleportConfigVersionV2 string = "v2"
+)

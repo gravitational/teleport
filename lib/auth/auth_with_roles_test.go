@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -321,7 +322,10 @@ func TestListNodes(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// listing nodes 0-4 should list first 5 nodes
-	nodes, _, err := clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	nodes, _, err := clt.ListNodes(ctx, proto.ListNodesRequest{
+		Namespace: defaults.Namespace,
+		Limit:     5,
+	})
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes := testNodes[:5]
@@ -332,7 +336,10 @@ func TestListNodes(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	// listing nodes 0-4 should skip the third node and add the fifth to the end.
-	nodes, _, err = clt.ListNodes(ctx, defaults.Namespace, 5, "")
+	nodes, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+		Namespace: defaults.Namespace,
+		Limit:     5,
+	})
 	require.NoError(t, err)
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
@@ -953,4 +960,224 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 			require.True(t, test.checkErr(err), trace.DebugReport(err))
 		})
 	}
+}
+
+// TestIsMFARequiredMFADB tests isMFARequest logic per database protocol where different role matchers are used.
+func TestIsMFARequiredMFADB(t *testing.T) {
+	const (
+		databaseName = "test-database"
+		userName     = "test-username"
+	)
+
+	type modifyRoleFunc func(role types.Role)
+	tests := []struct {
+		name               string
+		userRoleRequireMFA bool
+		checkMFA           require.BoolAssertionFunc
+		modifyRoleFunc     modifyRoleFunc
+		dbProtocol         string
+		req                *proto.IsMFARequiredRequest
+	}{
+		{
+			name:       "RequireSessionMFA enabled MySQL protocol doesn't match database name",
+			dbProtocol: libdefaults.ProtocolMySQL,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolMySQL,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = true
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, nil)
+			},
+			checkMFA: require.True,
+		},
+		{
+			name:       "RequireSessionMFA disabled",
+			dbProtocol: libdefaults.ProtocolMySQL,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolMySQL,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = false
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, nil)
+			},
+			checkMFA: require.False,
+		},
+		{
+			name:       "RequireSessionMFA enabled Postgres protocol database name doesn't match",
+			dbProtocol: libdefaults.ProtocolPostgres,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolPostgres,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = true
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, nil)
+			},
+			checkMFA: require.False,
+		},
+		{
+			name:       "RequireSessionMFA enabled Postgres protocol database name matches",
+			dbProtocol: libdefaults.ProtocolPostgres,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    libdefaults.ProtocolPostgres,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireSessionMFA = true
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, []string{"example"})
+			},
+			checkMFA: require.True,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+
+			// Enable MFA support.
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				U2F: &types.U2F{
+					AppID:  "teleport",
+					Facets: []string{"teleport"},
+				},
+			})
+			require.NoError(t, err)
+			err = srv.Auth().SetAuthPreference(ctx, authPref)
+			require.NoError(t, err)
+
+			database, err := types.NewDatabaseServerV3(
+				types.Metadata{
+					Name: databaseName,
+					Labels: map[string]string{
+						"env": "dev",
+					},
+				},
+				types.DatabaseServerSpecV3{
+					Protocol: tc.dbProtocol,
+					URI:      "example.com",
+					Hostname: "host",
+					HostID:   "hostID",
+				},
+			)
+			require.NoError(t, err)
+
+			_, err = srv.Auth().UpsertDatabaseServer(ctx, database)
+			require.NoError(t, err)
+
+			user, role, err := CreateUserAndRole(srv.Auth(), userName, []string{"test-role"})
+			require.NoError(t, err)
+
+			if tc.modifyRoleFunc != nil {
+				tc.modifyRoleFunc(role)
+			}
+			err = srv.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
+
+			cl, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			resp, err := cl.IsMFARequired(ctx, tc.req)
+			require.NoError(t, err)
+			tc.checkMFA(t, resp.GetRequired())
+		})
+	}
+}
+
+// TestKindClusterConfig verifies that types.KindClusterConfig can be used
+// as an alternative privilege to provide access to cluster configuration
+// resources.
+func TestKindClusterConfig(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
+		authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestUser(user.GetName()).I))
+		require.NoError(t, err, trace.DebugReport(err))
+		s := &ServerWithRoles{
+			authServer: srv.AuthServer,
+			sessions:   srv.SessionServer,
+			alog:       srv.AuditLog,
+			context:    *authContext,
+		}
+		_, err1 := s.GetClusterAuditConfig(ctx)
+		_, err2 := s.GetClusterNetworkingConfig(ctx)
+		_, err3 := s.GetSessionRecordingConfig(ctx)
+		return []error{err1, err2, err3}
+	}
+
+	t.Run("without KindClusterConfig privilege", func(t *testing.T) {
+		user, err := CreateUser(srv.AuthServer, "test-user")
+		require.NoError(t, err)
+		for _, err := range getClusterConfigResources(ctx, user) {
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
+		}
+	})
+
+	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
+		role, err := types.NewRole("test-role", types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),
+				},
+			},
+		})
+		require.NoError(t, err)
+		user, err := CreateUser(srv.AuthServer, "test-user", role)
+		require.NoError(t, err)
+		for _, err := range getClusterConfigResources(ctx, user) {
+			require.NoError(t, err)
+		}
+	})
 }

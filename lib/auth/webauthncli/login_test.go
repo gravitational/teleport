@@ -17,6 +17,7 @@ package webauthncli_test
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/binary"
@@ -48,17 +49,30 @@ func TestLogin(t *testing.T) {
 
 	devUnknown, err := newFakeDevice("unknown" /* name */, "unknown" /* appID */)
 	require.NoError(t, err)
-	devRPID, err := newFakeDevice("rpid" /* name */, rpID /* appID */)
-	require.NoError(t, err)
 	devAppID, err := newFakeDevice("appid" /* name */, appID /* appID */)
 	require.NoError(t, err)
+
+	// Create a device that authenticates using the RPID.
+	// In practice, it would be registered as a Webauthn device.
+	devRPID, err := newFakeDevice("rpid" /* name */, rpID /* appID */)
+	require.NoError(t, err)
+	pubKeyI, err := x509.ParsePKIXPublicKey(devRPID.mfaDevice.GetU2F().PubKey)
+	require.NoError(t, err)
+	pubKeyCBOR, err := wanlib.U2FKeyToCBOR(pubKeyI.(*ecdsa.PublicKey))
+	require.NoError(t, err)
+	devRPID.mfaDevice.Device = &types.MFADevice_Webauthn{
+		Webauthn: &types.WebauthnDevice{
+			CredentialId:  devRPID.key.KeyHandle,
+			PublicKeyCbor: pubKeyCBOR,
+		},
+	}
 
 	// Use a LoginFlow to create and check assertions.
 	identity := &fakeIdentity{
 		Devices: []*types.MFADevice{
 			devUnknown.mfaDevice,
-			devRPID.mfaDevice,
 			devAppID.mfaDevice,
+			devRPID.mfaDevice,
 		},
 	}
 	loginFlow := &wanlib.LoginFlow{

@@ -104,12 +104,3 @@ func (fc *fakeClient) GetCertAuthorities(caType types.CertAuthType, loadKeys boo
 func (fc *fakeClient) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
 	return types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{})
 }
-
-func (fc *fakeClient) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	return types.NewClusterConfig(types.ClusterConfigSpecV3{
-		LegacySessionRecordingConfigSpec: &types.LegacySessionRecordingConfigSpec{
-			Mode:                "off",
-			ProxyChecksHostKeys: "yes",
-		},
-	})
-}

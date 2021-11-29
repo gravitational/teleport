@@ -50,7 +50,7 @@ $ cd teleport-terraform
   ```
   </TabItem>
 </Tabs>
-  
+
 ## Step 2/4. Create a terraform user
 
 Put the following content into `terraform.yaml`:
@@ -97,9 +97,9 @@ version: v4
 metadata:
   name: terraform-impersonator
 spec:
-  # SSH options used for user sessions 
+  # SSH options used for user sessions
   options:
-    # max_session_ttl defines the TTL (time to live) of SSH certificates 
+    # max_session_ttl defines the TTL (time to live) of SSH certificates
     # issued to the users with this role.
     max_session_ttl: 10h
 
@@ -131,86 +131,7 @@ to issue certificate for terraform user again.
 Create a `main.tf` terraform file:
 
 ```
-terraform {
-  required_providers {
-    teleport = {
-      version = ">= (=teleport.version=)"
-      source  = "gravitational.com/teleport/teleport"
-    }
-  }
-}
-
-provider "teleport" {
-  # Update addr to point to Teleport Auth/Proxy
-  # addr               = "auth.example.com:3025"
-  addr               = "proxy.example.com:443"
-  identity_file_path = "terraform-identity"
-}
-
-resource "teleport_role" "terraform-test" {
-  metadata {
-    name        = "terraform-test"
-    description = "Terraform test role"
-    labels = {
-      example  = "yes"
-    }
-  }
-  
-  spec {
-    options {
-      forward_agent           = false
-      max_session_ttl         = "30m"
-      port_forwarding         = false
-      client_idle_timeout     = "1h"
-      disconnect_expired_cert = true
-      permit_x11forwarding    = false
-      request_access          = "denied"
-    }
-
-    allow {
-      logins = ["this-user-does-not-exist"]
-
-      rules {
-        resources = ["user", "role"]
-        verbs = ["list"]
-      }
-
-      request {
-        roles = ["example"]
-        claims_to_roles {
-          claim = "example"
-          value = "example"
-          roles = ["example"]
-        }
-      }
-
-      node_labels {
-         key = "example"
-         value = ["yes"]
-      }
-    }
-
-    deny {
-      logins = ["anonymous"]
-    }
-  }
-}
-
-resource "teleport_user" "terraform-test" {
-  metadata {
-    name        = "terraform-test"
-    description = "Test terraform user"
-    expires     = "2022-10-12T07:20:50.52Z"
-
-    labels = {
-      test      = "true"
-    }
-  }
-
-  spec {
-    roles = ["terraform-test"]
-  }
-}
+(!examples/resources/terraform/terraform-user-role.tf!)
 ```
 
 <Admonition type="note">
@@ -222,7 +143,7 @@ Update `teleport.example.com:443` with the address of your Teleport cluster.
 Check the contents of `teleport-terraform` folder:
 
 ```code
-$ ls 
+$ ls
 # main.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
 ```
 

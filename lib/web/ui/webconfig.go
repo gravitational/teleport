@@ -69,4 +69,8 @@ type WebConfigAuthSettings struct {
 	LocalAuthEnabled bool `json:"localAuthEnabled"`
 	// AuthType is the authentication type.
 	AuthType string `json:"authType"`
+	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
+	// when various options are available.
+	// It is empty if there is nothing to suggest.
+	PreferredLocalMFA constants.SecondFactorType `json:"preferredLocalMfa,omitempty"`
 }

@@ -5,7 +5,7 @@
       <img src="https://img.shields.io/badge/Teleport-7.0-651FFF.svg" />
       </a>
       <a href="https://golang.org/">
-      <img src="https://img.shields.io/badge/Go-1.16-7fd5ea.svg" />
+      <img src="https://img.shields.io/badge/Go-1.17-7fd5ea.svg" />
       </a>
       <a href="https://github.com/gravitational/teleport/blob/master/CODE_OF_CONDUCT.md">
       <img src="https://img.shields.io/badge/Contribute-🙌-green.svg" />

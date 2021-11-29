@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -32,6 +33,66 @@ import (
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
+
+func TestWebauthnGlobalDisable(t *testing.T) {
+	ctx := context.Background()
+
+	const user = "llama"
+	cfg := &types.Webauthn{
+		RPID:     "localhost",
+		Disabled: true,
+	}
+	identity := newFakeIdentity(user)
+	loginFlow := &wanlib.LoginFlow{
+		Webauthn: cfg,
+		Identity: identity,
+	}
+	registrationFlow := &wanlib.RegistrationFlow{
+		Webauthn: cfg,
+		Identity: identity,
+	}
+
+	tests := []struct {
+		name string
+		fn   func() error
+	}{
+		{
+			name: "LoginFlow.Begin",
+			fn: func() error {
+				_, err := loginFlow.Begin(ctx, user)
+				return err
+			},
+		},
+		{
+			name: "LoginFlow.Finish",
+			fn: func() error {
+				_, err := loginFlow.Finish(ctx, user, &wanlib.CredentialAssertionResponse{})
+				return err
+			},
+		},
+		{
+			name: "RegistrationFlow.Begin",
+			fn: func() error {
+				_, err := registrationFlow.Begin(ctx, user)
+				return err
+			},
+		},
+		{
+			name: "RegistrationFlow.Finish",
+			fn: func() error {
+				_, err := registrationFlow.Finish(ctx, user, "devName", &wanlib.CredentialCreationResponse{})
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.fn()
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "webauthn disabled")
+		})
+	}
+}
 
 func TestLoginFlow_BeginFinish(t *testing.T) {
 	// Simulate a previously registered U2F device.
@@ -98,9 +159,11 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 			// 1st step of the login ceremony.
 			assertion, err := webLogin.Begin(ctx, user)
 			require.NoError(t, err)
-			// We care about RPID and AppID, for everything else defaults are OK.
+			// We care about a few specific settings, for everything else defaults are
+			// OK.
 			require.Equal(t, webConfig.RPID, assertion.Response.RelyingPartyID)
 			require.Equal(t, u2fConfig.AppID, assertion.Response.Extensions["appid"])
+			require.Equal(t, protocol.VerificationDiscouraged, assertion.Response.UserVerification)
 			// Did we record the SessionData in storage?
 			require.Len(t, identity.SessionData, 1)
 			// Retrieve session data without guessing the "sessionID" component of the

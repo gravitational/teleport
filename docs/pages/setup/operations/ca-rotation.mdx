@@ -102,7 +102,7 @@ for state transitions.
 <Admonition type="warning" title="Rotation warning"
 >
 If some nodes are offline during rotation or have failed to update the status,
-you will loose connectivity after the transition `update_servers` -> `standby`. Make sure that all
+you will lose connectivity after the transition `update_servers` -> `standby`. Make sure that all
 nodes are up to date with the transitions.
 </Admonition>
 
@@ -120,7 +120,7 @@ $ tctl status
 ```
 
 <Admonition type="note">
-Clients will temporarily loose connectivity during proxy and auth servers restarts.
+Clients will temporarily lose connectivity during proxy and auth servers restarts.
 </Admonition>
 
 Verify that nodes have caught up and now see the current cluster state:
@@ -222,7 +222,7 @@ Make sure you use the *new* CA pin when adding nodes after rotation.
 
 <Admonition type="warning">
 Semi-automatic rotation executes the same steps as the manual rotation, but with a grace period between them.
-It currently does not track the states of the nodes and you can loose connectivity if things go wrong.
+It currently does not track the states of the nodes and you can lose connectivity if things go wrong.
 </Admonition>
 
 You can trigger semi-automatic rotation:

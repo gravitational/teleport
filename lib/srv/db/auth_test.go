@@ -63,7 +63,7 @@ func TestAuthTokens(t *testing.T) {
 			desc:     "incorrect Postgres RDS IAM auth token",
 			service:  "postgres-rds-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      common.GetRDSPolicy(testAWSRegion), // Make sure we print example RDS IAM policy.
+			err:      "rds-db:connect", // Make sure we print example RDS IAM policy.
 		},
 		{
 			desc:     "correct Postgres Redshift IAM auth token",
@@ -96,7 +96,7 @@ func TestAuthTokens(t *testing.T) {
 			desc:     "incorrect MySQL RDS IAM auth token",
 			service:  "mysql-rds-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
-			err:      common.GetRDSPolicy(testAWSRegion), // Make sure we print example RDS IAM policy.
+			err:      "rds-db:connect", // Make sure we print example RDS IAM policy.
 		},
 		{
 			desc:     "correct MySQL Cloud SQL IAM auth token",

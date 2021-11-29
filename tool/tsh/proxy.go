@@ -17,47 +17,120 @@ limitations under the License.
 package main
 
 import (
-	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"text/template"
 
 	"github.com/gravitational/trace"
 
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// onProxyCommandSSH creates a local ssh proxy.
+// In cases of TLS Routing the connection is established to the WebProxy with teleport-proxy-ssh ALPN protocol.
+// and all ssh traffic is forwarded through the local ssh proxy.
+//
+// If proxy doesn't support TLS Routing the onProxyCommandSSH is used as ProxyCommand to remove proxy/site prefixes
+// from destination node address to support multiple platform where 'cut -d' command is not provided.
+// For more details please look at: Generate Windows-compatible OpenSSH config https://github.com/gravitational/teleport/pull/7848
 func onProxyCommandSSH(cf *CLIConf) error {
-	client, err := makeClient(cf, false)
+	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	address, err := utils.ParseAddr(client.WebProxyAddr)
+	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName)
+
+	if tc.TLSRoutingEnabled {
+		return trace.Wrap(sshProxyWithTLSRouting(cf, tc, targetHost, targetPort))
+	}
+
+	return trace.Wrap(sshProxy(cf, tc, targetHost, targetPort))
+}
+
+// cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
+// Before the `cut -d` command was used for this purpose but to support multi-platform OpenSSH clients the logic
+// it was moved tsh proxy ssh command.
+// For more details please look at: Generate Windows-compatible OpenSSH config https://github.com/gravitational/teleport/pull/7848
+func cleanTargetHost(targetHost, proxyHost, siteName string) string {
+	targetHost = strings.TrimSuffix(targetHost, "."+proxyHost)
+	targetHost = strings.TrimSuffix(targetHost, "."+siteName)
+	return targetHost
+}
+
+func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHost, targetPort string) error {
+	address, err := utils.ParseAddr(tc.WebProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pool, err := tc.LocalAgent().ClientCertPool(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tlsConfig := &tls.Config{
+		RootCAs: pool,
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:    client.WebProxyAddr,
-		Protocol:           alpnproxy.ProtocolProxySSH,
+		RemoteProxyAddr:    tc.WebProxyAddr,
+		Protocol:           alpncommon.ProtocolProxySSH,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
-		SSHUser:            cf.Username,
-		SSHUserHost:        cf.UserHost,
-		SSHHostKeyCallback: client.HostKeyCallback,
+		SSHUser:            tc.HostLogin,
+		SSHUserHost:        fmt.Sprintf("%s:%s", targetHost, targetPort),
+		SSHHostKeyCallback: tc.HostKeyCallback,
 		SSHTrustedCluster:  cf.SiteName,
+		ClientTLSConfig:    tlsConfig,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer lp.Close()
-	if err := lp.SSHProxy(); err != nil {
+	if err := lp.SSHProxy(tc.LocalAgent()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func sshProxy(cf *CLIConf, tc *libclient.TeleportClient, targetHost, targetPort string) error {
+	sshPath, err := getSSHPath()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sshHost, sshPort := tc.SSHProxyHostPort()
+	args := []string{
+		"-p",
+		strconv.Itoa(sshPort),
+		sshHost,
+		"-s",
+		fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, tc.SiteName),
+	}
+
+	if cf.NodeLogin != "" {
+		args = append([]string{"-l", cf.NodeLogin}, args...)
+	}
+
+	child := exec.Command(sshPath, args...)
+	child.Stdin = os.Stdin
+	child.Stdout = os.Stdout
+	child.Stderr = os.Stderr
+	return trace.Wrap(child.Run())
 }
 
 func onProxyCommandDB(cf *CLIConf) error {
@@ -83,7 +156,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			log.WithError(err).Warnf("Failed to close listener.")
 		}
 	}()
-	lp, err := mkLocalProxy(cf.Context, client.WebProxyAddr, database.Protocol, listener)
+	lp, err := mkLocalProxy(cf, client.WebProxyAddr, database.Protocol, listener)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -92,7 +165,21 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	fmt.Printf("Started DB proxy on %s\n", listener.Addr())
+	profile, err := libclient.StatusCurrent("", cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = dbProxyTpl.Execute(os.Stdout, map[string]string{
+		"database": database.ServiceName,
+		"address":  listener.Addr().String(),
+		"ca":       profile.CACertPath(),
+		"cert":     profile.DatabaseCertPath(database.ServiceName),
+		"key":      profile.KeyPath(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	defer lp.Close()
 	if err := lp.Start(cf.Context); err != nil {
@@ -101,7 +188,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	return nil
 }
 
-func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, listener net.Listener) (*alpnproxy.LocalProxy, error) {
+func mkLocalProxy(cf *CLIConf, remoteProxyAddr string, protocol string, listener net.Listener) (*alpnproxy.LocalProxy, error) {
 	alpnProtocol, err := toALPNProtocol(protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -111,11 +198,12 @@ func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, 
 		return nil, trace.Wrap(err)
 	}
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr: remoteProxyAddr,
-		Protocol:        alpnProtocol,
-		Listener:        listener,
-		ParentContext:   ctx,
-		SNI:             address.Host(),
+		InsecureSkipVerify: cf.InsecureSkipVerify,
+		RemoteProxyAddr:    remoteProxyAddr,
+		Protocol:           alpnProtocol,
+		Listener:           listener,
+		ParentContext:      cf.Context,
+		SNI:                address.Host(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -123,15 +211,24 @@ func mkLocalProxy(ctx context.Context, remoteProxyAddr string, protocol string, 
 	return lp, nil
 }
 
-func toALPNProtocol(dbProtocol string) (alpnproxy.Protocol, error) {
+func toALPNProtocol(dbProtocol string) (alpncommon.Protocol, error) {
 	switch dbProtocol {
 	case defaults.ProtocolMySQL:
-		return alpnproxy.ProtocolMySQL, nil
-	case defaults.ProtocolPostgres:
-		return alpnproxy.ProtocolPostgres, nil
+		return alpncommon.ProtocolMySQL, nil
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
+		return alpncommon.ProtocolPostgres, nil
 	case defaults.ProtocolMongoDB:
-		return alpnproxy.ProtocolMongoDB, nil
+		return alpncommon.ProtocolMongoDB, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
 }
+
+// dbProxyTpl is the message that gets printed to a user when a database proxy is started.
+var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
+
+Use following credentials to connect to the {{.database}} proxy:
+  ca_file={{.ca}}
+  cert_file={{.cert}}
+  key_file={{.key}}
+`))

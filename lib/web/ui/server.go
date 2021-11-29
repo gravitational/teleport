@@ -18,7 +18,10 @@ package ui
 
 import (
 	"sort"
+	"strconv"
+	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -157,7 +160,7 @@ type Database struct {
 	Protocol string `json:"protocol"`
 	// Type is the database type, self-hosted or cloud-hosted.
 	Type string `json:"type"`
-	// Labels is a map of static and dynamic labels associated with an database.
+	// Labels is a map of static and dynamic labels associated with a database.
 	Labels []Label `json:"labels"`
 }
 
@@ -203,18 +206,45 @@ type Desktop struct {
 	Name string `json:"name"`
 	// Addr is the network address the desktop can be reached at.
 	Addr string `json:"addr"`
+	// Labels is a map of static and dynamic labels associated with a desktop.
+	Labels []Label `json:"labels"`
 }
 
-// MakeDesktops makes desktop objects for the ui to display
+// MakeDesktop converts a desktop from its API form to a type the UI can display.
+func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
+	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
+	stripRdpPort := func(addr string) string {
+		splitAddr := strings.Split(addr, ":")
+		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(teleport.StandardRDPPort) {
+			return splitAddr[0]
+		}
+		return addr
+	}
+	uiLabels := []Label{}
+
+	for name, value := range windowsDesktop.GetAllLabels() {
+		uiLabels = append(uiLabels, Label{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	sort.Sort(sortedLabels(uiLabels))
+
+	return Desktop{
+		OS:     constants.WindowsOS,
+		Name:   windowsDesktop.GetName(),
+		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
+		Labels: uiLabels,
+	}
+}
+
+// MakeDesktops converts desktops from their API form to a type the UI can display.
 func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
 	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
 
 	for _, windowsDesktop := range windowsDesktops {
-		uiDesktops = append(uiDesktops, Desktop{
-			OS:   constants.WindowsOS,
-			Name: windowsDesktop.GetName(),
-			Addr: windowsDesktop.GetAddr(),
-		})
+		uiDesktops = append(uiDesktops, MakeDesktop(windowsDesktop))
 	}
 
 	return uiDesktops

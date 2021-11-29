@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -150,8 +151,8 @@ type AuthenticateWebUserRequest struct {
 	User string `json:"user"`
 	// U2FSignResponse is the signature from the U2F device.
 	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response,omitempty"`
-	// WebauthnChallengeResponse is a signed WebAuthn credential assertion.
-	WebauthnChallengeResponse *wanlib.CredentialAssertionResponse `json:"webauthn_challenge_response,omitempty"`
+	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
+	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
 // SSHLogin contains common SSH login parameters.
@@ -448,7 +449,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 }
 
 // HostCredentials is used to fetch host credentials for a node.
-func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req auth.RegisterUsingTokenRequest) (*proto.Certs, error) {
+func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	clt, _, err := initClient(proxyAddr, insecure, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -459,11 +460,5 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req a
 		return nil, trace.Wrap(err)
 	}
 
-	var certs *proto.Certs
-	err = json.Unmarshal(resp.Bytes(), &certs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return certs, nil
+	return auth.UnmarshalLegacyCerts(resp.Bytes())
 }

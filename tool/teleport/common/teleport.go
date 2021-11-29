@@ -196,6 +196,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("ca-cert", "Database CA certificate path.").StringVar(&ccf.DatabaseCACertFile)
 	dbStartCmd.Flag("aws-region", "(Only for RDS, Aurora or Redshift) AWS region RDS, Aurora or Redshift database instance is running in.").StringVar(&ccf.DatabaseAWSRegion)
 	dbStartCmd.Flag("aws-redshift-cluster-id", "(Only for Redshift) Redshift database cluster identifier.").StringVar(&ccf.DatabaseAWSRedshiftClusterID)
+	dbStartCmd.Flag("aws-rds-instance-id", "(Only for RDS) RDS instance identifier.").StringVar(&ccf.DatabaseAWSRDSInstanceID)
+	dbStartCmd.Flag("aws-rds-cluster-id", "(Only for Aurora) Aurora cluster identifier.").StringVar(&ccf.DatabaseAWSRDSClusterID)
 	dbStartCmd.Flag("gcp-project-id", "(Only for Cloud SQL) GCP Cloud SQL project identifier.").StringVar(&ccf.DatabaseGCPProjectID)
 	dbStartCmd.Flag("gcp-instance-id", "(Only for Cloud SQL) GCP Cloud SQL instance identifier.").StringVar(&ccf.DatabaseGCPInstanceID)
 	dbStartCmd.Alias(dbUsageExamples) // We're using "alias" section to display usage examples.
@@ -223,6 +225,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("acme-email",
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
 	dump.Flag("test", "Path to a configuration file to test.").ExistingFileVar(&dumpFlags.testConfigFile)
+	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV2).StringVar(&dumpFlags.Version)
+	dump.Flag("public-addr", "The hostport that the proxy advertises for the HTTP endpoint.").StringVar(&dumpFlags.PublicAddr)
+	dump.Flag("cert-file", "Path to a TLS certificate file for the proxy.").ExistingFileVar(&dumpFlags.CertFile)
+	dump.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)
@@ -322,6 +328,16 @@ func (flags *dumpFlags) CheckAndSetDefaults() error {
 	} else if flags.output == teleport.SchemeStdout {
 		flags.output = teleport.SchemeStdout + "://"
 	}
+
+	supportedVersions := []string{defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2}
+	switch flags.Version {
+	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2, "":
+	default:
+		return trace.BadParameter(
+			"unsupported Teleport configuration version %q, supported are: %s",
+			flags.Version, strings.Join(supportedVersions, ","))
+	}
+
 	return nil
 }
 
@@ -351,6 +367,20 @@ func onConfigDump(flags dumpFlags) error {
 
 	if modules.GetModules().BuildType() != modules.BuildOSS {
 		flags.LicensePath = filepath.Join(defaults.DataDir, "license.pem")
+	}
+
+	if flags.KeyFile != "" && !filepath.IsAbs(flags.KeyFile) {
+		flags.KeyFile, err = filepath.Abs(flags.KeyFile)
+		if err != nil {
+			return trace.BadParameter("could not find absolute path for --key-file %q", flags.KeyFile)
+		}
+	}
+
+	if flags.CertFile != "" && !filepath.IsAbs(flags.CertFile) {
+		flags.CertFile, err = filepath.Abs(flags.CertFile)
+		if err != nil {
+			return trace.BadParameter("could not find absolute path for --cert-file %q", flags.CertFile)
+		}
 	}
 
 	sfc, err := config.MakeSampleFileConfig(flags.SampleFlags)

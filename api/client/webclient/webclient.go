@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -216,9 +216,9 @@ type ProxySettings struct {
 	SSH SSHProxySettings `json:"ssh"`
 	// DB contains database access specific proxy settings
 	DB DBProxySettings `json:"db"`
-	// ALPNSNIListenerEnabled indicates that proxy supports ALPN SNI server where
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
-	ALPNSNIListenerEnabled bool `json:"alpn_sni_listener_enabled"`
+	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -262,13 +262,20 @@ type DBProxySettings struct {
 	MySQLPublicAddr string `json:"mysql_public_addr,omitempty"`
 }
 
-// PingResponse contains the form of authentication the auth server supports.
+// AuthenticationSettings contains information about server authentication
+// settings.
 type AuthenticationSettings struct {
 	// Type is the type of authentication, can be either local or oidc.
 	Type string `json:"type"`
 	// SecondFactor is the type of second factor to use in authentication.
 	// Supported options are: off, otp, and u2f.
 	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
+	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
+	// when various options are available.
+	// It is empty if there is nothing to suggest.
+	PreferredLocalMFA constants.SecondFactorType `json:"preferred_local_mfa,omitempty"`
+	// Webauthn contains MFA settings for Web Authentication.
+	Webauthn *Webauthn `json:"webauthn,omitempty"`
 	// U2F contains the Universal Second Factor settings needed for authentication.
 	U2F *U2FSettings `json:"u2f,omitempty"`
 	// OIDC contains OIDC connector settings needed for authentication.
@@ -282,6 +289,12 @@ type AuthenticationSettings struct {
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
 	HasMessageOfTheDay bool `json:"has_motd"`
+}
+
+// Webauthn holds MFA settings for Web Authentication.
+type Webauthn struct {
+	// RPID is the Webauthn Relying Party ID used by the server.
+	RPID string `json:"rp_id"`
 }
 
 // U2FSettings contains the AppID for Universal Second Factor.
@@ -315,12 +328,16 @@ type GithubSettings struct {
 }
 
 // The tunnel addr is retrieved in the following preference order:
-//  1. Reverse Tunnel Public Address.
-//  2. If proxy support ALPN listener where all services are exposed on single port return proxy address.
+//  1. If proxy support ALPN listener where all services are exposed on single port return ProxyPublicAddr/ProxyAddr.
+//  2. Reverse Tunnel Public Address.
 //  3. SSH Proxy Public Address Host + Tunnel Port.
 //  4. HTTP Proxy Public Address Host + Tunnel Port.
 //  5. Proxy Address Host + Tunnel Port.
 func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
+	if settings.TLSRoutingEnabled {
+		return tunnelAddrForTLSRouting(proxyAddr, settings)
+	}
+
 	// If a tunnel public address is set, nothing else has to be done, return it.
 	sshSettings := settings.SSH
 	if sshSettings.TunnelPublicAddr != "" {
@@ -331,12 +348,6 @@ func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
 	tunnelPort := strconv.Itoa(defaults.SSHProxyTunnelListenPort)
 	if sshSettings.TunnelListenAddr != "" {
 		if port, err := extractPort(sshSettings.TunnelListenAddr); err == nil {
-			tunnelPort = port
-		}
-	}
-
-	if settings.ALPNSNIListenerEnabled && proxyAddr != "" {
-		if port, err := extractPort(proxyAddr); err == nil {
 			tunnelPort = port
 		}
 	}
@@ -361,6 +372,39 @@ func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
 		return "", trace.Wrap(err, "failed to parse the given proxy address")
 	}
 	return net.JoinHostPort(host, tunnelPort), nil
+}
+
+// tunnelAddrForTLSRouting returns reverse tunnel proxy address for proxy supporting TLS Routing.
+func tunnelAddrForTLSRouting(proxyAddr string, settings ProxySettings) (string, error) {
+	if settings.SSH.PublicAddr != "" {
+		// Check if PublicAddr contains a port number.
+		if _, err := extractPort(settings.SSH.PublicAddr); err == nil {
+			return extractHostPort(settings.SSH.PublicAddr)
+		}
+		// Get port number from proxyAddr or use default one.
+		port := strconv.Itoa(defaults.ProxyWebListenPort)
+		if webPort, err := extractPort(proxyAddr); err == nil {
+			port = webPort
+		}
+
+		if host, err := extractHost(settings.SSH.PublicAddr); err == nil {
+			return net.JoinHostPort(host, port), nil
+		}
+	}
+
+	// Got proxyAddr with a port number for instance: proxy.example.com:3080
+	if _, err := extractPort(proxyAddr); err == nil {
+		return proxyAddr, nil
+	}
+	host, err := extractHost(proxyAddr)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to parse the given proxy address")
+	}
+
+	// Got proxy address without a port like: proxy.example.com
+	// If proxyAddr doesn't contain any port it means that HTTPS port should be used because during Find call
+	// The destination URL is constructed by the fmt.Sprintf("https://%s/webapi/find", proxyAddr) function.
+	return net.JoinHostPort(host, strconv.Itoa(defaults.StandardHTTPSPort)), nil
 }
 
 // extractHostPort takes addresses like "tcp://host:port/path" and returns "host:port".

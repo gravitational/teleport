@@ -5,6 +5,12 @@ description: Configuring U2F support in Teleport clusters.
 
 #  U2F ( Hardware Tokens) 
 
+<Admonition type="tip">
+  Consider updating your cluster to use [WebAuthn](./webauthn.mdx) as the second
+  factor protocol. WebAuthn is a modern U2F replacement that allows for a wider
+  range of devices to be used as second factor authenticators.
+</Admonition>
+
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
 hardware keys as a second authentication factor. U2F can be used for logging
 into Teleport (`tsh login` or the login page on the Web UI) and for logging
@@ -29,12 +35,12 @@ auth_service:
     # to enable U2F support, set this field to 'u2f', 'on' or 'optional'
     second_factor: u2f
     u2f:
-       app_id: https://example.com:443
+       app_id: https://example.com
        facets:
-       - https://example.com:443
-       - https://example.com
-       - example.com:443
-       - example.com
+       - "https://example.com"      # app_id should always also be listed as a facet
+       - "https://example.com:443"
+       - "example.com:443"
+       - "example.com"
        device_attestation_cas:
        - "/path/to/u2f_attestation_ca.pem"
 ```
@@ -42,7 +48,12 @@ auth_service:
 The fields in the above snippet are:
 
 - `app_id` - public address of the Teleport proxy, *including* the `https://`
-  prefix and port number.
+  prefix. If you use a port number other than 443, include it as well.
+
+  Examples:
+
+  - `https://example.com` (uses default port 443)
+  - `https://example.com:3080` (uses non-default port 3080)
 
 <Admonition
   type="warning"
@@ -62,8 +73,9 @@ The fields in the above snippet are:
 
   For compatibility with multiple browsers, it's recommended to write down the
   proxy address in several formats. For example, if your `app_id` is
-  `https://example.com:443`, your `facets` should include
-  `https://example.com:443`, `https://example.com` and `example.com:443`.
+  `https://example.com`, your `facets` should include
+  `https://example.com:443`, `https://example.com`, `example.com:443` and
+  `example.com`.
 
 - `device_attestation_cas` - optional list of certificate authorities (as local
   file paths or in-line PEM certificate string) for U2F [device

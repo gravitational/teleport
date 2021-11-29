@@ -1,5 +1,3 @@
-// +build dynamodb
-
 /*
 Copyright 2015-2018 Gravitational, Inc.
 
@@ -38,7 +36,16 @@ func TestMain(m *testing.M) {
 
 const tableName = "teleport.dynamo.test"
 
+func ensureTestsEnabled(t *testing.T) {
+	const varName = "TELEPORT_DYNAMODB_TEST"
+	if os.Getenv(varName) == "" {
+		t.Skipf("DynamoDB tests are disabled. Enable by defining the %v environment variable", varName)
+	}
+}
+
 func TestDynamoDB(t *testing.T) {
+	ensureTestsEnabled(t)
+
 	dynamoCfg := map[string]interface{}{
 		"table_name":         tableName,
 		"poll_stream_period": 300 * time.Millisecond,

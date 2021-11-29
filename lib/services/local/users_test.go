@@ -69,7 +69,7 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test fetching of codes.
-		codes, err := identity.GetRecoveryCodes(ctx, username)
+		codes, err := identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
 		require.NoError(t, err)
 		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
 
@@ -87,9 +87,14 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test codes have been updated for same user.
-		codes, err = identity.GetRecoveryCodes(ctx, username)
+		codes, err = identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
 		require.NoError(t, err)
 		require.ElementsMatch(t, newMockedCodes, codes.GetCodes())
+
+		// Test without secrets.
+		codes, err = identity.GetRecoveryCodes(ctx, username, false /* withSecrets */)
+		require.NoError(t, err)
+		require.Empty(t, codes.GetCodes())
 	})
 
 	t.Run("deleting user deletes recovery codes", func(t *testing.T) {
@@ -107,14 +112,14 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		require.NoError(t, err)
 		err = identity.UpsertRecoveryCodes(ctx, username, rc1)
 		require.NoError(t, err)
-		codes, err := identity.GetRecoveryCodes(ctx, username)
+		codes, err := identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
 		require.NoError(t, err)
 		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
 
 		// Test deletion of recovery code along with user.
 		err = identity.DeleteUser(ctx, username)
 		require.NoError(t, err)
-		_, err = identity.GetRecoveryCodes(ctx, username)
+		_, err = identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
 		require.True(t, trace.IsNotFound(err))
 	})
 }

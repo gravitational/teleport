@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -244,12 +243,6 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	switch info.ServerName {
 	case "":
 		// Client does not use SNI, will validate against all known CAs.
-	case constants.APIDomain:
-		// REMOVE IN 4.4: all 4.3+ clients must specify the correct cluster name.
-		//
-		// Instead, this case should either default to current cluster CAs or
-		// return an error.
-		t.log.Debugf("Client %q sent %q in SNI, which causes this auth server to send all known CAs in TLS handshake. If this client is version 4.2 or older, this is expected; if this client is version 4.3 or above, please let us know at https://github.com/gravitational/teleport/issues/new", info.Conn.RemoteAddr(), info.ServerName)
 	default:
 		clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 		if err != nil {
@@ -360,10 +353,10 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 func getCustomRate(endpoint string) *ratelimit.RateSet {
 	switch endpoint {
 	case
-		"/proto.AuthService/ApproveAccountRecovery",
 		"/proto.AuthService/ChangeUserAuthentication",
 		"/proto.AuthService/GetAccountRecoveryToken",
-		"/proto.AuthService/StartAccountRecovery":
+		"/proto.AuthService/StartAccountRecovery",
+		"/proto.AuthService/VerifyAccountRecovery":
 		rates := ratelimit.NewRateSet()
 		// This limit means: 1 request per minute with bursts up to 10 requests.
 		if err := rates.Add(time.Minute, 1, 10); err != nil {

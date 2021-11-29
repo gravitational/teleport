@@ -16,8 +16,10 @@ package webauthn_test
 
 import (
 	"context"
+	"encoding/pem"
 	"testing"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -49,6 +51,9 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 	require.NotNil(t, credentialCreation)
 	require.NotEmpty(t, credentialCreation.Response.Challenge)
 	require.Equal(t, webRegistration.Webauthn.RPID, credentialCreation.Response.RelyingParty.ID)
+	// Are we using the correct authenticator selection settings?
+	require.Equal(t, false, *credentialCreation.Response.AuthenticatorSelection.RequireResidentKey)
+	require.Equal(t, protocol.VerificationDiscouraged, credentialCreation.Response.AuthenticatorSelection.UserVerification)
 	// Did we record the SessionData in storage?
 	require.NotEmpty(t, identity.SessionData)
 
@@ -193,4 +198,102 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			require.Contains(t, err.Error(), test.wantErr)
 		})
 	}
+}
+
+func TestRegistrationFlow_Finish_attestation(t *testing.T) {
+	const rpID = "localhost"
+	const origin = "https://localhost"
+	const user = "llama"
+	const devName = "web1" // OK to repeat, discarded between tests.
+
+	dev1, err := mocku2f.Create()
+	require.NoError(t, err)
+	dev2, err := mocku2f.Create()
+	require.NoError(t, err)
+	dev3, err := mocku2f.Create()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                  string
+		allowedCAs, deniedCAs [][]byte
+		dev                   *mocku2f.Key
+		wantOK                bool
+	}{
+		{
+			name:       "OK Device clears allow list",
+			allowedCAs: [][]byte{dev1.Cert, dev2.Cert},
+			dev:        dev1,
+			wantOK:     true,
+		},
+		{
+			name:      "OK Device clears deny list",
+			deniedCAs: [][]byte{dev1.Cert, dev2.Cert},
+			dev:       dev3,
+			wantOK:    true,
+		},
+		{
+			name:       "OK Device clears allow and deny lists",
+			allowedCAs: [][]byte{dev1.Cert},
+			deniedCAs:  [][]byte{dev2.Cert, dev3.Cert},
+			dev:        dev1,
+			wantOK:     true,
+		},
+		{
+			name:       "NOK Device not allowed",
+			allowedCAs: [][]byte{dev1.Cert, dev2.Cert},
+			dev:        dev3,
+		},
+		{
+			name:      "NOK Device denied",
+			deniedCAs: [][]byte{dev1.Cert, dev2.Cert},
+			dev:       dev1,
+		},
+		{
+			name:       "NOK Device denied (allow plus deny version)",
+			allowedCAs: [][]byte{dev1.Cert},
+			// Usually, in this case, the allowed CA would be broader than the denied
+			// CA, but we are going for a simplified (albeit odd) scenario in the
+			// test.
+			deniedCAs: [][]byte{dev1.Cert},
+			dev:       dev1,
+		},
+	}
+
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			webRegistration := wanlib.RegistrationFlow{
+				Webauthn: &types.Webauthn{
+					RPID:                  rpID,
+					AttestationAllowedCAs: derToPEMs(test.allowedCAs),
+					AttestationDeniedCAs:  derToPEMs(test.deniedCAs),
+				},
+				Identity: newFakeIdentity(user),
+			}
+
+			cc, err := webRegistration.Begin(ctx, user)
+			require.NoError(t, err)
+
+			dev := test.dev
+			ccr, err := dev.SignCredentialCreation(origin, cc)
+			require.NoError(t, err)
+
+			_, err = webRegistration.Finish(ctx, user, devName, ccr)
+			if ok := err == nil; ok != test.wantOK {
+				t.Errorf("Finish returned err = %v, wantOK = %v", err, test.wantOK)
+			}
+		})
+	}
+}
+
+func derToPEMs(certs [][]byte) []string {
+	res := make([]string, len(certs))
+	for i, cert := range certs {
+		certPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: cert,
+		})
+		res[i] = string(certPEM)
+	}
+	return res
 }

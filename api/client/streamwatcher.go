@@ -127,9 +127,6 @@ func eventFromGRPC(in proto.Event) (*types.Event, error) {
 	} else if r := in.GetClusterName(); r != nil {
 		out.Resource = r
 		return &out, nil
-	} else if r := in.GetClusterConfig(); r != nil {
-		out.Resource = r
-		return &out, nil
 	} else if r := in.GetUser(); r != nil {
 		out.Resource = r
 		return &out, nil

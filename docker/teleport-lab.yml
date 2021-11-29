@@ -3,13 +3,14 @@ services:
   # This container depends on the config written by the configure container above, so it
   # sleeps for a second on startup to allow the configure container to run first.
   teleport:
-    image: quay.io/gravitational/teleport-lab:6
+    image: quay.io/gravitational/teleport-lab:8
     container_name: teleport
     entrypoint: /bin/sh
     hostname: luna.teleport
     command: -c "/usr/bin/dumb-init teleport start -d -c /etc/teleport.d/teleport.yaml"
     ports:
       - "3023:3023"
+      - "3024:3024"
       - "3025:3025"
       - "443:443"
     volumes:
@@ -23,7 +24,7 @@ services:
 
   # The bootstrap container generates certificates and then immediately exits.
   bootstrap:
-    image: quay.io/gravitational/teleport-lab:6
+    image: quay.io/gravitational/teleport-lab:8
     container_name: teleport-bootstrap
     entrypoint: /bin/sh
     command: -c "/etc/teleport.d/scripts/generate-certs.sh"
@@ -40,7 +41,7 @@ services:
   # openssh is a demo of openssh node
   #
   openssh:
-    image: quay.io/gravitational/teleport-lab:6
+    image: quay.io/gravitational/teleport-lab:8
     container_name: openssh
     hostname: mars.openssh.teleport
     entrypoint: /bin/sh
@@ -59,7 +60,7 @@ services:
   # term is a container with a terminal to try things out
   #
   term:
-    image: quay.io/gravitational/teleport-lab:6
+    image: quay.io/gravitational/teleport-lab:8
     hostname: term
     container_name: term
     entrypoint: /bin/sh

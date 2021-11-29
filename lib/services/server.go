@@ -359,5 +359,5 @@ func MarshalServers(s []types.Server) ([]byte, error) {
 // NodeHasMissedKeepAlives checks if node has missed its keep alive
 func NodeHasMissedKeepAlives(s types.Server) bool {
 	serverExpiry := s.Expiry()
-	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL * 2)))
+	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL() * 2)))
 }

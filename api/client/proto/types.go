@@ -66,9 +66,6 @@ func (req *HostCertsRequest) CheckAndSetDefaults() error {
 	if req.HostID == "" {
 		return trace.BadParameter("missing parameter HostID")
 	}
-	if err := req.Role.Check(); err != nil {
-		return err
-	}
 
-	return nil
+	return req.Role.Check()
 }
