@@ -145,8 +145,8 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	return server, nil
 }
 
-// Serve starts accepting database connections from the provided listener.
-func (s *ProxyServer) Serve(listener net.Listener) error {
+// ServePostgres starts accepting Postgres connections from the provided listener.
+func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 	s.log.Debug("Started database proxy.")
 	defer s.log.Debug("Database proxy exited.")
 	for {
@@ -163,7 +163,7 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 		// protocol so dispatch to the appropriate proxy.
 		proxy, err := s.dispatch(clientConn)
 		if err != nil {
-			s.log.WithError(err).Error("Failed to dispatch client connection.")
+			s.log.WithError(err).Error("Failed to dispatch Postgres client connection.")
 			continue
 		}
 		// Let the appropriate proxy handle the connection and go back
@@ -172,7 +172,7 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 			defer clientConn.Close()
 			err := proxy.HandleConnection(s.closeCtx, clientConn)
 			if err != nil {
-				s.log.WithError(err).Warn("Failed to handle client connection.")
+				s.log.WithError(err).Warn("Failed to handle Postgres client connection.")
 			}
 		}()
 	}
@@ -250,7 +250,8 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 func (s *ProxyServer) dispatch(clientConn net.Conn) (common.Proxy, error) {
 	muxConn, ok := clientConn.(*multiplexer.Conn)
 	if !ok {
-		return nil, trace.BadParameter("expected multiplexer connection, got %T", clientConn)
+		// Postgres was configured on a separate proxy listeners.
+		return s.PostgresProxy(), nil
 	}
 	switch muxConn.Protocol() {
 	case multiplexer.ProtoPostgres:
