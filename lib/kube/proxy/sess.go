@@ -756,6 +756,13 @@ func (s *session) join(p *party) error {
 		s.clients_stdin.R.R.(*kubeutils.MultiReader).AddReader(stringId, p.Client.stdinStream())
 	}
 
+	s.log.Debug("replaying recent writes to stdout")
+	recentWrites := s.clients_stdout.W.W.(*srv.MultiWriter).GetRecentWrites()
+	_, err = p.Client.stdoutStream().Write(recentWrites)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.log.Debug("adding stdout stream")
 	stdout := kubeutils.WriterCloserWrapper{Writer: p.Client.stdoutStream()}
 	s.clients_stdout.W.W.(*srv.MultiWriter).AddWriter(stringId, stdout, false)
