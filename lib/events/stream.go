@@ -1182,8 +1182,8 @@ func (m *MemoryUploader) UploadPart(ctx context.Context, upload StreamUpload, pa
 	return &StreamPart{Number: partNumber}, nil
 }
 
-// ListUploads lists uploads that have been initated but not completed with
-// earlier uploads returned first
+// ListUploads lists uploads that have been initiated but not completed with
+// earlier uploads returned first.
 func (m *MemoryUploader) ListUploads(ctx context.Context) ([]StreamUpload, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()

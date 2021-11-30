@@ -43,17 +43,14 @@ import (
 
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
-	uri                string
-	publicAddr         string
-	publicPort         string
-	insecureSkipVerify bool
-	cipherSuites       []uint16
-	jwt                string
-	rewrite            *types.Rewrite
-	w                  events.StreamWriter
-	traits             wrappers.Traits
-	log                logrus.FieldLogger
-	user               string
+	app          types.Application
+	publicPort   string
+	cipherSuites []uint16
+	jwt          string
+	w            events.StreamWriter
+	traits       wrappers.Traits
+	log          logrus.FieldLogger
+	user         string
 }
 
 // Check validates configuration.
@@ -61,11 +58,8 @@ func (c *transportConfig) Check() error {
 	if c.w == nil {
 		return trace.BadParameter("stream writer missing")
 	}
-	if c.uri == "" {
-		return trace.BadParameter("uri missing")
-	}
-	if c.publicAddr == "" {
-		return trace.BadParameter("public addr missing")
+	if c.app == nil {
+		return trace.BadParameter("app missing")
 	}
 	if c.publicPort == "" {
 		return trace.BadParameter("public port missing")
@@ -101,7 +95,7 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	}
 
 	// Parse the target address once then inject it into all requests.
-	uri, err := url.Parse(c.uri)
+	uri, err := url.Parse(c.app.GetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,7 +173,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Host = t.uri.Host
 
 	// Add headers from rewrite configuration.
-	if t.c.rewrite != nil && len(t.c.rewrite.Headers) > 0 {
+	if t.c.app.GetRewrite() != nil && len(t.c.app.GetRewrite().Headers) > 0 {
 		t.rewriteHeaders(r)
 	}
 
@@ -192,7 +186,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 
 // rewriteHeaders applies headers rewrites from the application configuration.
 func (t *transport) rewriteHeaders(r *http.Request) {
-	for _, header := range t.c.rewrite.Headers {
+	for _, header := range t.c.app.GetRewrite().Headers {
 		if common.IsReservedHeader(header.Name) {
 			t.c.log.Debugf("Not rewriting Teleport header %q.", header.Name)
 			continue
@@ -239,7 +233,7 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 
 	u := url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort(t.c.publicAddr, t.c.publicPort),
+		Host:   net.JoinHostPort(t.c.app.GetPublicAddr(), t.c.publicPort),
 		Path:   uriPath,
 	}
 	return u.String(), true
@@ -248,7 +242,7 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 // rewriteResponse applies any rewriting rules to the response before returning it.
 func (t *transport) rewriteResponse(resp *http.Response) error {
 	switch {
-	case t.c.rewrite != nil && len(t.c.rewrite.Redirect) > 0:
+	case t.c.app.GetRewrite() != nil && len(t.c.app.GetRewrite().Redirect) > 0:
 		err := t.rewriteRedirect(resp)
 		if err != nil {
 			return trace.Wrap(err)
@@ -269,9 +263,9 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 
 		// If the redirect location is one of the hosts specified in the list of
 		// redirects, rewrite the header.
-		if apiutils.SliceContainsStr(t.c.rewrite.Redirect, host(u.Host)) {
+		if apiutils.SliceContainsStr(t.c.app.GetRewrite().Redirect, host(u.Host)) {
 			u.Scheme = "https"
-			u.Host = net.JoinHostPort(t.c.publicAddr, t.c.publicPort)
+			u.Host = net.JoinHostPort(t.c.app.GetPublicAddr(), t.c.publicPort)
 		}
 		resp.Header.Set("Location", u.String())
 	}
@@ -289,6 +283,11 @@ func (t *transport) emitAuditEvent(req *http.Request, resp *http.Response) error
 		Path:       req.URL.Path,
 		RawQuery:   req.URL.RawQuery,
 		StatusCode: uint32(resp.StatusCode),
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        t.c.app.GetURI(),
+			AppPublicAddr: t.c.app.GetPublicAddr(),
+			AppName:       t.c.app.GetName(),
+		},
 	}
 	if err := t.c.w.EmitAuditEvent(t.closeContext, appSessionRequestEvent); err != nil {
 		return trace.Wrap(err)
@@ -304,7 +303,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	// Don't verify the server's certificate if Teleport was started with
 	// the --insecure flag, or 'insecure_skip_verify' was specifically requested in
 	// the application config.
-	tlsConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || c.insecureSkipVerify)
+	tlsConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || c.app.GetInsecureSkipVerify())
 
 	return tlsConfig, nil
 }
