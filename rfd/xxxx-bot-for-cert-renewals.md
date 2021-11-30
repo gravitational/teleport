@@ -126,9 +126,9 @@ cluster and must re-join with a new token.
 
 In the above example, as no additional client configuration has been specified,
 the bot will generate only a single set of end-user certificates with access to
-the sum of all roles specified. Users with additional security requirements may
-opt to issue one or more sets of certificates to different locations and with
-access to a different set of roles.
+the union of all roles specified. Users with additional security requirements
+may opt to issue one or more sets of certificates to different locations and
+with access to a different set of roles.
 
 For example, given the following command to create a bot:
 
@@ -206,7 +206,7 @@ machine.
 #### Impersonation
 
 In a naive implementation, the bot might receive a single set of certificates
-that would be both renewable and granted the sum of all attached roles. If
+that would be both renewable and granted the union of all attached roles. If
 these certificates were compromised, an attacker would have unfettered access
 to cluster resources until either the certificates expire (assuming they don't
 bother to renew them) or until a cluster admin notices and locks the bot.
@@ -247,9 +247,13 @@ flag.
 
 There are several scenarios under which the bot will initiate a renewal:
 
-1. When a certificate is nearing expiry. A certificate is considered near
-   expiration if 75% of its TTL has elapsed, or when there are 4 hours or less
-   until expiration (whichever is sooner).
+1. When some fraction of a certificate's TTL has elapsed, for example 1/3 (and
+   at most 1/2). A certificate valid for 3 hours should ideally be renewed
+   every hour to ensure at least one full additional renewal iteration can take
+   place if the first fails.
+
+   Tighter renewal intervals also help to ensure compromised certificates are
+   discovered sooner (see "Preventing Certificate Propagation" below).
 2. When a user and/or host CA rotation is taking place.
 3. When a renewal is requested manually. For testing and debugging purposes, the
    bot will expose an API endpoint that can be used to trigger a renewal. This
@@ -261,11 +265,6 @@ renewed at roughly the same time, and secondary certificates have an expiration
 matching the primary certificate. It may be possible in the future to have
 secondary certificates with a shorter TTL than the primary (probably 1/n
 durations) but this is out of scope for the initial implementation.
-
-*TODO (Tim):* I think the renewal interval should be some fraction of the total
-TTL (at most 1/2) rather than 75%. For example, given a 4 hour TTL, we should
-attempt to renew certificates every 1 or 2 hours. This allows at least 1 full
-renewal interval's worth of time in the event that renewals fail.
 
 #### Preventing Certificate Propagation
 
