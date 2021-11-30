@@ -106,7 +106,7 @@ func (l *TLSListener) HTTP() net.Listener {
 }
 
 // Serve accepts and forwards tls.Conn connections
-func (l *TLSListener) Serve() error {
+func (l *TLSListener) Serve() error { //nolint:staticcheck
 	backoffTimer := time.NewTicker(5 * time.Second)
 	defer backoffTimer.Stop()
 	for {
