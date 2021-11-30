@@ -53,7 +53,8 @@
             { "title": "Scaling", "slug": "/setup/operations/scaling/" },
             { "title": "Upgrading", "slug": "/setup/operations/upgrading/" },
             { "title": "Backup and Restore", "slug": "/setup/operations/backup-restore/" },
-            { "title": "Cert Authority Rotation", "slug": "/setup/operations/ca-rotation/" }
+            { "title": "Cert Authority Rotation", "slug": "/setup/operations/ca-rotation/" },
+            { "title": "TLS Routing Migration", "slug": "/setup/operations/tls-routing/" }
           ]
         },
         {
@@ -307,7 +308,8 @@
         { "title": "Teleport Nodes", "slug": "/architecture/nodes/" },
         { "title": "Teleport Auth", "slug": "/architecture/authentication/" },
         { "title": "Teleport Proxy", "slug": "/architecture/proxy/" },
-        { "title": "Trusted Clusters", "slug": "/trustedclusters/" }
+        { "title": "Trusted Clusters", "slug": "/trustedclusters/" },
+        { "title": "TLS Routing", "slug": "/architecture/tls-routing/" }
       ]
     }
   ],
