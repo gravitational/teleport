@@ -1,5 +1,24 @@
 # Changelog
 
+## 7.3.3
+
+This release of teleport contains performance improvements, fixes, and a feature.
+
+* Improved cache and label-based operations performance. [#8670](https://github.com/gravitational/teleport/pull/8670)
+
+* Added support for custom `routing_strategy` configuration. [#8567](https://github.com/gravitational/teleport/pull/8567)
+
+* Fixed an issue with "Simplified EC2 Join" for some regions. [#8704](https://github.com/gravitational/teleport/pull/8704)
+
+* Fixed a regression in web terminal. [#8797](https://github.com/gravitational/teleport/pull/8797)
+
+## 7.3.2
+
+This release of Teleport contains a feature and a fix.
+
+* Fixed issue that could cause `kubectl exec` to fail. [#8601](https://github.com/gravitational/teleport/pull/8601)
+* Added email notification plugin, see [Teleport Plugins 7.3.1](https://github.com/gravitational/teleport-plugins/releases/tag/v7.3.0) for more details.
+
 ## 7.3.0
 
 This release of Teleport contains a feature and a fix.
