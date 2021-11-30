@@ -201,7 +201,7 @@ func (s *remoteSite) nextConn() (*remoteConn, error) {
 	for i := 0; i < len(s.connections); i++ {
 		s.lastUsed = (s.lastUsed + 1) % len(s.connections)
 		remoteConn := s.connections[s.lastUsed]
-		// connection could have been initated, but agent
+		// connection could have been initiated, but agent
 		// on the other side is not ready yet.
 		// Proxy assumes that connection is ready to serve when
 		// it has received a first heartbeat, otherwise
