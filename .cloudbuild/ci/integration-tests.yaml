@@ -2,7 +2,7 @@ steps:
   # Run non-root integration tests. The root user is selected by docker image.
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.0.7
     id: root-integration-test
-    args: ['make', 'integration-root']
+    args: ['make', 'bpf-bytecode', 'integration-root']
     timeout: 10m
 
   # Reconfigure the workspace for the non-root user
