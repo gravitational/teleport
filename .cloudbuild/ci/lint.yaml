@@ -1,5 +1,5 @@
 steps:
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.0.7
     id: lint
     args: ['make', 'lint-go', 'lint-api']
 options:

@@ -1,17 +1,17 @@
 steps:
   # Run non-root integration tests. The root user is selected by docker image.
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.0.7
     id: root-integration-test
-    args: ['make', 'rdpclient', 'integration-root']
+    args: ['make', 'integration-root']
     timeout: 10m
 
   # Reconfigure the workspace for the non-root user
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.0.7
     id: reconfigure-for-nonroot-user
     args: ['chown', '-R', 'ci:ci', '/workspace']
 
   # Run non-root integration tests. The non-root user is selected by docker image.
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-nonroot:v0.1.0
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-nonroot:v0.0.7
     id: nonroot-integration-test
     env:
       - TELEPORT_ETCD_TEST="yes"
