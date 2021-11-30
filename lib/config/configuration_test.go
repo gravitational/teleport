@@ -1968,7 +1968,9 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Name:     "gcp",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-				CACert:   fixtures.LocalhostCert,
+				TLS: service.DatabaseTLS{
+					CACert: fixtures.LocalhostCert,
+				},
 				GCP: service.DatabaseGCP{
 					ProjectID:  "gcp-project-1",
 					InstanceID: "gcp-instance-1",

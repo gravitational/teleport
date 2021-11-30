@@ -57,6 +57,8 @@ type Database interface {
 	SetURI(string)
 	// GetCA returns the database CA certificate.
 	GetCA() string
+	// GetTLS returns the database TLS configuration.
+	GetTLS() DatabaseTLS
 	// SetStatusCA sets the database CA certificate in the status field.
 	SetStatusCA(string)
 	// GetAWS returns the database AWS metadata.
@@ -224,10 +226,17 @@ func (d *DatabaseV3) SetURI(uri string) {
 
 // GetCA returns the database CA certificate.
 func (d *DatabaseV3) GetCA() string {
+	if d.Spec.TLS.CACert != "" {
+		return d.Spec.TLS.CACert
+	}
 	if d.Status.CACert != "" {
 		return d.Status.CACert
 	}
 	return d.Spec.CACert
+}
+
+func (d *DatabaseV3) GetTLS() DatabaseTLS {
+	return d.Spec.TLS
 }
 
 // SetStatusCA sets the database CA certificate in the status field.

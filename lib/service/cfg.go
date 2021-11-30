@@ -625,12 +625,55 @@ type Database struct {
 	StaticLabels map[string]string
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels services.CommandLabels
-	// CACert is an optional database CA certificate.
-	CACert []byte
+
+	TLS DatabaseTLS
 	// AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
 	AWS DatabaseAWS
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP
+}
+
+// TLSMode defines all possible database verification modes.
+type TLSMode string
+
+const (
+	// VerifyFull is the strictest. Verifies certificate and server name.
+	VerifyFull TLSMode = "verify-full"
+	// VerifyCA checks the certificate, but is skips the server name verification.
+	VerifyCA TLSMode = "verify-ca"
+	// Insecure accepts any certificate.
+	Insecure TLSMode = "insecure"
+)
+
+func NewTLSMode(mode string) (TLSMode, error) {
+	switch TLSMode(mode) {
+	case "": // Use VerifyFull if not set.
+		return VerifyFull, nil
+	case VerifyFull, VerifyCA, Insecure:
+		return TLSMode(mode), nil
+	default:
+		return "", trace.BadParameter("%s is not a correct TLSMode value", mode)
+	}
+}
+
+func (t TLSMode) ToProto() types.DatabaseTLSMode {
+	switch t {
+	case VerifyFull:
+		return types.DatabaseTLSMode_VERIFY_FULL
+	case VerifyCA:
+		return types.DatabaseTLSMode_VERIFY_CA
+	case Insecure:
+		return types.DatabaseTLSMode_INSECURE
+	default:
+		return types.DatabaseTLSMode_UNSPECIFIED
+	}
+}
+
+type DatabaseTLS struct {
+	// CACert is an optional database CA certificate.
+	CACert     []byte
+	ServerName string
+	Mode       TLSMode
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
@@ -706,8 +749,8 @@ func (d *Database) CheckAndSetDefaults() error {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
 	}
-	if len(d.CACert) != 0 {
-		if _, err := tlsca.ParseCertificatePEM(d.CACert); err != nil {
+	if len(d.TLS.CACert) != 0 {
+		if _, err := tlsca.ParseCertificatePEM(d.TLS.CACert); err != nil {
 			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v",
 				d.Name, err)
 		}

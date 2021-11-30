@@ -965,7 +965,10 @@ type Database struct {
 	// URI is the database address to connect to.
 	URI string `yaml:"uri"`
 	// CACertFile is an optional path to the database CA certificate.
+	// Deprecated in favor of TLS.
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
+
+	TLS DatabaseTLS `yaml:"tls,omitempty"`
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
@@ -975,6 +978,17 @@ type Database struct {
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
 }
+
+type DatabaseTLS struct {
+	Mode       string `yaml:"mode"`
+	ServerName string `yaml:"server_name,omitempty"`
+	CACertFile string `yaml:"ca_cert_file,omitempty"`
+}
+
+//   tls:
+//      mode: verify-full # can also be 'verify-ca' or 'insecure'
+//      server_name: PostgreSQL # optionally set custom server name
+//      ca_cert_file: /path/to/pem # optional CA path, existing field moved from the level above
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
 type DatabaseAWS struct {

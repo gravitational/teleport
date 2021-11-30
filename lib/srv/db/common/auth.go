@@ -360,7 +360,35 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 			return nil, trace.BadParameter("failed to append CA certificate to the pool")
 		}
 	}
+
+	dbTLSConfig := sessionCtx.Database.GetTLS()
+
+	if dbTLSConfig.Mode == types.DatabaseTLSMode_INSECURE {
+		tlsConfig.InsecureSkipVerify = true
+	} else if dbTLSConfig.Mode == types.DatabaseTLSMode_VERIFY_CA {
+		// Base on https://github.com/golang/go/blob/master/src/crypto/tls/example_test.go#L193-L208
+		// Set InsecureSkipVerify to skip the default validation we are
+		// replacing. This will not disable VerifyConnection.
+		tlsConfig.InsecureSkipVerify = true
+		tlsConfig.VerifyConnection = GetVerifyConnection(dbTLSConfig, tlsConfig.RootCAs)
+	}
+
 	return tlsConfig, nil
+}
+
+func GetVerifyConnection(dbTLSConfig types.DatabaseTLS, RootCAs *x509.CertPool) func(cs tls.ConnectionState) error {
+	return func(cs tls.ConnectionState) error {
+		opts := x509.VerifyOptions{
+			Roots:         RootCAs,
+			DNSName:       dbTLSConfig.ServerName,
+			Intermediates: x509.NewCertPool(),
+		}
+		for _, cert := range cs.PeerCertificates[1:] {
+			opts.Intermediates.AddCert(cert)
+		}
+		_, err := cs.PeerCertificates[0].Verify(opts)
+		return err
+	}
 }
 
 // getClientCert signs an ephemeral client certificate used by this

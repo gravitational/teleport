@@ -1041,12 +1041,35 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		var caBytes []byte
 		var err error
-		if database.CACertFile != "" {
-			caBytes, err = ioutil.ReadFile(database.CACertFile)
+		if database.TLS.CACertFile != "" {
+			caBytes, err = os.ReadFile(database.TLS.CACertFile)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
+
+		// ca_cert_file is deprecated, but we still support it.
+		//Print a warning the old field is still being used.
+		if database.CACertFile != "" {
+			if database.TLS.CACertFile != "" {
+				// New and old fields are set. Ignore the old field.
+				log.Warn("Ignoring deprecated ca_cert_file; using tls.ca_cert_file.")
+			} else {
+				// Only old field is set, inform about deprecation.
+				log.Warn("ca_cert_file is deprecated, please use tls.ca_cert_file instead.")
+
+				caBytes, err = os.ReadFile(database.CACertFile)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+
+		tlsMode, err := service.NewTLSMode(database.TLS.Mode)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		db := service.Database{
 			Name:          database.Name,
 			Description:   database.Description,
@@ -1054,7 +1077,11 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
-			CACert:        caBytes,
+			TLS: service.DatabaseTLS{
+				CACert:     caBytes,
+				ServerName: database.TLS.ServerName,
+				Mode:       tlsMode,
+			},
 			AWS: service.DatabaseAWS{
 				Region: database.AWS.Region,
 				Redshift: service.DatabaseAWSRedshift{
@@ -1611,7 +1638,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			URI:           clf.DatabaseURI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
-			CACert:        caBytes,
+			TLS: service.DatabaseTLS{
+				CACert:     caBytes,
+				ServerName: "", // TODO(JN)
+				Mode:       "",
+			},
 			AWS: service.DatabaseAWS{
 				Region: clf.DatabaseAWSRegion,
 				Redshift: service.DatabaseAWSRedshift{
