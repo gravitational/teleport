@@ -112,7 +112,7 @@ export function DesktopSession(props: State) {
       <TdpClientCanvas
         style={{
           display: attempt.status === 'success' ? 'flex' : 'none',
-          flex: 1,
+          flex: 1, // ensures the canvas fills available screen space
         }}
         tdpClient={tdpClient}
         connectionAttempt={connectionAttempt}
