@@ -65,7 +65,7 @@ export default function useTdpClientCanvas(props: Props) {
     }
   };
 
-  const onInit = (cli: TdpClient, canvas: HTMLCanvasElement) => {
+  const onInit = (canvas: HTMLCanvasElement) => {
     setConnectionAttempt({ status: 'processing' });
     syncCanvasSizeToClientSize(canvas);
   };

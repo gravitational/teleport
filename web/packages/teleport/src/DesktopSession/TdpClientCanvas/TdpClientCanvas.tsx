@@ -99,7 +99,7 @@ export default function TdpClientCanvas(props: Props) {
 
     // Initialize tdpClient event listeners.
     tdpClient.on('init', () => {
-      onInit(tdpClient, canvas);
+      onInit(canvas);
     });
 
     // TODO(ibm): do we need the connect event at all now that we send initial params in the wss string?

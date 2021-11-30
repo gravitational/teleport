@@ -30,9 +30,6 @@ const fakeClient = () => {
   client.init = () => {
     client.emit('init');
   };
-  client.connect = () => {
-    client.emit('connect');
-  };
   client.resize = (w: number, h: number) => {};
   client.disconnect = () => {
     client.emit('disconnect');
@@ -54,7 +51,7 @@ const props: State = {
   recording: false,
   tdpClient: fakeClient(),
   username: 'user',
-  onInit: (cli: TdpClient, canvas: HTMLCanvasElement) => {
+  onInit: (canvas: HTMLCanvasElement) => {
     fillGray(canvas);
   },
   onConnect: () => {},
@@ -154,7 +151,7 @@ export const Performance = () => {
       fetchAttempt={{ status: 'success' }}
       connectionAttempt={{ status: 'success' }}
       tdpClient={client}
-      onInit={(cli: TdpClient, canvas: HTMLCanvasElement) => {
+      onInit={(canvas: HTMLCanvasElement) => {
         // Hardcoded to match fixture
         const width = 2260;
         const height = 1130;
@@ -164,7 +161,7 @@ export const Performance = () => {
           canvas.width = width;
           canvas.height = height;
         }
-        cli.emit('connect');
+        client.emit('connect');
       }}
       onConnect={() => {
         for (let i = 0; i < arrayBuf2260x1130.length; i++) {
