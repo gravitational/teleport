@@ -37,6 +37,18 @@ describe('teleport/components/Invite', () => {
     jest.clearAllMocks();
   });
 
+  it('should show "get started" prompt before showing form', async () => {
+    await act(async () =>
+      render(
+        <MemoryRouter initialEntries={['/web/invite/5182']}>
+          <Invite />
+        </MemoryRouter>
+      )
+    );
+
+    expect(screen.getByText(/get started/i)).toBeInTheDocument();
+  });
+
   it('reset password', async () => {
     jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'off');
     jest
@@ -152,21 +164,29 @@ describe('teleport/components/Invite', () => {
     expect(screen.getByText('server_error')).toBeDefined();
   });
 
-  it('auth type "on" should render form with hardware key as first option in dropdown', async () => {
-    const { container } = render(<AuthMfaOn />);
+  it('auth type "on" should render form with hardware key as first option in dropdown', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/web/invite/5182/continue']}>
+        <AuthMfaOn />
+      </MemoryRouter>
+    );
     expect(container).toMatchSnapshot();
   });
 
-  it('auth type "optional" should render form with hardware key as first option in dropdown', async () => {
-    const { container } = render(<AuthMfaOptional />);
+  it('auth type "optional" should render form with hardware key as first option in dropdown', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/web/invite/5182/continue']}>
+        <AuthMfaOptional />
+      </MemoryRouter>
+    );
     expect(container).toMatchSnapshot();
   });
 });
 
-function renderInvite(url = `/web/invite/5182`) {
+function renderInvite(url = `/web/invite/5182/continue`) {
   render(
     <MemoryRouter initialEntries={[url]}>
-      <Route path={cfg.routes.userInvite}>
+      <Route path={cfg.routes.userInviteContinue}>
         <Invite />
       </Route>
     </MemoryRouter>

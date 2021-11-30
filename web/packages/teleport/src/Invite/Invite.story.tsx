@@ -15,15 +15,21 @@ limitations under the License.
 */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { State } from './useInvite';
 import { Invite as Component, Props } from './Invite';
+import CardWelcome from './CardWelcome';
 
 export default {
   title: 'Teleport/Invite',
   component: Component,
 };
 
-export const Invite = () => <Component {...props} />;
+export const Invite = () => (
+  <Wrapper>
+    <Component {...props} />
+  </Wrapper>
+);
 
 export const Expired = () => (
   <Component
@@ -33,19 +39,51 @@ export const Expired = () => (
 );
 
 export const ResetPasswordScreen = () => (
-  <Component {...props} passwordResetMode={true} />
+  <Wrapper url="/web/reset/1234/continue">
+    <Component {...props} passwordResetMode={true} />
+  </Wrapper>
 );
 
-export const AuthMfaOn = () => <Component {...props} auth2faType="on" />;
+export const AuthMfaOn = () => (
+  <Wrapper>
+    <Component {...props} auth2faType="on" />
+  </Wrapper>
+);
 
 export const AuthMfaOnWithU2f = () => (
-  <Component {...props} auth2faType="on" preferredMfaType="u2f" />
+  <Wrapper>
+    <Component {...props} auth2faType="on" preferredMfaType="u2f" />
+  </Wrapper>
 );
-AuthMfaOnWithU2f.storyName = 'Auth Mfa Optional with U2f';
+AuthMfaOnWithU2f.storyName = 'Auth Mfa On with U2f';
 
 export const AuthMfaOptional = () => (
-  <Component {...props} auth2faType="optional" />
+  <Wrapper>
+    <Component {...props} auth2faType="optional" />
+  </Wrapper>
 );
+
+export const WelcomeCardInvite = () => (
+  <Wrapper url="/web/invite/1234">
+    <CardWelcome tokenId="1234" />
+  </Wrapper>
+);
+
+export const WelcomeCardReset = () => (
+  <Wrapper url="/web/reset/1234">
+    <CardWelcome tokenId="1234" inviteMode={false} />
+  </Wrapper>
+);
+
+function Wrapper({
+  children,
+  url = '/web/invite/1234/continue',
+}: {
+  children: JSX.Element;
+  url?: string;
+}) {
+  return <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>;
+}
 
 const props: State & Props = {
   auth2faType: 'off',

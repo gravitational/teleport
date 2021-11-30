@@ -16,8 +16,11 @@ limitations under the License.
 
 import React from 'react';
 import { useParams } from 'react-router';
+import cfg from 'teleport/config';
+import { Route, Switch } from 'teleport/components/Router';
 import InviteForm, { Expired } from 'teleport/components/FormInvite';
 import LogoHero from 'teleport/components/LogoHero';
+import CardWelcome from './CardWelcome';
 import useInvite, { State } from './useInvite';
 
 export default function Container({ passwordResetMode = false }) {
@@ -53,8 +56,10 @@ export function Invite(props: State & Props) {
     return null;
   }
 
-  const { user, qrCode } = passwordToken;
+  const { user, qrCode, tokenId } = passwordToken;
+
   const title = passwordResetMode ? 'Reset Password' : 'Welcome to Teleport';
+
   const submitBtnText = passwordResetMode
     ? 'Change Password'
     : 'Create Account';
@@ -62,19 +67,31 @@ export function Invite(props: State & Props) {
   return (
     <>
       <LogoHero />
-      <InviteForm
-        submitBtnText={submitBtnText}
-        title={title}
-        user={user}
-        qr={qrCode}
-        auth2faType={auth2faType}
-        preferredMfaType={preferredMfaType}
-        attempt={submitAttempt}
-        clearSubmitAttempt={clearSubmitAttempt}
-        onSubmitWithU2f={onSubmitWithU2f}
-        onSubmitWithWebauthn={onSubmitWithWebauthn}
-        onSubmit={onSubmit}
-      />
+      <Switch>
+        <Route
+          path={[cfg.routes.userInviteContinue, cfg.routes.userResetContinue]}
+        >
+          <InviteForm
+            submitBtnText={submitBtnText}
+            title={title}
+            user={user}
+            qr={qrCode}
+            auth2faType={auth2faType}
+            preferredMfaType={preferredMfaType}
+            attempt={submitAttempt}
+            clearSubmitAttempt={clearSubmitAttempt}
+            onSubmitWithU2f={onSubmitWithU2f}
+            onSubmitWithWebauthn={onSubmitWithWebauthn}
+            onSubmit={onSubmit}
+          />
+        </Route>
+        <Route path={cfg.routes.userInvite}>
+          <CardWelcome tokenId={tokenId} />
+        </Route>
+        <Route path={cfg.routes.userReset}>
+          <CardWelcome tokenId={tokenId} inviteMode={false} />
+        </Route>
+      </Switch>
     </>
   );
 }

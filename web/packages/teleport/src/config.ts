@@ -74,7 +74,9 @@ const cfg = {
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
     userInvite: '/web/invite/:tokenId',
+    userInviteContinue: '/web/invite/:tokenId/continue',
     userReset: '/web/reset/:tokenId',
+    userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
@@ -283,6 +285,18 @@ const cfg = {
   getUserResetTokenRoute(tokenId = '', invite = true) {
     const route = invite ? cfg.routes.userInvite : cfg.routes.userReset;
     return cfg.baseUrl + generatePath(route, { tokenId });
+  },
+
+  getUserResetTokenContinueRoute(tokenId = '') {
+    return generatePath(cfg.routes.userResetContinue, { tokenId });
+  },
+
+  getUserInviteTokenRoute(tokenId = '') {
+    return generatePath(cfg.routes.userInvite, { tokenId });
+  },
+
+  getUserInviteTokenContinueRoute(tokenId = '') {
+    return generatePath(cfg.routes.userInviteContinue, { tokenId });
   },
 
   getKubernetesRoute(clusterId: string) {
