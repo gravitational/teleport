@@ -468,6 +468,20 @@ func populateGithubClaims(client githubAPIClientI) (*types.GithubClaims, error) 
 func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2.Client, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
+	httpClient := http.DefaultClient
+	if a.AuthGithubProxy != nil{
+		proxy := func(_ *http.Request) (*url.URL, error) {
+			return a.AuthGithubProxy, nil
+		}
+
+		httpTransport := &http.Transport{
+			Proxy: proxy,
+		}
+
+		httpClient = &http.Client{
+			Transport: httpTransport,
+		}
+	}
 	config := oauth2.Config{
 		Credentials: oauth2.ClientCredentials{
 			ID:     connector.GetClientID(),
@@ -483,7 +497,7 @@ func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2
 		return cachedClient.client, nil
 	}
 	delete(a.githubClients, connector.GetName())
-	client, err := oauth2.NewClient(http.DefaultClient, config)
+	client, err := oauth2.NewClient(httpClient, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

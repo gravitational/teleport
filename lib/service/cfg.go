@@ -494,6 +494,12 @@ type AuthConfig struct {
 
 	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
 	KeyStore keystore.Config
+
+	// AuthGithubProxy is a string of proxy servers. it can be a http proxy or socks proxy. e.g.
+	// http://127.0.0.1:1111
+	// socks5://127.0.0.1:1111
+	GithubProxy *url.URL
+
 }
 
 // SSHConfig configures SSH server node role

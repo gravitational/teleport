@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -132,6 +133,9 @@ type InitConfig struct {
 	// AuthPreference defines the authentication type (local, oidc) and second
 	// factor (off, otp, u2f) passed in from a configuration file.
 	AuthPreference types.AuthPreference
+
+	// AuthGithubProxy defines the http or sock5 proxy to access Github
+	AuthGithubProxy *url.URL
 
 	// AuditLog is used for emitting events to audit log.
 	AuditLog events.IAuditLog

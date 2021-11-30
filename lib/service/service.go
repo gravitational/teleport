@@ -1183,6 +1183,7 @@ func (process *TeleportProcess) initAuthService() error {
 		StaticTokens:            cfg.Auth.StaticTokens,
 		Roles:                   cfg.Auth.Roles,
 		AuthPreference:          cfg.Auth.Preference,
+		AuthGithubProxy:         cfg.Auth.GithubProxy,
 		OIDCConnectors:          cfg.OIDCConnectors,
 		AuditLog:                process.auditLog,
 		CipherSuites:            cfg.CipherSuites,

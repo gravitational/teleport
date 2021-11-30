@@ -62,6 +62,8 @@ type CommandLineFlags struct {
 	NodeName string
 	// --auth-server flag
 	AuthServerAddr []string
+	// --auth-github-proxy flag
+	AuthGithubProxy string
 	// --token flag
 	AuthToken string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
@@ -1431,6 +1433,14 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			}
 			cfg.AuthServers = append(cfg.AuthServers, *addr)
 		}
+	}
+
+	if clf.AuthGithubProxy != "" {
+		addr, err := url.Parse(clf.AuthGithubProxy)
+		if err != nil {
+			return trace.BadParameter("cannot parse auth github proxy address: '%v'", clf.AuthGithubProxy)
+		}
+		cfg.Auth.GithubProxy = addr
 	}
 
 	// apply --name flag:

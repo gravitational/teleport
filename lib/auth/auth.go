@@ -147,6 +147,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		limiter:         limiter,
 		Authority:       cfg.Authority,
 		AuthServiceName: cfg.AuthServiceName,
+		AuthGithubProxy: cfg.AuthGithubProxy,
 		oidcClients:     make(map[string]*oidcClient),
 		samlProviders:   make(map[string]*samlProvider),
 		githubClients:   make(map[string]*githubClient),
@@ -277,6 +278,9 @@ type Server struct {
 	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
 	// It usually defaults to the hostname of the machine the Auth service runs on.
 	AuthServiceName string
+
+	// AuthGithubProxy is a proxy host for Github
+	AuthGithubProxy *url.URL
 
 	// Services encapsulate services - provisioner, trust, etc
 	// used by the auth server in a separate structure

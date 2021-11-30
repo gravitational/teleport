@@ -100,6 +100,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("auth-server",
 		fmt.Sprintf("Address of the auth server [%s]", defaults.AuthConnectAddr().Addr)).
 		StringsVar(&ccf.AuthServerAddr)
+	start.Flag("auth-github-proxy",
+		"Address for Github proxy").StringVar(&ccf.AuthGithubProxy)
 	start.Flag("token",
 		"Invitation token to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
