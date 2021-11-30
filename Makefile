@@ -246,7 +246,6 @@ endif
 ifeq ("$(with_roletester)", "yes")
 .PHONY: roletester
 roletester: lib/datalog/roletester/target/$(CARGO_TARGET)/release/librole_tester.a
-	cargo build --manifest-path=$(ROLETESTER_BUILDDIR) --release --target=$(CARGO_TARGET)
 
 -include lib/datalog/roletester/target/$(CARGO_TARGET)/release/librole_tester.d
 
@@ -424,23 +423,41 @@ release-windows: release-windows-unsigned
 	@echo "---> Created $(RELEASE).zip."
 
 #
-# If the Rust build cache exists at /opt/teleport-rust-build-cache,
+# If the Rust build cache exists at $(RUST_PREBUILD_DIR)
 # then copy the pre-built artifacts into the correct locations.
 #
 # This should only affect release builds, where we intentionally mount
 # this directory with Rust libraries that were built in a container with
 # an old version of glibc.
 #
+ifneq ("$(RUST_PREBUILD_DIR)","")
 .PHONY:copy-rust-build-cache
 copy-rust-build-cache:
 	@echo "---> Copying pre-built Rust libraries into source tree."
-ifneq ($(wildcard /opt/teleport-rust-build-cache/roletester/target/.),)
-	mkdir -p lib/datalog/roletester/target/$(CARGO_TARGET)/release; \
-	cp -r /opt/teleport-rust-build-cache/roletester/$(CARGO_TARGET)/release lib/datalog/roletester/target/$(CARGO_TARGET)
+	mkdir -p lib/datalog/roletester/target/$(CARGO_TARGET)/release
+	-cp -r $(RUST_PREBUILD_DIR)/roletester/$(CARGO_TARGET)/release lib/datalog/roletester/target/$(CARGO_TARGET)
+	mkdir -p lib/srv/desktop/rdp/rdpclient/target/$(CARGO_TARGET)/release
+	-cp -r $(RUST_PREBUILD_DIR)/rdpclient/$(CARGO_TARGET)/release lib/srv/desktop/rdp/rdpclient/target/$(CARGO_TARGET)
+else
+.PHONY:copy-rust-build-cache
+copy-rust-build-cache:
 endif
-ifneq ($(wildcard /opt/teleport-rust-build-cache/rdpclient/target/.),)
-	mkdir -p lib/srv/desktop/rdp/rdpclient/target/$(CARGO_TARGET)/release; \
-	cp -r /opt/teleport-rust-build-cache/rdpclient/$(CARGO_TARGET)/release lib/srv/desktop/rdp/rdpclient/target/$(CARGO_TARGET)
+
+#
+# If RUST_LIB_DESTINATION is specified, copy the Rust libraries out.
+# This allows us to reuse them later.
+#
+ifneq ("$(RUST_LIB_DESTINATION)", "")
+.PHONY:populate-rust-build-cache
+populate-rust-build-cache:
+        @echo "---> Saving Rust libraries to temporary cache."
+        mkdir -p $(RUST_LIB_DESTINATION)/roletester/$(CARGO_TARGET)
+        mkdir -p $(RUST_LIB_DESTINATION)/rdpclient/$(CARGO_TARGET)
+        -cp -r lib/datalog/roletester/target/$(CARGO_TARGET) $(RUST_LIB_DESTINATION)/roletester
+        -cp -r lib/srv/desktop/rdp/rdpclient/target/$(CARGO_TARGET) $(RUST_LIB_DESTINATION)/rdpclient
+else
+.PHONY:populate-rust-build-cache
+populate-rust-build-cache:
 endif
 
 #

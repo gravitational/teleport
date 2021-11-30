@@ -290,18 +290,10 @@ enter-rust: buildbox-rust
 .PHONY:release
 release: buildbox buildbox-rust
 	set -e ;\
-	docker run $(DOCKERFLAGS) $(NOROOT) --rm=false $(BUILDBOX_RUST) /usr/bin/make rdpclient roletester -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) REPRODUCIBLE=yes ;\
-	LOCAL_RUST_BUILD_CACHE=../build/prebuilt-rust-libs ;\
-	mkdir -p $$LOCAL_RUST_BUILD_CACHE ;\
-	TELEPORT_RUST_BUILD_CONTAINER=$$(docker ps -alq) ;\
-	docker cp $$TELEPORT_RUST_BUILD_CONTAINER:$(SRCDIR)/lib/datalog/roletester/target $$LOCAL_RUST_BUILD_CACHE/roletester/ ;\
-	docker cp $$TELEPORT_RUST_BUILD_CONTAINER:$(SRCDIR)/lib/srv/desktop/rdp/rdpclient/target $$LOCAL_RUST_BUILD_CACHE/rdpclient/ ;\
-	docker rm $$TELEPORT_RUST_BUILD_CONTAINER ;\
-	docker run $(DOCKERFLAGS) $(NOROOT) -v $$(pwd)/$$LOCAL_RUST_BUILD_CACHE:/opt/teleport-rust-build-cache $(BUILDBOX_NAME) /usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) REPRODUCIBLE=yes ;
-
-# TODO(zmb3) clean this up
-#-rm -rf $$LOCAL_RUST_BUILD_CACHE ;
-
+	LOCAL_RUST_BUILD_CACHE=$$(mktemp -d /tmp/teleport-rust-build-cache-XXXX) ;\
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_RUST) /usr/bin/make rdpclient roletester populate-rust-build-cache -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) RUST_LIB_DESTINATION=$$LOCAL_RUST_BUILD_CACHE REPRODUCIBLE=yes ;\
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) /usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) RUST_PREBUILD_DIR=$$LOCAL_RUST_BUILD_CACHE REPRODUCIBLE=yes ;\
+	rm -rf $$LOCAL_RUST_BUILD_CACHE ;
 
 # These are aliases used to make build commands uniform.
 .PHONY: release-amd64
