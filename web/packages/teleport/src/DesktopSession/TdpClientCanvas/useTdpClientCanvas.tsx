@@ -36,8 +36,8 @@ export default function useTdpClientCanvas(props: Props) {
     // Setting flex to "1" ensures the canvas will fill out the area available to it,
     // which we calculate based on the window dimensions and TopBarHeight below.
     // TODO(ibm): turn this into a function
-    const initialWidth = window.innerWidth;
-    const initialHeight = window.innerHeight - TopBarHeight;
+    const width = window.innerWidth;
+    const height = window.innerHeight - TopBarHeight;
 
     const addr = cfg.api.desktopWsAddr
       .replace(':fqdm', getHostName())
@@ -45,8 +45,8 @@ export default function useTdpClientCanvas(props: Props) {
       .replace(':desktopName', desktopName)
       .replace(':token', getAccessToken())
       .replace(':username', username)
-      .replace(':initialWidth', initialWidth.toString())
-      .replace(':initialHeight', initialHeight.toString());
+      .replace(':width', width.toString())
+      .replace(':height', height.toString());
 
     return new TdpClient(addr, username);
   }, [clusterId, username, desktopName]);
