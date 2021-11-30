@@ -70,10 +70,12 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 ## Step 2/6. Prevent the service account from performing interactive logins
 
 <Admonition type="note" title="gpupdate.exe">
-  Throughout this step and the next one, you will be modifying GPO's, and
-  sometimes GPO modifications can take some time to take effect. You can force
-  your GPO changes to take effect immediately at any time by opening a
-  PowerShell prompt and running `gpupdate.exe /force`.
+  Throughout this step and the next one, you will be modifying GPOs, and
+  sometimes GPO modifications can take some time to propagate to all hosts. You
+  can force your changes to take effect immediately on your current host at any
+  time by opening a PowerShell prompt and running `gpupdate.exe /force` (though
+  their effects may still take time to propagate to other machines on the
+  domain).
 </Admonition>
 
 The Teleport service account is only needed to authenticate over LDAP, meaning that it needn't be able to login to Windows machines like an ordinary user.
@@ -81,14 +83,17 @@ Restrict it from doing so by creating a new Group Policy Object (GPO) linked to 
 
 ### Create a GPO
 
-1. Open the `Start` menu and run `Group Policy Management`.
-2. On the left pane, navigate to `$FOREST > Domains > $DOMAIN`, selecting your forest and domain names respectively.
-3. Right click on `$DOMAIN` and select `Create a GPO in this domain, and Link it here...` from the context menu.
-4. Give your GPO a name like `Block teleport-svc Interactive Login` and ensure `(none)` is selected for `Source Starter GPO`, then hit `OK`.
+1. Open a PowerShell prompt and change the `$GPOName` variable below to your desired GPO name, or leave the recommended name:
 
-<Figure align="left" bordered caption="Create and Link GPO">
-  ![Create and Link GPO](../../img/desktop-access/create-and-link-gpo.png)
-</Figure>
+```powershell
+$GPOName="Block teleport-svc Interactive Login"
+```
+
+2. Create the new GPO by running (from the same prompt):
+
+```powershell
+New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
+```
 
 ### Deny interactive login
 
