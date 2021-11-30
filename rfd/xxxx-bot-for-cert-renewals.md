@@ -351,7 +351,7 @@ The bot will be configured with one or more certificate specs, which can be
 supplied on the command line in the format of:
 
 ```
---cert=MODE,DESTINATION,RELOAD
+--cert=DESTINATION,RELOAD
 ```
 
 *TODO*: how can a user specify DNS names to include in the certs?
@@ -360,27 +360,45 @@ supplied on the command line in the format of:
 encode as CLI flags (e.g. k8s secrets). Perhaps the CLI should only support
 local FS and other sinks should defer to `tbot.yaml`?
 
-#### Mode
+#### Artifacts
 
-The mode tells the bot which type of certificate to generate. 
+For internal use, the bot generates a set of renewable TLS certificates.
+This set of credentials is only used certificate renewal, user certificate
+generation, and establishing CA rotation watches. These artifacts should be
+persisted to some private location to allow the bot to recover after a process
+restart.
 
-There are a number of ways the bot can be used to acquire and renew certificates.
+| Kind                   | Path         | Notes                            |
+|------------------------|--------------|----------------------------------|
+| TLS CA certificates    | `tlscacerts` | Teleport cluster CA certs (both) |
+| TLS client certificate | `tlscert`    | Signed by Teleport `UserCA`      |
+| Private key (TLS)      | `key`        |                                  |
 
-TODO: we always generate SSH and TLS certs, can we simplify the mode to just
-user/host and always dump both types of certificates to the destination?
+The bot then generates a set of non-renewable credentials for each configured
+credential sink. By default, the following artifacts are always generated:
 
-| Mode          | Certificate Type   | Signed By  |  Include User CA | Include Host CA |
-|---------------|--------------------|------------|------------------|-----------------|
-| `ssh:user`    | SSH                | User CA    | no               | yes             |
-| `ssh:host`    | SSH                | Host CA    | yes              | no              |
-| `x509:user`   | x509               | User CA    | no               | yes             |
-| `x509:host`   | x509               | Host CA    | yes              | no              |
+| Kind                      | Path          | Notes
+| -----------------------|---------------|-------
+| Private key            | `key`         | Shared for both SSH and TLS uses        |
+| SSH public key         | `key.pub`     | Required for OpenSSH compatibility      |
+| SSH client certificate | `sshcert`     | Signed by Teleport `UserCA`             |
+| SSH CA certificates    | `sshcacerts`  | TODO: needed?                           |
+| SSH known hosts        | `known_hosts` | Teleport `HostCA` certs, OpenSSH format |
+| TLS CA certificates    | `tlscacerts`  | Teleport CA certificates (both)         |
+| TLS client certificate | `tlscert`     | Signed by Teleport `UserCA`             |
 
-For example, for mode `x509:user`, the bot will issue x509 certificates signed
-by Teleport's user CA. It also writes Teleport's host CA to the destination so
-that the client can be configured to trust the server.
-
-The mode also controls what the output of `tbot config` looks like.
+Notes:
+ * Users may optionally decide to disable persistence of the renewable
+   certificate. This has security benefits but prevents the bot from recovering
+   if stopped, as the renewable credentials would only exist in memory.
+ * TLS CA certificates are verified at first connect using CA pins, following
+   Teleport's usual node joining procedure.
+ * Unneeded certificate types/formats could be optionally disabled in
+   `tbot.yaml` config if desired.
+ * Potential in-memory certificate sinks should be evaluated for end-users
+   (Webhooks?)
+ * (TODO) Additional artifacts may be written if we decide to write app config
+   files at this stage.
 
 #### Destination
 
@@ -407,10 +425,20 @@ in our docs.
 *TODO (Tim)*: How will we ensure the bot is able to send signals / execute
 commands in a way that doesn't require it to run as the target Unix user or as
 root? Simple command exec is less useful than it appears when all the system 
-components are deployed securely. Perhaps users can rely on FS change
-notifications (e.g. inotify) and we can provide examples using them.
-Alternatively, we can deliver webhooks to another running service on the
-system.
+components are deployed securely.
+
+A few alternative / additional notification methods:
+ * Filesystem watches (inotify, etc). Offloads complexity to the user and still
+   requires solving the FS permission problem (Linux ACLs?).
+ * Webhooks. Need to evaluate security.
+ * Shell scripts. Will need to evaluate how useful this really is.
+ * Unix signals. Require either same user, root, or `CAP_KILL`, or SUID, plus
+   needs a way to query for the correct process. Not very practical for largely
+   the same reason shell scripts aren't.
+ * D-Bus? (grasping at straws)
+
+We should implement as many of these as makes sense (minimally shell scripts,
+and FS watches are a no-op on our end.)
 
 #### Configuration Assist
 
