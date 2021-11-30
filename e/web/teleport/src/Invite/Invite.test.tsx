@@ -74,10 +74,10 @@ test('should not render recovery codes screen afterwards if the response doesnt 
   expect(screen.queryByText(/tele-recovery-code-3/i)).not.toBeInTheDocument();
 });
 
-function renderInvite(url = `/web/invite/5182`) {
+function renderInvite(url = `/web/invite/5182/continue`) {
   render(
     <MemoryRouter initialEntries={[url]}>
-      <Route path={cfg.routes.userInvite}>
+      <Route path={cfg.routes.userInviteContinue}>
         <Invite />
       </Route>
     </MemoryRouter>

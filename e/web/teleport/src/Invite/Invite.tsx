@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams } from 'react-router';
-import InviteForm, { Expired } from 'teleport/components/FormInvite';
 import LogoHero from 'teleport/components/LogoHero';
+import { Invite as InviteOSS } from 'teleport/Invite/Invite';
 import RecoveryCodes from 'e-teleport/components/RecoveryCodes';
 import useInvite, { State } from './useInvite';
 
@@ -12,33 +12,7 @@ export default function Container({ passwordResetMode = false }) {
 }
 
 export function Invite(props: State & Props) {
-  const {
-    passwordResetMode,
-    auth2faType,
-    preferredMfaType,
-    fetchAttempt,
-    submitAttempt,
-    clearSubmitAttempt,
-    onSubmit,
-    onSubmitWithU2f,
-    onSubmitWithWebauthn,
-    passwordToken,
-    recoveryCodes,
-    redirect,
-  } = props;
-
-  if (fetchAttempt.status === 'failed') {
-    return (
-      <>
-        <LogoHero />
-        <Expired />
-      </>
-    );
-  }
-
-  if (fetchAttempt.status !== 'success') {
-    return null;
-  }
+  const { passwordResetMode, recoveryCodes, redirect } = props;
 
   if (recoveryCodes) {
     return (
@@ -53,30 +27,7 @@ export function Invite(props: State & Props) {
     );
   }
 
-  const { user, qrCode } = passwordToken;
-  const title = passwordResetMode ? 'Reset Password' : 'Welcome to Teleport';
-  const submitBtnText = passwordResetMode
-    ? 'Change Password'
-    : 'Create Account';
-
-  return (
-    <>
-      <LogoHero />
-      <InviteForm
-        submitBtnText={submitBtnText}
-        title={title}
-        user={user}
-        qr={qrCode}
-        auth2faType={auth2faType}
-        preferredMfaType={preferredMfaType}
-        attempt={submitAttempt}
-        clearSubmitAttempt={clearSubmitAttempt}
-        onSubmitWithU2f={onSubmitWithU2f}
-        onSubmitWithWebauthn={onSubmitWithWebauthn}
-        onSubmit={onSubmit}
-      />
-    </>
-  );
+  return <InviteOSS {...props} />;
 }
 
 export type Props = {
