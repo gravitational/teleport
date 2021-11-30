@@ -2780,35 +2780,27 @@ message SessionSpecV3 {
     // clients on a best-effort basis and used for delivering notifications to invited users.
     repeated string Invited = 9 [ (gogoproto.jsontag) = "invited,omitempty" ];
 
-    // LastActive holds the information about when the session
-    // was last active
-    google.protobuf.Timestamp LastActive = 10 [
-        (gogoproto.stdtime) = true,
-        (gogoproto.nullable) = false,
-        (gogoproto.jsontag) = "last_active,omitempty"
-    ];
-
     // Hostname is the address of the target this session is connected to.
-    string Hostname = 12 [ (gogoproto.jsontag) = "target_hostname,omitempty" ];
+    string Hostname = 10 [ (gogoproto.jsontag) = "target_hostname,omitempty" ];
 
     // Address is the address of the target this session is connected to.
-    string Address = 13 [ (gogoproto.jsontag) = "target_address,omitempty" ];
+    string Address = 11 [ (gogoproto.jsontag) = "target_address,omitempty" ];
 
     // ClusterName is the name of cluster that this session belongs to.
-    string ClusterName = 14 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
+    string ClusterName = 12 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
 
     // Login is the local login/user on the target used by the session.
-    string Login = 15 [ (gogoproto.jsontag) = "login,omitempty" ];
+    string Login = 13 [ (gogoproto.jsontag) = "login,omitempty" ];
 
     // Participants is a list of session participants.
-    repeated Participant Participants = 16 [ (gogoproto.jsontag) = "participants,omitempty" ];
+    repeated Participant Participants = 14 [ (gogoproto.jsontag) = "participants,omitempty" ];
 
     // The Kubernetes cluster this session belongs to.
-    string KubernetesCluster = 17 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+    string KubernetesCluster = 15 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
 
     // HostUser is the user regarded as the owner of this session, RBAC checks are performed
     // against the require policies of this user.
-    string HostUser = 18 [ (gogoproto.jsontag) = "host_user,omitempty" ];
+    string HostUser = 16 [ (gogoproto.jsontag) = "host_user,omitempty" ];
 }
 
 // Participant stores information about a participant in the session.

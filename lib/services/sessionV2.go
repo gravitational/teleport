@@ -116,7 +116,6 @@ func (s *sessionV2) CreateSessionTracker(ctx context.Context, req *proto.CreateS
 		Type:              req.Type,
 		State:             types.SessionState_SessionStatePending,
 		Created:           now,
-		LastActive:        now,
 		Reason:            req.Reason,
 		Invited:           req.Invited,
 		Hostname:          req.Hostname,
@@ -169,8 +168,6 @@ func (s *sessionV2) UpdateSessionTracker(ctx context.Context, req *proto.UpdateS
 		switch update := req.Update.(type) {
 		case *proto.UpdateSessionRequest_UpdateState:
 			session.SetState(update.UpdateState.State)
-		case *proto.UpdateSessionRequest_UpdateActivity:
-			session.SetLastActive(update.UpdateActivity.ParticipantID)
 		case *proto.UpdateSessionRequest_AddParticipant:
 			session.AddParticipant(update.AddParticipant.Participant)
 		case *proto.UpdateSessionRequest_RemoveParticipant:

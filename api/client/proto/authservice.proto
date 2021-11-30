@@ -1465,11 +1465,6 @@ message UpdateState {
     types.SessionState State = 2 [ (gogoproto.jsontag) = "state,omitempty" ];
 }
 
-message UpdateActivity {
-    // ParticipantID is unique identifier of the participant.
-    string ParticipantID = 2 [ (gogoproto.jsontag) = "participant_id,omitempty" ];
-}
-
 message AddParticipant {
     // Participant is the participant to be added to the session.
     types.Participant Participant = 2 [ (gogoproto.jsontag) = "participant,omitempty" ];
@@ -1487,9 +1482,8 @@ message UpdateSessionRequest {
 
     oneof Update {
         UpdateState UpdateState = 2 [ (gogoproto.jsontag) = "update_state,omitempty" ];
-        UpdateActivity UpdateActivity = 3 [ (gogoproto.jsontag) = "update_activity,omitempty" ];
-        AddParticipant AddParticipant = 4 [ (gogoproto.jsontag) = "add_participant,omitempty" ];
-        RemoveParticipant RemoveParticipant = 5
+        AddParticipant AddParticipant = 3 [ (gogoproto.jsontag) = "add_participant,omitempty" ];
+        RemoveParticipant RemoveParticipant = 4
             [ (gogoproto.jsontag) = "remove_participant,omitempty" ];
     }
 }
