@@ -179,13 +179,16 @@ SSH happy. Perhaps Linux FACLs can help?)
 It is important to consider the security implications of a credential that can
 be continuously renewed. In order to minimize the blast radius of an attack, we
 need to minimize both the scope and duration that an attacker could leverage a
-compromised credential.
+compromised credential as well as encourage end users to deploy the bot in a
+way that protects the certificates it generates.
 
 We limit the scope by allowing users to define exactly which roles the
 certificate should assume. The `tctl` tool will create a dedicated user and role
 for the bot, and this role will be able to impersonate the roles specified by
 the user. We encourage users to follow the principle of least privilege and
-allow impersonation for the minimum set of roles necessary.
+allow impersonation for the minimum set of roles necessary. Additionally, end
+users may further limit the permissions granted to a particular set of
+certificates should their workflow support this.
 
 We limit the amount of time an attacker can act with these certificates by
 setting an aggressive expiration time on renewable certificates and allowing
@@ -225,8 +228,8 @@ directory, containing the renewable certificate, is separate and inaccessible
 to other users on the system, via the native security methods of the output
 sink (e.g. Unix permissions, Kubernetes RBAC, etc). The secondary certificates
 may be written with relaxed permissions to enable use by end users. If these
-certificates are stolen, not only will they not be renewable, but may also have
-only a subset of the permissions granted to the bot.
+secondary certificates are stolen, not only will they not be renewable, but may
+also have only a subset of the permissions granted to the bot.
 
 Unfortunately, Teleport today does not fully support the impersonation UX we
 would like to provide with the bot. As is, impersonation requires two `User`
@@ -283,7 +286,7 @@ On subsequent renewals, while generating user certificates on the auth server,
 the current certificate is inspected and its current generation is compared to
 the stored version on the auth server. If this generation counter is less than
 the auth server's stored counter, this implies that multiple bots are competing
-for renewals.
+for renewals of the same certificate lineage.
 
 Exact behavior for what to do next remains undetermined (TODO), but we have
 several possible courses of action:
@@ -354,6 +357,8 @@ supplied on the command line in the format of:
 --cert=DESTINATION,RELOAD
 ```
 
+...or via a `tbot.yaml` configuration file.
+
 *TODO*: how can a user specify DNS names to include in the certs?
 
 *TODO* (Tim): Non-filesystem destinations are likely to be very difficult to
@@ -409,6 +414,9 @@ placed in a directory on the local filesystem. In the future, we may support
 additional destinations such as Kubernetes secrets, credential managers, or
 CI/CD systems. If multiple `--cert` specifiers are provided, the bot will check
 for overlapping destinations on startup, and fail fast if this is the case.
+
+*TODO (Tim): If we decide to simplify CLI to only support local FS stores,
+will need to rewrite this section.*
 
 #### Reload Command
 
@@ -473,8 +481,8 @@ TODO: support for auto-join on AWS without token
 
 ### Implementation
 
-Initially, the bot will be implemented as a standalone tool (ie under
-`tool/tbot`) and _not_ as a service that runs in a `teleport` process.
+The bot will be implemented as a standalone tool (ie under `tool/tbot`) and
+_not_ as a service that runs in a `teleport` process.
 
 The bulk of the new logic (parsing configuration, writing certificates to a
 destination, etc.) will be implemented in a new `renew` package, which will
@@ -593,6 +601,9 @@ renewal bots.
 
 When the backend receives the request to generate new user credentials, it validates
 the token, ensuring that the token is of the correct type and has not expired.
+
+*TODO (Tim): Investigate adding a new gRPC endpoint for this functionality instead
+of introducing a new endpoint on the deprecated HTTP API.*
 
 #### Renewable User Certificates
 
