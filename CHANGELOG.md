@@ -1,5 +1,9 @@
 # Changelog
 
+This release of Teleport contains a fix.
+
+* Fixed issue in Database Access that could cause MySQL listeners to crash. [#9163](https://github.com/gravitational/teleport/pull/9163)
+
 ## 7.3.4
 
 This release of Teleport contains a fix.
