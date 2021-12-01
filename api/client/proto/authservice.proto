@@ -1448,6 +1448,12 @@ message CreateSessionRequest {
     string ID = 13 [ (gogoproto.jsontag) = "id,omitempty" ];
 }
 
+// GetSessionRequest is a request to fetch a session resource.
+message GetSessionRequest {
+    // SessionID is unique identifier of this session.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
+}
+
 // GetActiveSessionsResponse is a response containing active sessions.
 message GetActiveSessionsResponse {
     // Sessions is a list of active sessions.
@@ -1492,6 +1498,9 @@ message UpdateSessionRequest {
 service AuthService {
     // CreateSession creates a new session resource.
     rpc CreateSession(CreateSessionRequest) returns (types.SessionV3);
+
+    // GetSessionRequest fetches a session resource.
+    rpc GetSession(GetSessionRequest) returns (types.SessionV3);
 
     // GetActiveSessions returns a list of active sessions.
     rpc GetActiveSessions(google.protobuf.Empty) returns (GetActiveSessionsResponse);

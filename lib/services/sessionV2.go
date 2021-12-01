@@ -37,6 +37,7 @@ const (
 // sessions that are in-flight in the cluster at the moment.
 type SessionV2 interface {
 	GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error)
+	GetSessionTracker(ctx context.Context, sessionID string) (types.Session, error)
 	CreateSessionTracker(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error)
 	UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionRequest) error
 	RemoveSessionTracker(ctx context.Context, sessionID string) error
@@ -81,6 +82,15 @@ func (s *sessionV2) loadSession(ctx context.Context, sessionID string) (types.Se
 	}
 
 	session, err := unmarshalSession(sessionJSON.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
+}
+
+func (s *sessionV2) GetSessionTracker(ctx context.Context, sessionID string) (types.Session, error) {
+	session, err := s.loadSession(ctx, sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

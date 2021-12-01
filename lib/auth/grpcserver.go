@@ -3514,6 +3514,24 @@ func (g *GRPCServer) CreateSession(ctx context.Context, req *proto.CreateSession
 	return defined, nil
 }
 
+func (g *GRPCServer) GetSession(ctx context.Context, req *proto.GetSessionRequest) (*types.SessionV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	session, err := auth.ServerWithRoles.GetSessionTracker(ctx, req.SessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defined, ok := session.(*types.SessionV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", session)
+	}
+
+	return defined, nil
+}
+
 func (g *GRPCServer) GetActiveSessions(ctx context.Context, req *empty.Empty) (*proto.GetActiveSessionsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

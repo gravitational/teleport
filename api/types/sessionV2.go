@@ -54,10 +54,6 @@ type Session interface {
 
 	GetInvited() []string
 
-	GetLastActive() time.Time
-
-	SetLastActive(string)
-
 	GetHostname() string
 
 	GetAddress() string
@@ -201,22 +197,6 @@ func (s *SessionV3) GetReason() string {
 
 func (s *SessionV3) GetInvited() []string {
 	return s.Spec.Invited
-}
-
-func (s *SessionV3) GetLastActive() time.Time {
-	return s.Spec.LastActive
-}
-
-func (s *SessionV3) SetLastActive(participantID string) {
-	now := time.Now()
-	s.Spec.LastActive = now
-
-	for _, participant := range s.Spec.Participants {
-		if participant.ID == participantID {
-			participant.LastActive = now
-			return
-		}
-	}
 }
 
 func (s *SessionV3) GetHostname() string {

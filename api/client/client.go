@@ -2321,6 +2321,12 @@ func (c *Client) CreateSessionTracker(ctx context.Context, req *proto.CreateSess
 	return resp, trail.FromGRPC(err)
 }
 
+func (c *Client) GetSessionTracker(ctx context.Context, sessionID string) (types.Session, error) {
+	req := &proto.GetSessionRequest{SessionID: sessionID}
+	resp, err := c.grpc.GetSession(ctx, req)
+	return resp, trail.FromGRPC(err)
+}
+
 func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error) {
 	resp, err := c.grpc.GetActiveSessions(ctx, &empty.Empty{})
 	if err != nil {

@@ -244,6 +244,14 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, req *proto.C
 	return a.authServer.CreateSessionTracker(ctx, req)
 }
 
+func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID string) (types.Session, error) {
+	if !a.hasBuiltinRole(string(types.RoleKube)) && !a.hasBuiltinRole(string(types.RoleNode)) && !a.hasBuiltinRole(string(types.RoleProxy)) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	return a.authServer.GetSessionTracker(ctx, sessionID)
+}
+
 func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types.Session, error) {
 	sessions, err := a.authServer.GetActiveSessionTrackers(ctx)
 	if err != nil {
