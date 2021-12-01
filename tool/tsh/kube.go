@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -78,7 +79,7 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 		CmdClause: parent.Command("join", "Join an active Kubernetes session."),
 	}
 
-	c.Flag("session", "The ID of the target session.").Required().StringVar(&c.session)
+	c.Arg("session", "The ID of the target session.").Required().StringVar(&c.session)
 	return c
 }
 
@@ -176,7 +177,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 func kubeExecCommandAssembler(c *kubeExecCommand) []string {
 	var cmd []string
-	cmd = append(cmd, "kubectl", "exec", c.target)
+	cmd = append(cmd, "kubectl", "exec")
 	if c.container != "" {
 		cmd = append(cmd, "-c", c.container)
 	}
@@ -192,8 +193,9 @@ func kubeExecCommandAssembler(c *kubeExecCommand) []string {
 	if c.tty {
 		cmd = append(cmd, "-t")
 	}
-	cmd = append(cmd, "--")
+	cmd = append(cmd, c.target, "--")
 	cmd = append(cmd, c.command...)
+	fmt.Println(cmd)
 	return cmd
 }
 
@@ -226,6 +228,9 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 func (c *kubeExecCommand) run(cf *CLIConf) error {
 	cmdStrings := kubeExecCommandAssembler(c)
 	cmd := exec.Command(cmdStrings[0], cmdStrings[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	return trace.Wrap(cmd.Run())
 }
 
