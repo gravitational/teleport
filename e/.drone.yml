@@ -705,7 +705,7 @@ steps:
       - set -u
       - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
       - export PATH=/Users/build/.cargo/bin:$PATH
-      - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)
+      - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)
       - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
       - export RUST_HOME=$CARGO_HOME
       - rustup toolchain install $RUST_VERSION
@@ -719,7 +719,7 @@ steps:
       WORKSPACE_DIR: /tmp/push-build-darwin-amd64-e
     commands:
       - set -u
-      - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)
+      - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)
       - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
       - export RUST_HOME=$CARGO_HOME
       - export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
@@ -737,7 +737,7 @@ steps:
       - export PATH=/Users/build/.cargo/bin:$PATH
       - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
       - export RUST_HOME=$CARGO_HOME
-      - export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)
+      - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - rustup override unset # clean up even though we're about to wipe out the directory, so we don't leave a broken link
       - rustup toolchain uninstall $RUST_VERSION
