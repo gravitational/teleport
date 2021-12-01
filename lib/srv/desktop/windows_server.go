@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
+	sshsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -602,13 +602,13 @@ func (s *WindowsService) handleConnection(con net.Conn) {
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tlsConn, desktop, authContext); err != nil {
+	if err := s.createSession(ctx, log, tlsConn, desktop, authContext); err != nil {
 		log.WithError(err).Error("RDP connection failed")
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, conn net.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+func (s *WindowsService) createSession(ctx context.Context, log logrus.FieldLogger, conn net.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -621,7 +621,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		return trace.Wrap(err)
 	}
 
-	sessionID := session.NewID()
+	sessionID := sshsession.NewID()
 
 	var windowsUser string
 	authorize := func(login string) error {
@@ -648,6 +648,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		return trace.Wrap(err)
 	}
 
+	session, err := newSession(ctx, sessionID, tdpConn, rdpc, log)
+	session.rdpc.Start()
+
 	monitorCfg := srv.MonitorConfig{
 		Context:           ctx,
 		Conn:              conn,
@@ -657,7 +660,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		Emitter:           s.cfg.Emitter,
 		LockWatcher:       s.cfg.LockWatcher,
 		LockTargets:       services.LockTargetsFromTLSIdentity(identity),
-		Tracker:           rdpc,
+		Tracker:           session.rdpc,
 		TeleportUser:      identity.Username,
 		ServerID:          s.cfg.Heartbeat.HostUUID,
 	}
@@ -670,13 +673,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
-		rdpc.Close()
+		session.rdpc.Close()
 		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
 	s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, nil)
-	err = rdpc.Wait()
+	err = session.rdpc.Wait()
 	s.onSessionEnd(ctx, &identity, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)

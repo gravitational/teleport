@@ -109,11 +109,7 @@ func init() {
 
 // Client is the RDP client.
 type Client struct {
-	cfg Config
-
-	// Parameters read from the TDP stream.
-	clientWidth, clientHeight uint16
-	username                  string
+	Cfg Config
 
 	// RDP client on the Rust side.
 	rustClient *C.Client
@@ -132,78 +128,33 @@ type Client struct {
 	clientLastActive time.Time
 }
 
-// New creates and connects a new Client based on cfg.
-func New(ctx context.Context, cfg Config) (*Client, error) {
-	if err := cfg.checkAndSetDefaults(); err != nil {
+// New creates and connects a new Client based on Cfg.
+func New(ctx context.Context, Cfg Config) (*Client, error) {
+	if err := Cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
 	c := &Client{
-		cfg:           cfg,
+		Cfg:           Cfg,
 		readyForInput: 0,
 	}
-
-	if err := c.readClientUsername(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := cfg.AuthorizeFn(c.username); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := c.readClientSize(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := c.connect(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	c.start()
 	return c, nil
 }
 
-func (c *Client) readClientUsername() error {
-	for {
-		msg, err := c.cfg.InputMessage()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		u, ok := msg.(tdp.ClientUsername)
-		if !ok {
-			c.cfg.Log.Debugf("Expected ClientUsername message, got %T", msg)
-			continue
-		}
-		c.cfg.Log.Debugf("Got RDP username %q", u.Username)
-		c.username = u.Username
-		return nil
+func (c *Client) Connect(ctx context.Context, u *tdp.ClientUsername, sc *tdp.ClientScreenSpec) error {
+	if err := c.Cfg.AuthorizeFn(u.Username); err != nil {
+		return err
 	}
-}
 
-func (c *Client) readClientSize() error {
-	for {
-		msg, err := c.cfg.InputMessage()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s, ok := msg.(tdp.ClientScreenSpec)
-		if !ok {
-			c.cfg.Log.Debugf("Expected ClientScreenSpec message, got %T", msg)
-			continue
-		}
-		c.cfg.Log.Debugf("Got RDP screen size %dx%d", s.Width, s.Height)
-		c.clientWidth = uint16(s.Width)
-		c.clientHeight = uint16(s.Height)
-		return nil
-	}
-}
-
-func (c *Client) connect(ctx context.Context) error {
-	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username)
+	userCertDER, userKeyDER, err := c.Cfg.GenerateUserCert(ctx, u.Username)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Addr and username strings only need to be valid for the duration of
 	// C.connect_rdp. They are copied on the Rust side and can be freed here.
-	addr := C.CString(c.cfg.Addr)
+	addr := C.CString(c.Cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
-	username := C.CString(c.username)
+	username := C.CString(u.Username)
 	defer C.free(unsafe.Pointer(username))
 
 	res := C.connect_rdp(
@@ -216,8 +167,8 @@ func (c *Client) connect(ctx context.Context) error {
 		C.uint32_t(len(userKeyDER)),
 		(*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
 		// screen size.
-		C.uint16_t(c.clientWidth),
-		C.uint16_t(c.clientHeight),
+		C.uint16_t(uint16(sc.Width)),
+		C.uint16_t(uint16(sc.Height)),
 	)
 	if err := cgoError(res.err); err != nil {
 		return trace.Wrap(err)
@@ -226,15 +177,15 @@ func (c *Client) connect(ctx context.Context) error {
 	return nil
 }
 
-// start kicks off goroutines for input/output streaming and returns right
+// Start kicks off goroutines for input/output streaming and returns right
 // away. Use Wait to wait for them to finish.
-func (c *Client) start() {
+func (c *Client) Start() {
 	// Video output streaming worker goroutine.
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
 		defer c.Close()
-		defer c.cfg.Log.Info("RDP output streaming finished")
+		defer c.Cfg.Log.Info("RDP output streaming finished")
 
 		h := cgo.NewHandle(c)
 		defer h.Delete()
@@ -242,7 +193,7 @@ func (c *Client) start() {
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if err := cgoError(C.read_rdp_output(c.rustClient, C.uintptr_t(h))); err != nil {
-			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
+			c.Cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
 		}
 	}()
 
@@ -251,13 +202,13 @@ func (c *Client) start() {
 	go func() {
 		defer c.wg.Done()
 		defer c.Close()
-		defer c.cfg.Log.Info("RDP input streaming finished")
+		defer c.Cfg.Log.Info("RDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
-			msg, err := c.cfg.InputMessage()
+			msg, err := c.Cfg.InputMessage()
 			if err != nil {
-				c.cfg.Log.Warningf("Failed reading RDP input message: %v", err)
+				c.Cfg.Log.Warningf("Failed reading RDP input message: %v", err)
 				return
 			}
 
@@ -280,7 +231,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.Cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
 			case tdp.MouseButton:
@@ -306,7 +257,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.Cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
 			case tdp.MouseWheel:
@@ -335,7 +286,7 @@ func (c *Client) start() {
 						wheel_delta: C.int16_t(m.Delta),
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.Cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
 			case tdp.KeyboardButton:
@@ -346,11 +297,11 @@ func (c *Client) start() {
 						down: m.State == tdp.ButtonPressed,
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.Cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
 					return
 				}
 			default:
-				c.cfg.Log.Warningf("Skipping unimplemented desktop protocol message type %T", msg)
+				c.Cfg.Log.Warningf("Skipping unimplemented desktop protocol message type %T", msg)
 			}
 		}
 	}()
@@ -383,7 +334,7 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	})
 	copy(img.Pix, data)
 
-	if err := c.cfg.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
+	if err := c.Cfg.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
 		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
 	}
 	return nil
@@ -403,7 +354,7 @@ func (c *Client) Wait() error {
 func (c *Client) Close() {
 	c.closeOnce.Do(func() {
 		if err := cgoError(C.close_rdp(c.rustClient)); err != nil {
-			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
+			c.Cfg.Log.Warningf("Error closing RDP connection: %v", err)
 		}
 	})
 }
