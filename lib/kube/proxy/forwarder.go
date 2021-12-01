@@ -743,8 +743,8 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	go func() {
 		<-stream.CloseC
 		session.mu.Lock()
-		err = session.leave(party.Id)
-		session.mu.Unlock()
+		defer session.mu.Unlock()
+		session.leave(party.Id)
 	}()
 
 	err = session.join(party)

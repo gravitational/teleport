@@ -821,6 +821,10 @@ func (s *session) join(p *party) error {
 }
 
 func (s *session) leave(id uuid.UUID) error {
+	if s.state == types.SessionState_SessionStateTerminated {
+		return nil
+	}
+
 	stringId := id.String()
 	party := s.parties[id]
 	delete(s.parties, id)
@@ -921,6 +925,7 @@ func (s *session) Close() error {
 	s.closeOnce.Do(func() {
 		broadcastMessage(s.clients_stdout.WriteUnconditional, "Closing session...")
 
+		s.state = types.SessionState_SessionStateTerminated
 		s.clients_stdin.Close()
 		s.stateUpdate.Submit(types.SessionState_SessionStateTerminated)
 		s.stateUpdate.Close()
