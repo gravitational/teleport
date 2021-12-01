@@ -49,11 +49,8 @@ export default function useTdpClientCanvas(props: Props) {
   const syncCanvasSizeToDisplaySize = (canvas: HTMLCanvasElement) => {
     const { width, height } = getDisplaySize();
 
-    // If it's resolution does not match change it
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
+    canvas.width = width;
+    canvas.height = height;
   };
 
   const onInit = (canvas: HTMLCanvasElement) => {
@@ -144,7 +141,7 @@ export default function useTdpClientCanvas(props: Props) {
 // Calculates the size (in pixels) of the display.
 // Since we want to maximize the display size for the user, this is simply
 // the full width of the screen and the full height sans top bar.
-function getDisplaySize(): { width: number; height: number } {
+function getDisplaySize() {
   return {
     width: window.innerWidth,
     height: window.innerHeight - TopBarHeight,
