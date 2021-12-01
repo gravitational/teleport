@@ -290,7 +290,7 @@ const (
 	// SessionDiskEvent is emitted when a file is opened within an session.
 	SessionDiskEvent = "session.disk"
 
-	// SessionNetworkEvent is emitted when a network connection is initated with a
+	// SessionNetworkEvent is emitted when a network connection is initiated with a
 	// session.
 	SessionNetworkEvent = "session.network"
 
