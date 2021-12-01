@@ -401,9 +401,9 @@ func Run(args []string, opts ...cliOption) error {
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
+	db.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	dbList := db.Command("ls", "List all available databases.")
 	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
-	dbList.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").Required().StringVar(&cf.DatabaseService)
 	dbLogin.Flag("db-user", "Optional database user to configure as default.").StringVar(&cf.DatabaseUser)

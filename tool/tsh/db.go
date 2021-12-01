@@ -116,7 +116,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	}); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err = tc.LocalAgent().AddKey(key); err != nil {
+	if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -132,7 +132,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	}
 	// Print after-connect message.
 	if !quiet {
-		return connectMessage.Execute(os.Stdout, db)
+		return connectMessage.Execute(os.Stdout, cf)
 	}
 	return nil
 }
@@ -256,7 +256,7 @@ Key:       %v
 `,
 			database.ServiceName, host, port, database.Username,
 			database.Database, profile.CACertPath(),
-			profile.DatabaseCertPath(database.ServiceName), profile.KeyPath())
+			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName), profile.KeyPath())
 	}
 	return nil
 }
@@ -381,7 +381,12 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 
 func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
 	found := false
-	for _, v := range profile.Databases {
+	databases, err := profile.DatabasesForCluster(tc.SiteName)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	for _, v := range databases {
 		if v.ServiceName == database.ServiceName {
 			found = true
 		}
@@ -440,16 +445,24 @@ func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 	if len(profile.Databases) == 0 {
 		return nil, trace.NotFound("Please login using 'tsh db login' first")
 	}
+	databases, err := profile.DatabasesForCluster(cf.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	name := cf.DatabaseService
 	if name == "" {
-		services := profile.DatabaseServices()
-		if len(services) > 1 {
+		if len(databases) > 1 {
+			var services []string
+			for _, database := range databases {
+				services = append(services, database.ServiceName)
+			}
 			return nil, trace.BadParameter("Multiple databases are available (%v), please specify one using CLI argument",
 				strings.Join(services, ", "))
 		}
-		name = services[0]
+		name = databases[0].ServiceName
 	}
-	for _, db := range profile.Databases {
+	for _, db := range databases {
 		if db.ServiceName == name {
 			// If database user or name were provided on the CLI,
 			// override the default ones.
@@ -587,9 +600,13 @@ const (
 	mongoBin = "mongo"
 )
 
+// clusterFlagTemplate defines a template that prints out " --cluster <cluster>"
+// if cluster name is not empty.
+const clusterFlagTemplate = "{{if .SiteName}} --cluster {{.SiteName}}{{end}}"
+
 // connectMessage is printed after successful login to a database.
 var connectMessage = template.Must(template.New("").Parse(fmt.Sprintf(`
-Connection information for database "{{.ServiceName}}" has been saved.
+Connection information for database "{{.DatabaseService}}" has been saved.
 
 You can now connect to it using the following command:
 
@@ -600,5 +617,5 @@ Or view the connect command for the native database CLI client:
   %v
 
 `,
-	utils.Color(utils.Yellow, "tsh db connect {{.ServiceName}}"),
-	utils.Color(utils.Yellow, "tsh db config --format=cmd {{.ServiceName}}"))))
+	utils.Color(utils.Yellow, "tsh db connect"+clusterFlagTemplate+" {{.DatabaseService}}"),
+	utils.Color(utils.Yellow, "tsh db config"+clusterFlagTemplate+" --format=cmd {{.DatabaseService}}"))))

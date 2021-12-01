@@ -430,7 +430,21 @@ func (p *ProfileStatus) KeyPath() string {
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) DatabaseCertPath(name string) string {
-	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+	return p.DatabaseCertPathForCluster("", name)
+}
+
+// DatabaseCertPathForCluster returns path to the specified database access
+// certificate for this profile, for the specified cluster.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
+//
+// If the input cluster name is an empty string, the selected cluster in the
+// profile will be used.
+func (p *ProfileStatus) DatabaseCertPathForCluster(clusterName string, databaseName string) string {
+	if clusterName == "" {
+		clusterName = p.Cluster
+	}
+	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, clusterName, databaseName)
 }
 
 // AppCertPath returns path to the specified app access certificate
@@ -455,6 +469,30 @@ func (p *ProfileStatus) DatabaseServices() (result []string) {
 		result = append(result, db.ServiceName)
 	}
 	return result
+}
+
+// DatabasesForCluster returns a list of databases for this profile, for
+// specified cluster name.
+func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteToDatabase, error) {
+	if clusterName == "" || clusterName == p.Cluster {
+		return p.Databases, nil
+	}
+
+	idx := KeyIndex{
+		ProxyHost:   p.Name,
+		Username:    p.Username,
+		ClusterName: clusterName,
+	}
+
+	store, err := NewFSLocalKeyStore(p.Dir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	key, err := store.GetKey(idx, WithDBCerts{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return findActiveDatabases(key)
 }
 
 // AppNames returns a list of app names this profile is logged into.
@@ -593,24 +631,9 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	dbCerts, err := key.DBTLSCertificates()
+	databases, err := findActiveDatabases(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	var databases []tlsca.RouteToDatabase
-	for _, cert := range dbCerts {
-		tlsID, err := tlsca.FromSubject(cert.Subject, time.Time{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// If the cert expiration time is less than 5s consider cert as expired and don't add
-		// it to the user profile as an active database.
-		if time.Until(cert.NotAfter) < 5*time.Second {
-			continue
-		}
-		if tlsID.RouteToDatabase.ServiceName != "" {
-			databases = append(databases, tlsID.RouteToDatabase)
-		}
 	}
 
 	appCerts, err := key.AppTLSCertificates()
@@ -3255,4 +3278,27 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 	case err := <-errorCh:
 		return trace.Wrap(err)
 	}
+}
+
+func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
+	dbCerts, err := key.DBTLSCertificates()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var databases []tlsca.RouteToDatabase
+	for _, cert := range dbCerts {
+		tlsID, err := tlsca.FromSubject(cert.Subject, time.Time{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// If the cert expiration time is less than 5s consider cert as expired and don't add
+		// it to the user profile as an active database.
+		if time.Until(cert.NotAfter) < 5*time.Second {
+			continue
+		}
+		if tlsID.RouteToDatabase.ServiceName != "" {
+			databases = append(databases, tlsID.RouteToDatabase)
+		}
+	}
+	return databases, nil
 }
