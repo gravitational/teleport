@@ -215,7 +215,7 @@ exports[`failed state 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-AxirZ sc-fzqBZW c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -225,7 +225,7 @@ exports[`failed state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ sc-fzqBZW c6"
+        class="c6"
       >
         <div
           class="c7"
@@ -246,7 +246,7 @@ exports[`failed state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ c10"
+        class="c10"
       >
         <button
           class="c11"
@@ -460,7 +460,7 @@ exports[`loaded state 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-AxirZ sc-fzqBZW c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -470,7 +470,7 @@ exports[`loaded state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ sc-fzqBZW c6"
+        class="c6"
       >
         <div
           class="c7"
@@ -485,7 +485,7 @@ exports[`loaded state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ c9"
+        class="c9"
       >
         <button
           class="c10"
@@ -699,7 +699,7 @@ exports[`processing state 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-AxirZ sc-fzqBZW c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -709,7 +709,7 @@ exports[`processing state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ sc-fzqBZW c6"
+        class="c6"
       >
         <div
           class="c7"
@@ -724,7 +724,7 @@ exports[`processing state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ c9"
+        class="c9"
       >
         <button
           class="c10"

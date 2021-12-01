@@ -197,7 +197,7 @@ exports[`render failed state of recovery codes dialog 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-AxirZ sc-fzqBZW c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -213,7 +213,7 @@ exports[`render failed state of recovery codes dialog 1`] = `
         failed to generate recovery codes
       </div>
       <div
-        class="sc-AxirZ c7"
+        class="c7"
       >
         <button
           class="c8"

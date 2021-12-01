@@ -1,5 +1,5 @@
 // tell eslint to ignore auto-generated proto files
-/*eslint import/default : 0 */
+/*eslint import/no-unresolved : 0 */
 import cloud from './v1/tenants_pb';
 
 export type Account = cloud.Account.AsObject;

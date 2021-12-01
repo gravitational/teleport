@@ -663,6 +663,7 @@ exports[`failed state 1`] = `
               >
                 <div
                   class="react-select__group-heading css-18ng2q5-group"
+                  data="[object Object]"
                   id="react-select-5-group-1-heading"
                 >
                   <div
@@ -1383,6 +1384,7 @@ exports[`loaded state 1`] = `
               >
                 <div
                   class="react-select__group-heading css-18ng2q5-group"
+                  data="[object Object]"
                   id="react-select-3-group-1-heading"
                 >
                   <div
@@ -2107,6 +2109,7 @@ exports[`processing state 1`] = `
               >
                 <div
                   class="react-select__group-heading css-18ng2q5-group"
+                  data="[object Object]"
                   id="react-select-7-group-1-heading"
                 >
                   <div

@@ -166,7 +166,7 @@ exports[`loaded with denied reason 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-AxirZ sc-fzqBZW c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -176,7 +176,7 @@ exports[`loaded with denied reason 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ sc-fzqBZW c6"
+        class="c6"
       >
         <div
           class="c7"
@@ -191,7 +191,7 @@ exports[`loaded with denied reason 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ c9"
+        class="c9"
       >
         <button
           class="c10"
@@ -350,7 +350,7 @@ exports[`loaded without denied reason 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-AxirZ sc-fzqBZW c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -360,7 +360,7 @@ exports[`loaded without denied reason 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ sc-fzqBZW c6"
+        class="c6"
       >
         
         <div
@@ -370,7 +370,7 @@ exports[`loaded without denied reason 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ c8"
+        class="c8"
       >
         <button
           class="c9"

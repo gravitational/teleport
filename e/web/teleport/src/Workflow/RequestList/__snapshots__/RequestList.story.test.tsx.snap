@@ -416,7 +416,7 @@ exports[`loaded state 1`] = `
 
 <div>
   <div
-    class="sc-AxirZ c0"
+    class="c0"
   >
     <input
       class="c1"
@@ -432,7 +432,7 @@ exports[`loaded state 1`] = `
       class="c2"
     >
       <div
-        class="sc-AxirZ c3"
+        class="c3"
       >
         <div
           class="c4"
@@ -454,7 +454,7 @@ exports[`loaded state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ c5"
+        class="c5"
       >
         <button
           disabled=""

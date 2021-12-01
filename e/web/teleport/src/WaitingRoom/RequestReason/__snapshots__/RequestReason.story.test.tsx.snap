@@ -228,7 +228,7 @@ exports[`failed 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-fzqBZW c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -238,7 +238,7 @@ exports[`failed 1`] = `
         </div>
       </div>
       <div
-        class="sc-fzqBZW c6"
+        class="c6"
       >
         <div
           class="c7"
@@ -494,7 +494,7 @@ exports[`loaded with custom prompt 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-fzqBZW c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -504,7 +504,7 @@ exports[`loaded with custom prompt 1`] = `
         </div>
       </div>
       <div
-        class="sc-fzqBZW c6"
+        class="c6"
       >
         <div
           class="c7"
@@ -754,7 +754,7 @@ exports[`loaded without custom prompt 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-fzqBZW c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -764,7 +764,7 @@ exports[`loaded without custom prompt 1`] = `
         </div>
       </div>
       <div
-        class="sc-fzqBZW c6"
+        class="c6"
       >
         <div
           class="c7"
