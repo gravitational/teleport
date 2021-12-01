@@ -411,16 +411,19 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 // and proxies, proxies and servers, servers and auth, etc).
 //
 func (s *Server) HandleConnection(conn net.Conn) {
+	log.Infof("[handshake-debug] Handling ssh conn, peer_addr=%v.", conn.RemoteAddr())
 	// initiate an SSH connection, note that we don't need to close the conn here
 	// in case of error as ssh server takes care of this
 	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
 	if err != nil {
+		log.Infof("[handshake-debug] Failed to extract host, peer_addr=%v.", conn.RemoteAddr())
 		log.Errorf(err.Error())
 	}
 	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
 		if trace.IsLimitExceeded(err) {
 			proxyConnectionLimitHitCount.Inc()
 		}
+		log.Infof("[handshake-debug] Connection rejected by conn limiter, peer_addr=%v.", conn.RemoteAddr())
 		log.Errorf(err.Error())
 		conn.Close()
 		return
@@ -441,6 +444,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// comes from another Teleport proxy):
 	sconn, chans, reqs, err := ssh.NewServerConn(wrapConnection(wconn), &s.cfg)
 	if err != nil {
+		log.WithError(err).Errorf("[handshake-debug] SSH handshake failed, peer_addr=%v.", conn.RemoteAddr())
 		conn.SetDeadline(time.Time{})
 		return
 	}
@@ -457,6 +461,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 	user := sconn.User()
 	if err := s.limiter.RegisterRequest(user); err != nil {
+		log.Infof("[handshake-debug] Connection rejected by user limiter, peer_addr=%v, user=%v.", conn.RemoteAddr(), user)
 		log.Errorf(err.Error())
 		sconn.Close()
 		conn.Close()

@@ -2328,6 +2328,20 @@ func (l *proxyListeners) Close() {
 	}
 }
 
+type loggingListener struct {
+	net.Listener
+}
+
+func (l loggingListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		logrus.Errorf("[handshake-debug] Accept failed: %v", err)
+	} else {
+		logrus.Infof("[handshake-debug] Accept succeeded, peer_addr=%v", conn.RemoteAddr())
+	}
+	return conn, err
+}
+
 // setupProxyListeners sets up web proxy listeners based on the configuration
 func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	cfg := process.Config
@@ -2339,6 +2353,8 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	listeners.ssh = loggingListener{listeners.ssh}
 
 	if cfg.Proxy.Kube.Enabled {
 		process.log.Debugf("Setup Proxy: turning on Kubernetes proxy.")
