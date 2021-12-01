@@ -39,15 +39,16 @@ type SessionStream struct {
 	resizeQueue    chan *remotecommand.TerminalSize
 	forceTerminate chan struct{}
 	writeSync      sync.Mutex
-	closeC         chan struct{}
+	CloseC         chan struct{}
 	closedC        sync.Once
+	closed         bool
 }
 
 func NewSessionStream(conn *websocket.Conn) *SessionStream {
 	s := &SessionStream{
 		conn:           conn,
 		in:             make(chan []byte),
-		closeC:         make(chan struct{}),
+		CloseC:         make(chan struct{}),
 		resizeQueue:    make(chan *remotecommand.TerminalSize, 1),
 		forceTerminate: make(chan struct{}),
 	}
@@ -59,7 +60,7 @@ func NewSessionStream(conn *websocket.Conn) *SessionStream {
 func (s *SessionStream) readTask() {
 	for {
 		terminated := false
-		defer s.closedC.Do(func() { close(s.closeC) })
+		defer s.closedC.Do(func() { close(s.CloseC) })
 		ty, data, err := s.conn.ReadMessage()
 		if err != nil {
 			return
@@ -87,6 +88,7 @@ func (s *SessionStream) readTask() {
 
 		if ty == websocket.CloseMessage {
 			s.conn.Close()
+			s.closed = true
 			return
 		}
 	}
@@ -96,7 +98,7 @@ func (s *SessionStream) Read(p []byte) (int, error) {
 	if len(s.currentIn) == 0 {
 		select {
 		case s.currentIn = <-s.in:
-		case <-s.closeC:
+		case <-s.CloseC:
 			return 0, io.EOF
 		}
 	}
@@ -148,18 +150,17 @@ func (s *SessionStream) DoForceTerminate() error {
 }
 
 func (s *SessionStream) WaitOnClose() {
-	<-s.closeC
+	<-s.CloseC
 }
 
 func (s *SessionStream) Close() error {
-	err := s.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	if !s.closed {
+		s.conn.WriteMessage(websocket.CloseMessage, []byte{})
 
-	select {
-	case <-s.closeC:
-	case <-time.After(time.Second * 5):
+		select {
+		case <-s.CloseC:
+		case <-time.After(time.Second * 5):
+		}
 	}
 
 	return nil

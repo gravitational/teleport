@@ -38,9 +38,10 @@ func NewMultiReader() *MultiReader {
 
 func (r *MultiReader) Read(p []byte) (int, error) {
 	r.RLock()
-	defer r.RUnlock()
+	multi := r.multi
+	r.RUnlock()
 
-	read, err := r.multi.Read(p)
+	read, err := multi.Read(p)
 	if err != nil {
 		log.Warnf("failed to read from multireader: %v", err)
 	}

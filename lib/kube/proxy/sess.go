@@ -353,7 +353,7 @@ func (s *session) waitOnAccess() {
 	s.clients_stdin.Off()
 	s.clients_stdout.Off()
 	s.clients_stderr.Off()
-	broadcastMessage(s.clients_stdout.WriteUnconditional, "Session paused, Waiting for required participants...")
+	broadcastMessage(s.clients_stdout.WriteUnconditional, "\r\nSession paused, Waiting for required participants...")
 
 	c := make(chan interface{})
 	s.stateUpdate.Register(c)
@@ -427,9 +427,11 @@ func (s *session) launch() error {
 		defer s.mu.Unlock()
 		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
 		id, _ := uuid.Parse(idString)
-		err = s.leave(id)
-		if err != nil {
-			s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
+		if s.parties[id] != nil {
+			err = s.leave(id)
+			if err != nil {
+				s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
+			}
 		}
 	}
 
@@ -822,37 +824,50 @@ func (s *session) leave(id uuid.UUID) error {
 	stringId := id.String()
 	party := s.parties[id]
 	delete(s.parties, id)
+	s.log.Errorf("leave called, deleted party")
 	s.terminalSizeQueue.remove(stringId)
 	s.clients_stdin.R.R.(*kubeutils.MultiReader).RemoveReader(stringId)
+	s.log.Errorf("leave called, removed reader")
 	s.clients_stdout.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
 	s.clients_stderr.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
+	s.log.Errorf("leave called, deleted writers")
 
 	err := s.trackerRemoveParticipant(party.Id.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	s.log.Error("CLOSING PARTY")
 	err = party.Close()
 	if err != nil {
+		s.log.Error("ERROR CLOSING PARTY: %v", err)
 		return trace.Wrap(err)
 	}
+	s.log.Error("CLOSED PARTY")
 
-	if len(s.parties) == 0 && id == s.initiator {
+	if len(s.parties) == 0 || id == s.initiator {
 		go func() {
 			err := s.Close()
 			if err != nil {
 				s.log.Errorf("Failed to close session: %v.", err)
 			}
 		}()
+
+		s.log.Error("EARLY QUIT")
+		return nil
 	}
 
 	canStart, options, err := s.canStart()
 	if err != nil {
+		s.log.Error("FAILED TO CALCULATE PERMISSIONS: %v", err)
 		return trace.Wrap(err)
 	}
 
 	if !canStart {
+		s.log.Error("FAILED PERMISSION CHECK")
+
 		if options.TerminateOnLeave {
+			s.log.Error("HARD LEAVE")
 			go func() {
 				err := s.Close()
 				if err != nil {
@@ -860,6 +875,7 @@ func (s *session) leave(id uuid.UUID) error {
 				}
 			}()
 		} else {
+			s.log.Error("SOFT LEAVE")
 			s.state = types.SessionState_SessionStatePending
 			s.stateUpdate.Submit(types.SessionState_SessionStatePending)
 			go s.waitOnAccess()

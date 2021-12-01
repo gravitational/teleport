@@ -740,12 +740,24 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	stream := streamproto.NewSessionStream(ws)
 	client := &websocketClientStreams{stream}
 	party := newParty(*ctx, client)
+	go func() {
+		<-stream.CloseC
+		session.mu.Lock()
+		err = session.leave(party.Id)
+		session.mu.Unlock()
+	}()
+
 	err = session.join(party)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	<-party.closeC
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return nil, nil
 }
 
