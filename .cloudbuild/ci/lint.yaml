@@ -1,0 +1,6 @@
+steps:
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+    id: lint
+    args: ['make', 'lint-go', 'lint-api']
+options:
+  machineType: 'E2_HIGHCPU_32'
