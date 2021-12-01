@@ -14,7 +14,12 @@
 
 package main
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+	"log"
+	"os/exec"
+)
 
 var (
 	triggerPullRequest = trigger{
@@ -70,18 +75,24 @@ var (
 		Name: "tmp-integration",
 		Path: "/tmp",
 	}
-
-	// TODO(gus): Set this from `make -C build.assets print-runtime-version` or similar rather
-	// than hardcoding it. Also remove the usage of RUNTIME as a pipeline-level environment variable
-	// (as support for these varies among Drone runners) and only set it for steps that need it.
-	goRuntime = value{raw: "go1.17.2"}
 )
+
+var goRuntime value
+
+func init() {
+	v, err := exec.Command("make", "-C", "build.assets", "print-go-version").Output()
+	if err != nil {
+		log.Fatalf("could not get Go version: %v", err)
+	}
+	goRuntime = value{raw: string(bytes.TrimSpace(v))}
+}
 
 type buildType struct {
 	os              string
 	arch            string
 	fips            bool
 	centos6         bool
+	centos7         bool
 	windowsUnsigned bool
 }
 
@@ -108,11 +119,13 @@ func dockerVolumeRefs(v ...volumeRef) []volumeRef {
 	return append(v, volumeRefDocker)
 }
 
-// releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos6 combo
+// releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
 	if b.centos6 {
 		makefileTarget += "-centos6"
+	} else if b.centos7 {
+		makefileTarget += "-centos7"
 	}
 	if b.fips {
 		makefileTarget += "-fips"
