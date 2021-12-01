@@ -115,7 +115,6 @@ func (s *Suite) SetUpSuite(c *check.C) {
 		Streamer:    serverStreamer,
 	})
 	c.Assert(err, check.IsNil)
-	t.Cleanup(func() { s.authServer.Close() })
 
 	err = s.authServer.AuthServer.SetSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
 		Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
@@ -145,8 +144,12 @@ func (s *Suite) SetUpSuite(c *check.C) {
 }
 
 func (s *Suite) TearDownSuite(c *check.C) {
-	err := s.tlsServer.Close()
-	c.Assert(err, check.IsNil)
+	if s.tlsServer != nil {
+		err := s.tlsServer.Close()
+		c.Assert(err, check.IsNil)
+	}
+
+	s.authServer.Close()
 }
 
 var (
