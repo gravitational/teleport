@@ -192,7 +192,7 @@ func TestCheckAndSetDefaults(t *testing.T) {
 
 	client := github.NewClient(nil)
 	ctx := context.Background()
-	os.Setenv(ci.GithubEventPath, "path/to/event.json")
+	t.Setenv(ci.GithubEventPath, "path/to/event.json")
 	tests := []struct {
 		cfg      Config
 		desc     string
