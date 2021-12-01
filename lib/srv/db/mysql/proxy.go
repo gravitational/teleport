@@ -61,6 +61,10 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// If any error happens, make sure to send it back to the client so it
 	// has a chance to close the connection from its side.
 	defer func() {
+		if r := recover(); r != nil {
+			p.Log.Warnf("Recovered in MySQL proxy while handling connection from %v: %v.", clientConn.RemoteAddr(), r)
+			err = trace.BadParameter("failed to handle MySQL client connection")
+		}
 		if err != nil {
 			if writeErr := server.WriteError(err); writeErr != nil {
 				p.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
