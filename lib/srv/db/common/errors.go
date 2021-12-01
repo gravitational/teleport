@@ -20,10 +20,10 @@ import (
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
 	"github.com/pkg/errors"
-	"github.com/siddontang/go-mysql/mysql"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc/status"
 

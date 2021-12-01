@@ -43,9 +43,6 @@ github.com/Azure/go-autorest/tracing
 # github.com/Azure/go-ntlmssp v0.0.0-20200615164410-66371956d46c
 ## explicit
 github.com/Azure/go-ntlmssp
-# github.com/BurntSushi/toml v0.3.1
-## explicit
-github.com/BurntSushi/toml
 # github.com/HdrHistogram/hdrhistogram-go v1.0.1
 ## explicit; go 1.14
 github.com/HdrHistogram/hdrhistogram-go
@@ -313,6 +310,13 @@ github.com/go-ldap/ldap/v3
 # github.com/go-logr/logr v0.2.0
 ## explicit; go 1.14
 github.com/go-logr/logr
+# github.com/go-mysql-org/go-mysql v1.3.1 => github.com/gravitational/go-mysql v1.3.1
+## explicit; go 1.16
+github.com/go-mysql-org/go-mysql/client
+github.com/go-mysql-org/go-mysql/mysql
+github.com/go-mysql-org/go-mysql/packet
+github.com/go-mysql-org/go-mysql/server
+github.com/go-mysql-org/go-mysql/utils
 # github.com/go-stack/stack v1.8.0
 ## explicit
 github.com/go-stack/stack
@@ -583,8 +587,8 @@ github.com/nsf/termbox-go
 # github.com/pborman/uuid v1.2.1
 ## explicit
 github.com/pborman/uuid
-# github.com/pingcap/errors v0.11.0
-## explicit
+# github.com/pingcap/errors v0.11.5-0.20201126102027-b0a155152ca3
+## explicit; go 1.14
 github.com/pingcap/errors
 # github.com/pkg/errors v0.9.1
 ## explicit
@@ -655,13 +659,6 @@ github.com/siddontang/go/sync2
 ## explicit
 github.com/siddontang/go-log/log
 github.com/siddontang/go-log/loggers
-# github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20210212011549-886316308a77
-## explicit; go 1.15
-github.com/siddontang/go-mysql/client
-github.com/siddontang/go-mysql/mysql
-github.com/siddontang/go-mysql/packet
-github.com/siddontang/go-mysql/server
-github.com/siddontang/go-mysql/utils
 # github.com/sirupsen/logrus v1.8.1-0.20210219125412-f104497f2b21 => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 ## explicit; go 1.13
 github.com/sirupsen/logrus
@@ -789,13 +786,10 @@ go.opencensus.io/trace/tracestate
 # go.uber.org/atomic v1.7.0
 ## explicit; go 1.13
 go.uber.org/atomic
-# go.uber.org/multierr v1.3.0
+# go.uber.org/multierr v1.6.0
 ## explicit; go 1.12
 go.uber.org/multierr
-# go.uber.org/tools v0.0.0-20190618225709-2cfd321de3ee
-## explicit
-go.uber.org/tools/update-license
-# go.uber.org/zap v1.13.0
+# go.uber.org/zap v1.16.0
 ## explicit; go 1.13
 go.uber.org/zap
 go.uber.org/zap/buffer
@@ -873,7 +867,7 @@ golang.org/x/sys/windows
 # golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 ## explicit; go 1.11
 golang.org/x/term
-# golang.org/x/text v0.3.5
+# golang.org/x/text v0.3.6
 ## explicit; go 1.11
 golang.org/x/text/cases
 golang.org/x/text/encoding
@@ -900,20 +894,11 @@ golang.org/x/time/rate
 ## explicit; go 1.17
 golang.org/x/tools/cmd/goimports
 golang.org/x/tools/cover
-golang.org/x/tools/go/analysis
-golang.org/x/tools/go/analysis/passes/inspect
 golang.org/x/tools/go/ast/astutil
-golang.org/x/tools/go/ast/inspector
-golang.org/x/tools/go/buildutil
 golang.org/x/tools/go/gcexportdata
-golang.org/x/tools/go/internal/cgo
 golang.org/x/tools/go/internal/gcimporter
 golang.org/x/tools/go/internal/packagesdriver
-golang.org/x/tools/go/loader
 golang.org/x/tools/go/packages
-golang.org/x/tools/go/types/objectpath
-golang.org/x/tools/go/types/typeutil
-golang.org/x/tools/internal/analysisinternal
 golang.org/x/tools/internal/event
 golang.org/x/tools/internal/event/core
 golang.org/x/tools/internal/event/keys
@@ -922,7 +907,6 @@ golang.org/x/tools/internal/fastwalk
 golang.org/x/tools/internal/gocommand
 golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
-golang.org/x/tools/internal/lsp/fuzzy
 golang.org/x/tools/internal/packagesinternal
 golang.org/x/tools/internal/typeparams
 golang.org/x/tools/internal/typesinternal
@@ -1098,35 +1082,6 @@ gopkg.in/yaml.v2
 gopkg.in/yaml.v3
 # honnef.co/go/tools v0.0.1-2020.1.5
 ## explicit; go 1.11
-honnef.co/go/tools/arg
-honnef.co/go/tools/cmd/staticcheck
-honnef.co/go/tools/code
-honnef.co/go/tools/config
-honnef.co/go/tools/deprecated
-honnef.co/go/tools/edit
-honnef.co/go/tools/facts
-honnef.co/go/tools/functions
-honnef.co/go/tools/go/types/typeutil
-honnef.co/go/tools/internal/cache
-honnef.co/go/tools/internal/passes/buildir
-honnef.co/go/tools/internal/renameio
-honnef.co/go/tools/internal/robustio
-honnef.co/go/tools/internal/sharedcheck
-honnef.co/go/tools/ir
-honnef.co/go/tools/ir/irutil
-honnef.co/go/tools/lint
-honnef.co/go/tools/lint/lintdsl
-honnef.co/go/tools/lint/lintutil
-honnef.co/go/tools/lint/lintutil/format
-honnef.co/go/tools/loader
-honnef.co/go/tools/pattern
-honnef.co/go/tools/printf
-honnef.co/go/tools/report
-honnef.co/go/tools/simple
-honnef.co/go/tools/staticcheck
-honnef.co/go/tools/stylecheck
-honnef.co/go/tools/unused
-honnef.co/go/tools/version
 # k8s.io/api v0.0.0-20200821051526-051d027c14e1
 ## explicit; go 1.15
 k8s.io/api/admissionregistration/v1

@@ -31,9 +31,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/siddontang/go-mysql/client"
-	"github.com/siddontang/go-mysql/packet"
-	"github.com/siddontang/go-mysql/server"
+	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/go-mysql-org/go-mysql/packet"
+	"github.com/go-mysql-org/go-mysql/server"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
