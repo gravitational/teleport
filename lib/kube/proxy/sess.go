@@ -747,6 +747,8 @@ func (s *session) join(p *party) error {
 		return trace.Wrap(err)
 	}
 
+	broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("\r\nUser %v joined the session.", p.Ctx.User.GetName()))
+
 	if s.tty {
 		s.log.Debug("adding resize stream")
 		s.terminalSizeQueue.add(stringId, p.Client.resizeQueue())
@@ -835,6 +837,8 @@ func (s *session) leave(id uuid.UUID) error {
 	s.clients_stdout.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
 	s.clients_stderr.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
 	s.log.Errorf("leave called, deleted writers")
+
+	broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("\r\nUser %v left the session.", party.Ctx.User.GetName()))
 
 	err := s.trackerRemoveParticipant(party.Id.String())
 	if err != nil {
