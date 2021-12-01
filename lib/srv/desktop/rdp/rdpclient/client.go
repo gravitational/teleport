@@ -124,6 +124,11 @@ type Client struct {
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 
+	// Fields to remember mouse coordinates
+	// to send them with all CGOPointer events
+	// in ForwardInput.
+	mouseX, mouseY uint32
+
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
 }
@@ -196,115 +201,98 @@ func (c *Client) Start() {
 			c.Cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
 		}
 	}()
+}
 
-	// User input streaming worker goroutine.
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		defer c.Close()
-		defer c.Cfg.Log.Info("RDP input streaming finished")
-		// Remember mouse coordinates to send them with all CGOPointer events.
-		var mouseX, mouseY uint32
-		for {
-			msg, err := c.Cfg.InputMessage()
-			if err != nil {
-				c.Cfg.Log.Warningf("Failed reading RDP input message: %v", err)
-				return
-			}
+// Send translates a TDP message to RDP and writes it via the C client.
+func (c *Client) Send(msg tdp.Message) error {
+	if atomic.LoadUint32(&c.readyForInput) == 0 {
+		// Input not allowed yet, drop the message.
+		return nil
+	}
 
-			if atomic.LoadUint32(&c.readyForInput) == 0 {
-				// Input not allowed yet, drop the message.
-				continue
-			}
+	c.UpdateClientActivity()
 
-			c.UpdateClientActivity()
-
-			switch m := msg.(type) {
-			case tdp.MouseMove:
-				mouseX, mouseY = m.X, m.Y
-				if err := cgoError(C.write_rdp_pointer(
-					c.rustClient,
-					C.CGOMousePointerEvent{
-						x:      C.uint16_t(m.X),
-						y:      C.uint16_t(m.Y),
-						button: C.PointerButtonNone,
-						wheel:  C.PointerWheelNone,
-					},
-				)); err != nil {
-					c.Cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
-					return
-				}
-			case tdp.MouseButton:
-				// Map the button to a C enum value.
-				var button C.CGOPointerButton
-				switch m.Button {
-				case tdp.LeftMouseButton:
-					button = C.PointerButtonLeft
-				case tdp.RightMouseButton:
-					button = C.PointerButtonRight
-				case tdp.MiddleMouseButton:
-					button = C.PointerButtonMiddle
-				default:
-					button = C.PointerButtonNone
-				}
-				if err := cgoError(C.write_rdp_pointer(
-					c.rustClient,
-					C.CGOMousePointerEvent{
-						x:      C.uint16_t(mouseX),
-						y:      C.uint16_t(mouseY),
-						button: uint32(button),
-						down:   m.State == tdp.ButtonPressed,
-						wheel:  C.PointerWheelNone,
-					},
-				)); err != nil {
-					c.Cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
-					return
-				}
-			case tdp.MouseWheel:
-				var wheel C.CGOPointerWheel
-				switch m.Axis {
-				case tdp.VerticalWheelAxis:
-					wheel = C.PointerWheelVertical
-				case tdp.HorizontalWheelAxis:
-					wheel = C.PointerWheelHorizontal
-					// TDP positive scroll deltas move towards top-left.
-					// RDP positive scroll deltas move towards top-right.
-					//
-					// Fix the scroll direction to match TDP, it's inverted for
-					// horizontal scroll in RDP.
-					m.Delta = -m.Delta
-				default:
-					wheel = C.PointerWheelNone
-				}
-				if err := cgoError(C.write_rdp_pointer(
-					c.rustClient,
-					C.CGOMousePointerEvent{
-						x:           C.uint16_t(mouseX),
-						y:           C.uint16_t(mouseY),
-						button:      C.PointerButtonNone,
-						wheel:       uint32(wheel),
-						wheel_delta: C.int16_t(m.Delta),
-					},
-				)); err != nil {
-					c.Cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
-					return
-				}
-			case tdp.KeyboardButton:
-				if err := cgoError(C.write_rdp_keyboard(
-					c.rustClient,
-					C.CGOKeyboardEvent{
-						code: C.uint16_t(m.KeyCode),
-						down: m.State == tdp.ButtonPressed,
-					},
-				)); err != nil {
-					c.Cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
-					return
-				}
-			default:
-				c.Cfg.Log.Warningf("Skipping unimplemented desktop protocol message type %T", msg)
-			}
+	switch m := msg.(type) {
+	case tdp.MouseMove:
+		c.mouseX, c.mouseY = m.X, m.Y
+		if err := cgoError(C.write_rdp_pointer(
+			c.rustClient,
+			C.CGOMousePointerEvent{
+				x:      C.uint16_t(m.X),
+				y:      C.uint16_t(m.Y),
+				button: C.PointerButtonNone,
+				wheel:  C.PointerWheelNone,
+			},
+		)); err != nil {
+			return trace.Errorf("Failed forwarding RDP input message: %v", err)
 		}
-	}()
+	case tdp.MouseButton:
+		// Map the button to a C enum value.
+		var button C.CGOPointerButton
+		switch m.Button {
+		case tdp.LeftMouseButton:
+			button = C.PointerButtonLeft
+		case tdp.RightMouseButton:
+			button = C.PointerButtonRight
+		case tdp.MiddleMouseButton:
+			button = C.PointerButtonMiddle
+		default:
+			button = C.PointerButtonNone
+		}
+		if err := cgoError(C.write_rdp_pointer(
+			c.rustClient,
+			C.CGOMousePointerEvent{
+				x:      C.uint16_t(c.mouseX),
+				y:      C.uint16_t(c.mouseY),
+				button: uint32(button),
+				down:   m.State == tdp.ButtonPressed,
+				wheel:  C.PointerWheelNone,
+			},
+		)); err != nil {
+			return trace.Errorf("Failed forwarding RDP input message: %v", err)
+		}
+	case tdp.MouseWheel:
+		var wheel C.CGOPointerWheel
+		switch m.Axis {
+		case tdp.VerticalWheelAxis:
+			wheel = C.PointerWheelVertical
+		case tdp.HorizontalWheelAxis:
+			wheel = C.PointerWheelHorizontal
+			// TDP positive scroll deltas move towards top-left.
+			// RDP positive scroll deltas move towards top-right.
+			//
+			// Fix the scroll direction to match TDP, it's inverted for
+			// horizontal scroll in RDP.
+			m.Delta = -m.Delta
+		default:
+			wheel = C.PointerWheelNone
+		}
+		if err := cgoError(C.write_rdp_pointer(
+			c.rustClient,
+			C.CGOMousePointerEvent{
+				x:           C.uint16_t(c.mouseX),
+				y:           C.uint16_t(c.mouseY),
+				button:      C.PointerButtonNone,
+				wheel:       uint32(wheel),
+				wheel_delta: C.int16_t(m.Delta),
+			},
+		)); err != nil {
+			return trace.Errorf("Failed forwarding RDP input message: %v", err)
+		}
+	case tdp.KeyboardButton:
+		if err := cgoError(C.write_rdp_keyboard(
+			c.rustClient,
+			C.CGOKeyboardEvent{
+				code: C.uint16_t(m.KeyCode),
+				down: m.State == tdp.ButtonPressed,
+			},
+		)); err != nil {
+			return trace.Errorf("Failed forwarding RDP input message: %v", err)
+		}
+	default:
+		c.Cfg.Log.Warningf("Skipping unimplemented desktop protocol message type %T", msg)
+	}
+	return nil
 }
 
 //export handle_bitmap

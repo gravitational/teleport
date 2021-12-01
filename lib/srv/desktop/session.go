@@ -18,6 +18,7 @@ package desktop
 
 import (
 	"context"
+	"sync"
 
 	sshsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
@@ -27,6 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// TODO make variables a config
 func newSession(ctx context.Context, sessionID sshsession.ID, tdpConn *tdp.Conn, rdpc *rdpclient.Client, log logrus.FieldLogger) (*session, error) {
 	s := &session{
 		sessionID: sessionID,
@@ -52,7 +54,7 @@ func newSession(ctx context.Context, sessionID sshsession.ID, tdpConn *tdp.Conn,
 	return s, nil
 }
 
-// session represents desktop session
+// session represents a desktop session.
 type session struct {
 	sessionID sshsession.ID
 
@@ -63,6 +65,10 @@ type session struct {
 	// rdpc is the RDP client for sending and receiving RDP messages
 	// to and from the RDP server (windows host).
 	rdpc *rdpclient.Client
+
+	// wg is used to wait for the input/output streaming
+	// goroutines to complete
+	wg sync.WaitGroup
 
 	log logrus.FieldLogger
 }
@@ -99,4 +105,29 @@ func (s *session) waitForClientSize() (*tdp.ClientScreenSpec, error) {
 		s.log.Debugf("Got RDP screen size %dx%d", sc.Width, sc.Height)
 		return &sc, nil
 	}
+}
+
+// start kicks off goroutines for streaming input and output between the TDP connection and
+// RDP client and returns right away. Use Wait to wait for them to finish.
+func (s *session) start() {
+	// Stream user input messages.
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		defer s.rdpc.Close()
+		defer s.log.Info("TDP --> RDP input streaming finished")
+
+		for {
+			msg, err := s.tdpConn.InputMessage()
+			if err != nil {
+				s.log.WithError(err).Warning("Failed reading TDP input message")
+				continue
+			}
+
+			if err := s.rdpc.Send(msg); err != nil {
+				s.log.Error(err)
+				return
+			}
+		}
+	}()
 }
