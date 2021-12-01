@@ -19,9 +19,11 @@ import {
   render as testingRender,
   act,
   fireEvent,
-  waitForElement,
+  waitFor,
+  screen,
+  prettyDOM,
+  getByTestId
 } from '@testing-library/react';
-import { screen, wait, prettyDOM, getByTestId } from '@testing-library/dom';
 import { MemoryRouter as Router } from 'react-router-dom';
 import ThemeProvider from 'design/ThemeProvider';
 import theme from 'design/theme';
@@ -48,12 +50,12 @@ type RenderOptions = {
 export {
   act,
   screen,
-  wait,
+  waitFor as wait,  //TODO: refactor everything to use `waitFor`
   fireEvent,
   theme,
   render,
   prettyDOM,
-  waitForElement,
+  waitFor as waitForElement,
   getByTestId,
   Router,
 };

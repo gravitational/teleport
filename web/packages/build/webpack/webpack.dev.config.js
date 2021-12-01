@@ -21,7 +21,7 @@ process.env.NODE_ENV = 'development';
 
 const baseCfg = createConfig();
 
-var cfg = {
+const cfg = {
   entry: baseCfg.entry,
   output: {
     ...baseCfg.output,
@@ -32,7 +32,6 @@ var cfg = {
     ...baseCfg.resolve,
     alias: {
       ...baseCfg.resolve.alias,
-      'react-dom': '@hot-loader/react-dom',
     },
   },
 
@@ -41,6 +40,10 @@ var cfg = {
   mode: 'development',
 
   optimization: baseCfg.optimization,
+  plugins: [
+    baseCfg.plugins.createESLint(),
+    baseCfg.plugins.createReactRefresh(),
+  ],
 
   module: {
     noParse: baseCfg.noParse,
@@ -49,7 +52,7 @@ var cfg = {
       baseCfg.rules.fonts,
       baseCfg.rules.svg,
       baseCfg.rules.images,
-      baseCfg.rules.jsx({ withHot: true }),
+      baseCfg.rules.jsx(),
       baseCfg.rules.css(),
     ],
   },

@@ -50,7 +50,7 @@ exports[`renders 1`] = `
     src="file_stub"
   />
   <div
-    class="sc-AxirZ c1"
+    class="c1"
     width="540px"
   >
     <span

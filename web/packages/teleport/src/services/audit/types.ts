@@ -498,7 +498,7 @@ type Merge<A, B> = Omit<A, keyof B> & B extends infer O
 /**
  * Describes common properties of the raw events (backend data)
  */
-export type RawEvent<T extends EventCode, K = {}> = Merge<
+export type RawEvent<T extends EventCode, K = unknown> = Merge<
   {
     code: T;
     user: string;

@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { hot } from 'react-hot-loader/root';
 import Main, { StyledMain } from './Main';
 
 export { StyledMain };
-export default hot(Main);
+export default Main;

@@ -281,7 +281,7 @@ exports[`list of all events 1`] = `
     class="c0"
   >
     <div
-      class="sc-AxirZ c1"
+      class="c1"
     >
       <div
         class="c2"
@@ -308,7 +308,7 @@ exports[`list of all events 1`] = `
       </button>
     </div>
     <div
-      class="sc-AxirZ c4"
+      class="c4"
     >
       <button
         disabled=""

@@ -219,7 +219,7 @@ exports[`failed state 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-AxirZ sc-fzqBZW c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -229,7 +229,7 @@ exports[`failed state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ sc-fzqBZW c6"
+        class="c6"
       >
         <div
           class="c7"
@@ -250,7 +250,7 @@ exports[`failed state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ c10"
+        class="c10"
       >
         <button
           class="c11"
@@ -468,7 +468,7 @@ exports[`processing state 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-AxirZ sc-fzqBZW c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -478,7 +478,7 @@ exports[`processing state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ sc-fzqBZW c6"
+        class="c6"
       >
         <div
           class="c7"
@@ -493,7 +493,7 @@ exports[`processing state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ c9"
+        class="c9"
       >
         <button
           class="c10"
@@ -727,7 +727,7 @@ exports[`success state 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-AxirZ c4"
+        class="c4"
       >
         <div
           class="c5"
@@ -737,7 +737,7 @@ exports[`success state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ c6"
+        class="c6"
       >
         <div
           class="c7"
@@ -753,10 +753,10 @@ exports[`success state 1`] = `
           .
         </div>
         <div
-          class="sc-AxirZ c9"
+          class="c9"
         >
           <div
-            class="sc-AxirZ c10"
+            class="c10"
             style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
           >
             <div>
@@ -773,7 +773,7 @@ exports[`success state 1`] = `
         </div>
       </div>
       <div
-        class="sc-AxirZ c12"
+        class="c12"
       >
         <button
           class="c13"

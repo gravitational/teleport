@@ -61,7 +61,7 @@ type Props = {
   autoFocus?: boolean;
   autoComplete?: 'off' | 'on';
   type?: 'email' | 'text' | 'password' | 'number' | 'date' | 'week';
-  rule?: Function;
+  rule?: (options: unknown) => () => unknown;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onKeyPress?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   readonly?: boolean;

@@ -6,9 +6,13 @@ const defaultCfg = require('@gravitational/build/webpack/webpack.prod.config');
 
 module.exports = {
   ...defaultCfg,
+  optimization: {
+    ...defaultCfg.optimization,
+    moduleIds: 'hashed',
+  },
   plugins: [
+    ...defaultCfg.plugins,
     new CleanWebpackPlugin(),
-    new webpack.HashedModuleIdsPlugin(),
     createBaseDefaults().plugins.createIndexHtml({
       favicon: path.join(__dirname, '/src/favicon.ico'),
     }),

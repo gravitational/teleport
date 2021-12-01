@@ -453,13 +453,13 @@ exports[`failed state 1`] = `
 
 <div>
   <div
-    class="sc-AxirZ sc-fzqBZW c0"
+    class="c0"
   >
     <div
-      class="sc-AxirZ sc-fzqBZW c1"
+      class="c1"
     >
       <div
-        class="sc-fznZeY c2"
+        class="c2"
       >
         Applications
       </div>
@@ -1374,10 +1374,10 @@ exports[`readonly empty state 1`] = `
 
 <div>
   <div
-    class="sc-fzqBZW c0"
+    class="c0"
   >
     <div
-      class="sc-fzqBZW c1"
+      class="c1"
     >
       <div
         class="c2"

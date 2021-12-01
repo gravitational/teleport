@@ -5,8 +5,6 @@ export default function parseError(json) {
     msg = json.error.message;
   } else if (json && json.message) {
     msg = json.message;
-  } else if (json && json.error) {
-    msg = json.error.message;
   } else if (json.responseText) {
     msg = json.responseText;
   }

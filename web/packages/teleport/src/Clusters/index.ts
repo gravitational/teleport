@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { hot } from 'react-hot-loader/root';
 import Clusters from './Clusters';
 
-export default hot(Clusters);
+export default Clusters;

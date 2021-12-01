@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const path = require('path');
 const createConfig = require('./webpack/webpack.base');
 
 module.exports = {
@@ -36,16 +35,22 @@ module.exports = {
     expect: true,
     jest: true,
   },
+  ignorePatterns: ['**/dist/**'],
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
     'plugin:import/errors',
     'plugin:import/warnings',
     'plugin:import/typescript',
-    'plugin:jest/all',
   ],
-  plugins: ['react', 'babel', 'import', 'jest'],
-
+  plugins: ['react', 'babel', 'import'],
+  overrides: [
+    {
+      files: ['**/*.test.{ts,tsx,js,jsx}'],
+      plugins: ['jest'],
+      extends: ['plugin:jest/all'],
+    },
+  ],
   rules: {
     // <TODO> Enable these rules after fixing all existing issues
     '@typescript-eslint/no-use-before-define': 0,

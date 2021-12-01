@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 const path = require('path');
+const spawn = require('cross-spawn');
 
 if (!process.argv.some(arg => arg.startsWith('--config'))) {
   process.argv.push(
@@ -8,4 +9,6 @@ if (!process.argv.some(arg => arg.startsWith('--config'))) {
   );
 }
 
-require('webpack-cli');
+const args = process.argv.slice(2);
+
+spawn.sync('webpack', args, { stdio: 'inherit' });

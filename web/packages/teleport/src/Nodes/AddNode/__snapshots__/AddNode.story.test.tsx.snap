@@ -601,10 +601,10 @@ exports[`render failed automatic tab 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="sc-AxirZ c4"
+        class="c4"
       >
         <div
-          class="sc-AxirZ c5"
+          class="c5"
         >
           <div
             class="c6"
@@ -632,7 +632,7 @@ exports[`render failed automatic tab 1`] = `
           </div>
         </div>
         <div
-          class="sc-AxirZ c10"
+          class="c10"
         >
           <div
             class="c11"
@@ -642,7 +642,7 @@ exports[`render failed automatic tab 1`] = `
           </div>
         </div>
         <div
-          class="sc-AxirZ c12"
+          class="c12"
         >
           <button
             class="c13"

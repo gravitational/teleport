@@ -78,17 +78,17 @@ exports[`render DocumentBlank 1`] = `
 }
 
 <div
-  class="sc-AxirZ c0"
+  class="c0"
   height="100%"
   style="position: absolute;"
   width="100%"
 >
   <div
-    class="sc-AxirZ c1"
+    class="c1"
     style="overflow: auto; background: rgb(1, 11, 28); display: flex; position: relative;"
   >
     <div
-      class="sc-AxirZ c2"
+      class="c2"
     >
       <span
         class="c3 icon icon-terminal "

@@ -80,7 +80,7 @@ exports[`callback error message 1`] = `
     src="file_stub"
   />
   <div
-    class="sc-AxirZ c1"
+    class="c1"
     color="text.onLight"
     width="540px"
   >
@@ -190,7 +190,7 @@ exports[`default error message 1`] = `
     src="file_stub"
   />
   <div
-    class="sc-AxirZ c1"
+    class="c1"
     color="text.onLight"
     width="540px"
   >

@@ -434,13 +434,13 @@ exports[`failed 1`] = `
 }
 
 <div
-  class="sc-AxirZ sc-fzqBZW c0"
+  class="c0"
 >
   <div
-    class="sc-AxirZ sc-fzqBZW c1"
+    class="c1"
   >
     <div
-      class="sc-fznZeY c2"
+      class="c2"
     >
       Servers
     </div>
@@ -883,10 +883,10 @@ exports[`loaded 1`] = `
 }
 
 <div
-  class="sc-AxirZ c0"
+  class="c0"
 >
   <div
-    class="sc-AxirZ c1"
+    class="c1"
   >
     <div
       class="c2"
@@ -903,7 +903,7 @@ exports[`loaded 1`] = `
     </button>
   </div>
   <div
-    class="sc-AxirZ c4"
+    class="c4"
   >
     <input
       class="c5"
@@ -912,7 +912,7 @@ exports[`loaded 1`] = `
       value=""
     />
     <div
-      class="sc-AxirZ c6"
+      class="c6"
       width="280px"
     >
       <div
@@ -935,7 +935,7 @@ exports[`loaded 1`] = `
         class="c9"
       >
         <div
-          class="sc-AxirZ c10"
+          class="c10"
         >
           <div
             class="c11"
@@ -957,7 +957,7 @@ exports[`loaded 1`] = `
           </div>
         </div>
         <div
-          class="sc-AxirZ c12"
+          class="c12"
         >
           <button
             disabled=""
@@ -1419,10 +1419,10 @@ exports[`readonly empty state 1`] = `
 
 <div>
   <div
-    class="sc-fzqBZW c0"
+    class="c0"
   >
     <div
-      class="sc-fzqBZW c1"
+      class="c1"
     >
       <div
         class="c2"

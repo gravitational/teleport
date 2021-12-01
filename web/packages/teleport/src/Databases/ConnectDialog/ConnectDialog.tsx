@@ -28,9 +28,7 @@ import { DbProtocol } from 'teleport/services/databases';
 
 export default function ConnectDialog({
   username,
-  clusterId,
   dbName,
-  dbProtocol,
   onClose,
   authType,
 }: Props) {

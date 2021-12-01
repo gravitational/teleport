@@ -17,7 +17,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Text } from 'design';
-import * as Icons from 'design/Icon';
+import Icons from 'design/Icon';
 
 export default function TabIcon(props: Props) {
   return (
@@ -28,7 +28,7 @@ export default function TabIcon(props: Props) {
       active={props.active}
       onClick={props.onClick}
     >
-      <Icons.default as={props.Icon} mr="2" />
+      <Icons as={props.Icon} mr="2" />
       {props.title}
     </StyledTab>
   );

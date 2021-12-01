@@ -46,6 +46,8 @@ var cfg = {
       baseCfg.rules.css(),
     ],
   },
+
+  plugins: [baseCfg.plugins.createESLint()],
 };
 
 module.exports = cfg;

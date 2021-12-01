@@ -16,7 +16,6 @@ limitations under the License.
 
 // eslint-disable-next-line import/named
 import { History } from 'history';
-import { hot } from 'react-hot-loader/root';
 import React from 'react';
 import ThemeProvider from 'design/ThemeProvider';
 import { Router, Route, Switch } from 'teleport/components/Router';
@@ -113,7 +112,7 @@ export function renderPrivateRoutes(CustomMain = Main) {
   );
 }
 
-export default hot(Teleport);
+export default Teleport;
 
 export type Props = {
   ctx: TeleportContext;

@@ -66,7 +66,7 @@ const defaultRule = () => () => ({ valid: true });
 type Props = SelectProps & {
   autoFocus?: boolean;
   label?: string;
-  rule?: Function;
+  rule?: (options: unknown) => () => unknown;
   // styles
   [key: string]: any;
 };

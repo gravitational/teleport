@@ -384,9 +384,7 @@ exports[`kube connect dialogue local 1`] = `
 `;
 
 exports[`kube connect dialogue sso 1`] = `
-<body>
-  <div />
-  .c1 {
+.c1 {
   z-index: -1;
   position: fixed;
   right: 0;
@@ -589,7 +587,9 @@ exports[`kube connect dialogue sso 1`] = `
   box-sizing: border-box;
 }
 
-<div
+<body>
+  <div />
+  <div
     class="c0"
     data-testid="Modal"
   >

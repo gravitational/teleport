@@ -6,7 +6,7 @@ const defaultCfg = require('@gravitational/build/webpack/webpack.dev.config');
 module.exports = {
   ...defaultCfg,
   plugins: [
-    new webpack.HotModuleReplacementPlugin(),
+    ...defaultCfg.plugins,
     createBaseDefaults().plugins.createIndexHtml({
       favicon: path.join(__dirname, '/src/favicon.ico'),
     }),

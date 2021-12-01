@@ -160,19 +160,19 @@ exports[`render ConsoleTabs 1`] = `
 }
 
 <div
-  class="sc-AxiKw c0"
+  class="c0"
   height="100%"
   style="position: absolute;"
   width="100%"
 >
   <nav
-    class="sc-AxiKw c1"
+    class="c1"
     color="text.secondary"
     height="32px"
     width="100%"
   >
     <div
-      class="sc-AxiKw c2"
+      class="c2"
       style="flex: 1; flex-basis: 0px; flex-grow: 1;"
     >
       <button
@@ -196,7 +196,7 @@ exports[`render ConsoleTabs 1`] = `
       </button>
     </div>
     <div
-      class="sc-AxiKw c8"
+      class="c8"
       style="flex: 1; flex-basis: 0px; flex-grow: 1;"
     >
       <button
@@ -220,7 +220,7 @@ exports[`render ConsoleTabs 1`] = `
       </button>
     </div>
     <div
-      class="sc-AxiKw c8"
+      class="c8"
       style="flex: 1; flex-basis: 0px; flex-grow: 1;"
     >
       <button

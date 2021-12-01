@@ -29,6 +29,15 @@ if (fs.existsSync(path.join(__dirname, '/../packages/webapps.e/'))) {
 }
 
 module.exports = {
+  core: {
+    builder: 'webpack5',
+  },
+  reactOptions: {
+    fastRefresh: true,
+  },
+  typescript: {
+    reactDocgen: false,
+  },
   stories,
   webpackFinal: async (config, { configType }) => {
     // configType has a value of 'DEVELOPMENT' or 'PRODUCTION'

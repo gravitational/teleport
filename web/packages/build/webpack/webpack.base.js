@@ -17,6 +17,8 @@ limitations under the License.
 const fs = require('fs');
 const path = require('path');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
+const ESLintPlugin = require('eslint-webpack-plugin');
+const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
 const appDirectory = fs.realpathSync(process.cwd());
 const resolveApp = relativePath => path.resolve(appDirectory, relativePath);
@@ -29,7 +31,7 @@ module.exports = function createConfig() {
           // Vendor chunk creates a chunk file that contains files coming from import statements
           // from node_modules. The 'initial' flag directs this group to add modules to this chunk
           //  that were imported inside only from sync chunks.
-          vendors: {
+          defaultVendors: {
             chunks: 'initial',
             name: 'vendor',
             test: /([\\/]node_modules[\\/])/,
@@ -102,9 +104,6 @@ module.exports = function createConfig() {
       svg: {
         test: /\.svg$/,
         loader: 'svg-url-loader',
-        options: {
-          noquotes: true,
-        },
         exclude: /node_modules/,
       },
 
@@ -123,13 +122,7 @@ module.exports = function createConfig() {
           name: '/assets/img/img-[hash:6].[ext]',
         },
       },
-      jsx(args) {
-        args = args || {};
-        var emitWarning = false;
-        if (args.withHot) {
-          emitWarning = true;
-        }
-
+      jsx() {
         return {
           test: /\.(ts|tsx|js|jsx)$/,
           exclude: /(node_modules)|(assets)/,
@@ -137,18 +130,24 @@ module.exports = function createConfig() {
             {
               loader: 'babel-loader',
             },
-            {
-              loader: 'eslint-loader',
-              options: {
-                emitWarning,
-              },
-            },
           ],
         };
       },
     },
 
     plugins: {
+      createReactRefresh(options) {
+        return new ReactRefreshPlugin(options);
+      },
+      createESLint(options) {
+        return new ESLintPlugin({
+          context: "../",
+          extensions: ['ts', 'tsx', 'js', 'jsx'],
+          failOnError: false,
+          failOnWarning: false,
+          ...options,
+        });
+      },
       // builds index html page, the main entry point for application
       createIndexHtml(options) {
         return createHtmlPluginInstance({

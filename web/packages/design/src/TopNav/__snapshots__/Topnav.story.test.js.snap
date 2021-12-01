@@ -111,7 +111,7 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
 }
 
 <nav
-  class="sc-AxjAm c0"
+  class="c0"
   height="60px"
 >
   <button

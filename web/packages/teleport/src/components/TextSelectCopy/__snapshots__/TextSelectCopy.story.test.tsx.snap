@@ -63,10 +63,10 @@ exports[`bash set to false does not render $ sign 1`] = `
 
 <div>
   <div
-    class="sc-AxirZ c0"
+    class="c0"
   >
     <div
-      class="sc-AxirZ c1"
+      class="c1"
       style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
     >
       <div>
