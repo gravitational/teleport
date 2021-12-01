@@ -762,14 +762,28 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		onResize:           func(remotecommand.TerminalSize) {},
 	}
 
+	sess, err := f.newClusterSession(*ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := f.setupForwardingHeaders(sess, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	proxy, err := createRemoteCommandProxy(request)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	if sess.noAuditEvents {
+		// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
+		return f.remoteExec(ctx, w, req, p, sess, request, proxy)
+	}
+
 	client := newKubeProxyClientStreams(proxy)
 	party := newParty(*ctx, client)
-	session, err := newSession(*ctx, f, req, p, party)
+	session, err := newSession(*ctx, f, req, p, party, sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -782,6 +796,24 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 	<-party.closeC
 	delete(f.sessions, session.id)
+	return nil, nil
+}
+
+func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession, request remoteCommandRequest, proxy *remoteCommandProxy) (resp interface{}, err error) {
+	defer proxy.Close()
+
+	executor, err := f.getExecutor(*ctx, sess, req)
+	if err != nil {
+		f.log.WithError(err).Warning("Failed creating executor.")
+		return nil, trace.Wrap(err)
+	}
+	streamOptions := proxy.options()
+
+	if err = executor.Stream(streamOptions); err != nil {
+		f.log.WithError(err).Warning("Executor failed while streaming.")
+		return nil, trace.Wrap(err)
+	}
+
 	return nil, nil
 }
 

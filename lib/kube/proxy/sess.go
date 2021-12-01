@@ -279,12 +279,14 @@ type session struct {
 
 	initiator uuid.UUID
 
+	sess *clusterSession
+
 	closeC chan struct{}
 
 	closeOnce sync.Once
 }
 
-func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params, initiator *party) (*session, error) {
+func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params, initiator *party, sess *clusterSession) (*session, error) {
 	id := uuid.New()
 	log := forwarder.log.WithField("session", id.String())
 	log.Debug("Creating session")
@@ -315,6 +317,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		tty:               utils.AsBool(q.Get("tty")),
 		terminalSizeQueue: newMultiResizeQueue(),
 		started:           false,
+		sess:              sess,
 		closeC:            make(chan struct{}),
 		initiator:         initiator.Id,
 	}
@@ -405,14 +408,13 @@ func (s *session) launch() error {
 	}
 
 	s.started = true
-	sess, err := s.forwarder.newClusterSession(s.ctx)
 	sessionStart := s.forwarder.cfg.Clock.Now().UTC()
 	if err != nil {
 		s.log.Errorf("Failed to create cluster session: %v.", err)
 		return trace.Wrap(err)
 	}
 
-	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
+	eventPodMeta := request.eventPodMeta(request.context, s.sess.creds)
 
 	onWriterError := func(idString string, err error) {
 		s.mu.Lock()
@@ -428,7 +430,7 @@ func (s *session) launch() error {
 	s.clients_stdout.W.W.(*srv.MultiWriter).OnError = onWriterError
 	s.clients_stderr.W.W.(*srv.MultiWriter).OnError = onWriterError
 
-	if !sess.noAuditEvents && s.tty {
+	if !s.sess.noAuditEvents && s.tty {
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {
 			s.mu.Lock()
 			defer s.mu.Unlock()
@@ -482,7 +484,7 @@ func (s *session) launch() error {
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {}
 	}
 
-	if !sess.noAuditEvents && request.tty {
+	if !s.sess.noAuditEvents && request.tty {
 		streamer, err := s.forwarder.newStreamer(&s.ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -510,7 +512,7 @@ func (s *session) launch() error {
 
 		s.clients_stdout.W.W.(*srv.MultiWriter).AddWriter("recorder", kubeutils.WriterCloserWrapper{Writer: recorder}, false)
 		s.clients_stderr.W.W.(*srv.MultiWriter).AddWriter("recorder", kubeutils.WriterCloserWrapper{Writer: recorder}, false)
-	} else if !sess.noAuditEvents {
+	} else if !s.sess.noAuditEvents {
 		s.emitter = s.forwarder.cfg.StreamEmitter
 	}
 
@@ -529,8 +531,8 @@ func (s *session) launch() error {
 			ServerMetadata: apievents.ServerMetadata{
 				ServerID:        s.forwarder.cfg.ServerID,
 				ServerNamespace: s.forwarder.cfg.Namespace,
-				ServerHostname:  sess.teleportCluster.name,
-				ServerAddr:      sess.kubeAddress,
+				ServerHostname:  s.sess.teleportCluster.name,
+				ServerAddr:      s.sess.kubeAddress,
 			},
 			SessionMetadata: apievents.SessionMetadata{
 				SessionID: s.id.String(),
@@ -543,7 +545,7 @@ func (s *session) launch() error {
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				RemoteAddr: s.req.RemoteAddr,
-				LocalAddr:  sess.kubeAddress,
+				LocalAddr:  s.sess.kubeAddress,
 				Protocol:   events.EventProtocolKube,
 			},
 			TerminalSize:              termParams.Serialize(),
@@ -558,11 +560,7 @@ func (s *session) launch() error {
 		}
 	}
 
-	if err := s.forwarder.setupForwardingHeaders(sess, s.req); err != nil {
-		return trace.Wrap(err)
-	}
-
-	executor, err := s.forwarder.getExecutor(s.ctx, sess, s.req)
+	executor, err := s.forwarder.getExecutor(s.ctx, s.sess, s.req)
 	if err != nil {
 		s.log.WithError(err).Warning("Failed creating executor.")
 		return trace.Wrap(err)
@@ -597,7 +595,7 @@ func (s *session) launch() error {
 				},
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: s.req.RemoteAddr,
-					LocalAddr:  sess.kubeAddress,
+					LocalAddr:  s.sess.kubeAddress,
 					Protocol:   events.EventProtocolKube,
 				},
 				// Bytes transmitted from user to pod.
@@ -631,7 +629,7 @@ func (s *session) launch() error {
 				},
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: s.req.RemoteAddr,
-					LocalAddr:  sess.kubeAddress,
+					LocalAddr:  s.sess.kubeAddress,
 					Protocol:   events.EventProtocolKube,
 				},
 				Interactive:               true,
@@ -669,7 +667,7 @@ func (s *session) launch() error {
 				},
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: s.req.RemoteAddr,
-					LocalAddr:  sess.kubeAddress,
+					LocalAddr:  s.sess.kubeAddress,
 					Protocol:   events.EventProtocolKube,
 				},
 				CommandMetadata: apievents.CommandMetadata{
