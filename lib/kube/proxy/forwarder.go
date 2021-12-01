@@ -703,6 +703,20 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 // join joins an existing session over a websocket connection
 func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
 	f.log.Debugf("Join %v.", req.URL.String())
+
+	sess, err := f.newClusterSession(*ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := f.setupForwardingHeaders(sess, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if sess.noAuditEvents {
+		return f.remoteJoin(ctx, w, req, p, sess)
+	}
+
 	sessionIdString := p.ByName("session")
 	sessionId, err := uuid.Parse(sessionIdString)
 	if err != nil {
@@ -733,6 +747,91 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 	<-party.closeC
 	return nil, nil
+}
+
+func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession) (resp interface{}, err error) {
+	f.log.Error("TRIGGERING REMOTE JOIN WITH URL: %v", req.URL.String())
+
+	dialer := &websocket.Dialer{
+		TLSClientConfig: sess.tlsConfig,
+		NetDialContext:  sess.DialWithContext,
+	}
+
+	url := "wss://" + req.URL.Host
+	if req.URL.Port() != "" {
+		url = url + ":" + req.URL.Port()
+	}
+	url = url + req.URL.Path
+
+	wsTarget, resp, err := dialer.Dial(url, nil)
+	if err != nil {
+		return resp, trace.Wrap(err)
+	}
+
+	wsSource, err := f.upgrader.Upgrade(w, req, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = wsProxy(wsSource, wsTarget)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
+}
+
+func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
+	closeM := make(chan struct{})
+	errS := make(chan error)
+	errT := make(chan error)
+
+	go func() {
+		for {
+			ty, data, err := wsSource.ReadMessage()
+			if err != nil {
+				wsSource.Close()
+				errS <- trace.Wrap(err)
+				return
+			}
+
+			wsTarget.WriteMessage(ty, data)
+
+			if ty == websocket.CloseMessage {
+				closeM <- struct{}{}
+				return
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			ty, data, err := wsTarget.ReadMessage()
+			if err != nil {
+				wsTarget.Close()
+				errT <- trace.Wrap(err)
+				return
+			}
+
+			wsSource.WriteMessage(ty, data)
+
+			if ty == websocket.CloseMessage {
+				closeM <- struct{}{}
+				return
+			}
+		}
+	}()
+
+	var err error
+	select {
+	case err = <-errS:
+		wsTarget.WriteMessage(websocket.CloseMessage, []byte{})
+	case err = <-errT:
+		wsSource.WriteMessage(websocket.CloseMessage, []byte{})
+	case <-closeM:
+	}
+
+	return trace.Wrap(err)
 }
 
 // exec forwards all exec requests to the target server, captures
