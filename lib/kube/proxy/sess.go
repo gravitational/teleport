@@ -297,6 +297,12 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 
 	accessEvaluator := auth.NewSessionAccessEvaluator(roles, types.KubernetesSessionKind)
 
+	stdout := kubeutils.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter()))
+	err = broadcastMessage(stdout.WriteUnconditional, fmt.Sprintf("Creating session with ID: %v...", id.String()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	q := req.URL.Query()
 	s := &session{
 		ctx:               ctx,
@@ -308,7 +314,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		partiesHistorical: make(map[uuid.UUID]*party),
 		log:               log,
 		clients_stdin:     kubeutils.NewBreakReader(utils.NewTrackingReader(kubeutils.NewMultiReader())),
-		clients_stdout:    kubeutils.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter())),
+		clients_stdout:    stdout,
 		clients_stderr:    kubeutils.NewSwitchWriter(utils.NewTrackingWriter(srv.NewMultiWriter())),
 		state:             types.SessionState_SessionStatePending,
 		stateUpdate:       broadcast.NewBroadcaster(1),
@@ -701,11 +707,6 @@ func (s *session) launch() error {
 		TerminalSizeQueue: s.terminalSizeQueue,
 	}
 
-	err = broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("Creating session with ID: %v...", s.id.String()))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	s.mu.Unlock()
 	if err = executor.Stream(options); err != nil {
 		s.log.WithError(err).Warning("Executor failed while streaming.")
@@ -808,6 +809,10 @@ func (s *session) join(p *party) error {
 		}()
 	} else if !s.tty {
 		return trace.AccessDenied("insufficient permissions to launch non-interactive session")
+	}
+
+	if !canStart {
+		broadcastMessage(s.clients_stdout.WriteUnconditional, "Waiting for required participants...")
 	}
 
 	return nil
