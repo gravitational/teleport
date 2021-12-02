@@ -305,6 +305,7 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 		// ServerName itself. For Postgres/MySQL we're always connecting to the
 		// server specified in URI so set ServerName ourselves.
 		if dbTLSConfig.ServerName != "" {
+			// Use user provided server name.
 			tlsConfig.ServerName = dbTLSConfig.ServerName
 		} else {
 			addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
@@ -315,15 +316,18 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 		}
 	}
 
+	// We need only one Root CA for verification. This flag should be set to true
+	// after the first CA is added to TLS config.
 	rootsAdded := false
 
 	// Add CA certificate to the trusted pool if it's present, e.g. when
 	// connecting to RDS/Aurora which require AWS CA.
 	if len(sessionCtx.Database.GetCA()) != 0 {
-		rootsAdded = true
 		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
 			return nil, trace.BadParameter("invalid server CA certificate")
 		}
+		// Indicate that the Root CA has been added.
+		rootsAdded = true
 	}
 	// You connect to Cloud SQL instances by IP and the certificate presented
 	// by the instance does not contain IP SANs so the default "full" certificate
@@ -359,6 +363,7 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 		return tlsConfig, nil
 	}
 
+	// If the root CA has been already added. Skip the client certificate generation.
 	if !rootsAdded {
 		// Otherwise, when connecting to an onprem database, generate a client
 		// certificate. The database instance should be configured with
@@ -376,19 +381,21 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 	}
 
 	if dbTLSConfig.Mode == types.DatabaseTLSMode_INSECURE {
+		// Accept any certificate provided by database.
 		tlsConfig.InsecureSkipVerify = true
 	} else if dbTLSConfig.Mode == types.DatabaseTLSMode_VERIFY_CA {
 		// Base on https://github.com/golang/go/blob/master/src/crypto/tls/example_test.go#L193-L208
 		// Set InsecureSkipVerify to skip the default validation we are
 		// replacing. This will not disable VerifyConnection.
 		tlsConfig.InsecureSkipVerify = true
-		tlsConfig.VerifyConnection = GetVerifyConnection(tlsConfig.RootCAs, dbTLSConfig.ServerName)
+		tlsConfig.VerifyConnection = VerifyConnectionFunc(tlsConfig.RootCAs, dbTLSConfig.ServerName)
 	}
 
 	return tlsConfig, nil
 }
 
-func GetVerifyConnection(RootCAs *x509.CertPool, serverName string) func(cs tls.ConnectionState) error {
+// VerifyConnectionFunc returns a certificate validation function. serverName if empty will skip the hostname validation.
+func VerifyConnectionFunc(RootCAs *x509.CertPool, serverName string) func(cs tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
 		if len(cs.PeerCertificates) == 0 {
 			return trace.AccessDenied("database didn't present any certificate during initial handshake")

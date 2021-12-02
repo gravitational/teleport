@@ -31,13 +31,17 @@ var _ = time.Kitchen
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
+// Database TLS connection mode.
 type DatabaseTLSMode int32
 
 const (
 	DatabaseTLSMode_UNSPECIFIED DatabaseTLSMode = 0
+	// VERIFY_FULL performs full certificate validation.
 	DatabaseTLSMode_VERIFY_FULL DatabaseTLSMode = 1
-	DatabaseTLSMode_VERIFY_CA   DatabaseTLSMode = 2
-	DatabaseTLSMode_INSECURE    DatabaseTLSMode = 3
+	// VERIFY_CA works the same as VERIFY_FULL, but it skips the hostname check.
+	DatabaseTLSMode_VERIFY_CA DatabaseTLSMode = 2
+	// INSECURE accepts any certificate provided by server. This is the least secure option.
+	DatabaseTLSMode_INSECURE DatabaseTLSMode = 3
 )
 
 var DatabaseTLSMode_name = map[int32]string{
@@ -784,7 +788,8 @@ type DatabaseSpecV3 struct {
 	// GCP contains parameters specific to GCP Cloud SQL databases.
 	GCP GCPCloudSQL `protobuf:"bytes,6,opt,name=GCP,proto3" json:"gcp,omitempty"`
 	// Azure contains Azure specific database metadata.
-	Azure                Azure       `protobuf:"bytes,7,opt,name=Azure,proto3" json:"azure,omitempty"`
+	Azure Azure `protobuf:"bytes,7,opt,name=Azure,proto3" json:"azure,omitempty"`
+	// TLS connection configuration. Allows to provide custom CA cert or override server name.
 	TLS                  DatabaseTLS `protobuf:"bytes,8,opt,name=TLS,proto3" json:"tls,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
 	XXX_unrecognized     []byte      `json:"-"`
@@ -1093,12 +1098,17 @@ func (m *Azure) XXX_DiscardUnknown() {
 var xxx_messageInfo_Azure proto.InternalMessageInfo
 
 type DatabaseTLS struct {
-	Mode                 DatabaseTLSMode `protobuf:"varint,1,opt,name=Mode,proto3,enum=types.DatabaseTLSMode" json:"mode"`
-	CACert               string          `protobuf:"bytes,2,opt,name=CACert,proto3" json:"ca_cert,omitempty"`
-	ServerName           string          `protobuf:"bytes,3,opt,name=ServerName,proto3" json:"server_name,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
-	XXX_unrecognized     []byte          `json:"-"`
-	XXX_sizecache        int32           `json:"-"`
+	// Mode is a TLS connection mode. See DatabaseTLSMode for details.
+	Mode DatabaseTLSMode `protobuf:"varint,1,opt,name=Mode,proto3,enum=types.DatabaseTLSMode" json:"mode"`
+	// CACert is an optional user provided CA certificate used for verifying
+	// database TLS connection.
+	CACert string `protobuf:"bytes,2,opt,name=CACert,proto3" json:"ca_cert,omitempty"`
+	// ServerName allows to provide custom hostname. This value will override the
+	// servername/hostname on a certificate during validation.
+	ServerName           string   `protobuf:"bytes,3,opt,name=ServerName,proto3" json:"server_name,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *DatabaseTLS) Reset()         { *m = DatabaseTLS{} }

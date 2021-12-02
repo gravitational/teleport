@@ -255,7 +255,7 @@ message DatabaseSpecV3 {
     GCPCloudSQL GCP = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
     // Azure contains Azure specific database metadata.
     Azure Azure = 7 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "azure,omitempty" ];
-
+    // TLS connection configuration. Allows to provide custom CA cert or override server name.
     DatabaseTLS TLS = 8 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "tls,omitempty" ];
 }
 
@@ -312,18 +312,25 @@ message Azure {
     string Name = 1 [ (gogoproto.jsontag) = "name,omitempty" ];
 }
 
+// Database TLS connection mode.
 enum DatabaseTLSMode {
     UNSPECIFIED = 0;
+    // VERIFY_FULL performs full certificate validation.
     VERIFY_FULL = 1;
+    // VERIFY_CA works the same as VERIFY_FULL, but it skips the hostname check.
     VERIFY_CA = 2;
+    // INSECURE accepts any certificate provided by server. This is the least secure option.
     INSECURE = 3;
 }
 
 message DatabaseTLS {
+    // Mode is a TLS connection mode. See DatabaseTLSMode for details.
     DatabaseTLSMode Mode = 1 [ (gogoproto.jsontag) = "mode" ];
-
+    // CACert is an optional user provided CA certificate used for verifying
+    // database TLS connection.
     string CACert = 2 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
-
+    // ServerName allows to provide custom hostname. This value will override the
+    // servername/hostname on a certificate during validation.
     string ServerName = 3 [ (gogoproto.jsontag) = "server_name,omitempty" ];
 }
 

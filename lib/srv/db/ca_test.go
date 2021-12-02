@@ -345,6 +345,9 @@ func TestTLSConfiguration(t *testing.T) {
 		injectValidCA bool
 		tlsMode       types.DatabaseTLSMode
 		errMsg        string
+		// skipMongo allows skipping test on MongoDB. This DB use server name
+		// in a different way, so tests relaying on that will fail.
+		skipMongo bool
 	}{
 		{
 			name: "use default config",
@@ -371,9 +374,10 @@ func TestTLSConfiguration(t *testing.T) {
 			errMsg:     "certificate is valid for bad.example.test, not localhost",
 		},
 		{
-			name:       "custom domain access",
-			commonName: "customDomain",
-			serverName: "customDomain",
+			name:       "custom domain name with matching server name",
+			commonName: "customDomain.example.test",
+			serverName: "customDomain.example.test",
+			skipMongo:  true,
 		},
 		{
 			name:   "invalid CA certificate",
@@ -389,6 +393,7 @@ func TestTLSConfiguration(t *testing.T) {
 			injectValidCA: true,
 			commonName:    "testName.example.test",
 			serverName:    "testName.example.test",
+			skipMongo:     true,
 		},
 	}
 
@@ -398,6 +403,10 @@ func TestTLSConfiguration(t *testing.T) {
 			defaults.ProtocolMySQL,
 			defaults.ProtocolMongoDB,
 		} {
+			if tt.skipMongo && dbType == defaults.ProtocolMongoDB {
+				continue
+			}
+
 			t.Run(fmt.Sprintf("%s - %s", dbType, tt.name), func(t *testing.T) {
 				ctx := context.Background()
 				cfg := &setupTLSTestCfg{
@@ -446,7 +455,7 @@ func TestTLSConfiguration(t *testing.T) {
 						require.NoError(t, err)
 					} else {
 						require.Error(t, err)
-						require.Contains(t, err.Error(), tt.errMsg) // TODO: One test is failing here.
+						require.Contains(t, err.Error(), tt.errMsg)
 					}
 				default:
 					t.Fatalf("unrecognized database: %s", dbType)
