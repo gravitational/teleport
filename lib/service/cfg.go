@@ -625,7 +625,7 @@ type Database struct {
 	StaticLabels map[string]string
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels services.CommandLabels
-
+	// TLS keeps database connection TLS configuration.
 	TLS DatabaseTLS
 	// AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
 	AWS DatabaseAWS
@@ -671,11 +671,15 @@ func (m TLSMode) ToProto() types.DatabaseTLSMode {
 	}
 }
 
+// DatabaseTLS keeps TLS related configuration.
 type DatabaseTLS struct {
-	// CACert is an optional database CA certificate.
-	CACert     []byte
+	// Mode is the TLS connection mode. See TLSMode for more details.
+	Mode TLSMode
+	// ServerName allows providing custom server name.
+	// This name will override DNS name when validating TLS connection with database.
 	ServerName string
-	Mode       TLSMode
+	// CACert is an optional database CA certificate.
+	CACert []byte
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
