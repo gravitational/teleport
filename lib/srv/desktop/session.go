@@ -20,6 +20,9 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 	sshsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -28,8 +31,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TODO make variables a config
-func newSession(ctx context.Context, sessionID sshsession.ID, tdpConn *tdp.Conn, rdpc *rdpclient.Client, log logrus.FieldLogger) (*session, error) {
+// newSession creates a new session object, waits for initial TDP messages,
+// checks that the user has permission to create a new session with the requested desktop,
+// and then if everything checks out, creates the RDP connection.
+func newSession(ctx context.Context, authCtx *auth.Context, desktop types.WindowsDesktop, sessionID sshsession.ID, tdpConn *tdp.Conn, rdpc *rdpclient.Client, log logrus.FieldLogger) (*session, error) {
 	s := &session{
 		sessionID: sessionID,
 		tdpConn:   tdpConn,
@@ -39,6 +44,17 @@ func newSession(ctx context.Context, sessionID sshsession.ID, tdpConn *tdp.Conn,
 
 	u, err := s.waitForUsername()
 	if err != nil {
+		return nil, err
+	}
+
+	// Save the username for audit logging and other uses elsewhere.
+	s.username = u.Username
+
+	// Check that user has permission to create a new session with the requested desktop.
+	if err := authCtx.Checker.CheckAccess(
+		desktop,
+		services.AccessMFAParams{Verified: true},
+		services.NewWindowsLoginMatcher(u.Username)); err != nil {
 		return nil, err
 	}
 
@@ -67,8 +83,11 @@ type session struct {
 	rdpc *rdpclient.Client
 
 	// wg is used to wait for the input/output streaming
-	// goroutines to complete
+	// goroutines to complete.
 	wg sync.WaitGroup
+
+	// username saves the initial username from the initial TDP ClientUsername message for later use.
+	username string
 
 	log logrus.FieldLogger
 }
@@ -85,6 +104,7 @@ func (s *session) waitForUsername() (*tdp.ClientUsername, error) {
 		if !ok {
 			return nil, trace.BadParameter("Expected ClientUsername message, got %T", msg)
 		}
+
 		s.log.Debugf("Got username %q", u.Username)
 		return &u, nil
 	}

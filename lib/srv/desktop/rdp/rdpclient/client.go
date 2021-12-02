@@ -149,10 +149,6 @@ func New(ctx context.Context, Cfg Config) (*Client, error) {
 }
 
 func (c *Client) Connect(ctx context.Context, u *tdp.ClientUsername, sc *tdp.ClientScreenSpec) error {
-	if err := c.Cfg.AuthorizeFn(u.Username); err != nil {
-		return err
-	}
-
 	userCertDER, userKeyDER, err := c.Cfg.GenerateUserCert(ctx, u.Username)
 	if err != nil {
 		return trace.Wrap(err)

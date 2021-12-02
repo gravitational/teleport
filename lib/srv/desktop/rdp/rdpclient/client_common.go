@@ -31,9 +31,6 @@ type Config struct {
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
 
-	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
-	AuthorizeFn func(login string) error
-
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
 }
@@ -48,9 +45,6 @@ func (c *Config) checkAndSetDefaults() error {
 	}
 	if c.GenerateUserCert == nil {
 		return trace.BadParameter("missing GenerateUserCert in rdpclient.Config")
-	}
-	if c.AuthorizeFn == nil {
-		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")
 	}
 	if c.Log == nil {
 		c.Log = logrus.New()

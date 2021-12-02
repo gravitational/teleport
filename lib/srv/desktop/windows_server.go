@@ -623,32 +623,23 @@ func (s *WindowsService) createSession(ctx context.Context, log logrus.FieldLogg
 
 	sessionID := sshsession.NewID()
 
-	var windowsUser string
-	authorize := func(login string) error {
-		windowsUser = login // capture attempted login user
-		return authCtx.Checker.CheckAccess(
-			desktop,
-			services.AccessMFAParams{Verified: true},
-			services.NewWindowsLoginMatcher(login))
-	}
-
 	tdpConn := tdp.NewConn(conn)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain())
 		},
-		Addr:        desktop.GetAddr(),
-		AuthorizeFn: authorize,
+		Addr: desktop.GetAddr(),
 	})
 	if err != nil {
-		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
-	session, err := newSession(ctx, sessionID, tdpConn, rdpc, log)
+	session, err := newSession(ctx, authCtx, desktop, sessionID, tdpConn, rdpc, log)
 	if err != nil {
 		log.WithError(err).Error("failed to create new Windows desktop session")
+		s.onSessionStart(ctx, &identity, session.username, string(sessionID), desktop, err)
+		return trace.Wrap(err)
 	}
 
 	// Update client activity timestamp before creating the monitor
@@ -676,14 +667,14 @@ func (s *WindowsService) createSession(ctx context.Context, log logrus.FieldLogg
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
-		s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, &identity, session.username, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
 	session.start()
-	s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, nil)
+	s.onSessionStart(ctx, &identity, session.username, string(sessionID), desktop, nil)
 	session.wait()
-	s.onSessionEnd(ctx, &identity, windowsUser, string(sessionID), desktop)
+	s.onSessionEnd(ctx, &identity, session.username, string(sessionID), desktop)
 
 	return trace.Wrap(err)
 }
