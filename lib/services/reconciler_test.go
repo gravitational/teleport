@@ -223,6 +223,14 @@ func (r *testResource) GetName() string {
 	return r.Metadata.Name
 }
 
+func (r *testResource) GetKind() string {
+	return "TestResource"
+}
+
+func (r *testResource) GetMetadata() types.Metadata {
+	return r.Metadata
+}
+
 func (r *testResource) Origin() string {
 	return r.Metadata.Labels[types.OriginLabel]
 }
