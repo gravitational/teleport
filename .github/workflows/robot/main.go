@@ -49,6 +49,8 @@ func main() {
 		log.Fatalf("Failed to create bot: %v.", err)
 	}
 
+	log.Printf("Running %v.", workflow)
+
 	switch workflow {
 	case "assign":
 		err = b.Assign(ctx)
@@ -62,6 +64,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Workflow %v failed: %v.", workflow, err)
 	}
+
+	log.Printf("Workflow %v complete.", workflow)
 }
 
 func parseFlags() (string, string, string, error) {
