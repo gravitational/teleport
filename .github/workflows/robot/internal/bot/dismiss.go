@@ -61,7 +61,7 @@ func (b *Bot) dismiss(ctx context.Context, organization string, repository strin
 	check, err := b.findWorkflow(ctx,
 		organization,
 		repository,
-		"Check")
+		".github/workflows/check.yaml")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -86,7 +86,7 @@ func (b *Bot) dismiss(ctx context.Context, organization string, repository strin
 	return nil
 }
 
-func (b *Bot) findWorkflow(ctx context.Context, organization string, repository string, name string) (github.Workflow, error) {
+func (b *Bot) findWorkflow(ctx context.Context, organization string, repository string, path string) (github.Workflow, error) {
 	workflows, err := b.c.GitHub.ListWorkflows(ctx, organization, repository)
 	if err != nil {
 		return github.Workflow{}, trace.Wrap(err)
@@ -94,13 +94,13 @@ func (b *Bot) findWorkflow(ctx context.Context, organization string, repository 
 
 	var matching []github.Workflow
 	for _, workflow := range workflows {
-		if workflow.Name == name {
+		if workflow.Path == path {
 			matching = append(matching, workflow)
 		}
 	}
 
 	if len(matching) == 0 {
-		return github.Workflow{}, trace.NotFound("workflow %v not found", name)
+		return github.Workflow{}, trace.NotFound("workflow %v not found", path)
 	}
 	if len(matching) > 1 {
 		return github.Workflow{}, trace.BadParameter("found %v matching workflows", len(matching))
