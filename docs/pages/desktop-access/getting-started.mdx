@@ -38,7 +38,7 @@ From the start menu of your Domain Controller, search for “Active Directory Us
 
 Find your domain in the side menu, and right click the container you want the service account to live in (typically Users). From the context
 menu, select `New > User` and fill out the fields for your Teleport LDAP Service Account. For the "User logon name" field, you can use `svc-teleport`
-On the password screen, unselect  “User must change password at next login” and select “Password never expires”. Make a note of what values you put 
+On the password screen, unselect  “User must change password at next login” and select “Password never expires”. Make a note of what values you put
 for user logon name and password, which will be used in your `teleport.yaml` configuration file later, and then click through the rest of the wizard.
 
 <Admonition
@@ -63,7 +63,7 @@ by clicking the “Check Names” button, then click “OK”. You should see a 
 ### Create and Apply Group Policy Object
 
 Next, open the "Start" menu and run "Group Policy Management". On the left pane, navigate to `$FOREST > Domains > $DOMAIN`,
-selecting your forest and domain names respectively. Right click `$DOMAIN` and select `Create a GPO in this domain, and Link it here...` from the context menu. 
+selecting your forest and domain names respectively. Right click `$DOMAIN` and select `Create a GPO in this domain, and Link it here...` from the context menu.
 Give your GPO a name like `svc-teleport-gpo` and ensure "(none)" is selected for "Source Starter GPO", then hit "OK".
 
 <Figure align="left" bordered caption="Create and Link GPO">
@@ -77,8 +77,8 @@ under "Security Filtering", select `Authenticated Users` and then click the "Rem
   ![Remove Authenticated](../../img/desktop-access/remove-authenticated.png)
 </Figure>
 
-The "Remove" step prevents the GPO from being applied to all authenticated users in this domain, since we only want it to apply to members 
-of the security Group created above (`svc-teleport-group`), of which only the User created above is a member (`svc-teleport`). 
+The "Remove" step prevents the GPO from being applied to all authenticated users in this domain, since we only want it to apply to members
+of the security Group created above (`svc-teleport-group`), of which only the User created above is a member (`svc-teleport`).
 
 To make that the case, in the same "Security Filtering" pane select "Add...", and enter the name of the Group (`svc-teleport-group`)
 in the resultant popup, clicking "Check Names" to confirm the spelling before pressing "OK". After this step, only the `svc-teleport-group`
@@ -208,7 +208,7 @@ Network Level Authentication`, edit, select **"Disable"** and "OK".
 Next, complete the service account's configuration by giving its corresponding Group the minimum necessary permissions for Teleport to work.
 First, open a PowerShell terminal and figure out the `$DomainDN` and `$TeleportLDAPGroupName` variables you'll need to use:
 
-`$DomainDN` is the 
+`$DomainDN` is the
 [distinguished name](https://docs.microsoft.com/en-us/previous-versions/windows/desktop/ldap/distinguished-names) representation of your Domain Controller's
 domain name. For example, for the domain name `domain-controller.example.com`, the distinguished name representation is `DC=domain-controller,DC=example,DC=com`.
 If you aren't sure, you can get the DN by running `(Get-ADDomain).DistinguishedName` in PowerShell.
@@ -236,7 +236,7 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 
 ## Step 4/6. Export your Domain Controller's CA Certificate
 
-Teleport connects to your Domain Controller via LDAPS. This means that you must let Teleport know that the certificate sent 
+Teleport connects to your Domain Controller via LDAPS. This means that you must let Teleport know that the certificate sent
 by your Domain Controller during the initial SSL connection is trusted. If your Domain Controller's certificate is trusted by
 the system repository on the system running Teleport, you can skip this step. Atlernately, if you trust your network, you can
 skip LDAPS certificate verification by setting the `insecure_skip_verify` configuration variable to `false`.
@@ -285,13 +285,13 @@ windows_desktop_service:
     addr:     '$LDAP_SERVER_ADDRESS'
     # Active Directory domain name you are connecting to, like: domain-controller.example.com.
     domain:   '$LDAP_DOMAIN_NAME'
-    # LDAP username for authentication. This will be the user logon name you chose for the service 
+    # LDAP username for authentication. This will be the user logon name you chose for the service
     # account User in step 1 (svc-teleport). This username must include the domain NetBIOS name.
     #
     # For example, if your domain is "example.com", the NetBIOS name for it is
     # likely "EXAMPLE". When connecting as the "svc-teleport" user, you should
     # use the format: "EXAMPLE\svc-teleport".
-    # 
+    #
     # If you are unsure of your NetBIOS name, you can find it by opening a PowerShell command prompt
     # and running:
     # ```
@@ -315,11 +315,11 @@ windows_desktop_service:
     - "100.104.52.89"
     - "example.com"
   discovery:
-    # This setting will tell Teleport to discover all the hosts connected to the LDAP domain
-    # controller configured above.
+    # The wildcard '*' character tells Teleport to discover all the hosts in
+    # the Active Directory Domain. To refine the search, specify a custom DN.
     base_dn: '*'
 
-  
+
 ```
 
 After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
@@ -344,10 +344,10 @@ spec:
     windows_desktop_logins: ["Administrator"]
 ```
 
-See the [RBAC section](https://goteleport.com/docs/ver/8.0/desktop-access/reference/#rbac) in the Reference documentation 
+See the [RBAC section](https://goteleport.com/docs/ver/8.0/desktop-access/reference/#rbac) in the Reference documentation
 for more information about setting up windows desktop permissions.
 
-See the Access Controls [Getting Started](https://goteleport.com/docs/access-controls/getting-started/#step-13-add-local-users-with-preset-roles) 
+See the Access Controls [Getting Started](https://goteleport.com/docs/access-controls/getting-started/#step-13-add-local-users-with-preset-roles)
 guide for instructions on how to create or update a user with a given role.
 
 ### Connect to Your Desktop

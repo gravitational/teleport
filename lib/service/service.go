@@ -350,6 +350,17 @@ func (process *TeleportProcess) GetBackend() backend.Backend {
 	return process.backend
 }
 
+// onHeartbeat generates the default OnHeartbeat callback for the specified component.
+func (process *TeleportProcess) onHeartbeat(component string) func(err error) {
+	return func(err error) {
+		if err != nil {
+			process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: component})
+		} else {
+			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
+		}
+	}
+}
+
 func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
 	for i := range process.Config.Identities {
 		identity := process.Config.Identities[i]
@@ -1436,13 +1447,7 @@ func (process *TeleportProcess) initAuthService() error {
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
-		OnHeartbeat: func(err error) {
-			if err != nil {
-				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentAuth})
-			} else {
-				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
-			}
-		},
+		OnHeartbeat:     process.onHeartbeat(teleport.ComponentAuth),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1945,13 +1950,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetFIPS(cfg.FIPS),
 			regular.SetBPF(ebpf),
 			regular.SetRestrictedSessionManager(rm),
-			regular.SetOnHeartbeat(func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentNode})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode})
-				}
-			}),
+			regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentNode)),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
 		)
@@ -2957,13 +2956,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetRotationGetter(process.getRotation),
 		regular.SetFIPS(cfg.FIPS),
-		regular.SetOnHeartbeat(func(err error) {
-			if err != nil {
-				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentProxy})
-			} else {
-				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentProxy})
-			}
-		}),
+		regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentProxy)),
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
 	)
@@ -3054,13 +3047,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
 			AccessPoint:   accessPoint,
-			OnHeartbeat: func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: component})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
-				}
-			},
+			OnHeartbeat:   process.onHeartbeat(component),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3594,13 +3581,7 @@ func (process *TeleportProcess) initApps() {
 			GetRotation:      process.getRotation,
 			Apps:             applications,
 			ResourceMatchers: process.Config.Apps.ResourceMatchers,
-			OnHeartbeat: func(err error) {
-				if err != nil {
-					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentApp})
-				} else {
-					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentApp})
-				}
-			},
+			OnHeartbeat:      process.onHeartbeat(teleport.ComponentApp),
 		})
 		if err != nil {
 			return trace.Wrap(err)
