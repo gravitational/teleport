@@ -66,7 +66,6 @@ import "C"
 import (
 	"context"
 	"errors"
-	"fmt"
 	"image"
 	"os"
 	"runtime/cgo"
@@ -108,6 +107,8 @@ func init() {
 }
 
 // Client is the RDP client.
+// It's caller is responsible for calling Cleanup()
+// when
 type Client struct {
 	Cfg Config
 
@@ -119,15 +120,17 @@ type Client struct {
 	// Used with sync/atomic, 0 means false, 1 means true.
 	readyForInput uint32
 
-	// wg is used to wait for the input/output streaming
-	// goroutines to complete
-	wg        sync.WaitGroup
 	closeOnce sync.Once
 
 	// Fields to remember mouse coordinates
 	// to send them with all CGOPointer events
 	// in ForwardInput.
 	mouseX, mouseY uint32
+
+	// outputCh is a channel that gets set to the channel passed into
+	// passed into StartReceiving. RDP that are received should be translated
+	// into TDP and then sent to this channel.
+	outputCh chan tdp.Message
 
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
@@ -182,25 +185,18 @@ func (c *Client) Connect(ctx context.Context, u *tdp.ClientUsername, sc *tdp.Cli
 	return nil
 }
 
-// Start kicks off goroutines for input/output streaming and returns right
-// away. Use Wait to wait for them to finish.
-func (c *Client) Start() {
-	// Video output streaming worker goroutine.
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		defer c.Close()
-		defer c.Cfg.Log.Info("RDP output streaming finished")
+// StartReceiving tells the RDP client to start receiving RDP messages,
+// translating them to TDP messages, and sending those TDP messages to
+// the passed channel. It hangs for the duration of the RDP connection.
+func (c *Client) StartReceiving(outputCh chan tdp.Message) error {
+	c.outputCh = outputCh
 
-		h := cgo.NewHandle(c)
-		defer h.Delete()
+	h := cgo.NewHandle(c)
+	defer h.Delete()
 
-		// C.read_rdp_output blocks for the duration of the RDP connection and
-		// calls handle_bitmap repeatedly with the incoming bitmaps.
-		if err := cgoError(C.read_rdp_output(c.rustClient, C.uintptr_t(h))); err != nil {
-			c.Cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
-		}
-	}()
+	// C.read_rdp_output blocks for the duration of the RDP connection and
+	// calls handle_bitmap repeatedly with the incoming bitmaps.
+	return cgoError(C.read_rdp_output(c.rustClient, C.uintptr_t(h)))
 }
 
 // Send translates a TDP message to RDP and writes it via the C client.
@@ -322,18 +318,13 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	})
 	copy(img.Pix, data)
 
-	if err := c.Cfg.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
-		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
-	}
+	c.outputCh <- tdp.PNGFrame{Img: img}
 	return nil
 }
 
-// Wait blocks until the client disconnects and runs the cleanup.
-func (c *Client) Wait() error {
-	c.wg.Wait()
-	// Let the Rust side free its data.
+// Cleanup cleans up C memory.
+func (c *Client) Cleanup() {
 	C.free_rdp(c.rustClient)
-	return nil
 }
 
 // Close shuts down the client and closes any existing connections.

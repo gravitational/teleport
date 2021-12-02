@@ -110,6 +110,31 @@ func (s *session) waitForClientSize() (*tdp.ClientScreenSpec, error) {
 // start kicks off goroutines for streaming input and output between the TDP connection and
 // RDP client and returns right away. Use Wait to wait for them to finish.
 func (s *session) start() {
+	// Stream RDP output.
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		defer s.rdpc.Close()
+		defer s.log.Info("RDP --> TDP streaming finished")
+
+		ch := make(chan tdp.Message)
+
+		// Spawn goroutine for recieving from the ch
+		// and forwarding to the TDP connection.
+		go func() {
+			for msg := range ch {
+				if err := s.tdpConn.OutputMessage(msg); err != nil {
+					s.log.WithError(err).Warning("Failed to forward TDP output message: %+v", msg)
+				}
+			}
+		}()
+
+		if err := s.rdpc.StartReceiving(ch); err != nil {
+			s.log.Error(err)
+			return
+		}
+	}()
+
 	// Stream user input messages.
 	s.wg.Add(1)
 	go func() {
@@ -125,9 +150,14 @@ func (s *session) start() {
 			}
 
 			if err := s.rdpc.Send(msg); err != nil {
-				s.log.Error(err)
-				return
+				s.log.Warning(err)
 			}
 		}
 	}()
+}
+
+// wait blocks until streaming is finished and then runs cleanup.
+func (s *session) wait() {
+	s.wg.Wait()
+	s.rdpc.Cleanup()
 }

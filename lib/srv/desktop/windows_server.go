@@ -683,9 +683,8 @@ func (s *WindowsService) createSession(ctx context.Context, log logrus.FieldLogg
 	}
 
 	session.start()
-	session.rdpc.Start()
 	s.onSessionStart(ctx, &identity, windowsUser, string(sessionID), desktop, nil)
-	err = session.rdpc.Wait()
+	session.wait()
 	s.onSessionEnd(ctx, &identity, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
