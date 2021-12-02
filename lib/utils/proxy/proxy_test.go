@@ -17,12 +17,12 @@ limitations under the License.
 package proxy
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/utils"
-
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -30,13 +30,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestProxy(t *testing.T) { check.TestingT(t) }
-
-type ProxySuite struct{}
-
-var _ = check.Suite(&ProxySuite{})
-
-func (s *ProxySuite) TestGetProxyAddress(c *check.C) {
+func TestGetProxyAddress(t *testing.T) {
 	type env struct {
 		name string
 		val  string
@@ -98,21 +92,12 @@ func (s *ProxySuite) TestGetProxyAddress(c *check.C) {
 	}
 
 	for i, tt := range tests {
-		comment := check.Commentf("Test %v %v", i, tt.info)
-
-		unsetEnv()
-		for _, env := range tt.env {
-			os.Setenv(env.name, env.val)
-		}
-		p := getProxyAddress(tt.targetAddr)
-		unsetEnv()
-
-		c.Assert(p, check.Equals, tt.proxyAddr, comment)
-	}
-}
-
-func unsetEnv() {
-	for _, envname := range []string{"http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "no_proxy"} {
-		os.Unsetenv(envname)
+		t.Run(fmt.Sprintf("%v: %v", i, tt.info), func(t *testing.T) {
+			for _, env := range tt.env {
+				t.Setenv(env.name, env.val)
+			}
+			p := getProxyAddress(tt.targetAddr)
+			require.Equal(t, tt.proxyAddr, p)
+		})
 	}
 }

@@ -236,7 +236,7 @@ you can skip TLS verification by setting `insecure_skip_verify: true`. We do not
 
 ### To export a CA certificate
 
-{/* Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server */}
+{/_ Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server _/}
 
 1. Begin by navigating to `Start > Control Panel > Administrative Tools > Certificate Authority` to open the CA Microsoft Management Console (MMC) GUI.
 2. Right click on your CA computer and select `Properties`.
@@ -317,7 +317,7 @@ After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
 
 ### Create a Teleport user/role for Windows Desktop Access
 
-{/* TODO: remove the "/ver/8.0/" in the link once these docs are the primary version */}
+{/_ TODO: remove the "/ver/8.0/" in the link once these docs are the primary version _/}
 In order to gain access to a remote desktop, a Teleport user needs to have the appropriate permissions for that desktop.
 For example, you can create a role that gives its users access to all Windows desktop labels and the `"Administrator"` user:
 

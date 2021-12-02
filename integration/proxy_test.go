@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -213,8 +212,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	// set the http_proxy environment variable
 	u, err := url.Parse(ts.URL)
 	require.NoError(t, err)
-	os.Setenv("http_proxy", u.Host)
-	defer os.Setenv("http_proxy", "")
+	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
 
