@@ -102,6 +102,10 @@ const (
 	// TODO(r0mant): See if we can use net.ErrClosed and errors.Is() instead.
 	UseOfClosedNetworkConnection = "use of closed network connection"
 
+	// FailedToSendCloseNotify is an error message from Go net package
+	// indicating that the connection was closed by the server.
+	FailedToSendCloseNotify = "tls: failed to send closeNotify alert (but connection was closed anyway)"
+
 	// AWSConsoleURL is the URL of AWS management console.
 	AWSConsoleURL = "https://console.aws.amazon.com"
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.

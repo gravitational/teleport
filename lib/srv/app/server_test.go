@@ -129,6 +129,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Streamer:    config.ServerStreamer,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { s.authServer.Close() })
 
 	if config.ServerStreamer != nil {
 		err = s.authServer.AuthServer.SetSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
@@ -397,21 +398,25 @@ func TestAuthorizeWithLocks(t *testing.T) {
 // TestGetConfigForClient verifies that only the CAs of the requested cluster are returned.
 func TestGetConfigForClient(t *testing.T) {
 	// TODO(r0mant): Implement this.
+	t.Skip("Not Implemented")
 }
 
 // TestRewriteRequest verifies that requests are rewritten to include JWT headers.
 func TestRewriteRequest(t *testing.T) {
 	// TODO(r0mant): Implement this.
+	t.Skip("Not Implemented")
 }
 
 // TestRewriteResponse verifies that responses are rewritten if rewrite rules are specified.
 func TestRewriteResponse(t *testing.T) {
 	// TODO(r0mant): Implement this.
+	t.Skip("Not Implemented")
 }
 
 // TestSessionClose makes sure sessions are closed after the given session time period.
 func TestSessionClose(t *testing.T) {
 	// TODO(r0mant): Implement this.
+	t.Skip("Not Implemented")
 }
 
 // TestAWSConsoleRedirect verifies AWS management console access.
