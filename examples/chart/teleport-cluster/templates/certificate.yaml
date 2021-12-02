@@ -8,6 +8,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   secretName: teleport-tls
+  {{- if .Values.highAvailability.certManager.addCommonName }}
+  commonName: {{ quote $domain }}
+  {{- end }}
   dnsNames:
   - {{ quote $domain }}
   - {{ quote $domainWildcard }}

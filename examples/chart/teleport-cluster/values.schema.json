@@ -79,7 +79,12 @@
         "chartMode": {
             "$id": "#/properties/chartMode",
             "type": "string",
-            "enum": ["standalone", "aws", "gcp", "custom"],
+            "enum": [
+                "standalone",
+                "aws",
+                "gcp",
+                "custom"
+            ],
             "default": "standalone"
         },
         "standalone": {
@@ -193,9 +198,14 @@
                         "enabled",
                         "issuerName",
                         "issuerKind",
-			"issuerGroup"
+                        "issuerGroup"
                     ],
                     "properties": {
+                        "addCommonName": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/addCommonName",
+                            "type": "boolean",
+                            "default": "false"
+                        },
                         "enabled": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/enabled",
                             "type": "boolean",
@@ -253,7 +263,13 @@
         "logLevel": {
             "$id": "#/properties/logLevel",
             "type": "string",
-            "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+            "enum": [
+                "DEBUG",
+                "INFO",
+                "WARN",
+                "WARNING",
+                "ERROR"
+            ],
             "default": "INFO"
         },
         "affinity": {
@@ -328,7 +344,11 @@
         "imagePullPolicy": {
             "$id": "#/properties/imagePullPolicy",
             "type": "string",
-            "enum": ["Never", "IfNotPresent", "Always"],
+            "enum": [
+                "Never",
+                "IfNotPresent",
+                "Always"
+            ],
             "default": "IfNotPresent"
         },
         "initContainers": {
