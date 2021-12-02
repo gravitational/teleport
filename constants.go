@@ -25,7 +25,7 @@ import (
 )
 
 // WebAPIVersion is a current webapi version
-const WebAPIVersion = "v1"
+const WebAPIVersion = "v12"
 
 // ForeverTTL means that object TTL will not expire unless deleted
 const ForeverTTL time.Duration = 0
