@@ -251,6 +251,8 @@ message DatabaseSpecV3 {
     AWS AWS = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws,omitempty" ];
     // GCP contains parameters specific to GCP Cloud SQL databases.
     GCPCloudSQL GCP = 6 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty" ];
+    // Azure contains Azure specific database metadata.
+    Azure Azure = 7 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "azure,omitempty" ];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -298,6 +300,12 @@ message GCPCloudSQL {
     string ProjectID = 1 [ (gogoproto.jsontag) = "project_id,omitempty" ];
     // InstanceID is the Cloud SQL instance ID.
     string InstanceID = 2 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
+}
+
+// Azure contains Azure specific database metadata.
+message Azure {
+    // Name is the Azure database server name.
+    string Name = 1 [ (gogoproto.jsontag) = "name,omitempty" ];
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
