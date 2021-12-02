@@ -1199,13 +1199,25 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		req.SetSuggestedReviewers(reviewers)
 	}
 
-	// Watch for resolution events on the given request. Start watcher before
-	// creating the request to avoid a potential race.
+	// Watch for resolution events on the given request. Start watcher and wait
+	// for it to be ready before creating the request to avoid a potential race.
 	errChan := make(chan error)
 	if !cf.NoWait {
+		log.Debug("Waiting for the access-request watcher to ready up...")
+		ready := make(chan struct{})
 		go func() {
-			errChan <- waitForRequestResolution(cf, tc, req)
+			errChan <- waitForRequestResolution(cf, tc, req, ready)
 		}()
+
+		select {
+		case err = <-errChan:
+			if err == nil {
+				return trace.Errorf("event watcher exited cleanly without readying up?")
+			}
+			return trace.Wrap(err)
+		case <-ready:
+			log.Debug("Access-request watcher is ready")
+		}
 	}
 
 	// Create request if it doesn't already exist
@@ -2107,8 +2119,9 @@ func host(in string) string {
 	return out
 }
 
-// waitForRequestResolution waits for an access request to be resolved.
-func waitForRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {
+// waitForRequestResolution waits for an access request to be resolved. `ready`
+// will be closed once the watcher has been initialized.
+func waitForRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest, ready chan<- struct{}) error {
 	filter := types.AccessRequestFilter{
 		User: req.GetUser(),
 	}
@@ -2136,6 +2149,7 @@ Loop:
 			switch event.Type {
 			case types.OpInit:
 				log.Infof("Access-request watcher initialized...")
+				close(ready)
 				continue Loop
 			case types.OpPut:
 				r, ok := event.Resource.(*types.AccessRequestV3)
