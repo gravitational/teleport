@@ -20,7 +20,6 @@ package rdpclient
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -34,14 +33,6 @@ type Config struct {
 
 	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
 	AuthorizeFn func(login string) error
-
-	// TODO(zmb3): replace these callbacks with a tdp.Conn
-
-	// InputMessage is called to receive a message from the client for the RDP
-	// server. This function should block until there is a message.
-	InputMessage func() (tdp.Message, error)
-	// OutputMessage is called to send a message from RDP server to the client.
-	OutputMessage func(tdp.Message) error
 
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
@@ -57,12 +48,6 @@ func (c *Config) checkAndSetDefaults() error {
 	}
 	if c.GenerateUserCert == nil {
 		return trace.BadParameter("missing GenerateUserCert in rdpclient.Config")
-	}
-	if c.InputMessage == nil {
-		return trace.BadParameter("missing InputMessage in rdpclient.Config")
-	}
-	if c.OutputMessage == nil {
-		return trace.BadParameter("missing OutputMessage in rdpclient.Config")
 	}
 	if c.AuthorizeFn == nil {
 		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")

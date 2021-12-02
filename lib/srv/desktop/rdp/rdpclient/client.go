@@ -41,9 +41,9 @@ package rdpclient
 //           *output streaming continues...*
 //
 //              *user input messages*
-//  InputMessage(MouseMove) ------> write_rdp_pointer
-//  InputMessage(MouseButton) ----> write_rdp_pointer
-//  InputMessage(KeyboardButton) -> write_rdp_keyboard
+//  Send(MouseMove) ------> write_rdp_pointer
+//  Send(MouseButton) ----> write_rdp_pointer
+//  Send(KeyboardButton) -> write_rdp_keyboard
 //            *user input continues...*
 //
 //        *connection closed (client or server side)*

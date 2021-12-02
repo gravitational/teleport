@@ -129,6 +129,9 @@ func (s *session) start() {
 			}
 		}()
 
+		// Call StartReceiving with the ch, will tells the RDP client
+		// to begin translating incoming RDP messages to TDP and sending
+		// them to the ch.
 		if err := s.rdpc.StartReceiving(ch); err != nil {
 			s.log.Error(err)
 			return
