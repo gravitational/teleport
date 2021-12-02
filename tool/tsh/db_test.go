@@ -24,12 +24,12 @@ import (
 	"time"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -38,10 +38,7 @@ import (
 
 // TestDatabaseLogin verifies "tsh db login" command.
 func TestDatabaseLogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	homePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -69,20 +66,20 @@ func TestDatabaseLogin(t *testing.T) {
 	// Log into Teleport cluster.
 	err = Run([]string{
 		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, cliOption(func(cf *CLIConf) error {
+	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
 	require.NoError(t, err)
 
 	// Fetch the active profile.
-	profile, err := client.StatusFor("", proxyAddr.Host(), alice.GetName())
+	profile, err := client.StatusFor(homePath, proxyAddr.Host(), alice.GetName())
 	require.NoError(t, err)
 
 	// Log into test Postgres database.
 	err = Run([]string{
 		"db", "login", "--debug", "postgres",
-	})
+	}, mockHomePath(homePath))
 	require.NoError(t, err)
 
 	// Verify Postgres identity file contains certificate.
@@ -94,7 +91,7 @@ func TestDatabaseLogin(t *testing.T) {
 	// Log into test Mongo database.
 	err = Run([]string{
 		"db", "login", "--debug", "--db-user", "admin", "mongo",
-	})
+	}, mockHomePath(homePath))
 	require.NoError(t, err)
 
 	// Verify Mongo identity file contains both certificate and key.
@@ -102,6 +99,30 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Len(t, keys, 1)
+}
+
+func TestFormatDatabaseListCommand(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		require.Equal(t, "tsh db ls", formatDatabaseListCommand(""))
+	})
+
+	t.Run("with cluster flag", func(t *testing.T) {
+		require.Equal(t, "tsh db ls --cluster=leaf", formatDatabaseListCommand("leaf"))
+	})
+}
+
+func TestFormatConfigCommand(t *testing.T) {
+	db := tlsca.RouteToDatabase{
+		ServiceName: "example-db",
+	}
+
+	t.Run("default", func(t *testing.T) {
+		require.Equal(t, "tsh db config --format=cmd example-db", formatDatabaseConfigCommand("", db))
+	})
+
+	t.Run("with cluster flag", func(t *testing.T) {
+		require.Equal(t, "tsh db config --cluster=leaf --format=cmd example-db", formatDatabaseConfigCommand("leaf", db))
+	})
 }
 
 func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, dbs ...service.Database) (db *service.TeleportProcess) {

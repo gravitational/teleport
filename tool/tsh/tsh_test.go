@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -92,10 +91,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 func TestFailedLogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	homePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -116,7 +112,7 @@ func TestFailedLogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, cliOption(func(cf *CLIConf) error {
+	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = client.SSOLoginFunc(ssoLogin)
 		return nil
 	}))
@@ -124,10 +120,7 @@ func TestFailedLogin(t *testing.T) {
 }
 
 func TestOIDCLogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	homePath := t.TempDir()
 
 	modules.SetModules(&cliModules{})
 
@@ -203,7 +196,7 @@ func TestOIDCLogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--user", "alice", // explicitly use wrong name
-	}, cliOption(func(cf *CLIConf) error {
+	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.SiteName = "localhost"
 		return nil
@@ -222,10 +215,7 @@ func TestOIDCLogin(t *testing.T) {
 // TestLoginIdentityOut makes sure that "tsh login --out <ident>" command
 // writes identity credentials to the specified path.
 func TestLoginIdentityOut(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	homePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -250,7 +240,7 @@ func TestLoginIdentityOut(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--out", identPath,
-	}, cliOption(func(cf *CLIConf) error {
+	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
@@ -261,10 +251,7 @@ func TestLoginIdentityOut(t *testing.T) {
 }
 
 func TestRelogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	homePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -286,7 +273,7 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, cliOption(func(cf *CLIConf) error {
+	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
@@ -298,10 +285,10 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	})
+	}, mockHomePath(homePath))
 	require.NoError(t, err)
 
-	err = Run([]string{"logout"})
+	err = Run([]string{"logout"}, mockHomePath(homePath))
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -311,7 +298,7 @@ func TestRelogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	}, cliOption(func(cf *CLIConf) error {
+	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
@@ -319,12 +306,8 @@ func TestRelogin(t *testing.T) {
 }
 
 func TestMakeClient(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
-
 	var conf CLIConf
+	conf.HomePath = t.TempDir()
 
 	// empty config won't work:
 	tc, err := makeClient(&conf, true)
@@ -595,11 +578,11 @@ func TestOptions(t *testing.T) {
 }
 
 func TestFormatConnectCommand(t *testing.T) {
-	cluster := "root"
 	tests := []struct {
-		comment string
-		db      tlsca.RouteToDatabase
-		command string
+		clusterFlag string
+		comment     string
+		db          tlsca.RouteToDatabase
+		command     string
 	}{
 		{
 			comment: "no default user/database are specified",
@@ -637,10 +620,20 @@ func TestFormatConnectCommand(t *testing.T) {
 			},
 			command: `tsh db connect test`,
 		},
+		{
+			comment:     "extra cluster flag",
+			clusterFlag: "leaf",
+			db: tlsca.RouteToDatabase{
+				ServiceName: "test",
+				Protocol:    defaults.ProtocolPostgres,
+				Database:    "postgres",
+			},
+			command: `tsh db connect --cluster=leaf --db-user=<user> test`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.comment, func(t *testing.T) {
-			require.Equal(t, test.command, formatConnectCommand(cluster, test.db))
+			require.Equal(t, test.command, formatConnectCommand(test.clusterFlag, test.db))
 		})
 	}
 }
@@ -1057,5 +1050,12 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 			TLSCert:     tlsCert,
 			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
+	}
+}
+
+func mockHomePath(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.HomePath = path
+		return nil
 	}
 }

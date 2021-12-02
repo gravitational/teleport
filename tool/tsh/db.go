@@ -24,7 +24,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -61,7 +60,12 @@ func onListDatabases(cf *CLIConf) error {
 	sort.Slice(databases, func(i, j int) bool {
 		return databases[i].GetName() < databases[j].GetName()
 	})
-	showDatabases(tc.SiteName, databases, profile.Databases, cf.Verbose)
+
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	showDatabases(cf.SiteName, databases, activeDatabases, cf.Verbose)
 	return nil
 }
 
@@ -132,7 +136,8 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	}
 	// Print after-connect message.
 	if !quiet {
-		return connectMessage.Execute(os.Stdout, cf)
+		fmt.Println(formatDatabaseConnnectMessage(cf.SiteName, db))
+		return nil
 	}
 	return nil
 }
@@ -287,7 +292,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -374,19 +379,19 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 	}
 	if len(databases) == 0 {
 		return nil, trace.NotFound(
-			"database %q not found, use 'tsh db ls' to see registered databases", dbName)
+			"database %q not found, use '%v' to see registered databases", dbName, formatDatabaseListCommand(cf.SiteName))
 	}
 	return databases[0], nil
 }
 
 func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
 	found := false
-	databases, err := profile.DatabasesForCluster(tc.SiteName)
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	for _, v := range databases {
+	for _, v := range activeDatabases {
 		if v.ServiceName == database.ServiceName {
 			found = true
 		}
@@ -445,24 +450,24 @@ func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 	if len(profile.Databases) == 0 {
 		return nil, trace.NotFound("Please login using 'tsh db login' first")
 	}
-	databases, err := profile.DatabasesForCluster(cf.SiteName)
+	activeDatabases, err := profile.DatabasesForCluster(cf.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	name := cf.DatabaseService
 	if name == "" {
-		if len(databases) > 1 {
+		if len(activeDatabases) > 1 {
 			var services []string
-			for _, database := range databases {
+			for _, database := range activeDatabases {
 				services = append(services, database.ServiceName)
 			}
 			return nil, trace.BadParameter("Multiple databases are available (%v), please specify one using CLI argument",
 				strings.Join(services, ", "))
 		}
-		name = databases[0].ServiceName
+		name = activeDatabases[0].ServiceName
 	}
-	for _, db := range databases {
+	for _, db := range activeDatabases {
 		if db.ServiceName == name {
 			// If database user or name were provided on the CLI,
 			// override the default ones.
@@ -518,7 +523,7 @@ func getConnectCommand(cf *CLIConf, tc *client.TeleportClient, profile *client.P
 		return getMySQLCommand(profile, db, options), nil
 
 	case defaults.ProtocolMongoDB:
-		return getMongoCommand(profile, db, host, port, options), nil
+		return getMongoCommand(tc, profile, db, host, port, options), nil
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", db)
@@ -563,12 +568,12 @@ func getMySQLCommand(profile *client.ProfileStatus, db *tlsca.RouteToDatabase, o
 	return exec.Command(mysqlBin, args...)
 }
 
-func getMongoCommand(profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
+func getMongoCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, host string, port int, options connectionCommandOpts) *exec.Cmd {
 	args := []string{
 		"--host", host,
 		"--port", strconv.Itoa(port),
 		"--ssl",
-		"--sslPEMKeyFile", profile.DatabaseCertPath(db.ServiceName),
+		"--sslPEMKeyFile", profile.DatabaseCertPathForCluster(tc.SiteName, db.ServiceName),
 	}
 
 	if options.caPath != "" {
@@ -580,6 +585,41 @@ func getMongoCommand(profile *client.ProfileStatus, db *tlsca.RouteToDatabase, h
 		args = append(args, db.Database)
 	}
 	return exec.Command(mongoBin, args...)
+}
+
+func formatDatabaseListCommand(clusterFlag string) string {
+	if clusterFlag == "" {
+		return "tsh db ls"
+	}
+	return fmt.Sprintf("tsh db ls --cluster=%v", clusterFlag)
+}
+
+func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) string {
+	if clusterFlag == "" {
+		return fmt.Sprintf("tsh db config --format=cmd %v", db.ServiceName)
+	}
+	return fmt.Sprintf("tsh db config --cluster=%v --format=cmd %v", clusterFlag, db.ServiceName)
+}
+
+func formatDatabaseConnnectMessage(clusterFlag string, db tlsca.RouteToDatabase) string {
+	connectCommand := formatConnectCommand(clusterFlag, db)
+	configCommand := formatDatabaseConfigCommand(clusterFlag, db)
+
+	return fmt.Sprintf(`
+Connection information for database "%v" has been saved.
+
+You can now connect to it using the following command:
+
+  %v
+
+Or view the connect command for the native database CLI client:
+
+  %v
+
+`,
+		db.ServiceName,
+		utils.Color(utils.Yellow, connectCommand),
+		utils.Color(utils.Yellow, configCommand))
 }
 
 const (
@@ -599,23 +639,3 @@ const (
 	// mongoBin is the Mongo client binary name.
 	mongoBin = "mongo"
 )
-
-// clusterFlagTemplate defines a template that prints out " --cluster <cluster>"
-// if cluster name is not empty.
-const clusterFlagTemplate = "{{if .SiteName}} --cluster {{.SiteName}}{{end}}"
-
-// connectMessage is printed after successful login to a database.
-var connectMessage = template.Must(template.New("").Parse(fmt.Sprintf(`
-Connection information for database "{{.DatabaseService}}" has been saved.
-
-You can now connect to it using the following command:
-
-  %v
-
-Or view the connect command for the native database CLI client:
-
-  %v
-
-`,
-	utils.Color(utils.Yellow, "tsh db connect"+clusterFlagTemplate+" {{.DatabaseService}}"),
-	utils.Color(utils.Yellow, "tsh db config"+clusterFlagTemplate+" --format=cmd {{.DatabaseService}}"))))

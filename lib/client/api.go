@@ -471,7 +471,7 @@ func (p *ProfileStatus) DatabaseServices() (result []string) {
 	return result
 }
 
-// DatabasesForCluster returns a list of databases for this profile, for
+// DatabasesForCluster returns a list of databases for this profile, for the
 // specified cluster name.
 func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteToDatabase, error) {
 	if clusterName == "" || clusterName == p.Cluster {

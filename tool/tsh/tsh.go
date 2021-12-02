@@ -1370,7 +1370,7 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool)
 	}
 }
 
-func showDatabases(cluster string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
+func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
 		for _, database := range databases {
@@ -1379,7 +1379,7 @@ func showDatabases(cluster string, databases []types.Database, active []tlsca.Ro
 			for _, a := range active {
 				if a.ServiceName == name {
 					name = formatActiveDB(a)
-					connect = formatConnectCommand(cluster, a)
+					connect = formatConnectCommand(clusterFlag, a)
 				}
 			}
 			t.AddRow([]string{
@@ -1402,7 +1402,7 @@ func showDatabases(cluster string, databases []types.Database, active []tlsca.Ro
 			for _, a := range active {
 				if a.ServiceName == name {
 					name = formatActiveDB(a)
-					connect = formatConnectCommand(cluster, a)
+					connect = formatConnectCommand(clusterFlag, a)
 				}
 			}
 			t.AddRow([]string{
@@ -1425,16 +1425,21 @@ func formatDatabaseLabels(database types.Database) string {
 
 // formatConnectCommand formats an appropriate database connection command
 // for a user based on the provided database parameters.
-func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
-	switch {
-	case active.Username != "" && active.Database != "":
-		return fmt.Sprintf("tsh db connect %v", active.ServiceName)
-	case active.Username != "":
-		return fmt.Sprintf("tsh db connect --db-name=<name> %v", active.ServiceName)
-	case active.Database != "":
-		return fmt.Sprintf("tsh db connect --db-user=<user> %v", active.ServiceName)
+func formatConnectCommand(clusterFlag string, active tlsca.RouteToDatabase) string {
+	cmdTokens := []string{"tsh", "db", "connect"}
+
+	if clusterFlag != "" {
+		cmdTokens = append(cmdTokens, fmt.Sprintf("--cluster=%s", clusterFlag))
 	}
-	return fmt.Sprintf("tsh db connect --db-user=<user> --db-name=<name> %v", active.ServiceName)
+	if active.Username == "" {
+		cmdTokens = append(cmdTokens, "--db-user=<user>")
+	}
+	if active.Database == "" {
+		cmdTokens = append(cmdTokens, "--db-name=<name>")
+	}
+
+	cmdTokens = append(cmdTokens, active.ServiceName)
+	return strings.Join(cmdTokens, " ")
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {
@@ -2240,7 +2245,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.ReissueUserCerts(cf.Context, client.CertCacheDrop, params); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := tc.SaveProfile("", true); err != nil {
+	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := updateKubeConfig(cf, tc, ""); err != nil {

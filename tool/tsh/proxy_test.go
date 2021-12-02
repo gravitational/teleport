@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -39,10 +38,7 @@ func TestProxySSHDial(t *testing.T) {
 	sockPath := createAgent(t)
 	os.Setenv("SSH_AUTH_SOCK", sockPath)
 
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	homePath := t.TempDir()
 
 	connector := mockConnector(t)
 	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV4{
@@ -75,7 +71,7 @@ func TestProxySSHDial(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, func(cf *CLIConf) error {
+	}, mockHomePath(homePath), func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	})
@@ -90,7 +86,7 @@ func TestProxySSHDial(t *testing.T) {
 	// as communication channels but in unit test there is no easy way to mock this behavior.
 	err = Run([]string{
 		"proxy", "ssh", unreachableSubsystem,
-	})
+	}, mockHomePath(homePath))
 	require.Contains(t, err.Error(), "subsystem request failed")
 }
 

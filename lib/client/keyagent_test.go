@@ -96,8 +96,8 @@ func newKeyAgentTest(t *testing.T) (*KeyAgentTest, func()) {
 	}
 }
 
-// TestLocalKeyAgent_AddKey ensures correct adding of ssh keys.
-// This test checks the following:
+// TestLocalKeyAgent_AddKey ensures correct adding of ssh keys. This test
+// checks the following:
 //   * When adding a key it's written to disk.
 //   * When we add a key, it's added to both the teleport ssh agent as well
 //     as the system ssh agent.
@@ -106,8 +106,8 @@ func newKeyAgentTest(t *testing.T) (*KeyAgentTest, func()) {
 //   * When we add a key, it's tagged with a comment that indicates that it's
 //     a teleport key with the teleport username.
 func TestLocalKeyAgent_AddKey(t *testing.T) {
-	s, cleanup := newKeyAgentTest(t)
-	defer cleanup()
+	s, cleanupFunc := newKeyAgentTest(t)
+	t.Cleanup(cleanupFunc)
 
 	// make a new local agent
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
@@ -180,8 +180,8 @@ func TestLocalKeyAgent_AddKey(t *testing.T) {
 //     the agent sign data that is then verified using the public key
 //     directly.
 func TestLocalKeyAgent_LoadKey(t *testing.T) {
-	s, cleanup := newKeyAgentTest(t)
-	defer cleanup()
+	s, cleanupFunc := newKeyAgentTest(t)
+	t.Cleanup(cleanupFunc)
 
 	userdata := []byte("hello, world")
 
@@ -250,8 +250,8 @@ func TestLocalKeyAgent_LoadKey(t *testing.T) {
 }
 
 func TestLocalKeyAgent_HostCertVerification(t *testing.T) {
-	s, cleanup := newKeyAgentTest(t)
-	defer cleanup()
+	s, cleanupFunc := newKeyAgentTest(t)
+	t.Cleanup(cleanupFunc)
 
 	// Make a new local agent.
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
@@ -344,8 +344,8 @@ func TestLocalKeyAgent_HostCertVerification(t *testing.T) {
 }
 
 func TestLocalKeyAgent_HostKeyVerification(t *testing.T) {
-	s, cleanup := newKeyAgentTest(t)
-	defer cleanup()
+	s, cleanupFunc := newKeyAgentTest(t)
+	t.Cleanup(cleanupFunc)
 
 	// make a new local agent
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
@@ -407,8 +407,8 @@ func TestLocalKeyAgent_HostKeyVerification(t *testing.T) {
 }
 
 func TestLocalKeyAgent_DefaultHostPromptFunc(t *testing.T) {
-	s, cleanup := newKeyAgentTest(t)
-	defer cleanup()
+	s, cleanupFunc := newKeyAgentTest(t)
+	t.Cleanup(cleanupFunc)
 
 	keygen := testauthority.New()
 
@@ -462,8 +462,8 @@ func TestLocalKeyAgent_DefaultHostPromptFunc(t *testing.T) {
 }
 
 func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
-	s, cleanup := newKeyAgentTest(t)
-	defer cleanup()
+	s, cleanupFunc := newKeyAgentTest(t)
+	t.Cleanup(cleanupFunc)
 
 	// make a new local agent
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
