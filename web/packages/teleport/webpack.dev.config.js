@@ -1,13 +1,15 @@
-const webpack = require('webpack');
 const path = require('path');
-const createBaseDefaults = require('@gravitational/build/webpack/webpack.base');
-const defaultCfg = require('@gravitational/build/webpack/webpack.dev.config');
+const configFactory = require('@gravitational/build/webpack/webpack.base');
+const defaultDevConfig = require('@gravitational/build/webpack/webpack.dev.config');
 
+/**
+ * @type { import("webpack").webpack.Configuration }
+ */
 module.exports = {
-  ...defaultCfg,
+  ...defaultDevConfig,
   plugins: [
-    ...defaultCfg.plugins,
-    createBaseDefaults().plugins.createIndexHtml({
+    ...defaultDevConfig.plugins,
+    configFactory.plugins.indexHtml({
       favicon: path.join(__dirname, '/src/favicon.ico'),
     }),
   ],

@@ -23,7 +23,81 @@ const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 const appDirectory = fs.realpathSync(process.cwd());
 const resolveApp = relativePath => path.resolve(appDirectory, relativePath);
 
-module.exports = function createConfig() {
+const configFactory = {
+  createDefaultConfig,
+  plugins: {
+    reactRefresh(options) {
+      return new ReactRefreshPlugin(options);
+    },
+    eslint(options) {
+      return new ESLintPlugin({
+        context: '../',
+        extensions: ['ts', 'tsx', 'js', 'jsx'],
+        failOnError: false,
+        failOnWarning: false,
+        ...options,
+      });
+    },
+    indexHtml(options) {
+      return new HtmlWebPackPlugin({
+        filename: '../index.html',
+        title: '',
+        inject: true,
+        template: path.join(__dirname, '/../index.ejs'),
+        ...options,
+      });
+    },
+  },
+  rules: {
+    fonts() {
+      return {
+        test: /fonts\/(.)+\.(woff|woff2|ttf|eot|svg)/,
+        loader: 'url-loader',
+        options: {
+          limit: 102400, // 100kb
+          name: '/assets/fonts/[name].[ext]',
+        },
+      };
+    },
+    svg() {
+      return {
+        test: /\.svg$/,
+        loader: 'svg-url-loader',
+        exclude: /node_modules/,
+      };
+    },
+    css() {
+      return {
+        test: /\.(css)$/,
+        use: ['style-loader', 'css-loader'],
+      };
+    },
+    images() {
+      return {
+        test: /\.(png|jpg|gif|ico)$/,
+        loader: 'url-loader',
+        options: {
+          limit: 10000,
+          name: '/assets/img/img-[hash:6].[ext]',
+        },
+      };
+    },
+    jsx() {
+      return {
+        test: /\.(ts|tsx|js|jsx)$/,
+        exclude: /(node_modules)|(assets)/,
+        use: [
+          {
+            loader: 'babel-loader',
+          },
+        ],
+      };
+    },
+  },
+};
+
+/** @return {import('webpack').webpack.Configuration} */
+function createDefaultConfig() {
   return {
     optimization: {
       splitChunks: {
@@ -86,83 +160,8 @@ module.exports = function createConfig() {
       modules: ['node_modules', 'src'],
       extensions: ['.ts', '.tsx', '.js', '.jsx'],
     },
-
-    noParse: function(content) {
-      return /xterm.js$/.test(content);
-    },
-
-    rules: {
-      fonts: {
-        test: /fonts\/(.)+\.(woff|woff2|ttf|eot|svg)/,
-        loader: 'url-loader',
-        options: {
-          limit: 102400, // 100kb
-          name: '/assets/fonts/[name].[ext]',
-        },
-      },
-
-      svg: {
-        test: /\.svg$/,
-        loader: 'svg-url-loader',
-        exclude: /node_modules/,
-      },
-
-      css() {
-        return {
-          test: /\.(css)$/,
-          use: ['style-loader', 'css-loader'],
-        };
-      },
-
-      images: {
-        test: /\.(png|jpg|gif|ico)$/,
-        loader: 'url-loader',
-        options: {
-          limit: 10000,
-          name: '/assets/img/img-[hash:6].[ext]',
-        },
-      },
-      jsx() {
-        return {
-          test: /\.(ts|tsx|js|jsx)$/,
-          exclude: /(node_modules)|(assets)/,
-          use: [
-            {
-              loader: 'babel-loader',
-            },
-          ],
-        };
-      },
-    },
-
-    plugins: {
-      createReactRefresh(options) {
-        return new ReactRefreshPlugin(options);
-      },
-      createESLint(options) {
-        return new ESLintPlugin({
-          context: "../",
-          extensions: ['ts', 'tsx', 'js', 'jsx'],
-          failOnError: false,
-          failOnWarning: false,
-          ...options,
-        });
-      },
-      // builds index html page, the main entry point for application
-      createIndexHtml(options) {
-        return createHtmlPluginInstance({
-          filename: '../index.html',
-          title: '',
-          inject: true,
-          template: path.join(__dirname, '/../index.ejs'),
-          ...options,
-        });
-      },
-    },
   };
-};
-
-function createHtmlPluginInstance(cfg) {
-  cfg.inject = true;
-  return new HtmlWebPackPlugin(cfg);
 }
+
+
+module.exports = configFactory;

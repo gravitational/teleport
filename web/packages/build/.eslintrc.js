@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const createConfig = require('./webpack/webpack.base');
+const configFactory = require('./webpack/webpack.base');
 
 module.exports = {
   parser: '@typescript-eslint/parser',
@@ -118,7 +118,7 @@ module.exports = {
     },
     'import/resolver': {
       webpack: {
-        config: createConfig(),
+        config: configFactory.createDefaultConfig(),
       },
     },
   },

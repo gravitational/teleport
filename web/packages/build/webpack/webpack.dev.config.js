@@ -14,48 +14,35 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const createConfig = require('./webpack.base');
+const configFactory = require('./webpack.base');
 
 process.env.BABEL_ENV = 'development';
 process.env.NODE_ENV = 'development';
 
-const baseCfg = createConfig();
-
-const cfg = {
-  entry: baseCfg.entry,
+/**
+ * @type { import('webpack').webpack.Configuration }
+ */
+module.exports = {
+  ...configFactory.createDefaultConfig(),
   output: {
-    ...baseCfg.output,
+    ...configFactory.createDefaultConfig().output,
     filename: '[name].js',
     chunkFilename: '[name].js',
   },
-  resolve: {
-    ...baseCfg.resolve,
-    alias: {
-      ...baseCfg.resolve.alias,
-    },
-  },
-
   devtool: false,
-
   mode: 'development',
-
-  optimization: baseCfg.optimization,
   plugins: [
-    baseCfg.plugins.createESLint(),
-    baseCfg.plugins.createReactRefresh(),
+    configFactory.plugins.eslint(),
+    configFactory.plugins.reactRefresh(),
   ],
-
   module: {
-    noParse: baseCfg.noParse,
     strictExportPresence: true,
     rules: [
-      baseCfg.rules.fonts,
-      baseCfg.rules.svg,
-      baseCfg.rules.images,
-      baseCfg.rules.jsx(),
-      baseCfg.rules.css(),
+      configFactory.rules.fonts(),
+      configFactory.rules.svg(),
+      configFactory.rules.images(),
+      configFactory.rules.jsx(),
+      configFactory.rules.css(),
     ],
   },
 };
-
-module.exports = cfg;

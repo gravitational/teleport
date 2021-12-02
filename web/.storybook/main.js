@@ -16,9 +16,7 @@ limitations under the License.
 
 const path = require('path');
 const fs = require('fs');
-const createConfig = require('@gravitational/build/webpack/webpack.base');
-
-const webpackCfg = createConfig();
+const configFactory = require('@gravitational/build/webpack/webpack.base');
 
 // include open source stories
 const stories = ['../packages/**/*.story.@(js|jsx|ts|tsx)'];
@@ -39,17 +37,17 @@ module.exports = {
     reactDocgen: false,
   },
   stories,
-  webpackFinal: async (config, { configType }) => {
+  webpackFinal: async (storybookConfig, { configType }) => {
     // configType has a value of 'DEVELOPMENT' or 'PRODUCTION'
     // You can change the configuration based on that.
     // 'PRODUCTION' is used when building the static version of storybook.
-    config.devtool = false;
-    config.resolve = {
-      ...config.resolve,
-      ...webpackCfg.resolve,
+    storybookConfig.devtool = false;
+    storybookConfig.resolve = {
+      ...storybookConfig.resolve,
+      ...configFactory.createDefaultConfig().resolve,
     };
 
-    config.optimization = {
+    storybookConfig.optimization = {
       splitChunks: {
         cacheGroups: {
           stories: {
@@ -62,11 +60,11 @@ module.exports = {
       },
     };
 
-    config.module.rules.push({
+    storybookConfig.module.rules.push({
       test: /\.(ts|tsx)$/,
       loader: require.resolve('babel-loader'),
     });
 
-    return config;
+    return storybookConfig;
   },
 };

@@ -14,14 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const path = require('path');
-const webpackBaseCfg = require('@gravitational/build/webpack/webpack.base');
+const configFactory = require('@gravitational/build/webpack/webpack.base');
 
+/**
+ * @type { import("webpack").webpack.Configuration }
+ */
 module.exports = ({ config }) => {
   config.devtool = false;
   config.resolve = {
     ...config.resolve,
-    ...webpackBaseCfg.resolve,
+    ...configFactory.createDefaultConfig().resolve,
   };
 
   return config;

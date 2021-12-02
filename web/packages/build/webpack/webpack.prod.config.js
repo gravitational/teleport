@@ -14,40 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const createConfig = require('./webpack.base');
-const baseCfg = createConfig();
+const configFactory = require('./webpack.base');
 
 process.env.BABEL_ENV = 'production';
 process.env.NODE_ENV = 'production';
 
-//const BundleAnalyzerPlugin = require('webpack-bundle-analyzer')
-//  .BundleAnalyzerPlugin;
-
-var cfg = {
-  entry: baseCfg.entry,
-  output: baseCfg.output,
-  resolve: baseCfg.resolve,
-
+/**
+ * @type { import("webpack").webpack.Configuration }
+ */
+module.exports = {
+  ...configFactory.createDefaultConfig(),
   mode: 'production',
-
   optimization: {
-    ...baseCfg.optimization,
+    ...configFactory.createDefaultConfig().optimization,
     minimize: true,
   },
-
   module: {
-    noParse: baseCfg.noParse,
     strictExportPresence: true,
     rules: [
-      baseCfg.rules.fonts,
-      baseCfg.rules.svg,
-      baseCfg.rules.images,
-      baseCfg.rules.jsx(),
-      baseCfg.rules.css(),
+      configFactory.rules.fonts(),
+      configFactory.rules.svg(),
+      configFactory.rules.images(),
+      configFactory.rules.jsx(),
+      configFactory.rules.css(),
     ],
   },
-
-  plugins: [baseCfg.plugins.createESLint()],
+  plugins: [configFactory.plugins.eslint()],
 };
-
-module.exports = cfg;

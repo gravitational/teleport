@@ -1,7 +1,7 @@
 {
   "name": "@gravitational/design",
   "version": "1.0.0",
-  "description": "Gravitatinal design system",
+  "description": "Gravitational design system",
   "main": "index.js",
   "license": "Apache-2.0",
   "scripts": {

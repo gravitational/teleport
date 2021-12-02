@@ -1,19 +1,21 @@
 const path = require('path');
-const webpack = require('webpack');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
-const createBaseDefaults = require('@gravitational/build/webpack/webpack.base');
-const defaultCfg = require('@gravitational/build/webpack/webpack.prod.config');
+const configFactory = require('@gravitational/build/webpack/webpack.base');
+const defaultProdConfig = require('@gravitational/build/webpack/webpack.prod.config');
 
+/**
+ * @type { import("webpack").webpack.Configuration }
+ */
 module.exports = {
-  ...defaultCfg,
+  ...defaultProdConfig,
   optimization: {
-    ...defaultCfg.optimization,
+    ...defaultProdConfig.optimization,
     moduleIds: 'hashed',
   },
   plugins: [
-    ...defaultCfg.plugins,
+    ...defaultProdConfig.plugins,
     new CleanWebpackPlugin(),
-    createBaseDefaults().plugins.createIndexHtml({
+    configFactory.plugins.indexHtml({
       favicon: path.join(__dirname, '/src/favicon.ico'),
     }),
   ],
