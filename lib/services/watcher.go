@@ -112,7 +112,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		cancel:                cancel,
 		retry:                 retry,
 		LoopC:                 make(chan struct{}),
-		ResetC:                make(chan struct{}, 1),
+		ResetC:                make(chan time.Duration, 1),
 		StaleC:                make(chan struct{}, 1),
 	}
 	go p.runWatchLoop()
@@ -141,7 +141,7 @@ type resourceWatcher struct {
 	// (used in tests).
 	LoopC chan struct{}
 	// ResetC is a channel to notify of internal watcher reset (used in tests).
-	ResetC chan struct{}
+	ResetC chan time.Duration
 	// StaleC is a channel that can trigger the condition of resource staleness
 	// (used in tests).
 	StaleC chan struct{}
@@ -176,7 +176,7 @@ func (p *resourceWatcher) hasStaleView() bool {
 // runWatchLoop runs a watch loop.
 func (p *resourceWatcher) runWatchLoop() {
 	for {
-		p.Log.WithField("retry", p.retry).Debug("Starting watch.")
+		p.Log.Debug("Starting watch.")
 		err := p.watch()
 
 		select {
@@ -194,24 +194,29 @@ func (p *resourceWatcher) runWatchLoop() {
 			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
 			p.collector.notifyStale()
 		}
+
+		// Used for testing that the watch routine has exited and is about
+		// to be restarted.
 		select {
-		case <-p.retry.After():
+		case p.ResetC <- p.retry.Duration():
+		default:
+		}
+
+		startedWaiting := p.Clock.Now()
+		select {
+		case t := <-p.retry.After():
+			p.Log.Debugf("Attempting to restart watch after waiting %v.", t.Sub(startedWaiting))
 			p.retry.Inc()
 		case <-p.ctx.Done():
 			p.Log.Debug("Closed, returning from watch loop.")
 			return
 		}
 		if err != nil {
-			p.Log.WithField("retry", p.retry).Warningf("Restart watch on error: %v.", err)
+			p.Log.Warningf("Restart watch on error: %v.", err)
 		} else {
 			p.Log.Debug("Triggering scheduled refetch.")
 		}
-		// Used for testing that the watch routine has exited and is about
-		// to be restarted.
-		select {
-		case p.ResetC <- struct{}{}:
-		default:
-		}
+
 	}
 }
 

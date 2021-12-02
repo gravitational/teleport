@@ -586,6 +586,9 @@ const (
 	// TombstoneWritten is emitted if cache is closed in a healthy
 	// state and successfully writes its tombstone.
 	TombstoneWritten = "tombstone_written"
+	// Reloading is emitted when an error occurred watching events
+	// and the cache is waiting to create a new watcher
+	Reloading = "reloading_cache"
 )
 
 // New creates a new instance of Cache
@@ -727,10 +730,20 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		if err != nil {
 			c.Warningf("Re-init the cache on error: %v.", err)
 		}
+
 		// events cache should be closed as well
-		c.Debugf("Reloading cache %v.", retry)
+		c.Debugf("Reloading cache.")
+
+		c.notify(ctx, Event{Type: Reloading, Event: types.Event{
+			Resource: &types.ResourceHeader{
+				Kind: retry.Duration().String(),
+			},
+		}})
+
+		startedWaiting := c.Clock.Now()
 		select {
-		case <-retry.After():
+		case t := <-retry.After():
+			c.Debugf("Initiating new watch after waiting %v.", t.Sub(startedWaiting))
 			retry.Inc()
 		case <-c.ctx.Done():
 			return

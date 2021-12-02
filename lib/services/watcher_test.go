@@ -18,6 +18,7 @@ package services_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -35,6 +36,57 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
+
+var _ types.Events = (*errorWatcher)(nil)
+
+type errorWatcher struct {
+}
+
+func (e errorWatcher) NewWatcher(context.Context, types.Watch) (types.Watcher, error) {
+	return nil, errors.New("watcher error")
+}
+
+var _ services.ProxyGetter = (*nopProxyGetter)(nil)
+
+type nopProxyGetter struct {
+}
+
+func (n nopProxyGetter) GetProxies() ([]types.Server, error) {
+	return nil, nil
+}
+
+func TestResourceWatcher_Backoff(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	w, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:   "test",
+			Clock:       clock,
+			RetryPeriod: time.Minute,
+			Client:      &errorWatcher{},
+		},
+		ProxyGetter: &nopProxyGetter{},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	retries := make([]time.Duration, 5)
+	for i := 0; i < 5; i++ {
+		// wait for watcher to reload
+		select {
+		case duration := <-w.ResetC:
+			retries[i] = duration
+			// add some extra to the duration to ensure the retry occurs
+			clock.Advance(duration * 2)
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for reset")
+		}
+	}
+
+	require.IsIncreasing(t, retries)
+}
 
 func TestProxyWatcher(t *testing.T) {
 	t.Parallel()

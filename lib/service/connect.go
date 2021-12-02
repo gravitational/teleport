@@ -47,7 +47,7 @@ import (
 func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*Connector, error) {
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		First:  utils.HalfJitter(defaults.HighResPollingPeriod),
-		Step:   20 * time.Second,
+		Step:   process.Config.RetryPeriod,
 		Max:    3 * time.Minute,
 		Clock:  process.Clock,
 		Jitter: utils.NewSeventhJitter(),
@@ -76,10 +76,17 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		}
 		process.log.Errorf("%v failed to establish connection to cluster: %v.", role, err)
 
-		// Wait in between attempts, but return if teleport is shutting down
-		process.log.Debugf("Retrying connection to auth server in %v", retry)
+		// Used for testing that auth service will attempt to reconnect in the provided duration.
 		select {
-		case <-retry.After():
+		case process.connectFailureC <- retry.Duration():
+		default:
+		}
+
+		startedWait := process.Clock.Now()
+		// Wait in between attempts, but return if teleport is shutting down
+		select {
+		case t := <-retry.After():
+			process.log.Debugf("Retrying connection to auth server after waiting %v.", t.Sub(startedWait))
 			retry.Inc()
 		case <-process.ExitContext().Done():
 			process.log.Infof("%v stopping connection attempts, teleport is shutting down.", role)
