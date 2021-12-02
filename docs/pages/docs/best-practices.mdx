@@ -51,11 +51,11 @@ Our documentation is primarily built with [Next](https://github.com/gravitationa
 Quicktime outputs large `.mov` files. Use `ffmpeg` to convert them into `mp4` and `webm`
 web-friendly formats:
 
-```bash
+```code
 # create MP4
-ffmpeg -i input.mov -b:v 0 -crf 25 output.mp4
+$ ffmpeg -i input.mov -b:v 0 -crf 25 output.mp4
 # create WebM
-ffmpeg -i input.mov -c vp9 -b:v 0 -crf 41 output.webm
+$ ffmpeg -i input.mov -c vp9 -b:v 0 -crf 41 output.webm
 ```
 
 **Embed videos**
@@ -170,7 +170,7 @@ Includes will only work in these two cases:
 2. Include inside the code blocks. E. g.:
 
    ````md
-   ```bash
+   ```code
    # Code example below
 
    (\! include.sh \!)

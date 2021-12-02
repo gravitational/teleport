@@ -209,10 +209,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 			if err != nil {
 				return
 			}
-			require.Empty(t, cmp.Diff(id, tt.wantID,
-				cmpopts.IgnoreFields(BuiltinRole{}, "GetSessionRecordingConfig"),
-				cmpopts.EquateEmpty(),
-			))
+			require.Empty(t, cmp.Diff(id, tt.wantID, cmpopts.EquateEmpty()))
 		})
 	}
 }

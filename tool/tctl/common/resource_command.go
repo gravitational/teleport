@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -95,6 +95,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
 		types.KindLock:                    rc.createLock,
 		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
+		types.KindToken:                   rc.createToken,
 	}
 	rc.config = config
 
@@ -258,7 +259,7 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 		if !found {
 			// if we're trying to create an OIDC/SAML connector with the OSS version of tctl, return a specific error
 			if raw.Kind == "oidc" || raw.Kind == "saml" {
-				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise. https://goteleport.com/teleport/docs/enterprise/", raw.Kind)
+				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise.  If you connecting to a Teleport Enterprise Cluster you must install the enterprise version of tctl.  https://goteleport.com/teleport/docs/enterprise/", raw.Kind)
 			}
 			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 		}
@@ -535,6 +536,16 @@ func (rc *ResourceCommand) createNetworkRestrictions(client auth.ClientI, raw se
 	return nil
 }
 
+func (rc *ResourceCommand) createToken(client auth.ClientI, raw services.UnknownResource) error {
+	token, err := services.UnmarshalProvisionToken(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = client.UpsertToken(context.Background(), token)
+	return trace.Wrap(err)
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	singletonResources := []string{
@@ -629,10 +640,14 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		}
 		fmt.Printf("session recording configuration has been reset to defaults\n")
 	case types.KindLock:
-		if err = client.DeleteLock(ctx, rc.ref.Name); err != nil {
+		name := rc.ref.Name
+		if rc.ref.SubKind != "" {
+			name = rc.ref.SubKind + "/" + name
+		}
+		if err = client.DeleteLock(ctx, name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("lock %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("lock %q has been deleted\n", name)
 	case types.KindNetworkRestrictions:
 		if err = resetNetworkRestrictions(ctx, client); err != nil {
 			return trace.Wrap(err)
@@ -988,13 +1003,17 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		return &recConfigCollection{recConfig}, nil
 	case types.KindLock:
 		if rc.ref.Name == "" {
-			locks, err := client.GetLocks(ctx)
+			locks, err := client.GetLocks(ctx, false)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &lockCollection{locks: locks}, nil
 		}
-		lock, err := client.GetLock(ctx, rc.ref.Name)
+		name := rc.ref.Name
+		if rc.ref.SubKind != "" {
+			name = rc.ref.SubKind + "/" + name
+		}
+		lock, err := client.GetLock(ctx, name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1005,6 +1024,19 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.Wrap(err)
 		}
 		return &netRestrictionsCollection{nr}, nil
+	case types.KindToken:
+		if rc.ref.Name == "" {
+			tokens, err := client.GetTokens(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &tokenCollection{tokens: tokens}, nil
+		}
+		token, err := client.GetToken(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

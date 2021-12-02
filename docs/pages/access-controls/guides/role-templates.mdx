@@ -22,19 +22,7 @@ Let's explore how Teleport's role templates provide a way to describe these and 
 - Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
 - [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
 
-Verify that your Teleport client is connected:
-
-```bash
-tctl status
-
-# Output
-Cluster  acme.example.com
-Version  6.0.2
-Host CA  never updated
-User CA  never updated
-Jwt CA   never updated
-CA pin   sha256:e63c7c44be468d37a5b0276b70e9d10b17f24f4be19d6b579810fc94eaa31783
-```
+(!docs/pages/includes/tctl.mdx!)
 
 ## Local users
 
@@ -48,7 +36,7 @@ We can create two roles, one for each user in file `roles.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: alice
 spec:
@@ -61,7 +49,7 @@ spec:
       '*': '*'
 ---
 kind: role
-version: v3
+version: v4
 metadata:
   name: bob
 spec:
@@ -76,10 +64,10 @@ spec:
 
 You can create roles and invite Alice and Bob as local users:
 
-```bash
-tctl create -f roles.yaml
-tctl users add alice --roles=alice
-tctl users add bob --roles=bob
+```code
+$ tctl create -f roles.yaml
+$ tctl users add alice --roles=alice
+$ tctl users add bob --roles=bob
 ```
 
 Having one role per user is not going to scale well. Because the roles
@@ -90,7 +78,7 @@ Let's create a role template `devs.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: devs
 spec:
@@ -111,8 +99,8 @@ traits `logins` and `kubernetes_groups`.
 
 Use `tctl` to create a role template:
 
-```bash
-tctl create -f devs.yaml
+```code
+$ tctl create -f devs.yaml
 ```
 
 The last step is to update Alice's and Bob's users with traits. Here is an example
@@ -142,30 +130,27 @@ spec:
 
 Update both user's entries with `tctl create -f` command:
 
-```bash
-tctl create -f traits.yaml 
+```code
+$ tctl create -f traits.yaml 
 # user "alice" has been updated
 ```
 
 Once Alice logs in, she will receive SSH and X.509 certificates with
 a new role and SSH logins and Kubernetes groups set:
 
-```bash
-tsh login --proxy=teleport.example.com:443 --user=alice
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
 
-# Output
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       alice
-  Cluster:            teleport.example.com
-  Roles:              devs*
-  Logins:             admin
-  Kubernetes:         enabled
-  Kubernetes groups:  edit
-  Valid until:        2021-03-26 07:13:57 -0700 PDT [valid for 12h0m0s]
-  Extensions:         permit-port-forwarding, permit-pty
+# > Profile URL:        https://teleport.example.com:443
+#  Logged in as:       alice
+#  Cluster:            teleport.example.com
+#  Roles:              devs*
+#  Logins:             admin
+#  Kubernetes:         enabled
+#  Kubernetes groups:  edit
+#  Valid until:        2021-03-26 07:13:57 -0700 PDT [valid for 12h0m0s]
+#  Extensions:         permit-port-forwarding, permit-pty
 ```
-
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ## SSO users
 
@@ -188,7 +173,7 @@ to be set by identity provider. Save this role as `sso-users.yaml`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: sso-users
 spec:
@@ -228,28 +213,26 @@ spec:
 
 Create this connector using `tctl`:
 
-```bash
-tctl create -f github.yaml
+```code
+$ tctl create -f github.yaml
 ```
 
 Once Bob logs in using SSO, he will receive SSH and X.509 certificates with
 a new role and SSH logins generated using `sso-users` role template:
 
-```bash
-tsh login --proxy=teleport.example.com:443 --auth=github
+```code
+$ tsh login --proxy=teleport.example.com --auth=github
 
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       bob
-  Cluster:            teleport.example.com
-  Roles:              sso-users*
-  Logins:             bob
-  Kubernetes:         enabled
-  Kubernetes groups:  edit
-  Valid until:        2021-03-26 07:13:57 -0700 PDT [valid for 12h0m0s]
-  Extensions:         permit-port-forwarding, permit-pty
+#> Profile URL:        https://teleport.example.com:443
+#  Logged in as:       bob
+#  Cluster:            teleport.example.com
+#  Roles:              sso-users*
+#  Logins:             bob
+#  Kubernetes:         enabled
+#  Kubernetes groups:  edit
+#  Valid until:        2021-03-26 07:13:57 -0700 PDT [valid for 12h0m0s]
+#  Extensions:         permit-port-forwarding, permit-pty
 ```
-
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ## Interpolation rules
 
@@ -272,7 +255,7 @@ Let's see how these variables are used with role template `interpolation`:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: interpolation
 spec:
@@ -290,7 +273,7 @@ spec:
     database_users: ['{{email.local(external.email)}}']
     database_labels:
       'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
-    
+
     # Labels can mix template and hard-coded values.
     node_labels:
       'env': '{{external.access["env"]}}'
@@ -305,7 +288,7 @@ behave as the following role:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: interpolation
 spec:

@@ -22,10 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -47,20 +45,16 @@ var _ = check.Suite(&ServicesSuite{})
 
 func (s *ServicesSuite) SetUpTest(c *check.C) {
 	var err error
+	ctx := context.Background()
 
 	clock := clockwork.NewFakeClock()
 
-	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
+	s.bk, err = lite.NewWithConfig(ctx, lite.Config{
 		Path:             c.MkDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            clock,
 	})
 	c.Assert(err, check.IsNil)
-
-	type client struct {
-		*PresenceService
-		*EventsService
-	}
 
 	configService, err := NewClusterConfigurationService(s.bk)
 	c.Assert(err, check.IsNil)
@@ -79,20 +73,6 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		ConfigS:       configService,
 		RestrictionsS: NewRestrictionsService(s.bk),
 		Clock:         clock,
-		NewProxyWatcher: func() (*services.ProxyWatcher, error) {
-			return services.NewProxyWatcher(services.ProxyWatcherConfig{
-				ResourceWatcherConfig: services.ResourceWatcherConfig{
-					ParentContext: context.TODO(),
-					Component:     "test",
-					RetryPeriod:   200 * time.Millisecond,
-					Client: &client{
-						PresenceService: presenceService,
-						EventsService:   eventsService,
-					},
-				},
-				ProxiesC: make(chan []types.Server, 10),
-			})
-		},
 	}
 }
 
@@ -171,10 +151,6 @@ func (s *ServicesSuite) TestEvents(c *check.C) {
 
 func (s *ServicesSuite) TestEventsClusterConfig(c *check.C) {
 	s.suite.EventsClusterConfig(c)
-}
-
-func (s *ServicesSuite) TestProxyWatcher(c *check.C) {
-	s.suite.ProxyWatcher(c)
 }
 
 func (s *ServicesSuite) TestSemaphoreLock(c *check.C) {

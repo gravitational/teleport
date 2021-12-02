@@ -1,0 +1,78 @@
+---
+title: Troubleshooting
+description: Troubleshooting and Collecting Metrics of Teleport Processes
+---
+
+## Troubleshooting
+
+To diagnose problems you can configure [`teleport`](../reference/cli.mdx#teleport) to
+run with verbose logging enabled by passing it `-d` flag.
+
+<Admonition
+  type="tip"
+  title="NOTE"
+>
+  It is not recommended to run Teleport in production with verbose logging as it generates a substantial amount of data.
+</Admonition>
+
+Sometimes you may want to reset [`teleport`](../reference/cli.mdx#teleport) to a clean
+state. This can be accomplished by erasing everything under `"data_dir"`
+directory. Assuming the default location, `rm -rf /var/lib/teleport/*` will do.
+
+Teleport also supports HTTP endpoints for monitoring purposes. They are disabled
+by default, but you can enable them:
+
+```code
+$ sudo teleport start --diag-addr=127.0.0.1:3000
+```
+
+Now you can see the monitoring information by visiting several endpoints:
+
+- `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is tracking. It is compatible with [Prometheus](https://prometheus.io/)
+  collectors. For a full list of metrics review our [metrics reference](../reference/metrics.mdx).
+- `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or
+  `503` otherwise.
+- `http://127.0.0.1:3000/readyz` is similar to `/healthz`, but it returns "OK"
+  *only after* the node successfully joined the cluster, i.e.it draws the difference between "healthy" and "ready".
+- `http://127.0.0.1:3000/debug/pprof/` is Golang's standard profiler. It's only
+  available when `-d` flag is given in addition to `--diag-addr`
+
+## Debug dump
+
+You can get a goroutine dump of a running process by sending it `USR1` signal.
+
+Locate a running teleport daemon PID:
+
+```code
+# Locate teleport process PID
+$ pidof teleport
+235119
+```
+
+Send a `USR1` signal to teleport process:
+
+```code
+$ kill -USR1 $(pidof teleport)
+```
+
+Teleport will print the debug information to `stderr`. Here what you will see in the logs:
+
+```txt
+INFO [PROC:1]    Got signal "user defined signal 1", logging diagnostic info to stderr. service/signals.go:99
+Runtime stats
+goroutines: 84
+...
+Goroutines
+goroutine 1 [running]:
+runtime/pprof.writeGoroutineStacks(0x3c2ffc0, 0xc0001a8010, 0xc001011a38, 0x4bcfb3)
+	/usr/local/go/src/runtime/pprof/pprof.go:693 +0x9f
+...
+```
+
+## Getting help
+
+If you need help, please ask on our [community forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
+
+For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
+
+For more information about custom features, or to try our [Enterprise edition](../../enterprise/introduction.mdx) of Teleport, please reach out to us at [sales](https://goteleport.com/signup/enterprise/).

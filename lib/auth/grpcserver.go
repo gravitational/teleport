@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"time"
@@ -52,11 +53,28 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 )
 
-var heartbeatConnectionsReceived = prometheus.NewCounter(
-	prometheus.CounterOpts{
-		Name: teleport.MetricHeartbeatConnectionsReceived,
-		Help: "Number of times auth received a heartbeat connection",
-	},
+var (
+	heartbeatConnectionsReceived = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: teleport.MetricHeartbeatConnectionsReceived,
+			Help: "Number of times auth received a heartbeat connection",
+		},
+	)
+	watcherEventsEmitted = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    teleport.MetricWatcherEventsEmitted,
+			Help:    "Per resources size of events emitted",
+			Buckets: prometheus.LinearBuckets(0, 200, 5),
+		},
+		[]string{teleport.TagResource},
+	)
+	watcherEventSizes = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    teleport.MetricWatcherEventSizes,
+			Help:    "Overall size of events emitted",
+			Buckets: prometheus.LinearBuckets(0, 100, 20),
+		},
+	)
 )
 
 // GRPCServer is GPRC Auth Server API
@@ -99,13 +117,18 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 // SendKeepAlives allows node to send a stream of keep alive requests
 func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServer) error {
 	defer stream.SendAndClose(&empty.Empty{})
-	auth, err := g.authenticate(stream.Context())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
-	heartbeatConnectionsReceived.Inc()
+	firstIteration := true
 	for {
+		// Authenticate within the loop to block locked-out nodes from heartbeating.
+		auth, err := g.authenticate(stream.Context())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if firstIteration {
+			g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
+			heartbeatConnectionsReceived.Inc()
+			firstIteration = false
+		}
 		keepAlive, err := stream.Recv()
 		if err == io.EOF {
 			g.Debugf("Connection closed.")
@@ -298,11 +321,29 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 			if err != nil {
 				return trace.Wrap(err)
 			}
+
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
+			watcherEventSizes.Observe(float64(out.Size()))
+
 			if err := stream.Send(out); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	}
+}
+
+// resourceLabel returns the label for the provided types.Event
+func resourceLabel(event types.Event) string {
+	if event.Resource == nil {
+		return event.Type.String()
+	}
+
+	sub := event.Resource.GetSubKind()
+	if sub == "" {
+		return fmt.Sprintf("/%s", event.Resource.GetKind())
+	}
+
+	return fmt.Sprintf("/%s/%s", event.Resource.GetKind(), sub)
 }
 
 // eventToGRPC converts a types.Event to an proto.Event
@@ -2461,7 +2502,7 @@ func (g *GRPCServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ns, nextKey, err := auth.ServerWithRoles.ListNodes(ctx, req.Namespace, int(req.Limit), req.StartKey)
+	ns, nextKey, err := auth.ServerWithRoles.ListNodes(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2818,21 +2859,23 @@ func (g *GRPCServer) GetLock(ctx context.Context, req *proto.GetLockRequest) (*t
 	return lockV2, nil
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 func (g *GRPCServer) GetLocks(ctx context.Context, req *proto.GetLocksRequest) (*proto.GetLocksResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	targets := make([]types.LockTarget, len(req.Targets))
-	for i := range req.Targets {
-		targets[i] = *req.Targets[i]
+	targets := make([]types.LockTarget, 0, len(req.Targets))
+	for _, targetPtr := range req.Targets {
+		if targetPtr != nil {
+			targets = append(targets, *targetPtr)
+		}
 	}
-	locks, err := auth.GetLocks(ctx, targets...)
+	locks, err := auth.GetLocks(ctx, req.InForceOnly, targets...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var lockV2s []*types.LockV2
+	lockV2s := make([]*types.LockV2, 0, len(locks))
 	for _, lock := range locks {
 		lockV2, ok := lock.(*types.LockV2)
 		if !ok {
@@ -2869,6 +2912,22 @@ func (g *GRPCServer) DeleteLock(ctx context.Context, req *proto.DeleteLockReques
 	return &empty.Empty{}, nil
 }
 
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (g *GRPCServer) ReplaceRemoteLocks(ctx context.Context, req *proto.ReplaceRemoteLocksRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	locks := make([]types.Lock, 0, len(req.Locks))
+	for _, lock := range req.Locks {
+		locks = append(locks, lock)
+	}
+	if err := auth.ReplaceRemoteLocks(ctx, req.ClusterName, locks); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
@@ -2899,7 +2958,7 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 
 // NewGRPCServer returns a new instance of GRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
-	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived)
+	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

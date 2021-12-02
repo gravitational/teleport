@@ -9,13 +9,16 @@ with an existing Teleport cluster:
 To use it, you will need:
 - an existing Teleport cluster (at least proxy and auth services)
 - a reachable proxy endpoint (`$PROXY_ENDPOINT` e.g. `teleport.example.com:3080` or `teleport.example.com:443`) 
-- a reachable reverse tunnel port on the proxy (e.g. `teleport.example.com:3024`). The address is automatically retrieved from the Teleport proxy configuration.
-- a [static join
-  token](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster)
-  for this Teleport cluster (`$JOIN_TOKEN`)
-  - this chart does not currently support dynamic join tokens; please [file an
-    issue](https://github.com/gravitational/teleport/issues/new?labels=type%3A+feature+request&template=feature_request.md)
-    if you require support for dynamic tokens
+- a reachable reverse tunnel port on the proxy (e.g. `teleport.example.com:3024`). The address is automatically 
+  retrieved from the Teleport proxy configuration.
+- either a static or dynamic join token for the Teleport Cluster
+  - a [static join token](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster)
+    for this Teleport cluster (`$JOIN_TOKEN`) is used by default.
+  - optionally a [dynamic join token](https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster) can
+    be used on Kubernetes clusters that support persistent volumes. Set `storage.enabled=true` and 
+    `storage.storageClassName=<storage class configured in kubernetes>` in the helm configuration to use persistent 
+    volumes.
+
 
 ## Combining roles
 
@@ -151,7 +154,7 @@ These are the supported values for the `databases` map:
 | --- | --- | --- | --- | --- |
 | `name` | Name of the database to be accessed | `databases[0].name=aurora` | | Yes |
 | `uri` | URI of the database to be accessed | `databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432` | | Yes |
-| `protocol` | Database protocol | `databases[0].protocol=postgresql` | | Yes |
+| `protocol` | Database protocol | `databases[0].protocol=postgres` | | Yes |
 | `description` | Free-form description of the database proxy instance | `databases[0].description='AWS Aurora instance of PostgreSQL 13.0'` | | No |
 | `aws.region` | AWS-specific region configuration (only used for RDS/Aurora) | `databases[0].aws.region=us-east-1` | | No |
 | `labels.[name]` | Key-value pairs to set against the database for grouping/RBAC | `databases[0].labels.db=postgres-dev,apps[0].labels.region=us-east-1` | | No |

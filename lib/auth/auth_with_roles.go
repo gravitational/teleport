@@ -134,7 +134,6 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	if !a.context.Checker.HasRole(name) {
 		return false
 	}
-
 	return true
 }
 
@@ -307,9 +306,11 @@ func (a *ServerWithRoles) GetLocalClusterName() (string, error) {
 	return a.authServer.GetLocalClusterName()
 }
 
-// GetClusterCACert returns the CAs for the local cluster without signing keys.
+// getClusterCACert returns the PEM-encoded TLS certs for the local cluster
+// without signing keys. If the cluster has multiple TLS certs, they will all
+// be concatenated.
 func (a *ServerWithRoles) GetClusterCACert() (*LocalCAResponse, error) {
-	// Allow all roles to get the local CA.
+	// Allow all roles to get the CA certs.
 	return a.authServer.GetClusterCACert()
 }
 
@@ -663,34 +664,43 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 }
 
 // ListNodes returns a paginated list of nodes filtered by user access.
-func (a *ServerWithRoles) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
-	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
+func (a *ServerWithRoles) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
+	if err := a.action(req.Namespace, types.KindNode, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return a.filterAndListNodes(ctx, namespace, limit, startKey)
+	return a.filterAndListNodes(ctx, req)
 }
 
-func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, namespace string, limit int, startKey string) (page []types.Server, nextKey string, err error) {
+func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
+	limit := int(req.Limit)
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive parameter limit")
 	}
 
+	// move labels out of request so that we can perform label-based filtering *after* RBAC filtering.
+	realLabels := req.Labels
+	req.Labels = nil
+
 	page = make([]types.Server, 0, limit)
-	nextKey, err = a.authServer.IterateNodePages(ctx, namespace, limit, startKey, func(nextPage []types.Server) (bool, error) {
+	nextKey, err = a.authServer.IterateNodePages(ctx, req, func(nextPage []types.Server) (bool, error) {
 		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
 		filteredPage, err := a.filterNodes(nextPage)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 
-		// We have more than enough nodes to fill the page, cut it to size.
-		if len(filteredPage) > limit-len(page) {
-			filteredPage = filteredPage[:limit-len(page)]
+		// add all matching nodes to page
+		for _, node := range filteredPage {
+			if len(page) == limit {
+				// page is filled, stop processing
+				break
+			}
+			if node.MatchAgainst(realLabels) {
+				page = append(page, node)
+			}
 		}
 
-		// Add filteredPage and break out of iterator if the page is now full.
-		page = append(page, filteredPage...)
 		return len(page) == limit, nil
 	})
 	if err != nil {
@@ -2134,7 +2144,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.upsertRole(ctx, role)
+	return a.authServer.UpsertRole(ctx, role)
 }
 
 // GetRole returns role by name
@@ -3145,15 +3155,15 @@ func (a *ServerWithRoles) GetLock(ctx context.Context, name string) (types.Lock,
 	return a.authServer.GetLock(ctx, name)
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
-func (a *ServerWithRoles) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetLocks(ctx, targets...)
+	return a.authServer.GetLocks(ctx, inForceOnly, targets...)
 }
 
 // UpsertLock upserts a lock.
@@ -3178,6 +3188,15 @@ func (a *ServerWithRoles) DeleteLock(ctx context.Context, name string) error {
 // DeleteAllLocks not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
+	role, ok := a.context.Identity.(RemoteBuiltinRole)
+	if !a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) || !ok || role.ClusterName != clusterName {
+		return trace.AccessDenied("this request can be only executed by a remote proxy of cluster %q", clusterName)
+	}
+	return a.authServer.ReplaceRemoteLocks(ctx, clusterName, locks)
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first

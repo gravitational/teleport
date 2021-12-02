@@ -106,7 +106,7 @@ Teleport Database Access for Redshift is available starting from `6.2` release.
 
 Create a local Teleport user with the built-in `access` role:
 
-```bash
+```code
 $ tctl users add --roles=access alice
 ```
 
@@ -118,7 +118,7 @@ connect to the `dev` database as a `awsuser` database user.
 
 First, export the user resource:
 
-```bash
+```code
 $ tctl get users/alice > alice.yaml
 ```
 
@@ -136,7 +136,7 @@ traits:
 
 Update the user:
 
-```bash
+```code
 $ tctl create alice.yaml -f
 ```
 
@@ -200,7 +200,7 @@ proxy_service:
 
 Start the database service:
 
-```bash
+```code
 $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ```
 
@@ -219,12 +219,12 @@ for more information.
 Once the database service has joined the cluster, login to see the available
 databases:
 
-```bash
-$ tsh login --proxy=teleport.example.com:3080 --user=alice
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
-Name     Description             Labels
--------- ----------------------- --------
-redshift AWS Redshift PostgreSQL env=dev
+# Name     Description             Labels
+# -------- ----------------------- --------
+# redshift AWS Redshift PostgreSQL env=dev
 ```
 
 Note that you will only be able to see databases your role has access to. See
@@ -233,7 +233,7 @@ Note that you will only be able to see databases your role has access to. See
 To connect to a particular database server, first retrieve credentials from
 Teleport using `tsh db login` command:
 
-```bash
+```code
 $ tsh db login redshift
 ```
 
@@ -247,13 +247,13 @@ $ tsh db login redshift
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
-```bash
+```code
 $ tsh db login --db-user=awsuser --db-name=dev redshift
 ```
 
 Once logged in, connect to the database:
 
-```bash
+```code
 $ tsh db connect aurora
 ```
 
@@ -264,13 +264,13 @@ $ tsh db connect aurora
 
 If you would like to see the native `psql` shell connect command, run:
 
-```bash
+```code
 $ tsh db config --format=cmd aurora
 ```
 
 To log out of the database and remove credentials:
 
-```bash
+```code
 # Remove credentials for a particular database instance.
 $ tsh db logout redshift
 # Remove credentials for all database instances.

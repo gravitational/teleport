@@ -483,8 +483,7 @@ func (s *remoteSite) updateCertAuthorities() error {
 }
 
 func (s *remoteSite) periodicUpdateCertAuthorities() {
-	s.Debugf("Ticking with period %v", s.srv.PollingPeriod)
-
+	s.Debugf("Updating remote CAs with period %v.", s.srv.PollingPeriod)
 	periodic := interval.New(interval.Config{
 		Duration:      s.srv.PollingPeriod,
 		FirstDuration: utils.HalfJitter(s.srv.PollingPeriod),
@@ -517,6 +516,35 @@ func (s *remoteSite) periodicUpdateCertAuthorities() {
 	}
 }
 
+func (s *remoteSite) periodicUpdateLocks() {
+	s.Debugf("Updating remote locks with period %v.", s.srv.PollingPeriod)
+	periodic := interval.New(interval.Config{
+		Duration:      s.srv.PollingPeriod,
+		FirstDuration: utils.HalfJitter(s.srv.PollingPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
+	for {
+		select {
+		case <-s.ctx.Done():
+			s.Debugf("Context is closing.")
+			return
+		case <-periodic.Next():
+			locks := s.srv.LockWatcher.GetCurrent()
+			if err := s.remoteClient.ReplaceRemoteLocks(s.ctx, s.srv.ClusterName, locks); err != nil {
+				switch {
+				case trace.IsNotImplemented(err):
+					s.Debugf("Remote cluster %v does not support locks yet.", s.domainName)
+				case trace.IsConnectionProblem(err):
+					s.Debugf("Remote cluster %v is offline.", s.domainName)
+				default:
+					s.WithError(err).Warning("Could not update remote locks.")
+				}
+			}
+		}
+	}
+}
+
 func (s *remoteSite) DialAuthServer() (net.Conn, error) {
 	return s.connThroughTunnel(&sshutils.DialReq{
 		Address: constants.RemoteAuthServer,
@@ -537,6 +565,8 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
 		return s.dialWithAgent(params)
 	}
+
+	// Attempt to perform a direct TCP dial.
 	return s.DialTCP(params)
 }
 
@@ -607,6 +637,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		HostUUID:        s.srv.ID,
 		Emitter:         s.srv.Config.Emitter,
 		ParentContext:   s.srv.Context,
+		LockWatcher:     s.srv.LockWatcher,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {

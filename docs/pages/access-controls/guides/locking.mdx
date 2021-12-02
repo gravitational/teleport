@@ -1,0 +1,141 @@
+---
+title: Locking
+description: Temporarily lock out specific access pathways.
+---
+
+# Session and Identity Locking
+
+Teleport provides a locking mechanism to restrict access to a computing
+environment. System administrators can disable a compromised user or
+prevent access during cluster maintenance.
+
+When a lock is in force, all interactions like SSH/DB/k8s connections and
+certificate requests matched by the lock's target are rejected.
+A lock can target the following objects or attributes:
+- a Teleport user by the user's name;
+- a Teleport [RBAC](../reference.mdx) role by the role's name;
+- an MFA device by the device's UUID;
+- an OS/UNIX login;
+- a Teleport node by the node's UUID (effectively unregistering it from the
+  cluster).
+
+<Admonition type="warning">
+  Locking support was introduced in Teleport v7.1. To fully enforce the locks
+  at all components, you should update **all** `teleport` binaries in your
+  deployment.
+</Admonition>
+
+## Prerequisites
+
+- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
+- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Creating a new lock
+
+Locks are modeled as [resources](../../setup/reference/resources.mdx) with `kind:
+lock`.  To create a new lock, one can run the `tctl lock` command:
+
+```code
+$ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=10h
+# Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+```
+
+Note that without specifying `--ttl` or `--expires` the created lock remains in
+force until explicitly removed with `tctl rm`.  Refer to `tctl lock --help` for
+the list of all supported parameters.
+
+Under the hood, `tctl lock` creates a resource:
+
+```yaml
+kind: lock
+version: v2
+metadata:
+  name: dc7cee9d-fe5e-4534-a90d-db770f0234a1
+spec:
+  target:
+    user: foo@example.com
+  message: "Suspicious activity."
+  expires: "2021-08-14T22:27:00Z"  # RFC3339 format
+```
+
+The `kind: lock` resources can also be created and updated using `tctl create`
+as per usual, see the [Admin Guide](../../setup/reference/resources.mdx) for more
+details.
+
+## Lock in force
+
+With a lock in force, all established connections involving the lock's target
+get terminated while any new requests are rejected.
+
+Errors returned and warnings logged in this situation feature a message of the
+form:
+```
+lock targeting User:"foo@example.com" is in force: Suspicious activity.
+```
+
+## Locking mode
+
+If a Teleport node or proxy cannot properly synchronize its local lock view
+with the backend, there is a decision to be made about whether to rely on the
+last known locks. This decision strategy is encoded as one of the two modes:
+- `strict` mode causes all interactions to be terminated when the locks are not
+  guaranteed to be up to date;
+- `best_effort` mode keeps relying on the most recent locks.
+
+The cluster-wide mode defaults to `best_effort`.
+You can set up default locking mode via API or CLI using resource `cluster_auth_preference`
+or static configuration file:
+
+<Tabs>
+  <TabItem label="API or CLI">
+    Create a YAML file `cap.yaml` or get the existing file using `tctl get cap`
+    
+    ```yaml
+    kind: cluster_auth_preference
+    metadata:
+      name: cluster-auth-preference
+    spec:
+      locking_mode: best_effort
+    version: v2
+    ```
+    
+    Create a resource:
+    
+    ```code
+    $ tctl create -f cap.yaml
+    # cluster auth preference has been updated
+    ```
+  </TabItem>
+  <TabItem label="Static Config">
+    Edit the `teleport.yaml` of the Auth server:
+
+    ```yaml
+    auth_service:
+        authentication:
+            locking_mode: best_effort
+    ```
+
+    Restart the auth server for the change to take effect.
+  </TabItem>
+</Tabs>
+
+It is also possible to configure the locking mode for a particular role:
+
+```yaml
+kind: role
+version: v4
+metadata:
+    name: example-role-with-strict-locking
+spec:
+    options:
+       lock: strict
+```
+
+When none of the roles involved in an interaction specify the mode or when
+there is no user involved, the mode is taken from the cluster-wide setting.
+
+With multiple potentially conflicting locking modes (the cluster-wide default
+and the individual per-role settings) a single occurrence of `strict` suffices
+for the local lock view to become evaluated strictly.

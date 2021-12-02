@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 )
@@ -88,6 +89,24 @@ type Backend interface {
 	// Migrate performs any data migration necessary between Teleport versions.
 	// Migrate must be called BEFORE using any other methods of the Backend.
 	Migrate(context.Context) error
+}
+
+// IterateRange is a helper for stepping over a range
+func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byte, limit int, fn func([]Item) (stop bool, err error)) error {
+	for {
+		rslt, err := bk.GetRange(ctx, startKey, endKey, limit)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		stop, err := fn(rslt.Items)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if stop || len(rslt.Items) < limit {
+			return nil
+		}
+		startKey = nextKey(rslt.Items[limit-1].Key)
+	}
 }
 
 // Batch implements some batch methods
@@ -242,6 +261,17 @@ func RangeEnd(key []byte) []byte {
 // NextPaginationKey returns the next pagination key.
 func NextPaginationKey(r types.Resource) string {
 	return string(nextKey([]byte(r.GetName())))
+}
+
+// MaskKeyName masks the given key name.
+// e.g "123456789" -> "******789"
+func MaskKeyName(keyName string) []byte {
+	maskedBytes := []byte(keyName)
+	hiddenBefore := int(0.75 * float64(len(keyName)))
+	for i := 0; i < hiddenBefore; i++ {
+		maskedBytes[i] = '*'
+	}
+	return maskedBytes
 }
 
 // Items is a sortable list of backend items

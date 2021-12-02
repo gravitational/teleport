@@ -52,7 +52,7 @@ var (
 
 	certificateMismatchCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: teleport.MetricCertificateMistmatch,
+			Name: teleport.MetricCertificateMismatch,
 			Help: "Number of times there was a certificate mismatch",
 		},
 	)
@@ -60,7 +60,7 @@ var (
 	prometheusCollectors = []prometheus.Collector{failedLoginCount, certificateMismatchCount}
 )
 
-// HandlerConfig is the configuration for an application handler.
+// AuthHandlerConfig is the configuration for an application handler.
 type AuthHandlerConfig struct {
 	// Server is the services.Server in the backend.
 	Server Server
@@ -134,11 +134,11 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 	identity.CertAuthority = certAuthority
 
-	roleSet, err := h.fetchRoleSet(certificate, certAuthority, identity.TeleportUser, clusterName.GetClusterName())
+	roleSet, origRoles, err := h.fetchRoleSet(certificate, certAuthority, identity.TeleportUser, clusterName.GetClusterName())
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
-	identity.RoleSet = roleSet
+	identity.RoleSet, identity.UnmappedRoles = roleSet, origRoles
 	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
 	accessRequestIDs, err := parseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
 	if err != nil {
@@ -259,7 +259,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	if h.c.Clock != nil {
 		clock = h.c.Clock.Now
 	}
-	certChecker := utils.CertChecker{
+	certChecker := apisshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
 			Clock:           clock,
@@ -284,6 +284,15 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	permissions.Extensions[utils.CertTeleportUser] = teleportUser
 	permissions.Extensions[utils.CertTeleportClusterName] = clusterName.GetClusterName()
 	permissions.Extensions[utils.CertTeleportUserCertificate] = string(ssh.MarshalAuthorizedKey(cert))
+
+	switch cert.CertType {
+	case ssh.UserCert:
+		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeUser
+	case ssh.HostCert:
+		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeHost
+	default:
+		log.Warnf("Unexpected cert type: %v", cert.CertType)
+	}
 
 	if h.isProxy() {
 		return permissions, nil
@@ -314,7 +323,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicKey) error {
 	// Check if the given host key was signed by a Teleport certificate
 	// authority (CA) or fallback to host key checking if it's allowed.
-	certChecker := utils.CertChecker{
+	certChecker := apisshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsHostAuthority: h.IsHostAuthority,
 			HostKeyFallback: h.hostKeyCallback,
@@ -401,7 +410,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// get roles assigned to this user
-	roles, err := h.fetchRoleSet(cert, ca, teleportUser, clusterName)
+	roles, _, err := h.fetchRoleSet(cert, ca, teleportUser, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -425,51 +434,52 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	return nil
 }
 
-// fetchRoleSet fetches the services.RoleSet assigned to a Teleport user.
-func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca types.CertAuthority, teleportUser string, clusterName string) (services.RoleSet, error) {
-	// for local users, go and check their individual permissions
-	var roleset services.RoleSet
+// fetchRoleSet fetches the services.RoleSet (after role mapping) together with
+// the original roles (prior to role mapping) assigned to a Teleport user.
+func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca types.CertAuthority, teleportUser string, clusterName string) (mapped services.RoleSet, unmapped []string, err error) {
+	// For local users, go and check their individual permissions.
 	if clusterName == ca.GetClusterName() {
 		// Extract roles and traits either from the certificate or from
 		// services.User and create a services.RoleSet with all runtime roles.
 		roles, traits, err := services.ExtractFromCertificate(h.c.AccessPoint, cert)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
-		roleset, err = services.FetchRoles(roles, h.c.AccessPoint, traits)
+		roleSet, err := services.FetchRoles(roles, h.c.AccessPoint, traits)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
-	} else {
-		// Old-style SSH certificates don't have roles in metadata.
-		roles, err := services.ExtractRolesFromCert(cert)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.AccessDenied("failed to parse certificate roles")
-		}
-		roleNames, err := services.MapRoles(ca.CombinedMapping(), roles)
-		if err != nil {
-			return nil, trace.AccessDenied("failed to map roles")
-		}
-		// Old-style SSH certificates don't have traits in metadata.
-		traits, err := services.ExtractTraitsFromCert(cert)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.AccessDenied("failed to parse certificate traits")
-		}
-		if traits == nil {
-			traits = make(map[string][]string)
-		}
-		// Prior to Teleport 6.2 the only trait passed to the remote cluster
-		// was the "logins" trait set to the SSH certificate principals.
-		//
-		// Keep backwards-compatible behavior and set it in addition to the
-		// traits extracted from the certificate.
-		traits[teleport.TraitLogins] = cert.ValidPrincipals
-		roleset, err = services.FetchRoles(roleNames, h.c.AccessPoint, traits)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return roleSet, roles, nil
 	}
-	return roleset, nil
+
+	// Old-style SSH certificates don't have roles in metadata.
+	origRoles, err := services.ExtractRolesFromCert(cert)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, nil, trace.AccessDenied("failed to parse certificate roles")
+	}
+	mappedRoles, err := services.MapRoles(ca.CombinedMapping(), origRoles)
+	if err != nil {
+		return nil, nil, trace.AccessDenied("failed to map roles")
+	}
+	// Old-style SSH certificates don't have traits in metadata.
+	traits, err := services.ExtractTraitsFromCert(cert)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, nil, trace.AccessDenied("failed to parse certificate traits")
+	}
+	if traits == nil {
+		traits = make(map[string][]string)
+	}
+	// Prior to Teleport 6.2 the only trait passed to the remote cluster
+	// was the "logins" trait set to the SSH certificate principals.
+	//
+	// Keep backwards-compatible behavior and set it in addition to the
+	// traits extracted from the certificate.
+	traits[teleport.TraitLogins] = cert.ValidPrincipals
+	mappedRoleSet, err := services.FetchRoles(mappedRoles, h.c.AccessPoint, traits)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return mappedRoleSet, origRoles, nil
 }
 
 // authorityForCert checks if the certificate was signed by a Teleport

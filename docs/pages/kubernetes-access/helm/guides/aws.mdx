@@ -164,10 +164,10 @@ Teleport pod, and automatically renewed and kept up to date by `cert-manager`.
 If you do not have `cert-manager` already configured in the Kubernetes cluster where you are installing Teleport,
 you should add the Jetstack Helm chart repository which hosts the `cert-manager` chart, and install the chart:
 
-```bash
-helm repo add jetstack https://charts.jetstack.io
-helm repo update
-helm install cert-manager jetstack/cert-manager \
+```code
+$ helm repo add jetstack https://charts.jetstack.io
+$ helm repo update
+$ helm install cert-manager jetstack/cert-manager \
 --create-namespace \
 --namespace cert-manager \
 --set installCRDs=true \
@@ -211,9 +211,9 @@ EOF
 
 After you have created the `Issuer` and updated the values, add it to your cluster using `kubectl`:
 
-```bash
-kubectl create namespace teleport
-kubectl --namespace teleport create -f aws-issuer.yaml
+```code
+$ kubectl create namespace teleport
+$ kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
 ## Step 5. Set values to configure the cluster
@@ -247,8 +247,8 @@ The `--set` CLI method is more appropriate for quick test deployments.
 
   Install the chart with the values from your `aws-values.yaml` file using this command:
 
-  ```bash
-  helm install teleport teleport/teleport-cluster \
+  ```code
+  $ helm install teleport teleport/teleport-cluster \
     --create-namespace \
     --namespace teleport \
     -f aws-values.yaml
@@ -258,8 +258,8 @@ The `--set` CLI method is more appropriate for quick test deployments.
   <TabItem label="Using --set via CLI">
   Install the chart using this command, replacing the placeholders with the values you've chosen above:
 
-  ```bash
-  helm install teleport teleport/teleport-cluster \
+  ```code
+  $ helm install teleport teleport/teleport-cluster \
     --create-namespace \
     --namespace teleport \
     --set chartMode=aws \
@@ -282,24 +282,22 @@ The `--set` CLI method is more appropriate for quick test deployments.
 
 Once the chart is installed, you can use `kubectl` commands to view the deployment:
 
-```bash
-kubectl --namespace teleport get all
+```code
+$ kubectl --namespace teleport get all
 
-# Output
-NAME                            READY   STATUS    RESTARTS   AGE
-pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
-pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
+# NAME                            READY   STATUS    RESTARTS   AGE
+# pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
+# pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
 
-NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
-service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
+# NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
+# service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
 
-NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/teleport   2/2     2            2           4m21s
+# NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+# deployment.apps/teleport   2/2     2            2           4m21s
 
-NAME                                  DESIRED   CURRENT   READY   AGE
-replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
+# NAME                                  DESIRED   CURRENT   READY   AGE
+# replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 ## Step 6. Set up DNS
 
@@ -309,24 +307,24 @@ aliases to an ELB.
 
 Here's how to do this in a hosted zone with AWS Route 53:
 
-```bash
+```code
 # Change these parameters if you altered them above
-NAMESPACE='teleport'
-RELEASE_NAME='teleport'
+$ NAMESPACE='teleport'
+$ RELEASE_NAME='teleport'
 
 # DNS settings (change as necessary)
-MYZONE_DNS='example.com'
-MYDNS='teleport.example.com'
-MY_CLUSTER_REGION='us-west-2'
+$ MYZONE_DNS='example.com'
+$ MYDNS='teleport.example.com'
+$ MY_CLUSTER_REGION='us-west-2'
 
 # Find AWS Zone ID and ELB Zone ID
-MYZONE="$(aws route53 list-hosted-zones-by-name --dns-name="${MYZONE_DNS?}" | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)"
-MYELB="$(kubectl --namespace "${NAMESPACE?}" get "service/${RELEASE_NAME?}" -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')"
-MYELB_NAME="${MYELB%%-*}"
-MYELB_ZONE="$(aws elb describe-load-balancers --region "${MY_CLUSTER_REGION?}" --load-balancer-names "${MYELB_NAME?}" | jq -r '.LoadBalancerDescriptions[0].CanonicalHostedZoneNameID')"
+$ MYZONE="$(aws route53 list-hosted-zones-by-name --dns-name="${MYZONE_DNS?}" | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)"
+$ MYELB="$(kubectl --namespace "${NAMESPACE?}" get "service/${RELEASE_NAME?}" -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')"
+$ MYELB_NAME="${MYELB%%-*}"
+$ MYELB_ZONE="$(aws elb describe-load-balancers --region "${MY_CLUSTER_REGION?}" --load-balancer-names "${MYELB_NAME?}" | jq -r '.LoadBalancerDescriptions[0].CanonicalHostedZoneNameID')"
 
 # Create a JSON file changeset for AWS.
-jq -n --arg dns "${MYDNS?}" --arg elb "${MYELB?}" --arg elbz "${MYELB_ZONE?}" \
+$ jq -n --arg dns "${MYDNS?}" --arg elb "${MYELB?}" --arg elbz "${MYELB_ZONE?}" \
     '{
         "Comment": "Create records",
         "Changes": [
@@ -358,13 +356,13 @@ jq -n --arg dns "${MYDNS?}" --arg elb "${MYELB?}" --arg elbz "${MYELB_ZONE?}" \
     }' > myrecords.json
 
 # Review records before applying.
-cat myrecords.json | jq
+$ cat myrecords.json | jq
 # Apply the records and capture change id
-CHANGEID="$(aws route53 change-resource-record-sets --hosted-zone-id "${MYZONE?}" --change-batch file://myrecords.json | jq -r '.ChangeInfo.Id')"
+$ CHANGEID="$(aws route53 change-resource-record-sets --hosted-zone-id "${MYZONE?}" --change-batch file://myrecords.json | jq -r '.ChangeInfo.Id')"
 
 # Verify that change has been applied
-aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
-"INSYNC"
+$ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
+# "INSYNC"
 ```
 
 ## Step 7. Create a Teleport user
@@ -372,14 +370,13 @@ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
-```bash
-kubectl --namespace teleport exec deploy/teleport -- tctl users add test --roles=access,editor
+```code
+$ kubectl --namespace teleport exec deploy/teleport -- tctl users add test --roles=access,editor
 # User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 # https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 # NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
@@ -403,8 +400,8 @@ Here's an example where we set the chart to use 3 replicas:
 
   Upgrade the deployment with the values from your `aws-values.yaml` file using this command:
 
-  ```bash
-  helm upgrade teleport teleport/teleport-cluster \
+  ```code
+  $ helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport \
     -f aws-values.yaml
   ```
@@ -413,8 +410,8 @@ Here's an example where we set the chart to use 3 replicas:
   <TabItem label="Using --set via CLI">
   Run this command, editing your command line parameters as appropriate:
 
-  ```bash
-  helm upgrade teleport teleport/teleport-cluster \
+  ```code
+  $ helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport \
     --set highAvailability.replicaCount=3
   ```
@@ -429,16 +426,16 @@ Here's an example where we set the chart to use 3 replicas:
 
 To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
 
-```bash
-helm --namespace teleport uninstall teleport
+```code
+$ helm --namespace teleport uninstall teleport
 ```
 
 ### Uninstalling cert-manager
 
 If you want to remove the `cert-manager` installation later, you can use this command:
 
-```bash
-helm --namespace cert-manager uninstall cert-manager
+```code
+$ helm --namespace cert-manager uninstall cert-manager
 ```
 
 ## Next steps

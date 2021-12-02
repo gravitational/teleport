@@ -81,7 +81,7 @@ Assign it the "Service Account Token Creator" role:
   "Service Account Token Creator" and "Cloud SQL Viewer" IAM roles include more
   permissions than the database agent needs. To further restrict the service
   account, you can create a role that includes only the following permission:
-  ```bash
+  ```ini
   # Used to generate IAM auth tokens when connecting to a database instance.
   iam.serviceAccounts.getAccessToken
   # Used to auto-download the instance's root CA certificate.
@@ -144,7 +144,7 @@ Teleport Database Access for Cloud SQL PostgreSQL is available starting from
 
 Create local Teleport user with the built-in `access` role:
 
-```sh
+```code
 $ tctl users add --roles=access alice
 ```
 
@@ -157,7 +157,7 @@ service account.
 
 First, export the user resource:
 
-```sh
+```code
 $ tctl get users/alice > alice.yaml
 ```
 
@@ -176,7 +176,7 @@ traits:
 
 Update the user:
 
-```sh
+```code
 $ tctl create alice.yaml -f
 ```
 
@@ -240,7 +240,7 @@ proxy_service:
 
 Start the database service:
 
-```sh
+```code
 $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ```
 
@@ -262,12 +262,12 @@ in Google Cloud documentation for more details.
 Once the database service has joined the cluster, login to see the available
 databases:
 
-```sh
-$ tsh login --proxy=teleport.example.com:3080 --user=alice
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
-Name     Description              Labels
--------- ------------------------ --------
-cloudsql GCP Cloud SQL PostgreSQL env=dev
+# Name     Description              Labels
+# -------- ------------------------ --------
+# cloudsql GCP Cloud SQL PostgreSQL env=dev
 ```
 
 Note that you will only be able to see databases your role has access to. See
@@ -290,7 +290,7 @@ $ tsh db login cloudsql
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
-```sh
+```code
 $ tsh db login --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
 ```
 
@@ -306,7 +306,7 @@ $ tsh db login --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
 
 Once logged in, connect to the database:
 
-```bash
+```code
 $ tsh db connect aurora
 ```
 
@@ -317,13 +317,13 @@ $ tsh db connect aurora
 
 If you would like to see the native `psql` shell connect command, run:
 
-```bash
+```code
 $ tsh db config --format=cmd aurora
 ```
 
 To log out of the database and remove credentials:
 
-```sh
+```code
 # Remove credentials for a particular database instance.
 $ tsh db logout cloudsql
 # Remove credentials for all database instances.

@@ -8,37 +8,17 @@ The teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport
 
-### Teleport 7.0 "Stockholm"
+### Teleport 8.0
 
-Teleport 7.0 will focus on adding support for the MongoDB protocol, BPF based restricted sessions, UX improvements, and foundations for automatic upgrades. Other features have been delayed to a Teleport 7 minor release.
+Teleport 8.0 will add Desktop Access with initial support for Windows, port consolidation using TLS routing to simplify deployment, AWS CLI access through Application Access, automatic discovery of applications and databases, Webauthn for per-session MFA, and account recovery.
 
-You can find the full list of fixes and features in the [Github milestone](https://github.com/gravitational/teleport/milestone/54).
+| Version                                                                                | Date                | Description                            |
+| -------------------------------------------------------------------------------------- | ------------------- | -------------------------------------- |
+| [8.0.0-alpha.1](https://github.com/gravitational/teleport/releases/tag/v8.0.0-alpha.1) | October 6th, 2021   | Only for pre-production envioronments. |
+| 8.0.0-beta.1                                                                           | October 25th, 2021  | Only for pre-production envioronments. |
+| Release                                                                                | November 15th, 2021 | Production release.                    |
 
-| Version     | Date            | Description                      |
-| ----------- | --------------- | -------------------------------- |
-| First alpha | June 1st, 2021  | Good for some testing and demos. |
-| First beta  | June 15th, 2021 | Deploy on staging.               |
-| Release     | July 30th, 2021 | Good to go for production.       |
-
-### Teleport 7.1
-
-Teleport 7.1 will focus on [HSM](https://github.com/gravitational/teleport/issues/4225) and [session termination and user locking](https://github.com/gravitational/teleport/issues/3360) which were delayed from 7.0 due to timing constraints.
-
-| Version | Date              | Description         |
-| ------- | ----------------- | ------------------- |
-| Release | August 16th, 2021 | Production release. |
-
-You can find the full list of fixes and features in the [Github milestone](https://github.com/gravitational/teleport/milestone/58).
-
-### Teleport 7.2
-
-Teleport 7.2 will focus on [simplified node joining](https://github.com/gravitational/teleport/issues/7145) and UX improvements which were delayed from 7.0 due to timing constraints.
-
-You can find the full list of fixes and features in the [Github milestone](https://github.com/gravitational/teleport/milestone/60).
-
-| Version | Date              | Description         |
-| ------- | ----------------- | ------------------- |
-| Release | August 30th, 2021 | Production release. |
+You can find the full list of fixes and features in the [Github milestone](https://github.com/gravitational/teleport/milestone/59).
 
 ## Teleport Cloud "Washington"
 
@@ -80,6 +60,6 @@ They are not ready for production:
 Releases are ready for production use.
 
 - Releases `5.0.0` and `6.0.0` are major releases. We publish 4 major releases each year.
-  Read more about upgrades and compatibility [here](../admin-guide.mdx#component-compatibility).
+  Read more about upgrades and compatibility [here](../setup/operations/upgrading.mdx).
 - Releases `5.1.0` are minor releases. They contain minor backwards-compatible improvements and backports.
 - Versions like `5.0.1` are quick patches. They contain backwards-compatible fixes.

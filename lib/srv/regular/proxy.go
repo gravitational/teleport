@@ -161,6 +161,11 @@ func (p *proxySubsysRequest) String() string {
 	return fmt.Sprintf("host=%v, port=%v, cluster=%v", p.host, p.port, p.clusterName)
 }
 
+// SpecifiedPort returns whether the port is set, and it has a non-zero value
+func (p *proxySubsysRequest) SpecifiedPort() bool {
+	return len(p.port) > 0 && p.port != "0"
+}
+
 // SetDefaults sets default values.
 func (p *proxySubsysRequest) SetDefaults() {
 	if p.namespace == "" {
@@ -309,16 +314,24 @@ func (t *proxySubsys) proxyToHost(
 	// network resolution (by IP or DNS)
 	//
 	var (
-		servers []types.Server
-		err     error
+		strategy types.RoutingStrategy
+		servers  []types.Server
+		err      error
 	)
 	localCluster, _ := t.srv.authService.GetClusterName()
-	// going to "local" CA? lets use the caching 'auth service' directly and avoid
+	// going to "local" CA? let's use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localCluster.GetName() {
 		servers, err = t.srv.authService.GetNodes(ctx.CancelContext(), t.namespace)
 		if err != nil {
 			t.log.Warn(err)
+		}
+
+		cfg, err := t.srv.authService.GetClusterNetworkingConfig(ctx.CancelContext())
+		if err != nil {
+			t.log.Warn(err)
+		} else {
+			strategy = cfg.GetRoutingStrategy()
 		}
 	} else {
 		// "remote" CA? use a reverse tunnel to talk to it:
@@ -330,68 +343,24 @@ func (t *proxySubsys) proxyToHost(
 			if err != nil {
 				t.log.Warn(err)
 			}
+
+			cfg, err := siteClient.GetClusterNetworkingConfig(ctx.CancelContext())
+			if err != nil {
+				t.log.Warn(err)
+			} else {
+				strategy = cfg.GetRoutingStrategy()
+			}
 		}
 	}
 
 	// if port is 0, it means the client wants us to figure out
 	// which port to use
-	specifiedPort := len(t.port) > 0 && t.port != "0"
-	ips, _ := net.LookupHost(t.host)
-	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v", t.host, t.port, specifiedPort)
+	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v, strategy=%s", t.host, t.port, t.SpecifiedPort(), strategy)
 
-	// check if hostname is a valid uuid.  If it is, we will preferentially match
-	// by node ID over node hostname.
-	hostIsUUID := uuid.Parse(t.host) != nil
-
-	// enumerate and try to find a server with self-registered with a matching name/IP:
-	var server types.Server
-	matches := 0
-	for i := range servers {
-		// If the host parameter is a UUID and it matches the Node ID,
-		// treat this as an unambiguous match.
-		if hostIsUUID && servers[i].GetName() == t.host {
-			server = servers[i]
-			matches = 1
-			break
-		}
-		// If the server has connected over a reverse tunnel, match only on hostname.
-		if servers[i].GetUseTunnel() {
-			if t.host == servers[i].GetHostname() {
-				server = servers[i]
-				matches++
-			}
-			continue
-		}
-
-		ip, port, err := net.SplitHostPort(servers[i].GetAddr())
-		if err != nil {
-			t.log.Errorf("Failed to parse address %q: %v.", servers[i].GetAddr(), err)
-			continue
-		}
-		if t.host == ip || t.host == servers[i].GetHostname() || apiutils.SliceContainsStr(ips, ip) {
-			if !specifiedPort || t.port == port {
-				server = servers[i]
-				matches++
-				continue
-			}
-		}
-	}
-
-	// if we matched more than one server, then the target was ambiguous.
-	if matches > 1 {
-		return trace.NotFound(teleport.NodeIsAmbiguous)
-	}
-
-	// If we matched zero nodes but hostname is a UUID then it isn't sane
-	// to fallback to dns based resolution.  This has the unfortunate
-	// consequence of preventing users from calling OpenSSH nodes which
-	// happen to use hostnames which are also valid UUIDs.  This restriction
-	// is necessary in order to protect users attempting to connect to a
-	// node by UUID from being re-routed to an unintended target if the node
-	// is offline.  This restriction can be lifted if we decide to move to
-	// explicit UUID based resoltion in the future.
-	if hostIsUUID && matches < 1 {
-		return trace.NotFound("unable to locate node matching uuid-like target %s", t.host)
+	// determine which server to connect to
+	server, err := t.getMatchingServer(servers, strategy)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Create a slice of principals that will be added into the host certificate.
@@ -421,7 +390,7 @@ func (t *proxySubsys) proxyToHost(
 			serverAddr = reversetunnel.LocalNode
 		}
 	} else {
-		if !specifiedPort {
+		if !t.SpecifiedPort() {
 			t.port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
 		serverAddr = net.JoinHostPort(t.host, t.port)
@@ -473,6 +442,79 @@ func (t *proxySubsys) proxyToHost(
 	}()
 
 	return nil
+}
+
+// getMatchingServer determines the server to connect to from the provided servers. Duplicate entries are treated
+// differently based on strategy. Legacy behavior of returning an ambiguous error occurs if the strategy
+// is types.RoutingStrategy_UNAMBIGUOUS_MATCH. When the strategy is types.RoutingStrategy_MOST_RECENT then
+// the server that has heartbeated most recently will be returned instead of an error. If no matches are found then
+// both the types.Server and error returned will be nil.
+func (t *proxySubsys) getMatchingServer(servers []types.Server, strategy types.RoutingStrategy) (types.Server, error) {
+	// check if hostname is a valid uuid.  If it is, we will preferentially match
+	// by node ID over node hostname.
+	hostIsUUID := uuid.Parse(t.host) != nil
+
+	ips, _ := net.LookupHost(t.host)
+
+	// enumerate and try to find a server with self-registered with a matching name/IP:
+	var matches []types.Server
+	for _, server := range servers {
+		// If the host parameter is a UUID, and it matches the Node ID,
+		// treat this as an unambiguous match.
+		if hostIsUUID && server.GetName() == t.host {
+			matches = []types.Server{server}
+			break
+		}
+		// If the server has connected over a reverse tunnel, match only on hostname.
+		if server.GetUseTunnel() {
+			if t.host == server.GetHostname() {
+				matches = append(matches, server)
+			}
+			continue
+		}
+
+		ip, port, err := net.SplitHostPort(server.GetAddr())
+		if err != nil {
+			t.log.Errorf("Failed to parse address %q: %v.", server.GetAddr(), err)
+			continue
+		}
+		if t.host == ip || t.host == server.GetHostname() || apiutils.SliceContainsStr(ips, ip) {
+			if !t.SpecifiedPort() || t.port == port {
+				matches = append(matches, server)
+				continue
+			}
+		}
+	}
+
+	var server types.Server
+	switch {
+	case strategy == types.RoutingStrategy_MOST_RECENT:
+		// find the most recent of all the matches
+		for _, m := range matches {
+			if server == nil || m.Expiry().After(server.Expiry()) {
+				server = m
+			}
+		}
+	case len(matches) > 1:
+		// if we matched more than one server, then the target was ambiguous.
+		return nil, trace.NotFound(teleport.NodeIsAmbiguous)
+	case len(matches) == 1:
+		server = matches[0]
+	}
+
+	// If we matched zero nodes but hostname is a UUID then it isn't sane
+	// to fallback to dns based resolution.  This has the unfortunate
+	// consequence of preventing users from calling OpenSSH nodes which
+	// happen to use hostnames which are also valid UUIDs.  This restriction
+	// is necessary in order to protect users attempting to connect to a
+	// node by UUID from being re-routed to an unintended target if the node
+	// is offline.  This restriction can be lifted if we decide to move to
+	// explicit UUID based resolution in the future.
+	if hostIsUUID && server == nil {
+		return nil, trace.NotFound("unable to locate node matching uuid-like target %s", t.host)
+	}
+
+	return server, nil
 }
 
 func (t *proxySubsys) close(err error) {

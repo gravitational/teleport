@@ -312,6 +312,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 					Enabled:     true,
 					PublicAddrs: utils.MustParseAddrList("proxy-kube-public-1", "proxy-kube-public-2"),
 				},
+				WebAddr: *utils.MustParseAddr(":443"),
 			},
 			Auth: AuthConfig{
 				PublicAddrs: utils.MustParseAddrList("auth-public-1", "auth-public-2"),
@@ -335,6 +336,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"global-hostname",
 				"proxy-public-1",
 				"proxy-public-2",
+				defaults.BindIP,
 				string(teleport.PrincipalLocalhost),
 				string(teleport.PrincipalLoopbackV4),
 				string(teleport.PrincipalLoopbackV6),

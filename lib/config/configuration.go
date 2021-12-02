@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package 'config' provides facilities for configuring Teleport daemons
+// Package config provides facilities for configuring Teleport daemons
 // including
 //	- parsing YAML configuration
 //	- parsing CLI flags
@@ -64,9 +64,8 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
-	// CAPin is the hash of the SKPI of the root CA. Used to verify the cluster
-	// being joined is the one expected.
-	CAPin string
+	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
+	CAPins []string
 	// --listen-ip flag
 	ListenIP net.IP
 	// --advertise-ip flag
@@ -237,7 +236,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			cfg.AuthServers = append(cfg.AuthServers, *addr)
 		}
 	}
-	if _, err := cfg.ApplyToken(fc.AuthToken); err != nil {
+
+	if err := applyTokenConfig(fc, cfg); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -281,6 +281,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	// Logging configuration has already been validated above
 	_ = applyLogConfig(fc.Logger, log.StandardLogger())
 
+	if fc.CachePolicy.TTL != "" {
+		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
+
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
 	if err != nil {
@@ -310,9 +314,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
 	}
 
-	// Read in how nodes will validate the CA.
-	if fc.CAPin != "" {
-		cfg.CAPin = fc.CAPin
+	// Read in how nodes will validate the CA. A single empty string in the file
+	// conf should indicate no pins.
+	if len(fc.CAPin) > 1 || (len(fc.CAPin) == 1 && fc.CAPin[0] != "") {
+		cfg.CAPins = fc.CAPin
 	}
 
 	// Set diagnostic address
@@ -540,6 +545,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
+		RoutingStrategy:          fc.Auth.RoutingStrategy,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -554,6 +560,10 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
+	if err := applyKeyStoreConfig(fc, cfg); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// read in and set the license file path (not used in open-source version)
 	licenseFile := fc.Auth.LicenseFile
 	if licenseFile != "" {
@@ -564,6 +574,28 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	return nil
+}
+
+func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
+	if fc.Auth.CAKeyParams == nil {
+		return nil
+	}
+	cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
+	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
+	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
+		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
+			return trace.BadParameter("can not set both pin and pin_path")
+		}
+		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pin := strings.TrimRight(string(pinBytes), "\r\n")
+		cfg.Auth.KeyStore.Pin = pin
+	}
 	return nil
 }
 
@@ -829,13 +861,6 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 			return trace.Wrap(err)
 		}
 		cfg.SSH.RestrictedSession = rs
-	}
-
-	if proxyAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); proxyAddr != "" {
-		cfg.SSH.ProxyReverseTunnelFallbackAddr, err = utils.ParseHostPortAddr(proxyAddr, defaults.SSHProxyTunnelListenPort)
-		if err != nil {
-			return trace.Wrap(err, "invalid reverse tunnel address format %q", proxyAddr)
-		}
 	}
 
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
@@ -1424,8 +1449,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
-	if clf.CAPin != "" {
-		cfg.CAPin = clf.CAPin
+	if len(clf.CAPins) != 0 {
+		cfg.CAPins = clf.CAPins
 	}
 
 	// apply --listen-ip flag:
@@ -1602,4 +1627,24 @@ func validateRoles(roles string) error {
 // splitRoles splits in the format roles expects.
 func splitRoles(roles string) []string {
 	return strings.Split(roles, ",")
+}
+
+// applyTokenConfig applies the auth_token and join_params to the config
+func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
+	if fc.AuthToken != "" {
+		cfg.JoinMethod = service.JoinMethodToken
+		_, err := cfg.ApplyToken(fc.AuthToken)
+		return trace.Wrap(err)
+	}
+	if fc.JoinParams != (JoinParams{}) {
+		if cfg.Token != "" {
+			return trace.BadParameter("only one of auth_token or join_params should be set")
+		}
+		cfg.Token = fc.JoinParams.TokenName
+		if fc.JoinParams.Method != "ec2" {
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected "ec2"`, fc.JoinParams.Method)
+		}
+		cfg.JoinMethod = service.JoinMethodEC2
+	}
+	return nil
 }

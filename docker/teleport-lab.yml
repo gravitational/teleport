@@ -10,6 +10,7 @@ services:
     command: -c "/usr/bin/dumb-init teleport start -d -c /etc/teleport.d/teleport.yaml"
     ports:
       - "3023:3023"
+      - "3024:3024"
       - "3025:3025"
       - "443:443"
     volumes:

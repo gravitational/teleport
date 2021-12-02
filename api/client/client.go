@@ -1326,18 +1326,31 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
-	}
+	return GetNodesWithLabels(ctx, c, namespace, nil)
+}
 
+// NodeClient is an interface used by GetNodesWithLabels to abstract over implementations of
+// the ListNodes method.
+type NodeClient interface {
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+}
+
+// GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  In addition to
+// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
 	// Retrieve the complete list of nodes in chunks.
 	var (
 		nodes     []types.Server
 		startKey  string
-		chunkSize = defaults.DefaultChunkSize
+		chunkSize = int32(defaults.DefaultChunkSize)
 	)
 	for {
-		resp, nextKey, err := c.ListNodes(ctx, namespace, chunkSize, startKey)
+		resp, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
+			Namespace: namespace,
+			Limit:     chunkSize,
+			StartKey:  startKey,
+			Labels:    labels,
+		})
 		if trace.IsLimitExceeded(err) {
 			// Cut chunkSize in half if gRPC max message size is exceeded.
 			chunkSize = chunkSize / 2
@@ -1350,7 +1363,14 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 			return nil, trail.FromGRPC(err)
 		}
 
-		nodes = append(nodes, resp...)
+		// perform client-side filtering in case we're dealing with an older auth server which
+		// does not support server-side filtering.
+		for _, node := range resp {
+			if node.MatchAgainst(labels) {
+				nodes = append(nodes, node)
+			}
+		}
+
 		startKey = nextKey
 		if startKey == "" {
 			return nodes, nil
@@ -1361,19 +1381,15 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 // ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
 // nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
 // ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
-func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error) {
-	if namespace == "" {
+func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
+	if req.Namespace == "" {
 		return nil, "", trace.BadParameter("missing parameter namespace")
 	}
-	if limit <= 0 {
+	if req.Limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive parameter limit")
 	}
 
-	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
-		Namespace: namespace,
-		Limit:     int32(limit),
-		StartKey:  startKey,
-	}, c.callOpts...)
+	resp, err := c.grpc.ListNodes(ctx, &req, c.callOpts...)
 	if err != nil {
 		return nil, "", trail.FromGRPC(err)
 	}
@@ -1652,15 +1668,16 @@ func (c *Client) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	return resp, nil
 }
 
-// GetLocks gets all locks, matching at least one of the targets when specified.
-func (c *Client) GetLocks(ctx context.Context, targets ...types.LockTarget) ([]types.Lock, error) {
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	targetPtrs := make([]*types.LockTarget, len(targets))
 	for i := range targets {
 		targetPtrs[i] = &targets[i]
 	}
 	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
-		Targets: targetPtrs,
-	})
+		InForceOnly: inForceOnly,
+		Targets:     targetPtrs,
+	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1693,6 +1710,26 @@ func (c *Client) DeleteLock(ctx context.Context, name string) error {
 // DeleteAllLocks not implemented: can only be called locally.
 func (c *Client) DeleteAllLocks(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+func (c *Client) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+	lockV2s := make([]*types.LockV2, 0, len(locks))
+	for _, lock := range locks {
+		lockV2, ok := lock.(*types.LockV2)
+		if !ok {
+			return trace.BadParameter("unexpected lock type %T", lock)
+		}
+		lockV2s = append(lockV2s, lockV2)
+	}
+	_, err := c.grpc.ReplaceRemoteLocks(ctx, &proto.ReplaceRemoteLocksRequest{
+		ClusterName: clusterName,
+		Locks:       lockV2s,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
 }
 
 // GetNetworkRestrictions retrieves the network restrictions

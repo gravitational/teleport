@@ -26,8 +26,8 @@ expose, skip over to **Step 2**.
 Grafana can be launched in a [Docker container](https://grafana.com/docs/grafana/latest/installation/docker/)
 with a single command:
 
-```bash
-docker run -d -p 3000:3000 grafana/grafana
+```code
+$ docker run -d -p 3000:3000 grafana/grafana
 ```
 
 ## Step 2/3. Install and configure Teleport
@@ -45,8 +45,8 @@ and `*.teleport.example.com` to point to the Teleport node.
 
 Let's generate a Teleport config with ACME enabled:
 
-```bash
-sudo teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
+```code
+$ sudo teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
 ```
 
 <Admonition
@@ -59,8 +59,8 @@ sudo teleport configure --cluster-name=teleport.example.com --acme --acme-email=
 
 Now start Teleport and point it to the application endpoint:
 
-```bash
-sudo teleport start \
+```code
+$ sudo teleport start \
   --roles=proxy,auth,app \
   --app-name=grafana \
   --app-uri=http://localhost:3000
@@ -71,8 +71,8 @@ your own web application.
 
 Next, let's create a user to access the application we've just connected. Teleport has a built-in role called `access` that allows users to access cluster resources. Create a local user assigned this role:
 
-```bash
-tctl users add --roles=access alice
+```code
+$ tctl users add --roles=access alice
 ```
 
 The command will output a signup link. Use it to choose a password and set up a second factor. After that, it will take you to the Teleport web UI.

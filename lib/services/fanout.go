@@ -79,10 +79,10 @@ func (f *Fanout) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 		return nil, trace.Wrap(err)
 	}
 	if f.init {
-		// fanout is already initialized; emit OpInit immediately.
-		if err := w.emit(types.Event{Type: types.OpInit}); err != nil {
+		// fanout is already initialized; emit init event immediately.
+		if !w.init() {
 			w.cancel()
-			return nil, trace.Wrap(err)
+			return nil, trace.BadParameter("failed to send init event")
 		}
 	}
 	f.addWatcher(w)
@@ -100,8 +100,7 @@ func (f *Fanout) SetInit() {
 	for _, entries := range f.watchers {
 		var remove []*fanoutWatcher
 		for _, entry := range entries {
-			if err := entry.watcher.emit(types.Event{Type: types.OpInit}); err != nil {
-				entry.watcher.setError(err)
+			if !entry.watcher.init() {
 				remove = append(remove, entry.watcher)
 			}
 		}
@@ -156,26 +155,37 @@ func (f *Fanout) Emit(events ...types.Event) {
 		// has had secrets filtered out.
 		event := filterEventSecrets(fullEvent)
 		var remove []*fanoutWatcher
-	Inner:
-		for _, entry := range f.watchers[event.Resource.GetKind()] {
-			match, err := entry.kind.Matches(event)
-			if err != nil {
-				entry.watcher.setError(err)
-				remove = append(remove, entry.watcher)
-				continue Inner
+		// If the event has no associated resource, emit it to all watchers.
+		if event.Resource == nil {
+			for _, entries := range f.watchers {
+				for _, entry := range entries {
+					if err := entry.watcher.emit(event); err != nil {
+						entry.watcher.setError(err)
+						remove = append(remove, entry.watcher)
+					}
+				}
 			}
-			if !match {
-				continue Inner
-			}
-			emitEvent := event
-			// if this entry loads secrets, emit the
-			// full unfiltered event.
-			if entry.kind.LoadSecrets {
-				emitEvent = fullEvent
-			}
-			if err := entry.watcher.emit(emitEvent); err != nil {
-				remove = append(remove, entry.watcher)
-				continue Inner
+		} else {
+			for _, entry := range f.watchers[event.Resource.GetKind()] {
+				match, err := entry.kind.Matches(event)
+				if err != nil {
+					entry.watcher.setError(err)
+					remove = append(remove, entry.watcher)
+					continue
+				}
+				if !match {
+					continue
+				}
+				emitEvent := event
+				// if this entry loads secrets, emit the
+				// full unfiltered event.
+				if entry.kind.LoadSecrets {
+					emitEvent = fullEvent
+				}
+				if err := entry.watcher.emit(emitEvent); err != nil {
+					entry.watcher.setError(err)
+					remove = append(remove, entry.watcher)
+				}
 			}
 		}
 		for _, w := range remove {
@@ -273,13 +283,28 @@ func newFanoutWatcher(ctx context.Context, f *Fanout, watch types.Watch) (*fanou
 }
 
 type fanoutWatcher struct {
-	emux   sync.Mutex
-	fanout *Fanout
-	err    error
-	watch  types.Watch
-	eventC chan types.Event
-	cancel context.CancelFunc
-	ctx    context.Context
+	emux     sync.Mutex
+	fanout   *Fanout
+	err      error
+	watch    types.Watch
+	eventC   chan types.Event
+	cancel   context.CancelFunc
+	ctx      context.Context
+	initOnce sync.Once
+	initOk   bool
+}
+
+// init transmits the OpInit event.  safe to double-call.
+func (w *fanoutWatcher) init() (ok bool) {
+	w.initOnce.Do(func() {
+		select {
+		case w.eventC <- types.Event{Type: types.OpInit}:
+			w.initOk = true
+		default:
+			w.initOk = false
+		}
+	})
+	return w.initOk
 }
 
 func (w *fanoutWatcher) emit(event types.Event) error {

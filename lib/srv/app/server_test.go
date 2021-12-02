@@ -33,19 +33,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	libsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+	"go.uber.org/atomic"
 	"gopkg.in/check.v1"
 )
 
@@ -73,9 +77,13 @@ type Suite struct {
 	clientCertificate     tls.Certificate
 	awsConsoleCertificate tls.Certificate
 
+	onEmitAuditEventCallbacks []EmitEventCallbackFunc
+
 	user types.User
 	role types.Role
 }
+
+type EmitEventCallbackFunc func(event apievents.AuditEvent)
 
 var _ = check.Suite(&Suite{})
 
@@ -84,15 +92,35 @@ func TestApp(t *testing.T) { check.TestingT(t) }
 func (s *Suite) SetUpSuite(c *check.C) {
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = c.MkDir()
+	s.onEmitAuditEventCallbacks = make([]EmitEventCallbackFunc, 0)
 
 	var err error
+	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
+		Inner: events.NewDiscardEmitter(),
+		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
+			for _, f := range s.onEmitAuditEventCallbacks {
+				f(event)
+			}
+
+			return nil
+		},
+	})
+	c.Assert(err, check.IsNil)
+
 	// Create Auth Server.
 	s.authServer, err = auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "root.example.com",
 		Dir:         s.dataDir,
 		Clock:       s.clock,
+		Streamer:    serverStreamer,
 	})
 	c.Assert(err, check.IsNil)
+
+	err = s.authServer.AuthServer.SetSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+		Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
+	})
+	c.Assert(err, check.IsNil)
+
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	c.Assert(err, check.IsNil)
 
@@ -144,7 +172,6 @@ func (s *Suite) SetUpTest(c *check.C) {
 
 	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, s.message)
-		s.closeFunc()
 	}))
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
 	s.testhttp.Start()
@@ -229,10 +256,17 @@ func (s *Suite) SetUpTest(c *check.C) {
 	), 0755)
 	c.Assert(err, check.IsNil)
 
-	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient)
+	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentApp,
+			Client:    s.authClient,
+		},
+	})
+	c.Assert(err, check.IsNil)
+	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, lockWatcher)
 	c.Assert(err, check.IsNil)
 
-	s.appServer, err = New(context.Background(), &Config{
+	s.appServer, err = New(s.closeContext, &Config{
 		Clock:        s.clock,
 		DataDir:      s.dataDir,
 		AccessPoint:  s.authClient,
@@ -261,15 +295,17 @@ func (s *Suite) TearDownTest(c *check.C) {
 
 	s.testhttp.Close()
 
-	err = s.tlsServer.Auth().DeleteAllAppServers(context.Background(), apidefaults.Namespace)
+	err = s.tlsServer.Auth().DeleteAllAppServers(s.closeContext, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
+
+	s.closeFunc()
 }
 
 // TestStart makes sure that after the server has started, a correct services.App
 // has been created.
 func (s *Suite) TestStart(c *check.C) {
 	// Fetch the services.App that the service heartbeat.
-	servers, err := s.authServer.AuthServer.GetAppServers(context.Background(), apidefaults.Namespace)
+	servers, err := s.authServer.AuthServer.GetAppServers(s.closeContext, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(servers, check.HasLen, 1)
 	server := servers[0]
@@ -327,6 +363,158 @@ func (s *Suite) TestWaitStop(c *check.C) {
 
 // TestHandleConnection verifies that requests with valid certificates are forwarded.
 func (s *Suite) TestHandleConnection(c *check.C) {
+	s.checkHTTPResponse(c, s.clientCertificate, func(resp *http.Response) {
+		c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+		buf, err := ioutil.ReadAll(resp.Body)
+		c.Assert(err, check.IsNil)
+		c.Assert(strings.TrimSpace(string(buf)), check.Equals, s.message)
+	})
+}
+
+// TestAuthorize verifies that only authorized requests are handled.
+func (s *Suite) TestAuthorize(c *check.C) {
+}
+
+// TestAuthorizeWithLocks verifies that requests are forbidden when there is
+// a matching lock in force.
+func (s *Suite) TestAuthorizeWithLocks(c *check.C) {
+	// Create a lock targeting the user.
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{User: s.user.GetName()},
+	})
+	c.Assert(err, check.IsNil)
+	s.tlsServer.Auth().UpsertLock(s.closeContext, lock)
+	defer func() {
+		s.tlsServer.Auth().DeleteLock(s.closeContext, lock.GetName())
+	}()
+
+	s.checkHTTPResponse(c, s.clientCertificate, func(resp *http.Response) {
+		c.Assert(resp.StatusCode, check.Equals, http.StatusForbidden)
+		buf, err := ioutil.ReadAll(resp.Body)
+		c.Assert(err, check.IsNil)
+		c.Assert(strings.TrimSpace(string(buf)), check.Equals, "Forbidden")
+	})
+}
+
+// TestGetConfigForClient verifies that only the CAs of the requested cluster are returned.
+func (s *Suite) TestGetConfigForClient(c *check.C) {
+}
+
+// TestRewriteRequest verifies that requests are rewritten to include JWT headers.
+func (s *Suite) TestRewriteRequest(c *check.C) {
+}
+
+// TestRewriteResponse verifies that responses are rewritten if rewrite rules are specified.
+func (s *Suite) TestRewriteResponse(c *check.C) {
+}
+
+// TestSessionClose makes sure sessions are closed after the given session time period.
+func (s *Suite) TestSessionClose(c *check.C) {
+}
+
+// TestAWSConsoleRedirect verifies AWS management console access.
+func (s *Suite) TestAWSConsoleRedirect(c *check.C) {
+	s.checkHTTPResponse(c, s.awsConsoleCertificate, func(resp *http.Response) {
+		c.Assert(resp.StatusCode, check.Equals, http.StatusFound)
+		location, err := resp.Location()
+		c.Assert(err, check.IsNil)
+		c.Assert(location.String(), check.Equals, "https://signin.aws.amazon.com")
+	})
+}
+
+// TestRequestAuditEvent verifies that audit events regarding application access
+// are being generated with the correct metadata.
+// This test configures the server to record the session sync, meaning that the
+// events will be forwarded to the auth server. On the server-side, it defines a
+// CallbackStreamer, which is going to be used to "intercept" the
+// app.session.request events.
+func (s *Suite) TestRequestAuditEvents(c *check.C) {
+	requestEventsReceived := atomic.NewUint64(0)
+	s.addOnEmitAuditEvent(func(event apievents.AuditEvent) {
+		if event.GetType() == events.AppSessionRequestEvent {
+			requestEventsReceived.Inc()
+
+			expectedEvent := &apievents.AppSessionRequest{
+				Metadata: apievents.Metadata{
+					Type: events.AppSessionRequestEvent,
+					Code: events.AppSessionRequestCode,
+				},
+				AppMetadata: apievents.AppMetadata{
+					AppURI:        s.testhttp.URL,
+					AppPublicAddr: "foo.example.com",
+					AppName:       "foo",
+				},
+				StatusCode: 200,
+				Method:     "GET",
+				Path:       "/",
+			}
+			c.Assert(cmp.Diff(
+				expectedEvent,
+				event,
+				cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+				cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
+				cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+			), check.Equals, "")
+		}
+	})
+
+	// make a request to generate events.
+	s.checkHTTPResponse(c, s.clientCertificate, func(_ *http.Response) {
+		// wait until request events are emitted.
+		ticker := time.NewTicker(50 * time.Millisecond)
+		defer ticker.Stop()
+		timeout := time.After(500 * time.Millisecond)
+
+		for {
+			select {
+			case <-ticker.C:
+				if requestEventsReceived.Load() == 1 {
+					return
+				}
+			case <-timeout:
+				c.Fatal("app.request event not generated")
+			}
+		}
+	})
+
+	expectedEvent := &apievents.AppSessionChunk{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionChunkEvent,
+			Code: events.AppSessionChunkCode,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        s.testhttp.URL,
+			AppPublicAddr: "foo.example.com",
+			AppName:       "foo",
+		},
+	}
+
+	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 100, types.EventOrderDescending, "")
+	c.Assert(err, check.IsNil)
+
+	// there can be multiple events because the instance is shared, so we have
+	// to take a look on the list to see if there is an event matching our
+	// parameters.
+	hasDesiredEvent := false
+	for _, event := range searchEvents {
+		hasDesiredEvent = cmp.Equal(
+			expectedEvent,
+			event,
+			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName"),
+			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+		)
+
+		if hasDesiredEvent {
+			break
+		}
+	}
+
+	c.Assert(hasDesiredEvent, check.Equals, true, check.Commentf("no session chunk event found"))
+}
+
+// checkHTTPResponse checks expected HTTP response.
+func (s *Suite) checkHTTPResponse(c *check.C, clientCert tls.Certificate, checkResp func(*http.Response)) {
 	pr, pw := net.Pipe()
 	defer pw.Close()
 	defer pr.Close()
@@ -343,10 +531,14 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 				// the server this client is connecting to.
 				RootCAs: s.hostCertPool,
 				// Certificates is the user's application specific certificate.
-				Certificates: []tls.Certificate{s.clientCertificate},
+				Certificates: []tls.Certificate{clientCert},
 				// Time defines the time anchor for certificate validation
 				Time: s.clock.Now,
 			},
+		},
+		// Prevent client from following redirect to be able to test redirect locations.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
 		},
 	}
 
@@ -364,64 +556,7 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Check response.
-	buf, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	err = resp.Body.Close()
-	c.Assert(err, check.IsNil)
-	c.Assert(strings.TrimSpace(string(buf)), check.Equals, s.message)
-
-	// Context will close because of the net.Pipe, expect a context canceled
-	// error here.
-	err = s.appServer.Close()
-	c.Assert(err, check.NotNil)
-
-	// Wait for the application server to actually stop serving before
-	// closing the test. This will make sure the server removes the listeners
-	wg.Wait()
-}
-
-// TestAWSConsoleRedirect verifies AWS management console access.
-func (s *Suite) TestAWSConsoleRedirect(c *check.C) {
-	pr, pw := net.Pipe()
-	defer pw.Close()
-	defer pr.Close()
-
-	// Create an HTTP client authenticated with the user's credentials. This acts
-	// like the proxy does.
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return pr, nil
-			},
-			TLSClientConfig: &tls.Config{
-				RootCAs:      s.hostCertPool,
-				Certificates: []tls.Certificate{s.awsConsoleCertificate},
-				Time:         s.clock.Now,
-			},
-		},
-		// Prevent client from following redirect to be able to test redirect
-		// to generated AWS management console signin URL.
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// Handle the connection in another goroutine.
-	go func() {
-		s.appServer.HandleConnection(pw)
-		wg.Done()
-	}()
-
-	// Issue request and make sure we got redirected to AWS signin URL.
-	resp, err := httpClient.Get("https://" + constants.APIDomain)
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.StatusCode, check.Equals, http.StatusFound)
-	location, err := resp.Location()
-	c.Assert(err, check.IsNil)
-	c.Assert(location.String(), check.Equals, "https://signin.aws.amazon.com")
+	checkResp(resp)
 	c.Assert(resp.Body.Close(), check.IsNil)
 
 	// Context will close because of the net.Pipe, expect a context canceled
@@ -434,24 +569,8 @@ func (s *Suite) TestAWSConsoleRedirect(c *check.C) {
 	wg.Wait()
 }
 
-// TestAuthorize verifies that only authorized requests are handled.
-func (s *Suite) TestAuthorize(c *check.C) {
-}
-
-// TestGetConfigForClient verifies that only the CAs of the requested cluster are returned.
-func (s *Suite) TestGetConfigForClient(c *check.C) {
-}
-
-// TestRewriteRequest verifies that requests are rewritten to include JWT headers.
-func (s *Suite) TestRewriteRequest(c *check.C) {
-}
-
-// TestRewriteResponse verifies that responses are rewritten if rewrite rules are specified.
-func (s *Suite) TestRewriteResponse(c *check.C) {
-}
-
-// TestSessionClose makes sure sessions are closed after the given session time period.
-func (s *Suite) TestSessionClose(c *check.C) {
+func (s *Suite) addOnEmitAuditEvent(f EmitEventCallbackFunc) {
+	s.onEmitAuditEventCallbacks = append(s.onEmitAuditEventCallbacks, f)
 }
 
 func testRotationGetter(role types.SystemRole) (*types.Rotation, error) {

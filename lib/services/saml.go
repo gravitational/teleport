@@ -162,20 +162,37 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		return nil, trace.BadParameter("no identity provider certificate provided, either set certificate as a parameter or via entity_descriptor")
 	}
 
-	signingKeyStore, err := utils.ParseSigningKeyStorePEM(sc.GetSigningKeyPair().PrivateKey, sc.GetSigningKeyPair().Cert)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse certificate defined in signing_key_pair")
-	}
-
-	// The encryption keystore here is defaulted to the value of the signing keystore
-	// if no separate assertion decryption keys are provided. We do this here to initialize
-	// the variable but if set to nil, gosaml2 will do this internally anyway.
-	encryptionKeyStore := signingKeyStore
+	signingKeyPair := sc.GetSigningKeyPair()
 	encryptionKeyPair := sc.GetEncryptionKeyPair()
-	if encryptionKeyPair != nil {
-		encryptionKeyStore, err = utils.ParseSigningKeyStorePEM(encryptionKeyPair.PrivateKey, encryptionKeyPair.Cert)
+	var keyStore *utils.KeyStore
+	var signingKeyStore *utils.KeyStore
+	var err error
+
+	// Due to some weird design choices with how gosaml2 keys are configured we have to do some trickery
+	// in order to default properly when SAML assertion encryption is turned off.
+	// Below are the different possible cases.
+	if encryptionKeyPair == nil {
+		// Case 1: Only the signing key pair is set. This means that SAML encryption is not expected
+		// and we therefore configure the main key that gets used for all operations as the signing key.
+		// This is done because gosaml2 mandates an encryption key even if not used.
+		log.Info("No assertion_key_pair was detected. Falling back to signing key for all SAML operations.")
+		keyStore, err = utils.ParseKeyStorePEM(signingKeyPair.PrivateKey, signingKeyPair.Cert)
+		signingKeyStore = keyStore
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse certificate defined in assertion_key_pair")
+			return nil, trace.Wrap(err, "failed to parse certificate or private key defined in signing_key_pair")
+		}
+	} else {
+		// Case 2: An encryption keypair is configured. This means that encrypted SAML responses are expected.
+		// Since gosaml2 always uses the main key for encryption, we set it to assertion_key_pair.
+		// To handle signing correctly, we now instead set the optional signing key in gosaml2 to signing_key_pair.
+		log.Info("Detected assertion_key_pair and configured it to decrypt SAML responses.")
+		keyStore, err = utils.ParseKeyStorePEM(encryptionKeyPair.PrivateKey, encryptionKeyPair.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse certificate or private key defined in assertion_key_pair")
+		}
+		signingKeyStore, err = utils.ParseKeyStorePEM(signingKeyPair.PrivateKey, signingKeyPair.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse certificate or private key defined in signing_key_pair")
 		}
 	}
 
@@ -188,8 +205,8 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		SignAuthnRequestsCanonicalizer: dsig.MakeC14N11Canonicalizer(),
 		AudienceURI:                    sc.GetAudience(),
 		IDPCertificateStore:            &certStore,
-		SPKeyStore:                     encryptionKeyStore,
 		SPSigningKeyStore:              signingKeyStore,
+		SPKeyStore:                     keyStore,
 		Clock:                          dsig.NewFakeClock(clock),
 		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
 	}

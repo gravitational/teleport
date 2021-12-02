@@ -12,55 +12,22 @@ The table below gives a quick overview of the benefits of Teleport Enterprise.
 
 | Teleport Enterprise Feature | Description |
 | - | - |
-| [Role Based Access Control (RBAC)](#rbac) | Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions. |
 | [Single Sign-On (SSO)](#sso) | Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them. |
-| [Approval Plugins](workflow/index.mdx) | Plugins to approve or deny escalated RBAC requests. |
-| [FedRAMP/FIPS](#fedrampfips) | Teleport lays the foundation to help Teleport Enterprise customers build and meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments. |
-| Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times. |
+| [Access Requests](workflow/index.mdx) | User interface for teams to create and review requests to access infrastructure with escalated privileges. |
+| [FedRAMP/FIPS](#fedrampfips) | Access controls to meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments. |
+| Commercial Support | Support SLA with guaranteed response times. |
 
 <Admonition
   type="tip"
   title="Contact Information"
 >
-  If you are interested in Teleport Enterprise, please reach out to
-  `sales@goteleport.com` for more information.
+  Try Teleport Enteprise for [free in the cloud](https://goteleport.com/signup/) or [contact sales](https://goteleport.com/signup/enterprise/).
 </Admonition>
-
-## RBAC
-
-Role Based Access Control ("RBAC") allows Teleport administrators to grant granular access permissions to users. An example of an RBAC policy might be:  "admins can do anything,
-developers must never touch production servers, and interns can only SSH into
-staging servers as guests".
-
-### How does it work?
-
-Every user in Teleport is **always** assigned a set of roles. The open source
-edition of Teleport automatically assigns every user to the built-in "admin"
-role, but Teleport Enterprise allows administrators to define their own
-roles with far greater control over user permissions.
-
-Let's assume a company is using Active Directory to authenticate users and place
-them into groups. A typical enterprise deployment of Teleport in this scenario
-would look like this:
-
-1. Teleport will be configured to use existing user identities stored in Active
-   Directory.
-2. Active Directory would have users placed in certain groups or claims, perhaps "interns",
-   "developers", "admins", "contractors", etc.
-3. The Teleport administrator will have to define Teleport Roles. For
-   example: "users", "developers" and "admins".
-4. The last step will be to define mappings from the Active Directory groups (claims)
-   to the Teleport Roles so every Teleport user will be assigned a role based
-   on the group membership.
-
-See [RBAC](../access-controls/introduction.mdx) chapter to learn more about configuring RBAC with
-Teleport.
 
 ## SSO
 
 The commercial edition of Teleport allows users to retrieve their SSH
-credentials via a [single sign-on](https://en.wikipedia.org/wiki/Single_sign-on)
-(SSO) system used by the rest of the organization.
+credentials via a single sign-on (SSO) system used by the rest of the organization.
 
 Examples of supported SSO systems include commercial solutions like Okta,
 Auth0, SailPoint, OneLogin Active Directory, as well as open source products like Keycloak.
@@ -71,7 +38,7 @@ SSO mechanism based on either SAML or OpenID Connect.
 
 From the user's perspective they need to execute the following command to retrieve their SSH certificate.
 
-```bash
+```code
 $ tsh login
 ```
 
@@ -89,7 +56,7 @@ See the [SSO](sso.mdx) chapter for more details.
   type="tip"
   title="Contact Information"
 >
-  For more information about Teleport Enterprise or Gravity please reach out us to `sales@goteleport.com` or fill out the contact form on our [website](https://gravitational.com/demo).
+  Try Teleport Enteprise for [free in the cloud](https://goteleport.com/signup/) or [contact sales](https://goteleport.com/signup/enterprise/).
 </Admonition>
 
 ## FedRAMP/FIPS

@@ -36,7 +36,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/multiplexer/test"
@@ -575,7 +575,7 @@ func TestMux(t *testing.T) {
 		certPool.AppendCertsFromPEM(caCert)
 
 		// Sign server certificate.
-		serverRSAKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+		serverRSAKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 		require.NoError(t, err)
 		serverPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 			Subject:   pkix.Name{CommonName: "localhost"},
@@ -588,7 +588,7 @@ func TestMux(t *testing.T) {
 		require.NoError(t, err)
 
 		// Sign client certificate with database access identity.
-		clientRSAKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+		clientRSAKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 		require.NoError(t, err)
 		subject, err := (&tlsca.Identity{
 			Username: "alice",

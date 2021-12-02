@@ -11,14 +11,14 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=7.0.2
+VERSION=7.3.5
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
-SHELL := /bin/bash
+SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
 ASSETS_BUILDDIR ?= lib/web/build
@@ -111,21 +111,26 @@ endif
 endif
 endif
 
+
+# Reproducible builds are only availalbe on select targets, and only when OS=linux.
+REPRODUCIBLE ?=
+ifneq ("$(OS)","linux")
+REPRODUCIBLE = no
+endif
+
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
 
-# On platforms that support reproducible builds (at the moment, only Linux)
-# ensure the archive is created in a reproducible manner.
+# On platforms that support reproducible builds, ensure the archive is created in a reproducible manner.
 TAR_FLAGS ?=
-ifeq ("$(OS)","linux")
+ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
-
 
 VERSRC = version.go gitref.go api/version.go
 
@@ -294,19 +299,53 @@ release-unix: clean full
 	fi
 
 #
-# make release-windows - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make release-windows-unsigned - Produces a binary release archive containing only tsh.
 #
-.PHONY:
-release-windows: clean all
+.PHONY: release-windows-unsigned
+release-windows-unsigned: clean all
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
 		README.md \
 		CHANGELOG.md \
 		teleport/
-	mv teleport/tsh teleport/tsh.exe
+	mv teleport/tsh teleport/tsh-unsigned.exe
 	echo $(GITTAG) > teleport/VERSION
+	zip -9 -y -r -q $(RELEASE)-unsigned.zip teleport/
+	rm -rf teleport/
+	@echo "---> Created $(RELEASE)-unsigned.zip."
+
+#
+# make release-windows - Produces an archive containing a signed release of
+# tsh.exe
+#
+.PHONY: release-windows
+release-windows: release-windows-unsigned
+	@if [ ! -f "windows-signing-cert.pfx" ]; then \
+		echo "windows-signing-cert.pfx is missing or invalid, cannot create signed archive."; \
+		exit 1; \
+	fi
+
+	rm -rf teleport
+	@echo "---> Extracting $(RELEASE)-unsigned.zip"
+	unzip $(RELEASE)-unsigned.zip
+	
+	@echo "---> Signing Windows binary."
+	@osslsigncode sign \
+		-pkcs12 "windows-signing-cert.pfx" \
+		-n "Teleport" \
+		-i https://goteleport.com \
+		-t http://timestamp.digicert.com \
+		-h sha2 \
+		-in teleport/tsh-unsigned.exe \
+		-out teleport/tsh.exe; \
+	success=$$?; \
+	rm -f teleport/tsh-unsigned.exe; \
+	if [ "$${success}" -ne 0 ]; then \
+		echo "Failed to sign tsh.exe, aborting."; \
+		exit 1; \
+	fi
+
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
 	@echo "---> Created $(RELEASE).zip."
@@ -356,8 +395,8 @@ test-go: FLAGS ?= '-race'
 test-go: PACKAGES := $(shell go list ./... | grep -v integration)
 test-go: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test-go: $(VERSRC)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover $(ADDFLAGS)
+	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover $(ADDFLAGS)
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -368,7 +407,7 @@ test-go-root: ensure-webassets bpf-bytecode
 test-go-root: FLAGS ?= '-race'
 test-go-root: PACKAGES := $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
-	$(CGOFLAG) go test -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -p 4 -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Runs API Go tests. These have to be run separately as the package name is different.
 #
@@ -377,7 +416,7 @@ test-api:
 test-api: FLAGS ?= '-race'
 test-api: PACKAGES := $(shell cd api && go list ./...)
 test-api: $(VERSRC)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -p 4 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 # Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
@@ -398,7 +437,7 @@ integration: FLAGS ?= -v -race
 integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -p 1 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -409,7 +448,7 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES := $(shell go list ./... | grep integration)
 integration-root:
-	$(CGOFLAG) go test -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
+	$(CGOFLAG) go test -p 1 -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS)
 
 #
 # Lint the Go code.

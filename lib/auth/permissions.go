@@ -48,7 +48,7 @@ func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
 }
 
 // NewAuthorizer returns new authorizer using backends
-func NewAuthorizer(clusterName string, accessPoint ReadAccessPoint) (Authorizer, error) {
+func NewAuthorizer(clusterName string, accessPoint ReadAccessPoint, lockWatcher *services.LockWatcher) (Authorizer, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing parameter clusterName")
 	}
@@ -58,6 +58,7 @@ func NewAuthorizer(clusterName string, accessPoint ReadAccessPoint) (Authorizer,
 	return &authorizer{
 		clusterName: clusterName,
 		accessPoint: accessPoint,
+		lockWatcher: lockWatcher,
 	}, nil
 }
 
@@ -71,6 +72,7 @@ type Authorizer interface {
 type authorizer struct {
 	clusterName string
 	accessPoint ReadAccessPoint
+	lockWatcher *services.LockWatcher
 }
 
 // AuthContext is authorization context
@@ -93,6 +95,29 @@ type Context struct {
 	UnmappedIdentity IdentityGetter
 }
 
+// LockTargets returns a list of LockTargets inferred from the context's
+// Identity and UnmappedIdentity.
+func (c *Context) LockTargets() []types.LockTarget {
+	lockTargets := services.LockTargetsFromTLSIdentity(c.Identity.GetIdentity())
+Loop:
+	for _, unmappedTarget := range services.LockTargetsFromTLSIdentity(c.UnmappedIdentity.GetIdentity()) {
+		// Append a lock target from UnmappedIdentity only if it is not already
+		// known from Identity.
+		for _, knownTarget := range lockTargets {
+			if unmappedTarget.Equals(knownTarget) {
+				continue Loop
+			}
+		}
+		lockTargets = append(lockTargets, unmappedTarget)
+	}
+	if r, ok := c.Identity.(BuiltinRole); ok && r.Role == types.RoleNode {
+		lockTargets = append(lockTargets,
+			types.LockTarget{Node: r.GetServerID()},
+			types.LockTarget{Node: r.Identity.Username})
+	}
+	return lockTargets
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
@@ -102,6 +127,14 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// Enforce applicable locks.
+	authPref, err := a.accessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if lockErr := a.lockWatcher.CheckLockInForce(authContext.Checker.LockingMode(authPref.GetLockingMode()), authContext.LockTargets()...); lockErr != nil {
+		return nil, trace.Wrap(lockErr)
 	}
 	return authContext, nil
 }
@@ -233,7 +266,7 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 
 // authorizeBuiltinRole authorizes builtin role
 func (a *authorizer) authorizeBuiltinRole(ctx context.Context, r BuiltinRole) (*Context, error) {
-	recConfig, err := r.GetSessionRecordingConfig(ctx)
+	recConfig, err := a.accessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -367,6 +400,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindWebSession, services.RO()),
 						types.NewRule(types.KindWebToken, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
+						types.NewRule(types.KindLock, services.RO()),
 					},
 				},
 			})
@@ -394,6 +428,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindLock, services.RO()),
 					},
 				},
 			})
@@ -580,6 +615,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindUser, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
 					},
 				},
 			})
@@ -711,9 +747,6 @@ func (i WrapIdentity) GetIdentity() tlsca.Identity {
 
 // BuiltinRole is the role of the Teleport service.
 type BuiltinRole struct {
-	// GetSessionRecordingConfig fetches session recording configuration.
-	GetSessionRecordingConfig GetSessionRecordingConfigFunc
-
 	// Role is the builtin role this username is associated with
 	Role types.SystemRole
 
@@ -835,6 +868,3 @@ type RemoteUser struct {
 func (r RemoteUser) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
-
-// GetSessionRecordingConfigFunc returns a SessionRecordingConfig.
-type GetSessionRecordingConfigFunc func(context.Context, ...services.MarshalOption) (types.SessionRecordingConfig, error)

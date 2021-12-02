@@ -102,14 +102,11 @@ be substituted to the users' group list in the role definition.
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: group-member
 spec:
   allow:
-    # This field is used for SSH logins. You have to keep 'logins' as a non-empty random value
-    # for Kubernetes to work until we fix it.
-    logins: ['keep-this-value-here']
     # For Alice, will be substituted with the list ["admins", "devs"]
     kubernetes_groups: ["{{external.groups}}"]
     # For Alice, will be substituted with ["alice@example.com"]
@@ -120,8 +117,8 @@ spec:
 
 Create or update this role using `tctl`:
 
-```bash
-tctl create -f member.yaml
+```code
+$ tctl create -f member.yaml
 ```
 
 Assign this role to a user in OIDC or SAML connector:
@@ -193,10 +190,10 @@ Assign this role to a user in OIDC or SAML connector:
 
 Local users are mapped to Kubernetes groups using roles:
 
-```bash
+```code
 # Specify `kubernetes_groups` property in a role "admins" and
 # create a user assigned to the role.
-tctl users add joe --roles="admins"
+$ tctl users add joe --roles="admins"
 ```
 
 ## Kubernetes labels
@@ -205,9 +202,9 @@ Label each cluster with key-value pairs describing the cluster:
 
 <Tabs>
   <TabItem label="Helm">
-    ```bash
+    ```code
     # Install or upgrade the agent or cluster and set labels:
-    helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
+    $ helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
       --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent\
       --set labels.env=prod --set labels.region=us-west-1
     ```
@@ -229,7 +226,7 @@ Limit access to cluster based on the label:
 
 ```yaml
 kind: role
-version: v3
+version: v4
 metadata:
   name: group-member
 spec:

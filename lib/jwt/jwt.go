@@ -23,13 +23,15 @@ import (
 	"crypto/rsa"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
+	"github.com/ThalesIgnite/crypto11"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/cryptosigner"
 	"gopkg.in/square/go-jose.v2/jwt"
 	josejwt "gopkg.in/square/go-jose.v2/jwt"
 )
@@ -134,9 +136,16 @@ func (k *Key) Sign(p SignParams) (string, error) {
 	}
 
 	// Create a signer with configured private key and algorithm.
+	var signer interface{}
+	switch k.config.PrivateKey.(type) {
+	case crypto11.Signer:
+		signer = cryptosigner.Opaque(k.config.PrivateKey)
+	default:
+		signer = k.config.PrivateKey
+	}
 	signingKey := jose.SigningKey{
 		Algorithm: k.config.Algorithm,
-		Key:       k.config.PrivateKey,
+		Key:       signer,
 	}
 	sig, err := jose.NewSigner(signingKey, (&jose.SignerOptions{}).WithType("JWT"))
 	if err != nil {
@@ -239,7 +248,7 @@ type Claims struct {
 // GenerateKeyPair generates and return a PEM encoded private and public
 // key in the format used by this package.
 func GenerateKeyPair() ([]byte, []byte, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

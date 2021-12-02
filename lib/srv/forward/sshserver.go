@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -151,6 +152,9 @@ type Server struct {
 
 	// parentContext is used to signal server closure
 	parentContext context.Context
+
+	// lockWatcher is the server's lock watcher.
+	lockWatcher *services.LockWatcher
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -200,6 +204,9 @@ type ServerConfig struct {
 	// ParentContext is a parent context, used to signal global
 	// closure
 	ParentContext context.Context
+
+	// LockWatcher is a lock watcher.
+	LockWatcher *services.LockWatcher
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -233,6 +240,9 @@ func (s *ServerConfig) CheckDefaults() error {
 	}
 	if s.ParentContext == nil {
 		s.ParentContext = context.TODO()
+	}
+	if s.LockWatcher == nil {
+		return trace.BadParameter("missing parameter LockWatcher")
 	}
 	return nil
 }
@@ -277,6 +287,7 @@ func New(c ServerConfig) (*Server, error) {
 		hostUUID:        c.HostUUID,
 		StreamEmitter:   c.Emitter,
 		parentContext:   c.ParentContext,
+		lockWatcher:     c.LockWatcher,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -422,11 +433,16 @@ func (s *Server) GetClock() clockwork.Clock {
 	return s.clock
 }
 
-// GetUtmpPath returns returns the optional override of the utmp and wtmp path.
+// GetUtmpPath returns the optional override of the utmp and wtmp path.
 // These values are never set for the forwarding server because utmp and wtmp
 // are updated by the target server and not the forwarding server.
 func (s *Server) GetUtmpPath() (string, string) {
 	return "", ""
+}
+
+// GetLockWatcher gets the server's lock watcher.
+func (s *Server) GetLockWatcher() *services.LockWatcher {
+	return s.lockWatcher
 }
 
 func (s *Server) Serve() {

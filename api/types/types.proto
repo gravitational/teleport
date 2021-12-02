@@ -492,6 +492,12 @@ message ProvisionTokenV2List {
     repeated ProvisionTokenV2 ProvisionTokens = 1;
 }
 
+message TokenRule {
+    string AWSAccount = 1 [ (gogoproto.jsontag) = "aws_account,omitempty" ];
+    repeated string AWSRegions = 2 [ (gogoproto.jsontag) = "aws_regions,omitempty" ];
+    string AWSRole = 3 [ (gogoproto.jsontag) = "aws_role,omitempty" ];
+}
+
 // ProvisionTokenSpecV2 is a specification for V2 token
 message ProvisionTokenSpecV2 {
     // Roles is a list of roles associated with the token,
@@ -499,6 +505,9 @@ message ProvisionTokenSpecV2 {
     // certificates issued to the user of the token
     repeated string Roles = 1
         [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
+    repeated TokenRule allow = 2 [ (gogoproto.jsontag) = "allow,omitempty" ];
+    int64 AWSIIDTTL = 3
+        [ (gogoproto.jsontag) = "aws_iid_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -697,6 +706,32 @@ message ClusterNetworkingConfigSpecV2 {
     // timeouts.
     int64 WebIdleTimeout = 6
         [ (gogoproto.jsontag) = "web_idle_timeout", (gogoproto.casttype) = "Duration" ];
+
+    // ProxyListenerMode is proxy listener mode used by Teleport Proxies.
+    ProxyListenerMode ProxyListenerMode = 7
+        [ (gogoproto.jsontag) = "proxy_listener_mode,omitempty" ];
+
+    // RoutingStrategy determines the strategy used to route to nodes.
+    RoutingStrategy RoutingStrategy = 8 [ (gogoproto.jsontag) = "routing_strategy,omitempty" ];
+}
+
+// ProxyListenerMode represents the cluster proxy listener mode.
+enum ProxyListenerMode {
+    // Separate is the proxy listener mode indicating that proxies are running
+    // in separate listener mode where Teleport Proxy services use different listeners.
+    Separate = 0;
+    // Multiplex is the proxy listener mode indicating the proxy should use multiplex mode
+    // where all proxy services are multiplexed on a single proxy port.
+    Multiplex = 1;
+}
+
+// RoutingStrategy determines the strategy used to route to nodes.
+enum RoutingStrategy {
+    // UnambiguousMatch only routes to distinct nodes.
+    UNAMBIGUOUS_MATCH = 0;
+
+    // MostRecent routes to the most recently heartbeated node if duplicates are present.
+    MOST_RECENT = 1;
 }
 
 // SessionRecordingConfigV2 contains session recording configuration.
@@ -794,6 +829,12 @@ message AuthPreferenceSpecV2 {
     ];
 
     string MessageOfTheDay = 8 [ (gogoproto.jsontag) = "message_of_the_day,omitempty" ];
+
+    // LockingMode is the cluster-wide locking mode default.
+    string LockingMode = 9 [
+        (gogoproto.jsontag) = "locking_mode,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
+    ];
 }
 
 // LegacyClusterConfigAuthFields facilitates a backward compatible transition
@@ -1271,6 +1312,13 @@ message RoleOptions {
     // RequireSessionMFA specifies whether a user is required to do an MFA
     // check for every session.
     bool RequireSessionMFA = 13 [ (gogoproto.jsontag) = "require_session_mfa,omitempty" ];
+
+    // Lock specifies the locking mode (strict|best_effort) to be applied with
+    // the role.
+    string Lock = 14 [
+        (gogoproto.jsontag) = "lock,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
+    ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
@@ -1824,6 +1872,9 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "login_time"
     ];
+    // IdleTimeout is the max time a user can be inactive in a session.
+    int64 IdleTimeout = 9
+        [ (gogoproto.jsontag) = "idle_timeout", (gogoproto.casttype) = "Duration" ];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
@@ -2198,6 +2249,9 @@ message TrustedClusterSpecV2 {
 }
 
 // LockV2 represents a lock.
+// Locks are used to restrict access to a Teleport environment by disabling
+// interactions involving a user, an RBAC role, a node, etc.
+// See rfd/0009-locking.md for more details.
 message LockV2 {
     // Kind is a resource kind.
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
@@ -2227,6 +2281,9 @@ message LockSpecV2 {
 
 // LockTarget lists the attributes of interactions to be disabled.
 message LockTarget {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
     // User specifies the name of a Teleport user.
     string User = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
 

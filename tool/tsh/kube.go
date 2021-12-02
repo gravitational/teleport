@@ -19,12 +19,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/profile"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -208,6 +211,9 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 }
 
 func (c *kubeLoginCommand) run(cf *CLIConf) error {
+	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
+	cf.KubernetesCluster = c.kubeCluster
+
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -232,12 +238,18 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		//
 		// Re-generate kubeconfig contexts and try selecting this kube cluster
 		// again.
-		if err := updateKubeConfig(cf, tc); err != nil {
+		if err := updateKubeConfig(cf, tc, ""); err != nil {
 			return trace.Wrap(err)
 		}
-		if err := kubeconfig.SelectContext(currentTeleportCluster, c.kubeCluster); err != nil {
-			return trace.Wrap(err)
-		}
+	}
+
+	// Generate a profile specific kubeconfig which can be used
+	// by setting the kubeconfig environment variable (with `tsh env`)
+	profileKubeconfigPath := keypaths.KubeConfigPath(
+		profile.FullProfilePath(cf.HomePath), tc.WebProxyHost(), tc.Username, currentTeleportCluster, c.kubeCluster,
+	)
+	if err := updateKubeConfig(cf, tc, profileKubeconfigPath); err != nil {
+		return trace.Wrap(err)
 	}
 
 	fmt.Printf("Logged into kubernetes cluster %q\n", c.kubeCluster)
@@ -339,8 +351,9 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 }
 
 // updateKubeConfig adds Teleport configuration to the users's kubeconfig based on the CLI
-// parameters and the kubernetes services in the current Teleport cluster.
-func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient) error {
+// parameters and the kubernetes services in the current Teleport cluster. If no path for
+// the kubeconfig is given, it will use environment values or known defaults to get a path.
+func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error {
 	// Fetch proxy's advertised ports to check for k8s support.
 	if _, err := tc.Ping(cf.Context); err != nil {
 		return trace.Wrap(err)
@@ -360,7 +373,24 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient) error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(kubeconfig.Update("", *values))
+	if path == "" {
+		path = kubeconfig.PathFromEnv()
+	}
+
+	// If this is a profile specific kubeconfig, we only need
+	// to put the selected kube cluster into the kubeconfig.
+	isKubeConfig, err := keypaths.IsProfileKubeConfigPath(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if isKubeConfig {
+		if !strings.Contains(path, cf.KubernetesCluster) {
+			return trace.BadParameter("profile specific kubeconfig is in use, run 'eval $(tsh env --unset)' to switch contexts to another kube cluster")
+		}
+		values.Exec.KubeClusters = []string{cf.KubernetesCluster}
+	}
+
+	return trace.Wrap(kubeconfig.Update(path, *values))
 }
 
 // Required magic boilerplate to use the k8s encoder.

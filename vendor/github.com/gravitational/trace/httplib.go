@@ -109,7 +109,7 @@ func unmarshalError(err error, responseBody []byte) error {
 	if err2 := json.Unmarshal(responseBody, &raw); err2 != nil {
 		return err
 	}
-	if len(raw.Traces) != 0 && len(raw.Err) != 0 {
+	if len(raw.Err) != 0 {
 		err2 := json.Unmarshal(raw.Err, err)
 		if err2 != nil {
 			return err

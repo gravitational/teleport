@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,9 +18,7 @@ package service
 
 import (
 	"crypto/tls"
-	"net"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -352,6 +350,15 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		if process.Config.Token == "" {
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
+
+		var ec2IdentityDocument []byte
+		if process.Config.JoinMethod == JoinMethodEC2 {
+			ec2IdentityDocument, err = getEC2IdentityDocument()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		process.log.Infof("Joining the cluster with a secure token.")
 		const reason = "first-time-connect"
 		keyPair, err := process.generateKeyPair(role, reason)
@@ -370,10 +377,11 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			PublicTLSKey:         keyPair.PublicTLSKey,
 			PublicSSHKey:         keyPair.PublicSSHKey,
 			CipherSuites:         process.Config.CipherSuites,
-			CAPin:                process.Config.CAPin,
+			CAPins:               process.Config.CAPins,
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
+			EC2IdentityDocument:  ec2IdentityDocument,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -435,26 +443,43 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	select {
 	case <-eventC:
 		process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
-	case <-process.ExitContext().Done():
+	case <-process.GracefulExitContext().Done():
 		return nil
 	}
 
 	periodic := interval.New(interval.Config{
-		Duration:      defaults.HighResPollingPeriod,
-		FirstDuration: utils.HalfJitter(defaults.HighResPollingPeriod),
+		Duration:      process.Config.RotationConnectionInterval,
+		FirstDuration: utils.HalfJitter(process.Config.RotationConnectionInterval),
 		Jitter:        utils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
+
+	errors := utils.NewTimedCounter(process.Clock, process.Config.RestartThreshold.Time)
 
 	for {
 		err := process.syncRotationStateCycle()
 		if err == nil {
 			return nil
 		}
-		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after ~%v.", err, defaults.HighResPollingPeriod)
+		process.log.WithError(err).Warning("Sync rotation state cycle failed")
+
+		// If we have had a *lot* of failures very recently, then it's likely that our
+		// route to the auth server is gone. If we're using a tunnel then it's possible
+		// that the proxy has been reconfigured and the tunnel address has moved.
+		count := errors.Increment()
+		process.log.Warnf("%d connection errors in last %v.", count, process.Config.RestartThreshold.Time)
+		if count > process.Config.RestartThreshold.Amount {
+			// signal quit
+			process.log.Error("Connection error threshold exceeded. Asking for a graceful restart.")
+			process.BroadcastEvent(Event{Name: TeleportReloadEvent})
+			return nil
+		}
+
+		process.log.Warningf("Retrying in ~%v", process.Config.RotationConnectionInterval)
+
 		select {
 		case <-periodic.Next():
-		case <-process.ExitContext().Done():
+		case <-process.GracefulExitContext().Done():
 			return nil
 		}
 	}
@@ -463,7 +488,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 // syncRotationCycle executes a rotation cycle that returns:
 //
 // * nil whenever rotation state leads to teleport reload event
-// * error whenever rotation sycle has to be restarted
+// * error whenever rotation cycle has to be restarted
 //
 // the function accepts extra delay timer extraDelay in case if parent
 // function needs a
@@ -534,7 +559,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 			if status.needsReload {
 				return nil
 			}
-		case <-process.ExitContext().Done():
+		case <-process.GracefulExitContext().Done():
 			return nil
 		}
 	}
@@ -799,7 +824,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 
 // newClient attempts to connect directly to the Auth Server. If it fails, it
 // falls back to trying to connect to the Auth Server through the proxy.
-// The proxy address might be configured in process environment as defaults.TunnelPublicAddrEnvar
+// The proxy address might be configured in process environment as apidefaults.TunnelPublicAddrEnvar
 // in which case, no attempt at discovering the reverse tunnel address is made.
 func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
@@ -807,8 +832,6 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 		return nil, trace.Wrap(err)
 	}
 
-	// Try and connect to the Auth Server. If the request fails, try and
-	// connect through a tunnel.
 	logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
 	logger.Debug("Attempting to connect to Auth Server directly.")
 	directClient, err := process.newClientDirect(authServers, tlsConfig)
@@ -826,22 +849,20 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	}
 
 	logger.Debug("Attempting to discover reverse tunnel address.")
-	var proxyAddr string
-	if process.Config.SSH.ProxyReverseTunnelFallbackAddr != nil {
-		proxyAddr = process.Config.SSH.ProxyReverseTunnelFallbackAddr.String()
-	} else {
-		// Discover address of SSH reverse tunnel server.
-		proxyAddr, err = process.findReverseTunnel(authServers)
-		if err != nil {
-			directErrLogger.Debug("Failed to connect to Auth Server directly.")
-			logger.WithError(err).Debug("Failed to discover reverse tunnel address.")
-			return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
-		}
+	proxyAddr, err := process.findReverseTunnel(authServers)
+	if err != nil {
+		directErrLogger.Debug("Failed to connect to Auth Server directly.")
+		logger.WithError(err).Debug("Failed to discover reverse tunnel address.")
+		return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
 	}
 
 	logger = process.log.WithField("proxy-addr", proxyAddr)
 	logger.Debug("Attempting to connect to Auth Server through tunnel.")
-	tunnelClient, err := process.newClientThroughTunnel(proxyAddr, tlsConfig, identity.SSHClientConfig())
+	sshClientConfig, err := identity.SSHClientConfig(process.Config.FIPS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tunnelClient, err := process.newClientThroughTunnel(proxyAddr, tlsConfig, sshClientConfig)
 	if err != nil {
 		directErrLogger.Debug("Failed to connect to Auth Server directly.")
 		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
@@ -859,56 +880,13 @@ func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts
 		// CAs are used to validate the certificate on the proxy.
-		resp, err := webclient.Find(process.ExitContext(),
-			addr.String(),
-			lib.IsInsecureDevMode(),
-			nil)
+		tunnelAddr, err := webclient.GetTunnelAddr(process.ExitContext(), addr.String(), lib.IsInsecureDevMode(), nil)
 		if err == nil {
-			return tunnelAddr(resp.Proxy)
+			return tunnelAddr, nil
 		}
 		errs = append(errs, err)
 	}
 	return "", trace.NewAggregate(errs...)
-}
-
-// tunnelAddr returns the tunnel address in the following preference order:
-//  1. Reverse Tunnel Public Address.
-//  2. SSH Proxy Public Address.
-//  3. HTTP Proxy Public Address.
-//  4. Tunnel Listen Address.
-func tunnelAddr(settings webclient.ProxySettings) (string, error) {
-	// Extract the port the tunnel server is listening on.
-	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	tunnelPort := netAddr.Port(defaults.SSHProxyTunnelListenPort)
-
-	// If a tunnel public address is set, nothing else has to be done, return it.
-	if settings.SSH.TunnelPublicAddr != "" {
-		return settings.SSH.TunnelPublicAddr, nil
-	}
-
-	// If a tunnel public address has not been set, but a related HTTP or SSH
-	// public address has been set, extract the hostname but use the port from
-	// the tunnel listen address.
-	if settings.SSH.SSHPublicAddr != "" {
-		addr, err := utils.ParseHostPortAddr(settings.SSH.SSHPublicAddr, tunnelPort)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return net.JoinHostPort(addr.Host(), strconv.Itoa(tunnelPort)), nil
-	}
-	if settings.SSH.PublicAddr != "" {
-		addr, err := utils.ParseHostPortAddr(settings.SSH.PublicAddr, tunnelPort)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return net.JoinHostPort(addr.Host(), strconv.Itoa(tunnelPort)), nil
-	}
-
-	// If nothing is set, fallback to the tunnel listen address.
-	return settings.SSH.TunnelListenAddr, nil
 }
 
 func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {

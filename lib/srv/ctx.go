@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -132,6 +133,9 @@ type Server interface {
 
 	// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
 	GetUtmpPath() (utmp, wtmp string)
+
+	// GetLockWatcher gets the server's lock watcher.
+	GetLockWatcher() *services.LockWatcher
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -156,6 +160,10 @@ type IdentityContext struct {
 	// RoleSet is the roles this Teleport user is associated with. RoleSet is
 	// used to check RBAC permissions.
 	RoleSet services.RoleSet
+
+	// UnmappedRoles lists the original roles of this Teleport user without
+	// trusted-cluster-related role mapping being applied.
+	UnmappedRoles []string
 
 	// CertValidBefore is set to the expiry time of a certificate, or
 	// empty, if cert does not expire
@@ -281,11 +289,6 @@ type ServerContext struct {
 	// port to connect to in a "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	DstAddr string
-
-	// Monitor is a handle to the idle timeout monitor that is watching this
-	// session context. May be nil if there is no set idle timeout or we are
-	// not monitoring certificate expiry.
-	Monitor *Monitor
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -293,7 +296,7 @@ type ServerContext struct {
 // the ServerContext is closed.  The ctx parameter should be a child of the ctx
 // associated with the scope of the parent ConnectionContext to ensure that
 // cancellation of the ConnectionContext propagates to the ServerContext.
-func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext) (context.Context, *ServerContext, error) {
+func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, monitorOpts ...func(*MonitorConfig)) (context.Context, *ServerContext, error) {
 	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -304,7 +307,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 
 	cancelContext, cancel := context.WithCancel(ctx)
-
 	child := &ServerContext{
 		ConnectionContext:      parent,
 		id:                     int(atomic.AddInt32(&ctxID, int32(1))),
@@ -322,9 +324,9 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 
 	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
-
 	disconnectExpiredCert := identityContext.RoleSet.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
 	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
 		child.disconnectExpiredCert = identityContext.CertValidBefore
@@ -348,32 +350,40 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		trace.ComponentFields: fields,
 	})
 
-	if !child.disconnectExpiredCert.IsZero() || child.clientIdleTimeout != 0 {
-		child.Monitor, err = NewMonitor(MonitorConfig{
-			DisconnectExpiredCert: child.disconnectExpiredCert,
-			ClientIdleTimeout:     child.clientIdleTimeout,
-			Clock:                 child.srv.GetClock(),
-			Tracker:               child,
-			Conn:                  child.ServerConn,
-			Context:               cancelContext,
-			TeleportUser:          child.Identity.TeleportUser,
-			Login:                 child.Identity.Login,
-			ServerID:              child.srv.ID(),
-			Entry:                 child.Entry,
-			Emitter:               child.srv,
-		})
-		if err != nil {
-			child.Close()
-			return nil, nil, trace.Wrap(err)
-		}
-		go child.Monitor.Start()
+	lockTargets, err := ComputeLockTargets(srv, identityContext)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	monitorConfig := MonitorConfig{
+		LockWatcher:           child.srv.GetLockWatcher(),
+		LockTargets:           lockTargets,
+		LockingMode:           identityContext.RoleSet.LockingMode(authPref.GetLockingMode()),
+		DisconnectExpiredCert: child.disconnectExpiredCert,
+		ClientIdleTimeout:     child.clientIdleTimeout,
+		Clock:                 child.srv.GetClock(),
+		Tracker:               child,
+		Conn:                  child.ServerConn,
+		Context:               cancelContext,
+		TeleportUser:          child.Identity.TeleportUser,
+		Login:                 child.Identity.Login,
+		ServerID:              child.srv.ID(),
+		Entry:                 child.Entry,
+		Emitter:               child.srv,
+	}
+	for _, opt := range monitorOpts {
+		opt(&monitorConfig)
+	}
+	err = StartMonitor(monitorConfig)
+	if err != nil {
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 
 	// Create pipe used to send command to child process.
 	child.cmdr, child.cmdw, err = os.Pipe()
 	if err != nil {
-		child.Close()
-		return nil, nil, trace.Wrap(err)
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.cmdr)
 	child.AddCloser(child.cmdw)
@@ -381,8 +391,8 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	// Create pipe used to signal continue to child process.
 	child.contr, child.contw, err = os.Pipe()
 	if err != nil {
-		child.Close()
-		return nil, nil, trace.Wrap(err)
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.contr)
 	child.AddCloser(child.contw)
@@ -906,4 +916,21 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
 	}, nil
+}
+
+// ComputeLockTargets computes lock targets inferred from a Server
+// and an IdentityContext.
+func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error) {
+	clusterName, err := s.GetAccessPoint().GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleTargets := services.RolesToLockTargets(apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...)))
+	return append([]types.LockTarget{
+		{User: id.TeleportUser},
+		{Login: id.Login},
+		{Node: s.HostUUID()},
+		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
+		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
+	}, roleTargets...), nil
 }

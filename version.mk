@@ -38,13 +38,8 @@ setver: helm-version
 # The weird -i usage is to make the sed commands work the same on both Linux and Mac. Test on both platforms if you change it.
 .PHONY:helm-version
 helm-version:
-	@if ! echo "$${VERSION}" | grep -q "\-dev"; then \
-		export CHART_VERSION=$${VERSION}; \
-	else \
-		export CHART_VERSION=$$(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1 | cut -d. -f1 | tr -d '^v'); \
-	fi; \
 	for CHART in teleport-cluster teleport-kube-agent; do \
-		sed -i'.bak' -e "s_^version:\ .*_version: \"$${CHART_VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
-		sed -i'.bak' -e "s_^appVersion:\ .*_appVersion: \"$${CHART_VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
+		sed -i'.bak' -e "s_^version:\ .*_version: \"$${VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
+		sed -i'.bak' -e "s_^appVersion:\ .*_appVersion: \"$${VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
 		rm -f examples/chart/$${CHART}/Chart.yaml.bak; \
 	done

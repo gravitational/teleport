@@ -1,0 +1,115 @@
+---
+title: Authentication options
+description: Teleport enterprise license file configuration parameters and requirements
+---
+
+Teleport uses the concept of "authentication connectors" to authenticate users
+when they execute [`tsh login`](./cli.mdx#tsh-login) command. There are three
+types of authentication connectors:
+
+## Local
+
+Local authentication is used to authenticate against a local Teleport user
+database. This database is managed by [`tctl users`](./cli.mdx#tctl-users-add)
+command. Teleport also supports second-factor authentication (2FA) for the local
+connector. There are several possible values (types) of 2FA:
+
+- `otp` is the default. It implements [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
+  standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator)
+  or [Authy](https://www.authy.com/) or any other TOTP client.
+- `u2f` implements the [U2F](https://en.wikipedia.org/wiki/Universal\_2nd_Factor)
+  standard for utilizing hardware (USB) keys for the second factor. You can use [YubiKeys](https://www.yubico.com/),
+  [SoloKeys](https://solokeys.com/) or any other hardware token which implements the FIDO U2F standard.
+- `on` enables both TOTP and U2F, and all local users are required to have at least one 2FA device registered.
+- `optional` enables both TOTP and U2F but makes it optional for users. Local users that register a 2FA device will be prompted for it during login. This option is useful when you need to gradually enable 2FA usage before switching the value to `on`.
+- `off` turns off second-factor authentication.
+
+
+You can modify these settings in the static config `teleport.yaml`  or using dynamic configuration resources:
+
+<Tabs>
+  <TabItem label="Static Config (self-hosted)">
+  ```yaml
+  auth_service:
+    authentication:
+      type: local
+      second_factor: off
+  ```
+  </TabItem>
+  <TabItem label="Dynamic resources (all editions)">
+  Create a file `cap.yaml`:
+  ```yaml
+  kind: cluster_auth_preference
+  metadata:
+    name: cluster-auth-preference
+  spec:
+    type: local
+    u2f:
+      app_id: 'https://example.teleport.sh'
+      facets:
+      - 'https://example.teleport.sh:443'
+      - 'https://example.teleport.sh'
+      - 'example.teleport.sh:443'
+      - 'example.teleport.sh'
+  version: v2
+  ```
+
+  Create a resource:
+
+  ```code
+  $ tctl create -f cap.yaml
+  ```
+  </TabItem>
+</Tabs>
+  
+<Admonition type="note">
+  SSO users can also register 2FA devices, but Teleport will not prompt them for 2FA during login. Login 2FA for SSO users should be handled by the SSO
+  provider.
+</Admonition>
+
+## GitHub
+
+This connector implements Github OAuth 2.0 authentication flow. Please refer to GitHub documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
+to learn how to create and register an OAuth app.
+
+Here is an example of this setting in the `teleport.yaml` :
+
+```yaml
+auth_service:
+  authentication:
+    type: github
+```
+
+See [Github OAuth 2.0](../admin/github-sso.mdx) for details on how to configure it.
+
+## SAML
+
+<Admonition type="note">
+You need Enterprise edition of Teleport for this option.
+</Admonition>
+
+This connector type implements SAML authentication. It can be configured against any external identity manager like Okta or Auth0. This feature is only available for Teleport Enterprise.
+
+Here is an example of this setting in the `teleport.yaml` :
+
+```yaml
+auth_service:
+  authentication:
+    type: saml
+```
+
+### OIDC
+
+<Admonition type="note">
+You need Enterprise edition of Teleport for this option.
+</Admonition>
+
+Teleport implements OpenID Connect (OIDC) authentication, which is similar to SAML in principle.
+
+Here is an example of this setting in the `teleport.yaml` :
+
+```yaml
+auth_service:
+  authentication:
+    type: oidc
+```

@@ -170,9 +170,9 @@ Find the path where the JSON private key was just saved (likely your browser's d
 
 Use `kubectl` to create the secret, using the path to the JSON private key:
 
-```bash
-kubectl create namespace teleport && \
-kubectl --namespace teleport create secret generic teleport-gcp-credentials --from-file=gcp-credentials.json=/path/to/downloads/bens-demos-24150b1a0a7f.json
+```code
+$ kubectl create namespace teleport && \
+$ kubectl --namespace teleport create secret generic teleport-gcp-credentials --from-file=gcp-credentials.json=/path/to/downloads/bens-demos-24150b1a0a7f.json
 ```
 
 <Admonition type="tip">
@@ -198,10 +198,10 @@ Teleport pod, and automatically renewed and kept up to date by `cert-manager`.
 If you do not have `cert-manager` already configured in the Kubernetes cluster where you are installing Teleport,
 you should add the Jetstack Helm chart repository which hosts the `cert-manager` chart, and install the chart:
 
-```bash
-helm repo add jetstack https://charts.jetstack.io
-helm repo update
-helm install cert-manager jetstack/cert-manager \
+```code
+$ helm repo add jetstack https://charts.jetstack.io
+$ helm repo update
+$ helm install cert-manager jetstack/cert-manager \
 --create-namespace \
 --namespace cert-manager \
 --set installCRDs=true
@@ -251,8 +251,8 @@ EOF
 
 After you have created the `Issuer` and updated the values, add it to your cluster using `kubectl`:
 
-```bash
-kubectl --namespace teleport create -f gcp-issuer.yaml
+```code
+$ kubectl --namespace teleport create -f gcp-issuer.yaml
 ```
 
 ## Step 5: Set values to configure the cluster
@@ -293,8 +293,8 @@ The `--set` CLI method is more appropriate for quick test deployments.
 
   Install the chart with the values from your `gcp-values.yaml` file using this command:
 
-  ```bash
-  helm install teleport teleport/teleport-cluster \
+  ```code
+  $ helm install teleport teleport/teleport-cluster \
     --create-namespace \
     --namespace teleport \
     -f gcp-values.yaml
@@ -304,8 +304,8 @@ The `--set` CLI method is more appropriate for quick test deployments.
   <TabItem label="Using --set via CLI">
   Install the chart using this command, replacing the placeholders with the values you've chosen above:
 
-  ```bash
-  helm install teleport teleport/teleport-cluster \
+  ```code
+  $ helm install teleport teleport/teleport-cluster \
     --create-namespace \
     --namespace teleport \
     --set chartMode=gcp \
@@ -327,8 +327,8 @@ The `--set` CLI method is more appropriate for quick test deployments.
 
 Once the chart is installed, you can use `kubectl` commands to view the deployment:
 
-```bash
-kubectl --namespace teleport get all
+```code
+$ kubectl --namespace teleport get all
 # NAME                           READY   STATUS    RESTARTS   AGE
 # pod/teleport-b64dd8849-fklvk   1/1     Running   0          7m4s
 # pod/teleport-b64dd8849-jqvns   1/1     Running   0          7m15s
@@ -350,20 +350,20 @@ for web apps using [application access](../../../application-access/introduction
 
 Here's how to do this using Google Cloud DNS:
 
-```bash
+```code
 # Change these parameters if you altered them above
-NAMESPACE=teleport
-RELEASE_NAME=teleport
+$ NAMESPACE=teleport
+$ RELEASE_NAME=teleport
 
-MYIP=$(kubectl --namespace ${NAMESPACE?} get service/${RELEASE_NAME?} -o jsonpath='{.status.loadBalancer.ingress[*].ip}')
-MYZONE="myzone"
-MYDNS="teleport.example.com"
+$ MYIP=$(kubectl --namespace ${NAMESPACE?} get service/${RELEASE_NAME?} -o jsonpath='{.status.loadBalancer.ingress[*].ip}')
+$ MYZONE="myzone"
+$ MYDNS="teleport.example.com"
 
-gcloud dns record-sets transaction start --zone="${MYZONE?}"
-gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
-gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
-gcloud dns record-sets transaction describe --zone="${MYZONE?}"
-gcloud dns record-sets transaction execute --zone="${MYZONE?}"
+$ gcloud dns record-sets transaction start --zone="${MYZONE?}"
+$ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
+$ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
+$ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
+$ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
 ```
 
 ## Step 7. Create a Teleport user
@@ -371,8 +371,8 @@ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
 Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
-```bash
-kubectl --namespace teleport exec deploy/teleport -- tctl users add test --roles=access,editor
+```code
+$ kubectl --namespace teleport exec deploy/teleport -- tctl users add test --roles=access,editor
 # User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 # https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
@@ -403,8 +403,8 @@ Here's an example where we set the chart to use 3 replicas:
 
   Upgrade the deployment with the values from your `gcp-values.yaml` file using this command:
 
-  ```bash
-  helm upgrade teleport teleport/teleport-cluster \
+  ```code
+  $ helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport \
     -f gcp-values.yaml
   ```
@@ -413,8 +413,8 @@ Here's an example where we set the chart to use 3 replicas:
   <TabItem label="Using --set via CLI">
   Run this command, editing your command line parameters as appropriate:
 
-  ```bash
-  helm upgrade teleport teleport/teleport-cluster \
+  ```code
+  $ helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport \
     --set highAvailability.replicaCount=3
   ```
@@ -430,16 +430,16 @@ Here's an example where we set the chart to use 3 replicas:
 
 To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
 
-```bash
-helm --namespace teleport uninstall teleport
+```code
+$ helm --namespace teleport uninstall teleport
 ```
 
 ### Uninstalling cert-manager
 
 If you want to remove the `cert-manager` installation later, you can use this command:
 
-```bash
-helm --namespace cert-manager uninstall cert-manager
+```code
+$ helm --namespace cert-manager uninstall cert-manager
 ```
 
 ## Next steps

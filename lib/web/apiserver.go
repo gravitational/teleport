@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
@@ -72,7 +73,20 @@ import (
 const (
 	// ssoLoginConsoleErr is a generic error message to hide revealing sso login failure msgs.
 	ssoLoginConsoleErr = "Failed to login. Please check Teleport's log for more details."
+	metaRedirectHTML   = `
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Teleport Redirection Service</title>
+		<meta http-equiv="cache-control" content="no-cache"/>
+		<meta http-equiv="refresh" content="0;URL='{{.}}'" />
+	</head>
+	<body></body>
+</html>
+`
 )
+
+var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(metaRedirectHTML))
 
 // Handler is HTTP web proxy handler
 type Handler struct {
@@ -168,11 +182,6 @@ type Config struct {
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
-
-	// WebIdleTimeout specifies how long a user WebUI session can be left
-	// idle before being logged by the server. A zero value means there
-	// is no idle timeout set.
-	WebIdleTimeout time.Duration
 }
 
 type RewritingHandler struct {
@@ -329,17 +338,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
-	h.GET("/webapi/oidc/callback", h.WithRedirect(h.oidcCallback))
+	h.GET("/webapi/oidc/callback", h.WithMetaRedirect(h.oidcCallback))
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
 
 	// SAML 2.0 handlers
 	h.POST("/webapi/saml/acs", h.WithRedirect(h.samlACS))
-	h.GET("/webapi/saml/sso", h.WithRedirect(h.samlSSO))
+	h.GET("/webapi/saml/sso", h.WithMetaRedirect(h.samlSSO))
 	h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlSSOConsole))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
-	h.GET("/webapi/github/callback", h.WithRedirect(h.githubCallback))
+	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
 	h.POST("/webapi/github/login/console", httplib.MakeHandler(h.githubLoginConsole))
 
 	// U2F related APIs
@@ -1258,6 +1267,10 @@ type CreateSessionResponse struct {
 	TokenExpiresIn int `json:"expires_in"`
 	// SessionExpires is when this session expires.
 	SessionExpires time.Time `json:"sessionExpires,omitempty"`
+	// SessionInactiveTimeoutMS specifies how long in milliseconds
+	// a user WebUI session can be left idle before being logged out
+	// by the server. A zero value means there is no idle timeout set.
+	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 }
 
 func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -1274,10 +1287,12 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &CreateSessionResponse{
-		TokenType:      roundtrip.AuthBearer,
-		Token:          token.GetName(),
-		TokenExpiresIn: int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
+		TokenType:                roundtrip.AuthBearer,
+		Token:                    token.GetName(),
+		TokenExpiresIn:           int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
+		SessionInactiveTimeoutMS: int(ctx.session.GetIdleTimeout().Milliseconds()),
 	}, nil
 }
 
@@ -2344,6 +2359,11 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
 
+func isValidRedirectURL(redirectURL string) bool {
+	u, err := url.ParseRequestURI(redirectURL)
+	return err == nil && (!u.IsAbs() || (u.Scheme == "http" || u.Scheme == "https"))
+}
+
 // WithRedirect is a handler that redirects to the path specified in the returned value.
 func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -2351,7 +2371,29 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 		httplib.SetNoCacheHeaders(w.Header())
 
 		redirectURL := fn(w, r, p)
+		if !isValidRedirectURL(redirectURL) {
+			redirectURL = client.LoginFailedRedirectURL
+		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
+	}
+}
+
+// WithMetaRedirect is a handler that redirects to the path specified
+// using HTML rather than HTTP. This is needed for redirects that can
+// have a header size larger than 8kb, which some middlewares will drop.
+// See https://github.com/gravitational/teleport/issues/7467.
+func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		httplib.SetNoCacheHeaders(w.Header())
+		app.SetRedirectPageHeaders(w.Header(), "")
+		redirectURL := fn(w, r, p)
+		if !isValidRedirectURL(redirectURL) {
+			redirectURL = client.LoginFailedRedirectURL
+		}
+		err := metaRedirectTemplate.Execute(w, redirectURL)
+		if err != nil {
+			h.log.WithError(err).Warn("Failed to execute template.")
+		}
 	}
 }
 
@@ -2417,6 +2459,20 @@ func (h *Handler) ProxyWithRoles(ctx *SessionContext) (reversetunnel.Tunnel, err
 // ProxyHostPort returns the address of the proxy server using --proxy
 // notation, i.e. "localhost:8030,8023"
 func (h *Handler) ProxyHostPort() string {
+	// Proxy web address can be set in the config with unspecified host, like
+	// 0.0.0.0:3080 or :443.
+	//
+	// In this case, the dial will succeed (dialing 0.0.0.0 is same a dialing
+	// localhost in Go) but the SSH host certificate will not validate since
+	// 0.0.0.0 is never a valid principal (auth server explicitly removes it
+	// when issuing host certs).
+	//
+	// As such, replace 0.0.0.0 with localhost in this case: proxy listens on
+	// all interfaces and localhost is always included in the valid principal
+	// set.
+	if h.cfg.ProxyWebAddr.IsHostUnspecified() {
+		return fmt.Sprintf("localhost:%v,%s", h.cfg.ProxyWebAddr.Port(defaults.HTTPListenPort), h.sshPort)
+	}
 	return fmt.Sprintf("%s,%s", h.cfg.ProxyWebAddr.String(), h.sshPort)
 }
 
@@ -2455,6 +2511,14 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
 	}
 
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: ctx.getCheckers,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config := &client.Config{
 		Username:         ctx.user,
 		Agent:            agent,
@@ -2462,7 +2526,7 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		TLS:              tlsConfig,
 		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		DefaultPrincipal: cert.ValidPrincipals[0],
-		HostKeyCallback:  func(string, net.Addr, ssh.PublicKey) error { return nil },
+		HostKeyCallback:  callback,
 	}
 
 	return config, nil

@@ -33,6 +33,7 @@ secret `license` in the chart namespace.
 | Name                      | Description                                                                 | Default                                                | Required |
 |---------------------------|-----------------------------------------------------------------------------|--------------------------------------------------------|----------|
 | `clusterName`             | Teleport cluster name (must be an FQDN)                                     |                                                        | yes      |
+| `authenticationType`      | Type of authentication to use (`local`, `github`, ...)                      | `local`                                                | no       |
 | `teleportVersionOverride` | Teleport version                                                            | Current stable version                                 | no       |
 | `image`                   | OSS Docker image                                                            | `quay.io/gravitational/teleport`                       | no       |
 | `enterpriseImage`         | Enterprise Docker image                                                     | `quay.io/gravitational/teleport-ent`                   | no       |

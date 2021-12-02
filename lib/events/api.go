@@ -396,6 +396,11 @@ const (
 	MFADeviceAddEvent = "mfa.add"
 	// MFADeviceDeleteEvent is an event type for users deleting MFA devices.
 	MFADeviceDeleteEvent = "mfa.delete"
+
+	// LockCreatedEvent fires when a lock is created/updated.
+	LockCreatedEvent = "lock.created"
+	// LockDeletedEvent fires when a lock is deleted.
+	LockDeletedEvent = "lock.deleted"
 )
 
 const (

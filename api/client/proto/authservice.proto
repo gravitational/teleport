@@ -323,6 +323,8 @@ message Features {
     bool AdvancedAccessWorkflows = 7 [ (gogoproto.jsontag) = "advanced_access_workflows" ];
     // Cloud enables some cloud-related features
     bool Cloud = 8 [ (gogoproto.jsontag) = "cloud" ];
+    // HSM enables PKCS#11 HSM support
+    bool HSM = 9 [ (gogoproto.jsontag) = "hsm" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -904,6 +906,8 @@ message ListNodesRequest {
     // StartKey is used to start listing nodes from a specific spot. This should
     // be set to the previous NextKey value if using pagination, or left empty.
     string StartKey = 3;
+    // Labels is a label-based matcher if non-empty.
+    map<string, string> Labels = 4;
 }
 
 message ListNodesResponse {
@@ -918,6 +922,8 @@ message GetLocksRequest {
     // Targets is a list of targets. Every returned lock must match at least
     // one of the targets.
     repeated types.LockTarget Targets = 1;
+    // InForceOnly specifies whether to return only those locks that are in force.
+    bool InForceOnly = 2;
 }
 
 message GetLocksResponse {
@@ -933,6 +939,13 @@ message GetLockRequest {
 message DeleteLockRequest {
     // Name is the name of the lock to delete.
     string Name = 1;
+}
+
+message ReplaceRemoteLocksRequest {
+    // ClusterName identifies the cluster from which the locks originate.
+    string ClusterName = 1;
+    // Locks is a list of new remote locks to store.
+    repeated types.LockV2 Locks = 2;
 }
 
 // AuthService is authentication/authorization service implementation
@@ -1204,12 +1217,14 @@ service AuthService {
 
     // GetLock gets a lock by name.
     rpc GetLock(GetLockRequest) returns (types.LockV2);
-    // GetLocks gets all locks, matching at least one of the targets when specified.
+    // GetLocks gets all/in-force locks that match at least one of the targets when specified.
     rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
     // UpsertLock upserts a lock.
     rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
     // DeleteLock deletes a lock.
     rpc DeleteLock(DeleteLockRequest) returns (google.protobuf.Empty);
+    // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+    rpc ReplaceRemoteLocks(ReplaceRemoteLocksRequest) returns (google.protobuf.Empty);
 
     // StreamSessionEvents streams audit events from a given session recording.
     rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);

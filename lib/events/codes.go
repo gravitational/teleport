@@ -419,4 +419,9 @@ const (
 	RoleCreatedCode = "T9000I"
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
+
+	// LockCreatedCode is the lock created event code.
+	LockCreatedCode = "TLK00I"
+	// LockDeletedCode is the lock deleted event code.
+	LockDeletedCode = "TLK01I"
 )

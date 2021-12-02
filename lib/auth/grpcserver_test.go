@@ -1333,34 +1333,52 @@ func TestNodesCRUD(t *testing.T) {
 		t.Run("List Nodes", func(t *testing.T) {
 			t.Parallel()
 			// list nodes one at a time, last page should be empty
-			nodes, nextKey, err := clt.ListNodes(ctx, apidefaults.Namespace, 1, "")
+			nodes, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+			})
 			require.NoError(t, err)
 			require.Len(t, nodes, 1)
 			require.Empty(t, cmp.Diff([]types.Server{node1}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.Equal(t, backend.NextPaginationKey(node1), nextKey)
 
-			nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+				StartKey:  nextKey,
+			})
 			require.NoError(t, err)
 			require.Len(t, nodes, 1)
 			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.Equal(t, backend.NextPaginationKey(node2), nextKey)
 
-			nodes, nextKey, err = clt.ListNodes(ctx, apidefaults.Namespace, 1, nextKey)
+			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     1,
+				StartKey:  nextKey,
+			})
 			require.NoError(t, err)
 			require.Empty(t, nodes)
 			require.Equal(t, "", nextKey)
 
 			// ListNodes should fail if namespace isn't provided
-			_, _, err = clt.ListNodes(ctx, "", 1, "")
+			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+				Limit: 1,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
 			// ListNodes should fail if limit is nonpositive
-			_, _, err = clt.ListNodes(ctx, apidefaults.Namespace, 0, "")
+			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
-			_, _, err = clt.ListNodes(ctx, apidefaults.Namespace, -1, "")
+			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     -1,
+			})
 			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 		})
 		t.Run("GetNodes", func(t *testing.T) {
@@ -1457,7 +1475,7 @@ func TestLocksCRUD(t *testing.T) {
 
 	t.Run("CreateLock", func(t *testing.T) {
 		// Initially expect no locks to be returned.
-		locks, err := clt.GetLocks(ctx)
+		locks, err := clt.GetLocks(ctx, false)
 		require.NoError(t, err)
 		require.Empty(t, locks)
 
@@ -1473,7 +1491,7 @@ func TestLocksCRUD(t *testing.T) {
 	t.Run("LockGetters", func(t *testing.T) {
 		t.Run("GetLocks", func(t *testing.T) {
 			t.Parallel()
-			locks, err := clt.GetLocks(ctx)
+			locks, err := clt.GetLocks(ctx, false)
 			require.NoError(t, err)
 			require.Len(t, locks, 2)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
@@ -1482,7 +1500,7 @@ func TestLocksCRUD(t *testing.T) {
 		t.Run("GetLocks with targets", func(t *testing.T) {
 			t.Parallel()
 			// Match both locks with the targets.
-			locks, err := clt.GetLocks(ctx, lock1.Target(), lock2.Target())
+			locks, err := clt.GetLocks(ctx, false, lock1.Target(), lock2.Target())
 			require.NoError(t, err)
 			require.Len(t, locks, 2)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
@@ -1490,14 +1508,14 @@ func TestLocksCRUD(t *testing.T) {
 
 			// Match only one of the locks.
 			roleTarget := types.LockTarget{Role: "role-A"}
-			locks, err = clt.GetLocks(ctx, lock1.Target(), roleTarget)
+			locks, err = clt.GetLocks(ctx, false, lock1.Target(), roleTarget)
 			require.NoError(t, err)
 			require.Len(t, locks, 1)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 			// Match none of the locks.
-			locks, err = clt.GetLocks(ctx, roleTarget)
+			locks, err = clt.GetLocks(ctx, false, roleTarget)
 			require.NoError(t, err)
 			require.Empty(t, locks)
 		})

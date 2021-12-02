@@ -102,6 +102,9 @@ const (
 	AWSConsoleURL = "https://console.aws.amazon.com"
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
+
+	// RSAKeySize is the size of the RSA key.
+	RSAKeySize = 2048
 )
 
 // SecondFactorType is the type of 2FA authentication.
@@ -122,6 +125,20 @@ const (
 	// SecondFactorOptional means that all 2FA protocols are supported and 2FA
 	// is required only for users that have MFA devices registered.
 	SecondFactorOptional = SecondFactorType("optional")
+)
+
+// LockingMode determines how a (possibly stale) set of locks should be applied
+// to an interaction.
+type LockingMode string
+
+const (
+	// LockingModeStrict causes all interactions to be terminated when the
+	// available lock view becomes unreliable.
+	LockingModeStrict = LockingMode("strict")
+
+	// LockingModeBestEffort applies the most recently known locks under all
+	// circumstances.
+	LockingModeBestEffort = LockingMode("best_effort")
 )
 
 const (

@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"os"
 	"sort"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -240,6 +242,60 @@ func TestAccessMySQL(t *testing.T) {
 	}
 }
 
+// TestMySQLBadHandshake verifies MySQL proxy can gracefully handle truncated
+// client handshake messages.
+func TestMySQLBadHandshake(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "short user name",
+			data: []byte{0x8d, 0xae, 0xff, 0x49, 0x0, 0x0, 0x0, 0x1, 0x2d, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x61, 0x6c, 0x69, 0x63, 0x65},
+		},
+		{
+			name: "short db name",
+			data: []byte{0x8d, 0xae, 0xff, 0x49, 0x0, 0x0, 0x0, 0x1, 0x2d, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x61, 0x6c, 0x69, 0x63, 0x65, 0x0, 0x14, 0xce, 0x7, 0x50, 0x5d, 0x8c, 0xca, 0x17, 0xda, 0x1b, 0x60, 0xea, 0x9d, 0xa9, 0xc4, 0x7d, 0x83, 0x85, 0xa8, 0x7a, 0x96, 0x71, 0x77, 0x65, 0x31, 0x32},
+		},
+		{
+			name: "short plugin name",
+			data: []byte{0x8d, 0xae, 0xff, 0x49, 0x0, 0x0, 0x0, 0x1, 0x2d, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x61, 0x6c, 0x69, 0x63, 0x65, 0x0, 0x14, 0xce, 0x7, 0x50, 0x5d, 0x8c, 0xca, 0x17, 0xda, 0x1b, 0x60, 0xea, 0x9d, 0xa9, 0xc4, 0x7d, 0x83, 0x85, 0xa8, 0x7a, 0x96, 0x71, 0x77, 0x65, 0x31, 0x32, 0x33, 0x0, 0x6d, 0x79, 0x73, 0x71, 0x6c, 0x5f, 0x6e, 0x61, 0x74, 0x69, 0x76, 0x65, 0x5f, 0x70, 0x61, 0x73, 0x73},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Connect to MySQL proxy endpoint.
+			conn, err := net.Dial("tcp", testCtx.mysqlListener.Addr().String())
+			require.NoError(t, err)
+
+			// Read initial handshake message.
+			bytes := make([]byte, 1024)
+			_, err = conn.Read(bytes)
+			require.NoError(t, err)
+
+			// Prepend header to the packet data.
+			packet := append([]byte{
+				byte(len(test.data)),
+				byte(len(test.data) >> 8),
+				byte(len(test.data) >> 16),
+				0x1,
+			}, test.data...)
+
+			// Write handshake response packet.
+			_, err = conn.Write(packet)
+			require.NoError(t, err)
+
+			err = conn.Close()
+			require.NoError(t, err)
+		})
+	}
+}
+
 // TestAccessMongoDB verifies access scenarios to a MongoDB database based
 // on the configured RBAC rules.
 func TestAccessMongoDB(t *testing.T) {
@@ -390,6 +446,63 @@ func TestAccessDisabled(t *testing.T) {
 	_, err := testCtx.postgresClient(ctx, userName, "postgres", dbUser, dbName)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for database access")
+}
+
+// TestPostgresInjectionDatabase makes sure Postgres connection is not
+// susceptible to malicious database name injections.
+func TestPostgresInjectionDatabase(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	go testCtx.startHandlingConnections()
+
+	postgresServer := testCtx.postgres["postgres"].db
+
+	// Make sure the role allows wildcard database users and names.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Connect and make sure connection parameters are as expected.
+	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "alice", "test&user=bob")
+	require.NoError(t, err)
+
+	select {
+	case p := <-postgresServer.ParametersCh():
+		require.Equal(t, map[string]string{"user": "alice", "database": "test&user=bob"}, p)
+	case <-time.After(time.Second):
+		t.Fatal("didn't receive startup message parameters after 1s")
+	}
+
+	err = psql.Close(ctx)
+	require.NoError(t, err)
+}
+
+// TestPostgresInjectionUser makes sure Postgres connection is not
+// susceptible to malicious user name injections.
+func TestPostgresInjectionUser(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	go testCtx.startHandlingConnections()
+
+	postgresServer := testCtx.postgres["postgres"].db
+
+	// Make sure the role allows wildcard database users and names.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Construct malicious username that simulates the connection string.
+	user := fmt.Sprintf("alice@localhost:%v?database=prod&foo=", postgresServer.Port())
+
+	// Connect and make sure startup parameters are as expected.
+	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", user, "test")
+	require.NoError(t, err)
+
+	select {
+	case p := <-postgresServer.ParametersCh():
+		require.Equal(t, map[string]string{"user": user, "database": "test"}, p)
+	case <-time.After(time.Second):
+		t.Fatal("didn't receive startup message parameters after 1s")
+	}
+
+	err = psql.Close(ctx)
+	require.NoError(t, err)
 }
 
 type testContext struct {
@@ -633,10 +746,17 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	testCtx.hostCA, err = testCtx.authClient.GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: testCtx.clusterName}, false)
 	require.NoError(t, err)
 
-	// Auth client/authorizer for database proxy.
+	// Auth client, lock watcher and authorizer for database proxy.
 	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient)
+	proxyLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    proxyAuthClient,
+		},
+	})
+	require.NoError(t, err)
+	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient, proxyLockWatcher)
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.
@@ -682,6 +802,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 			sort.Sort(types.SortedDatabaseServers(servers))
 			return servers
 		},
+		LockWatcher: proxyLockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -701,8 +822,15 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
 
-	// Database service authorizer.
-	dbAuthorizer, err := auth.NewAuthorizer(c.clusterName, c.authClient)
+	// Lock watcher and authorizer for database service.
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentDatabase,
+			Client:    c.authClient,
+		},
+	})
+	require.NoError(t, err)
+	dbAuthorizer, err := auth.NewAuthorizer(c.clusterName, c.authClient, lockWatcher)
 	require.NoError(t, err)
 
 	// Create test database auth tokens generator.
@@ -713,6 +841,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 	})
 	require.NoError(t, err)
 
+	// Create a lock watcher for the DB service.
 	server, err := New(ctx, Config{
 		Clock:         clockwork.NewFakeClockAt(time.Now()),
 		DataDir:       t.TempDir(),
@@ -736,6 +865,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, hos
 		CADownloader: &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
 		},
+		LockWatcher: lockWatcher,
 	})
 	require.NoError(t, err)
 
