@@ -285,48 +285,17 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 		log.Debugf("Received client message: %#v.", message)
 		switch msg := message.(type) {
 		case *pgproto3.Query:
-			// Query message indicates the client is executing a simple query.
-			e.Audit.OnQuery(e.Context, sessionCtx, common.Query{Query: msg.String})
+			e.auditQueryMessage(sessionCtx, msg)
 		case *pgproto3.Parse:
-			// Parse message is a start of the extended query protocol which
-			// prepares parameterized query for execution. It is never used
-			// by psql, mostly by various GUI clients and programs.
-			//   https://www.postgresql.org/docs/10/protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY
-			sessionCtx.Statements.Save(msg.Name, msg.Query)
+			e.auditParseMessage(sessionCtx, msg)
 		case *pgproto3.Bind:
-			// Bind message readies existing prepared statement (created when
-			// Parse message is received) for execution into what Postgres
-			// calls a "destination portal", optionally binding it with
-			// parameters (for parameterized queries).
-			err := sessionCtx.Statements.Bind(
-				msg.PreparedStatement,
-				msg.DestinationPortal,
-				getBindParameters(msg)...)
-			if err != nil {
-				log.WithError(err).Warnf("Failed to bind prepared statement %#v.", msg)
-			}
+			e.auditBindMessage(sessionCtx, msg)
 		case *pgproto3.Execute:
-			// Execute message indicates the client is executing the previously
-			// parsed and bound prepared statement i.e. the "portal". This is
-			// where we emit the query audit event.
-			portal, err := sessionCtx.Statements.GetPortal(msg.Portal)
-			if err != nil {
-				log.WithError(err).Warnf("Failed to find destination portal %#v.", msg)
-			} else {
-				e.Audit.OnQuery(e.Context, sessionCtx, common.Query{
-					Query:      portal.Query,
-					Parameters: portal.Parameters,
-				})
-			}
+			e.auditExecuteMessage(sessionCtx, msg)
 		case *pgproto3.Close:
-			// Close message closes the specified prepared statement or portal.
-			// Remove respective object from the cache.
-			switch msg.ObjectType {
-			case closeTypePreparedStatement:
-				sessionCtx.Statements.Remove(msg.Name)
-			case closeTypeDestinationPortal:
-				sessionCtx.Statements.RemovePortal(msg.Name)
-			}
+			e.auditCloseMessage(sessionCtx, msg)
+		case *pgproto3.FunctionCall:
+			e.auditFuncCallMessage(sessionCtx, msg)
 		case *pgproto3.Terminate:
 			clientErrCh <- nil
 			return
@@ -338,6 +307,56 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 			return
 		}
 	}
+}
+
+// auditQueryMessage processes Query wire message which indicates that client
+// is executing a simple query.
+func (e *Engine) auditQueryMessage(session *common.Session, msg *pgproto3.Query) {
+	e.Audit.OnQuery(e.Context, session, common.Query{Query: msg.String})
+}
+
+// handleParseMesssage processes Parse wire message which indicates start of the
+// extended query protocol (prepared statements):
+// https://www.postgresql.org/docs/10/protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY
+func (e *Engine) auditParseMessage(session *common.Session, msg *pgproto3.Parse) {
+	e.Audit.EmitEvent(e.Context, makeParseEvent(session, msg.Name, msg.Query))
+}
+
+// auditBindMessage processes Bind wire message which readies existing prepared
+// statement for execution into what Postgres calls a "destination portal",
+// optionally binding it with parameters (for parameterized queries).
+func (e *Engine) auditBindMessage(session *common.Session, msg *pgproto3.Bind) {
+	e.Audit.EmitEvent(e.Context, makeBindEvent(session, msg.PreparedStatement,
+		msg.DestinationPortal, formatParameters(msg.Parameters,
+			msg.ParameterFormatCodes)))
+}
+
+// auditExecuteMessage processes Execute wire message which indicates that
+// client is executing the previously parsed and bound prepared statement.
+func (e *Engine) auditExecuteMessage(session *common.Session, msg *pgproto3.Execute) {
+	e.Audit.EmitEvent(e.Context, makeExecuteEvent(session, msg.Portal))
+}
+
+// auditCloseMessage processes Close wire message which indicates that client
+// is closing a prepared statement or a destination portal.
+func (e *Engine) auditCloseMessage(session *common.Session, msg *pgproto3.Close) {
+	switch msg.ObjectType {
+	case closeTypePreparedStatement:
+		e.Audit.EmitEvent(e.Context, makeCloseEvent(session, msg.Name, ""))
+	case closeTypeDestinationPortal:
+		e.Audit.EmitEvent(e.Context, makeCloseEvent(session, "", msg.Name))
+	}
+}
+
+// auditFuncCallMessage processes FunctionCall wire message which indicates
+// that client is executing a system function.
+func (e *Engine) auditFuncCallMessage(session *common.Session, msg *pgproto3.FunctionCall) {
+	var formatCodes []int16
+	for _, fc := range msg.ArgFormatCodes {
+		formatCodes = append(formatCodes, int16(fc))
+	}
+	e.Audit.EmitEvent(e.Context, makeFuncCallEvent(session, msg.Function,
+		formatParameters(msg.Arguments, formatCodes)))
 }
 
 // receiveFromServer receives messages from the provided frontend (which
@@ -426,44 +445,45 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	return config, nil
 }
 
-// getBindParameters converts prepared statement parameters from the Postgres
-// wire protocol Bind message into their string representations for including
-// in the audit log.
-func getBindParameters(msg *pgproto3.Bind) (parameters []string) {
+// formatParameters converts parameters from the Postgres wire message into
+// their string representations for including in the audit log.
+func formatParameters(parameters [][]byte, formatCodes []int16) (formatted []string) {
 	// Each parameter can be either a text or a binary which is determined
 	// by "parameter format codes" in the Bind message (0 - text, 1 - binary).
 	//
 	// Be a bit paranoid and make sure that number of format codes matches the
 	// number of parameters, or there are no format codes in which case all
 	// parameters will be text.
-	if len(msg.ParameterFormatCodes) != 0 && len(msg.ParameterFormatCodes) != len(msg.Parameters) {
-		logrus.Warnf("Postgres parameter format codes and parameters don't match: %#v.", msg)
-		return parameters
+	if len(formatCodes) != 0 && len(formatCodes) != len(parameters) {
+		logrus.Warnf("Postgres parameter format codes and parameters don't match: %#v %#v.",
+			parameters, formatCodes)
+		return formatted
 	}
-	for i, p := range msg.Parameters {
+	for i, p := range parameters {
 		// According to Bind message documentation, if there are no parameter
 		// format codes, it may mean that either there are no parameters, or
 		// that all parameters use default text format.
-		if len(msg.ParameterFormatCodes) == 0 {
-			parameters = append(parameters, string(p))
+		if len(formatCodes) == 0 {
+			formatted = append(formatted, string(p))
 			continue
 		}
-		switch msg.ParameterFormatCodes[i] {
+		switch formatCodes[i] {
 		case parameterFormatCodeText:
 			// Text parameters can just be converted to their string
 			// representation.
-			parameters = append(parameters, string(p))
+			formatted = append(formatted, string(p))
 		case parameterFormatCodeBinary:
 			// For binary parameters, just put a placeholder to avoid
 			// spamming the audit log with unreadable info.
-			parameters = append(parameters, "<binary>")
+			formatted = append(formatted, "<binary>")
 		default:
 			// Should never happen but...
-			logrus.Warnf("Unknown Postgres parameter format code: %#v.", msg)
-			parameters = append(parameters, "<unknown>")
+			logrus.Warnf("Unknown Postgres parameter format code: %#v.",
+				formatCodes[i])
+			formatted = append(formatted, "<unknown>")
 		}
 	}
-	return parameters
+	return formatted
 }
 
 const (

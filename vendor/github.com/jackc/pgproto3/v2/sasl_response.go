@@ -38,6 +38,24 @@ func (src SASLResponse) MarshalJSON() ([]byte, error) {
 		Data string
 	}{
 		Type: "SASLResponse",
-		Data: hex.EncodeToString(src.Data),
+		Data: string(src.Data),
 	})
+}
+
+// UnmarshalJSON implements encoding/json.Unmarshaler.
+func (dst *SASLResponse) UnmarshalJSON(data []byte) error {
+	var msg struct {
+		Data string
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return err
+	}
+	if msg.Data != "" {
+		decoded, err := hex.DecodeString(msg.Data)
+		if err != nil {
+			return err
+		}
+		dst.Data = decoded
+	}
+	return nil
 }

@@ -132,3 +132,34 @@ func (src RowDescription) MarshalJSON() ([]byte, error) {
 		Fields: src.Fields,
 	})
 }
+
+// UnmarshalJSON implements encoding/json.Unmarshaler.
+func (dst *RowDescription) UnmarshalJSON(data []byte) error {
+	var msg struct {
+		Fields []struct {
+			Name                 string
+			TableOID             uint32
+			TableAttributeNumber uint16
+			DataTypeOID          uint32
+			DataTypeSize         int16
+			TypeModifier         int32
+			Format               int16
+		}
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return err
+	}
+	dst.Fields = make([]FieldDescription, len(msg.Fields))
+	for n, field := range msg.Fields {
+		dst.Fields[n] = FieldDescription{
+			Name:                 []byte(field.Name),
+			TableOID:             field.TableOID,
+			TableAttributeNumber: field.TableAttributeNumber,
+			DataTypeOID:          field.DataTypeOID,
+			DataTypeSize:         field.DataTypeSize,
+			TypeModifier:         field.TypeModifier,
+			Format:               field.Format,
+		}
+	}
+	return nil
+}
