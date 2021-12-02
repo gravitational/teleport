@@ -665,7 +665,7 @@ func (t TLSMode) ToProto() types.DatabaseTLSMode {
 	case Insecure:
 		return types.DatabaseTLSMode_INSECURE
 	default:
-		return types.DatabaseTLSMode_UNSPECIFIED
+		return types.DatabaseTLSMode_UNSPECIFIED // TODO(JN) or VERIFY_FULL??
 	}
 }
 
@@ -755,6 +755,12 @@ func (d *Database) CheckAndSetDefaults() error {
 				d.Name, err)
 		}
 	}
+
+	// Validate TLS mode
+	if _, err := NewTLSMode(string(d.TLS.Mode)); err != nil {
+		return trace.BadParameter("") //TODO(JN)
+	}
+
 	// Validate Cloud SQL specific configuration.
 	switch {
 	case d.GCP.ProjectID != "" && d.GCP.InstanceID == "":

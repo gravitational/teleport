@@ -296,20 +296,29 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 	tlsConfig := &tls.Config{
 		RootCAs: x509.NewCertPool(),
 	}
-	// Don't set the ServerName when connecting to a MongoDB cluster - in case
-	// of replica set the driver may dial multiple servers and will set
-	// ServerName itself. For Postgres/MySQL we're always connecting to the
-	// server specified in URI so set ServerName ourselves.
-	if sessionCtx.Database.GetProtocol() != defaults.ProtocolMongoDB {
+
+	dbTLSConfig := sessionCtx.Database.GetTLS()
+
+	if dbTLSConfig.ServerName != "" {
+		tlsConfig.ServerName = dbTLSConfig.ServerName
+	} else if sessionCtx.Database.GetProtocol() != defaults.ProtocolMongoDB {
+		// Don't set the ServerName when connecting to a MongoDB cluster - in case
+		// of replica set the driver may dial multiple servers and will set
+		// ServerName itself. For Postgres/MySQL we're always connecting to the
+		// server specified in URI so set ServerName ourselves.
 		addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		tlsConfig.ServerName = addr.Host()
 	}
+
+	rootsAdded := false
+
 	// Add CA certificate to the trusted pool if it's present, e.g. when
 	// connecting to RDS/Aurora which require AWS CA.
 	if len(sessionCtx.Database.GetCA()) != 0 {
+		rootsAdded = true
 		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
 			return nil, trace.BadParameter("invalid server CA certificate")
 		}
@@ -347,21 +356,22 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 	if sessionCtx.Database.IsRDS() || sessionCtx.Database.IsRedshift() || sessionCtx.Database.IsCloudSQL() || sessionCtx.Database.IsAzure() {
 		return tlsConfig, nil
 	}
-	// Otherwise, when connecting to an onprem database, generate a client
-	// certificate. The database instance should be configured with
-	// Teleport's CA obtained with 'tctl auth sign --type=db'.
-	cert, cas, err := a.getClientCert(ctx, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsConfig.Certificates = []tls.Certificate{*cert}
-	for _, ca := range cas {
-		if !tlsConfig.RootCAs.AppendCertsFromPEM(ca) {
-			return nil, trace.BadParameter("failed to append CA certificate to the pool")
+
+	if !rootsAdded {
+		// Otherwise, when connecting to an onprem database, generate a client
+		// certificate. The database instance should be configured with
+		// Teleport's CA obtained with 'tctl auth sign --type=db'.
+		cert, cas, err := a.getClientCert(ctx, sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{*cert}
+		for _, ca := range cas {
+			if !tlsConfig.RootCAs.AppendCertsFromPEM(ca) {
+				return nil, trace.BadParameter("failed to append CA certificate to the pool")
+			}
 		}
 	}
-
-	dbTLSConfig := sessionCtx.Database.GetTLS()
 
 	if dbTLSConfig.Mode == types.DatabaseTLSMode_INSECURE {
 		tlsConfig.InsecureSkipVerify = true
@@ -370,17 +380,21 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 		// Set InsecureSkipVerify to skip the default validation we are
 		// replacing. This will not disable VerifyConnection.
 		tlsConfig.InsecureSkipVerify = true
-		tlsConfig.VerifyConnection = GetVerifyConnection(dbTLSConfig, tlsConfig.RootCAs)
+		tlsConfig.VerifyConnection = GetVerifyConnection(tlsConfig.RootCAs, tlsConfig.ServerName)
 	}
 
 	return tlsConfig, nil
 }
 
-func GetVerifyConnection(dbTLSConfig types.DatabaseTLS, RootCAs *x509.CertPool) func(cs tls.ConnectionState) error {
+func GetVerifyConnection(RootCAs *x509.CertPool, serverName string) func(cs tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
+		if len(cs.PeerCertificates) == 0 {
+			return trace.AccessDenied("no certificate present") //TODO(JN): Better error message
+		}
+
 		opts := x509.VerifyOptions{
 			Roots:         RootCAs,
-			DNSName:       dbTLSConfig.ServerName,
+			DNSName:       serverName,
 			Intermediates: x509.NewCertPool(),
 		}
 		for _, cert := range cs.PeerCertificates[1:] {

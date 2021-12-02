@@ -18,12 +18,17 @@ package db
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/stretchr/testify/require"
 )
 
@@ -185,4 +190,259 @@ type fakeDownloader struct {
 func (d *fakeDownloader) Download(context.Context, types.Database) ([]byte, error) {
 	d.count++
 	return d.cert, nil
+}
+
+type setupTLSTestCfg struct {
+	commonName    string
+	tlsMode       types.DatabaseTLSMode
+	serverName    string
+	caCert        string
+	injectValidCA bool
+}
+
+func setupPostgres(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testContext {
+	testCtx := setupTestContext(ctx, t)
+	go testCtx.startProxy()
+
+	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	if cfg.injectValidCA {
+		cfg.caCert = string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert)
+	}
+
+	postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
+		Name:       "postgres",
+		AuthClient: testCtx.authClient,
+		CN:         cfg.commonName,
+	})
+	require.NoError(t, err)
+	go postgresServer.Serve()
+	t.Cleanup(func() { postgresServer.Close() })
+
+	// Offline database server will be tried first and trigger connection error.
+	postgresDB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "postgres",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      net.JoinHostPort("localhost", postgresServer.Port()),
+		TLS: types.DatabaseTLS{
+			Mode:       cfg.tlsMode,
+			ServerName: cfg.serverName,
+			CACert:     cfg.caCert,
+		},
+	})
+	require.NoError(t, err)
+
+	server1 := testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: types.Databases{postgresDB},
+	})
+
+	go func() {
+		for conn := range testCtx.proxyConn {
+			go server1.HandleConnection(conn)
+		}
+	}()
+
+	return testCtx
+}
+
+func setupMySQL(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testContext {
+	testCtx := setupTestContext(ctx, t)
+	go testCtx.startProxy()
+
+	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	if cfg.injectValidCA {
+		cfg.caCert = string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert)
+	}
+
+	mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
+		Name:       "postgres",
+		AuthClient: testCtx.authClient,
+		CN:         cfg.commonName,
+	})
+	require.NoError(t, err)
+	go mysqlServer.Serve()
+	t.Cleanup(func() { mysqlServer.Close() })
+
+	mysqlDB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "mysql",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      net.JoinHostPort("localhost", mysqlServer.Port()),
+		TLS: types.DatabaseTLS{
+			Mode:       cfg.tlsMode,
+			ServerName: cfg.serverName,
+			CACert:     cfg.caCert,
+		},
+	})
+	require.NoError(t, err)
+
+	server1 := testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: types.Databases{mysqlDB},
+	})
+
+	go func() {
+		for conn := range testCtx.proxyConn {
+			go server1.HandleConnection(conn)
+		}
+	}()
+
+	return testCtx
+}
+
+func setupMongo(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testContext {
+	testCtx := setupTestContext(ctx, t)
+	go testCtx.startProxy()
+
+	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	if cfg.injectValidCA {
+		cfg.caCert = string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert)
+	}
+
+	mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
+		Name:       "mongo",
+		AuthClient: testCtx.authClient,
+		CN:         cfg.commonName,
+	})
+	require.NoError(t, err)
+	go mongoServer.Serve()
+	t.Cleanup(func() { mongoServer.Close() })
+
+	mongoDB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "mongo",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      net.JoinHostPort("localhost", mongoServer.Port()),
+		TLS: types.DatabaseTLS{
+			Mode:       cfg.tlsMode,
+			ServerName: cfg.serverName,
+			CACert:     cfg.caCert,
+		},
+	})
+	require.NoError(t, err)
+
+	server1 := testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: types.Databases{mongoDB},
+	})
+
+	go func() {
+		for conn := range testCtx.proxyConn {
+			go server1.HandleConnection(conn)
+		}
+	}()
+
+	return testCtx
+}
+
+func TestTLSConfiguration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		commonName    string
+		serverName    string
+		caCert        string
+		injectValidCA bool
+		tlsMode       types.DatabaseTLSMode
+		errMsg        string
+	}{
+		{
+			name: "no config",
+		},
+		{
+			name:       "incorrect server name",
+			serverName: "abc",
+			errMsg:     "certificate is valid for localhost, not abc",
+		},
+		{
+			name:       "insecure ignores incorrect CN",
+			tlsMode:    types.DatabaseTLSMode_INSECURE,
+			commonName: "bad",
+		},
+		{
+			name:       "custom domain access",
+			commonName: "customDomain",
+			serverName: "customDomain",
+		},
+		{
+			name:   "invalid CA certificate",
+			caCert: "invalidCert",
+			errMsg: "invalid server CA certificate",
+		},
+		{
+			name:          "valid provided CA",
+			injectValidCA: true,
+		},
+		{
+			name:          "CN can be overridden on provided CA",
+			injectValidCA: true,
+			commonName:    "testName.example.test",
+			serverName:    "testName.example.test",
+		},
+	}
+
+	for _, tt := range tests {
+		for _, dbType := range []string{
+			defaults.ProtocolPostgres,
+			defaults.ProtocolMySQL,
+			defaults.ProtocolMongoDB,
+		} {
+			t.Run(fmt.Sprintf("%s - %s", dbType, tt.name), func(t *testing.T) {
+				ctx := context.Background()
+				cfg := &setupTLSTestCfg{
+					commonName: tt.commonName,
+					serverName: tt.serverName,
+					tlsMode:    tt.tlsMode,
+					caCert:     tt.caCert,
+				}
+
+				switch dbType {
+				case defaults.ProtocolPostgres:
+					testCtx := setupPostgres(ctx, t, cfg)
+
+					// Make sure we can connect successfully.
+					psql, err := testCtx.postgresClient(ctx, "bob", "postgres", "postgres", "postgres")
+					if tt.errMsg == "" {
+						require.NoError(t, err)
+
+						err = psql.Close(ctx)
+						require.NoError(t, err)
+					} else {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), tt.errMsg)
+					}
+				case defaults.ProtocolMySQL:
+					testCtx := setupMySQL(ctx, t, cfg)
+
+					mysqlConn, err := testCtx.mysqlClient("bob", "mysql", "admin")
+					if tt.errMsg == "" {
+						require.NoError(t, err)
+
+						err = mysqlConn.Close()
+						require.NoError(t, err)
+					} else {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), tt.errMsg)
+					}
+				case defaults.ProtocolMongoDB:
+					testCtx := setupMongo(ctx, t, cfg)
+
+					mongoConn, err := testCtx.mongoClient(ctx, "bob", "mongo", "admin")
+					if tt.errMsg == "" {
+						require.NoError(t, err)
+
+						err = mongoConn.Disconnect(ctx)
+						require.NoError(t, err)
+					} else {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), tt.errMsg) // TODO: One test is failing here.
+					}
+				default:
+					t.Fatalf("unrecognized database: %s", dbType)
+				}
+			})
+		}
+	}
 }
