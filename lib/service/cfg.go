@@ -645,19 +645,21 @@ const (
 	Insecure TLSMode = "insecure"
 )
 
-func NewTLSMode(mode string) (TLSMode, error) {
-	switch TLSMode(mode) {
+func (m *TLSMode) CheckAndSetDefaults() error {
+	switch *m {
 	case "": // Use VerifyFull if not set.
-		return VerifyFull, nil
+		*m = VerifyFull
 	case VerifyFull, VerifyCA, Insecure:
-		return TLSMode(mode), nil
+		// Correct value, do nothing.
 	default:
-		return "", trace.BadParameter("%s is not a correct TLSMode value", mode)
+		return trace.BadParameter("%q is not a correct TLSMode value", *m)
 	}
+
+	return nil
 }
 
-func (t TLSMode) ToProto() types.DatabaseTLSMode {
-	switch t {
+func (m TLSMode) ToProto() types.DatabaseTLSMode {
+	switch m {
 	case VerifyFull:
 		return types.DatabaseTLSMode_VERIFY_FULL
 	case VerifyCA:
@@ -665,7 +667,7 @@ func (t TLSMode) ToProto() types.DatabaseTLSMode {
 	case Insecure:
 		return types.DatabaseTLSMode_INSECURE
 	default:
-		return types.DatabaseTLSMode_UNSPECIFIED // TODO(JN) or VERIFY_FULL??
+		return types.DatabaseTLSMode_UNSPECIFIED
 	}
 }
 
@@ -755,10 +757,8 @@ func (d *Database) CheckAndSetDefaults() error {
 				d.Name, err)
 		}
 	}
-
-	// Validate TLS mode
-	if _, err := NewTLSMode(string(d.TLS.Mode)); err != nil {
-		return trace.BadParameter("") //TODO(JN)
+	if err := d.TLS.Mode.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Validate Cloud SQL specific configuration.

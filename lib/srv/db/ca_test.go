@@ -337,8 +337,6 @@ func setupMongo(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 }
 
 func TestTLSConfiguration(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name          string
 		commonName    string
@@ -349,17 +347,28 @@ func TestTLSConfiguration(t *testing.T) {
 		errMsg        string
 	}{
 		{
-			name: "no config",
+			name: "use default config",
 		},
 		{
 			name:       "incorrect server name",
-			serverName: "abc",
+			serverName: "abc.example.test",
 			errMsg:     "certificate is valid for localhost, not abc",
 		},
 		{
 			name:       "insecure ignores incorrect CN",
 			tlsMode:    types.DatabaseTLSMode_INSECURE,
-			commonName: "bad",
+			commonName: "bad.example.test",
+		},
+		{
+			name:       "verify CA ignores incorrect CN",
+			tlsMode:    types.DatabaseTLSMode_VERIFY_CA,
+			commonName: "bad.example.test",
+		},
+		{
+			name:       "verify full fails if CN is incorrect",
+			tlsMode:    types.DatabaseTLSMode_VERIFY_FULL,
+			commonName: "bad.example.test",
+			errMsg:     "certificate is valid for bad.example.test, not localhost",
 		},
 		{
 			name:       "custom domain access",
@@ -376,7 +385,7 @@ func TestTLSConfiguration(t *testing.T) {
 			injectValidCA: true,
 		},
 		{
-			name:          "CN can be overridden on provided CA",
+			name:          "server name can be overridden on provided CA",
 			injectValidCA: true,
 			commonName:    "testName.example.test",
 			serverName:    "testName.example.test",

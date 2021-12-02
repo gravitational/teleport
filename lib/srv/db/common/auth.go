@@ -299,18 +299,20 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 
 	dbTLSConfig := sessionCtx.Database.GetTLS()
 
-	if dbTLSConfig.ServerName != "" {
-		tlsConfig.ServerName = dbTLSConfig.ServerName
-	} else if sessionCtx.Database.GetProtocol() != defaults.ProtocolMongoDB {
+	if sessionCtx.Database.GetProtocol() != defaults.ProtocolMongoDB {
 		// Don't set the ServerName when connecting to a MongoDB cluster - in case
 		// of replica set the driver may dial multiple servers and will set
 		// ServerName itself. For Postgres/MySQL we're always connecting to the
 		// server specified in URI so set ServerName ourselves.
-		addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if dbTLSConfig.ServerName != "" {
+			tlsConfig.ServerName = dbTLSConfig.ServerName
+		} else {
+			addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tlsConfig.ServerName = addr.Host()
 		}
-		tlsConfig.ServerName = addr.Host()
 	}
 
 	rootsAdded := false
@@ -380,7 +382,7 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 		// Set InsecureSkipVerify to skip the default validation we are
 		// replacing. This will not disable VerifyConnection.
 		tlsConfig.InsecureSkipVerify = true
-		tlsConfig.VerifyConnection = GetVerifyConnection(tlsConfig.RootCAs, tlsConfig.ServerName)
+		tlsConfig.VerifyConnection = GetVerifyConnection(tlsConfig.RootCAs, dbTLSConfig.ServerName)
 	}
 
 	return tlsConfig, nil
@@ -389,7 +391,7 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 func GetVerifyConnection(RootCAs *x509.CertPool, serverName string) func(cs tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
 		if len(cs.PeerCertificates) == 0 {
-			return trace.AccessDenied("no certificate present") //TODO(JN): Better error message
+			return trace.AccessDenied("database didn't present any certificate during initial handshake")
 		}
 
 		opts := x509.VerifyOptions{
