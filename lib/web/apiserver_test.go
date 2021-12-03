@@ -1302,7 +1302,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 
 	// Retrieve the session with the empty ClusterName.
 	pack := s.authPack(c, "baz")
-	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions", sess1.ID.String()), url.Values{})
+	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions", sess1.ID.String()), url.Values{})
 	c.Assert(err, IsNil)
 
 	// Test that empty ClusterName and ServerHostname got set.
@@ -1320,7 +1320,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 	c.Assert(err, IsNil)
 
 	// Retrieve sessions list.
-	res, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions"), url.Values{})
+	res, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
 	c.Assert(err, IsNil)
 
 	var sessionList *siteSessionsGetResponse
