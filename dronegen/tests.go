@@ -84,8 +84,8 @@ func testCodePipeline() pipeline {
 	p := newKubePipeline("test")
 	p.Environment = map[string]value{
 		"RUNTIME": goRuntime,
-		"UID":     value{raw: "1000"},
-		"GID":     value{raw: "1000"},
+		"UID":     {raw: "1000"},
+		"GID":     {raw: "1000"},
 	}
 	p.Trigger = triggerPullRequest
 	p.Workspace = workspace{Path: "/go"}
@@ -102,15 +102,15 @@ func testCodePipeline() pipeline {
 		),
 	}
 	goEnvironment := map[string]value{
-		"GOCACHE": value{raw: "/tmpfs/go/cache"},
-		"GOPATH":  value{raw: "/tmpfs/go"},
+		"GOCACHE": {raw: "/tmpfs/go/cache"},
+		"GOPATH":  {raw: "/tmpfs/go"},
 	}
 	p.Steps = []step{
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
 			Environment: map[string]value{
-				"GITHUB_PRIVATE_KEY": value{fromSecret: "GITHUB_PRIVATE_KEY"},
+				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
 			Volumes: []volumeRef{
 				volumeRefTmpfs,
@@ -201,11 +201,11 @@ echo ""
 			Name:  "Run integration tests",
 			Image: "docker",
 			Environment: map[string]value{
-				"GOCACHE":                   value{raw: "/tmpfs/go/cache"},
-				"GOPATH":                    value{raw: "/tmpfs/go"},
-				"INTEGRATION_CI_KUBECONFIG": value{fromSecret: "INTEGRATION_CI_KUBECONFIG"},
-				"KUBECONFIG":                value{raw: "/tmpfs/go/kubeconfig.ci"},
-				"TEST_KUBE":                 value{raw: "true"},
+				"GOCACHE":                   {raw: "/tmpfs/go/cache"},
+				"GOPATH":                    {raw: "/tmpfs/go"},
+				"INTEGRATION_CI_KUBECONFIG": {fromSecret: "INTEGRATION_CI_KUBECONFIG"},
+				"KUBECONFIG":                {raw: "/tmpfs/go/kubeconfig.ci"},
+				"TEST_KUBE":                 {raw: "true"},
 			},
 			Volumes: dockerVolumeRefs(volumeRefTmpfs, volumeRefTmpIntegration),
 			Commands: []string{
@@ -250,9 +250,9 @@ func testDocsPipeline() pipeline {
 			Name:  "Run docs tests",
 			Image: "docker:git",
 			Environment: map[string]value{
-				"GOCACHE": value{raw: "/tmpfs/go/cache"},
-				"UID":     value{raw: "1000"},
-				"GID":     value{raw: "1000"},
+				"GOCACHE": {raw: "/tmpfs/go/cache"},
+				"UID":     {raw: "1000"},
+				"GID":     {raw: "1000"},
 			},
 			Volumes: dockerVolumeRefs(volumeRefTmpfs),
 			Commands: []string{
