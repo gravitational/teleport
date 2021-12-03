@@ -218,7 +218,55 @@ The major differences in playback mode are:
 - no user-input is captured or sent across the wire (mouse clicks, scroll wheel, etc)
 - playback features such as play/pause (at a minimum), and seek are desired
 
+### Recording
+
+Events will be recorded as a structured object generated from the events protobuf spec ([`events.proto`](https://github.com/gravitational/teleport/blob/master/api/types/events/events.proto)):
+
+```protobuf
+// TDPMessage events happen every time a TDP message is sent or received during a desktop session.
+// TODO reorder numbers once TODO's have been accounted for
+message TDPMessage {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    SessionMetadata Session = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // Data is the TDP message as a raw byte array. It is not marshaled to JSON format.
+    bytes Data = 3 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "-" ];
+
+    // Bytes says how many bytes have been written into the session
+    // during "print" event
+    // TODO: do we need this?
+    int64 Bytes = 4 [ (gogoproto.jsontag) = "bytes" ];
+
+    // DelayMilliseconds is the delay in milliseconds from the start of the session
+    int64 DelayMilliseconds = 5 [ (gogoproto.jsontag) = "ms" ];
+
+    // Offset is the offset in bytes in the session file
+    // TODO: do we need this?
+    int64 Offset = 6 [ (gogoproto.jsontag) = "offset" ];
+}
+
+```
+
+We could make `Data` a new type that represents a general TDP message (or a union of specific TDP messages), however there is no need for the additonal complexity that entails. We can simply save the raw bytes
+and later pass them into the [existing TDP codec](https://github.com/gravitational/webapps/blob/master/packages/teleport/src/lib/tdp/codec.ts) for playback.
+
+[`Metadata`](https://github.com/gravitational/teleport/blob/master/api/types/events/events.proto#L26-L46) in the new message is the existing common event metadata structure:
+
+`Type` will always be a new event type defined in [`lib/events/api.go`](https://github.com/gravitational/teleport/blob/master/lib/events/api.go):
+
+```go
+DesktopSessionTDPEvent = "desktop.session.tdp"
+```
+
+The `ID` and `Code` fields will be left empty (as is the case with `SessionPrint` events), and the remaining fields will be filled out per standard practice.
+
 ### Considerations
+
+TODO: Does TDP need a versioning system to account for playback? If we change the TDP spec in the future but users have older sessions recorded in an old TDP format, how will we play those older sessions back to them?
 
 #### Data Storage / Format
 
