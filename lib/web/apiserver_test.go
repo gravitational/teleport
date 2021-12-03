@@ -623,16 +623,6 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
-func (s *WebSuite) TestNamespace(c *C) {
-	pack := s.authPack(c, "foo")
-
-	_, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "..%252fevents%3f", "nodes"), url.Values{})
-	c.Assert(err, NotNil)
-
-	_, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "nodes"), url.Values{})
-	c.Assert(err, IsNil)
-}
-
 func (s *WebSuite) TestCSRF(c *C) {
 	type input struct {
 		reqToken    string

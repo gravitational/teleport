@@ -190,7 +190,6 @@ type Config struct {
 }
 
 type WebHandler struct {
-	http.Handler
 	handler *Handler
 
 	// appHandler is a http.Handler to forward requests to applications.
@@ -213,7 +212,7 @@ func (h *WebHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Serve the Web UI.
-	h.Handler.ServeHTTP(w, r)
+	h.handler.ServeHTTP(w, r)
 }
 
 func (h *WebHandler) Close() error {
@@ -520,7 +519,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*WebHandler, error) {
 	}
 
 	return &WebHandler{
-		Handler:    httplib.RewritePaths(h),
 		handler:    h,
 		appHandler: appHandler,
 	}, nil
