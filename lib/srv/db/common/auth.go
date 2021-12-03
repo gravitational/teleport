@@ -299,21 +299,19 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 
 	dbTLSConfig := sessionCtx.Database.GetTLS()
 
-	if sessionCtx.Database.GetProtocol() != defaults.ProtocolMongoDB {
+	if dbTLSConfig.ServerName != "" {
+		// Use user provided server name.
+		tlsConfig.ServerName = dbTLSConfig.ServerName
+	} else if sessionCtx.Database.GetProtocol() != defaults.ProtocolMongoDB {
 		// Don't set the ServerName when connecting to a MongoDB cluster - in case
 		// of replica set the driver may dial multiple servers and will set
 		// ServerName itself. For Postgres/MySQL we're always connecting to the
 		// server specified in URI so set ServerName ourselves.
-		if dbTLSConfig.ServerName != "" {
-			// Use user provided server name.
-			tlsConfig.ServerName = dbTLSConfig.ServerName
-		} else {
-			addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			tlsConfig.ServerName = addr.Host()
+		addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		tlsConfig.ServerName = addr.Host()
 	}
 
 	// We need only one Root CA for verification. This flag should be set to true
