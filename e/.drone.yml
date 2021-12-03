@@ -700,7 +700,8 @@ steps:
       - rm -rf $RUNTIME.darwin-amd64.tar.gz
 
   - name: Install Rust Toolchain
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64-e
+    environment:
+      WORKSPACE_DIR: /tmp/push-build-darwin-amd64-e
     commands:
       - set -u
       - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
@@ -743,8 +744,9 @@ steps:
       - rustup toolchain uninstall $RUST_VERSION
       - rm -rf ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
     when:
-      - success
-      - failure
+      status:
+        - success
+        - failure
 
   - name: Clean up exec runner storage (post)
     environment:
@@ -985,6 +987,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 29ab2f1ad4df812be16a673e5b28ab70f144ff3aa2ceddcbb007a8c94e7383c1
+hmac: ffc03452cb4cb7db7cb29fc0b497c7ff0631c8f02bc23afcda4841a0a94d86ec
 
 ...
