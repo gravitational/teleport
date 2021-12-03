@@ -38,7 +38,7 @@ import (
 
 // TestDatabaseLogin verifies "tsh db login" command.
 func TestDatabaseLogin(t *testing.T) {
-	homePath := t.TempDir()
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -66,20 +66,20 @@ func TestDatabaseLogin(t *testing.T) {
 	// Log into Teleport cluster.
 	err = Run([]string{
 		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
 	require.NoError(t, err)
 
 	// Fetch the active profile.
-	profile, err := client.StatusFor(homePath, proxyAddr.Host(), alice.GetName())
+	profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
 	require.NoError(t, err)
 
 	// Log into test Postgres database.
 	err = Run([]string{
 		"db", "login", "--debug", "postgres",
-	}, mockHomePath(homePath))
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	// Verify Postgres identity file contains certificate.
@@ -91,7 +91,7 @@ func TestDatabaseLogin(t *testing.T) {
 	// Log into test Mongo database.
 	err = Run([]string{
 		"db", "login", "--debug", "--db-user", "admin", "mongo",
-	}, mockHomePath(homePath))
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	// Verify Mongo identity file contains both certificate and key.

@@ -91,7 +91,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 func TestFailedLogin(t *testing.T) {
-	homePath := t.TempDir()
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -112,7 +112,7 @@ func TestFailedLogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = client.SSOLoginFunc(ssoLogin)
 		return nil
 	}))
@@ -120,7 +120,7 @@ func TestFailedLogin(t *testing.T) {
 }
 
 func TestOIDCLogin(t *testing.T) {
-	homePath := t.TempDir()
+	tmpHomePath := t.TempDir()
 
 	modules.SetModules(&cliModules{})
 
@@ -196,7 +196,7 @@ func TestOIDCLogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--user", "alice", // explicitly use wrong name
-	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.SiteName = "localhost"
 		return nil
@@ -215,7 +215,7 @@ func TestOIDCLogin(t *testing.T) {
 // TestLoginIdentityOut makes sure that "tsh login --out <ident>" command
 // writes identity credentials to the specified path.
 func TestLoginIdentityOut(t *testing.T) {
-	homePath := t.TempDir()
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -240,7 +240,7 @@ func TestLoginIdentityOut(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--out", identPath,
-	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
@@ -251,7 +251,7 @@ func TestLoginIdentityOut(t *testing.T) {
 }
 
 func TestRelogin(t *testing.T) {
-	homePath := t.TempDir()
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 
@@ -273,7 +273,7 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
@@ -285,10 +285,10 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	}, mockHomePath(homePath))
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	err = Run([]string{"logout"}, mockHomePath(homePath))
+	err = Run([]string{"logout"}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -298,7 +298,7 @@ func TestRelogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	}, mockHomePath(homePath), cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
@@ -1053,7 +1053,7 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 	}
 }
 
-func mockHomePath(path string) cliOption {
+func setHomePath(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.HomePath = path
 		return nil

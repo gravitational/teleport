@@ -447,12 +447,13 @@ func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(profile.Databases) == 0 {
-		return nil, trace.NotFound("Please login using 'tsh db login' first")
-	}
 	activeDatabases, err := profile.DatabasesForCluster(cf.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if len(activeDatabases) == 0 {
+		return nil, trace.NotFound("Please login using 'tsh db login' first")
 	}
 
 	name := cf.DatabaseService
