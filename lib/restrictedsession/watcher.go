@@ -40,10 +40,9 @@ func NewRestrictionsWatcher(cfg RestrictionsWatcherConfig) (*RestrictionsWatcher
 	}
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		First:  utils.HalfJitter(defaults.HighResPollingPeriod),
-		Step:   cs.Config.RetryPeriod / 2,
-		Max:    cs.Config.RetryPeriod,
+		Step:   cfg.RetryPeriod / 2,
+		Max:    cfg.RetryPeriod,
 		Jitter: utils.NewSeventhJitter(),
-		Clock:  cs.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
