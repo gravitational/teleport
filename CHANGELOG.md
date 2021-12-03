@@ -1,5 +1,53 @@
 # Changelog
 
+## 6.2.20
+
+This release of Teleport contains multiple security fixes.
+
+### Security fixes
+
+As part of a routine security audit of Teleport, several security
+vulnerabilities and miscellaneous issues were discovered. Below are the issues
+found, their impact, and the components of Teleport they affect.
+
+#### Insufficient authorization check in self-hosted MySQL database access
+
+Teleport MySQL proxy engine did not handle internal MySQL protocol command that
+allows to reauthenticate the active connection.
+
+This could allow an attacker with a valid client certificate for a particular
+database user to reauthenticate as a different MySQL user created using
+`require x509` clause.
+
+#### Authorization bypass in application access
+
+When proxying a websocket connection, Teleport did not check for a successful
+connection upgrade response from the target application.
+
+In scenarios where Teleport proxy is located behind a load balancer, this could
+result in the load balancer reusing the cached authenticated connection for
+future unauthenticated requests.
+
+#### Missing password confirmation on password change
+
+Teleport did not check the old password if the cluster had "optional" second
+factor and user had no registered MFA devices.
+
+This could allow an attacker with access to user's authenticated browser
+session to change their password.
+
+#### Actions
+
+For all Teleport users, we recommend upgrading auth servers.
+
+For Database Access users we recommend upgrading database agents that handle
+connections to self-hosted MySQL servers.
+
+For Application Access users we recommend upgrading application agents.
+
+Upgrades should follow the normal Teleport upgrade procedure:
+https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport.
+
 ## 6.2.19
 
 This release of Teleport contains a security fix.
