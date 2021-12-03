@@ -3369,7 +3369,7 @@ type proxy struct {
 	revTun  reversetunnel.Server
 	node    *regular.Server
 	proxy   *regular.Server
-	handler *RewritingHandler
+	handler *WebHandler
 	web     *httptest.Server
 	webURL  url.URL
 }

@@ -2859,7 +2859,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	var webServer *http.Server
-	var webHandler *web.RewritingHandler
+	var webHandler *web.WebHandler
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {

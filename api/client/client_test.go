@@ -67,7 +67,7 @@ func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 
 // Implement ListNodes handling of limit exceeded errors.
 func (m *mockServer) ListNodes(ctx context.Context, req *proto.ListNodesRequest) (*proto.ListNodesResponse, error) {
-	nodes, err := testNodes(req.Namespace)
+	nodes, err := testNodes(defaults.Namespace)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}

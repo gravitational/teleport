@@ -189,7 +189,7 @@ type Config struct {
 	ProxySettings proxySettingsGetter
 }
 
-type RewritingHandler struct {
+type WebHandler struct {
 	http.Handler
 	handler *Handler
 
@@ -199,7 +199,7 @@ type RewritingHandler struct {
 
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
-func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *WebHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the request is either to the fragment authentication endpoint or if the
 	// request is already authenticated (has a session cookie), forward to
 	// application handlers. If the request is unauthenticated and requesting a
@@ -216,12 +216,12 @@ func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.Handler.ServeHTTP(w, r)
 }
 
-func (h *RewritingHandler) Close() error {
+func (h *WebHandler) Close() error {
 	return h.handler.Close()
 }
 
 // NewHandler returns a new instance of web proxy handler
-func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
+func NewHandler(cfg Config, opts ...HandlerOption) (*WebHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	h := &Handler{
 		cfg:             cfg,
@@ -313,26 +313,26 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
 
 	// get nodes
-	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.siteNodesGet))
+	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.siteNodesGet))
 
 	// Get applications.
 	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
 
 	// active sessions handlers
-	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionsGet))      // get active list of sessions
-	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
+	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
+	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet))      // get active list of sessions
+	h.POST("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
+	h.GET("/webapi/sites/:site/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
 
 	// Audit events handlers.
-	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                               // search site events
-	h.GET("/webapi/sites/:site/sessions/search", h.WithClusterAuth(h.clusterSearchSessionEvents))                      // search site session events
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
-	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
+	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
+	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
+	h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet))         // get recorded session's timing information (from events)
+	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                            // get recorded session's bytes (from events)
 
 	// scp file transfer
-	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
-	h.POST("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
+	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
+	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
@@ -519,13 +519,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &RewritingHandler{
-		Handler: httplib.RewritePaths(h,
-			httplib.Rewrite("/webapi/sites/([^/]+)/sessions/(.*)", "/webapi/sites/$1/namespaces/default/sessions/$2"),
-			httplib.Rewrite("/webapi/sites/([^/]+)/sessions", "/webapi/sites/$1/namespaces/default/sessions"),
-			httplib.Rewrite("/webapi/sites/([^/]+)/nodes", "/webapi/sites/$1/namespaces/default/nodes"),
-			httplib.Rewrite("/webapi/sites/([^/]+)/connect", "/webapi/sites/$1/namespaces/default/connect"),
-		),
+	return &WebHandler{
+		Handler:    httplib.RewritePaths(h),
 		handler:    h,
 		appHandler: appHandler,
 	}, nil
@@ -1808,18 +1803,13 @@ GET /v1/webapi/sites/:site/namespaces/:namespace/nodes
 
 */
 func (h *Handler) siteNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetNodes(r.Context(), namespace)
+	servers, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1848,11 +1838,6 @@ func (h *Handler) siteNodeConnect(
 	ctx *SessionContext,
 	site reversetunnel.RemoteSite) (interface{}, error) {
 
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {
@@ -1879,7 +1864,7 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	req.KeepAliveInterval = netConfig.GetKeepAliveInterval()
-	req.Namespace = namespace
+	req.Namespace = apidefaults.Namespace
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
@@ -1917,16 +1902,12 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
 	var req *siteSessionGenerateReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	namespace := apidefaults.Namespace
 	if req.Session.ServerID != "" {
 		servers, err := clt.GetNodes(r.Context(), namespace)
 		if err != nil {
@@ -1967,12 +1948,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
-	sessions, err := clt.GetSessions(namespace)
+	sessions, err := clt.GetSessions(apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2013,12 +1989,7 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
-	sess, err := clt.GetSession(namespace, *sessionID)
+	sess, err := clt.GetSession(apidefaults.Namespace, *sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2269,14 +2240,9 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	if max > maxStreamBytes {
 		max = maxStreamBytes
 	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		onError(trace.BadParameter("invalid namespace %q", namespace))
-		return
-	}
 
 	// call the site API to get the chunk:
-	bytes, err := clt.GetSessionChunk(namespace, *sid, offset, max)
+	bytes, err := clt.GetSessionChunk(apidefaults.Namespace, *sid, offset, max)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
@@ -2332,11 +2298,8 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		afterN = 0
 	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	e, err := clt.GetSessionEvents(namespace, *sessionID, afterN, true)
+
+	e, err := clt.GetSessionEvents(apidefaults.Namespace, *sessionID, afterN, true)
 	if err != nil {
 		h.log.WithError(err).Debugf("Unable to find events for session %v.", sessionID)
 		if trace.IsNotFound(err) {
