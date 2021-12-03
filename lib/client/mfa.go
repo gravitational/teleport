@@ -57,6 +57,16 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 	// either Webauthn (preferred) or U2F.
 	hasTOTP := c.TOTP != nil
 	hasNonTOTP := len(c.U2F) > 0 || c.WebauthnChallenge != nil
+
+	// Does the current platform support hardware MFA? Adjust accordingly.
+	switch {
+	case !hasTOTP && !wancli.HasPlatformSupport():
+		return nil, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
+	case !wancli.HasPlatformSupport():
+		// Do not prompt for hardware devices, it won't work.
+		hasNonTOTP = false
+	}
+
 	var numGoroutines int
 	if hasTOTP && hasNonTOTP {
 		numGoroutines = 2
