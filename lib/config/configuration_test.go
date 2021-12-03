@@ -1883,7 +1883,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					},
 				},
 				TLS: service.DatabaseTLS{
-					CACert: fixtures.LocalhostCert,
+					Mode: service.VerifyFull,
 				},
 			},
 		},
@@ -1999,9 +1999,10 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				require.Contains(t, err.Error(), tt.outError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, []service.Database{
-					tt.outDatabase,
-				}, config.Databases.Databases)
+				require.Equal(t,
+					config.Databases.Databases,
+					[]service.Database{tt.outDatabase},
+				)
 			}
 		})
 	}
