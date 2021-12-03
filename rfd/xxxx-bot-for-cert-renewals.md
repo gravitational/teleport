@@ -60,11 +60,11 @@ than supporting a multitude of configuration options and hooks for customization
 
 We will develop a new lightweight tool, `tbot`, which runs as an agent on
 external systems that are part of a Teleport cluster (a VM running a Postgres
-database, or an OpenSSH server, for example).
+database, an OpenSSH server, or a CI/CD worker, for example).
 
 This agent will join the Teleport cluster, request certificates, store them in a
-user-specified [destination](#destination), and then monitor the certificates
-and renew them as necessary.
+user-specified destination, and then monitor the certificates and renew them as
+necessary.
 
 #### User Experience
 
@@ -94,15 +94,14 @@ omitted here for brevity):
 ```
 $ tbot start \
   --name=foo \
-  --output=file:/home/ubuntu/.tbot \
+  --directory=/home/ubuntu/tbot \
   --auth-server=proxy.example.com:3080 \
   --token=13b74f49d27536dd5c514073097c197b \
   --ca-pin=sha256:...
   ...
 ```
 
-Note that both direct dialing or connecting through a Teleport proxy are
-supported.
+Both direct dialing or connecting through a Teleport proxy are supported.
 
 The bot joins the cluster and can be seen with the `tctl` command:
 
@@ -112,12 +111,13 @@ ID            NAME       LOCKED    ROLES
 0123-4567     foo        false     dev,ssh
 ```
 
-When the bot starts, it generates a set of keys, and uses the provided join
-token to request a signed, renewable certificate from the auth server. These
-certificates are stored in a restricted location, such as `/var/lib/tbot`, and
-renewed continuously. They are exclusively used by the bot for renewal and to
-issue secondary end-user certificates. Secondary certificates are written to
-the user-specified location and are useful for connecting to resources.
+When the bot starts, it generates a new set of keys (private key and TLS/SSH
+public keys), then uses the provided join token to request a signed, renewable
+certificate from the auth server. These certificates are stored in a restricted
+location, such as `/var/lib/teleport/bot`, and renewed continuously. They are
+exclusively used by the bot for renewal and to issue secondary end-user
+certificates. Secondary certificates are written to the user-specified location
+and are useful for connecting to resources.
 
 Note: the join token can only be used once, and is invalidated after first use
 or when its TTL expires (whichever comes first). If the bot fails to renew its
@@ -139,21 +139,12 @@ $ tctl bots add --name=example --roles=a,b,c
 ... users may create a configuration file, such as `/etc/tbot.yaml`:
 
 ```yaml
-sinks:
+destinations:
   - directory: /home/alice/.tbot
     roles: [a, b, c]
 
   - directory: /home/bob/.tbot
     roles: [b, c]
-
-  - kubernetesSecret:
-      kubeconfig: /home/user/kubeconfig
-      namespace: example
-      secretName: example-secret
-    roles: [c]
-
-  - webhook: http://localhost:8001
-    roles: [a]
 ```
 
 The user then starts the bot with the configuration file:
@@ -163,16 +154,17 @@ $ tbot start -c /etc/tbot.yaml
 ```
 
 Once the bot fetches its own certificate, it then fetches additional
-impersonated certificates for each specified certificate sink and writes them
-via the appropriate backend implementation. This may be particularly useful for
-CI/CD use cases where untrusted workers run as a particular user, or as
-Kubernetes tasks.
+impersonated certificates for each specified certificate destinations and
+writes them via the appropriate backend implementation. This may be
+particularly useful for CI/CD use cases where untrusted workers run as a
+particular user that should not be granted the full set of the bot's
+privileges.
 
 (TODO: how will we handle the advanced file permissions needed to make split
 certificates useful? We can't recommend running the bot as root, but also need
 each set of certificates to be scoped to just a single Unix user otherwise the
-entire point is moot, and with appropriate Unix permissions to keep tools like
-SSH happy. Perhaps Linux FACLs can help?)
+entire point is moot. Plus, destination files need appropriate Unix permissions
+to keep tools like SSH happy. Perhaps Linux ACLs can help?)
 
 ### Security
 
@@ -226,10 +218,11 @@ assuming.
 This design is meant to encourage deployments where the bot's own data
 directory, containing the renewable certificate, is separate and inaccessible
 to other users on the system, via the native security methods of the output
-sink (e.g. Unix permissions, Kubernetes RBAC, etc). The secondary certificates
-may be written with relaxed permissions to enable use by end users. If these
-secondary certificates are stolen, not only will they not be renewable, but may
-also have only a subset of the permissions granted to the bot.
+destination (e.g. Unix permissions, Kubernetes RBAC, etc). The secondary
+certificates may be written with relaxed permissions to enable use by end
+users. If these secondary certificates are stolen, not only will they not be
+renewable, but may also have only a subset of the permissions granted to the
+bot.
 
 Unfortunately, Teleport today does not fully support the impersonation UX we
 would like to provide with the bot. As is, impersonation requires two `User`
@@ -248,16 +241,15 @@ flag.
 There are several scenarios under which the bot will initiate a renewal:
 
 1. When some fraction of a certificate's TTL has elapsed, for example 1/3 (and
-   at most 1/2). A certificate valid for 3 hours should ideally be renewed
-   every hour to ensure at least one full additional renewal iteration can take
-   place if the first fails.
+   at most 1/2). A certificate valid for 3 hours should be renewed every hour
+   to ensure at least one full additional renewal iteration can take place if
+   the first fails.
 
    Tighter renewal intervals also help to ensure compromised certificates are
    discovered sooner (see "Preventing Certificate Propagation" below).
 2. When a user and/or host CA rotation is taking place.
 3. When a renewal is requested manually. For testing and debugging purposes, the
-   bot will expose an API endpoint that can be used to trigger a renewal. This
-   API will be accessible on the loopback interface only.
+   bot trigger a renewal when it receives a `SIGUSR1` signal.
 
 While the bot generates multiple sets of certificates - that is, one primary
 renewable certificate and many secondary end-user certificates - they are all
@@ -347,23 +339,6 @@ func (c *Client) Refresh(ctx context.Context) error {
 It will be the responsibility of the caller of `Refresh` to reinitialize any
 watches or streams that the client may have been running prior to the refresh.
 
-### Certificate Specification
-
-The bot will be configured with one or more certificate specs, which can be
-supplied on the command line in the format of:
-
-```
---cert=DESTINATION,RELOAD
-```
-
-...or via a `tbot.yaml` configuration file.
-
-*TODO*: how can a user specify DNS names to include in the certs?
-
-*TODO* (Tim): Non-filesystem destinations are likely to be very difficult to
-encode as CLI flags (e.g. k8s secrets). Perhaps the CLI should only support
-local FS and other sinks should defer to `tbot.yaml`?
-
 #### Artifacts
 
 For internal use, the bot generates a set of renewable TLS certificates.
@@ -379,43 +354,34 @@ restart.
 | Private key (TLS)      | `key`        |                                  |
 
 The bot then generates a set of non-renewable credentials for each configured
-credential sink. By default, the following artifacts are always generated:
+credential destination. In the initial implementation, the following artifacts
+may or may not be generated depending on the user's configuration (kind and
+templates).
 
-| Kind                      | Path          | Notes
-| -----------------------|---------------|-------
-| Private key            | `key`         | Shared for both SSH and TLS uses        |
-| SSH public key         | `key.pub`     | Required for OpenSSH compatibility      |
-| SSH client certificate | `sshcert`     | Signed by Teleport `UserCA`             |
-| SSH CA certificates    | `sshcacerts`  | TODO: needed?                           |
-| SSH known hosts        | `known_hosts` | Teleport `HostCA` certs, OpenSSH format |
-| TLS CA certificates    | `tlscacerts`  | Teleport CA certificates (both)         |
-| TLS client certificate | `tlscert`     | Signed by Teleport `UserCA`             |
+| Kind                   | Path          | Notes                                   | Kind | Config Template
+| -----------------------|---------------|-----------------------------------------|------|---------
+| Private key            | `key`         | Shared for both SSH and TLS uses        | Both | Always
+| SSH public key         | `key.pub`     | Required for OpenSSH compatibility      | SSH  | Always
+| SSH client certificate | `sshcert`     | Signed by Teleport `UserCA`             | SSH  | Always
+| SSH known hosts        | `known_hosts` | Teleport `HostCA` certs, OpenSSH format | SSH  | `ssh-client`
+| SSH client config      | `ssh_config`  | `Include`-ready SSH client config       | SSH  | `ssh-client`
+| TLS CA certificates    | `tlscacerts`  | Teleport CA certificates (both)         | TLS  | Always
+| TLS client certificate | `tlscert`     | Signed by Teleport `UserCA`             | TLS  | Always
 
 Notes:
  * Users may optionally decide to disable persistence of the renewable
-   certificate. This has security benefits but prevents the bot from recovering
-   if stopped, as the renewable credentials would only exist in memory.
- * TLS CA certificates are verified at first connect using CA pins, following
-   Teleport's usual node joining procedure.
+   certificate using the `memory` storage backend. This has security benefits
+   but prevents the bot from recovering if stopped as the renewable credentials
+   would only exist in memory.
+ * The Teleport auth server's CA certificates are verified at first connect
+   using CA pins, following Teleport's usual node joining procedure.
  * Unneeded certificate types/formats could be optionally disabled in
    `tbot.yaml` config if desired.
- * Potential in-memory certificate sinks should be evaluated for end-users
-   (Webhooks?)
- * (TODO) Additional artifacts may be written if we decide to write app config
-   files at this stage.
-
-#### Destination
-
-The destination tells the bot where to store the certificates it generates. The
-syntax for a destination specifier is `type:location`. Initially, the only
-supported type will be `dir` which indicates that the certificates should be
-placed in a directory on the local filesystem. In the future, we may support
-additional destinations such as Kubernetes secrets, credential managers, or
-CI/CD systems. If multiple `--cert` specifiers are provided, the bot will check
-for overlapping destinations on startup, and fail fast if this is the case.
-
-*TODO (Tim): If we decide to simplify CLI to only support local FS stores,
-will need to rewrite this section.*
+ * Additional artifacts may be written if users enable any app-specific config
+   templates.
+ * In the future, we could consider ephemeral certificate destinations for
+   situations where certificates should not be written to disk (Webhooks or
+   other IPC?)
 
 #### Reload Command
 
@@ -446,28 +412,6 @@ A few alternative / additional notification methods:
 
 We should implement as many of these as makes sense (minimally shell scripts,
 and FS watches are a no-op on our end.)
-
-#### Configuration Assist
-
-One of the more time consuming aspects of setting up mutual TLS is configuring
-both sides to present the correct certificate and trust certificates signed by a
-specific CA. We aim to simplify this configuration process for common systems by
-providing a `tbot config` command which spits out snippets that can be pasted 
-directly into a configuration file.
-
-For example, if `tbot` is running on an OpenSSH server and managing/renewing a
-host certificate, `tbot config` would render the correct `/etc/ssh/ssh_config`
-configuration for presenting the host certificate and trusting users signed by
-Teleport's user CA.
-
-Initially, `tbot config` will be limited to supporting OpenSSH configuration
-(client and server).
-
-*TODO (Tim):* Per learnings from the demo, generating config may require an
-active API client (auth, proxy, etc). E.g. SSH does to generate `known_hosts`
-and to fetch the proxy address/port/etc. Perhaps it might make sense (where
-it makes sense) to generate these during the renew loop and configure them via
-`tbot.yaml`?
 
 #### Join Script
 
@@ -523,67 +467,138 @@ but make complex things possible": the simplest / most popular use cases should
 ideally require minimal (zero?) configuration beyond a concise CLI, but more
 complicated use cases can make use of a `tbot.yaml` configuration file.
 
-An example `tbot.yaml` with all advanced options specified:
+An example `tbot.yaml` with all default / advanced options specified:
 
 ```yaml
 # Storage for the bot's private data
 storage:
   # can also support any backend supporting both store + fetch
-  directory: /var/lib/tbot
+  directory: /var/lib/teleport/bot
 
-sinks:
-  - directory: /home/alice/.tbot
+  # alternatively, we can store these certificates only in memory:
+  # memory: {}
+
+# Destinations specify one or more impersonated certificates sets to generate.
+destinations:
+  # `directory` is the only destination supported in the initial iteration;
+  # the tbot process must be given permissions to write to this directory.
+  - directory: /home/alice/tbot
+
+    # One of more roles to grant to the bot. It must have been granted (at
+    # least) these roles with `tctl bots add --roles=...`
+    # By default, all possible roles are included.
     roles: [a, b, c]
 
-  # TODO: probably need to specify permissions (this will be ugly)
-  - directory: /home/bob/.tbot
+    # Which types of certificates to generate. `ssh` is the default.
+    kinds: [ssh]
+
+    # A list of configuration templates to generate and write to the
+    # destination. Defaults are decided based on the certificate kinds:
+    # `ssh` implies `ssh-client` unless manually (not) configured.
+    configs:
+      # ssh-client generates known_hosts and an ssh_config that can be
+      # included. We can ensure the correct certificate kinds are generated
+      # while generating the config templates.
+      - ssh-client
+
+  - directory: /home/bob/tbot
     roles: [b, c]
 
-  # k8s secrets support store and fetch
-  - kubernetesSecret:
-      kubeconfig: /home/user/kubeconfig
-      namespace: example
-      secretName: example-secret
-    roles: [c]
+    # TLS certificates can be generated for app / db access.
+    kinds: [ssh, tls]
 
-  # Webhooks support only store
-  - webhook: http://localhost:8001
-    roles: [a]
+    configs:
+      # Some future configuration templates may require parameters.
+      # (This is an example; ssh-server may not need this or any parameters)
+      - ssh-server:
+          hostname: example.com
 ```
+
+In future iterations, additional output destination backends may be considered.
+A few ideas include:
+ * Kubernetes secrets (to run a bot safely in k8s without requiring a PV)
+ * Webhook delivery (or other local IPC methods) to keep certificates in memory
+ * Ansible vault / Hashicorp vault / AWS secrets manager / other secret stores
+
+*TODO*: how can a user specify DNS names to include in the certs?
 
 #### External Configuration Assist
 
-In order to make it easy to consume certificates generated by `tbot`, the agent
-will have a `tbot config` subcommand that can render configuration snippets
-for common integration points.
+One of the more time consuming aspects of setting up mutual TLS is configuring
+both sides to present the correct certificate and trust certificates signed by a
+specific CA. We aim to simplify this configuration process in two ways:
 
-For example:
+1. Generating additional configuration files from a template as part of the
+   renewal loop.
+
+   Many applications require that certificates be formatted in non-standard
+   ways, depend on additional parameters that require a Teleport API client
+   to fetch, may change over time, or may require multiple files. OpenSSH
+   client configuration alone meets most of these criteria.
+
+   Users can specify which additional configuration files to generate in
+   `tbot.yaml` (initially only `ssh-client` will be provided). Templates that
+   require no additional configuration can be specified on the command-line.
+2. Providing a `tbot config` helper command for "last-mile" configuration and
+   instructions.
+
+   For applications that can consume the bot's generated credentials directly,
+   this outputs a minimal configuration example with brief instructions.
+
+   For applications supported by a config template as described above, this
+   generates a snippet to make use of the generated file, e.g.
+   `Include <path to tbot ssh_config>` for SSH config.
+
+For example, to configure an SSH client, first users will configure `tbot` to
+generate an `ssh_config` file:
+
+```yaml
+destinations:
+  - directory: /home/alice/tbot
+    configs: [ssh-client]
+```
+
+When the user next starts the bot using this config, it will write an
+`ssh_config` and a `known_hosts`, per the template:
+```
+$ tbot start -c tbot.yaml
+```
+
+Next, the user configures their SSH client to use the generated config:
+```
+$ tbot config ssh -c tbot.yaml
+To configure your SSH client, add the following to your local SSH configuration
+(~/.ssh/config):
+
+Include /home/alice/tbot/ssh_config
+```
+
+Where possible, the informative text is written to stderr to allow easy
+appending:
 
 ```
-$ tbot start ...
-$ tbot config --ssh
-To configure sshd to trust this host certificate, add the following to your sshd_config:
+$ tbot config ssh -c tbot.yaml >> ~/.ssh/config
+The following SSH config snippet was written to the pipe:
 
-HostCertificate /foo/bar/tbot-cert.pub
+Include /home/alice/tbot/ssh_config
 ```
 
-(In the above, the instructional text will be written to stderr, so that the following
-will be possible: `tbot config --ssh | sudo tee -a /etc/ssh/sshd_config`)
-
-If `tbot` is managing multiple `--cert`s, you can pass `mode:destination`
-to tell it which certificate to render configuration for.
-
-Note: `tctl auth sign` has a tiny amount of configuration templating already for
-Postgres and MongoDB certificates. We should aim to move this logic out into a
-separate package that can render configuration snippets for a variety of
-external systems. This work is out of scope for the purposes of this RFD.
+Notes:
+ * This is a contrived example as the `ssh-client` template is always generated
+   by default for `ssh`-typed certificates, which are themselves the default
+   In other words, `ssh_config` and `known_hosts` are generated if no
+   `tbot.yaml` is specified.
+ * `tctl auth sign` has a tiny amount of configuration templating already for
+   Postgres and MongoDB certificates. We should aim to move this logic out into
+   a separate package that can render configuration snippets for a variety of
+   external systems. This work is out of scope for the purposes of this RFD.
 
 #### Polling for expiration
 
-In order to watch a certificate for expiration, the
-`teleport/lib/utils/interval` package will be used. Note that tbot will only set
-up polling for _user certs_, as host certificates issued by teleport do not
-expire (host certificates *will* be re-issued during CA rotations).
+To watch a certificate for expiration, the `teleport/lib/utils/interval`
+package will be used. The tbot will only set up polling for _user certs_, as
+host certificates issued by teleport do not expire (host certificates *will* be
+re-issued during CA rotations).
 
 #### Initial User Certificates
 
