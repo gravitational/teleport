@@ -18,13 +18,9 @@ package client
 
 import (
 	"bytes"
-	"fmt"
-	"io/ioutil"
-	"math/rand"
+	"io"
 	"net"
-	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -43,14 +39,14 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
-type KeyAgentTest struct {
+type KeyAgentTestSuite struct {
 	keyDir      string
 	key         *Key
 	username    string
@@ -58,21 +54,20 @@ type KeyAgentTest struct {
 	clusterName string
 	tlsca       *tlsca.CertAuthority
 	tlscaCert   auth.TrustedCerts
-	close       func()
 }
 
-func newKeyAgentTest(t *testing.T) (*KeyAgentTest, func()) {
-	s := new(KeyAgentTest)
+func makeSuite(t *testing.T) *KeyAgentTestSuite {
+	t.Helper()
 
-	var err error
-	// path to temporary  ~/.tsh directory to use during tests
-	s.keyDir, err = ioutil.TempDir("", "keyagent-test-")
+	err := startDebugAgent(t)
 	require.NoError(t, err)
 
-	// temporary names to use during tests
-	s.username = "foo"
-	s.hostname = "bar"
-	s.clusterName = "some-cluster"
+	s := &KeyAgentTestSuite{
+		keyDir:      t.TempDir(),
+		username:    "foo",
+		hostname:    "bar",
+		clusterName: "some-cluster",
+	}
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
@@ -80,24 +75,13 @@ func newKeyAgentTest(t *testing.T) (*KeyAgentTest, func()) {
 	s.tlsca, s.tlscaCert, err = newSelfSignedCA(pemBytes)
 	require.NoError(t, err)
 
-	// temporary key to use during tests
 	s.key, err = s.makeKey(s.username, []string{s.username}, 1*time.Minute)
 	require.NoError(t, err)
 
-	// start a debug agent that will be used in tests
-	s.close, err = startDebugAgent()
-	require.NoError(t, err)
-
-	return s, func() {
-		os.RemoveAll(s.keyDir)
-		if s.close != nil {
-			s.close()
-		}
-	}
+	return s
 }
 
-// TestLocalKeyAgent_AddKey ensures correct adding of ssh keys. This test
-// checks the following:
+// TestAddKey ensures correct adding of ssh keys. This test checks the following:
 //   * When adding a key it's written to disk.
 //   * When we add a key, it's added to both the teleport ssh agent as well
 //     as the system ssh agent.
@@ -105,9 +89,8 @@ func newKeyAgentTest(t *testing.T) (*KeyAgentTest, func()) {
 //     the both the teleport ssh agent and the system ssh agent.
 //   * When we add a key, it's tagged with a comment that indicates that it's
 //     a teleport key with the teleport username.
-func TestLocalKeyAgent_AddKey(t *testing.T) {
-	s, cleanupFunc := newKeyAgentTest(t)
-	t.Cleanup(cleanupFunc)
+func TestAddKey(t *testing.T) {
+	s := makeSuite(t)
 
 	// make a new local agent
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
@@ -134,8 +117,7 @@ func TestLocalKeyAgent_AddKey(t *testing.T) {
 		keypaths.SSHCertPath(s.keyDir, s.hostname, s.username, s.key.ClusterName), // SSH certificate
 	}
 	for _, file := range expectedFiles {
-		_, err := os.Stat(file)
-		require.NoError(t, err)
+		require.FileExists(t, file)
 	}
 
 	// get all agent keys from teleport agent and system agent
@@ -173,15 +155,14 @@ func TestLocalKeyAgent_AddKey(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestLocalKeyAgent_LoadKey ensures correct loading of a key into an agent.
-// This test checks the following:
+// TestLoadKey ensures correct loading of a key into an agent. This test
+// checks the following:
 //   * Loading a key multiple times overwrites the same key.
 //   * The key is correctly loaded into the agent. This is tested by having
 //     the agent sign data that is then verified using the public key
 //     directly.
-func TestLocalKeyAgent_LoadKey(t *testing.T) {
-	s, cleanupFunc := newKeyAgentTest(t)
-	t.Cleanup(cleanupFunc)
+func TestLoadKey(t *testing.T) {
+	s := makeSuite(t)
 
 	userdata := []byte("hello, world")
 
@@ -249,9 +230,8 @@ func TestLocalKeyAgent_LoadKey(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestLocalKeyAgent_HostCertVerification(t *testing.T) {
-	s, cleanupFunc := newKeyAgentTest(t)
-	t.Cleanup(cleanupFunc)
+func TestHostCertVerification(t *testing.T) {
+	s := makeSuite(t)
 
 	// Make a new local agent.
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
@@ -300,52 +280,46 @@ func TestLocalKeyAgent_HostCertVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		desc     string
-		inAddr   string
-		outError bool
+		inAddr string
+		assert require.ErrorAssertionFunc
 	}{
+		// Correct DNS is valid.
 		{
-			desc:     "Correct DNS is valid",
-			inAddr:   "server01.example.com:3022",
-			outError: false,
+			inAddr: "server01.example.com:3022",
+			assert: require.NoError,
 		},
+		// Hostname only is valid.
 		{
-			desc:     "Hostname only is valid",
-			inAddr:   "server01:3022",
-			outError: false,
+			inAddr: "server01:3022",
+			assert: require.NoError,
 		},
+		// IP is valid.
 		{
-			desc:     "IP is valid",
-			inAddr:   "127.0.0.1:3022",
-			outError: false,
+			inAddr: "127.0.0.1:3022",
+			assert: require.NoError,
 		},
+		// UUID is valid.
 		{
-			desc:     "UUID is valid",
-			inAddr:   "5ff40d80-9007-4f28-8f49-7d4fda2f574d.example.com:3022",
-			outError: false,
+			inAddr: "5ff40d80-9007-4f28-8f49-7d4fda2f574d.example.com:3022",
+			assert: require.NoError,
 		},
+		// Wrong DNS name is invalid.
 		{
-			desc:     "Wrong DNS name is invalid",
-			inAddr:   "server02.example.com:3022",
-			outError: true,
+			inAddr: "server02.example.com:3022",
+			assert: require.Error,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
+		t.Run(tt.inAddr, func(t *testing.T) {
 			err = lka.CheckHostSignature(tt.inAddr, nil, hostPublicKey)
-			if tt.outError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			tt.assert(t, err)
 		})
 	}
 }
 
-func TestLocalKeyAgent_HostKeyVerification(t *testing.T) {
-	s, cleanupFunc := newKeyAgentTest(t)
-	t.Cleanup(cleanupFunc)
+func TestHostKeyVerification(t *testing.T) {
+	s := makeSuite(t)
 
 	// make a new local agent
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
@@ -378,7 +352,8 @@ func TestLocalKeyAgent_HostKeyVerification(t *testing.T) {
 	}
 	var a net.TCPAddr
 	err = lka.CheckHostSignature("luna", &a, pk)
-	require.EqualError(t, err, "luna cannot be trusted!")
+	require.Error(t, err)
+	require.Equal(t, "luna cannot be trusted!", err.Error())
 	require.True(t, lka.UserRefusedHosts())
 
 	// clean user answer:
@@ -406,9 +381,8 @@ func TestLocalKeyAgent_HostKeyVerification(t *testing.T) {
 	require.False(t, userWasAsked)
 }
 
-func TestLocalKeyAgent_DefaultHostPromptFunc(t *testing.T) {
-	s, cleanupFunc := newKeyAgentTest(t)
-	t.Cleanup(cleanupFunc)
+func TestDefaultHostPromptFunc(t *testing.T) {
+	s := makeSuite(t)
 
 	keygen := testauthority.New()
 
@@ -429,41 +403,36 @@ func TestLocalKeyAgent_DefaultHostPromptFunc(t *testing.T) {
 
 	tests := []struct {
 		inAnswer []byte
-		outError bool
+		assert   require.ErrorAssertionFunc
 	}{
 		{
 			inAnswer: []byte("y\n"),
-			outError: false,
+			assert:   require.NoError,
 		},
 		{
 			inAnswer: []byte("n\n"),
-			outError: true,
+			assert:   require.Error,
 		},
 		{
 			inAnswer: []byte("foo\n"),
-			outError: true,
+			assert:   require.Error,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(strings.TrimSpace(string(tt.inAnswer)), func(t *testing.T) {
+		t.Run(string(bytes.TrimSpace(tt.inAnswer)), func(t *testing.T) {
 			// Write an answer to the "keyboard".
 			var buf bytes.Buffer
 			buf.Write(tt.inAnswer)
 
-			err = a.defaultHostPromptFunc("example.com", key, ioutil.Discard, &buf)
-			if tt.outError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			err = a.defaultHostPromptFunc("example.com", key, io.Discard, &buf)
+			tt.assert(t, err)
 		})
 	}
 }
 
-func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
-	s, cleanupFunc := newKeyAgentTest(t)
-	t.Cleanup(cleanupFunc)
+func TestKeyAgent_AddDatabaseKey(t *testing.T) {
+	s := makeSuite(t)
 
 	// make a new local agent
 	keystore, err := NewFSLocalKeyStore(s.keyDir)
@@ -494,7 +463,7 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 	})
 }
 
-func (s *KeyAgentTest) makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, error) {
+func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, error) {
 	keygen := testauthority.New()
 
 	privateKey, publicKey, err := keygen.GenerateKeyPair("")
@@ -550,11 +519,10 @@ func (s *KeyAgentTest) makeKey(username string, allowedLogins []string, ttl time
 	}
 
 	return &Key{
-		Priv:      privateKey,
-		Pub:       publicKey,
-		Cert:      certificate,
-		TLSCert:   tlsCert,
-		TrustedCA: []auth.TrustedCerts{s.tlscaCert},
+		Priv:    privateKey,
+		Pub:     publicKey,
+		Cert:    certificate,
+		TLSCert: tlsCert,
 		KeyIndex: KeyIndex{
 			ProxyHost:   s.hostname,
 			Username:    username,
@@ -563,18 +531,15 @@ func (s *KeyAgentTest) makeKey(username string, allowedLogins []string, ttl time
 	}, nil
 }
 
-func startDebugAgent() (closer func(), err error) {
-	rand.Seed(time.Now().Unix())
-	socketpath := filepath.Join(os.TempDir(),
-		fmt.Sprintf("teleport-%d-%d.socket", os.Getpid(), rand.Uint32()))
-
+func startDebugAgent(t *testing.T) error {
+	socketpath := filepath.Join(t.TempDir(), "teleport-test")
 	listener, err := net.Listen("unix", socketpath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	systemAgent := agent.NewKeyring()
-	os.Setenv(teleport.SSHAuthSock, socketpath)
+	t.Setenv(teleport.SSHAuthSock, socketpath)
 
 	startedC := make(chan struct{})
 	doneC := make(chan struct{})
@@ -582,7 +547,6 @@ func startDebugAgent() (closer func(), err error) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		defer os.Setenv(teleport.SSHAuthSock, "")
 		// agent is listening and environment variable is set, unblock now
 		close(startedC)
 		for {
@@ -612,10 +576,12 @@ func startDebugAgent() (closer func(), err error) {
 		wg.Done()
 	}()
 
-	// block until agent is started
-	<-startedC
-	return func() {
+	t.Cleanup(func() {
 		close(doneC)
 		wg.Wait()
-	}, nil
+	})
+
+	// block until agent is started
+	<-startedC
+	return nil
 }

@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -34,9 +33,7 @@ import (
 
 // TestProxySSHDial verifies "tsh proxy ssh" command.
 func TestProxySSHDial(t *testing.T) {
-	// Setup ssh agent.
-	sockPath := createAgent(t)
-	os.Setenv("SSH_AUTH_SOCK", sockPath)
+	createAgent(t)
 
 	tmpHomePath := t.TempDir()
 
@@ -90,14 +87,15 @@ func TestProxySSHDial(t *testing.T) {
 	require.Contains(t, err.Error(), "subsystem request failed")
 }
 
-func createAgent(t *testing.T) string {
+func createAgent(t *testing.T) {
+	t.Helper()
+
 	user, err := user.Current()
 	require.NoError(t, err)
 
-	sockDir, err := ioutil.TempDir("", "int-test")
-	require.NoError(t, err)
-
+	sockDir := t.TempDir()
 	sockPath := filepath.Join(sockDir, "agent.sock")
+	t.Setenv("SSH_AUTH_SOCK", sockPath)
 
 	uid, err := strconv.Atoi(user.Uid)
 	require.NoError(t, err)
@@ -116,6 +114,4 @@ func createAgent(t *testing.T) string {
 	t.Cleanup(func() {
 		teleAgent.Close()
 	})
-
-	return sockPath
 }
