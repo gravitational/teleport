@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.2.19
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2021-43565](https://groups.google.com/g/golang-announce/c/2AR1sKiM-Qs) by updating golang.org/x/crypto. [#9202](https://github.com/gravitational/teleport/pull/9202)
+
 ## 6.2.18
 
 * Fix type error in config validation when using `routing_strategy` config option.
