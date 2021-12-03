@@ -18,6 +18,7 @@ package review
 
 import (
 	"encoding/json"
+	"log"
 	"math/rand"
 	"time"
 
@@ -124,14 +125,18 @@ func (r *Assignments) Get(author string, docs bool, code bool) []string {
 
 	switch {
 	case docs && code:
+		log.Printf("Assign: Found docs and code changes.")
 		reviewers = append(reviewers, r.getDocsReviewers(author)...)
 		reviewers = append(reviewers, r.getCodeReviewers(author)...)
 	case !docs && code:
+		log.Printf("Assign: Found code changes.")
 		reviewers = append(reviewers, r.getCodeReviewers(author)...)
 	case docs && !code:
+		log.Printf("Assign: Found docs changes.")
 		reviewers = append(reviewers, r.getDocsReviewers(author)...)
 	// Strange state, an empty commit? Return admin reviewers.
 	case !docs && !code:
+		log.Printf("Assign: Found no docs or code changes.")
 		reviewers = append(reviewers, r.getAdminReviewers(author)...)
 	}
 
