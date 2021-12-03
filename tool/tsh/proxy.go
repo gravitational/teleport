@@ -115,6 +115,7 @@ func sshProxy(cf *CLIConf, tc *libclient.TeleportClient, targetHost, targetPort 
 
 	sshHost, sshPort := tc.SSHProxyHostPort()
 	args := []string{
+		"-A",
 		"-p",
 		strconv.Itoa(sshPort),
 		sshHost,
