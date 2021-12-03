@@ -1,5 +1,22 @@
 # Changelog
 
+## 8.0.1
+
+This release of Teleport contains multiple improvements, bug fixes and a security fix.
+
+* Mitigated [CVE-2021-43565](https://groups.google.com/g/golang-announce/c/2AR1sKiM-Qs) by updating golang.org/x/crypto. [#9203](https://github.com/gravitational/teleport/pull/9203)
+* Desktop Access: Windows Desktop discovery can now be customized by specifying a base DN and LDAP filters to search. [#9201](https://github.com/gravitational/teleport/pull/9201)
+* Added Azure PostgreSQL and MySQL managed identity authentication support to database access. [#9185](https://github.com/gravitational/teleport/pull/9185)
+* Added support for RBAC "where" condition for active sessions. [#9076](https://github.com/gravitational/teleport/pull/9076)
+* Added hint to `tsh` that MFA is not supported on Windows. [#9198](https://github.com/gravitational/teleport/pull/9198)
+* Fixed an issue with long redirect URLs causing `tsh login` to fail. [#8980](https://github.com/gravitational/teleport/pull/8980)
+* Fixed Okta SAML authentication issues when email address contains `+` sign. [#8396](https://github.com/gravitational/teleport/pull/8396)
+* Added application metadata to application access audit events. [#9056](https://github.com/gravitational/teleport/pull/9056)
+* Fixed an issue with malformed MySQL client handshake messages crashing proxy. [#9162](https://github.com/gravitational/teleport/pull/9162)
+* Added support for `--cert-file`, `--key-file` and `--public-addr` to `teleport configure` command. [#9049](https://github.com/gravitational/teleport/pull/9049)
+* Made sure reverse tunnel agents reconnect to the proxy after tunnel address change. [#9043](https://github.com/gravitational/teleport/pull/9043)
+* Made Teleport startup more resilient to the presence of invalid roles in the backend. [#9105](https://github.com/gravitational/teleport/pull/9105)
+
 ## 8.0.0
 
 Teleport 8.0 is a major release of Teleport that contains new features, improvements, and bug fixes.
