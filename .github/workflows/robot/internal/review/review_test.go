@@ -102,8 +102,8 @@ func TestGetCodeReviewers(t *testing.T) {
 				},
 			},
 			author: "5",
-			setA:   []string{"1", "2"},
-			setB:   []string{"1", "2"},
+			setA:   []string{"1"},
+			setB:   []string{"2"},
 		},
 		{
 			desc: "normal",
