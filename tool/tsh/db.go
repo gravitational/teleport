@@ -152,12 +152,17 @@ func onDatabaseLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var logout []tlsca.RouteToDatabase
 	// If database name wasn't given on the command line, log out of all.
 	if cf.DatabaseService == "" {
-		logout = profile.Databases
+		logout = activeDatabases
 	} else {
-		for _, db := range profile.Databases {
+		for _, db := range activeDatabases {
 			if db.ServiceName == cf.DatabaseService {
 				logout = append(logout, db)
 			}
