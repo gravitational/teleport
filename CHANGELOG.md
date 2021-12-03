@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.3.6
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2021-43565](https://groups.google.com/g/golang-announce/c/2AR1sKiM-Qs) by updating golang.org/x/crypto. [#9204](https://github.com/gravitational/teleport/pull/9204)
+
+## 7.3.5
+
 This release of Teleport contains a fix.
 
 * Fixed issue in Database Access that could cause MySQL listeners to crash. [#9163](https://github.com/gravitational/teleport/pull/9163)
