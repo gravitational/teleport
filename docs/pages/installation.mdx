@@ -18,14 +18,8 @@ up-to-date information.
 <Tabs>
   <TabItem label="Debian/Ubuntu (DEB)">
     ```code
-    # Install our public key.
-    $ curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
-    # Add repo to APT
-    $ add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
-    # Update APT Cache
-    $ apt-get update
-    # Install Teleport
-    $ apt install teleport
+    $ curl -O https://get.gravitational.com/teleport-(=teleport.version=)_amd64.deb
+    $ sudo dpkg -i teleport_(=teleport.version=)_amd64.deb
     ```
   </TabItem>
 
