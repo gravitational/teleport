@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package types_test
+package types
 
 import (
 	"fmt"
@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,7 +79,7 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 		constants.SecondFactorOptional,
 	}
 
-	minimalU2F := &types.U2F{
+	minimalU2F := &U2F{
 		AppID: "https://localhost:3080",
 		Facets: []string{
 			"https://localhost:3080",
@@ -89,7 +88,7 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			"localhost",
 		},
 	}
-	minimalWeb := &types.Webauthn{
+	minimalWeb := &Webauthn{
 		RPID: "localhost",
 	}
 
@@ -97,12 +96,12 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 		name string
 
 		secondFactors []constants.SecondFactorType
-		spec          types.AuthPreferenceSpecV2
+		spec          AuthPreferenceSpecV2
 
 		// wantErr is a substring of the returned error
 		wantErr string
 		// assertFn is an optional asserting function
-		assertFn func(t *testing.T, got *types.AuthPreferenceV2)
+		assertFn func(t *testing.T, got *AuthPreferenceV2)
 	}{
 		// General testing.
 		{
@@ -116,7 +115,7 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 		{
 			name:          "OK U2F minimal configuration",
 			secondFactors: secondFactorAll,
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				U2F: minimalU2F,
 			},
 		},
@@ -138,26 +137,26 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				Webauthn: minimalWeb,
 			},
 		},
 		{
 			name:          "OK Webauthn derived from U2F",
 			secondFactors: secondFactorWebActive,
-			spec: types.AuthPreferenceSpecV2{
-				U2F: &types.U2F{
+			spec: AuthPreferenceSpecV2{
+				U2F: &U2F{
 					AppID:                "https://example.com:1234",
 					Facets:               []string{"https://example.com:1234"},
 					DeviceAttestationCAs: []string{yubicoU2FCA},
 				},
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				// Did we derive the WebAuthn config from U2F?
 				if sf := got.GetSecondFactor(); sf == constants.SecondFactorWebauthn ||
 					sf == constants.SecondFactorOn ||
 					sf == constants.SecondFactorOptional {
-					wantWeb := &types.Webauthn{
+					wantWeb := &Webauthn{
 						RPID:                  "example.com",
 						AttestationAllowedCAs: []string{yubicoU2FCA},
 					}
@@ -170,14 +169,14 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 		{
 			name:          "OK Webauthn derived from non-URL",
 			secondFactors: secondFactorWebActive,
-			spec: types.AuthPreferenceSpecV2{
-				U2F: &types.U2F{
+			spec: AuthPreferenceSpecV2{
+				U2F: &U2F{
 					AppID:  "teleport", // "teleport" gets parsed as a Path, not a Host.
 					Facets: []string{"teleport"},
 				},
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
-				wantWeb := &types.Webauthn{
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
+				wantWeb := &Webauthn{
 					RPID: "teleport",
 				}
 				gotWeb, err := got.GetWebauthn()
@@ -195,13 +194,13 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				U2F: minimalU2F,
-				Webauthn: &types.Webauthn{
+				Webauthn: &Webauthn{
 					Disabled: true,
 				},
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.False(t, got.IsSecondFactorWebauthnAllowed(), "webauthn second factor allowed")
 				require.NotEqual(t, constants.SecondFactorWebauthn, got.GetPreferredLocalMFA(), "webauthn set as preferred MFA")
 			},
@@ -211,8 +210,8 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			secondFactors: []constants.SecondFactorType{
 				constants.SecondFactorWebauthn,
 			},
-			spec: types.AuthPreferenceSpecV2{
-				Webauthn: &types.Webauthn{
+			spec: AuthPreferenceSpecV2{
+				Webauthn: &Webauthn{
 					Disabled: true,
 				},
 			},
@@ -224,8 +223,8 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
 			},
-			spec: types.AuthPreferenceSpecV2{
-				Webauthn: &types.Webauthn{
+			spec: AuthPreferenceSpecV2{
+				Webauthn: &Webauthn{
 					Disabled: true,
 				},
 			},
@@ -234,8 +233,8 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 		{
 			name:          "OK Webauthn with attestation CAs",
 			secondFactors: secondFactorWebActive,
-			spec: types.AuthPreferenceSpecV2{
-				Webauthn: &types.Webauthn{
+			spec: AuthPreferenceSpecV2{
+				Webauthn: &Webauthn{
 					RPID:                  "example.com",
 					AttestationAllowedCAs: []string{appleWebauthnRoot},
 					AttestationDeniedCAs:  []string{yubicoU2FCA},
@@ -250,16 +249,16 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 		{
 			name:          "NOK Webauthn missing RPID",
 			secondFactors: secondFactorWebActive,
-			spec: types.AuthPreferenceSpecV2{
-				Webauthn: &types.Webauthn{},
+			spec: AuthPreferenceSpecV2{
+				Webauthn: &Webauthn{},
 			},
 			wantErr: "missing rp_id",
 		},
 		{
 			name:          "NOK Webauthn invalid allowed CA",
 			secondFactors: secondFactorWebActive,
-			spec: types.AuthPreferenceSpecV2{
-				Webauthn: &types.Webauthn{
+			spec: AuthPreferenceSpecV2{
+				Webauthn: &Webauthn{
 					RPID:                  "example.com",
 					AttestationAllowedCAs: []string{"bad inline cert"},
 				},
@@ -269,8 +268,8 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 		{
 			name:          "NOK Webauthn invalid denied CA",
 			secondFactors: secondFactorWebActive,
-			spec: types.AuthPreferenceSpecV2{
-				Webauthn: &types.Webauthn{
+			spec: AuthPreferenceSpecV2{
+				Webauthn: &Webauthn{
 					RPID:                 "example.com",
 					AttestationDeniedCAs: []string{"bad inline cert"},
 				},
@@ -286,11 +285,11 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorWebauthn,
 				constants.SecondFactorOn,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				U2F:      minimalU2F,
 				Webauthn: minimalWeb,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.True(t, got.IsSecondFactorEnforced(), "second factor not enforced")
 			},
 		},
@@ -300,10 +299,10 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOff,
 				constants.SecondFactorOptional,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				Webauthn: minimalWeb,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.False(t, got.IsSecondFactorEnforced(), "second factor enforced")
 			},
 		},
@@ -315,10 +314,10 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				Webauthn: minimalWeb,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.True(t, got.IsSecondFactorTOTPAllowed(), "OTP not allowed")
 			},
 		},
@@ -329,11 +328,11 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorU2F,
 				constants.SecondFactorWebauthn,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				U2F:      minimalU2F,
 				Webauthn: minimalWeb,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.False(t, got.IsSecondFactorTOTPAllowed(), "OTP allowed")
 			},
 		},
@@ -344,10 +343,10 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				U2F: minimalU2F,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.True(t, got.IsSecondFactorU2FAllowed(), "U2F not allowed")
 			},
 		},
@@ -358,11 +357,11 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOTP,
 				constants.SecondFactorWebauthn,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				U2F:      minimalU2F,
 				Webauthn: minimalWeb,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.False(t, got.IsSecondFactorU2FAllowed(), "U2F allowed")
 			},
 		},
@@ -372,10 +371,10 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				Webauthn: minimalWeb,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.False(t, got.IsSecondFactorU2FAllowed(), "U2F allowed")
 			},
 		},
@@ -387,10 +386,10 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				Webauthn: minimalWeb,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.True(t, got.IsSecondFactorWebauthnAllowed(), "Webauthn not allowed")
 			},
 		},
@@ -401,11 +400,11 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOTP,
 				constants.SecondFactorU2F,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				U2F:      minimalU2F,
 				Webauthn: minimalWeb,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.False(t, got.IsSecondFactorWebauthnAllowed(), "Webauthn allowed")
 			},
 		},
@@ -415,13 +414,13 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				U2F: minimalU2F,
-				Webauthn: &types.Webauthn{
+				Webauthn: &Webauthn{
 					Disabled: true,
 				},
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.False(t, got.IsSecondFactorWebauthnAllowed(), "Webauthn allowed")
 			},
 		},
@@ -431,7 +430,7 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			secondFactors: []constants.SecondFactorType{
 				constants.SecondFactorOff,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.Empty(t, got.GetPreferredLocalMFA(), "preferred local MFA not empty")
 			},
 		},
@@ -440,7 +439,7 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			secondFactors: []constants.SecondFactorType{
 				constants.SecondFactorOTP,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.Equal(t, constants.SecondFactorOTP, got.GetPreferredLocalMFA())
 			},
 		},
@@ -451,13 +450,13 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				U2F: minimalU2F,
-				Webauthn: &types.Webauthn{
+				Webauthn: &Webauthn{
 					Disabled: true,
 				},
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.Equal(t, constants.SecondFactorU2F, got.GetPreferredLocalMFA())
 			},
 		},
@@ -468,11 +467,11 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
 			},
-			spec: types.AuthPreferenceSpecV2{
+			spec: AuthPreferenceSpecV2{
 				U2F:      minimalU2F,
 				Webauthn: minimalWeb,
 			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+			assertFn: func(t *testing.T, got *AuthPreferenceV2) {
 				require.Equal(t, constants.SecondFactorWebauthn, got.GetPreferredLocalMFA())
 			},
 		},
@@ -482,7 +481,7 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			// Sanity check setup.
 			require.NotEmpty(t, test.secondFactors, "test must provide second factor values")
 
-			cap := &types.AuthPreferenceV2{
+			cap := &AuthPreferenceV2{
 				Spec: test.spec,
 			}
 

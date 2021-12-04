@@ -12,27 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types_test
-
+package types
 import (
 	"testing"
 	"time"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 func TestMFADevice_CheckAndSetDefaults(t *testing.T) {
 	now := time.Now()
 
-	newWebauthnDevice := func(d *types.WebauthnDevice) *types.MFADevice {
-		return &types.MFADevice{
-			Metadata: types.Metadata{
+	newWebauthnDevice := func(d *WebauthnDevice) *MFADevice {
+		return &MFADevice{
+			Metadata: Metadata{
 				Name: "webauthn",
 			},
 			Id:       "web-0001",
 			AddedAt:  now,
 			LastUsed: now,
-			Device: &types.MFADevice_Webauthn{
+			Device: &MFADevice_Webauthn{
 				Webauthn: d,
 			},
 		}
@@ -40,36 +37,36 @@ func TestMFADevice_CheckAndSetDefaults(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		dev     *types.MFADevice
+		dev     *MFADevice
 		wantErr bool
 	}{
 		{
 			name: "OK OTP device",
-			dev: &types.MFADevice{
-				Metadata: types.Metadata{
+			dev: &MFADevice{
+				Metadata: Metadata{
 					Name: "otp",
 				},
 				Id:       "otp-0001",
 				AddedAt:  now,
 				LastUsed: now,
-				Device:   &types.MFADevice_Totp{}, // validated elsewhere
+				Device:   &MFADevice_Totp{}, // validated elsewhere
 			},
 		},
 		{
 			name: "OK U2F device",
-			dev: &types.MFADevice{
-				Metadata: types.Metadata{
+			dev: &MFADevice{
+				Metadata: Metadata{
 					Name: "u2f",
 				},
 				Id:       "u2f-0001",
 				AddedAt:  now,
 				LastUsed: now,
-				Device:   &types.MFADevice_U2F{}, // validated elsewhere
+				Device:   &MFADevice_U2F{}, // validated elsewhere
 			},
 		},
 		{
 			name: "OK Webauthn device",
-			dev: newWebauthnDevice(&types.WebauthnDevice{
+			dev: newWebauthnDevice(&WebauthnDevice{
 				CredentialId:     []byte("web credential ID"),
 				PublicKeyCbor:    []byte("web public key"),
 				SignatureCounter: 0,
@@ -82,14 +79,14 @@ func TestMFADevice_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "NOK Webauthn missing credential ID",
-			dev: newWebauthnDevice(&types.WebauthnDevice{
+			dev: newWebauthnDevice(&WebauthnDevice{
 				PublicKeyCbor: []byte("web public key"),
 			}),
 			wantErr: true,
 		},
 		{
 			name: "NOK Webauthn missing public key",
-			dev: newWebauthnDevice(&types.WebauthnDevice{
+			dev: newWebauthnDevice(&WebauthnDevice{
 				CredentialId: []byte("web credential ID"),
 			}),
 			wantErr: true,
