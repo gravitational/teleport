@@ -518,6 +518,10 @@ func TestCheckInternal(t *testing.T) {
 	}
 }
 
+func TestDrop(t *testing.T) {
+	max([]int{2, 4, 4, 4, 5, 5, 7, 9})
+}
+
 // TestFromString tests if configuration is correctly read in from a string.
 func TestFromString(t *testing.T) {
 	r, err := FromString(reviewers)

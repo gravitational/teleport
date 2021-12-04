@@ -19,6 +19,7 @@ package review
 import (
 	"encoding/json"
 	"log"
+	"math"
 	"math/rand"
 	"time"
 
@@ -184,7 +185,8 @@ func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 		return reviewers[:n], reviewers[n:]
 	}
 
-	return getReviewerSets(author, v.Team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
+	setA, setB := getReviewerSets(author, v.Team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
+
 }
 
 // CheckExternal requires two admins have approved.
@@ -295,7 +297,7 @@ func getReviewerSets(author string, team string, reviewers map[string]Reviewer, 
 		}
 	}
 
-	return setA, setB
+	return filter(setA), filter(setB)
 }
 
 func check(reviewers []string, reviews map[string]*github.Review) bool {
@@ -312,6 +314,23 @@ func checkN(reviewers []string, reviews map[string]*github.Review) int {
 		}
 	}
 	return n
+}
+
+func maximum(counts []int) int {
+	var mu float64
+	var mean float64
+
+	for _, v := range counts {
+		mean += float64(v)
+	}
+	mean = mean / float64(len(counts))
+
+	for _, v := range counts {
+		mu += math.Pow(float64(v)-mean, 2)
+	}
+	mu = math.Sqrt(mu / float64(len(counts)))
+
+	return math.Round(mean + mu)
 }
 
 const (
