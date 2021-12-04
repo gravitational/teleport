@@ -3347,20 +3347,7 @@ steps:
         # copy artifacts to PVC
         cp -r /go/reprepro/teleport /debrepo/
 
-  - name: Sync DEB repo changes to S3
-    image: amazon/aws-cli
-    environment:
-      AWS_S3_BUCKET:
-        from_secret: DEBREPO_AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: DEBREPO_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: DEBREPO_AWS_SECRET_ACCESS_KEY
-    volumes:
-      - name: debrepo
-        path: /debrepo
-    commands:
-    - aws s3 sync /debrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+  # Deb repo publish disabled for https://github.com/gravitational/teleport/issues/8166
 
 services:
   - name: Start Docker
@@ -3389,6 +3376,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 45e3ba7312b372ba3e892098cbc4ea200abd109397ef89e775e7d8f6188aad2a
+hmac: e0c9a444f13dc7affad8deabd4d212ebe83bc34e71026151f6481d3b253747f4
 
 ...
