@@ -26,8 +26,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/server"
@@ -82,7 +82,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clientIP, err := dbutils.ClientIPFromConn(clientConn)
+	clientIP, err := utils.ClientIPFromConn(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

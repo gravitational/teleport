@@ -34,12 +34,12 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -76,6 +76,8 @@ type ProxyServerConfig struct {
 	Tunnel reversetunnel.Server
 	// TLSConfig is the proxy server TLS configuration.
 	TLSConfig *tls.Config
+	// Limiter is the connection limiter.
+	Limiter *limiter.ConnectionsLimiter
 	// Emitter is used to emit audit events.
 	Emitter events.Emitter
 	// Clock to override clock in tests.
@@ -235,7 +237,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clientIP, err := dbutils.ClientIPFromConn(conn)
+	clientIP, err := utils.ClientIPFromConn(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -269,7 +271,7 @@ func (s *ProxyServer) dispatch(clientConn net.Conn) (common.Proxy, error) {
 		muxConn.Protocol())
 }
 
-// postgresProxy returns a new instance of the Postgres protocol aware proxy.
+// PostgresProxy returns a new instance of the Postgres protocol aware proxy.
 func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	return &postgres.Proxy{
 		TLSConfig:  s.cfg.TLSConfig,
@@ -279,7 +281,7 @@ func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	}
 }
 
-// mysqlProxy returns a new instance of the MySQL protocol aware proxy.
+// MySQLProxy returns a new instance of the MySQL protocol aware proxy.
 func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	return &mysql.Proxy{
 		TLSConfig:  s.cfg.TLSConfig,
@@ -298,6 +300,12 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 //
 // Implements common.Service.
 func (s *ProxyServer) Connect(ctx context.Context, params common.ConnectParams) (net.Conn, *auth.Context, error) {
+	// Apply rate limiting.
+	if err := s.cfg.Limiter.AcquireConnection(params.ClientIP); err != nil {
+		return nil, nil, trace.LimitExceeded("client %v exceeded connection limit", params.ClientIP)
+	}
+	// Limiter will be decremented by ConnCloseWrapper below.
+
 	proxyContext, err := s.authorize(ctx, params)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -329,7 +337,14 @@ func (s *ProxyServer) Connect(ctx context.Context, params common.ConnectParams) 
 		// remote server during TLS handshake. On the remote side, the connection
 		// received from the reverse tunnel will be handled by tls.Server.
 		serviceConn = tls.Client(serviceConn, tlsConfig)
-		return serviceConn, proxyContext.authContext, nil
+		// Wrap connection, so we can decrement the limit when the connection is closed.
+		srvConn := &utils.ConnCloseWrapper{
+			Conn: serviceConn,
+			BeforeClose: func() {
+				s.cfg.Limiter.ReleaseConnection(params.ClientIP)
+			},
+		}
+		return srvConn, proxyContext.authContext, nil
 	}
 	return nil, nil, trace.BadParameter("failed to connect to any of the database servers")
 }

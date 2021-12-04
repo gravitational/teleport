@@ -30,6 +30,7 @@ type Proxy interface {
 	HandleConnection(context.Context, net.Conn) error
 }
 
+// ConnectParams keeps parameters used when connecting to Service.
 type ConnectParams struct {
 	// User is a database username.
 	User string

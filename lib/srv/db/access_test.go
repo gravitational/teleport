@@ -840,6 +840,9 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 			testCtx.fakeRemoteSite,
 		},
 	}
+	// Empty config means no limit.
+	connLimiter, err := limiter.NewConnectionsLimiter(limiter.Config{})
+	require.NoError(t, err)
 
 	// Create test audit events emitter.
 	testCtx.emitter = newTestEmitter()
@@ -851,6 +854,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		Authorizer:  proxyAuthorizer,
 		Tunnel:      tunnel,
 		TLSConfig:   tlsConfig,
+		Limiter:     connLimiter,
 		Emitter:     testCtx.emitter,
 		Clock:       testCtx.clock,
 		ServerID:    "proxy-server",

@@ -18,7 +18,6 @@ package dbutils
 
 import (
 	"crypto/tls"
-	"net"
 
 	"github.com/gravitational/trace"
 
@@ -39,16 +38,4 @@ func IsDatabaseConnection(state tls.ConnectionState) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	return identity.RouteToDatabase.ServiceName != "", nil
-}
-
-// ClientIPFromConn extracts host from provided remote address.
-func ClientIPFromConn(conn net.Conn) (string, error) {
-	clientRemoteAddr := conn.RemoteAddr()
-
-	clientIP, _, err := net.SplitHostPort(clientRemoteAddr.String())
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return clientIP, nil
 }

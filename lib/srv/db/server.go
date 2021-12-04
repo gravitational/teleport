@@ -173,11 +173,8 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		}
 	}
 	if c.Limiter == nil {
-		// Set default limiter if one is not provided.
-		connLimiter := limiter.Config{}
-		defaults.ConfigureLimiter(&connLimiter)
-
-		c.Limiter, err = limiter.NewConnectionsLimiter(connLimiter)
+		// Use default limiter if nothing is provided. Connection limiting will be disabled.
+		c.Limiter, err = limiter.NewConnectionsLimiter(limiter.Config{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -661,12 +658,16 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	}
 
 	clientIP := sessionCtx.Identity.ClientIP
-	s.log.Debugf("Real client IP %s", clientIP)
+	if clientIP != "" {
+		s.log.Debugf("Real client IP %s", clientIP)
 
-	if err := s.cfg.Limiter.AcquireConnection(clientIP); err != nil {
-		return trace.WrapWithMessage(err, "Exceeded connection limit.")
+		if err := s.cfg.Limiter.AcquireConnection(clientIP); err != nil {
+			return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
+		}
+		defer s.cfg.Limiter.ReleaseConnection(clientIP)
+	} else {
+		s.log.Debug("ClientIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
 	}
-	defer s.cfg.Limiter.ReleaseConnection(clientIP)
 
 	streamWriter, err := s.newStreamWriter(sessionCtx)
 	if err != nil {
