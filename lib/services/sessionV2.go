@@ -253,7 +253,8 @@ func (s *sessionV2) removeSessionFromList(ctx context.Context, sessionID string)
 		}
 
 		doGC := session.GetCreated().Add(gcDelay).Before(time.Now().UTC()) && session.GetState() == types.SessionState_SessionStateTerminated
-		if id == sessionID || doGC {
+		isStale := session.GetExpires().Before(time.Now().UTC())
+		if id == sessionID || doGC || isStale {
 			list = append(list[:i], list[i+1:]...)
 			found = true
 			break

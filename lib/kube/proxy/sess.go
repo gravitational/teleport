@@ -279,6 +279,8 @@ type session struct {
 
 	initiator uuid.UUID
 
+	expires time.Time
+
 	sess *clusterSession
 
 	closeC chan struct{}
@@ -326,6 +328,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		sess:              sess,
 		closeC:            make(chan struct{}),
 		initiator:         initiator.Id,
+		expires:           time.Now().UTC().Add(time.Hour * 24),
 	}
 
 	err = s.trackerCreate(initiator)
@@ -337,23 +340,15 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 }
 
 func broadcastMessage(w func(p []byte) (int, error), text string) error {
-	data := []byte(text + "\n\r")
-	for len(data) > 0 {
-		n, err := w(data)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		data = data[n:]
-	}
-
-	return nil
+	data := []byte("\n\rTeleport > " + text + "\n\r")
+	return trace.Wrap(utils.WriteAll(w, data))
 }
 
 func (s *session) waitOnAccess() {
 	s.clients_stdin.Off()
 	s.clients_stdout.Off()
 	s.clients_stderr.Off()
-	broadcastMessage(s.clients_stdout.WriteUnconditional, "\r\nSession paused, Waiting for required participants...")
+	broadcastMessage(s.clients_stdout.WriteUnconditional, "Session paused, Waiting for required participants...")
 
 	c := make(chan interface{})
 	s.stateUpdate.Register(c)
@@ -384,6 +379,21 @@ func (s *session) launch() error {
 		err := s.Close()
 		if err != nil {
 			log.WithError(err).Errorf("Failed to close session: %v", s.id)
+		}
+	}()
+
+	go func() {
+		select {
+		case <-time.After(time.Until(s.expires)):
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			broadcastMessage(s.clients_stdout.WriteUnconditional, "Session expired, closing...")
+
+			err := s.Close()
+			if err != nil {
+				s.log.WithError(err).Error("Failed to close session")
+			}
+		case <-s.closeC:
 		}
 	}()
 
@@ -747,7 +757,7 @@ func (s *session) join(p *party) error {
 		return trace.Wrap(err)
 	}
 
-	broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("\r\nUser %v joined the session.", p.Ctx.User.GetName()))
+	broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("User %v joined the session.", p.Ctx.User.GetName()))
 
 	if s.tty {
 		s.log.Debug("adding resize stream")
@@ -761,7 +771,7 @@ func (s *session) join(p *party) error {
 
 	s.log.Debug("replaying recent writes to stdout")
 	recentWrites := s.clients_stdout.W.W.(*srv.MultiWriter).GetRecentWrites()
-	_, err = p.Client.stdoutStream().Write(recentWrites)
+	err = utils.WriteAll(p.Client.stdoutStream().Write, recentWrites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -830,60 +840,49 @@ func (s *session) leave(id uuid.UUID) error {
 	stringId := id.String()
 	party := s.parties[id]
 	delete(s.parties, id)
-	s.log.Errorf("leave called, deleted party")
 	s.terminalSizeQueue.remove(stringId)
 	s.clients_stdin.R.R.(*kubeutils.MultiReader).RemoveReader(stringId)
-	s.log.Errorf("leave called, removed reader")
 	s.clients_stdout.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
 	s.clients_stderr.W.W.(*srv.MultiWriter).DeleteWriter(stringId)
-	s.log.Errorf("leave called, deleted writers")
 
-	broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("\r\nUser %v left the session.", party.Ctx.User.GetName()))
+	broadcastMessage(s.clients_stdout.WriteUnconditional, fmt.Sprintf("User %v left the session.", party.Ctx.User.GetName()))
 
 	err := s.trackerRemoveParticipant(party.Id.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	s.log.Error("CLOSING PARTY")
 	err = party.Close()
 	if err != nil {
-		s.log.Error("ERROR CLOSING PARTY: %v", err)
+		s.log.WithError(err).Error("Error closing party")
 		return trace.Wrap(err)
 	}
-	s.log.Error("CLOSED PARTY")
 
 	if len(s.parties) == 0 || id == s.initiator {
 		go func() {
 			err := s.Close()
 			if err != nil {
-				s.log.Errorf("Failed to close session: %v.", err)
+				s.log.WithError(err).Errorf("Failed to close session")
 			}
 		}()
 
-		s.log.Error("EARLY QUIT")
 		return nil
 	}
 
 	canStart, options, err := s.canStart()
 	if err != nil {
-		s.log.Error("FAILED TO CALCULATE PERMISSIONS: %v", err)
 		return trace.Wrap(err)
 	}
 
 	if !canStart {
-		s.log.Error("FAILED PERMISSION CHECK")
-
 		if options.TerminateOnLeave {
-			s.log.Error("HARD LEAVE")
 			go func() {
 				err := s.Close()
 				if err != nil {
-					s.log.Errorf("Failed to close session: %v.", err)
+					s.log.WithError(err).Errorf("Failed to close session")
 				}
 			}()
 		} else {
-			s.log.Error("SOFT LEAVE")
 			s.state = types.SessionState_SessionStatePending
 			s.stateUpdate.Submit(types.SessionState_SessionStatePending)
 			go s.waitOnAccess()
@@ -935,7 +934,7 @@ func (s *session) Close() error {
 		s.stateUpdate.Close()
 		err := s.trackerUpdateState(types.SessionState_SessionStateTerminated)
 		if err != nil {
-			s.log.Error("Failed to mark session tracker as terminated.")
+			s.log.WithError(err).Error("Failed to mark session tracker as terminated.")
 		}
 
 		s.log.Infof("Closing session %v.", s.id.String)
@@ -986,7 +985,7 @@ func (s *session) trackerCreate(p *party) error {
 		ClusterName:       s.ctx.teleportCluster.name,
 		Login:             "root",
 		Initiator:         initator,
-		Expires:           time.Now(),
+		Expires:           s.expires,
 		KubernetesCluster: s.ctx.kubeCluster,
 		HostUser:          initator.User,
 	}

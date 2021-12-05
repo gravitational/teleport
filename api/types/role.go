@@ -30,6 +30,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	OnSessionLeaveTerminate = "terminate"
+	OnSessionLeavePause     = "pause"
+)
+
 // Role contains a set of permissions or settings
 type Role interface {
 	// Resource provides common resource methods.

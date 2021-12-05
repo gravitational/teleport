@@ -182,8 +182,15 @@ func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContex
 			}
 
 			if left <= 0 {
-				options := PolicyOptions{
-					TerminateOnLeave: !requirePolicy.SoftLeave,
+				options := PolicyOptions{}
+
+				switch requirePolicy.OnLeave {
+				case types.OnSessionLeaveTerminate:
+					options.TerminateOnLeave = true
+				case types.OnSessionLeavePause:
+					options.TerminateOnLeave = false
+				default:
+					return false, PolicyOptions{}, trace.BadParameter("unsupported on_leave policy: %v", requirePolicy.OnLeave)
 				}
 
 				return true, options, nil

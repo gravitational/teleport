@@ -153,18 +153,7 @@ func (w *SwitchWriter) On() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.on = true
-
-	for len(w.buffer) > 0 {
-		n, err := w.W.Write(w.buffer)
-		if err != nil {
-			log.Errorf("SwitchWriter: failed to write to underlying writer: %v", err)
-			return trace.Wrap(err)
-		}
-
-		w.buffer = w.buffer[n:]
-	}
-
-	return nil
+	return trace.Wrap(utils.WriteAll(w.W.Write, w.buffer))
 }
 
 func (w *SwitchWriter) Off() {
