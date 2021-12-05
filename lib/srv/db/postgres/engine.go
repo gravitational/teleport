@@ -388,6 +388,23 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// attempt fails. Reset the fallbacks to avoid retries, otherwise
 	// it's impossible to debug TLS connection errors.
 	config.Fallbacks = nil
+	// Override the default IP resolver to skip IPv6 addresses. Most infrastructure
+	// (unfortunately) doesn't support IPv6 by default and the default resolver
+	// may return IPv6 addresses, which can produce unexpected errors.
+	config.LookupFunc = func(ctx context.Context, host string) ([]string, error) {
+		ips, err := net.DefaultResolver.LookupIP(ctx, "ip4", host)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		addrs := make([]string, 0, len(ips))
+		for _, ip := range ips {
+			addrs = append(addrs, ip.String())
+		}
+
+		return addrs, nil
+	}
+
 	// Set startup parameters that the client sent us.
 	config.RuntimeParams = sessionCtx.StartupParameters
 	// AWS RDS/Aurora and GCP Cloud SQL use IAM authentication so request an
