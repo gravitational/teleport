@@ -243,6 +243,60 @@ func TestAccessMySQL(t *testing.T) {
 	}
 }
 
+// TestMySQLBadHandshake verifies MySQL proxy can gracefully handle truncated
+// client handshake messages.
+func TestMySQLBadHandshake(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "short user name",
+			data: []byte{0x8d, 0xae, 0xff, 0x49, 0x0, 0x0, 0x0, 0x1, 0x2d, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x61, 0x6c, 0x69, 0x63, 0x65},
+		},
+		{
+			name: "short db name",
+			data: []byte{0x8d, 0xae, 0xff, 0x49, 0x0, 0x0, 0x0, 0x1, 0x2d, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x61, 0x6c, 0x69, 0x63, 0x65, 0x0, 0x14, 0xce, 0x7, 0x50, 0x5d, 0x8c, 0xca, 0x17, 0xda, 0x1b, 0x60, 0xea, 0x9d, 0xa9, 0xc4, 0x7d, 0x83, 0x85, 0xa8, 0x7a, 0x96, 0x71, 0x77, 0x65, 0x31, 0x32},
+		},
+		{
+			name: "short plugin name",
+			data: []byte{0x8d, 0xae, 0xff, 0x49, 0x0, 0x0, 0x0, 0x1, 0x2d, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x61, 0x6c, 0x69, 0x63, 0x65, 0x0, 0x14, 0xce, 0x7, 0x50, 0x5d, 0x8c, 0xca, 0x17, 0xda, 0x1b, 0x60, 0xea, 0x9d, 0xa9, 0xc4, 0x7d, 0x83, 0x85, 0xa8, 0x7a, 0x96, 0x71, 0x77, 0x65, 0x31, 0x32, 0x33, 0x0, 0x6d, 0x79, 0x73, 0x71, 0x6c, 0x5f, 0x6e, 0x61, 0x74, 0x69, 0x76, 0x65, 0x5f, 0x70, 0x61, 0x73, 0x73},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Connect to MySQL proxy endpoint.
+			conn, err := net.Dial("tcp", testCtx.mysqlListener.Addr().String())
+			require.NoError(t, err)
+
+			// Read initial handshake message.
+			bytes := make([]byte, 1024)
+			_, err = conn.Read(bytes)
+			require.NoError(t, err)
+
+			// Prepend header to the packet data.
+			packet := append([]byte{
+				byte(len(test.data)),
+				byte(len(test.data) >> 8),
+				byte(len(test.data) >> 16),
+				0x1,
+			}, test.data...)
+
+			// Write handshake response packet.
+			_, err = conn.Write(packet)
+			require.NoError(t, err)
+
+			err = conn.Close()
+			require.NoError(t, err)
+		})
+	}
+}
+
 // TestAccessMongoDB verifies access scenarios to a MongoDB database based
 // on the configured RBAC rules.
 func TestAccessMongoDB(t *testing.T) {
@@ -1040,6 +1094,37 @@ func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
 	}
 }
 
+func withAzurePostgres(name, authToken string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthToken:  authToken,
+		})
+		require.NoError(t, err)
+		go postgresServer.Serve()
+		t.Cleanup(func() { postgresServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolPostgres,
+			URI:           net.JoinHostPort("localhost", postgresServer.Port()),
+			DynamicLabels: dynamicLabels,
+			Azure: types.Azure{
+				Name: name,
+			},
+			// Set CA cert, otherwise we will attempt to download RDS roots.
+			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.postgres[name] = testPostgres{
+			db:       postgresServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
 func withSelfHostedMySQL(name string) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
@@ -1122,6 +1207,38 @@ func withCloudSQLMySQL(name, authUser, authToken string) withDatabaseOption {
 				InstanceID: "instance-1",
 			},
 			// Set CA cert to pass cert validation.
+			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.mysql[name] = testMySQL{
+			db:       mysqlServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthUser:   authUser,
+			AuthToken:  authToken,
+		})
+		require.NoError(t, err)
+		go mysqlServer.Serve()
+		t.Cleanup(func() { mysqlServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolMySQL,
+			URI:           net.JoinHostPort("localhost", mysqlServer.Port()),
+			DynamicLabels: dynamicLabels,
+			Azure: types.Azure{
+				Name: name,
+			},
+			// Set CA cert, otherwise we will attempt to download RDS roots.
 			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)
