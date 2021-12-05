@@ -300,12 +300,6 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 //
 // Implements common.Service.
 func (s *ProxyServer) Connect(ctx context.Context, params common.ConnectParams) (net.Conn, *auth.Context, error) {
-	// Apply rate limiting.
-	if err := s.cfg.Limiter.AcquireConnection(params.ClientIP); err != nil {
-		return nil, nil, trace.LimitExceeded("client %v exceeded connection limit", params.ClientIP)
-	}
-	// Limiter will be decremented by ConnCloseWrapper below.
-
 	proxyContext, err := s.authorize(ctx, params)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -333,6 +327,13 @@ func (s *ProxyServer) Connect(ctx context.Context, params common.ConnectParams) 
 			}
 			return nil, nil, trace.Wrap(err)
 		}
+
+		// Apply rate limiting.
+		if err := s.cfg.Limiter.AcquireConnection(params.ClientIP); err != nil {
+			return nil, nil, trace.LimitExceeded("client %v exceeded connection limit", params.ClientIP)
+		}
+		// Limiter will be decremented by ConnCloseWrapper below.
+
 		// Upgrade the connection so the client identity can be passed to the
 		// remote server during TLS handshake. On the remote side, the connection
 		// received from the reverse tunnel will be handled by tls.Server.
