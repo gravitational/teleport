@@ -218,7 +218,7 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
 	c.Flag("filename", "to use to exec into the resource").Short('f').StringVar(&c.filename)
 	c.Flag("quiet", "Only print output from the remote session").Short('q').BoolVar(&c.quiet)
-	c.Flag("stdin", "Pass stdin to the container").Short('i').BoolVar(&c.stdin)
+	c.Flag("stdin", "Pass stdin to the container").Short('s').BoolVar(&c.stdin)
 	c.Flag("tty", "Stdin is a TTY").Short('t').BoolVar(&c.tty)
 	c.Arg("target", "Pod or deployment name").Required().StringVar(&c.target)
 	c.Arg("command", "Command to execute in the container").StringsVar(&c.command)
