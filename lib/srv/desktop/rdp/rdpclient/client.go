@@ -130,7 +130,7 @@ type Client struct {
 	// outputCh is a channel that gets set to the channel passed into
 	// passed into StartReceiving. RDP that are received should be translated
 	// into TDP and then sent to this channel.
-	outputCh chan tdp.Message
+	sendTo chan<- tdp.Message
 
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
@@ -181,11 +181,11 @@ func (c *Client) Connect(ctx context.Context, u *tdp.ClientUsername, sc *tdp.Cli
 	return nil
 }
 
-// StartReceiving tells the RDP client to start receiving RDP messages,
+// StartSendingTo tells the RDP client to start receiving RDP messages,
 // translating them to TDP messages, and sending those TDP messages to
 // the passed channel. It hangs for the duration of the RDP connection.
-func (c *Client) StartReceiving(outputCh chan tdp.Message) error {
-	c.outputCh = outputCh
+func (c *Client) StartSendingTo(sendTo chan<- tdp.Message) error {
+	c.sendTo = sendTo
 
 	h := cgo.NewHandle(c)
 	defer h.Delete()
@@ -195,8 +195,23 @@ func (c *Client) StartReceiving(outputCh chan tdp.Message) error {
 	return cgoError(C.read_rdp_output(c.rustClient, C.uintptr_t(h)))
 }
 
-// Send translates a TDP message to RDP and writes it via the C client.
-func (c *Client) Send(msg tdp.Message) error {
+// StartReceivingFrom tells the RDP client to start receiving TDP messages
+// on the passed channel, translating them to RDP messages, and sending those
+// over the RDP connection. The caller is responsible for closing the passed channel
+// when it stops sending to it.
+func (c *Client) StartReceivingFrom(recvFrom <-chan tdp.Message) error {
+	for msg := range recvFrom {
+		if err := c.sendRDP(msg); err != nil {
+			c.Cfg.Log.Warning(err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+// sendRDP translates a TDP message to RDP and writes it via the C client.
+func (c *Client) sendRDP(msg tdp.Message) error {
 	if atomic.LoadUint32(&c.readyForInput) == 0 {
 		// Input not allowed yet, drop the message.
 		return nil
@@ -314,7 +329,11 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	})
 	copy(img.Pix, data)
 
-	c.outputCh <- tdp.PNGFrame{Img: img}
+	// TODO(isaiah) previously this line was calling OutputMessage()(https://github.com/gravitational/teleport/blob/675fb3dc09f1e95b58dedb19021599ec84bb1b22/lib/srv/desktop/rdp/rdpclient/client.go#L386-L388),
+	// which could cause this function to return a non-nil error. This function is called from `handle_bitmap` above, which itself is called in the rust library here (https://github.com/gravitational/teleport/blob/e3fa4d7f00445c1e4149ff82090820b38117ad75/lib/srv/desktop/rdp/rdpclient/src/lib.rs#L383).
+	// It looks to me like we were perhaps communicating to that rust function that the tdpConn had been closed (by virtue of OutputMessage() returning a non-nil error) and so it should stop listening for messages (break the while loop). Does the fact that that
+	// will never happen now mean that that rust function will leak?
+	c.sendTo <- tdp.PNGFrame{Img: img}
 	return nil
 }
 
