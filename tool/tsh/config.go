@@ -42,7 +42,7 @@ Host *.{{ .ClusterName }} {{ .ProxyHost }}
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
     Port 3022
-    ProxyCommand "{{ .TSHPath }}" proxy ssh --login=%r --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
+    ProxyCommand "{{ .TSHPath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
 `
 
 type hostConfigParameters struct {
@@ -148,7 +148,9 @@ func onConfig(cf *CLIConf) error {
 	}
 
 	fmt.Fprintf(&sb, "\n# End generated Teleport configuration\n")
-	fmt.Print(sb.String())
+
+	stdout := cf.Stdout()
+	fmt.Fprint(stdout, sb.String())
 	return nil
 }
 

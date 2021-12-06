@@ -123,8 +123,8 @@ func sshProxy(cf *CLIConf, tc *libclient.TeleportClient, targetHost, targetPort 
 		fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, tc.SiteName),
 	}
 
-	if cf.NodeLogin != "" {
-		args = append([]string{"-l", cf.NodeLogin}, args...)
+	if tc.HostLogin != "" {
+		args = append([]string{"-l", tc.HostLogin}, args...)
 	}
 
 	child := exec.Command(sshPath, args...)
