@@ -47,6 +47,9 @@ import (
 	utilexec "k8s.io/client-go/util/exec"
 )
 
+const PresenceVerifyInterval = time.Second * 15
+const PresenceMaxDifference = time.Minute
+
 type remoteClient interface {
 	stdinStream() io.Reader
 	stdoutStream() io.Writer
@@ -374,6 +377,29 @@ outer:
 	s.clients_stderr.On()
 }
 
+func (s *session) checkPresence() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sess, err := s.trackerGet()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, participant := range sess.GetParticipants() {
+		if time.Since(participant.LastActive) > PresenceMaxDifference {
+			s.log.Warn("Participant %v is not active, kicking.", participant.ID)
+			realId, _ := uuid.Parse(participant.ID)
+			err := s.leave(realId)
+			if err != nil {
+				s.log.WithError(err).Warn("Failed to kick participant %v for inactivity.", participant.ID)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (s *session) launch() error {
 	defer func() {
 		err := s.Close()
@@ -396,6 +422,29 @@ func (s *session) launch() error {
 		case <-s.closeC:
 		}
 	}()
+
+	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
+	if s.ctx.Identity.GetIdentity().MFAVerified != "" {
+		go func() {
+			ticker := time.NewTicker(PresenceVerifyInterval)
+		outer:
+			for {
+				select {
+				case <-ticker.C:
+					err := s.checkPresence()
+					if err != nil {
+						s.log.WithError(err).Error("Failed to check presence, closing session as a security measure")
+						err := s.Close()
+						if err != nil {
+							s.log.WithError(err).Error("Failed to close session")
+						}
+					}
+				case <-s.closeC:
+					break outer
+				}
+			}
+		}()
+	}
 
 	s.log.Debugf("Launching session: %v", s.id)
 	s.mu.Lock()
@@ -967,6 +1016,15 @@ func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, err
 	}
 
 	return roles, nil
+}
+
+func (s *session) trackerGet() (types.Session, error) {
+	sess, err := s.forwarder.cfg.AuthClient.GetSessionTracker(s.forwarder.ctx, s.id.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess, nil
 }
 
 func (s *session) trackerCreate(p *party) error {
