@@ -262,6 +262,7 @@ func mustGetOpenSSHConfigFile(t *testing.T) string {
 func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, port int, args ...string) error {
 	ss := []string{
 		"-F", configFile,
+		"-y",
 		"-p", strconv.Itoa(port),
 		"-o", "StrictHostKeyChecking=no",
 		sshConnString,
