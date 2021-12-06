@@ -48,15 +48,19 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const staticToken = "test-static-token"
+const (
+	staticToken = "test-static-token"
+	// tshBinMainTestEnv allows to execute tsh main function from test binary.
+	tshBinMainTestEnv = "TSH_BIN_MAIN_TEST"
+)
 
 var ports utils.PortList
 
 func init() {
-	// Allows test to refer tsh binary in tests.
-	// Needed for tests that generate Openssh config by tsh config command where
+	// Allows test to refer to tsh binary in tests.
+	// Needed for tests that generate OpenSSH config by tsh config command where
 	// tsh proxy ssh command is used as ProxyCommand.
-	if os.Getenv("TSH_BIN_TEST") != "" {
+	if os.Getenv(tshBinMainTestEnv) != "" {
 		main()
 		return
 	}
