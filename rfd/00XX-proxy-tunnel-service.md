@@ -105,10 +105,8 @@ Changes to the reverse tunnel agent and agent pool are required to support this 
 ```go
 type AgentPool interface {
     // Start begins creating agents and blocks until the pool is stopped or
-    // the context is canceled or
+    // the context is canceled
     Start(ctx context.Context) error
-    // Wait blocks until the agent pool is stopped or the context is canceled.
-    Wait(ctx context.Context) error
     // Stop stops all agents in the pool and cleans up resources.
     Stop(ctx context.Context) error
 }
