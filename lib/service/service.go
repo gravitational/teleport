@@ -2278,9 +2278,6 @@ type proxyListeners struct {
 	db            dbListeners
 }
 
-type lockableTlsConfig struct {
-}
-
 // dbListeners groups database access listeners.
 type dbListeners struct {
 	// postgres serves Postgres clients.
