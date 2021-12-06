@@ -150,3 +150,13 @@ func (d *WindowsDesktopV3) LabelsString() string {
 func (d *WindowsDesktopV3) GetDomain() string {
 	return d.Spec.Domain
 }
+
+// Origin returns the origin value of the resource.
+func (d *WindowsDesktopV3) Origin() string {
+	return d.Metadata.Labels[OriginLabel]
+}
+
+// SetOrigin sets the origin value of the resource.
+func (d *WindowsDesktopV3) SetOrigin(o string) {
+	d.Metadata.Labels[OriginLabel] = o
+}
