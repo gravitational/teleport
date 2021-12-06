@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
