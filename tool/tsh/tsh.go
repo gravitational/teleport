@@ -1243,7 +1243,18 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		log.Debug("Waiting for the access-request watcher to ready up...")
 		ready := make(chan struct{})
 		go func() {
-			errChan <- waitForRequestResolution(cf, tc, req, ready)
+			var resolvedReq types.AccessRequest
+			err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+				var err error
+				resolvedReq, err = waitForRequestResolution(cf, clt, req, ready)
+				return trace.Wrap(err)
+			})
+
+			if err != nil {
+				errChan <- trace.Wrap(err)
+			} else {
+				errChan <- trace.Wrap(onRequestResolution(cf, tc, resolvedReq))
+			}
 		}()
 
 		select {
@@ -2173,27 +2184,24 @@ func host(in string) string {
 	return out
 }
 
-// waitForRequestResolution waits for an access request to be resolved. `ready`
-// will be closed once the watcher has been initialized.
-func waitForRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest, ready chan<- struct{}) error {
+// waitForRequestResolution waits for an access request to be resolved. On
+// approval, returns the updated request. `clt` must be a client to the root
+// cluster, such as the one returned by
+// `(*TeleportClient).WithRootClusterClient`. `ready` will be closed when the
+// event watcher used to wait for the request updates is ready.
+func waitForRequestResolution(cf *CLIConf, clt auth.ClientI, req types.AccessRequest, ready chan<- struct{}) (types.AccessRequest, error) {
 	filter := types.AccessRequestFilter{
 		User: req.GetUser(),
 	}
-	var err error
-	var watcher types.Watcher
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		watcher, err = tc.NewWatcher(cf.Context, types.Watch{
-			Name: "await-request-approval",
-			Kinds: []types.WatchKind{{
-				Kind:   types.KindAccessRequest,
-				Filter: filter.IntoMap(),
-			}},
-		})
-		return trace.Wrap(err)
+	watcher, err := clt.NewWatcher(cf.Context, types.Watch{
+		Name: "await-request-approval",
+		Kinds: []types.WatchKind{{
+			Kind:   types.KindAccessRequest,
+			Filter: filter.IntoMap(),
+		}},
 	})
-
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer watcher.Close()
 Loop:
@@ -2208,24 +2216,24 @@ Loop:
 			case types.OpPut:
 				r, ok := event.Resource.(*types.AccessRequestV3)
 				if !ok {
-					return trace.BadParameter("unexpected resource type %T", event.Resource)
+					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
 				if r.GetName() != req.GetName() || r.GetState().IsPending() {
 					log.Debugf("Skipping put event id=%s,state=%s.", r.GetName(), r.GetState())
 					continue Loop
 				}
-				return onRequestResolution(cf, tc, r)
+				return r, nil
 			case types.OpDelete:
 				if event.Resource.GetName() != req.GetName() {
 					log.Debugf("Skipping delete event id=%s", event.Resource.GetName())
 					continue Loop
 				}
-				return trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
 			default:
 				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
 		case <-watcher.Done():
-			return trace.Wrap(watcher.Error())
+			return nil, trace.Wrap(watcher.Error())
 		}
 	}
 }
