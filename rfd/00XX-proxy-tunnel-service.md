@@ -114,6 +114,11 @@ type AgentPool interface {
 }
 ```
 
-The SinglePointAgent can take advantage of connection rotation and improved jitter/backoffs to help further mitigate the thundering herd problem. Node agents will reconnect periodically to take advantage of graceful shutdown periods at proxies and load balancers. This reconnect period must have jitter as well to distribute the reconnects evenly over time. Without reconnects if a load balancer or proxy were to shutdown many nodes would reconnect at the same time.
+The SinglePointAgent can take advantage of reconnects and improved jitter/backoffs to help further mitigate the thundering herd problem. Node agents can be signalled to reconnect periodically as well as when the proxy server is shutting down. The proxy server will evenly distribute reconnencts over time. Without reconnects, if a load balancer or proxy were to shutdown many nodes would reconnect at the same time.
 
-During connection rotation, we need to avoid closing open sessions and avoid having the node be unreachable. First the agent must create a new connection before closing the old connection. Next the agent will send a ssh request over the old connection to signal the connection is entering a shutdown state. Proxies should not send new sessions to connection in the shutdown state. Finally when all existing sessions have closed the old connection can be closed.
+A proxy initiated reconnect will work as follows:
+1. Assume the agent has already established a connection to a proxy server.
+2. The proxy server sends a request to the agent over ssh to begin a reconnect.
+3. The agent establishes a new connection to a proxy server.
+4. The agent sends an request over the old ssh connection to indicate the old connection is being drained. At this point the proxy will stop sending new requests to the old connection.
+5. After all pre existing requests have been drained the agent closes the old connection.
