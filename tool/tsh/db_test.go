@@ -83,7 +83,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify Postgres identity file contains certificate.
-	certs, keys, err := decodePEM(profile.DatabaseCertPath("postgres"))
+	certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", "postgres"))
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Len(t, keys, 0)
@@ -95,7 +95,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify Mongo identity file contains both certificate and key.
-	certs, keys, err = decodePEM(profile.DatabaseCertPath("mongo"))
+	certs, keys, err = decodePEM(profile.DatabaseCertPathForCluster("", "mongo"))
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Len(t, keys, 1)

@@ -449,7 +449,7 @@ func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
 // key must contain at least one db cert. ssh cert is not required.
 func (a *LocalKeyAgent) AddDatabaseKey(key *Key) error {
 	if len(key.DBTLSCerts) == 0 {
-		return trace.BadParameter("database certs not found")
+		return trace.BadParameter("key must contains at least one database access certificate")
 	}
 	return a.addKey(key)
 }

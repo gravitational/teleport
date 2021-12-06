@@ -425,14 +425,6 @@ func (p *ProfileStatus) KeyPath() string {
 	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
 }
 
-// DatabaseCertPath returns path to the specified database access certificate
-// for this profile.
-//
-// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
-func (p *ProfileStatus) DatabaseCertPath(name string) string {
-	return p.DatabaseCertPathForCluster("", name)
-}
-
 // DatabaseCertPathForCluster returns path to the specified database access
 // certificate for this profile, for the specified cluster.
 //
