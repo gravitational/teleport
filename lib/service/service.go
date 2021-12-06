@@ -2658,9 +2658,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		proxyLimiter.WrapHandle(webHandler)
 		if !process.Config.Proxy.DisableTLS {
-			tlsConfigLock := &sync.RWMutex{}
-			tlsConfigLock.Lock()
-			defer tlsConfigLock.Unlock()
 
 			var tlsConfig *tls.Config
 			acmeCfg := process.Config.Proxy.ACME
@@ -2706,9 +2703,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 
 			tlsConfig.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
-				tlsConfigLock.RLock()
+				var err error
+
 				tlsClone := tlsConfig.Clone()
-				tlsConfigLock.RUnlock()
 
 				// Set client auth to "verify client cert if given" to support
 				// app access CLI flow.
