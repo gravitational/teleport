@@ -238,8 +238,8 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 
 Teleport connects to your Domain Controller via LDAPS. This means that you must let Teleport know that the certificate sent
 by your Domain Controller during the initial SSL connection is trusted. If your Domain Controller's certificate is trusted by
-the system repository on the system running Teleport, you can skip this step. Atlernately, if you trust your network, you can
-skip LDAPS certificate verification by setting the `insecure_skip_verify` configuration variable to `false`.
+the system repository on the system running Teleport, you can skip this step. Alternatively, if you trust your network, you can
+skip LDAPS certificate verification by setting the `insecure_skip_verify` configuration variable to `true`.
 
 ### To Export a CA Certificate
 
