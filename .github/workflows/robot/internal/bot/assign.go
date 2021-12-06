@@ -18,6 +18,7 @@ package bot
 
 import (
 	"context"
+	"log"
 
 	"github.com/gravitational/trace"
 )
@@ -32,6 +33,8 @@ func (b *Bot) Assign(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	log.Printf("Assign: Requesting reviews from: %v.", reviewers)
 
 	// Request GitHub assign reviewers to this PR.
 	err = b.c.GitHub.RequestReviewers(ctx,

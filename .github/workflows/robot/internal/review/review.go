@@ -18,6 +18,7 @@ package review
 
 import (
 	"encoding/json"
+	"log"
 	"math/rand"
 	"time"
 
@@ -124,14 +125,18 @@ func (r *Assignments) Get(author string, docs bool, code bool) []string {
 
 	switch {
 	case docs && code:
+		log.Printf("Assign: Found docs and code changes.")
 		reviewers = append(reviewers, r.getDocsReviewers(author)...)
 		reviewers = append(reviewers, r.getCodeReviewers(author)...)
 	case !docs && code:
+		log.Printf("Assign: Found code changes.")
 		reviewers = append(reviewers, r.getCodeReviewers(author)...)
 	case docs && !code:
+		log.Printf("Assign: Found docs changes.")
 		reviewers = append(reviewers, r.getDocsReviewers(author)...)
 	// Strange state, an empty commit? Return admin reviewers.
 	case !docs && !code:
+		log.Printf("Assign: Found no docs or code changes.")
 		reviewers = append(reviewers, r.getAdminReviewers(author)...)
 	}
 
@@ -175,7 +180,8 @@ func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 	v, ok := r.c.CodeReviewers[author]
 	if !ok || v.Team == "Internal" {
 		reviewers := r.getAdminReviewers(author)
-		return reviewers, reviewers
+		n := len(reviewers) / 2
+		return reviewers[:n], reviewers[n:]
 	}
 
 	return getReviewerSets(author, v.Team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
@@ -202,6 +208,7 @@ func (r *Assignments) CheckInternal(author string, reviews map[string]*github.Re
 
 	switch {
 	case docs && code:
+		log.Printf("Check: Found docs and code changes.")
 		if err := r.checkDocsReviews(author, reviews); err != nil {
 			return trace.Wrap(err)
 		}
@@ -209,15 +216,18 @@ func (r *Assignments) CheckInternal(author string, reviews map[string]*github.Re
 			return trace.Wrap(err)
 		}
 	case !docs && code:
+		log.Printf("Check: Found code changes.")
 		if err := r.checkCodeReviews(author, reviews); err != nil {
 			return trace.Wrap(err)
 		}
 	case docs && !code:
+		log.Printf("Check: Found docs changes.")
 		if err := r.checkDocsReviews(author, reviews); err != nil {
 			return trace.Wrap(err)
 		}
 	// Strange state, an empty commit? Check admins.
 	case !docs && !code:
+		log.Printf("Check: Found no docs or code changes.")
 		if checkN(r.getAdminReviewers(author), reviews) < 2 {
 			return trace.BadParameter("requires two admin approvals")
 		}
