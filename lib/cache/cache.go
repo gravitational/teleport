@@ -292,7 +292,7 @@ type Cache struct {
 	appSessionCache    services.AppSession
 	webSessionCache    types.WebSessionInterface
 	webTokenCache      types.WebTokenInterface
-	eventsFanout       *services.Fanout
+	eventsFanout       *services.FanoutSet
 
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
@@ -535,7 +535,7 @@ func New(config Config) (*Cache, error) {
 		appSessionCache:    local.NewIdentityService(wrapper),
 		webSessionCache:    local.NewIdentityService(wrapper).WebSessions(),
 		webTokenCache:      local.NewIdentityService(wrapper).WebTokens(),
-		eventsFanout:       services.NewFanout(),
+		eventsFanout:       services.NewFanoutSet(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
