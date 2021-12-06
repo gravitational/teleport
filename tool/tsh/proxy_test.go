@@ -263,6 +263,7 @@ func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, po
 	ss := []string{
 		"-F", configFile,
 		"-p", strconv.Itoa(port),
+		"-o", "StrictHostKeyChecking=no",
 		sshConnString,
 	}
 
@@ -283,7 +284,7 @@ func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, po
 }
 
 func mustRunOpenSSHCommand(t *testing.T, configFile string, sshConnString string, port int, args ...string) {
-	err := utils.RetryStaticFor(time.Second*5, time.Millisecond*500, func() error {
+	err := utils.RetryStaticFor(time.Second*10, time.Millisecond*500, func() error {
 		err := runOpenSSHCommand(t, configFile, sshConnString, port, args...)
 		return trace.Wrap(err)
 	})
