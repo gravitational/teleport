@@ -19,7 +19,7 @@ First, we need to install Active Directory Domain Services (AD DS). Save the fol
 replacing `$domain` with your desired domain name and `$adminPassword` with your Administrator account's password.
 
 ```powershell
-$domain = 'teleport.dev'
+$domain = 'example.com'
 $adminPassword = 'teleport123!!'
 
 $netbiosDomain = ($domain -split '\.')[0].ToUpperInvariant()
