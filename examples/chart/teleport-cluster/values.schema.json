@@ -32,6 +32,11 @@
             "type": "string",
             "default": "local"
         },
+        "proxyListenerMode": {
+            "$id": "#/properties/proxyListenerMode",
+            "type": "string",
+            "default": ""
+        },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
             "type": "string",
