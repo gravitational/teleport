@@ -722,6 +722,7 @@ func (s *Server) newHTTPServer() *http.Server {
 		Handler:           authMiddleware,
 		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
+		ConnState:         s.httpConnState.Notify,
 	}
 }
 
