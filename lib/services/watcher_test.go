@@ -80,7 +80,7 @@ func TestResourceWatcher_Backoff(t *testing.T) {
 			retries[i] = duration
 			// add some extra to the duration to ensure the retry occurs
 			clock.Advance(duration * 2)
-		case <-time.After(time.Second):
+		case <-time.After(15 * time.Second):
 			t.Fatalf("timeout waiting for reset")
 		}
 	}
