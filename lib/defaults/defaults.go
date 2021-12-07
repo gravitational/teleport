@@ -300,6 +300,10 @@ const (
 	// LockMaxStaleness is the maximum staleness for cached lock resources
 	// to be deemed acceptable for strict locking mode.
 	LockMaxStaleness = 5 * time.Minute
+
+	// TLSCertificatesCacheReloadInterval is the period after which the in-memory cache of TLS certificates
+	// is reloaded from disk.
+	TLSCertificatesCacheReloadInterval = 24 * time.Hour
 )
 
 var (
