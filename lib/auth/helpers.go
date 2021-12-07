@@ -35,6 +35,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
@@ -326,9 +327,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentAuth,
-			Client:    srv.AuthServer,
-			Clock:     cfg.Clock,
+			Component:   teleport.ComponentAuth,
+			Client:      srv.AuthServer,
+			Clock:       cfg.Clock,
+			RetryPeriod: defaults.HighResPollingPeriod,
 		},
 	})
 	if err != nil {
