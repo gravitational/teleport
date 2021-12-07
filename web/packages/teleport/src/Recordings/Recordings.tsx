@@ -20,37 +20,32 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import RecordList from './RecordList';
+import RecordingsList from './RecordingsList';
 import RangePicker from 'teleport/components/EventRangePicker';
 import { Danger } from 'design/Alert';
 import { Flex, Indicator, Box } from 'design';
 import InputSearch from 'teleport/components/InputSearch';
 import useTeleport from 'teleport/useTeleport';
-import useAuditEvents from 'teleport/useAuditEvents';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { eventCodes } from 'teleport/services/audit';
+import useRecordings, { State } from './useRecordings';
 
 export default function Container() {
-  const teleCtx = useTeleport();
-  const { clusterId } = useStickyClusterId();
-  const state = useAuditEvents(teleCtx, clusterId, eventCodes.SESSION_END);
+  const ctx = useTeleport();
+  const state = useRecordings(ctx);
   return <Recordings {...state} />;
 }
 
-export function Recordings(props: ReturnType<typeof useAuditEvents>) {
-  const {
-    attempt,
-    range,
-    rangeOptions,
-    setRange,
-    events,
-    searchValue,
-    clusterId,
-    setSearchValue,
-    fetchMore,
-    fetchStatus,
-  } = props;
-
+export function Recordings({
+  recordings,
+  fetchStatus,
+  fetchMore,
+  range,
+  setRange,
+  rangeOptions,
+  searchValue,
+  setSearchValue,
+  attempt,
+  clusterId,
+}: State) {
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
@@ -77,9 +72,9 @@ export function Recordings(props: ReturnType<typeof useAuditEvents>) {
         </Box>
       )}
       {attempt.status === 'success' && (
-        <RecordList
+        <RecordingsList
           searchValue={searchValue}
-          events={events}
+          recordings={recordings}
           clusterId={clusterId}
           pageSize={50}
           fetchMore={fetchMore}

@@ -14,10 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import moment from 'moment';
 import { useEffect, useState, useMemo } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
+import {
+  getRangeOptions,
+  EventRange,
+} from 'teleport/components/EventRangePicker';
 import { Event, EventCode, formatters } from 'teleport/services/audit';
 
 export default function useAuditEvents(
@@ -99,47 +102,10 @@ export default function useAuditEvents(
   };
 }
 
-function getRangeOptions(): EventRange[] {
-  return [
-    {
-      name: 'Today',
-      from: moment(new Date())
-        .startOf('day')
-        .toDate(),
-      to: moment(new Date())
-        .endOf('day')
-        .toDate(),
-    },
-    {
-      name: '7 days',
-      from: moment()
-        .subtract(6, 'day')
-        .startOf('day')
-        .toDate(),
-      to: moment(new Date())
-        .endOf('day')
-        .toDate(),
-    },
-    {
-      name: 'Custom Range...',
-      isCustom: true,
-      from: new Date(),
-      to: new Date(),
-    },
-  ];
-}
-
 type EventResult = {
   events: Event[];
   fetchStatus: 'loading' | 'disabled' | '';
   fetchStartKey: string;
-};
-
-export type EventRange = {
-  from: Date;
-  to: Date;
-  isCustom?: boolean;
-  name?: string;
 };
 
 export type State = ReturnType<typeof useAuditEvents>;

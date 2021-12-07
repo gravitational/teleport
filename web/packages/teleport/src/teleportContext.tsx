@@ -18,6 +18,7 @@ import { StoreNav, StoreUserContext } from './stores';
 import cfg from 'teleport/config';
 import * as types from './types';
 import AuditService from './services/audit';
+import RecordingsService from './services/recordings';
 import nodeService from './services/nodes';
 import clusterService from './services/clusters';
 import sshService from './services/ssh';
@@ -39,6 +40,7 @@ class TeleportContext implements types.Context {
 
   // services
   auditService = new AuditService();
+  recordingsService = new RecordingsService();
   nodeService = nodeService;
   clusterService = clusterService;
   sshService = sshService;
@@ -59,8 +61,10 @@ class TeleportContext implements types.Context {
 
   getFeatureFlags() {
     const userContext = this.storeUser;
+
     return {
       audit: userContext.getEventAccess().list,
+      recordings: userContext.getSessionsAccess().list,
       authConnector: userContext.getConnectorAccess().list,
       roles: userContext.getRoleAccess().list,
       trustedClusters: userContext.getTrustedClusterAccess().list,

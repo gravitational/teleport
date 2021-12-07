@@ -209,7 +209,7 @@ export class FeatureRecordings {
   };
 
   register(ctx: Ctx) {
-    if (!ctx.getFeatureFlags().audit) {
+    if (!ctx.getFeatureFlags().recordings) {
       return;
     }
 

@@ -90,8 +90,8 @@ const cfg = {
     applicationsPath: '/v1/webapi/sites/:clusterId/apps',
     clustersPath: '/v1/webapi/sites',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
-    scp:
-      '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
+    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
+    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
     renewTokenPath: '/v1/webapi/sessions/renew',
     resetPasswordTokenPath: '/v1/webapi/users/password/token',
     sessionPath: '/v1/webapi/sessions',
@@ -146,6 +146,16 @@ const cfg = {
 
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
     return generatePath(cfg.api.clusterEventsPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getClusterEventsRecordingsUrl(
+    clusterId: string,
+    params: UrlSessionRecordingsParams
+  ) {
+    return generatePath(cfg.api.clusterEventsRecordingsPath, {
       clusterId,
       ...params,
     });
@@ -413,6 +423,13 @@ export interface UrlSshParams {
   serverId?: string;
   sid?: string;
   clusterId: string;
+}
+
+export interface UrlSessionRecordingsParams {
+  start: string;
+  end: string;
+  limit?: number;
+  startKey?: string;
 }
 
 export interface UrlClusterEventsParams {

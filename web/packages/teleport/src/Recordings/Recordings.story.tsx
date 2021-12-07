@@ -15,11 +15,11 @@ limitations under the License.
 */
 
 import React from 'react';
-import { makeEvent } from 'teleport/services/audit';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 import { Context, ContextProvider } from 'teleport';
 import Recordings from './Recordings';
+import makeRecording from 'teleport/services/recordings/makeRecording';
 
 export default {
   title: 'Teleport/Recordings',
@@ -27,9 +27,9 @@ export default {
 
 export const Loaded = () => {
   const ctx = new Context();
-  ctx.auditService.fetchEvents = () =>
+  ctx.recordingsService.fetchRecordings = () =>
     Promise.resolve({
-      events: events.map(makeEvent),
+      recordings: recordings.map(makeRecording),
       startKey: '',
     });
 
@@ -38,9 +38,9 @@ export const Loaded = () => {
 
 export const Overflow = () => {
   const ctx = new Context();
-  ctx.auditService.fetchEvents = () =>
+  ctx.recordingsService.fetchRecordings = () =>
     Promise.resolve({
-      events: [],
+      recordings: [],
       startKey: 'cause-overflow',
     });
 
@@ -49,13 +49,13 @@ export const Overflow = () => {
 
 export const Processing = () => {
   const ctx = new Context();
-  ctx.auditService.fetchEvents = () => new Promise(() => null);
+  ctx.recordingsService.fetchRecordings = () => new Promise(() => null);
   return render(ctx);
 };
 
 export const Failed = () => {
   const ctx = new Context();
-  ctx.auditService.fetchEvents = () =>
+  ctx.recordingsService.fetchRecordings = () =>
     Promise.reject(new Error('server error'));
   return render(ctx);
 };
@@ -75,7 +75,7 @@ function render(ctx) {
   );
 }
 
-const events = [
+const recordings = [
   {
     code: 'T2004I',
     ei: 10,

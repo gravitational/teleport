@@ -17,3 +17,4 @@ limitations under the License.
 import RangePicker from './EventRangePicker';
 
 export default RangePicker;
+export * from './utils';

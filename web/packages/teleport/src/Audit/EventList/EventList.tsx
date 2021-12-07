@@ -19,12 +19,12 @@ import { sortBy } from 'lodash';
 import isMatch from 'design/utils/match';
 import * as Table from 'design/DataTable';
 import PagedTable from 'design/DataTable/Paged';
+import { displayDateTime } from 'shared/services/loc';
 import { Event } from 'teleport/services/audit';
-import { State } from 'teleport/useAuditEvents';
+import { State } from '../useAuditEvents';
 import { ActionCell, TimeCell, DescCell } from './EventListCells';
 import TypeCell from './EventTypeCell';
 import EventDialog from '../EventDialog';
-import { displayDateTime } from 'shared/services/loc';
 
 export default function EventList(props: Props) {
   const {

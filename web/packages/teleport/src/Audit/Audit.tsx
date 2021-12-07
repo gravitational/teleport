@@ -27,7 +27,7 @@ import { Flex, Indicator, Box } from 'design';
 import InputSearch from 'teleport/components/InputSearch';
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import useAuditEvents from 'teleport/useAuditEvents';
+import useAuditEvents, { State } from './useAuditEvents';
 
 export default function Container() {
   const teleCtx = useTeleport();
@@ -36,7 +36,7 @@ export default function Container() {
   return <Audit {...state} />;
 }
 
-export function Audit(props: ReturnType<typeof useAuditEvents>) {
+export function Audit(props: State) {
   const {
     attempt,
     range,

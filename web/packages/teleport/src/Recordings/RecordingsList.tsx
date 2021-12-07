@@ -14,64 +14,54 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import moment from 'moment';
+import React, { useState } from 'react';
 import { sortBy } from 'lodash';
 import isMatch from 'design/utils/match';
 import { ButtonBorder } from 'design';
 import { displayDateTime } from 'shared/services/loc';
 import * as Table from 'design/DataTable';
 import PagedTable from 'design/DataTable/Paged';
-import { SessionEnd } from 'teleport/services/audit/types';
 import cfg from 'teleport/config';
-import { State } from 'teleport/useAuditEvents';
+import { State } from './useRecordings';
+import { Recording } from 'teleport/services/recordings';
 
-type SortCols = 'created' | 'duration';
-type SortState = {
-  [key in SortCols]?: string;
-};
-
-export default function RecordList(props: Props) {
+export default function RecordingsList(props: Props) {
   const {
+    recordings,
     clusterId,
     searchValue,
     pageSize,
-    events,
     fetchMore,
     fetchStatus,
   } = props;
-  const [colSortDirs, setSort] = React.useState<SortState>(() => {
+  const [sortDir, setSortDir] = useState<Record<string, string>>(() => {
     return {
-      created: Table.SortTypes.ASC,
+      createdDate: Table.SortTypes.ASC,
     };
   });
 
-  // sort and filter
-  const data = React.useMemo(() => {
-    const rows = events
-      .filter(e => e.code === 'T2004I')
-      .map(makeRows(clusterId));
-
-    const filtered = rows.filter(obj =>
-      isMatch(obj, searchValue, {
+  function sortAndFilter(search: string) {
+    const filtered = recordings.filter(obj =>
+      isMatch(obj, search, {
         searchableProps,
         cb: null,
       })
     );
 
-    const columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
-    const sortDir = colSortDirs[columnKey];
+    const columnKey = Object.getOwnPropertyNames(sortDir)[0];
     const sorted = sortBy(filtered, columnKey);
-    if (sortDir === Table.SortTypes.ASC) {
+    if (sortDir[columnKey] === Table.SortTypes.ASC) {
       return sorted.reverse();
     }
 
     return sorted;
-  }, [colSortDirs, events, searchValue]);
-
-  function onSortChange(columnKey: SortCols, sortDir: string) {
-    setSort({ [columnKey]: sortDir });
   }
+
+  function onSortChange(columnKey: string, sortDir: string) {
+    setSortDir({ [columnKey]: sortDir });
+  }
+
+  const data = sortAndFilter(searchValue);
 
   const tableProps = { pageSize, data, fetchMore, fetchStatus };
 
@@ -91,7 +81,7 @@ export default function RecordList(props: Props) {
         columnKey="duration"
         header={
           <Table.SortHeaderCell
-            sortDir={colSortDirs.duration}
+            sortDir={sortDir.duration}
             onSortChange={onSortChange}
             title="Duration"
           />
@@ -99,10 +89,10 @@ export default function RecordList(props: Props) {
         cell={<DurationCell />}
       />
       <Table.Column
-        columnKey="created"
+        columnKey="createdDate"
         header={
           <Table.SortHeaderCell
-            sortDir={colSortDirs.created}
+            sortDir={sortDir.createdDate}
             onSortChange={onSortChange}
             title="Created"
           />
@@ -113,81 +103,45 @@ export default function RecordList(props: Props) {
         header={<Table.Cell>Session ID</Table.Cell>}
         cell={<SidCell />}
       />
-      <Table.Column header={<Table.Cell />} cell={<PlayCell />} />
+      <Table.Column
+        header={<Table.Cell />}
+        cell={<PlayCell clusterId={clusterId} />}
+      />
     </PagedTable>
   );
 }
 
-const makeRows = (clusterId: string) => (event: SessionEnd) => {
-  const { time, raw } = event;
-  const users = raw?.participants || [];
-  const rawEvent = event.raw;
-
-  let durationText = '';
-  let duration = 0;
-  if (rawEvent.session_start && rawEvent.session_stop) {
-    duration = moment(rawEvent.session_stop).diff(rawEvent.session_start);
-    durationText = moment.duration(duration).humanize();
-  }
-
-  let hostname = raw.server_hostname || 'N/A';
-  // For Kubernetes sessions, put the full pod name as 'hostname'.
-  if (raw.proto === 'kube') {
-    hostname = `${raw.kubernetes_cluster}/${raw.kubernetes_pod_namespace}/${raw.kubernetes_pod_name}`;
-  }
-
-  // Description set to play for interactive so users can search by "play".
-  let description = raw.interactive ? 'play' : 'non-interactive';
-  if (raw.session_recording === 'off') {
-    description = 'recording disabled';
-  }
-
-  return {
-    clusterId,
-    duration,
-    durationText,
-    sid: raw.sid,
-    created: time,
-    createdText: displayDateTime(time),
-    users: users.join(', '),
-    hostname: hostname,
-    description,
-  };
-};
-
-type Row = ReturnType<ReturnType<typeof makeRows>>;
-
 function CreatedCell(props) {
   const { rowIndex, data } = props;
-  const row = data[rowIndex] as Row;
-  return <Table.Cell>{row.createdText}</Table.Cell>;
+  const { createdDate } = data[rowIndex] as Recording;
+  return <Table.Cell>{displayDateTime(createdDate)}</Table.Cell>;
 }
 
 function DurationCell(props) {
   const { rowIndex, data } = props;
-  const row = data[rowIndex] as Row;
-  return <Table.Cell>{row.durationText}</Table.Cell>;
+  const { durationText } = data[rowIndex] as Recording;
+  return <Table.Cell>{durationText}</Table.Cell>;
 }
 
 function SidCell(props) {
   const { rowIndex, data } = props;
-  const row = data[rowIndex] as Row;
-  return <Table.Cell>{row.sid}</Table.Cell>;
+  const { sid } = data[rowIndex] as Recording;
+  return <Table.Cell>{sid}</Table.Cell>;
 }
 
 const PlayCell = props => {
-  const { rowIndex, data } = props;
-  const row = data[rowIndex] as Row;
+  const { rowIndex, data, clusterId } = props;
+  const { description, sid } = data[rowIndex] as Recording;
 
-  if (row.description !== 'play') {
+  if (description !== 'play') {
     return (
       <Table.Cell align="right" style={{ color: '#9F9F9F' }}>
-        {row.description}
+        {description}
       </Table.Cell>
     );
   }
 
-  const url = cfg.getSessionAuditPlayerRoute(row);
+  const url = cfg.getSessionAuditPlayerRoute({ clusterId, sid });
   return (
     <Table.Cell align="right">
       <ButtonBorder
@@ -207,7 +161,7 @@ const PlayCell = props => {
 type Props = {
   pageSize?: number;
   searchValue: State['searchValue'];
-  events: State['events'];
+  recordings: State['recordings'];
   clusterId: State['clusterId'];
   fetchMore: State['fetchMore'];
   fetchStatus: State['fetchStatus'];
@@ -215,7 +169,7 @@ type Props = {
 
 const searchableProps = [
   'sid',
-  'createdText',
+  'createdDate',
   'users',
   'durationText',
   'hostname',
