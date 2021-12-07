@@ -10,6 +10,9 @@ metadata:
   {{- end }}
 data:
   teleport.yaml: |
+  {{- if eq .Values.proxyListenerMode "multiplex" }}
+    version: v2
+  {{- end }}
     teleport:
       log:
         severity: {{ $logLevel }}
@@ -52,9 +55,14 @@ data:
   {{- end }}
       authentication:
         type: {{ required "authenticationType is required in chart values" .Values.authenticationType }}
+  {{- if eq .Values.proxyListenerMode "multiplex" }}
+      proxy_listener_mode: multiplex
+  {{- end }}
     kubernetes_service:
       enabled: true
+  {{- if not .Values.proxyListenerMode }}
       listen_addr: 0.0.0.0:3027
+  {{- end }}
   {{- if .Values.kubeClusterName }}
       kube_cluster_name: {{ .Values.kubeClusterName }}
   {{- else }}
@@ -66,8 +74,10 @@ data:
   {{- end }}
     proxy_service:
       public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
+  {{- if not .Values.proxyListenerMode }}
       kube_listen_addr: 0.0.0.0:3026
       mysql_listen_addr: 0.0.0.0:3036
+  {{- end }}
       enabled: true
   {{- if .Values.highAvailability.certManager.enabled }}
       https_keypairs:
