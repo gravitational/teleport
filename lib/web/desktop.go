@@ -23,6 +23,8 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
+	"sync"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -144,19 +146,73 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 	// Ensure we send binary frames to the browser.
 	ws.PayloadType = websocket.BinaryFrame
 
+	// The io.Copy calls below hang, copying from src to dst until an EOF is reached on src (or an error occurs).
+	// A successful Copy returns err == nil, not err == EOF. Because Copy is defined to read from src until EOF,
+	// it does not treat an EOF from Read as an error to be reported.
+	//
+	// Whether EOF is reached is determined by the underlying src (io.Reader) implementation, which signals that by
+	// returning an io.EOF error. For example, if the browser closes the websocket connection, the *websocket.Conn
+	// recognizes a close message from the websocket spec and it's next Read() returns an io.EOF error. Subsequently,
+	// the io.Copy(con, ws) returns _, nil, and that goroutine ultimately returns.
+	//
+	// We have a problem, though, in that the deferred con.Close() causes io.Copy(ws, con) (in the other goroutine)
+	// to return a non-nil error of the form "read tcp ip_addr_0:port_0->ip_addr_1:port_1: use of closed network connection".
+	// That's because con.Close() sends it's message to the other side of the connection; but our side never sees an EOF, it
+	// just tries to Read() from a closed net.Conn which gives us that error. (The same is true if the order of the goroutines
+	// is reversed).
+	//
+	// This variable plus some logic in each goroutine allows us to distinguish between a true error (which we want to report) and
+	// the error described above (which we wish to consider a clean disconnection).
+	var cleanClose struct {
+		mu    sync.Mutex
+		clean bool
+	}
+
 	errs := make(chan error, 2)
+
 	go func() {
 		defer ws.Close()
 		defer con.Close()
 
 		_, err := io.Copy(ws, con)
+
+		cleanClose.mu.Lock()
+		defer cleanClose.mu.Unlock()
+
+		if err == nil {
+			cleanClose.clean = true
+			// err == nil
+		} else if cleanClose.clean && strings.HasPrefix(err.Error(), "read tcp") && strings.HasSuffix(err.Error(), net.ErrClosed.Error()) {
+			// If the other goroutine set cleanClose and we got the expected error, treat that as a nil error.
+			err = nil
+		} else {
+			// Non-nil error and the other goroutine didn't set cleanClose to true, or it did but we got an unexpected error.
+			cleanClose.clean = false
+			// err != nil
+		}
 		errs <- err
 	}()
+
 	go func() {
 		defer ws.Close()
 		defer con.Close()
 
 		_, err := io.Copy(con, ws)
+
+		cleanClose.mu.Lock()
+		defer cleanClose.mu.Unlock()
+
+		if err == nil {
+			cleanClose.clean = true
+			// err == nil
+		} else if cleanClose.clean && strings.HasPrefix(err.Error(), "read tcp") && strings.HasSuffix(err.Error(), net.ErrClosed.Error()) {
+			// If the other goroutine set cleanClose and we got the expected error, treat that as a nil error.
+			err = nil
+		} else {
+			// Non-nil error and the other goroutine didn't set cleanClose to true, or it did but we got an unexpected error.
+			cleanClose.clean = false
+			// err != nil
+		}
 		errs <- err
 	}()
 
