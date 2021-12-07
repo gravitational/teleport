@@ -1650,6 +1650,61 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleReques
 	return &empty.Empty{}, nil
 }
 
+func (g *GRPCServer) MaintainSessionPresence(stream proto.AuthService_MaintainSessionPresenceServer) error {
+	ctx := stream.Context()
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		challengeReq := req.GetChallengeRequest()
+		if challengeReq == nil {
+			return trace.BadParameter("expected PresenceMFAChallengeRequest, got %T", req)
+		}
+
+		user := actx.User.GetName()
+		u2fStorage, err := u2f.InMemoryAuthenticationStorage(actx.authServer.Identity)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, u2fStorage)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if len(authChallenge.U2F) == 0 {
+			return trace.BadParameter("no U2F devices registered for %q", user)
+		}
+
+		if err := stream.Send(authChallenge); err != nil {
+			return trace.Wrap(err)
+		}
+
+		resp, err := stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		challengeResp := resp.GetChallengeResponse()
+		if challengeReq == nil {
+			return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
+		}
+
+		if _, err := actx.authServer.validateMFAAuthResponse(ctx, user, challengeResp, u2fStorage); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// TODO: update presence
+	}
+}
+
 func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) error {
 	actx, err := g.authenticate(stream.Context())
 	if err != nil {

@@ -1494,8 +1494,23 @@ message UpdateSessionRequest {
     }
 }
 
+message PresenceMFAChallengeRequest {
+    // SessionID is unique identifier of the session you want to request presence for.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id,omitempty" ];
+}
+
+message PresenceMFAChallengeSend {
+    oneof Request {
+        PresenceMFAChallengeRequest ChallengeRequest = 1;
+        MFAAuthenticateResponse ChallengeResponse = 2;
+    }
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
+    rpc MaintainSessionPresence(stream PresenceMFAChallengeSend)
+        returns (stream MFAAuthenticateChallenge);
+
     // CreateSession creates a new session resource.
     rpc CreateSession(CreateSessionRequest) returns (types.SessionV3);
 

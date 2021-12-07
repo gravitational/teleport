@@ -207,6 +207,8 @@ type kubeExecCommand struct {
 	quiet     bool
 	stdin     bool
 	tty       bool
+	reason    string
+	invited   string
 	command   []string
 }
 
@@ -220,6 +222,8 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	c.Flag("quiet", "Only print output from the remote session").Short('q').BoolVar(&c.quiet)
 	c.Flag("stdin", "Pass stdin to the container").Short('s').BoolVar(&c.stdin)
 	c.Flag("tty", "Stdin is a TTY").Short('t').BoolVar(&c.tty)
+	c.Flag("reason", "The purpose of the session.").StringVar(&c.reason)
+	c.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringVar(&c.invited)
 	c.Arg("target", "Pod or deployment name").Required().StringVar(&c.target)
 	c.Arg("command", "Command to execute in the container").StringsVar(&c.command)
 	return c
