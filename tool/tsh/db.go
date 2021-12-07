@@ -526,7 +526,7 @@ func getConnectCommand(cf *CLIConf, tc *client.TeleportClient, profile *client.P
 		return getCockroachCommand(tc, profile, db, host, port, options), nil
 
 	case defaults.ProtocolMySQL:
-		return getMySQLCommand(profile, db, options), nil
+		return getMySQLCommand(tc, profile, db, options), nil
 
 	case defaults.ProtocolMongoDB:
 		return getMongoCommand(tc, profile, db, host, port, options), nil
@@ -552,8 +552,8 @@ func getCockroachCommand(tc *client.TeleportClient, profile *client.ProfileStatu
 		postgres.GetConnString(dbprofile.New(tc, *db, *profile, host, port)))
 }
 
-func getMySQLCommand(profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
-	args := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", profile.Cluster, db.ServiceName)}
+func getMySQLCommand(tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, options connectionCommandOpts) *exec.Cmd {
+	args := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", tc.SiteName, db.ServiceName)}
 	if db.Username != "" {
 		args = append(args, "--user", db.Username)
 	}
