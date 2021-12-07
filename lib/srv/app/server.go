@@ -22,6 +22,7 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -34,6 +35,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -158,6 +160,9 @@ type Server struct {
 	httpServer *http.Server
 	tlsConfig  *tls.Config
 
+	// track http connection state
+	httpConnState *httplib.ServerConnState
+
 	mu            sync.RWMutex
 	heartbeats    map[string]*srv.Heartbeat
 	dynamicLabels map[string]*labels.Dynamic
@@ -224,6 +229,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentApp,
 		}),
+		httpConnState: httplib.NewServerConnState(),
 		heartbeats:    make(map[string]*srv.Heartbeat),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
@@ -248,6 +254,10 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Register handler that monitors tls connection state changes.
+	// This is used by HandleConnection to detect closed connections.
+	s.httpServer.ConnState = s.httpConnState.Notify
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
@@ -542,15 +552,33 @@ func (s *Server) ForceHeartbeat() error {
 }
 
 // HandleConnection takes a connection and wraps it in a listener so it can
-// be passed to http.Serve to process as a HTTP request.
+// be passed to http.Serve to process as a HTTP request. This method blocks
+// until the connection closes.
 func (s *Server) HandleConnection(conn net.Conn) {
-	// Wrap the listener in a TLS authorizing listener.
-	listener := newListener(s.closeContext, conn)
-	tlsListener := tls.NewListener(listener, s.tlsConfig)
+	// Wrap the TLS authorizing conn in a single-use listener.
+	tlsConn := tls.Server(conn, s.tlsConfig)
+	listener := newListener(s.closeContext, tlsConn)
 
-	if err := s.httpServer.Serve(tlsListener); err != nil {
+	// build a channel that will close when tlsConn is closed
+	closeCh := s.httpConnState.Channel(tlsConn, http.StateClosed)
+
+	// Serve will return as soon as tlsConn is running in its own goroutine
+	err := s.httpServer.Serve(listener)
+	if err != nil && !errors.Is(err, errListenerConnServed) {
+		// okay to ignore errListenerConnServed; it is a signal that our
+		// single-use listener has passed the connection to http.Serve
+		// and conn is being served. See listener.Accept for details.
 		s.log.Warnf("Failed to handle connection: %v.", err)
+		s.httpConnState.Release(tlsConn)
+		return
 	}
+
+	// block until conn or Server is closed
+	select {
+	case <-s.closeContext.Done():
+	case <-closeCh:
+	}
+	s.log.Debug("HandleConnection: closed")
 }
 
 // ServeHTTP will forward the *http.Request to the target application.
