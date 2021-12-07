@@ -1701,7 +1701,10 @@ func (g *GRPCServer) MaintainSessionPresence(stream proto.AuthService_MaintainSe
 			return trace.Wrap(err)
 		}
 
-		// TODO: update presence
+		err = actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, user)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 }
 

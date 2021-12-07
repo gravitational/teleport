@@ -68,6 +68,8 @@ type Session interface {
 
 	RemoveParticipant(string) error
 
+	UpdatePresence(string) error
+
 	GetKubeCluster() string
 
 	GetHostUser() string
@@ -240,4 +242,8 @@ func (s *SessionV3) GetKubeCluster() string {
 
 func (s *SessionV3) GetHostUser() string {
 	return s.Spec.HostUser
+}
+
+func (s *SessionV3) UpdatePresence(id string) error {
+	return nil
 }

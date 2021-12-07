@@ -41,6 +41,7 @@ type SessionV2 interface {
 	CreateSessionTracker(ctx context.Context, req *proto.CreateSessionRequest) (types.Session, error)
 	UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionRequest) error
 	RemoveSessionTracker(ctx context.Context, sessionID string) error
+	UpdatePresence(ctx context.Context, sessionID, user string) error
 }
 
 type sessionV2 struct {
@@ -87,6 +88,33 @@ func (s *sessionV2) loadSession(ctx context.Context, sessionID string) (types.Se
 	}
 
 	return session, nil
+}
+
+func (s *sessionV2) UpdatePresence(ctx context.Context, sessionID, user string) error {
+	sessionItem, err := s.bk.Get(ctx, backend.Key(sessionV2Prefix, sessionID))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session, err := unmarshalSession(sessionItem.Value)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session.UpdatePresence(user)
+
+	sessionJSON, err := marshalSession(session)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{Key: backend.Key(sessionV2Prefix, sessionID), Value: sessionJSON}
+	_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
+	if trace.IsCompareFailed(err) {
+		return s.UpdatePresence(ctx, sessionID, user)
+	} else {
+		return trace.Wrap(err)
+	}
 }
 
 func (s *sessionV2) GetSessionTracker(ctx context.Context, sessionID string) (types.Session, error) {

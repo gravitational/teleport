@@ -3833,6 +3833,10 @@ func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType t
 	return crl, nil
 }
 
+func (a *ServerWithRoles) UpdatePresence(ctx context.Context, sessionID, user string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
