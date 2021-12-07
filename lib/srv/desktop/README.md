@@ -16,15 +16,13 @@ See [this appendix](#appendix-virtualbox-notes) if using VirtualBox.
 #### AD DS
 
 First, we need to install Active Directory Domain Services (AD DS). Save the following file as `domain-controller.ps1`,
-replacing `$domain` with your desired domain name and `$adminPassword` with your Administrator account's password.
+replacing `$domain` with your desired domain name.
 
 ```powershell
+$ErrorActionPreference = "Stop"
+
 $domain = 'example.com'
-$adminPassword = 'teleport123!!'
-
 $netbiosDomain = ($domain -split '\.')[0].ToUpperInvariant()
-
-$safeModeAdminPassword = ConvertTo-SecureString $adminPassword -AsPlainText -Force
 
 echo 'Installing the AD services and administration tools...'
 Install-WindowsFeature AD-Domain-Services,RSAT-AD-AdminCenter,RSAT-ADDS-Tools
@@ -38,7 +36,7 @@ Install-ADDSForest `
     -DomainMode 'Win2012R2' `
     -DomainName $domain `
     -DomainNetbiosName $netbiosDomain `
-    -SafeModeAdministratorPassword $safeModeAdminPassword `
+    -SafeModeAdministratorPassword (Read-Host "Enter Your Password" -AsSecureString) `
     -NoRebootOnCompletion `
     -Force
 
@@ -54,6 +52,8 @@ to generate a keypair and ensure that the server supports LDAPS.
 Save the following file as `certificate-services.ps1`
 
 ```powershell
+$ErrorActionPreference = "Stop"
+
 Add-WindowsFeature Adcs-Cert-Authority -IncludeManagementTools
 Install-AdcsCertificationAuthority -CAType EnterpriseRootCA -Force
 Restart-Computer -Force
