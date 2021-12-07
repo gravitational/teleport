@@ -1,15 +1,30 @@
 # Changelog
 
+## 7.3.6
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2021-43565](https://groups.google.com/g/golang-announce/c/2AR1sKiM-Qs) by updating golang.org/x/crypto. [#9204](https://github.com/gravitational/teleport/pull/9204)
+
+## 7.3.5
+
+This release of Teleport contains a fix.
+
+* Fixed issue in Database Access that could cause MySQL listeners to crash. [#9163](https://github.com/gravitational/teleport/pull/9163)
+
+## 7.3.4
+
+This release of Teleport contains a fix.
+
+* Fixed an issue that could cause search engine crawlers to break signup and login pages.
+
 ## 7.3.3
 
-This release of teleport contains performance improvements, fixes, and a feature.
+This release of Teleport contains performance improvements, fixes, and a feature.
 
 * Improved cache and label-based operations performance. [#8670](https://github.com/gravitational/teleport/pull/8670)
-
 * Added support for custom `routing_strategy` configuration. [#8567](https://github.com/gravitational/teleport/pull/8567)
-
 * Fixed an issue with "Simplified EC2 Join" for some regions. [#8704](https://github.com/gravitational/teleport/pull/8704)
-
 * Fixed a regression in web terminal. [#8797](https://github.com/gravitational/teleport/pull/8797)
 
 ## 7.3.2
