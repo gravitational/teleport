@@ -9,7 +9,7 @@
 name: Assign
 on:
   pull_request_target:
-    types: [assigned, opened, reopened, ready_for_review]
+    types: [opened]
 
 # Limit the permissions on the GitHub token for this workflow to the subset
 # that is required. In this case, the assign workflow only needs to be able
