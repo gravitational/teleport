@@ -67,6 +67,13 @@ This reference details available values for the `teleport-cluster` chart.
 
 `authenticationType` controls the authentication scheme used by Teleport. Possible values are `local` and `github` for OSS, plus `oidc`, `saml`, and `false` for Enterprise.
 
+## `proxyListenerMode`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `nil` | no | `auth_service.proxy_listener_mode` | ❌ |
+
+`proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`.
 
 ## `enterprise`
 
