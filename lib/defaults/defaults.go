@@ -323,6 +323,10 @@ const (
 	// DefaultRedisUsername is a default username used by Redis when
 	// no name is provided at connection time.
 	DefaultRedisUsername = "default"
+
+	// TLSCertificatesCacheReloadInterval is the period after which the in-memory cache of TLS certificates
+	// is refreshed from disk.
+	TLSCertificatesCacheReloadInterval = 24 * time.Hour
 )
 
 var (

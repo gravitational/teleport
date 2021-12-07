@@ -316,6 +316,9 @@ type TeleportProcess struct {
 	// keyMutex is a mutex to serialize key generation
 	keyMutex sync.Mutex
 
+	// certsCache holds an in-memory cache of tls certificates that are periodically refreshed from disk
+	certsCache *tlsCertificatesCache
+
 	// reporter is used to report some in memory stats
 	reporter *backend.Reporter
 
@@ -330,6 +333,19 @@ type TeleportProcess struct {
 type keyPairKey struct {
 	role   types.SystemRole
 	reason string
+}
+
+type tlsCertificatesCache struct {
+	// reloadInterval defines how long the proxy service will hold certs in memory before reloading them from disk
+	reloadInterval time.Duration
+
+	// mutex synchronizes access to the below fields
+	mutex *sync.Mutex
+
+	// certs holds actual instances of TLS certificates that were loaded from the filesystem paths defined in the Config.Proxy.KeyPairs field
+	certs []tls.Certificate
+	// lastReloaded holds the last time that certs was reloaded from disk
+	lastReloaded time.Time
 }
 
 // processIndex is an internal process index
@@ -733,6 +749,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
+		certsCache: &tlsCertificatesCache{
+			reloadInterval: defaults.TLSCertificatesCacheReloadInterval,
+			mutex:          &sync.Mutex{},
+		},
 	}
 
 	process.registerAppDepend()
@@ -3338,14 +3358,52 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, supportedProtocols...))
 	}
 
-	for _, pair := range process.Config.Proxy.KeyPairs {
-		process.Config.Log.Infof("Loading TLS certificate %v and key %v.", pair.Certificate, pair.PrivateKey)
+	loadCertificates := func() ([]tls.Certificate, error) {
+		process.certsCache.mutex.Lock()
+		defer process.certsCache.mutex.Unlock()
 
-		certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
+		if time.Since(process.certsCache.lastReloaded) < process.certsCache.reloadInterval {
+			if process.certsCache.certs != nil {
+				return process.certsCache.certs, nil
+			}
+		}
+
+		certs := make([]tls.Certificate, 0, len(process.Config.Proxy.KeyPairs))
+
+		for _, keyPair := range process.Config.Proxy.KeyPairs {
+			process.Config.Log.Infof("Loading TLS certificate %v and key %v.", keyPair.Certificate, keyPair.PrivateKey)
+
+			cert, err := tls.LoadX509KeyPair(keyPair.Certificate, keyPair.PrivateKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			certs = append(certs, cert)
+		}
+
+		process.certsCache.certs = certs
+		process.certsCache.lastReloaded = time.Now()
+
+		return certs, nil
+	}
+
+	if _, err := loadCertificates(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig.GetCertificate = func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		certs, err := loadCertificates()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+
+		for _, cert := range certs {
+			if err := clientHello.SupportsCertificate(&cert); err == nil {
+				return &cert, nil
+			}
+		}
+
+		return nil, trace.NotFound("no compatible certificates found")
 	}
 
 	tlsConfig.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
