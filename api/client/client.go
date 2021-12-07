@@ -2350,3 +2350,8 @@ func (c *Client) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSess
 	_, err := c.grpc.UpdateSession(ctx, req)
 	return trail.FromGRPC(err)
 }
+
+func (c *Client) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
+	stream, err := c.grpc.MaintainSessionPresence(ctx)
+	return stream, trail.FromGRPC(err)
+}
