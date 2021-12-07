@@ -1,0 +1,26 @@
+teleport:
+  log:
+    severity: DEBUG
+
+  diag_addr: 0.0.0.0:3434
+  data_dir: /var/lib/teleport
+  auth_servers: ["auth:3025"]
+  auth_token: "proxy-${PROXY_TOKEN}"
+  cache:
+    type: in-memory
+  connection_limits:
+    max_connections: 65000
+    max_users: 10000
+
+auth_service:
+  enabled: no
+
+ssh_service:
+  enabled: no
+
+proxy_service:
+  enabled: yes
+  https_cert_file: /etc/teleport-tls/tls.crt
+  https_key_file: /etc/teleport-tls/tls.key
+  public_addr: "${PROXY_HOST}:3080"
+  tunnel_public_addr: "${PROXY_HOST}:3024"
