@@ -4201,6 +4201,10 @@ steps:
     image: docker
     commands:
       - |
+        if [ "${DRONE_REPO}" != "gravitational/teleport" ]; then
+          echo "---> Not publishing ${DRONE_REPO} packages to repos"
+          exit 78
+        fi
         # length will be 0 after filtering if this is a pre-release, >0 otherwise
         FILTERED_TAG_LENGTH=$(echo ${DRONE_TAG} | egrep -v '(alpha|beta|dev|rc)' | wc -c)
         if [ $$FILTERED_TAG_LENGTH -eq 0 ]; then
@@ -4354,6 +4358,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 480d2db92e72b3a7858ca04588b1d1b7a0b33f69f315fde6efec9b0099a38f29
+hmac: 865c3977c1f8a687f52bcbd7a14d68e5cc0030caa7618c70ddf43d9154a3e145
 
 ...
