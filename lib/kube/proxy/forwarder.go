@@ -1227,7 +1227,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 
 	if err := f.setupForwardingHeaders(sess, req); err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
-		// of the teleport server if not logged here.t
+		// of the teleport server if not logged here.
 		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
