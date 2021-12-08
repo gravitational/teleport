@@ -255,10 +255,6 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Register handler that monitors tls connection state changes.
-	// This is used by HandleConnection to detect closed connections.
-	s.httpServer.ConnState = s.httpConnState.Notify
-
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
 	s.cache, err = newSessionCache(s.closeContext, s.log)
