@@ -77,8 +77,17 @@ func TestInitCACert(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	azureMySQL, err := types.NewDatabaseV3(types.Metadata{
+		Name: "azure-mysql",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+		Azure:    types.Azure{Name: "azure-mysql"},
+	})
+	require.NoError(t, err)
+
 	allDatabases := []types.Database{
-		selfHosted, rds, rdsWithCert, redshift, cloudSQL,
+		selfHosted, rds, rdsWithCert, redshift, cloudSQL, azureMySQL,
 	}
 
 	tests := []struct {
@@ -109,6 +118,11 @@ func TestInitCACert(t *testing.T) {
 		{
 			desc:     "should download Cloud SQL CA when it's not set",
 			database: cloudSQL.GetName(),
+			cert:     fixtures.TLSCACertPEM,
+		},
+		{
+			desc:     "should download Azure CA when it's not set",
+			database: azureMySQL.GetName(),
 			cert:     fixtures.TLSCACertPEM,
 		},
 	}

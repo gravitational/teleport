@@ -1192,7 +1192,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
-		if _, err := ldap.CompileFilter(ldap.EscapeFilter(filter)); err != nil {
+		if _, err := ldap.CompileFilter(filter); err != nil {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}

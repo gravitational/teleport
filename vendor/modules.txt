@@ -20,6 +20,26 @@ cloud.google.com/go/firestore/apiv1/admin
 # cloud.google.com/go/storage v1.10.0
 ## explicit; go 1.11
 cloud.google.com/go/storage
+# github.com/Azure/azure-sdk-for-go/sdk/azcore v0.19.0
+## explicit; go 1.16
+github.com/Azure/azure-sdk-for-go/sdk/azcore
+github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pipeline
+github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers
+github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/loc
+github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/op
+github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/shared
+github.com/Azure/azure-sdk-for-go/sdk/azcore/policy
+github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime
+github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming
+# github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.11.0
+## explicit; go 1.14
+github.com/Azure/azure-sdk-for-go/sdk/azidentity
+# github.com/Azure/azure-sdk-for-go/sdk/internal v0.7.0
+## explicit; go 1.16
+github.com/Azure/azure-sdk-for-go/sdk/internal/diag
+github.com/Azure/azure-sdk-for-go/sdk/internal/errorinfo
+github.com/Azure/azure-sdk-for-go/sdk/internal/log
+github.com/Azure/azure-sdk-for-go/sdk/internal/uuid
 # github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78
 ## explicit
 github.com/Azure/go-ansiterm
@@ -586,6 +606,9 @@ github.com/pborman/uuid
 # github.com/pingcap/errors v0.11.0
 ## explicit
 github.com/pingcap/errors
+# github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4
+## explicit
+github.com/pkg/browser
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
@@ -803,8 +826,8 @@ go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
-# golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
-## explicit; go 1.11
+# golang.org/x/crypto v0.0.0-20211202192323-5770296d904e
+## explicit; go 1.17
 golang.org/x/crypto/acme
 golang.org/x/crypto/acme/autocert
 golang.org/x/crypto/bcrypt
@@ -813,8 +836,10 @@ golang.org/x/crypto/chacha20
 golang.org/x/crypto/cryptobyte
 golang.org/x/crypto/cryptobyte/asn1
 golang.org/x/crypto/curve25519
+golang.org/x/crypto/curve25519/internal/field
 golang.org/x/crypto/ed25519
 golang.org/x/crypto/ed25519/internal/edwards25519
+golang.org/x/crypto/internal/poly1305
 golang.org/x/crypto/internal/subtle
 golang.org/x/crypto/md4
 golang.org/x/crypto/nacl/secretbox
@@ -822,7 +847,6 @@ golang.org/x/crypto/ocsp
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/pkcs12
 golang.org/x/crypto/pkcs12/internal/rc2
-golang.org/x/crypto/poly1305
 golang.org/x/crypto/salsa20/salsa
 golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/agent
@@ -838,8 +862,8 @@ golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/modfile
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
-## explicit; go 1.11
+# golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
+## explicit; go 1.17
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/http/httpguts
@@ -862,7 +886,7 @@ golang.org/x/oauth2/jwt
 ## explicit
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.0.0-20210514084401-e8d321eab015
+# golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1
 ## explicit; go 1.17
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
@@ -873,7 +897,7 @@ golang.org/x/sys/windows
 # golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 ## explicit; go 1.11
 golang.org/x/term
-# golang.org/x/text v0.3.5
+# golang.org/x/text v0.3.6
 ## explicit; go 1.11
 golang.org/x/text/cases
 golang.org/x/text/encoding

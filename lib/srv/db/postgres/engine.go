@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
@@ -81,7 +82,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	client := pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
 	defer func() {
 		if err != nil {
-			if err := client.Send(toErrorResponse(err)); err != nil {
+			if err := client.Send(toErrorResponse(err)); err != nil && !utils.IsOKNetworkError(err) {
 				e.Log.WithError(err).Error("Failed to send error to client.")
 			}
 		}
@@ -122,7 +123,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 	defer func() {
 		err = serverConn.Close(ctx)
-		if err != nil {
+		if err != nil && !utils.IsOKNetworkError(err) {
 			e.Log.WithError(err).Error("Failed to close connection.")
 		}
 	}()
@@ -407,6 +408,14 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.DatabaseTypeAzure:
+		config.Password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Azure requires database login to be <user>@<server-name> e.g.
+		// alice@postgres-server-name.
+		config.User = fmt.Sprintf("%v@%v", config.User, sessionCtx.Database.GetAzure().Name)
 	}
 	// TLS config will use client certificate for an onprem database or
 	// will contain RDS root certificate for RDS/Aurora.
