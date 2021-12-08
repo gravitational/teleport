@@ -300,14 +300,15 @@ windows_desktop_service:
     #
     # For example, if your domain is "example.com", the NetBIOS name for it is
     # likely "EXAMPLE". When connecting as the "svc-teleport" user, you should
-    # use the format: "EXAMPLE\svc-teleport".
+    # use the format: 'EXAMPLE\svc-teleport'.
+    # Note the use of single quotes due to the \ character
     #
     # If you are unsure of your NetBIOS name, you can find it by opening a PowerShell command prompt
     # and running:
-    # ```
+    # 
     # (Get-ADDomain).NetBIOSName
-    # ```
-    username: "$LDAP_USERNAME"
+    # 
+    username: '$LDAP_USERNAME'
     # Plain text file containing the LDAP password for authentication. This is the password that was
     # randomly generated and saved to $OutputFile in Step 1, which you will need to transfer
     # to this machine.
