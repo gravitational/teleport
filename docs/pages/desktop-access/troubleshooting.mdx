@@ -51,7 +51,7 @@ authentication was not trusted"** (or similar).
 This means that the host does not trust the Teleport CA.
 
 First, make sure that you [import the Teleport CA into Group
-Policy](./getting-started.mdx#import-teleport-ca). Note that if the
+Policy](./getting-started.mdx#create-another-gpo-and-import-the-teleport-ca). Note that if the
 Teleport CA was rotated since the last import, you will have to fetch the
 new CA using `tctl auth export --type=windows >user-ca.cer`
 

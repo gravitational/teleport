@@ -858,8 +858,7 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
-	os.Setenv(apidefaults.TunnelPublicAddrEnvar, main.GetWebAddr())
-	t.Cleanup(func() { os.Unsetenv(apidefaults.TunnelPublicAddrEnvar) })
+	t.Setenv(apidefaults.TunnelPublicAddrEnvar, main.GetWebAddr())
 
 	// verify the node is able to join the cluster
 	_, err = main.StartReverseTunnelNode(nodeConf)
@@ -1088,7 +1087,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			},
 			disconnectTimeout: 4 * time.Second,
 		}, {
-			//"verify that concurrent connection limits are applied when recording at node",
+			// "verify that concurrent connection limits are applied when recording at node",
 			recordingMode: types.RecordAtNode,
 			options: types.RoleOptions{
 				MaxConnections: 1,
@@ -1389,6 +1388,8 @@ func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
 			twoClustersTunnel(t, suite, now, tt.inRecordLocation, tt.outExecCountSiteA, tt.outExecCountSiteB)
 		})
 	}
+
+	log.Info("Tests done. Cleaning up.")
 }
 
 func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time, proxyRecordMode string, execCountSiteA, execCountSiteB int) {
@@ -1399,7 +1400,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 
 	// clear out any proxy environment variables
 	for _, v := range []string{"http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"} {
-		os.Setenv(v, "")
+		t.Setenv(v, "")
 	}
 
 	username := suite.me.Username
@@ -1439,11 +1440,13 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.NoError(t, a.Start())
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	abortTime := time.Now().Add(time.Second * 10)
-	for len(checkGetClusters(t, a.Tunnel)) < 2 && len(checkGetClusters(t, b.Tunnel)) < 2 {
-		time.Sleep(time.Millisecond * 200)
-		require.False(t, time.Now().After(abortTime), "Two clusters do not see each other: tunnels are not working.")
+	clustersAreCrossConnected := func() bool {
+		return len(checkGetClusters(t, a.Tunnel)) >= 2 && len(checkGetClusters(t, b.Tunnel)) >= 2
 	}
+	require.Eventually(t,
+		clustersAreCrossConnected,
+		10*time.Second /* waitFor */, 200*time.Millisecond, /* tick */
+		"Two clusters do not see each other: tunnels are not working.")
 
 	var (
 		outputA bytes.Buffer
@@ -1483,7 +1486,6 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.Len(t, parts, 3)
 
 	// The certs.pem file should have 2 certificates.
-
 	buffer, err = ioutil.ReadFile(keypaths.TLSCAsPath(tc.KeysDir, Host))
 	require.NoError(t, err)
 	roots := x509.NewCertPool()
@@ -1509,64 +1511,45 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.Equal(t, outputA.String(), outputB.String())
 
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
-	err = a.StopAuth(false)
-	require.NoError(t, err)
+	require.NoError(t, a.StopAuth(false))
 	err = tc.SSH(context.TODO(), cmd, false)
 	require.IsType(t, err, trace.ConnectionProblem(nil, ""))
 
 	// Reset and start "Site-A" again
-	err = a.Reset()
-	require.NoError(t, err)
-	err = a.Start()
-	require.NoError(t, err)
+	require.NoError(t, a.Reset())
+	require.NoError(t, a.Start())
 
 	// try to execute an SSH command using the same old client to Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	for i := 0; i < 10; i++ {
-		time.Sleep(250 * time.Millisecond)
-		err = tc.SSH(context.TODO(), cmd, false)
-		if err == nil {
-			break
-		}
+	tcHasReconnected := func() bool {
+		return tc.SSH(context.TODO(), cmd, false) == nil
 	}
-	require.NoError(t, err)
+	require.Eventually(t, tcHasReconnected, 2500*time.Millisecond, 250*time.Millisecond,
+		"Timed out waiting for Site A to restart")
 
-	searchAndAssert := func(site auth.ClientI, count int) error {
-		tickCh := time.Tick(500 * time.Millisecond)
-		stopCh := time.After(5 * time.Second)
-
+	clientHasEvents := func(site auth.ClientI, count int) func() bool {
 		// only look for exec events
 		eventTypes := []string{events.ExecEvent}
 
-		for {
-			select {
-			case <-tickCh:
-				eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), apidefaults.Namespace, eventTypes, 0, types.EventOrderAscending, "")
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				// found the number of events we were looking for
-				if got, want := len(eventsInSite), count; got == want {
-					return nil
-				}
-			case <-stopCh:
-				return trace.BadParameter("unable to find %v events after 5s", count)
-			}
+		return func() bool {
+			eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), apidefaults.Namespace, eventTypes, 0, types.EventOrderAscending, "")
+			require.NoError(t, err)
+			return len(eventsInSite) == count
 		}
 	}
 
 	siteA := a.GetSiteAPI(a.Secrets.SiteName)
-	err = searchAndAssert(siteA, execCountSiteA)
-	require.NoError(t, err)
+	require.Eventually(t, clientHasEvents(siteA, execCountSiteA), 5*time.Second, 500*time.Millisecond,
+		"Failed to find %d events on Site A after 5s", execCountSiteA)
 
 	siteB := b.GetSiteAPI(b.Secrets.SiteName)
-	err = searchAndAssert(siteB, execCountSiteB)
-	require.NoError(t, err)
+	require.Eventually(t, clientHasEvents(siteB, execCountSiteB), 5*time.Second, 500*time.Millisecond,
+		"Failed to find %d events on Site B after 5s", execCountSiteB)
 
 	// stop both sites for real
 	require.NoError(t, b.StopAll())
+
 	require.NoError(t, a.StopAll())
 }
 
@@ -1584,8 +1567,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 	// set the http_proxy environment variable
 	u, err := url.Parse(ts.URL)
 	require.NoError(t, err)
-	os.Setenv("http_proxy", u.Host)
-	defer os.Setenv("http_proxy", "")
+	t.Setenv("http_proxy", u.Host)
 
 	username := suite.me.Username
 

@@ -119,6 +119,10 @@ type HTTPClient struct {
 
 // NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
 func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.ClientParam) (*HTTPClient, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, err
+	}
+
 	dialer := cfg.Dialer
 	if dialer == nil {
 		if len(cfg.Addrs) == 0 {
@@ -305,8 +309,8 @@ func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	return &re, nil
 }
 
-// GetSessions returns a list of active sessions in the cluster
-// as reported by auth server
+// GetSessions returns a list of active sessions in the cluster as reported by
+// the auth server.
 func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
