@@ -65,6 +65,8 @@ type TestAuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
+	// Streamer allows a test to set its own audit events streamer.
+	Streamer events.Streamer
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -230,6 +232,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		Access:                 access,
 		Identity:               identity,
 		AuditLog:               srv.AuditLog,
+		Streamer:               cfg.Streamer,
 		SkipPeriodicOperations: true,
 		Emitter:                localLog,
 	}, WithClock(cfg.Clock))
@@ -293,7 +296,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// create the default role
-	err = srv.AuthServer.UpsertRole(ctx, services.NewAdminRole())
+	err = srv.AuthServer.UpsertRole(ctx, services.NewImplicitRole())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -906,10 +909,10 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (ty
 		return nil, trace.Wrap(err)
 	}
 	baseRole := services.RoleForUser(user)
-	baseRole.SetAccessRequestConditions(services.Allow, types.AccessRequestConditions{
+	baseRole.SetAccessRequestConditions(types.Allow, types.AccessRequestConditions{
 		Roles: []string{rolename},
 	})
-	baseRole.SetLogins(services.Allow, nil)
+	baseRole.SetLogins(types.Allow, nil)
 	err = clt.UpsertRole(ctx, baseRole)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -921,7 +924,7 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (ty
 	}
 	requestableRole := services.RoleForUser(user)
 	requestableRole.SetName(rolename)
-	requestableRole.SetLogins(services.Allow, []string{rolename})
+	requestableRole.SetLogins(types.Allow, []string{rolename})
 	err = clt.UpsertRole(ctx, requestableRole)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -960,7 +963,7 @@ func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (type
 	return user, nil
 }
 
-// CreateUser creates user and role and assignes role to a user, used in tests
+// CreateUser creates user and role and assigns role to a user, used in tests
 func CreateUser(clt clt, username string, roles ...types.Role) (types.User, error) {
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
@@ -983,7 +986,7 @@ func CreateUser(clt clt, username string, roles ...types.Role) (types.User, erro
 	return user, nil
 }
 
-// CreateUserAndRole creates user and role and assignes role to a user, used in tests
+// CreateUserAndRole creates user and role and assigns role to a user, used in tests
 func CreateUserAndRole(clt clt, username string, allowedLogins []string) (types.User, types.Role, error) {
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
@@ -991,7 +994,7 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string) (types.
 		return nil, nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
-	role.SetLogins(services.Allow, []string{user.GetName()})
+	role.SetLogins(types.Allow, []string{user.GetName()})
 	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1013,10 +1016,10 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	role := services.RoleForUser(user)
-	set := services.MakeRuleSet(role.GetRules(services.Allow))
+	set := services.MakeRuleSet(role.GetRules(types.Allow))
 	delete(set, types.KindRole)
-	role.SetRules(services.Allow, set.Slice())
-	role.SetLogins(services.Allow, []string{user.GetName()})
+	role.SetRules(types.Allow, set.Slice())
+	role.SetLogins(types.Allow, []string{user.GetName()})
 	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

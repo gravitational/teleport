@@ -76,6 +76,9 @@ const (
 	// MetricWatcherEventSizes measures the size of watcher events that are emitted
 	MetricWatcherEventSizes = "watcher_event_sizes"
 
+	// MetricMissingSSHTunnels returns the number of missing SSH tunnels for this proxy.
+	MetricMissingSSHTunnels = "proxy_missing_ssh_tunnels"
+
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
 )

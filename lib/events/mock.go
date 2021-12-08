@@ -19,96 +19,10 @@ package events
 import (
 	"context"
 	"sync"
-	"time"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
-
-	"github.com/gravitational/trace"
 )
-
-// NewMockAuditLog returns an instance of MockAuditLog.
-func NewMockAuditLog(capacity int) *MockAuditLog {
-	return &MockAuditLog{
-		SlicesC:         make(chan *SessionSlice, capacity),
-		FailedAttemptsC: make(chan *SessionSlice, capacity),
-	}
-}
-
-// EmittedEvent holds the event type and event fields.
-type EmittedEvent struct {
-	EventType Event
-	Fields    EventFields
-}
-
-// MockAuditLog is audit log used for tests.
-type MockAuditLog struct {
-	sync.Mutex
-	returnError     error
-	FailedAttemptsC chan *SessionSlice
-	SlicesC         chan *SessionSlice
-	EmittedEvent    *EmittedEvent
-}
-
-func (d *MockAuditLog) SetError(e error) {
-	d.Lock()
-	d.returnError = e
-	d.Unlock()
-}
-
-func (d *MockAuditLog) GetError() error {
-	d.Lock()
-	defer d.Unlock()
-	return d.returnError
-}
-
-func (d *MockAuditLog) WaitForDelivery(context.Context) error {
-	return nil
-}
-
-func (d *MockAuditLog) Close() error {
-	return nil
-}
-
-// EmitAuditEventLegacy is a mock that records event and fields inside a struct.
-func (d *MockAuditLog) EmitAuditEventLegacy(ev Event, fields EventFields) error {
-	d.EmittedEvent = &EmittedEvent{ev, fields}
-	return nil
-}
-
-func (d *MockAuditLog) UploadSessionRecording(SessionRecording) error {
-	return nil
-}
-
-func (d *MockAuditLog) PostSessionSlice(slice SessionSlice) error {
-	if err := d.GetError(); err != nil {
-		d.FailedAttemptsC <- &slice
-		return trace.Wrap(err)
-	}
-	d.SlicesC <- &slice
-	return nil
-}
-
-func (d *MockAuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	return make([]byte, 0), nil
-}
-
-func (d *MockAuditLog) GetSessionEvents(namespace string, sid session.ID, after int, fetchPrintEvents bool) ([]EventFields, error) {
-	return make([]EventFields, 0), nil
-}
-
-func (d *MockAuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	return make([]EventFields, 0), nil
-}
-
-func (d *MockAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
-	return make([]EventFields, 0), nil
-}
-
-// Reset resets state to zero values.
-func (d *MockAuditLog) Reset() {
-	d.EmittedEvent = nil
-}
 
 // MockEmitter is emitter that stores last audit event
 type MockEmitter struct {

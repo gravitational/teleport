@@ -58,6 +58,7 @@ func TestPing(t *testing.T) {
 			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
 				require.Equal(t, cap.GetType(), resp.Auth.Type)
 				require.Equal(t, cap.GetSecondFactor(), resp.Auth.SecondFactor)
+				require.NotEmpty(t, cap.GetPreferredLocalMFA(), "preferred local MFA empty")
 
 				u2f, _ := cap.GetU2F()
 				require.NotNil(t, resp.Auth.U2F)

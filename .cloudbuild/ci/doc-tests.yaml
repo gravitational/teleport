@@ -1,0 +1,8 @@
+steps:
+  - name: quay.io/gravitational/next:main
+    id: docs-test
+    env:
+      - WITH_EXTERNAL_LINKS=true
+    dir: /src
+    args: ['yarn', 'remark', '/workspace/docs/pages/**/*.mdx', '--frail']
+    timeout: 10m

@@ -1176,7 +1176,7 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 
 func newWindowsDesktopsParser() *windowsDesktopsParser {
 	return &windowsDesktopsParser{
-		baseParser: newBaseParser(backend.Key(windowsDeskoptsPrefix)),
+		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix)),
 	}
 }
 

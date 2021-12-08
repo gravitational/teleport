@@ -121,6 +121,9 @@ const (
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
 
+	// KindKubernetesCluster is a Kubernetes cluster.
+	KindKubernetesCluster = "kube_cluster"
+
 	// KindToken is a provisioning token resource
 	KindToken = "token"
 
@@ -300,10 +303,14 @@ const (
 	// OriginDynamic is an origin value indicating that the resource was
 	// committed as dynamic configuration.
 	OriginDynamic = "dynamic"
+
+	// OriginCloud is an origin value indicating that the resource was
+	// imported from a cloud provider.
+	OriginCloud = "cloud"
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic}
+var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.

@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -92,7 +93,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "no access to databases",
@@ -102,7 +103,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{types.Wildcard},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "no access to users",
@@ -112,7 +113,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "access allowed to specific user/database",
@@ -131,7 +132,7 @@ func TestAccessPostgres(t *testing.T) {
 			allowDbUsers: []string{"alice"},
 			dbName:       "postgres",
 			dbUser:       "postgres",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 	}
 
@@ -196,7 +197,7 @@ func TestAccessMySQL(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{},
 			dbUser:       "root",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 		{
 			desc:         "access allowed to specific user",
@@ -211,7 +212,7 @@ func TestAccessMySQL(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
 			dbUser:       "root",
-			err:          "access to database denied",
+			err:          "access to db denied",
 		},
 	}
 
@@ -237,6 +238,60 @@ func TestAccessMySQL(t *testing.T) {
 
 			// Disconnect.
 			err = mysqlConn.Close()
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestMySQLBadHandshake verifies MySQL proxy can gracefully handle truncated
+// client handshake messages.
+func TestMySQLBadHandshake(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
+	go testCtx.startHandlingConnections()
+
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "short user name",
+			data: []byte{0x8d, 0xae, 0xff, 0x49, 0x0, 0x0, 0x0, 0x1, 0x2d, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x61, 0x6c, 0x69, 0x63, 0x65},
+		},
+		{
+			name: "short db name",
+			data: []byte{0x8d, 0xae, 0xff, 0x49, 0x0, 0x0, 0x0, 0x1, 0x2d, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x61, 0x6c, 0x69, 0x63, 0x65, 0x0, 0x14, 0xce, 0x7, 0x50, 0x5d, 0x8c, 0xca, 0x17, 0xda, 0x1b, 0x60, 0xea, 0x9d, 0xa9, 0xc4, 0x7d, 0x83, 0x85, 0xa8, 0x7a, 0x96, 0x71, 0x77, 0x65, 0x31, 0x32},
+		},
+		{
+			name: "short plugin name",
+			data: []byte{0x8d, 0xae, 0xff, 0x49, 0x0, 0x0, 0x0, 0x1, 0x2d, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x61, 0x6c, 0x69, 0x63, 0x65, 0x0, 0x14, 0xce, 0x7, 0x50, 0x5d, 0x8c, 0xca, 0x17, 0xda, 0x1b, 0x60, 0xea, 0x9d, 0xa9, 0xc4, 0x7d, 0x83, 0x85, 0xa8, 0x7a, 0x96, 0x71, 0x77, 0x65, 0x31, 0x32, 0x33, 0x0, 0x6d, 0x79, 0x73, 0x71, 0x6c, 0x5f, 0x6e, 0x61, 0x74, 0x69, 0x76, 0x65, 0x5f, 0x70, 0x61, 0x73, 0x73},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Connect to MySQL proxy endpoint.
+			conn, err := net.Dial("tcp", testCtx.mysqlListener.Addr().String())
+			require.NoError(t, err)
+
+			// Read initial handshake message.
+			bytes := make([]byte, 1024)
+			_, err = conn.Read(bytes)
+			require.NoError(t, err)
+
+			// Prepend header to the packet data.
+			packet := append([]byte{
+				byte(len(test.data)),
+				byte(len(test.data) >> 8),
+				byte(len(test.data) >> 16),
+				0x1,
+			}, test.data...)
+
+			// Write handshake response packet.
+			_, err = conn.Write(packet)
+			require.NoError(t, err)
+
+			err = conn.Close()
 			require.NoError(t, err)
 		})
 	}
@@ -279,7 +334,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -290,7 +345,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{types.Wildcard},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -301,7 +356,7 @@ func TestAccessMongoDB(t *testing.T) {
 			allowDbUsers: []string{},
 			dbName:       "admin",
 			dbUser:       "admin",
-			connectErr:   "access to database denied",
+			connectErr:   "access to db denied",
 			queryErr:     "",
 		},
 		{
@@ -324,7 +379,7 @@ func TestAccessMongoDB(t *testing.T) {
 			dbName:       "metrics",
 			dbUser:       "alice",
 			connectErr:   "",
-			queryErr:     "access to database denied",
+			queryErr:     "access to db denied",
 		},
 	}
 
@@ -823,8 +878,8 @@ type agentParams struct {
 	Databases types.Databases
 	// HostID is an optional host id.
 	HostID string
-	// Selectors are optional database resource selectors.
-	Selectors []services.Selector
+	// ResourceMatchers are optional database resource matchers.
+	ResourceMatchers []services.ResourceMatcher
 	// GetServerInfoFn overrides heartbeat's server info function.
 	GetServerInfoFn func(database types.Database) func() (types.Resource, error)
 	// OnReconcile sets database resource reconciliation callback.
@@ -869,19 +924,19 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
-		Clock:           clockwork.NewFakeClockAt(time.Now()),
-		DataDir:         t.TempDir(),
-		AuthClient:      c.authClient,
-		AccessPoint:     c.authClient,
-		StreamEmitter:   c.authClient,
-		Authorizer:      dbAuthorizer,
-		Hostname:        constants.APIDomain,
-		HostID:          p.HostID,
-		TLSConfig:       tlsConfig,
-		Auth:            testAuth,
-		Databases:       p.Databases,
-		Selectors:       p.Selectors,
-		GetServerInfoFn: p.GetServerInfoFn,
+		Clock:            clockwork.NewFakeClockAt(time.Now()),
+		DataDir:          t.TempDir(),
+		AuthClient:       c.authClient,
+		AccessPoint:      c.authClient,
+		StreamEmitter:    c.authClient,
+		Authorizer:       dbAuthorizer,
+		Hostname:         constants.APIDomain,
+		HostID:           p.HostID,
+		TLSConfig:        tlsConfig,
+		Auth:             testAuth,
+		Databases:        p.Databases,
+		ResourceMatchers: p.ResourceMatchers,
+		GetServerInfoFn:  p.GetServerInfoFn,
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
@@ -897,6 +952,12 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		},
 		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
+		CloudClients: &common.TestCloudClients{
+			STS:      &cloud.STSMock{},
+			RDS:      &cloud.RDSMock{},
+			Redshift: &cloud.RedshiftMock{},
+			IAM:      &cloud.IAMMock{},
+		},
 	})
 	require.NoError(t, err)
 
@@ -1033,6 +1094,37 @@ func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
 	}
 }
 
+func withAzurePostgres(name, authToken string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthToken:  authToken,
+		})
+		require.NoError(t, err)
+		go postgresServer.Serve()
+		t.Cleanup(func() { postgresServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolPostgres,
+			URI:           net.JoinHostPort("localhost", postgresServer.Port()),
+			DynamicLabels: dynamicLabels,
+			Azure: types.Azure{
+				Name: name,
+			},
+			// Set CA cert, otherwise we will attempt to download RDS roots.
+			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.postgres[name] = testPostgres{
+			db:       postgresServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
 func withSelfHostedMySQL(name string) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
@@ -1115,6 +1207,38 @@ func withCloudSQLMySQL(name, authUser, authToken string) withDatabaseOption {
 				InstanceID: "instance-1",
 			},
 			// Set CA cert to pass cert validation.
+			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.mysql[name] = testMySQL{
+			db:       mysqlServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthUser:   authUser,
+			AuthToken:  authToken,
+		})
+		require.NoError(t, err)
+		go mysqlServer.Serve()
+		t.Cleanup(func() { mysqlServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolMySQL,
+			URI:           net.JoinHostPort("localhost", mysqlServer.Port()),
+			DynamicLabels: dynamicLabels,
+			Azure: types.Azure{
+				Name: name,
+			},
+			// Set CA cert, otherwise we will attempt to download RDS roots.
 			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)

@@ -34,12 +34,12 @@
 </body>
 
 <script>
-  // URLBase64 to ArrayBuffer
+  // URLBase64 to ArrayBuffer.
   function bufferDecode(value) {
     return Uint8Array.from(atob(value), c => c.charCodeAt(0));
   }
 
-  // ArrayBuffer to URLBase64
+  // ArrayBuffer to URLBase64.
   function bufferEncode(value) {
     return btoa(String.fromCharCode.apply(null, new Uint8Array(value)))
       .replace(/\+/g, "-")
@@ -77,7 +77,7 @@
         if (res.status === 200) {
           return res;
         }
-        throw new Error(res.statusText);
+        throw res;
       })
       .then(res => res.json())
       .then(res => {
@@ -113,8 +113,13 @@
         if (res.status === 200) {
           alert("registration successful");
         } else {
-          alert("registration failed");
+          throw res;
         }
+      })
+      .catch(res => {
+        res.text().then(body => {
+          alert("Registration failed with HTTP " + res.status + "/" + res.statusMessage + ": " + body);
+        })
       });
   }
 
@@ -140,7 +145,7 @@
         if (res.status === 200) {
           return res;
         }
-        throw new Error(res.statusText);
+        throw res;
       })
       .then(res => res.json())
       .then(res => {
@@ -176,12 +181,17 @@
         if (res.status === 200) {
           alert("login successful");
         } else {
-          alert("login failed");
+          throw res;
         }
+      })
+      .catch(res => {
+        res.text().then(body => {
+          alert("Login failed with HTTP " + res.status + "/" + res.statusMessage + ": " + body);
+        })
       });
   }
 
-  // check whether current browser supports WebAuthn
+  // Is WebAuthn supported?
   if (!window.PublicKeyCredential) {
     alert("Error: this browser does not support WebAuthn");
   }

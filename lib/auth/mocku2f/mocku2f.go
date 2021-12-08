@@ -45,6 +45,9 @@ type Key struct {
 	KeyHandle  []byte
 	PrivateKey *ecdsa.PrivateKey
 
+	// Cert is the Key attestation certificate.
+	Cert []byte
+
 	// PreferRPID instructs the Key to use favor using the RPID for Webauthn
 	// ceremonies, even if the U2F App ID extension is present.
 	PreferRPID bool
@@ -54,7 +57,6 @@ type Key struct {
 	// credentials.
 	IgnoreAllowedCredentials bool
 
-	cert    []byte
 	counter uint32
 }
 
@@ -122,7 +124,7 @@ func CreateWithKeyHandle(keyHandle []byte) (*Key, error) {
 	return &Key{
 		KeyHandle:  keyHandle,
 		PrivateKey: privatekey,
-		cert:       cert,
+		Cert:       cert,
 		counter:    1,
 	}, nil
 }
@@ -190,7 +192,7 @@ func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterRes
 	regData = append(regData, pubKey[:]...)
 	regData = append(regData, byte(len(muk.KeyHandle)))
 	regData = append(regData, muk.KeyHandle[:]...)
-	regData = append(regData, muk.cert[:]...)
+	regData = append(regData, muk.Cert[:]...)
 	regData = append(regData, sig[:]...)
 
 	return &signRegisterResult{

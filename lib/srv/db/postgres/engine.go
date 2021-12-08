@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
@@ -80,7 +82,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	client := pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
 	defer func() {
 		if err != nil {
-			if err := client.Send(toErrorResponse(err)); err != nil {
+			if err := client.Send(toErrorResponse(err)); err != nil && !utils.IsOKNetworkError(err) {
 				e.Log.WithError(err).Error("Failed to send error to client.")
 			}
 		}
@@ -121,7 +123,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 	defer func() {
 		err = serverConn.Close(ctx)
-		if err != nil {
+		if err != nil && !utils.IsOKNetworkError(err) {
 			e.Log.WithError(err).Error("Failed to close connection.")
 		}
 	}()
@@ -179,10 +181,17 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		Verified:       sessionCtx.Identity.MFAVerified != "",
 		AlwaysRequired: ap.GetRequireSessionMFA(),
 	}
-	err = sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Database, mfaParams,
-		&services.DatabaseLabelsMatcher{Labels: sessionCtx.Database.GetAllLabels()},
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
-		&services.DatabaseNameMatcher{Name: sessionCtx.DatabaseName})
+
+	dbRoleMatchers := role.DatabaseRoleMatchers(
+		sessionCtx.Database.GetProtocol(),
+		sessionCtx.DatabaseUser,
+		sessionCtx.DatabaseName,
+	)
+	err = sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
+		mfaParams,
+		dbRoleMatchers...,
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
@@ -210,10 +219,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
   %v
 
 Make sure that Postgres user %q has "rds_iam" role and Teleport database
-agent's IAM policy has "rds-connect" permissions:
+agent's IAM policy has "rds-connect" permissions (note that IAM changes may
+take a few minutes to propagate):
 
 %v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, common.GetRDSPolicy(sessionCtx.Database.GetAWS().Region))
+`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
 		}
 		return nil, nil, trace.Wrap(err)
 	}
@@ -398,6 +408,14 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.DatabaseTypeAzure:
+		config.Password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Azure requires database login to be <user>@<server-name> e.g.
+		// alice@postgres-server-name.
+		config.User = fmt.Sprintf("%v@%v", config.User, sessionCtx.Database.GetAzure().Name)
 	}
 	// TLS config will use client certificate for an onprem database or
 	// will contain RDS root certificate for RDS/Aurora.

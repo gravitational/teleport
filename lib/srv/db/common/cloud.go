@@ -22,8 +22,19 @@ import (
 	"sync"
 
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/aws/aws-sdk-go/aws"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
+	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
@@ -35,10 +46,20 @@ import (
 type CloudClients interface {
 	// GetAWSSession returns AWS session for the specified region.
 	GetAWSSession(region string) (*awssession.Session, error)
+	// GetAWSRDSClient returns AWS RDS client for the specified region.
+	GetAWSRDSClient(region string) (rdsiface.RDSAPI, error)
+	// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
+	GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error)
+	// GetAWSIAMClient returns AWS IAM client for the specified region.
+	GetAWSIAMClient(region string) (iamiface.IAMAPI, error)
+	// GetAWSSTSClient returns AWS STS client for the specified region.
+	GetAWSSTSClient(region string) (stsiface.STSAPI, error)
 	// GetGCPIAMClient returns GCP IAM client.
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
 	GetGCPSQLAdminClient(context.Context) (*sqladmin.Service, error)
+	// GetAzureCredential returns Azure default token credential chain.
+	GetAzureCredential() (azcore.TokenCredential, error)
 	// Closer closes all initialized clients.
 	io.Closer
 }
@@ -57,6 +78,8 @@ type cloudClients struct {
 	gcpIAM *gcpcredentials.IamCredentialsClient
 	// gcpSQLAdmin is the cached GCP Cloud SQL Admin client.
 	gcpSQLAdmin *sqladmin.Service
+	// azureCredential is the cached Azure credential.
+	azureCredential azcore.TokenCredential
 	// mtx is used for locking.
 	mtx sync.RWMutex
 }
@@ -72,11 +95,47 @@ func (c *cloudClients) GetAWSSession(region string) (*awssession.Session, error)
 	return c.initAWSSession(region)
 }
 
+// GetAWSRDSClient returns AWS RDS client for the specified region.
+func (c *cloudClients) GetAWSRDSClient(region string) (rdsiface.RDSAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rds.New(session), nil
+}
+
+// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
+func (c *cloudClients) GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return redshift.New(session), nil
+}
+
+// GetAWSIAMClient returns AWS IAM client for the specified region.
+func (c *cloudClients) GetAWSIAMClient(region string) (iamiface.IAMAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return iam.New(session), nil
+}
+
+// GetAWSSTSClient returns AWS STS client for the specified region.
+func (c *cloudClients) GetAWSSTSClient(region string) (stsiface.STSAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sts.New(session), nil
+}
+
 // GetGCPIAMClient returns GCP IAM client.
 func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	c.mtx.RLock()
 	if c.gcpIAM != nil {
-		c.mtx.RUnlock()
+		defer c.mtx.RUnlock()
 		return c.gcpIAM, nil
 	}
 	c.mtx.RUnlock()
@@ -87,11 +146,22 @@ func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.Iam
 func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (*sqladmin.Service, error) {
 	c.mtx.RLock()
 	if c.gcpSQLAdmin != nil {
-		c.mtx.RUnlock()
+		defer c.mtx.RUnlock()
 		return c.gcpSQLAdmin, nil
 	}
 	c.mtx.RUnlock()
 	return c.initGCPSQLAdminClient(ctx)
+}
+
+// GetAzureCredential returns default Azure token credential chain.
+func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
+	c.mtx.RLock()
+	if c.azureCredential != nil {
+		defer c.mtx.RUnlock()
+		return c.azureCredential, nil
+	}
+	c.mtx.RUnlock()
+	return c.initAzureCredential()
 }
 
 // Closes closes all initialized clients.
@@ -155,12 +225,56 @@ func (c *cloudClients) initGCPSQLAdminClient(ctx context.Context) (*sqladmin.Ser
 	return gcpSQLAdmin, nil
 }
 
+func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.azureCredential != nil { // If some other thread already got here first.
+		return c.azureCredential, nil
+	}
+	logrus.Debug("Initializing Azure default credential chain.")
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.azureCredential = cred
+	return cred, nil
+}
+
 // TestCloudClients are used in tests.
-type TestCloudClients struct{}
+type TestCloudClients struct {
+	RDS          rdsiface.RDSAPI
+	RDSPerRegion map[string]rdsiface.RDSAPI
+	Redshift     redshiftiface.RedshiftAPI
+	IAM          iamiface.IAMAPI
+	STS          stsiface.STSAPI
+}
 
 // GetAWSSession returns AWS session for the specified region.
 func (c *TestCloudClients) GetAWSSession(region string) (*awssession.Session, error) {
 	return nil, trace.NotImplemented("not implemented")
+}
+
+// GetAWSRDSClient returns AWS RDS client for the specified region.
+func (c *TestCloudClients) GetAWSRDSClient(region string) (rdsiface.RDSAPI, error) {
+	if len(c.RDSPerRegion) != 0 {
+		return c.RDSPerRegion[region], nil
+	}
+	return c.RDS, nil
+}
+
+// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
+func (c *TestCloudClients) GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error) {
+	return c.Redshift, nil
+}
+
+// GetAWSIAMClient returns AWS IAM client for the specified region.
+func (c *TestCloudClients) GetAWSIAMClient(region string) (iamiface.IAMAPI, error) {
+	return c.IAM, nil
+}
+
+// GetAWSSTSClient returns AWS STS client for the specified region.
+func (c *TestCloudClients) GetAWSSTSClient(region string) (stsiface.STSAPI, error) {
+	return c.STS, nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
@@ -175,6 +289,11 @@ func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (*sqladmin.
 	return sqladmin.NewService(ctx,
 		option.WithGRPCDialOption(grpc.WithInsecure()), // Insecure must be set for unauth client.
 		option.WithoutAuthentication())
+}
+
+// GetAzureCredential returns default Azure token credential chain.
+func (c *TestCloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
+	return &azidentity.ChainedTokenCredential{}, nil
 }
 
 // Closer closes all initialized clients.

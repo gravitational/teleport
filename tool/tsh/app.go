@@ -40,14 +40,25 @@ func onAppLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	var arn string
+	if app.IsAWSConsole() {
+		var err error
+		arn, err = getARNFromFlags(cf, profile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	ws, err := tc.CreateAppSession(cf.Context, types.CreateAppSessionRequest{
 		Username:    tc.Username,
 		PublicAddr:  app.GetPublicAddr(),
 		ClusterName: tc.SiteName,
+		AWSRoleARN:  arn,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -59,11 +70,22 @@ func onAppLogin(cf *CLIConf) error {
 			SessionID:   ws.GetName(),
 			PublicAddr:  app.GetPublicAddr(),
 			ClusterName: tc.SiteName,
+			AWSRoleARN:  arn,
 		},
 		AccessRequests: profile.ActiveRequests.AccessRequests,
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+		return trace.Wrap(err)
+	}
+	if app.IsAWSConsole() {
+		return awsCliTpl.Execute(os.Stdout, map[string]string{
+			"awsAppName": app.GetName(),
+			"awsCmd":     "s3 ls",
+		})
 	}
 	return appLoginTpl.Execute(os.Stdout, map[string]string{
 		"appName": app.GetName(),
@@ -76,6 +98,13 @@ var appLoginTpl = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Example curl command:
 
 {{.curlCmd}}
+`))
+
+// awsCliTpl is the message that gets printed to a user upon successful aws app login.
+var awsCliTpl = template.Must(template.New("").Parse(
+	`Logged into AWS app {{.awsAppName}}. Example AWS cli command:
+
+tsh aws {{.awsCmd}}
 `))
 
 // getRegisteredApp returns the registered application with the specified name.
@@ -105,7 +134,7 @@ func onAppLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -148,7 +177,7 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -196,7 +225,7 @@ Key:       %v
 // If logged into multiple apps, returns an error unless one was specified
 // explicitly on CLI.
 func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

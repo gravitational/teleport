@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 func TestAuthSignKubeconfig(t *testing.T) {
@@ -223,18 +224,22 @@ type mockClient struct {
 
 	clusterName    types.ClusterName
 	userCerts      *proto.Certs
+	userCertsReq   *proto.UserCertsRequest
 	dbCertsReq     *proto.DatabaseCertRequest
 	dbCerts        *proto.DatabaseCertResponse
 	cas            []types.CertAuthority
 	proxies        []types.Server
 	remoteClusters []types.RemoteCluster
 	kubeServices   []types.Server
+	appServices    []types.AppServer
+	appSession     types.WebSession
 }
 
 func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
-func (c *mockClient) GenerateUserCerts(context.Context, proto.UserCertsRequest) (*proto.Certs, error) {
+func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.UserCertsRequest) (*proto.Certs, error) {
+	c.userCertsReq = &userCertsReq
 	return c.userCerts, nil
 }
 func (c *mockClient) GetCertAuthorities(types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
@@ -252,6 +257,14 @@ func (c *mockClient) GetKubeServices(context.Context) ([]types.Server, error) {
 func (c *mockClient) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	c.dbCertsReq = req
 	return c.dbCerts, nil
+}
+
+func (c *mockClient) GetApplicationServers(context.Context, string) ([]types.AppServer, error) {
+	return c.appServices, nil
+}
+
+func (c *mockClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+	return c.appSession, nil
 }
 
 func TestCheckKubeCluster(t *testing.T) {
@@ -373,37 +386,83 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name       string
-		inFormat   identityfile.Format
-		inHost     string
-		outSubject pkix.Name
-		outKey     []byte
-		outCert    []byte
-		outCA      []byte
+		name           string
+		inFormat       identityfile.Format
+		inHost         string
+		inOutDir       string
+		inOutFile      string
+		outSubject     pkix.Name
+		outServerNames []string
+		outKeyFile     string
+		outCertFile    string
+		outCAFile      string
+		outKey         []byte
+		outCert        []byte
+		outCA          []byte
 	}{
 		{
-			name:       "database certificate",
-			inFormat:   identityfile.FormatDatabase,
-			inHost:     "postgres.example.com",
-			outSubject: pkix.Name{CommonName: "postgres.example.com"},
-			outKey:     key.Priv,
-			outCert:    certBytes,
-			outCA:      caBytes,
+			name:           "database certificate",
+			inFormat:       identityfile.FormatDatabase,
+			inHost:         "postgres.example.com",
+			inOutDir:       t.TempDir(),
+			inOutFile:      "db",
+			outSubject:     pkix.Name{CommonName: "postgres.example.com"},
+			outServerNames: []string{"postgres.example.com"},
+			outKeyFile:     "db.key",
+			outCertFile:    "db.crt",
+			outCAFile:      "db.cas",
+			outKey:         key.Priv,
+			outCert:        certBytes,
+			outCA:          caBytes,
 		},
 		{
-			name:       "mongodb certificate",
-			inFormat:   identityfile.FormatMongo,
-			inHost:     "mongo.example.com",
-			outSubject: pkix.Name{CommonName: "mongo.example.com", Organization: []string{"example.com"}},
-			outCert:    append(certBytes, key.Priv...),
-			outCA:      caBytes,
+			name:           "database certificate multiple SANs",
+			inFormat:       identityfile.FormatDatabase,
+			inHost:         "mysql.external.net,mysql.internal.net,192.168.1.1",
+			inOutDir:       t.TempDir(),
+			inOutFile:      "db",
+			outSubject:     pkix.Name{CommonName: "mysql.external.net"},
+			outServerNames: []string{"mysql.external.net", "mysql.internal.net", "192.168.1.1"},
+			outKeyFile:     "db.key",
+			outCertFile:    "db.crt",
+			outCAFile:      "db.cas",
+			outKey:         key.Priv,
+			outCert:        certBytes,
+			outCA:          caBytes,
+		},
+		{
+			name:           "mongodb certificate",
+			inFormat:       identityfile.FormatMongo,
+			inHost:         "mongo.example.com",
+			inOutDir:       t.TempDir(),
+			inOutFile:      "mongo",
+			outSubject:     pkix.Name{CommonName: "mongo.example.com", Organization: []string{"example.com"}},
+			outServerNames: []string{"mongo.example.com"},
+			outCertFile:    "mongo.crt",
+			outCAFile:      "mongo.cas",
+			outCert:        append(certBytes, key.Priv...),
+			outCA:          caBytes,
+		},
+		{
+			name:           "cockroachdb certificate",
+			inFormat:       identityfile.FormatCockroach,
+			inHost:         "localhost,roach1",
+			inOutDir:       t.TempDir(),
+			outSubject:     pkix.Name{CommonName: "node"},
+			outServerNames: []string{"node", "localhost", "roach1"}, // "node" principal should always be added
+			outKeyFile:     "node.key",
+			outCertFile:    "node.crt",
+			outCAFile:      "ca.crt",
+			outKey:         key.Priv,
+			outCert:        certBytes,
+			outCA:          caBytes,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ac := AuthCommand{
-				output:        filepath.Join(t.TempDir(), "db"),
+				output:        filepath.Join(test.inOutDir, test.inOutFile),
 				outputFormat:  test.inFormat,
 				signOverwrite: true,
 				genHost:       test.inHost,
@@ -417,24 +476,124 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			csr, err := tlsca.ParseCertificateRequestPEM(authClient.dbCertsReq.CSR)
 			require.NoError(t, err)
 			require.Equal(t, test.outSubject.String(), csr.Subject.String())
+			require.Equal(t, test.outServerNames, authClient.dbCertsReq.ServerNames)
+			require.Equal(t, test.outServerNames[0], authClient.dbCertsReq.ServerName)
 
 			if len(test.outKey) > 0 {
-				keyBytes, err := ioutil.ReadFile(ac.output + ".key")
+				keyBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outKeyFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outKey, keyBytes, "keys match")
 			}
 
 			if len(test.outCert) > 0 {
-				certBytes, err := ioutil.ReadFile(ac.output + ".crt")
+				certBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outCertFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outCert, certBytes, "certificates match")
 			}
 
 			if len(test.outCA) > 0 {
-				caBytes, err := ioutil.ReadFile(ac.output + ".cas")
+				caBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outCAFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outCA, caBytes, "CA certificates match")
 			}
+		})
+	}
+}
+
+// TestGenerateAppCertificates verifies cert/key pair generation for applications.
+func TestGenerateAppCertificates(t *testing.T) {
+	const appName = "app-1"
+	const clusterNameStr = "example.com"
+	const publicAddr = "https://app-1.example.com"
+	const sessionID = "foobar"
+
+	clusterName, err := services.NewClusterNameWithRandomID(
+		types.ClusterNameSpecV2{
+			ClusterName: clusterNameStr,
+		})
+	require.NoError(t, err)
+
+	authClient := &mockClient{
+		clusterName: clusterName,
+		userCerts: &proto.Certs{
+			SSH: []byte("SSH cert"),
+			TLS: []byte("TLS cert"),
+		},
+		appServices: []types.AppServer{
+			&types.AppServerV3{
+				Metadata: types.Metadata{
+					Name: appName,
+				},
+				Spec: types.AppServerSpecV3{
+					App: &types.AppV3{
+						Spec: types.AppSpecV3{
+							PublicAddr: publicAddr,
+						},
+					},
+				},
+			},
+		},
+		appSession: &types.WebSessionV2{
+			Metadata: types.Metadata{
+				Name: sessionID,
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		outDir      string
+		outFileBase string
+		appName     string
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			name:        "app happy path",
+			outDir:      t.TempDir(),
+			outFileBase: "app-1",
+			appName:     "app-1",
+			assertErr:   require.NoError,
+		},
+		{
+			name:        "app non-existent",
+			outDir:      t.TempDir(),
+			outFileBase: "app-2",
+			appName:     "app-2",
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			output := filepath.Join(tc.outDir, tc.outFileBase)
+			ac := AuthCommand{
+				output:        output,
+				outputFormat:  identityfile.FormatTLS,
+				signOverwrite: true,
+				genTTL:        time.Hour,
+				appName:       tc.appName,
+			}
+			err = ac.generateUserKeys(authClient)
+			tc.assertErr(t, err)
+			if err != nil {
+				return
+			}
+
+			expectedRouteToApp := proto.RouteToApp{
+				Name:        tc.appName,
+				SessionID:   sessionID,
+				PublicAddr:  publicAddr,
+				ClusterName: clusterNameStr,
+			}
+			require.Equal(t, proto.UserCertsRequest_App, authClient.userCertsReq.Usage)
+			require.Equal(t, expectedRouteToApp, authClient.userCertsReq.RouteToApp)
+
+			certBytes, err := ioutil.ReadFile(filepath.Join(tc.outDir, tc.outFileBase+".crt"))
+			require.NoError(t, err)
+			require.Equal(t, authClient.userCerts.TLS, certBytes, "certificates match")
 		})
 	}
 }

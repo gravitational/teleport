@@ -170,7 +170,7 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wanlib.CredentialCreat
 		Format: "fido-u2f",
 		AttStatement: map[string]interface{}{
 			"sig": res.Signature,
-			"x5c": []interface{}{muk.cert},
+			"x5c": []interface{}{muk.Cert},
 		},
 	})
 	if err != nil {
