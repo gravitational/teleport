@@ -41,7 +41,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 	connLimit, err := limiter.NewConnectionsLimiter(limiter.Config{MaxConnections: connLimitNumber})
 	require.NoError(t, err)
 
-	// Set proxy connection limiter
+	// Set proxy connection limiter.
 	testCtx.proxyServer.cfg.Limiter = connLimit
 
 	go testCtx.startHandlingConnections()
@@ -49,6 +49,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 	// Create user/role with the requested permissions.
 	testCtx.createUserAndRole(ctx, t, user, role, []string{types.Wildcard}, []string{types.Wildcard})
 
+	// Keep and release all connections at the end.
 	conns := make([]*pgconn.PgConn, 0)
 	defer func() {
 		for _, conn := range conns {
@@ -57,15 +58,39 @@ func TestProxyConnectionLimiting(t *testing.T) {
 		}
 	}()
 
-	for i := 0; i < connLimitNumber; i++ {
-		// Try to connect to the database as this user.
-		pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
+	t.Run("limit can be hit", func(t *testing.T) {
+		for i := 0; i < connLimitNumber; i++ {
+			// Try to connect to the database.
+			pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
+			require.NoError(t, err)
+
+			conns = append(conns, pgConn)
+		}
+
+		// This connection should go over the limit.
+		_, err = testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "exceeded connection limit")
+	})
+
+	// When a connection is released a new can be established
+	t.Run("reconnect one", func(t *testing.T) {
+		// Get one open connection.
+		oneConn := conns[len(conns)-1]
+		conns = conns[:len(conns)-1]
+
+		// Close it, this should decrease the connection limit.
+		err = oneConn.Close(ctx)
 		require.NoError(t, err)
 
+		// Create a new connection. We do not expect an error here as we have just closed one.
+		pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
+		require.NoError(t, err)
 		conns = append(conns, pgConn)
-	}
 
-	_, err = testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "exceeded connection limit")
+		// Here the limit should be reached again.
+		_, err = testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "exceeded connection limit")
+	})
 }

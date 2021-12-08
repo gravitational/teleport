@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -124,6 +123,15 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.LockWatcher == nil {
 		return trace.BadParameter("missing LockWatcher")
+	}
+	if c.Limiter == nil {
+		// Empty config means no limit.
+		connLimiter, err := limiter.NewConnectionsLimiter(limiter.Config{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.Limiter = connLimiter
 	}
 	return nil
 }
@@ -242,6 +250,12 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
+	// Apply rate limiting.
+	if err := s.cfg.Limiter.AcquireConnection(clientIP); err != nil {
+		return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
+	}
+	defer s.cfg.Limiter.ReleaseConnection(clientIP)
+
 	serviceConn, authContext, err := s.Connect(ctx, common.ConnectParams{
 		ClientIP: clientIP,
 	})
@@ -277,6 +291,7 @@ func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 		TLSConfig:  s.cfg.TLSConfig,
 		Middleware: s.middleware,
 		Service:    s,
+		Limiter:    s.cfg.Limiter,
 		Log:        s.log,
 	}
 }
@@ -287,6 +302,7 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 		TLSConfig:  s.cfg.TLSConfig,
 		Middleware: s.middleware,
 		Service:    s,
+		Limiter:    s.cfg.Limiter,
 		Log:        s.log,
 	}
 }
@@ -327,25 +343,11 @@ func (s *ProxyServer) Connect(ctx context.Context, params common.ConnectParams) 
 			}
 			return nil, nil, trace.Wrap(err)
 		}
-
-		// Apply rate limiting.
-		if err := s.cfg.Limiter.AcquireConnection(params.ClientIP); err != nil {
-			return nil, nil, trace.LimitExceeded("client %v exceeded connection limit", params.ClientIP)
-		}
-		// Limiter will be decremented by ConnCloseWrapper below.
-
 		// Upgrade the connection so the client identity can be passed to the
 		// remote server during TLS handshake. On the remote side, the connection
 		// received from the reverse tunnel will be handled by tls.Server.
 		serviceConn = tls.Client(serviceConn, tlsConfig)
-		// Wrap connection, so we can decrement the limit when the connection is closed.
-		srvConn := &utils.ConnCloseWrapper{
-			Conn: serviceConn,
-			BeforeClose: func() {
-				s.cfg.Limiter.ReleaseConnection(params.ClientIP)
-			},
-		}
-		return srvConn, proxyContext.authContext, nil
+		return serviceConn, proxyContext.authContext, nil
 	}
 	return nil, nil, trace.BadParameter("failed to connect to any of the database servers")
 }

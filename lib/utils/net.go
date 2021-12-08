@@ -33,22 +33,3 @@ func ClientIPFromConn(conn net.Conn) (string, error) {
 
 	return clientIP, nil
 }
-
-// ConnCloseWrapper is a helper struct that allows to call additional function
-// before net.Conn.Close() is called.
-type ConnCloseWrapper struct {
-	// Underlying connection.
-	net.Conn
-	// BeforeClose will be called on Close(), before net.Conn.Close().
-	BeforeClose func()
-}
-
-// Close calls user provided beforeClose function and then Close() from
-// underlying connection.
-func (c *ConnCloseWrapper) Close() error {
-	if c.BeforeClose != nil {
-		c.BeforeClose()
-	}
-
-	return c.Conn.Close()
-}

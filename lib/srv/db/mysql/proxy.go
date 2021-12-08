@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
@@ -49,6 +50,8 @@ type Proxy struct {
 	Service common.Service
 	// Log is used for logging.
 	Log logrus.FieldLogger
+	// Limiter limits the number of active connections per client IP.
+	Limiter *limiter.ConnectionsLimiter
 }
 
 // HandleConnection accepts connection from a MySQL client, authenticates
@@ -86,6 +89,12 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Apply rate limiting.
+	if err := p.Limiter.AcquireConnection(clientIP); err != nil {
+		return trace.LimitExceeded("client %v exceeded connection limit", clientIP)
+	}
+	defer p.Limiter.ReleaseConnection(clientIP)
 
 	serviceConn, authContext, err := p.Service.Connect(ctx, common.ConnectParams{
 		User:     server.GetUser(),

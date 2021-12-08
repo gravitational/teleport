@@ -422,7 +422,7 @@ type testModules struct {
 
 func (m *testModules) Features() modules.Features {
 	return modules.Features{
-		DB: false, // Explicily turn off database access.
+		DB: false, // Explicitly turn off database access.
 	}
 }
 
