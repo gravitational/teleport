@@ -403,7 +403,7 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 	}
 
 	switch ca.GetType() {
-	case UserCA, HostCA, JWTSigner:
+	case UserCA, HostCA, DatabaseCA, JWTSigner:
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
