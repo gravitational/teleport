@@ -704,6 +704,116 @@ if [[ "${TELEPORT_ROLE}" == "auth" || "${TELEPORT_ROLE}" == "node" || "${TELEPOR
 EOF
     systemctl_wrap enable telegraf.service
     systemctl_wrap restart telegraf.service
+# handle configuration for agent mode
+elif [[ "${TELEPORT_ROLE}" == "agent" ]]; then
+    echo "agent" > ${USE_CONFD_DIR}/role.agent
+    cat >${USE_CONFIG_PATH} <<EOF
+teleport:
+  log:
+    output: stderr
+    severity: INFO
+  data_dir: /var/lib/teleport
+  auth_token: ${TELEPORT_JOIN_TOKEN}
+  auth_servers: ['${TELEPORT_PROXY_SERVER_LB}']
+
+auth_service:
+  enabled: no
+proxy_service:
+  enabled: no
+EOF
+
+  # enable SSH service
+  if [[ "${TELEPORT_AGENT_SSH_ENABLED}" == "true" ]]; then
+    cat >>${USE_CONFIG_PATH} <<EOF
+ssh_service:
+  enabled: yes
+EOF
+    # add SSH labels
+    if [[ "${TELEPORT_AGENT_SSH_LABELS}" != "" ]]; then
+      # replace | with a literal newline and space
+      TELEPORT_AGENT_SSH_LABELS_EXPANDED="${TELEPORT_AGENT_SSH_LABELS//|/
+    }"
+      cat >>${USE_CONFIG_PATH} <<EOF
+  labels:
+    ${TELEPORT_AGENT_SSH_LABELS_EXPANDED}
+EOF
+    fi
+  else
+    # we have to explicitly disable the SSH service if it's not being used, as it historically defaults to enabled
+    cat >>${USE_CONFIG_PATH} <<EOF
+  ssh_service:
+    enabled: no
+EOF
+  fi
+
+  # enable database service
+  if [[ "${TELEPORT_AGENT_DB_ENABLED}" == "true" ]]; then
+    cat >>${USE_CONFIG_PATH} <<EOF
+db_service:
+  enabled: yes
+  databases:
+  - name: ${TELEPORT_AGENT_DB_NAME}
+    description: "${TELEPORT_AGENT_DB_DESCRIPTION:-""}"
+    protocol: ${TELEPORT_AGENT_DB_PROTOCOL}
+    uri: "${TELEPORT_AGENT_DB_URI}"
+    aws:
+      region: ${TELEPORT_AGENT_DB_REGION:-$EC2_REGION}
+EOF
+    # add Redshift-specific config
+    if [[ "${TELEPORT_AGENT_DB_REDSHIFT_CLUSTER_ID}" != "" ]]; then
+          cat >>${USE_CONFIG_PATH} <<EOF
+      redshift:
+        cluster_id: "${TELEPORT_AGENT_DB_REDSHIFT_CLUSTER_ID}"
+EOF
+    fi
+    # add Database labels
+    if [[ "${TELEPORT_AGENT_DB_LABELS}" != "" ]]; then
+      # replace | with a literal newline and space
+      TELEPORT_AGENT_DB_LABELS_EXPANDED="${TELEPORT_AGENT_DB_LABELS//|/
+      }"
+      cat >>${USE_CONFIG_PATH} <<EOF
+    static_labels:
+      ${TELEPORT_AGENT_DB_LABELS_EXPANDED}
+EOF
+    fi
+  fi
+
+# enable app service
+  if [[ "${TELEPORT_AGENT_APP_ENABLED}" == "true" ]]; then
+    cat >>${USE_CONFIG_PATH} <<EOF
+app_service:
+  enabled: yes
+  apps:
+  - name: ${TELEPORT_AGENT_APP_NAME}
+    description: "${TELEPORT_AGENT_APP_DESCRIPTION:-""}"
+    uri: "${TELEPORT_AGENT_APP_URI}"
+EOF
+    # add public_addr if set
+    if [[ "${TELEPORT_AGENT_APP_PUBLIC_ADDR}" != "" ]]; then
+      cat >>${USE_CONFIG_PATH} <<EOF
+    public_addr: "${TELEPORT_AGENT_APP_PUBLIC_ADDR}"
+EOF
+    fi
+    # add insecure_skip_verify if set
+    if [[ "${TELEPORT_AGENT_APP_INSECURE_SKIP_VERIFY}" == "true" ]]; then
+      cat >>${USE_CONFIG_PATH} <<EOF
+    insecure_skip_verify: true
+EOF
+    fi
+    # add app labels
+    if [[ "${TELEPORT_AGENT_APP_LABELS}" != "" ]]; then
+      # replace | with a literal newline and space
+      TELEPORT_AGENT_APP_LABELS_EXPANDED="${TELEPORT_AGENT_APP_LABELS//|/
+      }"
+      cat >>${USE_CONFIG_PATH} <<EOF
+    labels:
+      ${TELEPORT_AGENT_APP_LABELS_EXPANDED}
+EOF
+    fi
+  fi
+
+  # enable service
+  systemctl_wrap start --no-block teleport.service
 fi
 
 # make sure config file can be edited by pre-start commands running later (assuming it exists)
