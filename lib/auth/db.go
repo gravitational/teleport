@@ -34,7 +34,7 @@ import (
 
 // GenerateDatabaseCert generates client certificate used by a database
 // service to authenticate with the database instance.
-func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+func (s *Server) GenerateDatabaseCert(_ context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -44,7 +44,8 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		return nil, trace.Wrap(err)
 	}
 	hostCA, err := s.GetCertAuthority(types.CertAuthID{
-		Type:       types.HostCA,
+		Type: types.DatabaseCA,
+		//Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
@@ -89,7 +90,7 @@ func getServerNames(req *proto.DatabaseCertRequest) []string {
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
-func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
+func (s *Server) SignDatabaseCSR(_ context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
 	if !modules.GetModules().Features().DB {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
@@ -103,6 +104,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	hostCA, err := s.GetCertAuthority(types.CertAuthID{
+		//Type:       types.DatabaseCA,
 		Type:       types.HostCA,
 		DomainName: req.ClusterName,
 	}, false)

@@ -98,7 +98,7 @@ type InitConfig struct {
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 
-	// Presence service is a discovery and hearbeat tracker
+	// Presence service is a discovery and heartbeat tracker
 	Presence services.Presence
 
 	// Provisioner is a service that keeps track of provisioning tokens
@@ -152,7 +152,7 @@ type InitConfig struct {
 	SessionRecordingConfig types.SessionRecordingConfig
 
 	// SkipPeriodicOperations turns off periodic operations
-	// used in tests that don't need periodc operations.
+	// used in tests that don't need period operations.
 	SkipPeriodicOperations bool
 
 	// CipherSuites is a list of ciphersuites that the auth server supports.
@@ -314,7 +314,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	log.Infof("Created namespace: %q.", apidefaults.Namespace)
 
 	// generate certificate authorities if they don't exist
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
+	for _, caType := range []types.CertAuthType{types.HostCA, types.DatabaseCA, types.UserCA, types.JWTSigner} {
 		caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
 		ca, err := asrv.GetCertAuthority(caID, true)
 		if err != nil {
@@ -542,7 +542,7 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 			var hasKeys bool
 			var signerErr error
 			switch r.GetType() {
-			case types.HostCA, types.UserCA:
+			case types.HostCA, types.UserCA, types.DatabaseCA:
 				_, signerErr = keyStore.GetSSHSigner(r)
 			case types.JWTSigner:
 				_, signerErr = keyStore.GetJWTSigner(r)
