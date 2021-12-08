@@ -27,33 +27,37 @@ import (
 // It converts between a stream of bytes (io.ReadWriter) and a stream of
 // Teleport Desktop Protofol (TDP) messages.
 type Conn struct {
-	rw   io.ReadWriter
+	rwc  io.ReadWriteCloser
 	bufr *bufio.Reader
 }
 
 // NewConn creates a new Conn on top of a ReadWriter, for example a TCP
 // connection.
-func NewConn(rw io.ReadWriter) *Conn {
+func NewConn(rw io.ReadWriteCloser) *Conn {
 	return &Conn{
-		rw:   rw,
+		rwc:  rw,
 		bufr: bufio.NewReader(rw),
 	}
 }
 
-// InputMessage reads the next incoming message from the connection.
-func (c *Conn) InputMessage() (Message, error) {
+// Read reads the next incoming message from the connection.
+func (c *Conn) Read() (Message, error) {
 	m, err := decode(c.bufr)
 	return m, trace.Wrap(err)
 }
 
-// OutputMessage sends a message to the connection.
-func (c *Conn) OutputMessage(m Message) error {
+// Write sends a message to the connection.
+func (c *Conn) Write(m Message) error {
 	buf, err := m.Encode()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := c.rw.Write(buf); err != nil {
+	if _, err := c.rwc.Write(buf); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (c *Conn) Close() error {
+	return c.rwc.Close()
 }

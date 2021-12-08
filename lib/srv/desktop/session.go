@@ -36,11 +36,11 @@ import (
 // and then if everything checks out, creates the RDP connection.
 func newSession(ctx context.Context, authCtx *auth.Context, desktop types.WindowsDesktop, sessionID sshsession.ID, tdpConn *tdp.Conn, rdpc *rdpclient.Client, log logrus.FieldLogger) (*session, error) {
 	s := &session{
-		sessionID: sessionID,
-		tdpConn:   tdpConn,
-		rdpc:      rdpc,
-		recvFrom:  make(chan tdp.Message),
-		log:       log,
+		sessionID:      sessionID,
+		tdpConn:        tdpConn,
+		rdpc:           rdpc,
+		recvFromRdpCli: make(chan tdp.Message),
+		log:            log,
 	}
 
 	u, err := s.waitForUsername()
@@ -83,13 +83,13 @@ type session struct {
 	// to and from the RDP server (windows host).
 	rdpc *rdpclient.Client
 
-	// recvFrom is the channel from which we will receive TDP messages from the RDP client
-	// (which will have translated them from RDP).
-	recvFrom chan tdp.Message
+	// recvFromRdpCli is the channel on which we will receive TDP messages from the RDP client to forward to the browser.
+	// (The RDP client will have translated them from RDP).
+	recvFromRdpCli chan tdp.Message
 
-	// sendTo is the channel to which we will send TDP messages sent to us from the browser
-	// (which the RDP client will translate to RDP and send to the Windows host).
-	sendTo chan tdp.Message
+	// sendToRdpCli is the channel to which we will send TDP messages sent to us by the browser to. The RDP client
+	// will then translate them to RDP and send them to the Windows host.
+	sendToRdpCli chan tdp.Message
 
 	// wg is used to wait for the input/output streaming
 	// goroutines to complete.
@@ -105,7 +105,7 @@ type session struct {
 // Returns a non-nil error if another message is recieved.
 func (s *session) waitForUsername() (*tdp.ClientUsername, error) {
 	for {
-		msg, err := s.tdpConn.InputMessage()
+		msg, err := s.tdpConn.Read()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -123,7 +123,7 @@ func (s *session) waitForUsername() (*tdp.ClientUsername, error) {
 // Returns a non-nil error if another message is recieved.
 func (s *session) waitForClientSize() (*tdp.ClientScreenSpec, error) {
 	for {
-		msg, err := s.tdpConn.InputMessage()
+		msg, err := s.tdpConn.Read()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -136,71 +136,96 @@ func (s *session) waitForClientSize() (*tdp.ClientScreenSpec, error) {
 	}
 }
 
+// Tell the RDP client to start translating messages sent to it by the
+// Windows host from RDP into TDP, and then sending them to our recvFromRdpCli channel.
+func (s *session) streamFromRdpCliToHere() {
+	s.wg.Add(1)
+	s.log.Debug("Windows host --> RDP client --> TDP session streaming started")
+
+	defer s.wg.Done()
+	defer s.rdpc.Close()
+	defer s.tdpConn.Close()
+	defer s.log.Debug("Windows host --> RDP client --> TDP session streaming finished")
+
+	// Call StartStreamingRDPtoTDP with the recvFromRdpCli channel, will tells the RDP client to begin
+	// translating incoming RDP messages (from the Windows host) to TDP and sending them to the channel.
+	// This will return on an RDP read error or when s.rdpc.Close() is called.
+	if err := s.rdpc.StartStreamingRDPtoTDP(s.recvFromRdpCli); err != nil {
+		s.log.Error(err)
+	}
+}
+
+// Takes the stream of TDP messages (initiated by streamFromRdpCliToHere) and forwards them to the browser.
+func (s *session) streamFromHereToBrowser() {
+	s.wg.Add(1)
+	s.log.Debug("TDP session --> browser streaming started")
+
+	defer s.wg.Done()
+	defer s.rdpc.Close()
+	defer s.tdpConn.Close()
+	defer s.log.Debug("TDP session --> browser streaming finished")
+
+	// This loop is broken by an error or the channel being closed by StartStreamingRDPtoTDP.
+	for msg := range s.recvFromRdpCli {
+		if err := s.tdpConn.Write(msg); err != nil {
+			s.log.WithError(err).Warning("Failed to forward TDP output message: %+v", msg)
+			break
+		}
+	}
+}
+
+// Start fielding TDP messages coming from the browser and sending them to the sendToRdpCli channel.
+func (s *session) streamFromBrowserToRdpCli() {
+	s.wg.Add(1)
+	s.log.Debug("browser --> TDP session --> RDP client streaming started")
+
+	defer s.wg.Done()
+	defer s.rdpc.Close()
+	defer s.tdpConn.Close()
+	defer s.log.Debug("browser --> TDP session --> RDP client streaming finished")
+
+	// TODO: currently the only way we exit from this loop is by the underlying tls connection being closed,
+	// which causes Read() to return an error. We can fix this by adding a disconnect message to TDP.
+	for {
+		msg, err := s.tdpConn.Read()
+		if err != nil {
+			s.log.WithError(err).Warning("Failed reading TDP input message")
+			break
+		}
+
+		s.sendToRdpCli <- msg
+	}
+
+	close(s.sendToRdpCli)
+}
+
+// Tell the RDP client to start receiving TDP messages on the sendToRdpCli channel, translating them
+// to RDP, and forwarding them to the Windows host.
+func (s *session) streamFromRdpCliToWindowsHost() {
+	s.wg.Add(1)
+	s.log.Debug("RDP client --> Windows host streaming started")
+
+	defer s.wg.Done()
+	defer s.rdpc.Close()
+	defer s.tdpConn.Close()
+	defer s.log.Debug("RDP client --> Windows host streaming finished")
+
+	// Call StartStreamingTDPtoRDP with the sendToRdpCli channel, which tells the RDP client to begin translating
+	// incoming TDP messages (from the browser) to RDP and sending them to the Windows host.
+	// We are responsible for closing the channel we pass to StartStreamingTDPtoRDP, which is done in streamFromBrowserToRdpCli.
+	if err := s.rdpc.StartStreamingTDPtoRDP(s.sendToRdpCli); err != nil {
+		s.log.Error(err)
+	}
+}
+
 // start kicks off goroutines for streaming input and output between the TDP connection and
 // RDP client and returns right away. Use Wait to wait for them to finish.
 func (s *session) start() {
-	// Tell the RDP client to start translating messages sent to it by the
-	// Windows host from RDP into TDP, and then sending them to the recvFrom channel.
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		defer s.rdpc.Close()
-		defer s.log.Info("RDP --> TDP streaming finished")
-		defer close(s.recvFrom) // TODO(isaiah): perhaps bad practice to close here. Once we figure out what we're doing with StartSendingTo, we may want to move channel closure to inside that call-chain.
+	go s.streamFromRdpCliToHere()
+	go s.streamFromHereToBrowser()
 
-		// Call StartSendingTo with the recvFrom channel, will tells the RDP client
-		// to begin translating incoming RDP messages to TDP and sending them to the channel.
-		// TODO(isaiah): this goroutine may never return because StartSendingTo waits on read_rdp_output (https://github.com/gravitational/teleport/blob/e3fa4d7f00445c1e4149ff82090820b38117ad75/lib/srv/desktop/rdp/rdpclient/src/lib.rs#L343),
-		// which itself may never break from the while loop in read_rdp_output_inner, because read_rdp_output_inner calls handle_bitmap which calls lib/srv/desktop/rdp/rdpclient/client.go::handleBitmap. See the "TODO(isaiah)" in that function for the
-		// reasoning behind that suspicion.
-		if err := s.rdpc.StartSendingTo(s.recvFrom); err != nil {
-			s.log.Error(err)
-			return
-		}
-	}()
-
-	// Start recieving on the recvFrom channel and forwarding to the TDP connection.
-	// TODO(isaiah): Do we need more s.wg logic here?
-	go func() {
-		// Receive loop is broken by channel close in the goroutine above this one (TODO(isaiah): this comment may need to be revised)
-		for msg := range s.recvFrom {
-			if err := s.tdpConn.OutputMessage(msg); err != nil {
-				s.log.WithError(err).Warning("Failed to forward TDP output message: %+v", msg)
-			}
-		}
-	}()
-
-	// Start fielding TDP messages coming from the browser and sending them to the sendTo channel.
-	// TODO(isaiah): Do we need more s.wg logic here?
-	go func() {
-		for {
-			// TODO(isaiah): this goroutine only returns when tdpConn.InputMessage() gives us an error,
-			// which is only one of the mechanisms by which it's corresponding goroutine returned in Andrew's
-			// version (https://github.com/gravitational/teleport/blob/675fb3dc09f1e95b58dedb19021599ec84bb1b22/lib/srv/desktop/rdp/rdpclient/client.go#L251-L258).
-			// Is this sufficient to prevent a leak?
-			msg, err := s.tdpConn.InputMessage()
-			if err != nil {
-				s.log.WithError(err).Warning("Failed reading TDP input message")
-				return
-			}
-
-			s.sendTo <- msg
-		}
-	}()
-
-	// Tell the RDP client to start receiving TDP messages on the sendTo channel, translating them
-	// to RDP, and forwarding them to the Windows host.
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		defer s.rdpc.Close()
-		defer s.log.Info("TDP --> RDP input streaming finished")
-
-		if err := s.rdpc.StartReceivingFrom(s.sendTo); err != nil {
-			s.log.Error(err)
-			return
-		}
-	}()
+	go s.streamFromBrowserToRdpCli()
+	go s.streamFromRdpCliToWindowsHost()
 }
 
 // wait blocks until streaming is finished and then runs cleanup.

@@ -361,6 +361,10 @@ fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
     //
     // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
     // us from locking the mutex in Client permanently while no data is available.
+    // 
+    // This loop returns if try_from fails, if rdp_client.read fails for an unknown reason, or if
+    // rdp_client.read fails because close_rdp was called. TODO: add logic so that when close_rdp
+    // was called, this loop breaks and a "nil" error is returned.
     while wait_for_fd(tcp_fd as usize) {
         let mut err = CGO_OK;
         let res = client
@@ -380,6 +384,7 @@ fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
                         }
                     };
                     unsafe {
+                        // TODO: this will never return an error.
                         err = handle_bitmap(client_ref, cbitmap) as CGOError;
                     };
                 }
@@ -392,11 +397,12 @@ fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
                 }
             });
         if let Err(e) = res {
-            return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
+            return Some(format!("read failed: failed forwarding RDP bitmap frame: {:?}", e));
         };
         if err != CGO_OK {
+            // TODO: this will never run because handle_bitmap will never return an error.
             let err_str = unsafe { from_cgo_error(err) };
-            return Some(format!("failed forwarding RDP bitmap frame: {}", err_str));
+            return Some(format!("handle_bitmap failed: failed forwarding RDP bitmap frame: {}", err_str));
         }
     }
     None
