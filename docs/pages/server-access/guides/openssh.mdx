@@ -326,14 +326,13 @@ Host root.example.com
 Host *.root.example.com
     HostName %h
     Port 3022
-    ProxyCommand ssh -p 3023 %r@root.example.com -s proxy:%h:%p
+    ProxyCommand tsh proxy ssh %r@%h:%p
 
-# when connecting to a node within a trusted cluster with the name "leaf1.example.com",
-# add the name of the cluster to the invocation of the proxy subsystem.
+# connect to nodes within a trusted cluster with the name "leaf1.example.com".
 Host *.leaf1.example.com
    HostName %h
    Port 3022
-   ProxyCommand ssh -p 3023 %r@root.example.com -s proxy:%h:%p@leaf1.example.com
+   ProxyCommand tsh proxy ssh --cluster=leaf1.example.com %r@%h:%p
 ```
 
 When everything is configured properly, you can use ssh to connect to any node

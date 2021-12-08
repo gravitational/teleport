@@ -17,6 +17,9 @@ get a good starting file, run `teleport configure -o teleport.yaml`.
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
 
+# Configuration file version. The current version is "v2".
+version: v2
+
 # This section of the configuration file applies to all teleport
 # services.
 teleport:
@@ -382,12 +385,24 @@ auth_service:
     # the configured `data_dir` .
     license_file: /var/lib/teleport/license.pem
 
-
     # Configures a banner message to be displayed to a user logging into the cluster,
     # which must be acknowledged before the user is allowed to log in. Note that will
     # be shown *before* login, so should not contain any confidential information.
     # Defaults to the empty string, implying no message or acknowledgment is required.
     message_of_the_day: ""
+
+    # Indicates to the clients whether the cluster is running in TLS routing mode
+    # with all protocols multiplexed on the proxy's web_listen_addr.
+    #
+    # Possible values are:
+    #
+    # "multiplex": clients will be connecting to Teleport proxy's web listener
+    #              in TLS routing mode.
+    # "separate":  clients will be connecting to Teleport proxy's individual
+    #              listeners: tunnel_listen_addr, mysql_listen_addr, etc.
+    #
+    # See "TLS Routing" in Architecture section for additional information.
+    proxy_listener_mode: multiplex
 
 # This section configures the 'node service':
 ssh_service:
@@ -468,12 +483,22 @@ proxy_service:
 
     # SSH forwarding/proxy address. Command line (CLI) clients always begin their
     # SSH sessions by connecting to this port
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # "v2": listener is not created, SSH is multiplexed on web_listen_addr
+    # "v1": defaults to 0.0.0.0:3023
     listen_addr: 0.0.0.0:3023
 
     # Reverse tunnel listening address. An auth server (CA) can establish an
     # outbound (from behind the firewall) connection to this address.
     # This will allow users of the outside CA to connect to behind-the-firewall
     # nodes.
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # "v2": listener is not created, reverse tunnel traffic is multiplexed on web_listen_addr
+    # "v1": defaults to 0.0.0.0:3024
     tunnel_listen_addr: 0.0.0.0:3024
 
     # The HTTPS listen address to serve the Web UI and also to authenticate the
@@ -513,11 +538,22 @@ proxy_service:
     - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
       cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 
+    # Kubernetes proxy listen address.
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # "v2": listener is not created, Kubernetes traffic is multiplexed on web_listen_addr
+    # "v1": defaults to 0.0.0.0:3026
     kube_listen_addr: 0.0.0.0:3026
     # optional: set a different public address for kubernetes access
     kube_public_addr: kube.example.com:3026
 
     # MySQL proxy listen address.
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # "v2": listener is not created, MySQL traffic is multiplexed on web_listen_addr
+    # "v1": defaults to 0.0.0.0:3036
     mysql_listen_addr: "0.0.0.0:3036"
 
     # Address advertised to PostgreSQL clients. If not set, public_addr is used.

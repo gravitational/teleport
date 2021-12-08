@@ -324,6 +324,61 @@ List of all rule options defined below.
       verbs: [list,create,read,update,delete]
 ```
 
+## RBAC for sessions
+
+It is possible to further limit access to
+[shared sessions](../server-access/guides/tsh.mdx#sharing-sessions) and
+[session recordings](../architecture/nodes.mdx#session-recording).
+The examples below illustrate how to restrict session access only for the user
+who created the session.
+
+<Details title="Version Warning: Before 8.1" opened={false}>
+Teleport versions prior to 8.1 don't support the roles exemplified below.
+You may to create such roles after an upgrade, but in the event of a cluster
+downgrade they will become invalid.
+</Details>
+
+Role for restricted access to session recordings:
+
+```yaml
+version: v4
+kind: role
+metadata:
+  name: only-own-sessions
+spec:
+  allow:
+    rules:
+    # Users can only view session recordings for sessions in which they
+    # participated.
+    - resources: [session]
+      verbs: [list, read]
+      where: contains(session.participants, user.metadata.name)
+```
+
+Role for restricted access to active sessions:
+
+```yaml
+version: v4
+kind: role
+metadata:
+  name: only-own-ssh-sessions
+spec:
+  allow:
+    rules:
+    # Teleport allows shared session access by default, so for our restrictions
+    # to work we first allow access to ssh_sessions...
+    - resources: [ssh_session]
+      verbs: ['*']
+  deny:
+    rules:
+    # ... and then limit that access via a deny rule.
+    # Deny rules take precedence over allow rules, so the resulting role allows
+    # users to create SSH sessions but to only view their own sessions.
+    - resources: [ssh_session]
+      verbs: [list, read, update, delete]
+      where: '!contains(ssh_session.participants, user.metadata.name)'
+```
+
 ## Second Factor - U2F
 
 Refer to the [Second Factor - U2F guide](./guides/u2f.mdx) if you have a cluster

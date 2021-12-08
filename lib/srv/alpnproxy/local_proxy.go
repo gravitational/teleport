@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -139,6 +140,15 @@ func (l *LocalProxy) SSHProxy(localAgent *client.LocalKeyAgent) error {
 		return trace.Wrap(err)
 	}
 	defer sess.Close()
+
+	err = agent.ForwardToAgent(client, localAgent)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = agent.RequestAgentForwarding(sess)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	if err = sess.RequestSubsystem(proxySubsystemName(l.cfg.SSHUserHost, l.cfg.SSHTrustedCluster)); err != nil {
 		return trace.Wrap(err)
