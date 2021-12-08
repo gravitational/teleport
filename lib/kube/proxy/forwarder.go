@@ -742,6 +742,11 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
+	err = stream.SendSessionInfo(session.PresenceEnabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	client := &websocketClientStreams{stream}
 	party := newParty(*ctx, client)
 	go func() {

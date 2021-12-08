@@ -289,6 +289,8 @@ type session struct {
 	closeC chan struct{}
 
 	closeOnce sync.Once
+
+	PresenceEnabled bool
 }
 
 func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params, initiator *party, sess *clusterSession) (*session, error) {
@@ -332,6 +334,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		closeC:            make(chan struct{}),
 		initiator:         initiator.Id,
 		expires:           time.Now().UTC().Add(time.Hour * 24),
+		PresenceEnabled:   ctx.Identity.GetIdentity().MFAVerified != "",
 	}
 
 	err = s.trackerCreate(initiator)
@@ -391,7 +394,7 @@ func (s *session) checkPresence() error {
 			continue
 		}
 
-		if time.Since(participant.LastActive) > PresenceMaxDifference {
+		if time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.log.Warn("Participant %v is not active, kicking.", participant.ID)
 			realId, _ := uuid.Parse(participant.ID)
 			err := s.leave(realId)
@@ -428,7 +431,7 @@ func (s *session) launch() error {
 	}()
 
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
-	if s.ctx.Identity.GetIdentity().MFAVerified != "" {
+	if s.PresenceEnabled {
 		go func() {
 			ticker := time.NewTicker(PresenceVerifyInterval)
 		outer:
@@ -892,6 +895,11 @@ func (s *session) leave(id uuid.UUID) error {
 
 	stringId := id.String()
 	party := s.parties[id]
+
+	if party == nil {
+		return nil
+	}
+
 	delete(s.parties, id)
 	s.terminalSizeQueue.remove(stringId)
 	s.clients_stdin.R.R.(*kubeutils.MultiReader).RemoveReader(stringId)

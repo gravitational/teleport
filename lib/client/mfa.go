@@ -47,7 +47,7 @@ var promptWebauthn = wancli.Login
 // If promptDevicePrefix is set, it will be printed in prompts before "security
 // key" or "device". This is used to emphasize between different kinds of
 // devices, like registered vs new.
-func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string) (*proto.MFAAuthenticateResponse, error) {
+func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string, quiet bool) (*proto.MFAAuthenticateResponse, error) {
 	// Is there a challenge present?
 	if c.TOTP == nil && len(c.U2F) == 0 && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil
@@ -86,10 +86,12 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		go func() {
 			const kind = "TOTP"
 			var msg string
-			if hasNonTOTP {
-				msg = fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix)
-			} else {
-				msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
+			if !quiet {
+				if hasNonTOTP {
+					msg = fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix)
+				} else {
+					msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
+				}
 			}
 			code, err := promptOTP(ctx, os.Stderr, prompt.Stdin(), msg)
 			if err != nil {
@@ -105,7 +107,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 				},
 			}
 		}()
-	} else {
+	} else if !quiet {
 		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
 	}
 
@@ -124,7 +126,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 	case len(c.U2F) > 0:
 		go func() {
 			log.Debugf("prompting U2F devices with facet %q", origin)
-			resp, err := PromptU2FChallenges(ctx, proxyAddr, c.U2F)
+			resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
 			respC <- response{kind: "U2F", resp: resp, err: err}
 		}()
 	}
@@ -152,7 +154,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		"failed to authenticate using all MFA devices, rerun the command with '-d' to see error details for each device")
 }
 
-func PromptU2FChallenges(ctx context.Context, origin string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
+func promptU2FChallenges(ctx context.Context, origin string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
 	u2fChallenges := make([]u2f.AuthenticateChallenge, 0, len(challenges))
 	for _, chal := range challenges {
 		u2fChallenges = append(u2fChallenges, u2f.AuthenticateChallenge{

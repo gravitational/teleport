@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -111,6 +112,7 @@ func (s *sessionV2) UpdatePresence(ctx context.Context, sessionID, user string) 
 	item := backend.Item{Key: backend.Key(sessionV2Prefix, sessionID), Value: sessionJSON}
 	_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 	if trace.IsCompareFailed(err) {
+		log.Infof("Session resource %v presence update failed, retrying: %v", sessionID, err)
 		return s.UpdatePresence(ctx, sessionID, user)
 	} else {
 		return trace.Wrap(err)

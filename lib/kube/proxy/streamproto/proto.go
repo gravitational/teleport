@@ -160,6 +160,19 @@ func (s *SessionStream) ForceTerminate() chan struct{} {
 	return s.forceTerminate
 }
 
+func (s *SessionStream) SendSessionInfo(mfaRequired bool) error {
+	msg := metaMessage{MFARequired: &mfaRequired}
+	json, err := utils.FastMarshal(msg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.writeSync.Lock()
+	defer s.writeSync.Unlock()
+
+	return trace.Wrap(s.conn.WriteMessage(websocket.TextMessage, json))
+}
+
 func (s *SessionStream) DoForceTerminate() error {
 	msg := metaMessage{ForceTerminate: true}
 	json, err := utils.FastMarshal(msg)

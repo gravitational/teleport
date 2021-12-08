@@ -46,7 +46,6 @@ func getRequirePolicies(participant []types.Role) []*types.SessionRequirePolicy 
 
 	for _, role := range participant {
 		policiesFromRole := role.GetSessionRequirePolicies()
-		log.Errorf("found %v policies for role %v", len(policiesFromRole), role.GetName())
 		if len(policiesFromRole) == 0 {
 			continue
 		}
@@ -158,11 +157,8 @@ type PolicyOptions struct {
 
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {
 	if len(e.requires) == 0 {
-		log.Error("no require policies")
 		return true, PolicyOptions{}, nil
 	}
-
-	log.Error("found require policies")
 
 	for _, requirePolicy := range e.requires {
 		left := requirePolicy.Count

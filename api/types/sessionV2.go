@@ -244,6 +244,14 @@ func (s *SessionV3) GetHostUser() string {
 	return s.Spec.HostUser
 }
 
-func (s *SessionV3) UpdatePresence(id string) error {
-	return nil
+func (s *SessionV3) UpdatePresence(user string) error {
+	for _, participant := range s.Spec.Participants {
+		if participant.User == user {
+			participant.LastActive = time.Now().UTC()
+			return nil
+		}
+	}
+
+	panic("participant not found")
+	return trace.BadParameter("participant %v not found", user)
 }

@@ -42,6 +42,7 @@ type KubeSession struct {
 	term      *terminal.Terminal
 	close     *utils.CloseBroadcaster
 	closeWait *sync.WaitGroup
+	meta      types.Session
 }
 
 type MFASolver = func(io.Writer, *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
@@ -140,17 +141,20 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 		}
 	}()
 
-	s := &KubeSession{stream, term, close, closeWait}
+	s := &KubeSession{stream, term, close, closeWait, meta}
 
 	if stream.MFARequired {
-		err := tc.WithRootClusterClient(ctx, func(auth auth.ClientI) error {
-			go s.handleMFA(ctx, auth, solveChallenge)
-			return nil
-		})
-
+		proxy, err := tc.ConnectToProxy(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		auth, err := proxy.ConnectToRootCluster(ctx, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		go s.handleMFA(ctx, auth, solveChallenge)
 	}
 
 	s.pipeInOut()
@@ -158,13 +162,17 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 }
 
 func (s *KubeSession) handleMFA(ctx context.Context, auth auth.ClientI, solver MFASolver) error {
-	ticker := time.NewTicker(mfaChallengeInterval)
-	defer auth.Close()
-	stream, err := auth.MaintainSessionPresence(ctx)
+	err := utils.WriteAll(s.term.Stdout().Write, []byte("\r\nTeleport > MFA presence enabled\r\n"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer stream.CloseSend()
+
+	ticker := time.NewTicker(mfaChallengeInterval)
+	stream, err := auth.MaintainSessionPresence(ctx)
+	if err != nil {
+		utils.WriteAll(s.term.Stdout().Write, []byte(fmt.Sprintf("\r\nstream error: %v\r\n", err)))
+		return trace.Wrap(err)
+	}
 
 outer:
 	for {
@@ -172,11 +180,11 @@ outer:
 		case <-ticker.C:
 			req := &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeRequest{
-					ChallengeRequest: &proto.PresenceMFAChallengeRequest{},
+					ChallengeRequest: &proto.PresenceMFAChallengeRequest{SessionID: s.meta.GetID()},
 				},
 			}
 
-			err := stream.Send(req)
+			err = stream.Send(req)
 			if err != nil {
 				return trace.Wrap(err)
 			}

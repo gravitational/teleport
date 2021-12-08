@@ -171,7 +171,9 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 	session, err := client.NewKubeSession(cf.Context, tc, meta, k, tc.KubeProxyAddr, kubeStatus.tlsServerName, func(term io.Writer, challenge *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 		utils.WriteAll(term.Write, []byte("\r\nTeleport > Please tap your MFA key within 15 seconds\r\n"))
-		response, err := client.PromptU2FChallenges(context.TODO(), tc.Config.WebProxyAddr, challenge.U2F)
+		challenge.TOTP = nil
+
+		response, err := client.PromptMFAChallenge(cf.Context, tc.Config.WebProxyAddr, challenge, "", true)
 		if err != nil {
 			utils.WriteAll(term.Write, []byte(fmt.Sprintf("\r\nTeleport > Failed to confirm presence: %v\r\n", err)))
 			return nil, trace.Wrap(err)
