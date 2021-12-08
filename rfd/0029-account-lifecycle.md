@@ -39,7 +39,7 @@ Recovery tokens generated on January 15th, 2020.
 
 Please save these account recovery tokens for example.teleport.sh in a safe offline place.
 
-You can use each token once if you loose your second factor or a password.
+You can use each token once if you lose your second factor or a password.
 
 * tele-cosponsor-happening-moocher-undrilled-royal-depravity-frustrate-starting
 * tele-factoid-shorten-koala-explore-retinal-lazy-coauthor-brethren
@@ -181,7 +181,7 @@ a recovery token.
 
 ```
 This is Teleport cloud account recovery link initiated <date> from <device> and <location>.
-If this activity was not imitated by you, please contact your system administrator. 
+If this activity was not imitated by you, please contact your system administrator.
 Otherwise, follow the <link> to proceed with account recovery.
 ```
 
@@ -288,7 +288,7 @@ Let's say Bob would like to cancel the account. Bob should first
 * Navigate to account details page and request account cancellation.
 * Teleport asks Bob prove the ownership of a valid second factor using *Authorizing privileged operations* flow.
 * All users who have `locksmith` role except Bob, who initiated the lock request receive an email or chat bot notification:
-   
+
 ```
 User <email> has initiated account cancellation on <time> at <device> <location>.
 
@@ -419,7 +419,7 @@ We will use `locksmith` roles described above.
 Taylor would like to lock the account. Taylor should:
 
 * Be a member of the role `locksmith` (or a similar role that can request access to any role granting privileges
-to create roles). 
+to create roles).
 * Taylor navigates to the UI and activates "Lock this account" flow.
 * The UI should allow a user to specify whether this lock is account global, locks out certain users
   and specify exceptions to users who are not locked.
@@ -427,7 +427,7 @@ to create roles).
 * Teleport creates an access request for a user requesting a locksmith role.
 
 * All locksmith users except Taylor receive an email or chat bot notification:
-   
+
 ```
 User <email> has initiated lock on <time> at <device> <location>.
 
