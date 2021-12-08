@@ -180,14 +180,8 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		Databases:        databases,
 		ResourceMatchers: process.Config.Databases.ResourceMatchers,
 		AWSMatchers:      process.Config.Databases.AWSMatchers,
-		OnHeartbeat: func(err error) {
-			if err != nil {
-				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentDatabase})
-			} else {
-				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentDatabase})
-			}
-		},
-		LockWatcher: lockWatcher,
+		OnHeartbeat:      process.onHeartbeat(teleport.ComponentDatabase),
+		LockWatcher:      lockWatcher,
 	})
 	if err != nil {
 		return trace.Wrap(err)
