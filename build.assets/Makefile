@@ -207,7 +207,7 @@ buildbox-arm-fips: buildbox-fips
 		--cache-from $(BUILDBOX_ARM_FIPS) \
 		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
 
-# grpc generates GRPC stubs from service definitions
+# grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
 grpc: buildbox
 	docker run --platform=linux/amd64 \

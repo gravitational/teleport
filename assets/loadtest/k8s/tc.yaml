@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tc
+  name: tc
+  namespace: loadtest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tc
+  template:
+    metadata:
+      labels:
+        app: tc
+    spec:
+      volumes:
+        - name: config
+          configMap:
+            name: tc-config
+        - name: license
+          secret:
+            secretName: license
+      containers:
+        - image: quay.io/gravitational/teleport-ent:8.0.0
+          args: ["-d", "--insecure"]
+          name: tc
+          ports:
+            - containerPort: 3022
+              name: nodessh
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/teleport/
+              readOnly: true
+            - name: license
+              mountPath: /var/lib/teleport/license.pem
+              subPath: license.pem
+              readOnly: true
