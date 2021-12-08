@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: soaktest-
+  namespace: loadtest
+  labels:
+    app: soaktest
+spec:      
+  completions: 1
+  parallelism: 1
+  template:
+    metadata:
+      labels:
+        app: soaktest
+    spec:
+      volumes:
+        - name: config
+          configMap:
+            name: soaktest-config
+      containers:
+        - image: quay.io/gravitational/teleport-ent:8.0.0
+          name: teleport
+          envFrom:
+          - configMapRef:
+              name: soaktest-config
+          command:
+            - /bin/sh
+            - -c
+            - |
+              node=$(tsh --insecure --proxy=monster.gravitational.co:3080 -i /etc/teleport/auth -l root ls -f names | grep -v iot)
+              iot_node=$(tsh --insecure --proxy=monster.gravitational.co:3080 -i /etc/teleport/auth -l root ls -f names | grep iot)
+              
+              echo "----Non-IoT Mode Test via ${node}----"
+              echo "tsh --insecure --proxy=monster.gravitational.co:3080 -i /etc/teleport/auth bench --duration=${DURATION} root@${node} ls"
+              tsh --insecure --proxy=monster.gravitational.co:3080 -i /etc/teleport/auth bench --duration=${DURATION} root@${node} ls
+
+              echo "tsh --insecure --proxy=monster.gravitational.co:3080 -i /etc/teleport/auth bench --duration=${DURATION} --interactive root@${node} ps aux"
+              tsh --insecure --proxy=monster.gravitational.co:3080 -i /etc/teleport/auth bench --duration=${DURATION} --interactive root@${node} ps aux
+
+              echo "----IoT Mode Test via ${iot_node}----"
+              echo "tsh --insecure --proxy=monster.gravitational.co:3080 -i /etc/teleport/auth bench --duration=${DURATION} root@${iot_node} ls"
+              tsh --insecure --proxy=monster.gravitational.co:3080 -i /etc/teleport/auth bench --duration=${DURATION} root@${iot_node} ls
+
+              echo "tsh --insecure --proxy=monster.gravitational.co:3080 -i /etc/teleport/auth bench --duration=${DURATION} --interactive root@${iot_node} ps aux"
+              tsh --insecure --proxy=monster.gravitational.co:3080 -i /etc/teleport/auth bench --duration=${DURATION} --interactive root@${iot_node} ps aux
+          volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+
+      restartPolicy: Never
