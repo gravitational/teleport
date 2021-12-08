@@ -52,8 +52,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		return trace.Wrap(err)
 	}
 	switch ca.GetType() {
-	case types.UserCA, types.HostCA:
-		err = checkUserOrHostCA(ca)
+	case types.UserCA, types.HostCA, types.DatabaseCA:
+		err = checkUserOrHostCA(ca) //TODO(JN): misleading name if we want to use it for DB too.
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
 	default:

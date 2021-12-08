@@ -31,6 +31,8 @@ const (
 	HostCA CertAuthType = "host"
 	// UserCA identifies the key as a user certificate authority
 	UserCA CertAuthType = "user"
+
+	DatabaseCA CertAuthType = "db"
 	// JWTSigner identifies type of certificate authority as JWT signer. In this
 	// case JWT is not a certificate authority because it does not issue
 	// certificates but rather is an authority that signs tokens, however it behaves
@@ -39,11 +41,11 @@ const (
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{HostCA, UserCA, JWTSigner}
+var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, JWTSigner}
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {
-	if c != HostCA && c != UserCA && c != JWTSigner {
+	if c != HostCA && c != UserCA && c != DatabaseCA && c != JWTSigner {
 		return trace.BadParameter("'%v' authority type is not supported", c)
 	}
 	return nil
