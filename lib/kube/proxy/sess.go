@@ -387,6 +387,10 @@ func (s *session) checkPresence() error {
 	}
 
 	for _, participant := range sess.GetParticipants() {
+		if participant.ID == s.initiator.String() {
+			continue
+		}
+
 		if time.Since(participant.LastActive) > PresenceMaxDifference {
 			s.log.Warn("Participant %v is not active, kicking.", participant.ID)
 			realId, _ := uuid.Parse(participant.ID)
