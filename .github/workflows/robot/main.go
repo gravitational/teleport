@@ -57,7 +57,7 @@ func main() {
 	case "check":
 		err = b.Check(ctx)
 	case "dismiss":
-		err = b.Dimiss(ctx)
+		err = b.Dismiss(ctx)
 	default:
 		err = trace.BadParameter("unknown workflow: %v", workflow)
 	}
