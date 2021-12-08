@@ -11,7 +11,7 @@ on:
   pull_request_review:
     type: [submitted, edited, dismissed]
   pull_request_target:
-    types: [opened]
+    types: [opened, ready_for_review]
 
 # Limit the permissions on the GitHub token for this workflow to the subset
 # that is required. In this case, the check workflow needs to invalidate
