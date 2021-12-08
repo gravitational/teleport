@@ -83,11 +83,13 @@ func (o *OptionFile) Upsert(profile profile.ConnectProfile) error {
 	if profile.Database != "" {
 		section.NewKey("database", profile.Database)
 	}
-	if profile.Insecure {
-		section.NewKey("ssl-mode", MySQLSSLModeVerifyCA)
-	} else {
-		section.NewKey("ssl-mode", MySQLSSLModeVerifyIdentity)
-	}
+	// TODO(JN): Enable it back after figuring out how to get the flag on connect.
+	//if profile.Insecure {
+	//	section.NewKey("ssl-mode", MySQLSSLModeVerifyCA)
+	//} else {
+	//	section.NewKey("ssl-mode", MySQLSSLModeVerifyIdentity)
+	//	//section.NewKey("ssl-verify-server-cert", "true")
+	//}
 	section.NewKey("ssl-ca", profile.CACertPath)
 	section.NewKey("ssl-cert", profile.CertPath)
 	section.NewKey("ssl-key", profile.KeyPath)
@@ -111,7 +113,7 @@ func (o *OptionFile) Env(name string) (map[string]string, error) {
 	// https://dev.mysql.com/doc/refman/8.0/en/environment-variables.html
 	//
 	// Due to this fact, we use the "option group suffix" which makes clients
-	// use speficic section from ~/.my.cnf file that has all these settings.
+	// use specific section from ~/.my.cnf file that has all these settings.
 	return map[string]string{
 		"MYSQL_GROUP_SUFFIX": suffix(name),
 	}, nil

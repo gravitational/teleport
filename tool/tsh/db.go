@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	"github.com/gravitational/teleport/lib/client/db/mysql"
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -446,7 +447,7 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 // pickActiveDatabase returns the database the current profile is logged into.
 //
 // If logged into multiple databases, returns an error unless one specified
-// explicily via --db flag.
+// explicitly via --db flag.
 func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
@@ -571,6 +572,38 @@ func getMySQLCommand(tc *client.TeleportClient, profile *client.ProfileStatus, d
 		}
 	}
 
+	// TODO(JN): Refactor the logic below. For now this is only proposal.
+	// Check if mariadb client is available. Prefer it over mysql client.
+	_, err := exec.LookPath(mariadbBin)
+	if err == nil {
+		// Found mariadb binary.
+		args = append(args, "--ssl-verify-server-cert")
+		return exec.Command(mariadbBin, args...)
+	}
+
+	// Check if mysql comes from Oracle or MariaDB
+	mysqlVer, err := exec.Command(mysqlBin, "--version").Output()
+	if err != nil {
+		// Looks like incorrect mysql installation or mysql binary is missing.
+		// Assume the Oracle's version and return the command. Nest time when
+		// why try to run it to open the DB connection the error will be
+		// presented to a user.
+		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyIdentity))
+		return exec.Command(mysqlBin, args...)
+	}
+
+	// Check which flavor is installed. Otherwise, we don't know which ssl flag to use.
+	// Example output:
+	// Oracle:
+	// mysql  Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))
+	// MariaDB:
+	// mysql  Ver 15.1 Distrib 10.3.32-MariaDB, for debian-linux-gnu (x86_64) using readline 5.2
+	if strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb") {
+		args = append(args, "--ssl-verify-server-cert")
+	} else {
+		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyIdentity))
+	}
+
 	return exec.Command(mysqlBin, args...)
 }
 
@@ -642,6 +675,8 @@ const (
 	cockroachBin = "cockroach"
 	// mysqlBin is the MySQL client binary name.
 	mysqlBin = "mysql"
+	// mariadbBin is the MariaDB client binary name.
+	mariadbBin = "mariadb"
 	// mongoBin is the Mongo client binary name.
 	mongoBin = "mongo"
 )
