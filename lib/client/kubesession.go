@@ -66,9 +66,10 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(joel): set correct terminal size and deal with terminal resizing
-
-	stream := streamproto.NewSessionStream(ws)
+	stream, err := streamproto.NewSessionStream(ws, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	term, err := terminal.New(tc.Stdin, tc.Stdout, tc.Stderr)
 	if err != nil {

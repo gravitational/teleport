@@ -30,6 +30,7 @@ import (
 type metaMessage struct {
 	Resize         *remotecommand.TerminalSize `json:"resize,omitempty"`
 	ForceTerminate bool                        `json:"force_terminate,omitempty"`
+	MFARequired    *bool                       `json:"mfa_required,omitempty"`
 }
 
 type SessionStream struct {
@@ -42,9 +43,10 @@ type SessionStream struct {
 	CloseC         chan struct{}
 	closedC        sync.Once
 	closed         bool
+	MFARequired    bool
 }
 
-func NewSessionStream(conn *websocket.Conn) *SessionStream {
+func NewSessionStream(conn *websocket.Conn, client bool) (*SessionStream, error) {
 	s := &SessionStream{
 		conn:           conn,
 		in:             make(chan []byte),
@@ -53,8 +55,30 @@ func NewSessionStream(conn *websocket.Conn) *SessionStream {
 		forceTerminate: make(chan struct{}),
 	}
 
+	if client {
+		ty, data, err := conn.ReadMessage()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if ty != websocket.TextMessage {
+			return nil, trace.Errorf("expected websocket control message, got %v", ty)
+		}
+
+		var msg metaMessage
+		if err := utils.FastUnmarshal(data, &msg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if msg.MFARequired == nil {
+			return nil, trace.Errorf("expected websocket status message, got %v", msg)
+		}
+
+		s.MFARequired = *msg.MFARequired
+	}
+
 	go s.readTask()
-	return s
+	return s, nil
 }
 
 func (s *SessionStream) readTask() {
