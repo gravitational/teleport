@@ -1829,6 +1829,8 @@ type IdentityService interface {
 	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
 	CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
 
+	MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error)
+
 	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
 	// This token is used as part of a URL that will be emailed to the user (not done in this request).
 	// Represents step 1 of the account recovery process.

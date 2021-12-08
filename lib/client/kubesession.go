@@ -22,15 +22,20 @@ import (
 	"io"
 	"io/ioutil"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/remotecommand"
 )
+
+const mfaChallengeInterval = time.Second * 30
 
 type KubeSession struct {
 	stream    *streamproto.SessionStream
@@ -39,7 +44,9 @@ type KubeSession struct {
 	closeWait *sync.WaitGroup
 }
 
-func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key, kubeAddr string, tlsServer string) (*KubeSession, error) {
+type MFASolver = func(io.Writer, *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+
+func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key, kubeAddr string, tlsServer string, solveChallenge MFASolver) (*KubeSession, error) {
 	close := utils.NewCloseBroadcaster()
 	closeWait := &sync.WaitGroup{}
 	joinEndpoint := "wss://" + kubeAddr + "/api/v1/teleport/join/" + meta.GetID()
@@ -134,8 +141,74 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 	}()
 
 	s := &KubeSession{stream, term, close, closeWait}
+
+	if stream.MFARequired {
+		err := tc.WithRootClusterClient(ctx, func(auth auth.ClientI) error {
+			go s.handleMFA(ctx, auth, solveChallenge)
+			return nil
+		})
+
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	s.pipeInOut()
 	return s, nil
+}
+
+func (s *KubeSession) handleMFA(ctx context.Context, auth auth.ClientI, solver MFASolver) error {
+	ticker := time.NewTicker(mfaChallengeInterval)
+	defer auth.Close()
+	stream, err := auth.MaintainSessionPresence(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stream.CloseSend()
+
+outer:
+	for {
+		select {
+		case <-ticker.C:
+			req := &proto.PresenceMFAChallengeSend{
+				Request: &proto.PresenceMFAChallengeSend_ChallengeRequest{
+					ChallengeRequest: &proto.PresenceMFAChallengeRequest{},
+				},
+			}
+
+			err := stream.Send(req)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			challenge, err := stream.Recv()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			solution, err := solver(s.term.Stdout(), challenge)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			req = &proto.PresenceMFAChallengeSend{
+				Request: &proto.PresenceMFAChallengeSend_ChallengeResponse{
+					ChallengeResponse: solution,
+				},
+			}
+
+			err = stream.Send(req)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		case <-s.close.C:
+			break outer
+		case <-ctx.Done():
+			break outer
+		}
+	}
+
+	return nil
 }
 
 func (s *KubeSession) pipeInOut() {

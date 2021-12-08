@@ -3837,6 +3837,10 @@ func (a *ServerWithRoles) UpdatePresence(ctx context.Context, sessionID, user st
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
