@@ -125,8 +125,11 @@ func (b *Bot) deleteRuns(ctx context.Context, organization string, repository st
 			repository,
 			run.ID)
 		if err != nil {
-			return trace.Wrap(err)
+			log.Printf("Dismiss: Failed to dismiss workflow run %v: %v.", run.ID, err)
+			continue
 		}
+
+		log.Printf("Dismiss: Successfully deleted workflow run: %v.", run.ID)
 	}
 	return nil
 }
