@@ -27,7 +27,6 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -105,15 +104,6 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 	identity, err := process.GetIdentity(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	// TODO(klizhentas): REMOVE IN 3.1
-	// this is a migration clutch, used to re-register
-	// in case if identity of the auth server does not have the wildcard cert
-	if role == types.RoleAdmin || role == types.RoleAuth {
-		if !identity.HasDNSNames([]string{"*." + constants.APIDomain}) {
-			process.log.Debugf("Detected Auth server certificate without wildcard principals: %v, regenerating.", identity.Cert.ValidPrincipals)
-			return process.firstTimeConnect(role)
-		}
 	}
 
 	rotation := state.Spec.Rotation
@@ -447,18 +437,35 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	}
 
 	periodic := interval.New(interval.Config{
-		Duration:      defaults.HighResPollingPeriod,
-		FirstDuration: utils.HalfJitter(defaults.HighResPollingPeriod),
+		Duration:      process.Config.RotationConnectionInterval,
+		FirstDuration: utils.HalfJitter(process.Config.RotationConnectionInterval),
 		Jitter:        utils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
+
+	errors := utils.NewTimedCounter(process.Clock, process.Config.RestartThreshold.Time)
 
 	for {
 		err := process.syncRotationStateCycle()
 		if err == nil {
 			return nil
 		}
-		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after ~%v.", err, defaults.HighResPollingPeriod)
+		process.log.WithError(err).Warning("Sync rotation state cycle failed")
+
+		// If we have had a *lot* of failures very recently, then it's likely that our
+		// route to the auth server is gone. If we're using a tunnel then it's possible
+		// that the proxy has been reconfigured and the tunnel address has moved.
+		count := errors.Increment()
+		process.log.Warnf("%d connection errors in last %v.", count, process.Config.RestartThreshold.Time)
+		if count > process.Config.RestartThreshold.Amount {
+			// signal quit
+			process.log.Error("Connection error threshold exceeded. Asking for a graceful restart.")
+			process.BroadcastEvent(Event{Name: TeleportReloadEvent})
+			return nil
+		}
+
+		process.log.Warningf("Retrying in ~%v", process.Config.RotationConnectionInterval)
+
 		select {
 		case <-periodic.Next():
 		case <-process.GracefulExitContext().Done():
@@ -470,7 +477,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 // syncRotationCycle executes a rotation cycle that returns:
 //
 // * nil whenever rotation state leads to teleport reload event
-// * error whenever rotation sycle has to be restarted
+// * error whenever rotation cycle has to be restarted
 //
 // the function accepts extra delay timer extraDelay in case if parent
 // function needs a
@@ -895,7 +902,7 @@ func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, tlsConf
 	// get the underlying error.
 	_, err = clt.GetLocalClusterName()
 	if err != nil {
-		if err2 := clt.Close(); err != nil {
+		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close Auth Server tunnel client.")
 		}
 		return nil, trace.Unwrap(err)

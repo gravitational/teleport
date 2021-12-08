@@ -1,36 +1,39 @@
 ---
 title: Per-session MFA
-description: Require U2F checks for user SSH and Kubernetes sessions.
+description: Require MFA checks for user SSH and Kubernetes sessions.
 videoBanner: j8Ze7HhjFGw
 ---
 
 # Per-session MFA
 
-Teleport supports U2F authentication on every SSH and Kubernetes "connection"
-(a single `tsh ssh` or `kubectl` call). This is an advanced security feature
-that protects users against compromises of their on-disk Teleport certificates.
+Teleport supports multi-factor authentication on every SSH and Kubernetes
+"connection" (a single `tsh ssh` or `kubectl` call). This is an advanced
+security feature that protects users against compromises of their on-disk
+Teleport certificates.
 
 <Admonition type="note">
-  Per-session U2F checks don't apply to regular Teleport logins (`tsh login` or
+  Per-session MFA checks don't apply to regular Teleport logins (`tsh login` or
   logging into the Web UI). We encourage you to enable login MFA in your SSO
   provider and/or for all [local Teleport
   users](../../setup/reference/authentication.mdx#local).
 </Admonition>
 
 <Admonition type="warning">
-  Per-session U2F checks were introduced in Teleport v6.1. To enforce the
+  Per-session MFA checks were introduced in Teleport v6.1. To enforce the
   checks, you must update **all** `teleport` binaries in your deployment. If
   only Auth and Proxy services are updated, these checks will *not* be properly
   enforced. Additionally, only v6.1 or newer `tsh` binaries implement
-  per-session U2F checks.
+  per-session MFA checks.
 </Admonition>
 
 ## Prerequisites
 
 - Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
-- [U2F configured](u2f.mdx) on this cluster
-- U2F hardware device, such as Yubikey or Solokey
-- Web browser that [supports U2F](https://caniuse.com/u2f) (if using SSH from the Teleport Web UI)
+- [WebAuthn configured](webauthn.mdx) on this cluster
+- Second factor hardware device, such as YubiKey or SoloKey
+- A Web browser with [WebAuthn support](
+  https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
+  SSH from the Teleport Web UI)
 
 ## Configuration
 
@@ -38,7 +41,7 @@ Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 ### Cluster-wide
 
-To enforce U2F checks cluster-wide, update `teleport.yaml` on the Auth server
+To enforce MFA checks cluster-wide, update `teleport.yaml` on the Auth server
 to contain:
 
 ```yaml
@@ -50,7 +53,7 @@ auth_service:
 
 ### Per role
 
-To enforce U2F checks for a specific role, update the role to contain:
+To enforce MFA checks for a specific role, update the role to contain:
 
 ```yaml
 kind: role
@@ -67,7 +70,8 @@ spec:
     ...
 ```
 
-Role-specific enforcement only applies when accessing SSH nodes or Kubernetes clusters matching that role's `allow` section.
+Role-specific enforcement only applies when accessing SSH nodes or Kubernetes
+clusters matching that role's `allow` section.
 
 #### Roles example
 
@@ -125,7 +129,8 @@ spec:
 
 Olga then assigns both roles to all engineers, including Jerry.
 
-When Jerry logs into node `dev1.example.com` (with label `env: dev`), nothing special happens:
+When Jerry logs into node `dev1.example.com` (with label `env: dev`), nothing
+special happens:
 
 ```code
 $ tsh ssh dev1.example.com
@@ -176,12 +181,12 @@ $ tsh db connect prod-mysql-instance
 
 Current limitations for this feature are:
 
-- U2F devices aren't currently supported in `tsh` on Windows.
-- Only `tsh ssh` supports per-session U2F authentication for SSH (OpenSSH `ssh`
+- WebAuthn hardware devices aren't currently supported in `tsh` on Windows.
+- Only `tsh ssh` supports per-session MFA authentication for SSH (OpenSSH `ssh`
   does not).
 - Only `kubectl` supports per-session U2F authentication for Kubernetes.
-- Application access clients don't support per-session U2F
+- Application access clients don't support per-session MFA
   authentication yet, although cluster and role configuration applies to them.
-  If you enable per-session U2F checks cluster-wide, you will not be able to
+  If you enable per-session MFA checks cluster-wide, you will not be able to
   use Application access. We're working on integrating per-session
-  U2F checks for these clients.
+  MFA checks for these clients.

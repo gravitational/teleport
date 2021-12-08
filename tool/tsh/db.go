@@ -287,7 +287,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -353,7 +353,7 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tl
 	return &tlsca.RouteToDatabase{
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
-		Username:    cf.Username,
+		Username:    cf.DatabaseUser,
 		Database:    cf.DatabaseName,
 	}, nil
 }
@@ -414,7 +414,7 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 	dbParam := proto.RouteToDatabase{
 		ServiceName: database.ServiceName,
 		Protocol:    database.Protocol,
-		Username:    cf.Username,
+		Username:    database.Username,
 		Database:    database.Database,
 	}
 	mfaResp, err := cluster.IsMFARequired(cf.Context, &proto.IsMFARequiredRequest{

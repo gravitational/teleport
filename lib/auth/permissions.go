@@ -48,7 +48,7 @@ func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
 }
 
 // NewAuthorizer returns new authorizer using backends
-func NewAuthorizer(clusterName string, accessPoint ReadAccessPoint, lockWatcher *services.LockWatcher) (Authorizer, error) {
+func NewAuthorizer(clusterName string, accessPoint AuthorizerAccessPoint, lockWatcher *services.LockWatcher) (Authorizer, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing parameter clusterName")
 	}
@@ -68,16 +68,43 @@ type Authorizer interface {
 	Authorize(ctx context.Context) (*Context, error)
 }
 
+// AuthorizerAccessPoint is the access point contract required by an Authorizer
+type AuthorizerAccessPoint interface {
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetUser returns a services.User for this cluster.
+	GetUser(name string, withSecrets bool) (types.User, error)
+
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+
+	// GetClusterAuditConfig returns cluster audit configuration.
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
+
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+}
+
 // authorizer creates new local authorizer
 type authorizer struct {
 	clusterName string
-	accessPoint ReadAccessPoint
+	accessPoint AuthorizerAccessPoint
 	lockWatcher *services.LockWatcher
 }
 
 // Context is authorization context
 type Context struct {
-	// User is the user name
+	// User is the username
 	User types.User
 	// Checker is access checker
 	Checker services.AccessChecker
@@ -669,7 +696,7 @@ func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 	}, nil
 }
 
-func contextForLocalUser(u LocalUser, accessPoint ReadAccessPoint) (*Context, error) {
+func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
 	user, err := accessPoint.GetUser(u.Username, false)
 	if err != nil {
@@ -684,7 +711,7 @@ func contextForLocalUser(u LocalUser, accessPoint ReadAccessPoint) (*Context, er
 		return nil, trace.Wrap(err)
 	}
 	// Override roles and traits from the local user based on the identity roles
-	// and traits, this is done to prevent potential conflict. Imagine a scenairo
+	// and traits, this is done to prevent potential conflict. Imagine a scenario
 	// when SSO user has left the company, but local user entry remained with old
 	// privileged roles. New user with the same name has been onboarded and would
 	// have derived the roles from the stale user entry. This code prevents

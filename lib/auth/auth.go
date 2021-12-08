@@ -391,7 +391,7 @@ func (a *Server) runPeriodicOperations() {
 	a.lock.RUnlock()
 	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
-		Duration: apidefaults.ServerKeepAliveTTL * 2,
+		Duration: apidefaults.ServerKeepAliveTTL() * 2,
 		Jitter:   utils.NewSeventhJitter(),
 	})
 	missedKeepAliveCount := 0
@@ -2088,9 +2088,8 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		NotAfter:  a.clock.Now().UTC().Add(defaults.CATTL),
 		DNSNames:  append([]string{}, req.AdditionalPrincipals...),
 	}
-	// HTTPS requests need to specify DNS name that should be present in the
-	// certificate as one of the DNS Names. It is not known in advance,
-	// that is why there is a default one for all certificates
+	// API requests need to specify a DNS name, which must be present in the certificate's DNS Names.
+	// The target DNS is not always known in advance so we add a default one to all certificates.
 	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+constants.APIDomain, constants.APIDomain)
 	}
@@ -2159,50 +2158,6 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 	return true
 }
 
-// RegisterUsingTokenRequest is a request to register with
-// auth server using authentication token
-type RegisterUsingTokenRequest struct {
-	// HostID is a unique host ID, usually a UUID
-	HostID string `json:"hostID"`
-	// NodeName is a node name
-	NodeName string `json:"node_name"`
-	// Role is a system role, e.g. Proxy
-	Role types.SystemRole `json:"role"`
-	// Token is an authentication token
-	Token string `json:"token"`
-	// AdditionalPrincipals is a list of additional principals
-	AdditionalPrincipals []string `json:"additional_principals"`
-	// DNSNames is a list of DNS names to include in the x509 client certificate
-	DNSNames []string `json:"dns_names"`
-	// PublicTLSKey is a PEM encoded public key
-	// used for TLS setup
-	PublicTLSKey []byte `json:"public_tls_key"`
-	// PublicSSHKey is a SSH encoded public key,
-	// if present will be signed as a return value
-	// otherwise, new public/private key pair will be generated
-	PublicSSHKey []byte `json:"public_ssh_key"`
-	// RemoteAddr is the remote address of the host requesting a host certificate.
-	// It is used to replace 0.0.0.0 in the list of additional principals.
-	RemoteAddr string `json:"remote_addr"`
-	// EC2IdentityDocument is used for Simplified Node Joining to prove the
-	// identity of a joining EC2 instance.
-	EC2IdentityDocument []byte `json:"ec2_id"`
-}
-
-// CheckAndSetDefaults checks for errors and sets defaults
-func (r *RegisterUsingTokenRequest) CheckAndSetDefaults() error {
-	if r.HostID == "" {
-		return trace.BadParameter("missing parameter HostID")
-	}
-	if r.Token == "" {
-		return trace.BadParameter("missing parameter Token")
-	}
-	if err := r.Role.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // RegisterUsingToken adds a new node to the Teleport cluster using previously issued token.
 // A node must also request a specific role (and the role must match one of the roles
 // the token was generated for).
@@ -2210,7 +2165,7 @@ func (r *RegisterUsingTokenRequest) CheckAndSetDefaults() error {
 // If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
 // If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
 // after a successful registration.
-func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs, error) {
+func (a *Server) RegisterUsingToken(req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
 
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -2688,32 +2643,32 @@ func (a *Server) GetToken(ctx context.Context, token string) (types.ProvisionTok
 	return a.GetCache().GetToken(ctx, token)
 }
 
-// GetRoles is a part of auth.AccessPoint implementation
+// GetRoles returns roles from the cache
 func (a *Server) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return a.GetCache().GetRoles(ctx)
 }
 
-// GetRole is a part of auth.AccessPoint implementation
+// GetRole returns a role from the cache
 func (a *Server) GetRole(ctx context.Context, name string) (types.Role, error) {
 	return a.GetCache().GetRole(ctx, name)
 }
 
-// GetNamespace returns namespace
+// GetNamespace returns a namespace from the cache
 func (a *Server) GetNamespace(name string) (*types.Namespace, error) {
 	return a.GetCache().GetNamespace(name)
 }
 
-// GetNamespaces is a part of auth.AccessPoint implementation
+// GetNamespaces returns namespaces from the cache
 func (a *Server) GetNamespaces() ([]types.Namespace, error) {
 	return a.GetCache().GetNamespaces()
 }
 
-// GetNodes is a part of auth.AccessPoint implementation
+// GetNodes returns nodes from the cache
 func (a *Server) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	return a.GetCache().GetNodes(ctx, namespace, opts...)
 }
 
-// ListNodes is a part of auth.AccessPoint implementation
+// ListNodes lists nodes from the cache
 func (a *Server) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
 	return a.GetCache().ListNodes(ctx, req)
 }
@@ -2744,34 +2699,32 @@ func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesReques
 	}
 }
 
-// GetReverseTunnels is a part of auth.AccessPoint implementation
+// GetReverseTunnels returns reverse tunnels from the cache
 func (a *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	return a.GetCache().GetReverseTunnels(opts...)
 }
 
-// GetProxies is a part of auth.AccessPoint implementation
+// GetProxies returns proxies from the cache
 func (a *Server) GetProxies() ([]types.Server, error) {
 	return a.GetCache().GetProxies()
 }
 
-// GetUser is a part of auth.AccessPoint implementation.
+// GetUser returns a user from the cache
 func (a *Server) GetUser(name string, withSecrets bool) (user types.User, err error) {
 	return a.GetCache().GetUser(name, withSecrets)
 }
 
-// GetUsers is a part of auth.AccessPoint implementation
+// GetUsers returns users from the cache
 func (a *Server) GetUsers(withSecrets bool) (users []types.User, err error) {
 	return a.GetCache().GetUsers(withSecrets)
 }
 
-// GetTunnelConnections is a part of auth.AccessPoint implementation
 // GetTunnelConnections are not using recent cache as they are designed
 // to be called periodically and always return fresh data
 func (a *Server) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
 	return a.GetCache().GetTunnelConnections(clusterName, opts...)
 }
 
-// GetAllTunnelConnections is a part of auth.AccessPoint implementation
 // GetAllTunnelConnections are not using recent cache, as they are designed
 // to be called periodically and always return fresh data
 func (a *Server) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []types.TunnelConnection, err error) {
@@ -2814,12 +2767,12 @@ func (a *Server) modeStreamer(ctx context.Context) (events.Streamer, error) {
 	return a.streamer, nil
 }
 
-// GetAppServers is a part of the auth.AccessPoint implementation.
+// GetAppServers returns app servers from the cache
 func (a *Server) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	return a.GetCache().GetAppServers(ctx, namespace, opts...)
 }
 
-// GetAppSession is a part of the auth.AccessPoint implementation.
+// GetAppSession returns app sessions from the cache
 func (a *Server) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
 	return a.GetCache().GetAppSession(ctx, req)
 }
@@ -3707,7 +3660,7 @@ func isHTTPS(u string) error {
 
 // WithClusterCAs returns a TLS hello callback that returns a copy of the provided
 // TLS config with client CAs pool of the specified cluster.
-func WithClusterCAs(tlsConfig *tls.Config, ap AccessPoint, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error

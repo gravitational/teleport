@@ -1209,12 +1209,12 @@ message ChangeUserAuthenticationRequest {
 message ChangeUserAuthenticationResponse {
     // WebSession is a user's web sesssion created from successful changing of password.
     types.WebSessionV2 WebSession = 1 [ (gogoproto.jsontag) = "web_session" ];
-    // RecoveryCodes are user's new recovery codes. Previous recovery codes become invalid.
+    // Recovery holds user's new recovery related fields. Previous recovery codes become invalid.
     // This field can be empty if a user does not meet the following
     // requirements to receive recovery codes:
     //  - cloud feature is enabled
     //  - username is in valid email format
-    repeated string RecoveryCodes = 2 [ (gogoproto.jsontag) = "recovery_codes,omitempty" ];
+    RecoveryCodes Recovery = 2 [ (gogoproto.jsontag) = "recovery,omitempty" ];
 }
 
 // StartAccountRecoveryRequest defines a request to create a recovery start token for a user who is
@@ -1274,6 +1274,20 @@ message CompleteAccountRecoveryRequest {
     }
 }
 
+// RecoveryCodes describes account recovery fields. Used as a RPC
+// response or as part of a RPC response that requires any of these fields.
+message RecoveryCodes {
+    // Codes holds the list of recovery phrase words.
+    // Field is only used when new recovery codes are generated and returned to user.
+    repeated string Codes = 1 [ (gogoproto.jsontag) = "codes,omitempty" ];
+    // Created is the date the recovery codes were created.
+    google.protobuf.Timestamp Created = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "created"
+    ];
+}
+
 // CreateAccountRecoveryCodesRequest is a request to create new set of recovery codes for a user,
 // replacing and invalidating any previously existing codes. Recovery codes can only be given to
 // users who meet the following requirements:
@@ -1285,13 +1299,6 @@ message CreateAccountRecoveryCodesRequest {
     //   - Recovery approved token that is obtained with RPC VerifyAccountRecovery
     //   - Privilege token that is obtained with RPC CreatePrivilegeToken
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
-}
-
-// CreateAccountRecoveryCodesResponse is the response to CreateAccountRecoveryCodesRequest.
-message CreateAccountRecoveryCodesResponse {
-    // RecoveryCodes are user's new account recovery codes. Any previous codes are invalidated by
-    // the replacement of new codes.
-    repeated string RecoveryCodes = 1 [ (gogoproto.jsontag) = "recovery_codes" ];
 }
 
 // GetAccountRecoveryTokenRequest is a request to return a user token resource after verifying that
@@ -1784,8 +1791,7 @@ service AuthService {
     // CreateAccountRecoveryCodes (exclusive to cloud users) creates new set of recovery codes for a
     // user, replacing and invalidating any previously owned codes. Users can only get recovery
     // codes if their username is in a valid email format.
-    rpc CreateAccountRecoveryCodes(CreateAccountRecoveryCodesRequest)
-        returns (CreateAccountRecoveryCodesResponse);
+    rpc CreateAccountRecoveryCodes(CreateAccountRecoveryCodesRequest) returns (RecoveryCodes);
     // GetAccountRecoveryToken (exclusive to cloud users) returns a user token resource after
     // verifying that the token requested has not expired and is of the correct recovery kind.
     // Besides checking for validity of a token ID, it is also used to get basic information from
@@ -1795,7 +1801,7 @@ service AuthService {
     // GetAccountRecoveryCodes (exclusive to cloud users) is a request to return the user in context
     // their recovery codes. This request will not return any secrets (the values of recovery
     // codes), but instead returns non-sensitive data eg. when the recovery codes were created.
-    rpc GetAccountRecoveryCodes(GetAccountRecoveryCodesRequest) returns (types.RecoveryCodesV1);
+    rpc GetAccountRecoveryCodes(GetAccountRecoveryCodesRequest) returns (RecoveryCodes);
 
     // CreatePrivilegeToken returns a new privilege token after a logged in user successfully
     // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and

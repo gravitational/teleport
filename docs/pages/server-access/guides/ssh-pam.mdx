@@ -4,10 +4,10 @@ description: How to configure Teleport SSH with PAM (Pluggable Authentication Mo
 h1: Pluggable Authentication Modules (PAM)
 ---
 
-Teleport's node service can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM). 
+Teleport's node service can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM).
 
 Teleport currently supports the `auth`, `account`, and `session` PAM modules. The `auth`
-stack is optional and not used by default. 
+stack is optional and not used by default.
 
 These are a few things leverage PAM for:
 
@@ -87,17 +87,17 @@ auth_service:
     message_of_the_day: "Welcome to the cluster. All activity will be logged."
 ```
 
-This will be shown during the `tsh login` process, and must be positively acknowledged 
+This will be shown during the `tsh login` process, and must be positively acknowledged
 before the user is allowed to log into the cluster.
 
 ```code
 $ tsh login --proxy teleport.example.com
-# Welcome to the cluster. All activity will be logged. 
+# Welcome to the cluster. All activity will be logged.
 # Press [ENTER] to continue.
 ```
 
-Alternatively, a per-node Message of the Day can be set using the traditional unix 
-`/etc/motd` file. The `/etc/motd` file is normally displayed by login(1) after a user 
+Alternatively, a per-node Message of the Day can be set using the traditional unix
+`/etc/motd` file. The `/etc/motd` file is normally displayed by login(1) after a user
 has logged in but before the shell is run. It is generally used for important system-wide
 announcements.
 
@@ -201,7 +201,7 @@ session    optional     pam_motd.so  motd=/run/motd.dynamic
 session    optional     pam_motd.so noupdate
 ```
 
-By updating `/etc/motd` you can provide a message to users accessing nodes via Teleport. 
+By updating `/etc/motd` you can provide a message to users accessing nodes via Teleport.
 
 ```code
 $ cat /etc/motd
@@ -274,8 +274,8 @@ identity information.
 mkdir -p /etc/pam-exec.d
 cat > /etc/pam-exec.d/teleport_acct <<EOF
 #!/bin/sh
-COMMENT="User \${TELEPORT_USERNAME} with roles \${TELEPORT_ROLES} created by Teleport."
-id -u "\${TELEPORT_LOGIN}" &>/dev/null  || /sbin/useradd -m -c "\${COMMENT}" "\${TELEPORT_LOGIN}" 2> /tmp/pam.error
+COMMENT="User ${TELEPORT_LOGIN} for ${TELEPORT_USERNAME} with roles ${TELEPORT_ROLES} created by Teleport."
+/bin/id -u "${TELEPORT_LOGIN}" 2>&1 >/dev/null || /sbin/useradd -m -s /bin/bash -c "${COMMENT}" "${TELEPORT_LOGIN}" 2>> /tmp/pam.error
 exit 0
 EOF
 chmod +x /etc/pam-exec.d/teleport_acct
@@ -296,7 +296,7 @@ Now attempting to log in as an existing user should result in the creation of th
 user and a successful login.
 
 The `/etc/pam-exec.d/teleport_acct` script can set the user's groups as an option to auto-populate
-the user's permissions.  The user's roles are populated as space-delimited `TELEPORT_ROLES` variables. 
+the user's permissions.  The user's roles are populated as space-delimited `TELEPORT_ROLES` variables.
 These could be used to map to a particular `sudo` group with additional scripting.
 
 ## Add additional authentication steps

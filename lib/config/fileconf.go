@@ -18,6 +18,7 @@ package config
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -137,13 +138,28 @@ type SampleFlags struct {
 	ACMEEnabled bool
 	// Version is the Teleport Configuration version.
 	Version string
+	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
+	PublicAddr string
+	// KeyFile is a TLS key file
+	KeyFile string
+	// CertFile is a TLS Certificate file
+	CertFile string
 }
 
 // MakeSampleFileConfig returns a sample config to start
 // a standalone server
 func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
-	if flags.ACMEEnabled && flags.ClusterName == "" {
-		return nil, trace.BadParameter("please provide --cluster-name when using acme, for example --cluster-name=example.com")
+	if (flags.KeyFile == "") != (flags.CertFile == "") { // xor
+		return nil, trace.BadParameter("please provide both --key-file and --cert-file")
+	}
+
+	if flags.ACMEEnabled {
+		if flags.ClusterName == "" {
+			return nil, trace.BadParameter("please provide --cluster-name when using ACME, for example --cluster-name=example.com")
+		}
+		if flags.CertFile != "" {
+			return nil, trace.BadParameter("could not use --key-file/--cert-file when ACME is enabled")
+		}
 	}
 
 	conf := service.MakeDefaultConfig()
@@ -195,6 +211,28 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
 		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
 		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
+	}
+	if flags.PublicAddr != "" {
+		// default to 443 if port is not specified
+		publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		p.PublicAddr = apiutils.Strings{publicAddr.String()}
+
+		// use same port for web addr
+		webPort := publicAddr.Port(teleport.StandardHTTPSPort)
+		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
+	}
+	if flags.KeyFile != "" && flags.CertFile != "" {
+		if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
+			return nil, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
+		}
+
+		p.KeyPairs = append(p.KeyPairs, KeyPair{
+			PrivateKey:  flags.KeyFile,
+			Certificate: flags.CertFile,
+		})
 	}
 
 	fc = &FileConfig{
@@ -1325,4 +1363,8 @@ type LDAPConfig struct {
 	Username string `yaml:"username"`
 	// PasswordFile is a text file containing the password for LDAP authentication.
 	PasswordFile string `yaml:"password_file"`
+	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
+	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
 }

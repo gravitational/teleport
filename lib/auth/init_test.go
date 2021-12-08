@@ -502,11 +502,11 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		err := createPresets(ctx, as)
+		err := createPresets(as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = createPresets(ctx, as)
+		err = createPresets(as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -527,7 +527,7 @@ func TestPresets(t *testing.T) {
 		err := as.CreateRole(access)
 		require.NoError(t, err)
 
-		err = createPresets(ctx, as)
+		err = createPresets(as)
 		require.NoError(t, err)
 
 		// Presets were created

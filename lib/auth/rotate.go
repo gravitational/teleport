@@ -396,7 +396,7 @@ func (a *Server) processRotationRequest(req rotationReq) (types.CertAuthority, e
 		switch rotation.State {
 		case types.RotationStateStandby, "":
 		default:
-			return nil, trace.BadParameter("can not initate rotation while another is in progress")
+			return nil, trace.BadParameter("can not initiate rotation while another is in progress")
 		}
 		if err := a.startNewRotation(req, ca); err != nil {
 			return nil, trace.Wrap(err)
