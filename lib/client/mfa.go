@@ -124,7 +124,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 	case len(c.U2F) > 0:
 		go func() {
 			log.Debugf("prompting U2F devices with facet %q", origin)
-			resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
+			resp, err := PromptU2FChallenges(ctx, proxyAddr, c.U2F)
 			respC <- response{kind: "U2F", resp: resp, err: err}
 		}()
 	}
@@ -152,7 +152,7 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 		"failed to authenticate using all MFA devices, rerun the command with '-d' to see error details for each device")
 }
 
-func promptU2FChallenges(ctx context.Context, origin string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
+func PromptU2FChallenges(ctx context.Context, origin string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
 	u2fChallenges := make([]u2f.AuthenticateChallenge, 0, len(challenges))
 	for _, chal := range challenges {
 		u2fChallenges = append(u2fChallenges, u2f.AuthenticateChallenge{
