@@ -108,7 +108,7 @@ func createDesktopConnection(
 	service := winServices[rand.Intn(len(winServices))]
 	log = log.WithField("windows-service-uuid", service.GetName())
 	log = log.WithField("windows-service-addr", service.GetAddr())
-	serviceCon, err := site.DialTCP(reversetunnel.DialParams{
+	c, err := site.DialTCP(reversetunnel.DialParams{
 		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: r.RemoteAddr},
 		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType: types.WindowsDesktopTunnel,
@@ -117,103 +117,95 @@ func createDesktopConnection(
 	if err != nil {
 		return trace.WrapWithMessage(err, "failed to connect to windows_desktop_service at %q: %v", service.GetAddr(), err)
 	}
-	defer serviceCon.Close()
+	defer c.Close()
 	tlsConfig := ctx.clt.Config()
 	// Pass target desktop UUID via SNI.
 	tlsConfig.ServerName = desktopName + desktop.SNISuffix
-	serviceConTLS := tls.Client(serviceCon, ctx.clt.Config())
+	windowsDesktopService := tls.Client(c, ctx.clt.Config())
 	log.Debug("Connected to windows_desktop_service")
 
-	tdpConn := tdp.NewConn(serviceConTLS)
-	err = tdpConn.OutputMessage(tdp.ClientUsername{Username: username})
+	// Send TDP initialization messages to the service.
+	tdpConn := tdp.NewConn(windowsDesktopService)
+	err = tdpConn.Write(tdp.ClientUsername{Username: username})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = tdpConn.OutputMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
+	err = tdpConn.Write(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	websocket.Handler(func(conn *websocket.Conn) {
-		if err := proxyWebsocketConn(conn, serviceConTLS); err != nil {
-			log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
+	websocket.Handler(func(ws *websocket.Conn) {
+		if err := proxyConns(ws, windowsDesktopService); err != nil {
+			log.WithError(err).Warningf("Error proxying a TDP websocket to windows_desktop_service")
+		} else {
+			log.Info("TDP websocket to windows_desktop_service proxy terminated correctly")
 		}
 	}).ServeHTTP(w, r)
 	return nil
 }
 
-func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
+func proxyConns(ws *websocket.Conn, service net.Conn) error {
 	// Ensure we send binary frames to the browser.
 	ws.PayloadType = websocket.BinaryFrame
 
-	// The io.Copy calls below hang, copying from src to dst until an EOF is reached on src (or an error occurs).
+	// Channel for handling error returns from goroutines.
+	errs := make(chan error, 2)
+
+	// The io.Copy calls in proxyConn hangs, copying from src to dst until an EOF is reached on src (or an error occurs).
 	// A successful Copy returns err == nil, not err == EOF. Because Copy is defined to read from src until EOF,
 	// it does not treat an EOF from Read as an error to be reported.
 	//
 	// Whether EOF is reached is determined by the underlying src (io.Reader) implementation, which signals that by
 	// returning an io.EOF error. For example, if the browser closes the websocket connection, the *websocket.Conn
-	// recognizes a close message from the websocket spec and it's next Read() returns an io.EOF error. Subsequently,
-	// the io.Copy(con, ws) returns _, nil, and that goroutine ultimately returns.
+	// recognizes a close message from the websocket spec was sent to it, and on it's next Read() returns an io.EOF error.
+	// Subsequently, the io.Copy(service, ws) returns `_, nil`, and that goroutine ultimately returns.
 	//
-	// We have a problem, though, in that the deferred con.Close() causes io.Copy(ws, con) (in the other goroutine)
+	// We have a problem, though, in that the deferred `service.Close()` (from proxyConn) causes `io.Copy(ws, service)` in the other goroutine
 	// to return a non-nil error of the form "read tcp ip_addr_0:port_0->ip_addr_1:port_1: use of closed network connection".
-	// That's because con.Close() sends it's message to the other side of the connection; but our side never sees an EOF, it
-	// just tries to Read() from a closed net.Conn which gives us that error. (The same is true if the order of the goroutines
-	// is reversed).
+	// That's because `service.Close()` sends a message to the other side of the connection; but our side never sees a message signaling it to return an io.EOF,
+	//  it just tries to Read() from a closed net.Conn which gives us that non-nil error.
 	//
-	// This variable plus some logic in each goroutine allows us to distinguish between a true error (which we want to report) and
+	// This `cleanClose` variable plus some logic in each goroutine allows us to distinguish between a true error (which we want to report) and
 	// the error described above (which we wish to consider a clean disconnection).
-	var cleanClose struct {
+	type safeBool struct {
 		mu    sync.Mutex
 		clean bool
 	}
+	var cleanClose safeBool
 
-	errs := make(chan error, 2)
-
-	go func() {
-		defer ws.Close()
-		defer con.Close()
-
-		_, err := io.Copy(ws, con)
-
+	handleCopyErr := func(err error) error {
 		cleanClose.mu.Lock()
 		defer cleanClose.mu.Unlock()
 
 		if err == nil {
 			cleanClose.clean = true
-			// err == nil
+			return nil
 		} else if cleanClose.clean && strings.HasPrefix(err.Error(), "read tcp") && strings.HasSuffix(err.Error(), net.ErrClosed.Error()) {
 			// If the other goroutine set cleanClose and we got the expected error, treat that as a nil error.
-			err = nil
-		} else {
-			// Non-nil error and the other goroutine didn't set cleanClose to true, or it did but we got an unexpected error.
-			cleanClose.clean = false
-			// err != nil
+			return nil
 		}
+		// Non-nil error and the other goroutine didn't set cleanClose to true, or it did but we got an unexpected error.
+		cleanClose.clean = false
+		return err
+	}
+
+	proxyConn := func(from net.Conn, to net.Conn) {
+		defer from.Close()
+		defer to.Close()
+
+		_, copyErr := io.Copy(to, from)
+		err := handleCopyErr(copyErr)
+
 		errs <- err
+	}
+
+	go func() {
+		proxyConn(service, ws)
 	}()
 
 	go func() {
-		defer ws.Close()
-		defer con.Close()
-
-		_, err := io.Copy(con, ws)
-
-		cleanClose.mu.Lock()
-		defer cleanClose.mu.Unlock()
-
-		if err == nil {
-			cleanClose.clean = true
-			// err == nil
-		} else if cleanClose.clean && strings.HasPrefix(err.Error(), "read tcp") && strings.HasSuffix(err.Error(), net.ErrClosed.Error()) {
-			// If the other goroutine set cleanClose and we got the expected error, treat that as a nil error.
-			err = nil
-		} else {
-			// Non-nil error and the other goroutine didn't set cleanClose to true, or it did but we got an unexpected error.
-			cleanClose.clean = false
-			// err != nil
-		}
-		errs <- err
+		proxyConn(ws, service)
 	}()
 
 	var retErrs []error
