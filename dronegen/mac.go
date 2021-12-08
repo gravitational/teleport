@@ -194,7 +194,7 @@ func installRustToolchainStep(path string) step {
 			`set -u`,
 			`export PATH=/Users/build/.cargo/bin:$PATH`,
 			`mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
-			`export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)`,
+			`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
 			`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
 			`export RUST_HOME=$CARGO_HOME`,
 			`rustup toolchain install $RUST_VERSION`,
@@ -214,7 +214,7 @@ func cleanUpToolchainsStep(path string) step {
 			`export PATH=/Users/build/.cargo/bin:$PATH`,
 			`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
 			`export RUST_HOME=$CARGO_HOME`,
-			`export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)`,
+			`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			// clean up the rust toolchain even though we're about to delete the directory
 			// this ensures we don't leave behind a broken link
@@ -248,7 +248,7 @@ func darwinTagCheckoutCommands() []string {
 func darwinTagBuildCommands() []string {
 	return []string{
 		`set -u`,
-		`export RUST_VERSION=$(grep RUST_VERSION $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/Dockerfile | cut -d= -f2)`,
+		`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
 		`export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains`,
 		`export RUST_HOME=$CARGO_HOME`,
 		`export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH`,
