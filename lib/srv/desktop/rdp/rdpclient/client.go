@@ -107,11 +107,34 @@ func init() {
 }
 
 // Client is the RDP client.
-// It's caller is responsible for calling Cleanup() when the Client is no longer needed.
+// It's typical use is:
+//
+// --------------------------------------------------
+// c := New(ctx, cfg)
+// c.Connect(ctx, u, sc)
+//
+// // set up sendTo and recvFrom channels
+//
+// c.StartStreamingRDPtoTDP(sendTo)
+// c.StartStreamingTDPtoRDP(recvFrom)
+//
+// // Do stuff with the messages...
+//
+// c.Close()
+// c.Cleanup()
+// --------------------------------------------------
+//
+// If only c.Connect() succeeds, the caller is responsible for calling c.Cleanup()
+// when the Client is no longer needed.
+//
+// If c.Connect() succeeds and then c.StartStreamingRDPtoTDP() is called, the
+// caller is responsible for calling c.Close() and then c.Cleanup() when the Client
+// is no longer needed.
 type Client struct {
-	Cfg Config
+	cfg Config
 
 	// RDP client on the Rust side.
+	// Gets set after Connect is called.
 	rustClient *C.Client
 
 	// Synchronization point to prevent input messages from being forwarded
@@ -126,36 +149,39 @@ type Client struct {
 	// in ForwardInput.
 	mouseX, mouseY uint32
 
-	// outputCh is a channel that gets set to the channel passed into
-	// passed into StartReceiving. RDP that are received should be translated
-	// into TDP and then sent to this channel.
+	// When StartStreamingRDPtoTDP is called, the channel that's passed in is saved here.
+	// StartStreamingRDPtoTDP calls read_rdp_output (which lives in the rust library), which
+	// calls handle_bitmap repeatedly with the incoming bitmaps, which calls handleBitmap,
+	// which converts the bitmaps to tdp.PNGFrame's and sends them to this channel.
 	sendTo chan<- tdp.Message
 
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
 }
 
-// New creates and connects a new Client based on Cfg.
-func New(ctx context.Context, Cfg Config) (*Client, error) {
-	if err := Cfg.checkAndSetDefaults(); err != nil {
+// New creates a new Client based on cfg.
+func New(ctx context.Context, cfg Config) (*Client, error) {
+	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
 	c := &Client{
-		Cfg:           Cfg,
+		cfg:           cfg,
 		readyForInput: 0,
 	}
 	return c, nil
 }
 
+// Creates a rust RDP client and establishes an RDP connection with the Windows host.
+// Once a call to Connect succeeds, the caller is responsible for calling c.Cleanup()
 func (c *Client) Connect(ctx context.Context, u *tdp.ClientUsername, sc *tdp.ClientScreenSpec) error {
-	userCertDER, userKeyDER, err := c.Cfg.GenerateUserCert(ctx, u.Username)
+	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, u.Username)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Addr and username strings only need to be valid for the duration of
 	// C.connect_rdp. They are copied on the Rust side and can be freed here.
-	addr := C.CString(c.Cfg.Addr)
+	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 	username := C.CString(u.Username)
 	defer C.free(unsafe.Pointer(username))
@@ -194,6 +220,8 @@ func (c *Client) StartStreamingRDPtoTDP(sendTo chan<- tdp.Message) error {
 
 	// C.read_rdp_output blocks for the duration of the RDP connection and
 	// calls handle_bitmap repeatedly with the incoming bitmaps.
+	// handle_bitmap calls handleBitmap, which converts the bitmaps to
+	// tdp.PNGFrame's and sends them to sendTo.
 	err := cgoError(C.read_rdp_output(c.rustClient, C.uintptr_t(h)))
 	close(c.sendTo)
 	return err
@@ -206,7 +234,7 @@ func (c *Client) StartStreamingRDPtoTDP(sendTo chan<- tdp.Message) error {
 func (c *Client) StartStreamingTDPtoRDP(recvFrom <-chan tdp.Message) error {
 	for msg := range recvFrom {
 		if err := c.sendRDP(msg); err != nil {
-			c.Cfg.Log.Warning(err)
+			c.cfg.Log.Warning(err)
 			return err
 		}
 	}
@@ -301,7 +329,7 @@ func (c *Client) sendRDP(msg tdp.Message) error {
 			return trace.Errorf("Failed forwarding RDP input message: %v", err)
 		}
 	default:
-		c.Cfg.Log.Warningf("Skipping unimplemented desktop protocol message type %T", msg)
+		c.cfg.Log.Warningf("Skipping unimplemented desktop protocol message type %T", msg)
 	}
 	return nil
 }
@@ -351,7 +379,7 @@ func (c *Client) Cleanup() {
 func (c *Client) Close() {
 	c.closeOnce.Do(func() {
 		if err := cgoError(C.close_rdp(c.rustClient)); err != nil {
-			c.Cfg.Log.Warningf("Error closing RDP connection: %v", err)
+			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
 		}
 	})
 }

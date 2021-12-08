@@ -637,6 +637,8 @@ func (s *WindowsService) createSession(ctx context.Context, log logrus.FieldLogg
 
 	session, err := newSession(ctx, authCtx, desktop, sessionID, tdpConn, rdpc, log)
 	if err != nil {
+		// session.rdpc.Connect() either failed or was never called in newSession(),
+		// so no session.rdpc cleanup is necessary here.
 		log.WithError(err).Error("failed to create new Windows desktop session")
 		s.onSessionStart(ctx, &identity, session.username, string(sessionID), desktop, err)
 		return trace.Wrap(err)
@@ -664,13 +666,20 @@ func (s *WindowsService) createSession(ctx context.Context, log logrus.FieldLogg
 	}
 
 	if err := srv.StartMonitor(monitorCfg); err != nil {
-		// if we can't establish a connection monitor then we can't enforce RBAC.
-		// consider this a connection failure and return an error
-		// (in the happy path, rdpc remains open until Wait() completes)
 		s.onSessionStart(ctx, &identity, session.username, string(sessionID), desktop, err)
+
+		// session.rdpc.Connect() succeeded in newSession(), but session.rdpc.StartStreamingRDPtoTDP()
+		// was never called (it's not called until session.start(), below). Therefore there's no
+		// RDP streaming process to session.rdpc.Close(), but we need to session.rdpc.Cleanup() the rust client.
+		session.rdpc.Cleanup()
+
+		// if we can't establish a connection monitor then we can't enforce RBAC.
+		// Consider this a connection failure and return an error.
+		// (In the happy path, rdpc remains open until Wait() completes).
 		return trace.Wrap(err)
 	}
 
+	// start() and wait() take care of all session.rdpc cleanup in the happy path.
 	session.start()
 	s.onSessionStart(ctx, &identity, session.username, string(sessionID), desktop, nil)
 	session.wait()
