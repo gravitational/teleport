@@ -569,7 +569,9 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 
-	// block until conn or Server is closed
+	// The reversetunnel transport calls this function and closes its
+	// SSH channel once we return. So we need to block until tlsConn
+	// or Server is closed.
 	select {
 	case <-s.closeContext.Done():
 	case <-closeCh:
