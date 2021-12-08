@@ -181,7 +181,6 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 
 	t.mu.Lock()
 	t.listener = mux.TLS()
-	t.Server.TLSConfig = t.TLS
 	if err = http2.ConfigureServer(t.Server, &http2.Server{}); err != nil {
 		return trace.Wrap(err)
 	}
