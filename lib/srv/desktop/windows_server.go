@@ -749,8 +749,8 @@ func (s *WindowsService) updateCRL(ctx context.Context, crlDER []byte) error {
 	// after the Teleport cluster name. For example, CRL for cluster "prod"
 	// will be placed at:
 	// ... > CDP > Teleport > prod
-	containerDN := "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.domainDN()
-	crlDN := "CN=" + s.clusterName + "," + containerDN
+	containerDN := s.crlContainerDN()
+	crlDN := s.crlDN()
 
 	// Create the parent container.
 	if err := s.lc.createContainer(containerDN); err != nil {
@@ -778,6 +778,18 @@ func (s *WindowsService) updateCRL(ctx context.Context, crlDER []byte) error {
 		s.cfg.Log.Info("Added CRL for Windows logins via LDAP")
 	}
 	return nil
+}
+
+// crlDN generates the LDAP distinguished name (DN) where this Windows Service
+// will publish its certificate revocation list
+func (s *WindowsService) crlDN() string {
+	return "CN=" + s.clusterName + "," + s.crlContainerDN()
+}
+
+// crlContainerDN generates the LDAP distinguished name (DN) of the container
+// where the certificate revocation list is published
+func (s *WindowsService) crlContainerDN() string {
+	return "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.domainDN()
 }
 
 // generateCredentials generates a private key / certificate pair for the given
@@ -812,7 +824,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 		//   is a type of SAN distinct from DNSNames, EmailAddresses, IPAddresses
 		//   and URIs)
 		ExtraExtensions: []pkix.Extension{
-			extKeyUsageExtension,
+			enhancedKeyUsageExtension,
 			san,
 		},
 	}
@@ -828,7 +840,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 	// CRLs in it. Each service can also handle RDP connections for a different
 	// domain, with the assumption that some other windows_desktop_service
 	// published a CRL there.
-	crlDN := "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.domainDN()
+	crlDN := s.crlDN()
 	genResp, err := s.cfg.AuthClient.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
 		CSR: csrPEM,
 		// LDAP URI pointing at the CRL created with updateCRL.
@@ -850,12 +862,39 @@ func (s *WindowsService) generateCredentials(ctx context.Context, username, doma
 	return certDER, keyDER, nil
 }
 
-var extKeyUsageExtension = pkix.Extension{
-	Id: asn1.ObjectIdentifier{2, 5, 29, 37}, // Extended Key Usage OID.
+// The following vars contain the various object identifiers required for smartcard
+// login certificates.
+//
+// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
+var (
+	// enhancedKeyUsageExtensionOID is the object identifier for a
+	// certificate's enhanced key usage extension
+	enhancedKeyUsageExtensionOID = asn1.ObjectIdentifier{2, 5, 29, 37}
+
+	// subjectAltNameExtensionOID is the object identifier for a
+	// certificate's subject alternative name extension
+	subjectAltNameExtensionOID = asn1.ObjectIdentifier{2, 5, 29, 17}
+
+	// clientAuthenticationOID is the object idnetifier that is used to
+	// include client SSL authentication in a certificate's enhanced
+	// key usage
+	clientAuthenticationOID = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2}
+
+	// smartcardLogonOID is the object identifier that is used to include
+	// smartcard login in a certificate's enhanced key usage
+	smartcardLogonOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 2}
+
+	// upnOtherNameOID is the object identifier that is used to include
+	// the user principal name in a certificate's subject alternative name
+	upnOtherNameOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 3}
+)
+
+var enhancedKeyUsageExtension = pkix.Extension{
+	Id: enhancedKeyUsageExtensionOID,
 	Value: func() []byte {
 		val, err := asn1.Marshal([]asn1.ObjectIdentifier{
-			{1, 3, 6, 1, 5, 5, 7, 3, 2},       // Client Authentication OID.
-			{1, 3, 6, 1, 4, 1, 311, 20, 2, 2}, // Smartcard Logon OID.
+			clientAuthenticationOID,
+			smartcardLogonOID,
 		})
 		if err != nil {
 			panic(err)
@@ -870,12 +909,12 @@ func subjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 	//
 	// othernName SAN is needed to pass the UPN of the user, per
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
-	ext := pkix.Extension{Id: asn1.ObjectIdentifier{2, 5, 29, 17}}
+	ext := pkix.Extension{Id: subjectAltNameExtensionOID}
 	var err error
 	ext.Value, err = asn1.Marshal(
 		subjectAltName{
 			OtherName: otherName{
-				OID: asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 3}, // UPN OID
+				OID: upnOtherNameOID,
 				Value: upn{
 					Value: fmt.Sprintf("%s@%s", user, domain), // TODO(zmb3): sanitize username to avoid domain spoofing
 				},
