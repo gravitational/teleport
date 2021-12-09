@@ -4,7 +4,7 @@ import { screen, fireEvent, act, render, wait } from 'design/utils/testing';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
-import Invite from './Invite';
+import Invite from './Welcome';
 
 test('should render recovery codes screen afterwards if the response includes them', async () => {
   jest.spyOn(history, 'push').mockImplementation();

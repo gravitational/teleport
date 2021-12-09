@@ -4,7 +4,8 @@ import cfg from 'e-teleport/config';
 import history from 'teleport/services/history';
 import auth, { RecoveryCodes } from 'teleport/services/auth';
 
-export default function useInvite(tokenId: string) {
+// TODO (alex-kovoy): refactor it to reuse useUserTokenOSS
+export default function useToken(tokenId: string) {
   const [passwordToken, setPswToken] = useState<ResetToken>(undefined);
   const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
   const fetchAttempt = useAttempt('');
@@ -90,4 +91,4 @@ type ResetToken = {
   user: string;
 };
 
-export type State = ReturnType<typeof useInvite>;
+export type State = ReturnType<typeof useToken>;
