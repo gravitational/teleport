@@ -31,6 +31,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -41,15 +42,35 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const staticToken = "test-static-token"
+const (
+	staticToken = "test-static-token"
+	// tshBinMainTestEnv allows to execute tsh main function from test binary.
+	tshBinMainTestEnv = "TSH_BIN_MAIN_TEST"
+)
 
 var ports utils.PortList
 
 func init() {
+	// Allows test to refer to tsh binary in tests.
+	// Needed for tests that generate OpenSSH config by tsh config command where
+	// tsh proxy ssh command is used as ProxyCommand.
+	if os.Getenv(tshBinMainTestEnv) != "" {
+		main()
+		return
+	}
+
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe. Used to test tsh ssh command.
+	if len(os.Args) == 2 && (os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+		srv.RunAndExit(os.Args[1])
+		return
+	}
+
 	var err error
 	ports, err = utils.GetFreeTCPPorts(5000, utils.PortStartingNumber)
 	if err != nil {

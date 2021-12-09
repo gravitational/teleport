@@ -239,6 +239,9 @@ type CLIConf struct {
 	// unsetEnvironment unsets Teleport related environment variables.
 	unsetEnvironment bool
 
+	// overrideStdout allows to switch standard output source for resource command. Used in tests.
+	overrideStdout io.Writer
+
 	// mockSSOLogin used in tests to override sso login handler in teleport client.
 	mockSSOLogin client.SSOLoginFunc
 
@@ -255,6 +258,14 @@ type CLIConf struct {
 	AWSRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
+}
+
+// Stdout returns the stdout writer.
+func (c *CLIConf) Stdout() io.Writer {
+	if c.overrideStdout != nil {
+		return c.overrideStdout
+	}
+	return os.Stdout
 }
 
 func main() {
