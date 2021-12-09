@@ -19,7 +19,9 @@ package client
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"net"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -31,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -52,6 +55,7 @@ type KeyAgentTestSuite struct {
 	hostname    string
 	clusterName string
 	tlsca       *tlsca.CertAuthority
+	tlscaCert   auth.TrustedCerts
 }
 
 func makeSuite(t *testing.T) *KeyAgentTestSuite {
@@ -70,7 +74,7 @@ func makeSuite(t *testing.T) *KeyAgentTestSuite {
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
 
-	s.tlsca, _, err = newSelfSignedCA(pemBytes)
+	s.tlsca, s.tlscaCert, err = newSelfSignedCA(pemBytes)
 	require.NoError(t, err)
 
 	s.key, err = s.makeKey(s.username, []string{s.username}, 1*time.Minute)
@@ -429,6 +433,38 @@ func TestDefaultHostPromptFunc(t *testing.T) {
 	}
 }
 
+func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
+	s := makeSuite(t)
+
+	// make a new local agent
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	require.NoError(t, err)
+	lka, err := NewLocalAgent(
+		LocalAgentConfig{
+			Keystore:   keystore,
+			ProxyHost:  s.hostname,
+			Username:   s.username,
+			KeysOption: AddKeysToAgentAuto,
+		})
+	require.NoError(t, err)
+
+	t.Run("no database cert", func(t *testing.T) {
+		require.Error(t, lka.AddDatabaseKey(s.key))
+	})
+
+	t.Run("success", func(t *testing.T) {
+		// modify key to have db cert
+		addKey := *s.key
+		addKey.DBTLSCerts = map[string][]byte{"some-db": addKey.TLSCert}
+		require.NoError(t, lka.SaveTrustedCerts([]auth.TrustedCerts{s.tlscaCert}))
+		require.NoError(t, lka.AddDatabaseKey(&addKey))
+
+		getKey, err := lka.GetKey(addKey.ClusterName, WithDBCerts{})
+		require.NoError(t, err)
+		require.Contains(t, getKey.DBTLSCerts, "some-db")
+	})
+}
+
 func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, error) {
 	keygen := testauthority.New()
 
@@ -498,7 +534,15 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 }
 
 func startDebugAgent(t *testing.T) error {
-	socketpath := filepath.Join(t.TempDir(), "teleport-test")
+	// Create own tmp dir instead of using t.TmpDir
+	// because net.Listen("unix", path) has dir path length limitation
+	tempDir, err := ioutil.TempDir("", "teleport-test")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		os.RemoveAll(tempDir)
+	})
+
+	socketpath := filepath.Join(tempDir, "agent.sock")
 	listener, err := net.Listen("unix", socketpath)
 	if err != nil {
 		return trace.Wrap(err)

@@ -138,9 +138,12 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	}
 
 	// Store per-cluster key data.
-	if err := fs.writeBytes(key.Cert, fs.sshCertPath(key.KeyIndex)); err != nil {
-		return trace.Wrap(err)
+	if len(key.Cert) > 0 {
+		if err := fs.writeBytes(key.Cert, fs.sshCertPath(key.KeyIndex)); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
 	// TODO(awly): unit test this.
 	for kubeCluster, cert := range key.KubeTLSCerts {
 		// Prevent directory traversal via a crafted kubernetes cluster name.
