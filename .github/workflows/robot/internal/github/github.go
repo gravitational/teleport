@@ -173,7 +173,7 @@ func (c *client) ListPullRequests(ctx context.Context, organization string, repo
 				Author:     pr.GetUser().GetLogin(),
 				Repository: repository,
 				UnsafeHead: pr.GetHead().GetRef(),
-				Fork:       pr.GetBase().GetRepo().GetFork(),
+				Fork:       pr.GetHead().GetRepo().GetFork(),
 			})
 		}
 		if resp.NextPage == 0 {
