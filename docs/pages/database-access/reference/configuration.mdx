@@ -47,8 +47,8 @@ db_service:
       mode: verify-full
       # Optional database DNS server name. It allows to override the DNS name on
       # a client certificate when connecting to a database.
-      # Works with 'verify-full' and 'verify-ca'.
-      server_name: db.exmaple.com
+      # Use only with 'verify-full' mode.
+      server_name: db.example.com
       # Optional path to the CA used to validate the database certificate.
       ca_cert_file: /path/to/pem
     # AWS specific configuration, only required for RDS/Aurora/Redshift.

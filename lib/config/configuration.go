@@ -1039,30 +1039,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				}
 			}
 		}
-		var caBytes []byte
-		var err error
-		if database.TLS.CACertFile != "" {
-			caBytes, err = os.ReadFile(database.TLS.CACertFile)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
 
-		// ca_cert_file is deprecated, but we still support it.
-		//Print a warning the old field is still being used.
-		if database.CACertFile != "" {
-			if database.TLS.CACertFile != "" {
-				// New and old fields are set. Ignore the old field.
-				log.Warn("Ignoring deprecated ca_cert_file; using tls.ca_cert_file.")
-			} else {
-				// Only old field is set, inform about deprecation.
-				log.Warn("ca_cert_file is deprecated, please use tls.ca_cert_file instead.")
-
-				caBytes, err = os.ReadFile(database.CACertFile)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			}
+		caBytes, err := readCACert(database)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
 		db := service.Database{
@@ -1098,6 +1078,41 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
 	}
 	return nil
+}
+
+// readCACert reads database CA certificate from the config file.
+// First 'tls.ca_cert_file` is being read, then deprecated 'ca_cert_file' if
+// the first one is not set.
+func readCACert(database *Database) ([]byte, error) {
+	var (
+		caBytes []byte
+		err     error
+	)
+	if database.TLS.CACertFile != "" {
+		caBytes, err = os.ReadFile(database.TLS.CACertFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// ca_cert_file is deprecated, but we still support it.
+	// Print a warning if the old field is still being used.
+	if database.CACertFile != "" {
+		if database.TLS.CACertFile != "" {
+			// New and old fields are set. Ignore the old field.
+			log.Warn("Ignoring deprecated ca_cert_file; using tls.ca_cert_file.")
+		} else {
+			// Only old field is set, inform about deprecation.
+			log.Warn("ca_cert_file is deprecated, please use tls.ca_cert_file instead.")
+
+			caBytes, err = os.ReadFile(database.CACertFile)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
+	return caBytes, nil
 }
 
 // applyAppsConfig applies file configuration for the "app_service" section.

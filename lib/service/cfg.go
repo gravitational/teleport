@@ -645,6 +645,8 @@ const (
 	Insecure TLSMode = "insecure"
 )
 
+// CheckAndSetDefaults check if TLSMode holds a correct value. If the value is not set
+// VerifyFull is set as a default. BadParameter error is returned if value set is incorrect.
 func (m *TLSMode) CheckAndSetDefaults() error {
 	switch *m {
 	case "": // Use VerifyFull if not set.
@@ -658,25 +660,24 @@ func (m *TLSMode) CheckAndSetDefaults() error {
 	return nil
 }
 
+// ToProto returns a matching protobuf type or VerifyFull for empty value.
 func (m TLSMode) ToProto() types.DatabaseTLSMode {
 	switch m {
-	case VerifyFull:
-		return types.DatabaseTLSMode_VERIFY_FULL
 	case VerifyCA:
 		return types.DatabaseTLSMode_VERIFY_CA
 	case Insecure:
 		return types.DatabaseTLSMode_INSECURE
-	default:
-		return types.DatabaseTLSMode_UNSPECIFIED
+	default: // VerifyFull
+		return types.DatabaseTLSMode_VERIFY_FULL
 	}
 }
 
-// DatabaseTLS keeps TLS related configuration.
+// DatabaseTLS keeps TLS settings used when connecting to database.
 type DatabaseTLS struct {
 	// Mode is the TLS connection mode. See TLSMode for more details.
 	Mode TLSMode
 	// ServerName allows providing custom server name.
-	// This name will override DNS name when validating TLS connection with database.
+	// This name will override DNS name when validating certificate presented by the database.
 	ServerName string
 	// CACert is an optional database CA certificate.
 	CACert []byte

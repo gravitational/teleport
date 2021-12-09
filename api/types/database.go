@@ -224,17 +224,20 @@ func (d *DatabaseV3) SetURI(uri string) {
 	d.Spec.URI = uri
 }
 
-// GetCA returns the database CA certificate.
+// GetCA returns the database CA certificate. If more than one CA is set, then
+// the user provided CA is returned first (Spec field).
+// Auto-downloaded CA certificate is returned otherwise.
 func (d *DatabaseV3) GetCA() string {
 	if d.Spec.TLS.CACert != "" {
 		return d.Spec.TLS.CACert
 	}
-	if d.Status.CACert != "" {
-		return d.Status.CACert
+	if d.Spec.CACert != "" {
+		return d.Spec.CACert
 	}
-	return d.Spec.CACert
+	return d.Status.CACert
 }
 
+// GetTLS returns Database TLS configuration.
 func (d *DatabaseV3) GetTLS() DatabaseTLS {
 	return d.Spec.TLS
 }

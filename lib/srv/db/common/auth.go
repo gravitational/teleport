@@ -63,7 +63,7 @@ type Auth interface {
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
-	// Closes releases all resources used by authenticator.
+	// Closer releases all resources used by authenticator.
 	io.Closer
 }
 
@@ -293,16 +293,27 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (
 // authority. For onprem we generate a client certificate signed by the host
 // CA used to authenticate.
 func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
+	dbTLSConfig := sessionCtx.Database.GetTLS()
+
+	// Mode won't be set for older clients. We will default to VerifyFull then - the same as before.
+	switch dbTLSConfig.Mode {
+	case types.DatabaseTLSMode_INSECURE:
+		return getTLSConfigInsecure(), nil
+	case types.DatabaseTLSMode_VERIFY_CA:
+		return a.getTLSConfigVerifyCA(ctx, sessionCtx)
+	default:
+		return a.getTLSConfigVerifyFull(ctx, sessionCtx)
+	}
+}
+
+// getTLSConfigVerifyFull returns tls.Config with full verification enabled ('verify-full' mode).
+// Config also includes database specific adjustment.
+func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		RootCAs: x509.NewCertPool(),
 	}
 
-	dbTLSConfig := sessionCtx.Database.GetTLS()
-
-	if dbTLSConfig.ServerName != "" {
-		// Use user provided server name.
-		tlsConfig.ServerName = dbTLSConfig.ServerName
-	} else if sessionCtx.Database.GetProtocol() != defaults.ProtocolMongoDB {
+	if sessionCtx.Database.GetProtocol() != defaults.ProtocolMongoDB {
 		// Don't set the ServerName when connecting to a MongoDB cluster - in case
 		// of replica set the driver may dial multiple servers and will set
 		// ServerName itself. For Postgres/MySQL we're always connecting to the
@@ -314,19 +325,13 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 		tlsConfig.ServerName = addr.Host()
 	}
 
-	// We need only one Root CA for verification. This flag should be set to true
-	// after the first CA is added to TLS config.
-	rootsAdded := false
-
 	// Add CA certificate to the trusted pool if it's present, e.g. when
-	// connecting to RDS/Aurora which require AWS CA.
-	if len(sessionCtx.Database.GetCA()) != 0 {
-		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
-			return nil, trace.BadParameter("invalid server CA certificate")
-		}
-		// Indicate that the Root CA has been added.
-		rootsAdded = true
+	// connecting to RDS/Aurora which require AWS CA or when was provided in config file.
+	tlsConfig, err := appendCAToRoot(tlsConfig, sessionCtx)
+	if err != nil {
+		return tlsConfig, trace.Wrap(err)
 	}
+
 	// You connect to Cloud SQL instances by IP and the certificate presented
 	// by the instance does not contain IP SANs so the default "full" certificate
 	// verification will always fail.
@@ -355,60 +360,113 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 		// This will verify CN and cert chain on each connection.
 		tlsConfig.VerifyConnection = getVerifyCloudSQLCertificate(tlsConfig.RootCAs)
 	}
+
+	dbTLSConfig := sessionCtx.Database.GetTLS()
+	// Use user provided server name if set. Override the current value if needed.
+	if dbTLSConfig.ServerName != "" {
+		tlsConfig.ServerName = dbTLSConfig.ServerName
+	}
+
 	// RDS/Aurora/Redshift and Cloud SQL auth is done with an auth token so
 	// don't generate a client certificate and exit here.
-	if sessionCtx.Database.IsRDS() || sessionCtx.Database.IsRedshift() || sessionCtx.Database.IsCloudSQL() || sessionCtx.Database.IsAzure() {
+	if isCloudDB(sessionCtx) {
 		return tlsConfig, nil
 	}
 
-	// If the root CA has been already added. Skip the client certificate generation.
-	if !rootsAdded {
-		// Otherwise, when connecting to an onprem database, generate a client
-		// certificate. The database instance should be configured with
-		// Teleport's CA obtained with 'tctl auth sign --type=db'.
-		cert, cas, err := a.getClientCert(ctx, sessionCtx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConfig.Certificates = []tls.Certificate{*cert}
-		for _, ca := range cas {
-			if !tlsConfig.RootCAs.AppendCertsFromPEM(ca) {
-				return nil, trace.BadParameter("failed to append CA certificate to the pool")
-			}
-		}
+	// Otherwise, when connecting to an onprem database, generate a client
+	// certificate. The database instance should be configured with
+	// Teleport's CA obtained with 'tctl auth sign --type=db'.
+	return a.appendClientCert(ctx, sessionCtx, tlsConfig)
+}
+
+// getTLSConfigInsecure generates tls.Config when TLS mode is equal to 'insecure'.
+// Generated configuration will accept any certificate provided by database.
+func getTLSConfigInsecure() *tls.Config {
+	tlsConfig := &tls.Config{
+		RootCAs: x509.NewCertPool(),
 	}
 
-	if dbTLSConfig.Mode == types.DatabaseTLSMode_INSECURE {
-		// Accept any certificate provided by database.
-		tlsConfig.InsecureSkipVerify = true
-	} else if dbTLSConfig.Mode == types.DatabaseTLSMode_VERIFY_CA {
-		// Base on https://github.com/golang/go/blob/master/src/crypto/tls/example_test.go#L193-L208
-		// Set InsecureSkipVerify to skip the default validation we are
-		// replacing. This will not disable VerifyConnection.
-		tlsConfig.InsecureSkipVerify = true
-		tlsConfig.VerifyConnection = VerifyConnectionFunc(tlsConfig.RootCAs, dbTLSConfig.ServerName)
+	// Accept any certificate provided by database.
+	tlsConfig.InsecureSkipVerify = true
+
+	return tlsConfig
+}
+
+// getTLSConfigVerifyCA generates tls.Config when TLS mode is equal to 'verify-ca'.
+// Generated configuration is the same as 'verify-full' except the server name
+// verification is disabled.
+func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
+	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, sessionCtx)
+	if err != nil {
+		return tlsConfig, trace.Wrap(err)
+	}
+
+	// Base on https://github.com/golang/go/blob/master/src/crypto/tls/example_test.go#L193-L208
+	// Set InsecureSkipVerify to skip the default validation we are
+	// replacing. This will not disable VerifyConnection.
+	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.VerifyConnection = verifyConnectionFunc(tlsConfig.RootCAs)
+	// ServerName is irrelevant in this case. Set it to default value to make it explicit.
+	tlsConfig.ServerName = ""
+
+	return tlsConfig, nil
+}
+
+// appendClientCert generates a client certificate and appends it to the provided tlsConfig.
+func (a *dbAuth) appendClientCert(ctx context.Context, sessionCtx *Session, tlsConfig *tls.Config) (*tls.Config, error) {
+	cert, cas, err := a.getClientCert(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig.Certificates = []tls.Certificate{*cert}
+	for _, ca := range cas {
+		if !tlsConfig.RootCAs.AppendCertsFromPEM(ca) {
+			return nil, trace.BadParameter("failed to append CA certificate to the pool")
+		}
 	}
 
 	return tlsConfig, nil
 }
 
-// VerifyConnectionFunc returns a certificate validation function. serverName if empty will skip the hostname validation.
-func VerifyConnectionFunc(RootCAs *x509.CertPool, serverName string) func(cs tls.ConnectionState) error {
+// appendCAToRoot appends CA certificate from session context to provided tlsConfig.
+func appendCAToRoot(tlsConfig *tls.Config, sessionCtx *Session) (*tls.Config, error) {
+	if len(sessionCtx.Database.GetCA()) != 0 {
+		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
+			return nil, trace.BadParameter("invalid server CA certificate")
+		}
+	}
+	return tlsConfig, nil
+}
+
+// isCloudDB returns true if database type is AWS RDS/Aurora/Redshift, Azure or Cloud SQL.
+func isCloudDB(sessionCtx *Session) bool {
+	return sessionCtx.Database.IsRDS() || sessionCtx.Database.IsRedshift() ||
+		sessionCtx.Database.IsCloudSQL() || sessionCtx.Database.IsAzure()
+}
+
+// verifyConnectionFunc returns a certificate validation function. serverName if empty will skip the hostname validation.
+func verifyConnectionFunc(rootCAs *x509.CertPool) func(cs tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
 		if len(cs.PeerCertificates) == 0 {
 			return trace.AccessDenied("database didn't present any certificate during initial handshake")
 		}
 
 		opts := x509.VerifyOptions{
-			Roots:         RootCAs,
-			DNSName:       serverName,
+			Roots:         rootCAs,
+			DNSName:       "", // Skip server name validation
 			Intermediates: x509.NewCertPool(),
 		}
+		// From Go Docs:
+		// The first element (zero index) is the leaf certificate that the connection is verified against.
+		//
+		// In order to verify the whole chain we need to add all certificates on pos [1:] as intermediates
+		// and call Verify() on the [0] one. Root is provided as an input to this function.
 		for _, cert := range cs.PeerCertificates[1:] {
 			opts.Intermediates.AddCert(cert)
 		}
+
 		_, err := cs.PeerCertificates[0].Verify(opts)
-		return err
+		return trace.Wrap(err)
 	}
 }
 

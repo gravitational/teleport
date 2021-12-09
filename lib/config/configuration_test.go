@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -2060,6 +2061,70 @@ func TestJSONFormatter(t *testing.T) {
 				extraFields: tt.extraFields,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
+		})
+	}
+}
+
+func TestTLSCert(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpCA := path.Join(tmpDir, "ca.pem")
+
+	err := os.WriteFile(tmpCA, fixtures.LocalhostCert, 0644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		conf *FileConfig
+	}{
+		{
+			"read deprecated DB cert field",
+			&FileConfig{
+				Databases: Databases{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Databases: []*Database{
+						{
+							Name:       "test-db-1",
+							Protocol:   "mysql",
+							URI:        "localhost:1234",
+							CACertFile: tmpCA,
+						},
+					},
+				},
+			},
+		},
+		{
+			"read DB cert field",
+			&FileConfig{
+				Databases: Databases{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Databases: []*Database{
+						{
+							Name:     "test-db-1",
+							Protocol: "mysql",
+							URI:      "localhost:1234",
+							TLS: DatabaseTLS{
+								CACertFile: tmpCA,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+
+			err = ApplyFileConfig(tt.conf, cfg)
+			require.NoError(t, err)
+
+			require.Len(t, cfg.Databases.Databases, 1)
+			require.Equal(t, fixtures.LocalhostCert, cfg.Databases.Databases[0].TLS.CACert)
 		})
 	}
 }
