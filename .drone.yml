@@ -13,7 +13,9 @@ environment:
   RUNTIME: go1.17.2
   UID: "1000"
 trigger:
-  repo: {}
+  repo:
+    include:
+    - gravitational/*
 workspace:
   path: /go
 clone:
@@ -4751,6 +4753,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 514795bad8738f29a12df6b874689eae76f488704647fb5ecb71de15b957db1c
+hmac: b465d08eb1593bbc3390ed514764805e9f4b9bdd74e4c177f3d0b6d317dcfa9b
 
 ...
