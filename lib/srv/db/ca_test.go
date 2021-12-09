@@ -405,6 +405,8 @@ func TestTLSConfiguration(t *testing.T) {
 			defaults.ProtocolMongoDB,
 		} {
 			t.Run(fmt.Sprintf("%s - %s", dbType, tt.name), func(t *testing.T) {
+				t.Parallel()
+
 				ctx := context.Background()
 				cfg := &setupTLSTestCfg{
 					commonName: tt.commonName,
