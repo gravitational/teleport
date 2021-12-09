@@ -47,7 +47,7 @@ type KubeSession struct {
 
 type MFASolver = func(io.Writer, *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 
-func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key, kubeAddr string, tlsServer string, solveChallenge MFASolver) (*KubeSession, error) {
+func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session, key *Key, kubeAddr string, tlsServer string, mode types.SessionParticipantMode, solveChallenge MFASolver) (*KubeSession, error) {
 	close := utils.NewCloseBroadcaster()
 	closeWait := &sync.WaitGroup{}
 	joinEndpoint := "wss://" + kubeAddr + "/api/v1/teleport/join/" + meta.GetID()
@@ -74,7 +74,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.Session,
 		return nil, trace.Wrap(err)
 	}
 
-	stream, err := streamproto.NewSessionStream(ws, true)
+	stream, err := streamproto.NewSessionStream(ws, streamproto.ClientHandshake{Mode: mode})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

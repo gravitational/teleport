@@ -141,13 +141,29 @@ func (e *SessionAccessEvaluator) matchesJoin(allow *types.SessionJoinPolicy) boo
 	return false
 }
 
-func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) bool {
+func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.SessionParticipantMode {
+	var modes []types.SessionParticipantMode
+
 	for _, allowPolicy := range getAllowPolicies(user) {
 		if e.matchesJoin(allowPolicy) {
-			return true
+			for _, modeString := range allowPolicy.Modes {
+				mode := types.SessionParticipantMode(modeString)
+				if !SliceContainsMode(modes, mode) {
+					modes = append(modes, mode)
+				}
+			}
 		}
 	}
 
+	return modes
+}
+
+func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticipantMode) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
 	return false
 }
 

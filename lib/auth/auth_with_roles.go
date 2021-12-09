@@ -283,7 +283,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 			return nil, trace.Wrap(err)
 		}
 
-		if evaluator.CanJoin(SessionAccessContext{Roles: joinerRoles}) {
+		if len(evaluator.CanJoin(SessionAccessContext{Roles: joinerRoles})) > 0 {
 			filteredSessions = append(filteredSessions, session)
 		}
 	}

@@ -213,15 +213,17 @@ type party struct {
 	Ctx       authContext
 	Id        uuid.UUID
 	Client    remoteClient
+	Mode      types.SessionParticipantMode
 	closeC    chan struct{}
 	closeOnce sync.Once
 }
 
-func newParty(ctx authContext, client remoteClient) *party {
+func newParty(ctx authContext, mode types.SessionParticipantMode, client remoteClient) *party {
 	return &party{
 		Ctx:    ctx,
 		Id:     uuid.New(),
 		Client: client,
+		Mode:   mode,
 		closeC: make(chan struct{}),
 	}
 }
@@ -799,7 +801,8 @@ func (s *session) join(p *party) error {
 			Roles: roles,
 		}
 
-		if !s.accessEvaluator.CanJoin(accessContext) {
+		modes := s.accessEvaluator.CanJoin(accessContext)
+		if !auth.SliceContainsMode(modes, p.Mode) && p.Ctx.User.GetName() == s.ctx.User.GetName() {
 			return trace.AccessDenied("insufficient permissions to join sessions")
 		}
 	}

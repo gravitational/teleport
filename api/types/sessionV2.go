@@ -252,6 +252,5 @@ func (s *SessionV3) UpdatePresence(user string) error {
 		}
 	}
 
-	panic("participant not found")
 	return trace.BadParameter("participant %v not found", user)
 }

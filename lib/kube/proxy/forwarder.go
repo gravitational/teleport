@@ -737,18 +737,13 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	stream, err := streamproto.NewSessionStream(ws, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = stream.SendSessionInfo(session.PresenceEnabled)
+	stream, err := streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	client := &websocketClientStreams{stream}
-	party := newParty(*ctx, client)
+	party := newParty(*ctx, stream.Mode, client)
 	go func() {
 		<-stream.CloseC
 		session.mu.Lock()
@@ -902,7 +897,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	client := newKubeProxyClientStreams(proxy)
-	party := newParty(*ctx, client)
+	party := newParty(*ctx, types.SessionPeerMode, client)
 	session, err := newSession(*ctx, f, req, p, party, sess)
 	if err != nil {
 		return nil, trace.Wrap(err)

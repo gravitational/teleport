@@ -22,15 +22,25 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/remotecommand"
 )
 
 type metaMessage struct {
-	Resize         *remotecommand.TerminalSize `json:"resize,omitempty"`
-	ForceTerminate bool                        `json:"force_terminate,omitempty"`
-	MFARequired    *bool                       `json:"mfa_required,omitempty"`
+	Resize          *remotecommand.TerminalSize `json:"resize,omitempty"`
+	ForceTerminate  bool                        `json:"force_terminate,omitempty"`
+	ClientHandshake *ClientHandshake            `json:"client_handshake,omitempty"`
+	ServerHandshake *ServerHandshake            `json:"server_handshake,omitempty"`
+}
+
+type ClientHandshake struct {
+	Mode types.SessionParticipantMode `json:"mode"`
+}
+
+type ServerHandshake struct {
+	MFARequired bool `json:"mfa_required"`
 }
 
 type SessionStream struct {
@@ -44,9 +54,10 @@ type SessionStream struct {
 	closedC        sync.Once
 	closed         bool
 	MFARequired    bool
+	Mode           types.SessionParticipantMode
 }
 
-func NewSessionStream(conn *websocket.Conn, client bool) (*SessionStream, error) {
+func NewSessionStream(conn *websocket.Conn, handshake interface{}) (*SessionStream, error) {
 	s := &SessionStream{
 		conn:           conn,
 		in:             make(chan []byte),
@@ -55,7 +66,14 @@ func NewSessionStream(conn *websocket.Conn, client bool) (*SessionStream, error)
 		forceTerminate: make(chan struct{}),
 	}
 
-	if client {
+	clientHandshake, isClient := handshake.(ClientHandshake)
+	serverHandshake, ok := handshake.(ServerHandshake)
+
+	if !isClient && !ok {
+		return nil, trace.BadParameter("handshake must be either client or server handshake")
+	}
+
+	if isClient {
 		ty, data, err := conn.ReadMessage()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -70,11 +88,49 @@ func NewSessionStream(conn *websocket.Conn, client bool) (*SessionStream, error)
 			return nil, trace.Wrap(err)
 		}
 
-		if msg.MFARequired == nil {
-			return nil, trace.Errorf("expected websocket status message, got %v", msg)
+		if msg.ServerHandshake == nil {
+			return nil, trace.Errorf("expected websocket server handshake, got %v", msg)
 		}
 
-		s.MFARequired = *msg.MFARequired
+		s.MFARequired = msg.ServerHandshake.MFARequired
+
+		dataClientHandshake, err := utils.FastMarshal(clientHandshake)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := conn.WriteMessage(websocket.TextMessage, dataClientHandshake); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		dataServerHandshake, err := utils.FastMarshal(serverHandshake)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := conn.WriteMessage(websocket.TextMessage, dataServerHandshake); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ty, data, err := conn.ReadMessage()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if ty != websocket.TextMessage {
+			return nil, trace.Errorf("expected websocket control message, got %v", ty)
+		}
+
+		var msg metaMessage
+		if err := utils.FastUnmarshal(data, &msg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if msg.ClientHandshake == nil {
+			return nil, trace.Errorf("expected websocket client handshake, got %v", msg)
+		}
+
+		s.Mode = msg.ClientHandshake.Mode
 	}
 
 	go s.readTask()
@@ -158,19 +214,6 @@ func (s *SessionStream) ResizeQueue() chan *remotecommand.TerminalSize {
 
 func (s *SessionStream) ForceTerminate() chan struct{} {
 	return s.forceTerminate
-}
-
-func (s *SessionStream) SendSessionInfo(mfaRequired bool) error {
-	msg := metaMessage{MFARequired: &mfaRequired}
-	json, err := utils.FastMarshal(msg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.writeSync.Lock()
-	defer s.writeSync.Unlock()
-
-	return trace.Wrap(s.conn.WriteMessage(websocket.TextMessage, json))
 }
 
 func (s *SessionStream) DoForceTerminate() error {
