@@ -435,10 +435,7 @@ func TestMakeClient(t *testing.T) {
 }
 
 func TestAccessRequestOnLeaf(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	tmpHomePath := t.TempDir()
 
 	isInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
@@ -496,7 +493,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", rootProxyAddr.String(),
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, rootAuthServer, alice)
 		return nil
 	}))
@@ -508,7 +505,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		"--debug",
 		"--proxy", rootProxyAddr.String(),
 		"leafcluster",
-	})
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -517,7 +514,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		"--debug",
 		"--proxy", rootProxyAddr.String(),
 		"localhost",
-	})
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -526,7 +523,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		"--debug",
 		"--proxy", rootProxyAddr.String(),
 		"leafcluster",
-	})
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	errChan := make(chan error)
@@ -538,7 +535,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 			"--debug",
 			"--proxy", rootProxyAddr.String(),
 			"--roles=access",
-		})
+		}, setHomePath(tmpHomePath))
 	}()
 
 	var request types.AccessRequest
