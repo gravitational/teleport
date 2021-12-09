@@ -114,9 +114,6 @@ func (p *proxySettings) setProxyPublicAddressesSettings(settings *webclient.Prox
 	if len(p.cfg.Proxy.Kube.PublicAddrs) > 0 {
 		settings.Kube.PublicAddr = p.cfg.Proxy.Kube.PublicAddrs[0].String()
 	}
-	if len(p.cfg.Proxy.PostgresPublicAddrs) > 0 {
-		settings.DB.PostgresPublicAddr = p.cfg.Proxy.PostgresPublicAddrs[0].String()
-	}
 	if len(p.cfg.Proxy.MySQLPublicAddrs) > 0 {
 		settings.DB.MySQLPublicAddr = p.cfg.Proxy.MySQLPublicAddrs[0].String()
 	}

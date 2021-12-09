@@ -2630,7 +2630,6 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		if err := process.setPostgresListener(cfg, &listeners); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		listeners.db.postgres = listeners.mux.DB()
 		listeners.reverseTunnel = listeners.mux.SSH()
 		go listeners.mux.Serve()
 		return &listeners, nil

@@ -159,18 +159,11 @@ func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 			}
 			return trace.Wrap(err)
 		}
-		// The multiplexed connection contains information about detected
-		// protocol so dispatch to the appropriate proxy.
-		proxy, err := s.dispatch(clientConn)
-		if err != nil {
-			s.log.WithError(err).Error("Failed to dispatch Postgres client connection.")
-			continue
-		}
 		// Let the appropriate proxy handle the connection and go back
 		// to listening.
 		go func() {
 			defer clientConn.Close()
-			err := proxy.HandleConnection(s.closeCtx, clientConn)
+			err := s.PostgresProxy().HandleConnection(s.closeCtx, clientConn)
 			if err != nil {
 				s.log.WithError(err).Warn("Failed to handle Postgres client connection.")
 			}
@@ -246,23 +239,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	return nil
 }
 
-// dispatch dispatches the connection to appropriate database proxy.
-func (s *ProxyServer) dispatch(clientConn net.Conn) (common.Proxy, error) {
-	muxConn, ok := clientConn.(*multiplexer.Conn)
-	if !ok {
-		// Postgres was configured on a separate proxy listeners.
-		return s.PostgresProxy(), nil
-	}
-	switch muxConn.Protocol() {
-	case multiplexer.ProtoPostgres:
-		s.log.Debugf("Accepted Postgres connection from %v.", muxConn.RemoteAddr())
-		return s.PostgresProxy(), nil
-	}
-	return nil, trace.BadParameter("unsupported database protocol %q",
-		muxConn.Protocol())
-}
-
-// postgresProxy returns a new instance of the Postgres protocol aware proxy.
+// PostgresProxy returns a new instance of the Postgres protocol aware proxy.
 func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	return &postgres.Proxy{
 		TLSConfig:  s.cfg.TLSConfig,
@@ -272,7 +249,7 @@ func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	}
 }
 
-// mysqlProxy returns a new instance of the MySQL protocol aware proxy.
+// MySQLProxy returns a new instance of the MySQL protocol aware proxy.
 func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	return &mysql.Proxy{
 		TLSConfig:  s.cfg.TLSConfig,
