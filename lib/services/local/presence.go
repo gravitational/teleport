@@ -262,6 +262,7 @@ func (s *PresenceService) ListNodes(ctx context.Context, req proto.ListNodesRequ
 				types.KindNode,
 				services.WithResourceID(item.ID),
 				services.WithExpires(item.Expires),
+				services.SkipValidation(),
 			)
 			if err != nil {
 				return false, trace.Wrap(err)
