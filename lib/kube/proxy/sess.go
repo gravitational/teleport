@@ -843,21 +843,23 @@ func (s *session) join(p *party) error {
 	stderr := kubeutils.WriterCloserWrapper{Writer: p.Client.stderrStream()}
 	s.clients_stderr.W.W.(*srv.MultiWriter).AddWriter(stringId, stderr, false)
 
-	go func() {
-		c := p.Client.forceTerminate()
-		select {
-		case <-c:
-			go func() {
-				s.log.Infof("Received force termination request")
-				err := s.Close()
-				if err != nil {
-					s.log.Errorf("Failed to close session: %v.", err)
-				}
-			}()
-		case <-s.closeC:
-			return
-		}
-	}()
+	if p.Mode != types.SessionObserverMode {
+		go func() {
+			c := p.Client.forceTerminate()
+			select {
+			case <-c:
+				go func() {
+					s.log.Infof("Received force termination request")
+					err := s.Close()
+					if err != nil {
+						s.log.Errorf("Failed to close session: %v.", err)
+					}
+				}()
+			case <-s.closeC:
+				return
+			}
+		}()
+	}
 
 	if s.state != types.SessionState_SessionStatePending {
 		return nil
