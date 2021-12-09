@@ -9,7 +9,7 @@
 name: Assign
 on:
   pull_request_target:
-    types: [assigned, opened, reopened, ready_for_review]
+    types: [opened, ready_for_review]
 
 # Limit the permissions on the GitHub token for this workflow to the subset
 # that is required. In this case, the assign workflow only needs to be able
@@ -30,6 +30,7 @@ permissions:
 jobs:
   auto-request-review:
     name: Auto Request Review
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
       # Checkout master branch of Teleport repository. This is to prevent an
