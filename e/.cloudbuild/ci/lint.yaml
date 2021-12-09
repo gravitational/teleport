@@ -1,0 +1,31 @@
+steps:
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+    id: pull-buildbox-image
+    args: ["echo", "done"]
+
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+    id: checkout
+    secretEnv:
+      - WEBASSETS_DEPLOYMENT_KEY
+    entrypoint: /bin/bash
+    args:
+      - "-c"
+      - "go run .cloudbuild/ci/checkout.go -workspace=/tmp/teleport -target=$_BASE_BRANCH"
+
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+    id: lint
+    dir: /tmp/teleport
+    args: [ "make", "lint" ]
+      
+availableSecrets:
+  secretManager:
+  - versionName: projects/771512790633/secrets/webassets-e-deployment-key/versions/1
+    env: WEBASSETS_DEPLOYMENT_KEY
+
+options:
+  volumes:
+    - name: oss_teleport
+      path: /tmp/teleport
+
+  machineType: 'E2_HIGHCPU_32'
+  
