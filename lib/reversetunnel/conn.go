@@ -259,24 +259,23 @@ const emitConnTargetPrefix = "Teleport"
 
 type emitConn struct {
 	net.Conn
-	mu                   *sync.RWMutex
-	buffer               bytes.Buffer
-	emitter              apievents.Emitter
-	ctx                  context.Context
-	serverID, serverAddr string
-	emitted              bool
+	mu       *sync.RWMutex
+	buffer   bytes.Buffer
+	emitter  apievents.Emitter
+	ctx      context.Context
+	serverID string
+	emitted  bool
 }
 
-func newEmitConn(conn net.Conn, emitter apievents.Emitter, ctx context.Context, serverID, serverAddr string) *emitConn {
+func newEmitConn(ctx context.Context, conn net.Conn, emitter apievents.Emitter, serverID string) *emitConn {
 	return &emitConn{
-		Conn:       conn,
-		mu:         &sync.RWMutex{},
-		buffer:     bytes.Buffer{},
-		emitter:    emitter,
-		ctx:        ctx,
-		serverID:   serverID,
-		serverAddr: serverAddr,
-		emitted:    false,
+		Conn:     conn,
+		mu:       &sync.RWMutex{},
+		buffer:   bytes.Buffer{},
+		emitter:  emitter,
+		ctx:      ctx,
+		serverID: serverID,
+		emitted:  false,
 	}
 }
 
@@ -309,7 +308,7 @@ func (conn *emitConn) Read(p []byte) (int, error) {
 			// },
 			ServerMetadata: apievents.ServerMetadata{
 				ServerID:   conn.serverID,
-				ServerAddr: conn.serverAddr,
+				ServerAddr: conn.LocalAddr().String(),
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),

@@ -203,7 +203,7 @@ func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 	}
 	s.log.Debugf("Succeeded dialing %v.", params)
 
-	conn = newEmitConn(conn, s.client, s.srv.Context, s.srv.ID, "")
+	conn = newEmitConn(s.srv.ctx, conn, s.client, s.srv.ID)
 	return conn, nil
 }
 
