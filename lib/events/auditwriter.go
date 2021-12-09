@@ -280,7 +280,7 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 	// in flowcontrol.go, trying to get quota:
 	// https://github.com/grpc/grpc-go/blob/a906ca0441ceb1f7cd4f5c7de30b8e81ce2ff5e8/internal/transport/flowcontrol.go#L60
 
-	// If backoff is in effect, loose event, return right away
+	// If backoff is in effect, lose event, return right away
 	if isBackoff := a.checkAndResetBackoff(a.cfg.Clock.Now()); isBackoff {
 		a.lostEvents.Inc()
 		return nil
@@ -337,7 +337,7 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 		return nil
 	case <-t.C:
 		if setBackoff := a.maybeSetBackoff(a.cfg.Clock.Now().UTC().Add(a.cfg.BackoffDuration)); setBackoff {
-			a.log.Errorf("Audit write timed out after %v. Will be loosing events for the next %v.", a.cfg.BackoffTimeout, a.cfg.BackoffDuration)
+			a.log.Errorf("Audit write timed out after %v. Will be losing events for the next %v.", a.cfg.BackoffTimeout, a.cfg.BackoffDuration)
 		}
 		a.lostEvents.Inc()
 		return nil

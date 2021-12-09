@@ -330,7 +330,7 @@ var (
 	NetworkBackoffDuration = time.Second * 30
 
 	// AuditBackoffTimeout is a time out before audit logger will
-	// start loosing events
+	// start losing events
 	AuditBackoffTimeout = 5 * time.Second
 
 	// NetworkRetryDuration is a standard retry on network requests
