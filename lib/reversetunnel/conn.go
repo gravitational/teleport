@@ -257,6 +257,7 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 
 const emitConnTargetPrefix = "Teleport"
 
+// emitConn is a wrapper for a net.Conn that emits an event for non-Teleport connections.
 type emitConn struct {
 	net.Conn
 	mu       *sync.RWMutex
@@ -302,10 +303,6 @@ func (conn *emitConn) Read(p []byte) (int, error) {
 				Type: events.SessionConnectEvent,
 				Code: events.SessionConnectCode,
 			},
-			// UserMetadata: apievents.UserMetadata{
-			// 	User:  identityContext.TeleportUser,
-			// 	Login: identityContext.Login,
-			// },
 			ServerMetadata: apievents.ServerMetadata{
 				ServerID:   conn.serverID,
 				ServerAddr: conn.LocalAddr().String(),

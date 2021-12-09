@@ -156,6 +156,7 @@ type transport struct {
 	// (perform handshake and handle request).
 	server ServerHandler
 
+	// emitter is an audit stream emitter.
 	emitter events.StreamEmitter
 }
 

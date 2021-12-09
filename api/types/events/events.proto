@@ -258,16 +258,12 @@ message SessionConnect {
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
-    // User is a common user event metadata
-    UserMetadata User = 2
-        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
-
     // ServerMetadata is a common server metadata
-    ServerMetadata Server = 3
+    ServerMetadata Server = 2
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
     // ConnectionMetadata holds information about the connection
-    ConnectionMetadata Connection = 4
+    ConnectionMetadata Connection = 3
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
