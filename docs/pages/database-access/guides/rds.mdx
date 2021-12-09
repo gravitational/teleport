@@ -317,8 +317,8 @@ Access for RDS. See below how to enable it for your database engine.
   GRANT rds_iam TO alice;
   ```
   </TabItem>
-  <TabItem label="MySQL">
-  MySQL users must have RDS authentication plugin enabled:
+  <TabItem label="MySQL/MariaDB">
+  MySQL/MariaDB users must have RDS authentication plugin enabled:
 
   ```sql
   CREATE USER alice IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
@@ -374,7 +374,7 @@ $ tsh db connect postgres-rds
 ```
 
 <Admonition type="note" title="Note">
-  The appropriate database command-line client (`psql`, `mysql`) should be
+  The appropriate database command-line client (`psql`, `mysql`,`mariadb`) should be
   available in PATH in order to be able to connect.
 </Admonition>
 
