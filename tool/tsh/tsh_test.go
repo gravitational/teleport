@@ -567,12 +567,16 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	select {
 	case err := <-errChan:
 		require.NoError(t, err)
-	case <-time.After(30 * time.Second):
-		t.Fatal("access request wasn't resolved after 30s")
+	case <-time.After(2 * time.Minute):
+		t.Fatal("access request wasn't resolved after 2 minutes")
 	}
 }
 
-// from integration/integration_test.go
+// tryCreateTrustedCluster performs several attempts to create a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+//
+// Duplicated in integration/integration_test.go
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
