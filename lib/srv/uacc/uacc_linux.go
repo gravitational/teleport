@@ -51,8 +51,8 @@ const userMaxLen = 32
 //
 // `username`: Name of the user the interactive session is running under.
 // `hostname`: Name of the system the user is logged into.
-// `remoteAddrV6`: IPv6 address of the remote host.
-// `ttyName`: Name of the TTY including the `/dev/` prefix.
+// `remote`: IPv6 address of the remote host.
+// `tty`: Pointer to the tty stream
 func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, tty *os.File) error {
 	ttyName, err := os.Readlink(tty.Name())
 	if err != nil {
@@ -118,7 +118,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
 		if status != 0 {
-			return trace.Errorf("unknown error with code %d", status)
+			return trace.Errorf("unknown error with errno %d", C.get_errno())
 		}
 
 		return nil

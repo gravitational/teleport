@@ -65,6 +65,8 @@ type Database interface {
 	SetStatusAWS(AWS)
 	// GetGCP returns GCP information for Cloud SQL databases.
 	GetGCP() GCPCloudSQL
+	// GetAzure returns Azure database server metadata.
+	GetAzure() Azure
 	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
 	GetType() string
 	// GetIAMPolicy returns AWS IAM policy for the database.
@@ -79,6 +81,8 @@ type Database interface {
 	IsRedshift() bool
 	// IsCloudSQL returns true if this is a Cloud SQL database.
 	IsCloudSQL() bool
+	// IsAzure returns true if this is an Azure database.
+	IsAzure() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 }
@@ -254,6 +258,11 @@ func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 	return d.Spec.GCP
 }
 
+// GetAzure returns Azure database server metadata.
+func (d *DatabaseV3) GetAzure() Azure {
+	return d.Spec.Azure
+}
+
 // IsRDS returns true if this is a AWS RDS/Aurora instance.
 func (d *DatabaseV3) IsRDS() bool {
 	return d.GetType() == DatabaseTypeRDS
@@ -269,6 +278,11 @@ func (d *DatabaseV3) IsCloudSQL() bool {
 	return d.GetType() == DatabaseTypeCloudSQL
 }
 
+// IsAzure returns true if this is Azure hosted database.
+func (d *DatabaseV3) IsAzure() bool {
+	return d.GetType() == DatabaseTypeAzure
+}
+
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().Redshift.ClusterID != "" {
@@ -279,6 +293,9 @@ func (d *DatabaseV3) GetType() string {
 	}
 	if d.GetGCP().ProjectID != "" {
 		return DatabaseTypeCloudSQL
+	}
+	if d.GetAzure().Name != "" {
+		return DatabaseTypeAzure
 	}
 	return DatabaseTypeSelfHosted
 }
@@ -342,6 +359,14 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
+	case strings.Contains(d.Spec.URI, azureEndpointSuffix):
+		name, err := parseAzureEndpoint(d.Spec.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if d.Spec.Azure.Name == "" {
+			d.Spec.Azure.Name = name
+		}
 	}
 	return nil
 }
@@ -374,6 +399,21 @@ func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
 	}
 	return parts[0], parts[2], nil
+}
+
+// parseAzureEndpoint extracts database server name from Azure endpoint.
+func parseAzureEndpoint(endpoint string) (name string, err error) {
+	host, _, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	// Azure endpoint looks like this:
+	// name.mysql.database.azure.com
+	parts := strings.Split(host, ".")
+	if !strings.HasSuffix(host, azureEndpointSuffix) || len(parts) != 5 {
+		return "", trace.BadParameter("failed to parse %v as Azure endpoint", endpoint)
+	}
+	return parts[0], nil
 }
 
 // GetIAMPolicy returns AWS IAM policy for this database.
@@ -462,6 +502,8 @@ const (
 	DatabaseTypeRedshift = "redshift"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
 	DatabaseTypeCloudSQL = "gcp"
+	// DatabaseTypeAzure is Azure-hosted database.
+	DatabaseTypeAzure = "azure"
 )
 
 // DeduplicateDatabases deduplicates databases by name.
@@ -521,6 +563,8 @@ const (
 	rdsEndpointSuffix = ".rds.amazonaws.com"
 	// redshiftEndpointSuffix is the Redshift endpoint suffix.
 	redshiftEndpointSuffix = ".redshift.amazonaws.com"
+	// azureEndpointSuffix is the Azure database endpoint suffix.
+	azureEndpointSuffix = ".database.azure.com"
 )
 
 var (
