@@ -773,7 +773,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 // 1. Every client is connected to the database fan-out
 // system. This system creates a buffered channel for every
 // client and tracks the channel overflow. Thanks to channels every client gets its
-// own unique iterator over the event stream. If client looses connection
+// own unique iterator over the event stream. If client loses connection
 // or fails to keep up with the stream, the server will terminate
 // the channel and client will have to re-initialize.
 //
