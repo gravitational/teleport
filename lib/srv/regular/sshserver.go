@@ -50,6 +50,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -1547,18 +1548,18 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 		return trace.Wrap(err)
 	}
 
-	var x11Req sshutils.X11ForwardRequestPayload
+	var x11Req x11.ForwardRequestPayload
 	if err := ssh.Unmarshal(req.Payload, &x11Req); err != nil {
 		return trace.Wrap(err)
 	}
 
-	display, err := sshutils.StartXServerListener(ctx.ServerConn, x11Req)
+	display, err := x11.StartXServerListener(s.ctx, ctx.ServerConn, x11Req)
 	if err != nil {
 		log.WithError(err).Warn("Failed to start X11 server listener")
 		return trace.Wrap(err)
 	}
 
-	ctx.SetEnv(sshutils.DisplayEnv, display)
+	ctx.SetEnv(x11.DisplayEnv, display)
 	return nil
 }
 
