@@ -87,7 +87,7 @@ func testCodePipeline() pipeline {
 		"UID":     {raw: "1000"},
 		"GID":     {raw: "1000"},
 	}
-	p.Trigger = triggerPullRequest
+	p.Trigger = triggerDisabled
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = dockerVolumes(
 		volumeTmpfs,

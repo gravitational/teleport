@@ -10,15 +10,13 @@ type: kubernetes
 name: test
 environment:
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
   UID: "1000"
 trigger:
-  event:
-    include:
-    - pull_request
-  repo:
-    include:
-    - gravitational/*
+  repo: {}
 workspace:
   path: /go
 clone:
@@ -355,7 +353,10 @@ type: kubernetes
 name: push-build-linux-amd64
 environment:
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
   UID: "1000"
 trigger:
   event:
@@ -457,7 +458,10 @@ type: kubernetes
 name: push-build-linux-386
 environment:
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
   UID: "1000"
 trigger:
   event:
@@ -559,7 +563,10 @@ type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
   UID: "1000"
 trigger:
   event:
@@ -665,7 +672,10 @@ type: kubernetes
 name: push-build-windows-amd64
 environment:
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
   UID: "1000"
 trigger:
   event:
@@ -825,7 +835,10 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.2
+    RUNTIME: |-
+      make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+      go1.17.2
+      make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -909,7 +922,10 @@ type: kubernetes
 name: push-build-linux-arm
 environment:
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
   UID: "1000"
 trigger:
   event:
@@ -1011,7 +1027,10 @@ type: kubernetes
 name: push-build-linux-arm64
 environment:
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
   UID: "1000"
 trigger:
   event:
@@ -1370,7 +1389,10 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7
 environment:
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
 trigger:
   event:
     include:
@@ -1477,7 +1499,10 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
 trigger:
   event:
     include:
@@ -1583,7 +1608,10 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
 trigger:
   event:
     include:
@@ -1687,7 +1715,10 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
 trigger:
   event:
     include:
@@ -1791,7 +1822,10 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos6
 environment:
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
 trigger:
   event:
     include:
@@ -2392,7 +2426,10 @@ kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
 trigger:
   event:
     include:
@@ -2805,7 +2842,10 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.2
+    RUNTIME: |-
+      make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+      go1.17.2
+      make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -3170,7 +3210,10 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
 trigger:
   event:
     include:
@@ -3274,7 +3317,10 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
 trigger:
   event:
     include:
@@ -3878,7 +3924,10 @@ kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
 trigger:
   event:
     include:
@@ -4305,7 +4354,10 @@ type: kubernetes
 name: build-buildboxes
 environment:
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: |-
+    make[1]: Entering directory '/home/trent/work/teleport/build.assets'
+    go1.17.2
+    make[1]: Leaving directory '/home/trent/work/teleport/build.assets'
   UID: "1000"
 trigger:
   event:
@@ -4756,6 +4808,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 7fee7b17d306d1d41f8aebe49dc1db2700253e682e438cbc88c5153a8caaed34
+hmac: d3616105cf253379134a3edf16dc8e4b0950900bfb16d162b463861ccb14f171
 
 ...

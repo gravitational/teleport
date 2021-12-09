@@ -22,6 +22,7 @@ import (
 )
 
 var (
+	triggerDisabled    = trigger{}
 	triggerPullRequest = trigger{
 		Event: triggerRef{Include: []string{"pull_request"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
