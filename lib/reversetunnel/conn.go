@@ -17,6 +17,7 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -27,7 +28,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -250,4 +253,72 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 	}
 
 	return nil
+}
+
+const emitConnTargetPrefix = "Teleport"
+
+type emitConn struct {
+	net.Conn
+	mu                   *sync.RWMutex
+	buffer               bytes.Buffer
+	emitter              apievents.Emitter
+	ctx                  context.Context
+	serverID, serverAddr string
+	emitted              bool
+}
+
+func newEmitConn(conn net.Conn, emitter apievents.Emitter, ctx context.Context, serverID, serverAddr string) *emitConn {
+	return &emitConn{
+		Conn:       conn,
+		mu:         &sync.RWMutex{},
+		buffer:     bytes.Buffer{},
+		emitter:    emitter,
+		ctx:        ctx,
+		serverID:   serverID,
+		serverAddr: serverAddr,
+		emitted:    false,
+	}
+}
+
+func (conn *emitConn) Read(p []byte) (int, error) {
+	conn.mu.RLock()
+	n, err := conn.Conn.Read(p)
+	if err != nil || conn.buffer.Len() == len(emitConnTargetPrefix) {
+		conn.mu.RUnlock()
+		return n, err
+	}
+	conn.mu.RUnlock()
+
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+
+	_, err = conn.buffer.Write(p[:len(emitConnTargetPrefix)-conn.buffer.Len()])
+	if err != nil {
+		return n, err
+	}
+
+	if conn.buffer.Len() == len(emitConnTargetPrefix) && !bytes.HasPrefix(conn.buffer.Bytes(), []byte(emitConnTargetPrefix)) {
+		event := &apievents.SessionConnect{
+			Metadata: apievents.Metadata{
+				Type: events.SessionConnectEvent,
+				Code: events.SessionConnectCode,
+			},
+			// UserMetadata: apievents.UserMetadata{
+			// 	User:  identityContext.TeleportUser,
+			// 	Login: identityContext.Login,
+			// },
+			ServerMetadata: apievents.ServerMetadata{
+				ServerID:   conn.serverID,
+				ServerAddr: conn.serverAddr,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  conn.LocalAddr().String(),
+				RemoteAddr: conn.RemoteAddr().String(),
+			},
+		}
+		conn.emitted = true
+		go conn.emitter.EmitAuditEvent(conn.ctx, event)
+	}
+
+	return n, err
 }

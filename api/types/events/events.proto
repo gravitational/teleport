@@ -252,6 +252,25 @@ message SessionReject {
     int64 Maximum = 6 [ (gogoproto.jsontag) = "max" ];
 }
 
+// SessionConnect is emitted when any ssh connection is made
+message SessionConnect {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ServerMetadata is a common server metadata
+    ServerMetadata Server = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ConnectionMetadata holds information about the connection
+    ConnectionMetadata Connection = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // Resize means that some user resized PTY on the client
 message Resize {
     // Metadata is a common event metadata
@@ -1592,6 +1611,7 @@ message OneOf {
         events.AppDelete AppDelete = 58;
         events.WindowsDesktopSessionStart WindowsDesktopSessionStart = 59;
         events.WindowsDesktopSessionEnd WindowsDesktopSessionEnd = 60;
+        events.SessionConnect SessionConnect = 61;
     }
 }
 
