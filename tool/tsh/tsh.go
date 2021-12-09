@@ -211,8 +211,11 @@ type CLIConf struct {
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
 	NoRemoteExec bool
 
-	// X11Forwarding will use X11 forwarding in the ssh request ('ssh -X')
+	// X11Forwarding will set up X11 forwarding for the session ('ssh -X')
 	X11Forwarding bool
+
+	// X11Forwarding will set up trusted X11 forwarding for the session ('ssh -Y')
+	X11ForwardingTrusted bool
 
 	// Debug sends debug logs to stdout.
 	Debug bool
@@ -387,7 +390,8 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
-	ssh.Flag("", "Use x11 forwarding in this request").Short('X').BoolVar(&cf.X11Forwarding)
+	ssh.Flag("X", "Setup x11 forwarding in untrusted mode (secure) for this request").Short('X').BoolVar(&cf.X11Forwarding)
+	ssh.Flag("Y", "Setup x11 forwarding in trusted mode (insecure) for this request").Short('Y').Default("true").BoolVar(&cf.X11ForwardingTrusted)
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
@@ -1982,8 +1986,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		c.ForwardAgent = client.ForwardAgentYes
 	}
 
-	// If X11 forwarding was specified on the command line enable it.
+	// If X11 trusted/untrusted forwarding was specified on the command line enable it.
 	c.X11Forwarding = cf.X11Forwarding
+	c.X11ForwardingTrusted = cf.X11ForwardingTrusted
 
 	// If the caller does not want to check host keys, pass in a insecure host
 	// key checker.

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -177,16 +178,24 @@ func (ns *NodeSession) regularSession(callback func(s *ssh.Session) error) error
 
 type interactiveCallback func(serverSession *ssh.Session, shell io.ReadWriteCloser) error
 
+func (ns *NodeSession) enableX11Forwarding(sess *ssh.Session, trusted bool) error {
+	if err := x11.RequestX11Forwarding(context.TODO(), sess, ns.nodeClient.Client, trusted, false); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 	sess, err := ns.nodeClient.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// start x11 forwarding for the session if requested
-	if ns.nodeClient.TC.Config.X11Forwarding {
-		sshutils.StartX11ChannelListener(ns.nodeClient.Client)
-		if err := sshutils.RequestX11Forward(sess); err != nil {
+	// enable x11 forwarding for the session if the client requested it.
+	x11ForwardingRequested := ns.nodeClient.TC.Config.X11Forwarding || ns.nodeClient.TC.Config.X11ForwardingTrusted
+	if x11ForwardingRequested {
+		trustedForwarding := ns.nodeClient.TC.Config.X11ForwardingTrusted
+		if err := ns.enableX11Forwarding(sess, trustedForwarding); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

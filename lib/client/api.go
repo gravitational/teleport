@@ -222,8 +222,11 @@ type Config struct {
 	// ForwardAgent is used by the client to request agent forwarding from the server.
 	ForwardAgent AgentForwardingMode
 
-	// X11Forwarding is used by the client to request agent forwarding from the server.
+	// X11Forwarding is used by the client to request x11 forwarding from the server.
 	X11Forwarding bool
+
+	// X11ForwardingTrusted is used by the client to request trusted x11 forwarding from the server.
+	X11ForwardingTrusted bool
 
 	// AuthMethods are used to login into the cluster. If specified, the client will
 	// use them in addition to certs stored in its local agent (from disk)
