@@ -15,15 +15,22 @@ limitations under the License.
 */
 
 import React from 'react';
-import { MemoryRouter, Route } from 'react-router';
-import { screen, fireEvent, act, render } from 'design/utils/testing';
+import { MemoryRouter, Route, Router } from 'react-router';
+import { createMemoryHistory } from 'history';
+import { screen, fireEvent, act, render, wait } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
 import cfg from 'teleport/config';
+import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
-import Invite from './Invite';
-import { AuthMfaOn, AuthMfaOptional } from './Invite.story';
+import Welcome from './Welcome';
+import { AuthMfaOn, AuthMfaOptional } from './Welcome.story';
 
-describe('teleport/components/Invite', () => {
+const invitePath = '/web/invite/5182';
+const inviteContinuePath = '/web/invite/5182/continue';
+const resetPath = '/web/reset/5182';
+const resetContinuePath = '/web/reset/5182/continue';
+
+describe('teleport/components/Welcome', () => {
   beforeEach(() => {
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
     jest.spyOn(auth, 'fetchPasswordToken').mockImplementation(async () => ({
@@ -37,16 +44,70 @@ describe('teleport/components/Invite', () => {
     jest.clearAllMocks();
   });
 
-  it('should show "get started" prompt before showing form', async () => {
-    await act(async () =>
-      render(
-        <MemoryRouter initialEntries={['/web/invite/5182']}>
-          <Invite />
-        </MemoryRouter>
-      )
+  it('should have correct welcome prompt flow for invite', async () => {
+    jest.spyOn(history, 'push').mockImplementation();
+
+    const mockHistory = createMemoryHistory({
+      initialEntries: [invitePath],
+    });
+
+    render(
+      <Router history={mockHistory}>
+        <Route path={cfg.routes.userInvite}>
+          <Welcome />
+        </Route>
+      </Router>
     );
 
-    expect(screen.getByText(/get started/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Please click the button below to create an account/i)
+    ).toBeInTheDocument();
+
+    expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
+
+    await wait(() => {
+      fireEvent.click(screen.getByText(/get started/i));
+      mockHistory.push(inviteContinuePath);
+    });
+
+    expect(history.push).toHaveBeenCalledWith(inviteContinuePath);
+    expect(auth.fetchPasswordToken).toHaveBeenCalled();
+
+    expect(screen.getByText(/confirm password/i)).toBeInTheDocument();
+  });
+
+  it('should have correct welcome prompt flow for reset', async () => {
+    jest.spyOn(history, 'push').mockImplementation();
+
+    const mockHistory = createMemoryHistory({
+      initialEntries: [resetPath],
+    });
+
+    render(
+      <Router history={mockHistory}>
+        <Route path={cfg.routes.userReset}>
+          <Welcome />
+        </Route>
+      </Router>
+    );
+
+    expect(
+      screen.getByText(
+        /Please click the button below to begin recovery of your account/i
+      )
+    ).toBeInTheDocument();
+
+    expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
+
+    await wait(() => {
+      fireEvent.click(screen.getByText(/Continue/i));
+      mockHistory.push(resetContinuePath);
+    });
+
+    expect(history.push).toHaveBeenCalledWith(resetContinuePath);
+    expect(auth.fetchPasswordToken).toHaveBeenCalled();
+
+    expect(screen.getByText(/change password/i)).toBeInTheDocument();
   });
 
   it('reset password', async () => {
@@ -166,7 +227,7 @@ describe('teleport/components/Invite', () => {
 
   it('auth type "on" should render form with hardware key as first option in dropdown', () => {
     const { container } = render(
-      <MemoryRouter initialEntries={['/web/invite/5182/continue']}>
+      <MemoryRouter initialEntries={[inviteContinuePath]}>
         <AuthMfaOn />
       </MemoryRouter>
     );
@@ -175,7 +236,7 @@ describe('teleport/components/Invite', () => {
 
   it('auth type "optional" should render form with hardware key as first option in dropdown', () => {
     const { container } = render(
-      <MemoryRouter initialEntries={['/web/invite/5182/continue']}>
+      <MemoryRouter initialEntries={[inviteContinuePath]}>
         <AuthMfaOptional />
       </MemoryRouter>
     );
@@ -183,11 +244,11 @@ describe('teleport/components/Invite', () => {
   });
 });
 
-function renderInvite(url = `/web/invite/5182/continue`) {
+function renderInvite(url = inviteContinuePath) {
   render(
     <MemoryRouter initialEntries={[url]}>
       <Route path={cfg.routes.userInviteContinue}>
-        <Invite />
+        <Welcome />
       </Route>
     </MemoryRouter>
   );

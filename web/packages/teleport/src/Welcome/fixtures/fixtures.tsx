@@ -1,91 +1,6 @@
-/*
-Copyright 2021 Gravitational, Inc.
+import { Props } from './../NewCredentials';
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React from 'react';
-import { MemoryRouter } from 'react-router-dom';
-import { State } from './useInvite';
-import { Invite as Component, Props } from './Invite';
-import CardWelcome from './CardWelcome';
-
-export default {
-  title: 'Teleport/Invite',
-  component: Component,
-};
-
-export const Invite = () => (
-  <Wrapper>
-    <Component {...props} />
-  </Wrapper>
-);
-
-export const Expired = () => (
-  <Component
-    {...props}
-    fetchAttempt={{ status: 'failed', statusText: 'this is an error message' }}
-  />
-);
-
-export const ResetPasswordScreen = () => (
-  <Wrapper url="/web/reset/1234/continue">
-    <Component {...props} passwordResetMode={true} />
-  </Wrapper>
-);
-
-export const AuthMfaOn = () => (
-  <Wrapper>
-    <Component {...props} auth2faType="on" />
-  </Wrapper>
-);
-
-export const AuthMfaOnWithU2f = () => (
-  <Wrapper>
-    <Component {...props} auth2faType="on" preferredMfaType="u2f" />
-  </Wrapper>
-);
-AuthMfaOnWithU2f.storyName = 'Auth Mfa On with U2f';
-
-export const AuthMfaOptional = () => (
-  <Wrapper>
-    <Component {...props} auth2faType="optional" />
-  </Wrapper>
-);
-
-export const WelcomeCardInvite = () => (
-  <Wrapper url="/web/invite/1234">
-    <CardWelcome tokenId="1234" />
-  </Wrapper>
-);
-
-export const WelcomeCardReset = () => (
-  <Wrapper url="/web/reset/1234">
-    <CardWelcome tokenId="1234" inviteMode={false} />
-  </Wrapper>
-);
-
-function Wrapper({
-  children,
-  url = '/web/invite/1234/continue',
-}: {
-  children: JSX.Element;
-  url?: string;
-}) {
-  return <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>;
-}
-
-const props: State & Props = {
+export const mockedProps: Partial<Props> = {
   auth2faType: 'off',
   preferredMfaType: 'webauthn',
   submitAttempt: { status: '' },
@@ -94,7 +9,6 @@ const props: State & Props = {
   onSubmitWithU2f: () => null,
   onSubmitWithWebauthn: () => null,
   onSubmit: () => null,
-  passwordResetMode: false,
   passwordToken: {
     user: 'john@example.com',
     tokenId: 'test123',

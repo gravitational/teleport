@@ -33,7 +33,7 @@ import TwoFAData from './TwoFaInfo';
 const U2F_ERROR_CODES_URL =
   'https://developers.yubico.com/U2F/Libraries/Client_error_codes.html';
 
-export default function FormInvite(props: Props) {
+export default function FormNewCredentials(props: Props) {
   const {
     auth2faType,
     preferredMfaType,

@@ -20,7 +20,7 @@ import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
 
-export default function useInvite(tokenId: string) {
+export default function useToken(tokenId: string) {
   const [passwordToken, setPswToken] = useState<ResetToken>();
   const fetchAttempt = useAttempt('');
   const submitAttempt = useAttempt('');
@@ -85,4 +85,4 @@ type ResetToken = {
   user: string;
 };
 
-export type State = ReturnType<typeof useInvite>;
+export type State = ReturnType<typeof useToken>;

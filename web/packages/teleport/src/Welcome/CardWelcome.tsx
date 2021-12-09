@@ -16,20 +16,13 @@ limitations under the License.
 
 import React from 'react';
 import { Card, Box, Text, ButtonPrimary } from 'design';
-import cfg from 'teleport/config';
-import history from 'teleport/services/history';
 
-export default function CardWelcome({ tokenId, inviteMode = true }: Props) {
-  const title = inviteMode ? 'Welcome to Teleport' : 'Reset Password';
-  const description = inviteMode
-    ? 'Please click the button below to create an account'
-    : 'Please click the button below to begin recovery of your account';
-  const buttonText = inviteMode ? 'Get started' : 'Continue';
-
-  const nextStepPath = inviteMode
-    ? cfg.getUserInviteTokenContinueRoute(tokenId)
-    : cfg.getUserResetTokenContinueRoute(tokenId);
-
+export default function CardWelcome({
+  title,
+  subTitle,
+  btnText,
+  onClick,
+}: Props) {
   return (
     <Card bg="primary.light" my={6} mx="auto" width="464px">
       <Box p={6}>
@@ -37,15 +30,10 @@ export default function CardWelcome({ tokenId, inviteMode = true }: Props) {
           {title}
         </Text>
         <Text typography="h5" mb={3} textAlign="center">
-          {description}
+          {subTitle}
         </Text>
-        <ButtonPrimary
-          width="100%"
-          mt={3}
-          size="large"
-          onClick={() => history.push(nextStepPath)}
-        >
-          {buttonText}
+        <ButtonPrimary width="100%" mt={3} size="large" onClick={onClick}>
+          {btnText}
         </ButtonPrimary>
       </Box>
     </Card>
@@ -53,6 +41,8 @@ export default function CardWelcome({ tokenId, inviteMode = true }: Props) {
 }
 
 type Props = {
-  tokenId: string;
-  inviteMode?: boolean;
+  title: string;
+  subTitle: string;
+  btnText: string;
+  onClick(): void;
 };

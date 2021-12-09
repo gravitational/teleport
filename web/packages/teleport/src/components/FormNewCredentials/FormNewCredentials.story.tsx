@@ -15,19 +15,19 @@ limitations under the License.
 */
 
 import React from 'react';
-import FormInvite, { Props } from './FormInvite';
+import FormNewCredentials, { Props } from './FormNewCredentials';
 
 export default {
-  title: 'Teleport/FormInvite',
-  component: FormInvite,
+  title: 'Teleport/FormNewCredentials',
+  component: FormNewCredentials,
 };
 
-export const Off = () => <FormInvite {...props} auth2faType="off" />;
+export const Off = () => <FormNewCredentials {...props} auth2faType="off" />;
 
-export const Otp = () => <FormInvite {...props} />;
+export const Otp = () => <FormNewCredentials {...props} />;
 
 export const OtpError = () => (
-  <FormInvite
+  <FormNewCredentials
     {...props}
     attempt={{
       status: 'failed',
@@ -38,13 +38,17 @@ export const OtpError = () => (
 );
 
 export const U2f = () => (
-  <FormInvite {...props} auth2faType="u2f" attempt={{ status: 'processing' }} />
+  <FormNewCredentials
+    {...props}
+    auth2faType="u2f"
+    attempt={{ status: 'processing' }}
+  />
 );
 
 U2f.storyName = 'U2f';
 
 export const U2fError = () => (
-  <FormInvite
+  <FormNewCredentials
     {...props}
     auth2faType="u2f"
     attempt={{ status: 'failed', statusText: 'Message with has [U2F] word' }}
@@ -54,23 +58,31 @@ export const U2fError = () => (
 U2fError.storyName = 'U2f Error';
 
 export const OptionalWithU2f = () => (
-  <FormInvite {...props} auth2faType="optional" preferredMfaType="u2f" />
+  <FormNewCredentials
+    {...props}
+    auth2faType="optional"
+    preferredMfaType="u2f"
+  />
 );
 OptionalWithU2f.storyName = 'Optional With U2f';
 
-export const Webauthn = () => <FormInvite {...props} auth2faType="webauthn" />;
+export const Webauthn = () => (
+  <FormNewCredentials {...props} auth2faType="webauthn" />
+);
 
 export const WebauthnError = () => (
-  <FormInvite
+  <FormNewCredentials
     {...props}
     auth2faType="webauthn"
     attempt={{ status: 'failed', statusText: 'Message with has [U2F] word' }}
   />
 );
 
-export const Optional = () => <FormInvite {...props} auth2faType="optional" />;
+export const Optional = () => (
+  <FormNewCredentials {...props} auth2faType="optional" />
+);
 
-export const On = () => <FormInvite {...props} auth2faType="on" />;
+export const On = () => <FormNewCredentials {...props} auth2faType="on" />;
 
 const props: Props = {
   auth2faType: 'otp',

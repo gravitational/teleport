@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`teleport/components/Invite auth type "on" should render form with hardware key as first option in dropdown 1`] = `
+exports[`teleport/components/Welcome auth type "on" should render form with hardware key as first option in dropdown 1`] = `
 .c3 {
   box-sizing: border-box;
   padding: 40px;
@@ -376,7 +376,7 @@ exports[`teleport/components/Invite auth type "on" should render form with hardw
 </div>
 `;
 
-exports[`teleport/components/Invite auth type "optional" should render form with hardware key as first option in dropdown 1`] = `
+exports[`teleport/components/Welcome auth type "optional" should render form with hardware key as first option in dropdown 1`] = `
 .c3 {
   box-sizing: border-box;
   padding: 40px;

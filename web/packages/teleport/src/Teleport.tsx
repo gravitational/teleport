@@ -22,7 +22,7 @@ import { Router, Route, Switch } from 'teleport/components/Router';
 import CatchError from 'teleport/components/CatchError';
 import Authenticated from 'teleport/components/Authenticated';
 import Main from './Main';
-import Invite, { ResetPassword } from './Invite';
+import Welcome from './Welcome';
 import Login, { LoginSuccess, LoginFailed } from './Login';
 import AppLauncher from './AppLauncher';
 import Console from './Console';
@@ -89,13 +89,13 @@ export function renderPublicRoutes(children = []) {
       key={5}
       title="Invite"
       path={cfg.routes.userInvite}
-      component={Invite}
+      component={Welcome}
     />,
     <Route
       key={6}
       title="Password Reset"
       path={cfg.routes.userReset}
-      component={ResetPassword}
+      component={Welcome}
     />,
   ];
 }
