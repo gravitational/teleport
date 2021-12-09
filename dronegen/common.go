@@ -81,7 +81,7 @@ var (
 var goRuntime value
 
 func init() {
-	v, err := exec.Command("make", "-C", "build.assets", "print-go-version").Output()
+	v, err := exec.Command("make", "-s", "-C", "build.assets", "print-go-version").Output()
 	if err != nil {
 		log.Fatalf("could not get Go version: %v", err)
 	}
