@@ -251,12 +251,12 @@ message TDPMessage {
 
 ```
 
-We could make `Data` a new type that represents a general TDP message (or a union of specific TDP messages), however there is no need for the additonal complexity that entails. We can simply save the raw bytes
+We could make `Data` a new type that represents a general TDP message (or a union of individual TDP messages), however there is no need for the additonal complexity that entails. We can simply save the raw bytes
 and later pass them into the [existing TDP codec](https://github.com/gravitational/webapps/blob/master/packages/teleport/src/lib/tdp/codec.ts) for playback.
 
 [`Metadata`](https://github.com/gravitational/teleport/blob/master/api/types/events/events.proto#L26-L46) in the new message is the existing common event metadata structure:
 
-`Type` will always be a new event type defined in [`lib/events/api.go`](https://github.com/gravitational/teleport/blob/master/lib/events/api.go):
+`Type` will be a new event type defined in [`lib/events/api.go`](https://github.com/gravitational/teleport/blob/master/lib/events/api.go):
 
 ```go
 DesktopSessionTDPEvent = "desktop.session.tdp"
