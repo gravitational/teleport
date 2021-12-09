@@ -289,6 +289,7 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 	}
 	// wait for the session to end
 	<-ns.closer.C
+	ns.closeWait.Wait()
 	return nil
 }
 
@@ -631,6 +632,9 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 func (ns *NodeSession) Close() error {
 	if ns.closer != nil {
 		ns.closer.Close()
+	}
+	if ns.closeWait != nil {
+		ns.closeWait.Wait()
 	}
 	return nil
 }
