@@ -62,6 +62,9 @@ const (
 	// second factor re-authentication which in other cases would be required eg:
 	// allowing user to add a mfa device if they don't have any registered.
 	UserTokenTypePrivilegeException = "privilege_exception"
+	// UserTokenTypeBot is a token type used for certificate renewal bots to join the cluster
+	// and request renewable certificates.
+	UserTokenTypeBot = "bot"
 )
 
 // CreateUserTokenRequest is a request to create a new user token.
@@ -109,6 +112,19 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 			return trace.BadParameter(
 				"failed to create user token for reset password: maximum token TTL is %v hours",
 				defaults.MaxChangePasswordTokenTTL)
+		}
+
+	case UserTokenTypeBot:
+		// bot tokens are like user invite tokens, but don't require you to set
+		// a password since the user will be a non-interactive one
+		// (for these reasons, we use the same defaults and maximum TTLs)
+		if r.TTL == 0 {
+			r.TTL = defaults.SignupTokenTTL
+		}
+		if r.TTL > defaults.MaxSignupTokenTTL {
+			return trace.BadParameter(
+				"failed to create user token for bot: maximum token TTL is %v hours",
+				defaults.MaxSignupTokenTTL)
 		}
 
 	case UserTokenTypeRecoveryStart:
@@ -185,6 +201,56 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit create reset password token event.")
 	}
+
+	return s.GetUserToken(ctx, token.GetName())
+}
+
+func (s *Server) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
+	err := req.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Type != UserTokenTypeBot {
+		return nil, trace.BadParameter("invalid bot token request type")
+	}
+
+	_, err = s.GetUser(req.Name, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: ensure that the user is a bot user?
+	token, err := s.newUserToken(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: deleteUserTokens?
+	_, err = s.Identity.CreateUserToken(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: audit log event. partially implemented, may need events.proto and
+	// dynamic.go, etc (unless we can reuse existing UserTokenCreate event)
+	// if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
+	// 	Metadata: apievents.Metadata{
+	// 		Type: events.BotTokenCreateEvent,
+	// 		Code: events.ResetPasswordTokenCreateCode,
+	// 	},
+	// 	UserMetadata: apievents.UserMetadata{
+	// 		User:         ClientUsername(ctx),
+	// 		Impersonator: ClientImpersonator(ctx),
+	// 	},
+	// 	ResourceMetadata: apievents.ResourceMetadata{
+	// 		Name:    req.Name,
+	// 		TTL:     req.TTL.String(),
+	// 		Expires: s.GetClock().Now().UTC().Add(req.TTL),
+	// 	},
+	// }); err != nil {
+	// 	log.WithError(err).Warn("Failed to emit create reset password token event.")
+	// }
 
 	return s.GetUserToken(ctx, token.GetName())
 }
@@ -361,6 +427,11 @@ func (s *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, erro
 	token.SetUser(req.Name)
 	token.SetCreated(s.clock.Now().UTC())
 	token.SetURL(url)
+
+	if req.Type == UserTokenTypeBot {
+		token.SetUsage(types.UserTokenUsage_USER_TOKEN_RENEWAL_BOT)
+	}
+
 	return token, nil
 }
 
@@ -382,6 +453,7 @@ func formatUserTokenURL(proxyHost string, tokenID string, reqType string) (strin
 		u.Path = fmt.Sprintf("/web/recovery/steps/%v/verify", tokenID)
 	}
 
+	// TODO: case for UserTokenTypeBot?
 	return u.String(), nil
 }
 

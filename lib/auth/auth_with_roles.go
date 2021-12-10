@@ -1488,19 +1488,91 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (types.KeepAliver, 
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// GenerateUserCerts generates users certificates
-func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	return a.generateUserCerts(ctx, req)
+// GenerateInitialRenewableUserCerts generates renewable certs for a non-interactive user
+// using a previously issued single-use token.
+//
+// The token's TTL is enforced, and if the operation is successful the token is destroyed.
+func (a *ServerWithRoles) GenerateInitialRenewableUserCerts(ctx context.Context, req proto.RenewableCertsRequest) (*proto.Certs, error) {
+	if len(req.Token) == 0 {
+		return nil, trace.BadParameter("missing token")
+	}
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("missing public key")
+	}
+
+	token, err := a.authServer.GetUserToken(ctx, req.Token)
+	if err != nil {
+		log.Debugf("Could not fetch bot token: %+v", err)
+		return nil, trace.AccessDenied("the token is not valid")
+	}
+
+	if err := a.authServer.verifyUserToken(token, UserTokenTypeBot); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pr := proto.UserCertsRequest{
+		PublicKey: req.PublicKey,
+		Username:  token.GetUser(),
+		Expires:   a.authServer.GetClock().Now().Add(defaults.DefaultRenewableCertTTL),
+		// TODO: allow scoping to a specific SSH node with NodeName and Usage
+	}
+
+	// Generate the initial set of user certificates. This differs from the
+	// normal flow in that we bypass certain impersonation checks
+	// (allowNop = true) and pass along certRequestRenewable().
+	certs, err := a.generateUserCerts(ctx, pr, true, certRequestRenewable())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteUserToken(ctx, req.Token); err != nil {
+		log.Warnf("could not delete user token %v after generating certs: %v",
+			backend.MaskKeyName(req.Token), err)
+	}
+
+	return certs, nil
 }
 
-func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
+// GenerateUserCerts generates users certificates
+func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+	return a.generateUserCerts(ctx, req, false)
+}
+
+// isNopUser checks if the given user is unauthenticated, i.e. has only the
+// RoleNop role.
+func isNopUser(user types.User) bool {
+	if user.GetName() != string(types.RoleNop) {
+		return false
+	}
+
+	roles := user.GetRoles()
+	if len(roles) != 1 {
+		return false
+	}
+
+	if roles[0] != string(types.RoleNop) {
+		return false
+	}
+
+	return true
+}
+
+// generateUserCerts generates a new set of user certificates per the provided
+// request. If `allowNopUser` is set, unauthenticated users identified only as
+// types.RoleNop will be allowed to bypass the enumeration check. This should
+// only be set when creating the first set of renewable user certificates, and
+// only after the user has been otherwise authenticated (e.g. via token).
+func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, allowNopUser bool, opts ...certRequestOption) (*proto.Certs, error) {
 	var err error
 	var roles []string
 	var traits wrappers.Traits
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
 	// from enumerating local users and hitting database
-	if !a.hasBuiltinRole(string(types.RoleAdmin)) && !a.context.Checker.CanImpersonateSomeone() && req.Username != a.context.User.GetName() {
+	if !a.hasBuiltinRole(string(types.RoleAdmin)) &&
+		!a.context.Checker.CanImpersonateSomeone() &&
+		req.Username != a.context.User.GetName() &&
+		!(allowNopUser && isNopUser(a.context.User)) {
 		return nil, trace.AccessDenied("access denied: impersonation is not allowed")
 	}
 
@@ -1544,16 +1616,24 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// For users renewing certificates limit the TTL to the duration of the session, to prevent
 	// users renewing certificates forever.
 	if req.Username == a.context.User.GetName() {
-		expires := a.context.Identity.GetIdentity().Expires
-		if expires.IsZero() {
+		identity := a.context.Identity.GetIdentity()
+		sessionExpires := identity.Expires
+		if sessionExpires.IsZero() {
 			log.Warningf("Encountered identity with no expiry: %v and denied request. Must be internal logic error.", a.context.Identity)
 			return nil, trace.AccessDenied("access denied")
 		}
-		if req.Expires.After(expires) {
-			req.Expires = expires
-		}
 		if req.Expires.Before(a.authServer.GetClock().Now()) {
 			return nil, trace.AccessDenied("access denied: client credentials have expired, please relogin.")
+		}
+
+		// if these credentials are not renewable, we limit the TTL to the duration of the session
+		// (this prevents users renewing their certificates forever)
+		if req.Expires.After(sessionExpires) {
+			if !identity.Renewable {
+				req.Expires = sessionExpires
+			} else if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(max) {
+				req.Expires = max
+			}
 		}
 	}
 
@@ -1624,6 +1704,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// this is required for local tctl commands to work
 	case req.Username == a.context.User.GetName():
 		// users can impersonate themselves
+	case allowNopUser && isNopUser(a.context.User):
+		// Unauthenticated users requesting their first user certs (e.g. bots w/
+		// renewable certs) are effectively "impersonating" "themselves" given
+		// that they have no preexisting TLS credentials. We'll only allow this
+		// with specific code paths (allowNopUser) where we make sure to verify
+		// the cert request parameters in advance, such as in
+		// GenerateInitialRenewableUserCerts.
 	default:
 		// check if this user is allowed to impersonate other users
 		err = a.context.Checker.CheckImpersonate(a.context.User, user, parsedRoles)
@@ -1701,12 +1788,30 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	for _, o := range opts {
 		o(&certReq)
 	}
+
+	// If the user is renewing a renewable cert, make sure the renewable flag
+	// remains for subsequent requests.
+	// TODO: need a way to opt-out of renewable certs (new cert request field?)
+	if req.Username == a.context.User.GetName() && a.context.Identity.GetIdentity().Renewable {
+		certReq.renewable = true
+	}
+
 	certs, err := a.authServer.generateUserCert(certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return certs, nil
+}
+
+func (a *ServerWithRoles) CreateBotJoinToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
+	// TODO: this should only apply to bots, but we _are_ creating a token for
+	// the bot's user... is this RBAC designation correct?
+	// TODO: unit testing.
+	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.CreateBotJoinToken(ctx, req)
 }
 
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {

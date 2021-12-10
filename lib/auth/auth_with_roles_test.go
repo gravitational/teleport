@@ -37,6 +37,67 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestLocalUserCanReissueCerts tests that local users can reissue
+// certificates for themselves with varying TTLs.
+func TestLocalUserCanReissueCerts(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	user, _, err := CreateUserAndRole(srv.Auth(), "foo", []string{"role"})
+	require.NoError(t, err)
+
+	_, pub, err := srv.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	start := srv.AuthServer.Clock().Now()
+
+	for _, test := range []struct {
+		desc      string
+		id        TestIdentity
+		reqTTL    time.Duration
+		expiresIn time.Duration
+	}{
+		{
+			desc: "not-renewable",
+			id:   TestUser(user.GetName()),
+			// expiration limited to duration of the user's session (default 1 hour)
+			reqTTL:    4 * time.Hour,
+			expiresIn: 1 * time.Hour,
+		}, {
+			desc: "renewable",
+			id:   TestRenewableUser(user.GetName()),
+			// expiration is allowed to be pushed out into the future
+			reqTTL:    4 * time.Hour,
+			expiresIn: 4 * time.Hour,
+		},
+		{
+			desc: "max-renew",
+			id:   TestRenewableUser(user.GetName()),
+			// expiration is allowed to be pushed out into the future,
+			// but no more than the maximum renewable cert TTL
+			reqTTL:    2 * libdefaults.MaxRenewableCertTTL,
+			expiresIn: libdefaults.MaxRenewableCertTTL,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			client, err := srv.NewClient(test.id)
+			require.NoError(t, err)
+
+			certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
+				PublicKey: pub,
+				Username:  user.GetName(),
+				Expires:   start.Add(test.reqTTL),
+			})
+			require.NoError(t, err)
+
+			x509, err := tlsca.ParseCertificatePEM(certs.TLS)
+			require.NoError(t, err)
+
+			require.WithinDuration(t, start.Add(test.expiresIn), x509.NotAfter, 1*time.Second)
+		})
+	}
+}
+
 // TestSSOUserCanReissueCert makes sure that SSO user can reissue certificate
 // for themselves.
 func TestSSOUserCanReissueCert(t *testing.T) {
@@ -64,6 +125,111 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 		Expires:   time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
+}
+
+func newToken(t *testing.T, tokenID, user, kind string, expiry time.Time) types.UserToken {
+	t.Helper()
+	token, err := types.NewUserToken(tokenID)
+	require.NoError(t, err, "could not create user token")
+
+	token.SetUser(user)
+	token.SetSubKind(kind)
+	token.SetExpiry(expiry)
+	return token
+}
+
+// TestGenerateInitialRenewableUserCerts tests that a user token can be used
+// to generate renewable certificates for a non-interactive user.
+func TestGenerateInitialRenewableUserCerts(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t)
+
+	user, _, err := CreateUserAndRole(srv.Auth(), "bot-user", []string{"bot-role"})
+	require.NoError(t, err)
+
+	later := srv.Clock().Now().Add(4 * time.Hour)
+
+	goodToken := newToken(t, "good-token", user.GetName(), UserTokenTypeBot, later)
+	expiredToken := newToken(t, "expired", user.GetName(), UserTokenTypeBot, srv.Clock().Now().Add(-1*time.Hour))
+	wrongKind := newToken(t, "wrong-kind", user.GetName(), UserTokenTypeResetPassword, later)
+	wrongUser := newToken(t, "wrong-user", "llama", UserTokenTypeBot, later)
+	invalidToken := newToken(t, "this-token-does-not-exist", user.GetName(), UserTokenTypeBot, later)
+
+	goodToken, err = srv.Auth().CreateUserToken(context.Background(), goodToken)
+	require.NoError(t, err)
+	expiredToken, err = srv.Auth().CreateUserToken(context.Background(), expiredToken)
+	require.NoError(t, err)
+	wrongKind, err = srv.Auth().CreateUserToken(context.Background(), wrongKind)
+	require.NoError(t, err)
+	wrongUser, err = srv.Auth().CreateUserToken(context.Background(), wrongUser)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	_, pub, err := srv.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+	require.NotEmpty(t, pub)
+
+	for _, test := range []struct {
+		desc      string
+		token     types.UserToken
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			desc:      "OK good token",
+			token:     goodToken,
+			assertErr: require.NoError,
+		},
+		{
+			desc:      "NOK expired token",
+			token:     expiredToken,
+			assertErr: require.Error,
+		},
+		{
+			desc:      "NOK wrong token kind",
+			token:     wrongKind,
+			assertErr: require.Error,
+		},
+		{
+			desc:      "NOK token for wrong user",
+			token:     wrongUser,
+			assertErr: require.Error,
+		},
+		{
+			desc:      "NOK invalid token",
+			token:     invalidToken,
+			assertErr: require.Error,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			// TODO: we should not use a client tied to a user for this,
+			// instead construct a client just like auth.Register does
+			// (whatever identity is used there will have Renewable)
+			certs, err := client.GenerateInitialRenewableUserCerts(context.Background(), proto.RenewableCertsRequest{
+				Token:     test.token.GetName(),
+				PublicKey: pub,
+			})
+			test.assertErr(t, err)
+
+			if err == nil {
+				require.NotEmpty(t, certs.SSH)
+				require.NotEmpty(t, certs.TLS)
+
+				// ensure token was removed
+				_, err = srv.Auth().GetUserToken(context.Background(), test.token.GetName())
+				require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+
+				// ensure cert is renewable
+				x509, err := tlsca.ParseCertificatePEM(certs.TLS)
+				require.NoError(t, err)
+				id, err := tlsca.FromSubject(x509.Subject, later)
+				require.NoError(t, err)
+				require.True(t, id.Renewable)
+			}
+		})
+	}
 }
 
 // TestGenerateDatabaseCert makes sure users and services with appropriate
