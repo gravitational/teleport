@@ -617,7 +617,7 @@ func (c *testContext) startProxy() {
 	// Start TLS multiplexer.
 	go c.webListener.Serve()
 	// Start database proxy server.
-	go c.proxyServer.Serve(c.mux.DB())
+	go c.proxyServer.ServePostgres(c.mux.DB())
 	// Start MySQL proxy server.
 	go c.proxyServer.ServeMySQL(c.mysqlListener)
 	// Start database TLS proxy server.

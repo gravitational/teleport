@@ -254,6 +254,8 @@ type SSHProxySettings struct {
 
 // DBProxySettings contains database access specific proxy settings.
 type DBProxySettings struct {
+	// PostgresListenAddr is Postgres proxy listen address.
+	PostgresListenAddr string `json:"postgres_listen_addr,omitempty"`
 	// PostgresPublicAddr is advertised to Postgres clients.
 	PostgresPublicAddr string `json:"postgres_public_addr,omitempty"`
 	// MySQLListenAddr is MySQL proxy listen address.
