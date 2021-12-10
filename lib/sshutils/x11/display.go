@@ -20,52 +20,31 @@ func displayFromEnv() (string, error) {
 	return display, nil
 }
 
-// parseDisplayNumber parses the displayNumber from the given display value
-// which should be in the format - "hostname:displayNumber.screenNumber"
-func parseDisplayNumber(display string) (int, error) {
-	colonIdx := strings.LastIndex(display, ":")
-	if colonIdx == -1 {
-		return 0, nil
+// parsesDisplay parses the given display value and returns the host,
+// display number, and screen number, or a parsing error. display
+// should be in the format "hostname:displayNumber.screenNumber".
+func parseDisplay(display string) (string, int, int, error) {
+	splitHost := strings.Split(display, ":")
+	host := splitHost[0]
+	if len(splitHost) < 2 {
+		return host, 0, 0, nil
 	}
 
-	dotIdx := strings.LastIndex(display, ".")
-	if dotIdx == -1 {
-		dotIdx = len(display)
-	}
-
-	displayNumber, err := strconv.Atoi(display[colonIdx+1 : dotIdx])
+	splitDisplayNumber := strings.Split(splitHost[1], ".")
+	displayNumber, err := strconv.Atoi(splitDisplayNumber[0])
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return "", 0, 0, trace.Wrap(err)
+	}
+	if len(splitDisplayNumber) < 2 {
+		return host, displayNumber, 0, nil
 	}
 
-	return displayNumber, nil
-}
-
-// parseDisplayHostname parses the hostname from the given display value
-// which should be in the format - "hostname:displayNumber.screenNumber"
-func parseDisplayHostname(display string) string {
-	colonIdx := strings.LastIndex(display, ":")
-	if colonIdx == -1 {
-		return display
-	}
-
-	return display[:colonIdx]
-}
-
-// parseDisplayScreenNumber parses the screenNumber from the given display value
-// which should be in the format - "hostname:displayNumber.screenNumber"
-func parseDisplayScreenNumber(display string) (int, error) {
-	dotIdx := strings.LastIndex(display, ".")
-	if dotIdx == -1 {
-		return 0, nil
-	}
-
-	screenNumber, err := strconv.Atoi(display[dotIdx+1:])
+	screenNumber, err := strconv.Atoi(splitDisplayNumber[1])
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return "", 0, 0, trace.Wrap(err)
 	}
 
-	return screenNumber, nil
+	return host, displayNumber, screenNumber, nil
 }
 
 // dialDisplay dials the set $DISPLAY via unix socket for local
@@ -76,12 +55,13 @@ func dialDisplay() (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	hostname, displayNumber, _, err := parseDisplay(display)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// display is a unix socket, dial the default x11 unix socket for the display number
-	if host := parseDisplayHostname(display); host == "unix" || host == "" {
-		displayNumber, err := parseDisplayNumber(display)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if hostname == "unix" || hostname == "" {
 		sock := filepath.Join(os.TempDir(), x11UnixSocket, fmt.Sprintf("X%d", displayNumber))
 		return net.Dial("unix", sock)
 	}

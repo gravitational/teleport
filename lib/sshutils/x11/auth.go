@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/gravitational/trace"
@@ -46,7 +45,7 @@ func runXAuthCommand(ctx context.Context, xauthFile string, args ...string) ([]b
 	return out, nil
 }
 
-func generateUntrustedXAuthEntry(ctx context.Context, display string, ttl time.Duration) (*xAuthEntry, error) {
+func generateUntrustedXAuthEntry(ctx context.Context, display string, timeout uint) (*xAuthEntry, error) {
 	xauthDir, err := os.MkdirTemp(os.TempDir(), "tsh-*")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -58,7 +57,7 @@ func generateUntrustedXAuthEntry(ctx context.Context, display string, ttl time.D
 		return nil, trace.Wrap(err)
 	}
 
-	if err := generateXAuthEntry(ctx, xauthFile.Name(), display, xauthDefaultProto, false, ttl); err != nil {
+	if err := generateXAuthEntry(ctx, xauthFile.Name(), display, xauthDefaultProto, false, timeout); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -86,17 +85,17 @@ func readXAuthEntry(ctx context.Context, xauthFile, display string) (*xAuthEntry
 	return xAuthEntry, nil
 }
 
-func generateXAuthEntry(ctx context.Context, xauthFile, display, authProto string, trusted bool, ttl time.Duration) error {
+func generateXAuthEntry(ctx context.Context, xauthFile, display, authProto string, trusted bool, timeout uint) error {
 	args := []string{"generate", display, authProto}
 	if !trusted {
 		args = append(args, "untrusted")
 	}
 
-	if ttl != 0 {
+	if timeout != 0 {
 		// Add some slack to the ttl to avoid XServer from denying
 		// access to the ssh session during its lifetime.
-		ttl += time.Minute
-		args = append(args, "timeout", fmt.Sprintf("%.0f", ttl.Minutes()))
+		var timeoutSlack uint = 60
+		args = append(args, "timeout", fmt.Sprint(timeout+timeoutSlack))
 	}
 
 	out, err := runXAuthCommand(ctx, xauthFile, args...)

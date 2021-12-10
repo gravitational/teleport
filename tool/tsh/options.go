@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/teleport/lib/client"
@@ -26,121 +27,134 @@ import (
 	"github.com/gravitational/trace"
 )
 
-const (
-	forwardAgentTextYes   = "yes"
-	forwardAgentTextNo    = "no"
-	forwardAgentTextLocal = "local"
-)
-
-// AllOptions is a listing of all known OpenSSH options.
-var AllOptions = map[string]map[string]bool{
-	"AddKeysToAgent":                  map[string]bool{"yes": true},
-	"AddressFamily":                   map[string]bool{},
-	"BatchMode":                       map[string]bool{},
-	"BindAddress":                     map[string]bool{},
-	"CanonicalDomains":                map[string]bool{},
-	"CanonicalizeFallbackLocal":       map[string]bool{},
-	"CanonicalizeHostname":            map[string]bool{},
-	"CanonicalizeMaxDots":             map[string]bool{},
-	"CanonicalizePermittedCNAMEs":     map[string]bool{},
-	"CertificateFile":                 map[string]bool{},
-	"ChallengeResponseAuthentication": map[string]bool{},
-	"CheckHostIP":                     map[string]bool{},
-	"Cipher":                          map[string]bool{},
-	"Ciphers":                         map[string]bool{},
-	"ClearAllForwardings":             map[string]bool{},
-	"Compression":                     map[string]bool{},
-	"CompressionLevel":                map[string]bool{},
-	"ConnectionAttempts":              map[string]bool{},
-	"ConnectTimeout":                  map[string]bool{},
-	"ControlMaster":                   map[string]bool{},
-	"ControlPath":                     map[string]bool{},
-	"ControlPersist":                  map[string]bool{},
-	"DynamicForward":                  map[string]bool{},
-	"EscapeChar":                      map[string]bool{},
-	"ExitOnForwardFailure":            map[string]bool{},
-	"FingerprintHash":                 map[string]bool{},
-	"ForwardAgent": map[string]bool{
-		forwardAgentTextYes:   true,
-		forwardAgentTextNo:    true,
-		forwardAgentTextLocal: true,
-	},
-	"ForwardX11":                       map[string]bool{},
-	"ForwardX11Timeout":                map[string]bool{},
-	"ForwardX11Trusted":                map[string]bool{},
-	"GatewayPorts":                     map[string]bool{},
-	"GlobalKnownHostsFile":             map[string]bool{},
-	"GSSAPIAuthentication":             map[string]bool{},
-	"GSSAPIDelegateCredentials":        map[string]bool{},
-	"HashKnownHosts":                   map[string]bool{},
-	"Host":                             map[string]bool{},
-	"HostbasedAuthentication":          map[string]bool{},
-	"HostbasedKeyTypes":                map[string]bool{},
-	"HostKeyAlgorithms":                map[string]bool{},
-	"HostKeyAlias":                     map[string]bool{},
-	"HostName":                         map[string]bool{},
-	"IdentityFile":                     map[string]bool{},
-	"IdentitiesOnly":                   map[string]bool{},
-	"IPQoS":                            map[string]bool{},
-	"KbdInteractiveAuthentication":     map[string]bool{},
-	"KbdInteractiveDevices":            map[string]bool{},
-	"KexAlgorithms":                    map[string]bool{},
-	"LocalCommand":                     map[string]bool{},
-	"LocalForward":                     map[string]bool{},
-	"LogLevel":                         map[string]bool{},
-	"MACs":                             map[string]bool{},
-	"Match":                            map[string]bool{},
-	"NoHostAuthenticationForLocalhost": map[string]bool{},
-	"NumberOfPasswordPrompts":          map[string]bool{},
-	"PasswordAuthentication":           map[string]bool{},
-	"PermitLocalCommand":               map[string]bool{},
-	"PKCS11Provider":                   map[string]bool{},
-	"Port":                             map[string]bool{},
-	"PreferredAuthentications":         map[string]bool{},
-	"Protocol":                         map[string]bool{},
-	"ProxyCommand":                     map[string]bool{},
-	"ProxyUseFdpass":                   map[string]bool{},
-	"PubkeyAcceptedKeyTypes":           map[string]bool{},
-	"PubkeyAuthentication":             map[string]bool{},
-	"RekeyLimit":                       map[string]bool{},
-	"RemoteForward":                    map[string]bool{},
-	"RequestTTY":                       map[string]bool{"yes": true, "no": true},
-	"RhostsRSAAuthentication":          map[string]bool{},
-	"RSAAuthentication":                map[string]bool{},
-	"SendEnv":                          map[string]bool{},
-	"ServerAliveInterval":              map[string]bool{},
-	"ServerAliveCountMax":              map[string]bool{},
-	"StreamLocalBindMask":              map[string]bool{},
-	"StreamLocalBindUnlink":            map[string]bool{},
-	"StrictHostKeyChecking":            map[string]bool{"yes": true, "no": true},
-	"TCPKeepAlive":                     map[string]bool{},
-	"Tunnel":                           map[string]bool{},
-	"TunnelDevice":                     map[string]bool{},
-	"UpdateHostKeys":                   map[string]bool{},
-	"UsePrivilegedPort":                map[string]bool{},
-	"User":                             map[string]bool{},
-	"UserKnownHostsFile":               map[string]bool{},
-	"VerifyHostKeyDNS":                 map[string]bool{},
-	"VisualHostKey":                    map[string]bool{},
-	"XAuthLocation":                    map[string]bool{},
+// supportedOptions is a listing of all known OpenSSH options
+// and a validater/parser if the option is supported by tsh.
+var supportedOptions = map[string]validateAndParseValue{
+	"AddKeysToAgent":                   parseBoolTrueOption,
+	"AddressFamily":                    nil,
+	"BatchMode":                        nil,
+	"BindAddress":                      nil,
+	"CanonicalDomains":                 nil,
+	"CanonicalizeFallbackLocal":        nil,
+	"CanonicalizeHostname":             nil,
+	"CanonicalizeMaxDots":              nil,
+	"CanonicalizePermittedCNAMEs":      nil,
+	"CertificateFile":                  nil,
+	"ChallengeResponseAuthentication":  nil,
+	"CheckHostIP":                      nil,
+	"Cipher":                           nil,
+	"Ciphers":                          nil,
+	"ClearAllForwardings":              nil,
+	"Compression":                      nil,
+	"CompressionLevel":                 nil,
+	"ConnectionAttempts":               nil,
+	"ConnectTimeout":                   nil,
+	"ControlMaster":                    nil,
+	"ControlPath":                      nil,
+	"ControlPersist":                   nil,
+	"DynamicForward":                   nil,
+	"EscapeChar":                       nil,
+	"ExitOnForwardFailure":             nil,
+	"FingerprintHash":                  nil,
+	"ForwardAgent":                     parseAgentForwardingMode,
+	"ForwardX11":                       parseBoolOption,
+	"ForwardX11Timeout":                parseUintOption,
+	"ForwardX11Trusted":                parseBoolOption,
+	"GatewayPorts":                     nil,
+	"GlobalKnownHostsFile":             nil,
+	"GSSAPIAuthentication":             nil,
+	"GSSAPIDelegateCredentials":        nil,
+	"HashKnownHosts":                   nil,
+	"Host":                             nil,
+	"HostbasedAuthentication":          nil,
+	"HostbasedKeyTypes":                nil,
+	"HostKeyAlgorithms":                nil,
+	"HostKeyAlias":                     nil,
+	"HostName":                         nil,
+	"IdentityFile":                     nil,
+	"IdentitiesOnly":                   nil,
+	"IPQoS":                            nil,
+	"KbdInteractiveAuthentication":     nil,
+	"KbdInteractiveDevices":            nil,
+	"KexAlgorithms":                    nil,
+	"LocalCommand":                     nil,
+	"LocalForward":                     nil,
+	"LogLevel":                         nil,
+	"MACs":                             nil,
+	"Match":                            nil,
+	"NoHostAuthenticationForLocalhost": nil,
+	"NumberOfPasswordPrompts":          nil,
+	"PasswordAuthentication":           nil,
+	"PermitLocalCommand":               nil,
+	"PKCS11Provider":                   nil,
+	"Port":                             nil,
+	"PreferredAuthentications":         nil,
+	"Protocol":                         nil,
+	"ProxyCommand":                     nil,
+	"ProxyUseFdpass":                   nil,
+	"PubkeyAcceptedKeyTypes":           nil,
+	"PubkeyAuthentication":             nil,
+	"RekeyLimit":                       nil,
+	"RemoteForward":                    nil,
+	"RequestTTY":                       parseBoolOption,
+	"RhostsRSAAuthentication":          nil,
+	"RSAAuthentication":                nil,
+	"SendEnv":                          nil,
+	"ServerAliveInterval":              nil,
+	"ServerAliveCountMax":              nil,
+	"StreamLocalBindMask":              nil,
+	"StreamLocalBindUnlink":            nil,
+	"StrictHostKeyChecking":            parseBoolOption,
+	"TCPKeepAlive":                     nil,
+	"Tunnel":                           nil,
+	"TunnelDevice":                     nil,
+	"UpdateHostKeys":                   nil,
+	"UsePrivilegedPort":                nil,
+	"User":                             nil,
+	"UserKnownHostsFile":               nil,
+	"VerifyHostKeyDNS":                 nil,
+	"VisualHostKey":                    nil,
+	"XAuthLocation":                    nil,
 }
 
-func asAgentForwardingMode(s string) client.AgentForwardingMode {
-	switch strings.ToLower(s) {
-	case forwardAgentTextNo:
-		return client.ForwardAgentNo
+type validateAndParseValue func(string) (interface{}, error)
 
-	case forwardAgentTextYes:
-		return client.ForwardAgentYes
+func parseBoolOption(val string) (interface{}, error) {
+	if val != "yes" && val != "no" {
+		return nil, trace.BadParameter("invalid bool option value: %s", val)
+	}
+	return utils.AsBool(val), nil
+}
 
-	case forwardAgentTextLocal:
-		return client.ForwardAgentLocal
+func parseBoolTrueOption(val string) (interface{}, error) {
+	if val != "yes" {
+		return nil, trace.BadParameter("invalid true-only bool option value: %s", val)
+	}
+	return utils.AsBool(val), nil
+}
+
+func parseUintOption(val string) (interface{}, error) {
+	valUint, err := strconv.ParseUint(val, 10, 0)
+	if err != nil {
+		return Options{}, trace.BadParameter("invalid int option value: %s", val)
+	}
+	return valUint, nil
+}
+
+func parseAgentForwardingMode(val string) (interface{}, error) {
+	switch strings.ToLower(val) {
+	case "no":
+		return client.ForwardAgentNo, nil
+
+	case "yes":
+		return client.ForwardAgentYes, nil
+
+	case "local":
+		return client.ForwardAgentLocal, nil
 
 	default:
-		log.Errorf(
-			"Invalid agent forwarding mode %q. Defaulting to %q.",
-			s, forwardAgentTextNo)
-		return client.ForwardAgentNo
+		return Options{}, trace.BadParameter("invalid agent forwarding mode: %s", val)
+
 	}
 }
 
@@ -163,14 +177,34 @@ type Options struct {
 	// keys to the ~/.tsh/known_hosts file. Supported option values are "yes"
 	// and "no".
 	StrictHostKeyChecking bool
+
+	// ForwardX11 specifies whether X11 forwarding should be enabled for
+	// ssh sessions started by the client. Supported option values are "yes" and "no".
+	ForwardX11 bool
+
+	// ForwardX11Trusted specifies whether X11Forwarding will be carried out in
+	// trusted or untrusted mode when enabled. Supported option values are "yes" and "no".
+	ForwardX11Trusted bool
+
+	// ForwardX11Timeout specifies a timeout in seconds after which x11 forwarding
+	// attempts will become unauthorized. Only available in untrusted x11 forwarding.
+	// Supports uint option values.
+	ForwardX11Timeout uint
 }
 
 func parseOptions(opts []string) (Options, error) {
-	// By default, Teleport prefers strict host key checking and adding keys
-	// to system SSH agent.
 	options := Options{
+		// By default, Teleport prefers strict host key checking and adding keys
+		// to system SSH agent.
 		StrictHostKeyChecking: true,
 		AddKeysToAgent:        true,
+		// As in OpenSSH, untrusted mode is the default unless explicitly set to false.
+		// Although it makes clients using x11 forwarding vulnerable to some XServer
+		// related attacks (such as Keystroke monitoring), most programs do not properly
+		// support untrusted mode and will crash. For these reasons, users are encouraged
+		// to enable x11 forwarding with caution, as an attacker that can bypass file
+		// permissions on the remote host may be able to carry out such attacks.
+		ForwardX11Trusted: true,
 	}
 
 	for _, o := range opts {
@@ -179,30 +213,36 @@ func parseOptions(opts []string) (Options, error) {
 			return Options{}, trace.Wrap(err)
 		}
 
-		supportedValues, ok := AllOptions[key]
+		parseValue, ok := supportedOptions[key]
 		if !ok {
 			return Options{}, trace.BadParameter("unsupported option key: %v", key)
 		}
 
-		if len(supportedValues) == 0 {
+		if parseValue == nil {
 			fmt.Printf("WARNING: Option '%v' is not supported.\n", key)
 			continue
 		}
 
-		_, ok = supportedValues[value]
-		if !ok {
-			return Options{}, trace.BadParameter("unsupported option value: %v", value)
+		val, err := parseValue(value)
+		if err != nil {
+			return Options{}, trace.BadParameter("unsupported option value %q: %s", value, err)
 		}
 
 		switch key {
 		case "AddKeysToAgent":
-			options.AddKeysToAgent = utils.AsBool(value)
+			options.AddKeysToAgent = val.(bool)
 		case "ForwardAgent":
-			options.ForwardAgent = asAgentForwardingMode(value)
+			options.ForwardAgent = val.(client.AgentForwardingMode)
 		case "RequestTTY":
-			options.RequestTTY = utils.AsBool(value)
+			options.RequestTTY = val.(bool)
 		case "StrictHostKeyChecking":
-			options.StrictHostKeyChecking = utils.AsBool(value)
+			options.StrictHostKeyChecking = val.(bool)
+		case "ForwardX11":
+			options.ForwardX11 = val.(bool)
+		case "ForwardX11Trusted":
+			options.ForwardX11Trusted = val.(bool)
+		case "ForwardX11Timeout":
+			options.ForwardX11Timeout = val.(uint)
 		}
 	}
 
@@ -221,10 +261,8 @@ func splitOption(option string) (string, string, error) {
 
 // fieldsFunc splits key-value pairs off ' ' and '='.
 func fieldsFunc(c rune) bool {
-	switch {
-	case c == ' ':
-		return true
-	case c == '=':
+	switch c {
+	case ' ', '=':
 		return true
 	default:
 		return false

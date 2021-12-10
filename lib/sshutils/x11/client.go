@@ -17,14 +17,14 @@ import (
 
 // RequestX11Forwarding sends an "x11-req" to the server to set up
 // x11 forwarding for the given session.
-func RequestX11Forwarding(ctx context.Context, sess *ssh.Session, clt *ssh.Client, trusted, singleConnection bool) error {
+func RequestX11Forwarding(ctx context.Context, sess *ssh.Session, clt *ssh.Client, singleConnection, trusted bool, forwardingTimeout uint) error {
 	// TODO: GetDisplayEnv and pass to functions higher in call stack
 	display, err := displayFromEnv()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	screenNumber, err := parseDisplayScreenNumber(display)
+	_, _, screenNumber, err := parseDisplay(display)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -32,31 +32,32 @@ func RequestX11Forwarding(ctx context.Context, sess *ssh.Session, clt *ssh.Clien
 	var xauthEntry *xAuthEntry
 	if trusted {
 		log.Debug("obtaining trusted auth token for x11 forwarding")
-		// use existing real auth token
 		xauthEntry, err = readXAuthEntry(ctx, "", display)
 		if err != nil {
-			log.Debugf("failed to obtain trusted auth token: %s", err)
-			log.Debugf("creating fake auth token for trusted x11 forwarding")
 			// if we can't get the real auth token, a new fake one will suffice.
-
+			log.Debug("failed to obtain existing auth token, creating fake auth token for trusted x11 forwarding")
 			xauthEntry, err = newFakeXAuthEntry(display)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	} else {
+		// untrusted forwarding requires that we have an untrusted token,
+		// so rather than creating a fake token, we generate a real untrusted
+		// token with xauth. Unlike the two trusted tokens above, this token
+		// will not provide access the the user's XAuthority, preventing
+		// an attacker from performing actions such as keystroke monitoring.
 		log.Debug("generating untrusted auth token for x11 forwarding")
-		// create a new untrusted auth token
-		xauthEntry, err = generateUntrustedXAuthEntry(ctx, display, 0)
+		xauthEntry, err = generateUntrustedXAuthEntry(ctx, display, forwardingTimeout)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	// Create a fake xauth entry which will be used to authenticate incoming
-	// server requests. Once the channel is created, the real auth cookie will
-	// be used to authorize the XServer.
-	// (somehow? Do we actually need to grab the cookie? do we just grab it to make a realistic spoof?)
+	// server requests. The client will intercept server requests from the
+	// x11 channel and replace this fake token with the real token retrieved
+	// or generated above.
 	fakeXAuthEntry, err := xauthEntry.spoof()
 	if err != nil {
 		return trace.Wrap(err)
