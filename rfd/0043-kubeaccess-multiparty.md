@@ -150,7 +150,7 @@ This example illustrates how a group 3 users of which Alice is the initiator and
 start a multiparty session. Below is a a series of events that happen that include what each user sees and what
 they do.
 
-- Alice initiates an interactive session to a pod: `tsh kube exec --invite=ben@foo.net,eve@foo.net,alice@foo.net -- database_pod -- /bin/bash`
+- Alice initiates an interactive session to a pod: `tsh kube exec -st --invite=ben@foo.net,eve@foo.net,alice@foo.net database_pod /bin/bash`
 - Alice sees:
 ```
 Creating session with uuid <example-uuid>...
@@ -190,7 +190,7 @@ Events:
 Shared sessions for Kubernetes access will have support for participant invites and notifications.
 Ongoing sessions are tracked and can be listed to make it easier to find and join them.
 
-Ongoing sessions you have access to view can be listed with `tsh kube sessions ls`.
+Ongoing sessions you have access to view can be listed with `tsh kube sessions`.
 This easily allows eligible participants to find and join a session waiting for participants easily
 
 When the `--invite` flag is used with `tsh kube exec`, the invitees are tracked and included in the
