@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -262,10 +263,37 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				},
 			},
+		}, {
+			desc: "Local auth with disabled Webauthn",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "on",
+					"u2f": cfgMap{
+						"app_id": "https://example.com",
+						"facets": []interface{}{
+							"https://example.com",
+						},
+					},
+					"webauthn": cfgMap{
+						"disabled": true,
+					},
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "on",
+				U2F: &UniversalSecondFactor{
+					AppID:  "https://example.com",
+					Facets: []string{"https://example.com"},
+				},
+				Webauthn: &Webauthn{
+					Disabled: true,
+				},
+			},
 		},
 	}
-
-	// run tests
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			text := bytes.NewBuffer(editConfig(t, tt.mutate))
@@ -276,6 +304,33 @@ func TestAuthenticationSection(t *testing.T) {
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication, tt.expected))
 		})
 	}
+}
+
+func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
+	// An absent U2F section should be reflected as a nil U2F object.
+	// The config below is a valid config without U2F, but other than that we
+	// don't care about its specifics for this test.
+	text := editConfig(t, func(cfg cfgMap) {
+		cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			"type":          "local",
+			"second_factor": "on",
+			"webauthn": cfgMap{
+				"rp_id": "localhost",
+			},
+		}
+	})
+	cfg, err := ReadConfig(bytes.NewBuffer(text))
+	require.NoError(t, err)
+
+	cap, err := cfg.Auth.Authentication.Parse()
+	require.NoError(t, err, "failed parsing cap")
+
+	_, u2fErr := cap.GetU2F()
+	require.Error(t, u2fErr, "U2F configuration present")
+	require.True(t, trace.IsNotFound(u2fErr), "uxpected U2F error")
+
+	_, webErr := cap.GetWebauthn()
+	require.NoError(t, webErr, "unexpected webauthn error")
 }
 
 // TestSSHSection tests the config parser for the SSH config block

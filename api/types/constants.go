@@ -112,11 +112,17 @@ const (
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
+	// KindApp is a web app resource.
+	KindApp = "app"
+
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
+
+	// KindKubernetesCluster is a Kubernetes cluster.
+	KindKubernetesCluster = "kube_cluster"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -153,10 +159,10 @@ const (
 	MetaNameSessionRecordingConfig = "session-recording-config"
 
 	// KindClusterConfig is the resource that holds cluster level configuration.
+	// Deprecated: This does not correspond to an actual resource anymore but is
+	// still used when checking access to the new configuration resources, as an
+	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
-
-	// MetaNameClusterConfig is the exact name of the cluster config singleton resource.
-	MetaNameClusterConfig = "cluster-config"
 
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"
@@ -297,10 +303,14 @@ const (
 	// OriginDynamic is an origin value indicating that the resource was
 	// committed as dynamic configuration.
 	OriginDynamic = "dynamic"
+
+	// OriginCloud is an origin value indicating that the resource was
+	// imported from a cloud provider.
+	OriginCloud = "cloud"
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic}
+var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.

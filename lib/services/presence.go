@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -47,7 +48,7 @@ type Presence interface {
 	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.Server, error)
 
 	// ListNodes returns a paginated list of registered servers.
-	ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error)
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
 
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error
@@ -177,23 +178,37 @@ type Presence interface {
 	UpsertKubeService(context.Context, types.Server) error
 
 	// GetAppServers gets all application servers.
+	//
+	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
 	GetAppServers(context.Context, string, ...MarshalOption) ([]types.Server, error)
-
 	// UpsertAppServer adds an application server.
+	//
+	// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
 	UpsertAppServer(context.Context, types.Server) (*types.KeepAlive, error)
-
 	// DeleteAppServer removes an application server.
-	DeleteAppServer(context.Context, string, string) error
-
+	//
+	// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
+	DeleteAppServer(ctx context.Context, namespace, name string) error
 	// DeleteAllAppServers removes all application servers.
+	//
+	// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
 	DeleteAllAppServers(context.Context, string) error
+
+	// GetApplicationServers returns all registered application servers.
+	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
+	// UpsertApplicationServer registers an application server.
+	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
+	// DeleteApplicationServer deletes specified application server.
+	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+	// DeleteAllApplicationServers removes all registered application servers.
+	DeleteAllApplicationServers(context.Context, string) error
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
 	// UpsertDatabaseServer creates or updates a new database proxy server.
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
 	// DeleteDatabaseServer removes the specified database proxy server.
-	DeleteDatabaseServer(context.Context, string, string, string) error
+	DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error
 	// DeleteAllDatabaseServers removes all database proxy servers.
 	DeleteAllDatabaseServers(context.Context, string) error
 

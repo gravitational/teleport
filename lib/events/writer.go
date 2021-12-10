@@ -117,12 +117,12 @@ func (w *WriterLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eve
 }
 
 // SearchSessionEvents is a flexible way to find session events.
-// Only session events are returned by this function.
-// This is used to find completed session.
+// Only session.end events are returned by this function.
+// This is used to find completed sessions.
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
-func (w *WriterLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
+func (w *WriterLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) (events []apievents.AuditEvent, lastKey string, err error) {
 	return nil, "", trace.NotImplemented("not implemented")
 }
 

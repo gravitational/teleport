@@ -162,7 +162,7 @@ file and restart the database:
   net:
     ssl:
       mode: requireSSL
-      PEMKeyFile: /etc/certs/mongo.pem
+      PEMKeyFile: /etc/certs/mongo.crt
       CAFile: /etc/certs/mongo.cas
   ```
   </TabItem>
@@ -171,7 +171,7 @@ file and restart the database:
   net:
     tls:
       mode: requireTLS
-      certificateKeyFile: /etc/certs/mongo.pem
+      certificateKeyFile: /etc/certs/mongo.crt
       CAFile: /etc/certs/mongo.cas
   ```
   </TabItem>
@@ -228,12 +228,6 @@ $ tsh db connect example-mongo
   The `mongo` command-line client should be available in PATH in order to be
   able to connect.
 </Admonition>
-
-If you would like to see the native `mongo` shell connect command, run:
-
-```code
-$ tsh db config --format=cmd example-mongo
-```
 
 To log out of the database and remove credentials:
 

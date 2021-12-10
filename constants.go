@@ -349,6 +349,9 @@ const (
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption = "disablesse"
 
+	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
+	SSEKMSKey = "sse_kms_key"
+
 	// SchemeFile is a local disk file storage
 	SchemeFile = "file"
 
@@ -492,9 +495,13 @@ const (
 	// TraitExternalPrefix is the role variable prefix that indicates the data comes from an external identity provider.
 	TraitExternalPrefix = "external"
 
-	// TraitLogins is the name the role variable used to store
+	// TraitLogins is the name of the role variable used to store
 	// allowed logins.
 	TraitLogins = "logins"
+
+	// TraitWindowsLogins is the name of the role variable used
+	// to store allowed Windows logins.
+	TraitWindowsLogins = "windows_logins"
 
 	// TraitKubeGroups is the name the role variable used to store
 	// allowed kubernetes groups
@@ -515,6 +522,10 @@ const (
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
+
+	// TraitInternalWindowsLoginsVariable is the variable used to store
+	// allowed Windows Desktop logins for local accounts.
+	TraitInternalWindowsLoginsVariable = "{{internal.windows_logins}}"
 
 	// TraitInternalKubeGroupsVariable is the variable used to store allowed
 	// kubernetes groups for local accounts.
@@ -550,6 +561,9 @@ const SCP = "scp"
 // Root is *nix system administrator account name.
 const Root = "root"
 
+// Administrator is the Windows system administrator account name.
+const Administrator = "Administrator"
+
 // AdminRoleName is the name of the default admin role for all local users if
 // another role is not explicitly assigned
 const AdminRoleName = "admin"
@@ -567,9 +581,6 @@ const (
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
 )
-
-// OSSMigratedV6 is a label to mark migrated OSS users and resources
-const OSSMigratedV6 = "migrate-v6.0"
 
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
@@ -696,9 +707,6 @@ const (
 	ChanSession = "session"
 )
 
-// RSAKeySize is the size of the RSA key.
-const RSAKeySize = 2048
-
 // A principal name for use in SSH certificates.
 type Principal string
 
@@ -734,3 +742,6 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
+
+// StandardRDPPort is the default port used for RDP.
+const StandardRDPPort = 3389

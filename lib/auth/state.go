@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
@@ -127,10 +128,9 @@ func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*Iden
 	if err := res.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(&PackedKeys{
-		Key:        res.Spec.Key,
-		Cert:       res.Spec.SSHCert,
-		TLSCert:    res.Spec.TLSCert,
+	return ReadIdentityFromKeyPair(res.Spec.Key, &proto.Certs{
+		SSH:        res.Spec.SSHCert,
+		TLS:        res.Spec.TLSCert,
 		TLSCACerts: res.Spec.TLSCACerts,
 		SSHCACerts: res.Spec.SSHCACerts,
 	})

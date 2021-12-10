@@ -31,6 +31,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -94,6 +96,7 @@ func TestMTLSClientCAs(t *testing.T) {
 
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
+			Log: logrus.New(),
 			ForwarderConfig: ForwarderConfig{
 				ClusterName: mainClusterName,
 			},
@@ -104,6 +107,7 @@ func TestMTLSClientCAs(t *testing.T) {
 			},
 		},
 	}
+
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	defer lis.Close()
@@ -170,5 +174,52 @@ func TestMTLSClientCAs(t *testing.T) {
 			addCA(t, fmt.Sprintf("cluster-%d", i))
 		}
 		testDial(t, 1)
+	})
+}
+
+func TestGetServerInfo(t *testing.T) {
+	ap := &mockAccessPoint{
+		cas: make(map[string]types.CertAuthority),
+	}
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+
+	srv := &TLSServer{
+		TLSServerConfig: TLSServerConfig{
+			Log: logrus.New(),
+			ForwarderConfig: ForwarderConfig{
+				Clock:       clockwork.NewFakeClock(),
+				ClusterName: "kube-cluster",
+			},
+			AccessPoint: ap,
+			TLS:         &tls.Config{},
+		},
+		fwd: &Forwarder{
+			cfg: ForwarderConfig{},
+		},
+		listener: listener,
+	}
+
+	t.Run("GetServerInfo gets listener addr with PublicAddr unset", func(t *testing.T) {
+		serverInfo, err := srv.GetServerInfo()
+		require.NoError(t, err)
+
+		kubeServer, ok := serverInfo.(*types.ServerV2)
+		require.True(t, ok)
+
+		require.Equal(t, listener.Addr().String(), kubeServer.GetAddr())
+	})
+
+	t.Run("GetServerInfo gets correct public addr with PublicAddr set", func(t *testing.T) {
+		srv.TLSServerConfig.ForwarderConfig.PublicAddr = "k8s.example.com"
+
+		serverInfo, err := srv.GetServerInfo()
+		require.NoError(t, err)
+
+		kubeServer, ok := serverInfo.(*types.ServerV2)
+		require.True(t, ok)
+
+		require.Equal(t, "k8s.example.com", kubeServer.GetAddr())
 	})
 }

@@ -213,7 +213,7 @@ func ValidateAccessPredicates(role types.Role) error {
 		return trace.Wrap(err, "failed to build empty threshold predicate parser (this is a bug)")
 	}
 
-	if len(role.GetAccessRequestConditions(Deny).Thresholds) != 0 {
+	if len(role.GetAccessRequestConditions(types.Deny).Thresholds) != 0 {
 		// deny blocks never contain thresholds.  a threshold which happens to describe a *denial condition* is
 		// still part of the "allow" block.  thresholds are not part of deny blocks because thresholds describe the
 		// state-transition scenarios supported by a request (including potentially being denied).  deny.request blocks match
@@ -221,7 +221,7 @@ func ValidateAccessPredicates(role types.Role) error {
 		return trace.BadParameter("deny.request cannot contain thresholds, set denial counts in allow.request.thresholds instead")
 	}
 
-	for _, t := range role.GetAccessRequestConditions(Allow).Thresholds {
+	for _, t := range role.GetAccessRequestConditions(types.Allow).Thresholds {
 		if t.Filter == "" {
 			continue
 		}
@@ -235,13 +235,13 @@ func ValidateAccessPredicates(role types.Role) error {
 		return trace.Wrap(err, "failed to build empty review predicate parser (this is a bug)")
 	}
 
-	if w := role.GetAccessReviewConditions(Deny).Where; w != "" {
+	if w := role.GetAccessReviewConditions(types.Deny).Where; w != "" {
 		if _, err := rp.EvalBoolPredicate(w); err != nil {
 			return trace.BadParameter("invalid review predicate: %q, %v", w, err)
 		}
 	}
 
-	if w := role.GetAccessReviewConditions(Allow).Where; w != "" {
+	if w := role.GetAccessReviewConditions(types.Allow).Where; w != "" {
 		if _, err := rp.EvalBoolPredicate(w); err != nil {
 			return trace.BadParameter("invalid review predicate: %q, %v", w, err)
 		}
@@ -778,7 +778,7 @@ func NewReviewPermissionChecker(ctx context.Context, getter UserAndRoleGetter, u
 
 func (c *ReviewPermissionChecker) push(role types.Role) error {
 
-	allow, deny := role.GetAccessReviewConditions(Allow), role.GetAccessReviewConditions(Deny)
+	allow, deny := role.GetAccessReviewConditions(types.Allow), role.GetAccessReviewConditions(types.Deny)
 
 	var err error
 
@@ -966,7 +966,7 @@ func (m *RequestValidator) push(role types.Role) error {
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
 
-	allow, deny := role.GetAccessRequestConditions(Allow), role.GetAccessRequestConditions(Deny)
+	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 
 	m.Roles.DenyRequest, err = appendRoleMatchers(m.Roles.DenyRequest, deny.Roles, deny.ClaimsToRoles, m.user.GetTraits())
 	if err != nil {

@@ -206,10 +206,9 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	buf, err := backend.NewCircularBuffer(cfg.BufferSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	buf := backend.NewCircularBuffer(
+		backend.BufferCapacity(cfg.BufferSize),
+	)
 	closeCtx, cancel := context.WithCancel(ctx)
 	b := &EtcdBackend{
 		Entry:     log.WithFields(log.Fields{trace.Component: GetName()}),
@@ -273,7 +272,7 @@ func (cfg *Config) Validate() error {
 		}
 	}
 	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferSize
+		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.DialTimeout == 0 {
 		cfg.DialTimeout = apidefaults.DefaultDialTimeout

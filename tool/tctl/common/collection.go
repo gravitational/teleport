@@ -29,7 +29,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -60,9 +59,9 @@ func (r *roleCollection) writeText(w io.Writer) error {
 		}
 		t.AddRow([]string{
 			r.GetMetadata().Name,
-			strings.Join(r.GetLogins(services.Allow), ","),
-			printNodeLabels(r.GetNodeLabels(services.Allow)),
-			printActions(r.GetRules(services.Allow))})
+			strings.Join(r.GetLogins(types.Allow), ","),
+			printNodeLabels(r.GetNodeLabels(types.Allow)),
+			printActions(r.GetRules(types.Allow))})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -440,31 +439,30 @@ func (c *semaphoreCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-type appCollection struct {
-	servers []types.Server
+type appServerCollection struct {
+	servers []types.AppServer
 }
 
-func (a *appCollection) resources() (r []types.Resource) {
+func (a *appServerCollection) resources() (r []types.Resource) {
 	for _, resource := range a.servers {
 		r = append(r, resource)
 	}
 	return r
 }
 
-func (a *appCollection) writeText(w io.Writer) error {
+func (a *appServerCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})
 	for _, server := range a.servers {
-		for _, app := range server.GetApps() {
-			t.AddRow([]string{
-				app.Name, server.GetName(), app.PublicAddr, app.URI, types.LabelsAsString(app.StaticLabels, app.DynamicLabels),
-			})
-		}
+		app := server.GetApp()
+		t.AddRow([]string{
+			app.GetName(), server.GetHostname(), app.GetPublicAddr(), app.GetURI(), app.LabelsString(),
+		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
-func (a *appCollection) writeJSON(w io.Writer) error {
+func (a *appServerCollection) writeJSON(w io.Writer) error {
 	data, err := json.MarshalIndent(a.toMarshal(), "", "    ")
 	if err != nil {
 		return trace.Wrap(err)
@@ -473,12 +471,34 @@ func (a *appCollection) writeJSON(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (a *appCollection) toMarshal() interface{} {
+func (a *appServerCollection) toMarshal() interface{} {
 	return a.servers
 }
 
-func (a *appCollection) writeYAML(w io.Writer) error {
+func (a *appServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, a.toMarshal())
+}
+
+type appCollection struct {
+	apps []types.Application
+}
+
+func (c *appCollection) resources() (r []types.Resource) {
+	for _, resource := range c.apps {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *appCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Description", "URI", "Public Address", "Labels"})
+	for _, app := range c.apps {
+		t.AddRow([]string{
+			app.GetName(), app.GetDescription(), app.GetURI(), app.GetPublicAddr(), app.LabelsString(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }
 
 type authPrefCollection struct {
@@ -701,4 +721,25 @@ func (c *windowsDesktopCollection) writeText(w io.Writer) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+type tokenCollection struct {
+	tokens []types.ProvisionToken
+}
+
+func (c *tokenCollection) resources() (r []types.Resource) {
+	for _, resource := range c.tokens {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *tokenCollection) writeText(w io.Writer) error {
+	for _, token := range c.tokens {
+		_, err := w.Write([]byte(token.String()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }

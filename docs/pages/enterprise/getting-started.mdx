@@ -175,7 +175,7 @@ You can review the logs of the Teleport service with `journalctl -fu teleport` a
 with `sudo systemctl status teleport`.
 
 You can use `netstat -lptne` to review the port that Teleport is
-listening on  on [TCP/IP ports](../admin-guide.mdx#ports). On *auth.example.com*, it should
+listening on  on [TCP/IP ports](../setup/reference/networking.mdx#ports). On *auth.example.com*, it should
 look something like this:
 
 ```bsh
@@ -205,57 +205,24 @@ See [troubleshooting](#troubleshooting) section at the bottom if something is no
 This portion of the Quick Start Guide should be performed on the auth server, i.e.
 on *auth.example.com*
 
-Every user in a Teleport cluster must be assigned at least one role. By
-default, Teleport comes with one pre-configured role called "admin". You can
-see it's definition by executing `sudo tctl get roles/admin > admin-role.yaml`.
+Every user in a Teleport cluster must be assigned at least one role. By default,
+Teleport comes with several pre-configured roles known as
+["presets"](../access-controls/reference.mdx#preset-roles). You can see
+these roles by executing `sudo tctl get roles`.
 
-The output will look like this (re-formatted here to use compact YAML
-representation for brevity):
+Pay attention to the *allow/logins* field in the role definition: by default, this
+role only allows SSH logins as `root@host`.
 
 ```yaml
 kind: role
 metadata:
-  name: admin
+  name: access
 spec:
   allow:
     logins:
     - '{{internal.logins}}'
     - root
-    node_labels:
-      '*': '*'
-    app_labels:
-      '*': '*'
-    kubernetes_groups:
-    - '{{internal.kubernetes_groups}}'
-    kubernetes_labels:
-      '*': '*'
-    kubernetes_users:
-    - '{{internal.kubernetes_users}}'
-    rules:
-    - resources: [role]
-      verbs: [list, create, read, update, delete]
-    - resources: [auth_connector]
-      verbs: [list, create, read, update, delete]
-    - resources: [user]
-      verbs: [list, create, read, update, delete]
-    - resources: [session]
-      verbs: [list, read]
-    - resources: [event]
-      verbs: [list, read]
-    - resources: [trusted_cluster]
-      verbs: [list, create, read, update, delete]
-    - resources: [token]
-      verbs: [list, create, read, update, delete]
-  deny: {}
-  options:
-    forward_agent: true
-    max_session_ttl: 30h0m0s
-    port_forwarding: true
-version: v4
 ```
-
-Pay attention to the *allow/logins* field in the role definition: by default, this
-role only allows SSH logins as `root@host`.
 
 <Admonition
   type="note"
@@ -268,7 +235,7 @@ role only allows SSH logins as `root@host`.
 
 You probably want to replace "root" with something else. Let's assume there will
 be a local UNIX account called "admin" on all hosts. In this case you can
-dump the role definition YAML into *admin-role.yaml* file and update "allow/logins"
+dump the role definition YAML into a file and update "allow/logins"
 to look like this:
 
 ```yaml
@@ -286,13 +253,13 @@ allow:
 Then send it back into Teleport:
 
 ```bsh
-$ sudo tctl create -f admin-role.yaml
+$ sudo tctl create -f role.yaml
 ```
 
-Now, lets create a new Teleport user "joe" with "admin" role:
+Now, lets create a new Teleport user "joe" with "access" role:
 
 ```bsh
-$ sudo tctl users add --roles=admin joe
+$ sudo tctl users add --roles=access joe
 
 Signup token has been created and is valid for 1 hours. Share this URL with the user:
 https://auth.example.com:3080/web/newuser/22e3acb6a0c2cde22f13bdc879ff9d2a
@@ -377,7 +344,7 @@ configuring SSO providers:
 - [Okta](sso/okta.mdx)
 - [Active Directory](sso/adfs.mdx)
 - [One Login](sso/one-login.mdx)
-- [Github](../admin-guide.mdx#github-oauth-20)
+- [Github](../setup/admin/github-sso.mdx)
 
 Any SAML-compliant provider can be configured with Teleport by following the
 same steps.  There are Teleport Enterprise customers who are using Oracle IDM,
@@ -472,10 +439,11 @@ $ docker run --hostname localhost --name teleport \
 
 To create a user inside your Teleport Enterprise container, use `docker exec`.
 
-This example command will create a Teleport user called `testuser` which has the `admin` role. Feel free to change these to suit your needs.
+This example command will create a Teleport user called `testuser` which has the
+`access` role. Feel free to change these to suit your needs.
 
 ```code
-$ docker exec teleport tctl users add testuser --roles=admin
+$ docker exec teleport tctl users add testuser --roles=access
 ```
 
 When you run this command, Teleport will output a URL which you must open to complete the user signup process:

@@ -16,7 +16,8 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-RUNTIME ?= go1.16.2
+RUNTIME ?= go1.17.2
+RUST_VERSION ?= 1.56.1
 BORINGCRYPTO_RUNTIME=$(RUNTIME)b7
 LIBBPF_VERSION ?= 0.3.1
 
@@ -30,6 +31,8 @@ GOGO_PROTO_TAG ?= v1.3.2
 BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
 BUILDBOX_FIPS=quay.io/gravitational/teleport-buildbox-fips:$(RUNTIME)
 BUILDBOX_CENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
+BUILDBOX_CENTOS7=quay.io/gravitational/teleport-buildbox-centos7:$(RUNTIME)
+BUILDBOX_CENTOS7_FIPS=quay.io/gravitational/teleport-buildbox-centos7-fips:$(RUNTIME)
 BUILDBOX_ARM=quay.io/gravitational/teleport-buildbox-arm:$(RUNTIME)
 BUILDBOX_ARM_FIPS=quay.io/gravitational/teleport-buildbox-arm-fips:$(RUNTIME)
 
@@ -82,7 +85,7 @@ build-binaries: buildbox
 .PHONY:build-enterprise-binaries
 build-enterprise-binaries: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) full
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) clean full
 
 #
 # Build 'teleport' FIPS release inside a docker container
@@ -91,7 +94,7 @@ build-enterprise-binaries: buildbox
 .PHONY:build-binaries-fips
 build-binaries-fips: buildbox-fips
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_FIPS) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes full
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes clean full
 
 #
 # Builds a Docker container which is used for building official Teleport binaries
@@ -103,10 +106,11 @@ build-binaries-fips: buildbox-fips
 buildbox:
 	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
 		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
-		docker build \
+		docker build --platform=linux/amd64 \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg RUNTIME=$(RUNTIME) \
+			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg PROTOC_PLATFORM=$(PROTOC_PLATFORM) \
@@ -148,6 +152,34 @@ buildbox-centos6:
 # https://github.com/gravitational/teleport/issues/7207
 
 #
+# Builds a Docker buildbox for CentOS 7 builds
+#
+.PHONY:buildbox-centos7
+buildbox-centos7:
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7) || true; fi;
+	docker build \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
+		--build-arg RUNTIME=$(RUNTIME) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--cache-from $(BUILDBOX_CENTOS7) \
+		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
+
+#
+# Builds a Docker buildbox for CentOS 7 FIPS builds
+#
+.PHONY:buildbox-centos7-fips
+buildbox-centos7-fips:
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7_FIPS) || true; fi;
+	docker build \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
+		--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
+		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
+
+#
 # Builds a Docker buildbox for ARMv7/ARM64 builds
 # ARM buildboxes use a regular Teleport buildbox as a base which already has a user
 # with the correct UID and GID created, so those arguments are not needed here.
@@ -175,10 +207,10 @@ buildbox-arm-fips: buildbox-fips
 		--cache-from $(BUILDBOX_ARM_FIPS) \
 		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
 
-# grpc generates GRPC stubs from service definitions
+# grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
 grpc: buildbox
-	docker run \
+	docker run --platform=linux/amd64 \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
 
@@ -287,6 +319,14 @@ release-arm64: buildbox-arm
 release-amd64-centos6: buildbox-centos6
 	$(MAKE) release-centos6 ARCH=amd64
 
+.PHONY: release-amd64-centos7
+release-amd64-centos7: buildbox-centos7
+	$(MAKE) release-centos7 ARCH=amd64
+
+.PHONY: release-amd64-centos7-fips
+release-amd64-centos7-fips: buildbox-centos7-fips
+	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
+
 #
 # Create a Teleport FIPS package using the build container.
 # This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
@@ -300,11 +340,29 @@ release-fips: buildbox-fips
 
 #
 # Create a Teleport package for CentOS 6 using the build container.
+# DELETE IN 9.0 (zmb3)
 #
 .PHONY:release-centos6
 release-centos6: buildbox-centos6
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS6) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) REPRODUCIBLE=no
+
+#
+# Create a Teleport package for CentOS 7 using the build container.
+#
+.PHONY:release-centos7
+release-centos7: buildbox-centos7
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) REPRODUCIBLE=no
+
+#
+# Create a Teleport FIPS package for CentOS 7 using the build container.
+# This only builds and packages enterprise FIPS binaries, no OSS.
+#
+.PHONY:release-centos7-fips
+release-centos7-fips:
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
+		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no
 
 #
 # Create a Windows Teleport package using the build container.
@@ -325,12 +383,33 @@ release-windows-unsigned: buildbox
 #
 # Run docs tester to detect problems.
 #
-.PHONY: docsbox
+.PHONY:docsbox
 docsbox:
 	if ! docker inspect --type=image $(DOCSBOX) 2>&1 >/dev/null; then docker pull $(DOCSBOX) || true; fi
 
-.PHONY: test-docs
-test-docs: DOCS_VERSION := $(shell grep -E ^VERSION $(MAKEFILE_ROOT_DIR)/Makefile | cut -d= -f2 | cut -d. -f1-2)
+.PHONY:test-docs
 test-docs: docsbox
-	docker run -i $(NOROOT) -v $$(pwd)/..:/src/content/$(DOCS_VERSION) $(DOCSBOX) \
+	docker run --platform=linux/amd64 -i $(NOROOT) -v $$(pwd)/..:/src/content $(DOCSBOX) \
 		/bin/sh -c "yarn markdown-lint-external-links"
+
+#
+# Builds assets needed by CentOS 6 in a container.
+#
+.PHONY:build-centos6-assets
+build-centos6-assets:
+	docker build -t buildbox-centos6-assets -f Dockerfile-centos6-assets .
+	docker run -v $$(pwd):/centos6.assets -it buildbox-centos6-assets cp /centos6-assets.tar.gz /centos6.assets
+
+#
+# Print the Go version used to build Teleport.
+#
+.PHONY:print-go-version
+print-go-version:
+	@echo $(RUNTIME)
+
+#
+# Print the Rust version used to build Teleport.
+#
+.PHONY:print-rust-version
+print-rust-version:
+	@echo $(RUST_VERSION)

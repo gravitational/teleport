@@ -1,3 +1,4 @@
+//go:build !roletester
 // +build !roletester
 
 /*

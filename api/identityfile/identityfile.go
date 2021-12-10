@@ -26,6 +26,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -107,8 +108,22 @@ func Write(idFile *IdentityFile, path string) error {
 	return nil
 }
 
-// Read reads an identity file from the given path.
-func Read(path string) (*IdentityFile, error) {
+// Read reads an identity file from generic io.Reader interface.
+func Read(r io.Reader) (*IdentityFile, error) {
+	ident, err := decodeIdentityFile(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(ident.Certs.SSH) == 0 {
+		return nil, trace.BadParameter("could not find SSH cert in the identity file")
+	}
+
+	return ident, nil
+}
+
+// ReadFile reads an identity file from a given path.
+func ReadFile(path string) (*IdentityFile, error) {
 	r, err := os.Open(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -127,6 +142,20 @@ func Read(path string) (*IdentityFile, error) {
 		if ident.Certs.SSH, err = ioutil.ReadFile(certFn); err != nil {
 			return nil, trace.Wrap(err, "could not find SSH cert in the identity file or %v", certFn)
 		}
+	}
+
+	return ident, nil
+}
+
+// FromString reads an identity file from a string.
+func FromString(content string) (*IdentityFile, error) {
+	ident, err := decodeIdentityFile(strings.NewReader(content))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(ident.Certs.SSH) == 0 {
+		return nil, trace.BadParameter("could not find SSH cert in the identity file")
 	}
 
 	return ident, nil

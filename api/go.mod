@@ -9,7 +9,7 @@ require (
 	github.com/gravitational/trace v1.1.15
 	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
-	github.com/sirupsen/logrus v1.6.0 // indirect
+	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.2.2
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381

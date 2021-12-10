@@ -1,6 +1,6 @@
 ---
-title: Getting Started with Kubernetes Access
-description: Getting started with Teleport Kubernetes Access.
+title: Getting Started - Kubernetes with SSO
+description: Getting started with Teleport. Let's deploy Teleport in a Kubernetes with SSO and Audit logs
 ---
 
 # Getting Started
@@ -56,7 +56,7 @@ Let's start with a single-pod Teleport using persistent volume as a backend.
     $ kubectl config set-context --current --namespace=teleport-cluster-ent
 
     # Get a license from Teleport and create a secret "license" in the namespace teleport-cluster-ent
-    $ kubectl -n teleport-cluster-ent create secret generic license --from-file=license-enterprise.pem
+    $ kubectl -n teleport-cluster-ent create secret generic license --from-file=license.pem
 
     # Install Teleport
     $ helm install teleport-cluster teleport/teleport-cluster --namespace=teleport-cluster-ent \
@@ -157,10 +157,10 @@ $ curl https://tele.example.com/webapi/ping
 # {"server_version":"6.0.0","min_client_version":"3.0.0"}
 ```
 
-## Step 2/3. Create a local admin
+## Step 2/3. Create a local user
 
 Local users are a reliable fallback for cases when the SSO provider is down.
-Let's create a local admin `alice` who has access to Kubernetes group `system:masters`.
+Let's create a local user `alice` who has access to Kubernetes group `system:masters`.
 
 Save this role as `member.yaml`:
 
@@ -250,7 +250,7 @@ We are going to setup Github connector for OSS and Okta for Enterprise version.
   <TabItem label="Open Source">
     Save the file below as `github.yaml` and update the fields. You will need to set up
     [Github OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) app.
-    Any member with the team `admin` in the organization `octocats` will be able to assume a builtin role `admin`.
+    Any member with the team `admin` in the organization `octocats` will be able to assume a builtin role `access`.
 
     ```yaml
     kind: github
@@ -271,7 +271,7 @@ We are going to setup Github connector for OSS and Okta for Enterprise version.
       teams_to_logins:
         - organization: octocats # Github organization name
           team: admin            # Github team name within that organization
-          # map github admin team to Teleport's "admin" role
+          # map Github's "admin" team to Teleport's "access" role
           logins: ["access"]
     ```
   </TabItem>
@@ -280,7 +280,7 @@ We are going to setup Github connector for OSS and Okta for Enterprise version.
     Follow [SAML Okta Guide](../../enterprise/sso/okta.mdx#configure-okta) to create a SAML app.
     Check out [OIDC guides](../../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.
-    Any member in Okta group `okta-admin` will assume a builtin role `admin`.
+    Any member in Okta group `okta-admin` will assume a builtin role `access`.
 
     ```yaml
     kind: saml

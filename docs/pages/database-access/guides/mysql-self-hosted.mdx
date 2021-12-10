@@ -86,7 +86,7 @@ EOF
 Create the user assigned the `db` role we've just created:
 
 ```code
-$ tctl --config=/path/to/teleport-db-role.yaml users add --roles=admin,db testuser
+$ tctl --config=/path/to/teleport-db-role.yaml users add --roles=access,db testuser
 ```
 
 ### Start Database Service with CLI Flags
@@ -216,12 +216,6 @@ $ tsh db connect example
   The `mysql` command-line client should be available in PATH in order to be
   able to connect.
 </Admonition>
-
-If you would like to see the native `mysql` shell connect command, run:
-
-```code
-$ tsh db config --format=cmd example
-```
 
 To log out of the database and remove credentials:
 

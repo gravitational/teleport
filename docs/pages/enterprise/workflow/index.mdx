@@ -28,13 +28,13 @@ version: v4
 metadata:
   name: contractor
 spec:
-  options:
-    # ...
   allow:
     request:
       roles: ['dba']
     # ...
   deny:
+    # ...
+  options:
     # ...
 ```
 
@@ -47,14 +47,14 @@ version: v4
 metadata:
   name: dba
 spec:
-  options:
-    # ...
-    # Only allows the contractor to use this role for 1 hour from time of request.
-    max_session_ttl: 1h
   allow:
     # ...
   deny:
     # ...
+  options:
+    # ...
+    # Only allows the contractor to use this role for 1 hour from time of request.
+    max_session_ttl: 1h
 ```
 
 **Admin Role**
@@ -66,25 +66,39 @@ version: v4
 metadata:
   name: admin
 spec:
-  options:
-    # ...
   allow:
-    # ...
+    # `review_requests` permits the listed roles to be approved
+    review_requests:
+      roles:
+      - 'dba'
+    rules:
+    # `access_request` is part of Access Workflows introduced in 4.2
+    # `access_request` should only be given to Teleport Admins.
+    # For a full list of allow-rules, see
+    # https://goteleport.com/docs/access-controls/reference/
+    - resources:
+      - access_request
+      verbs:
+      - list
+      - read
+      - update
+      - delete
   deny:
     # ...
-  # list of allow-rules, see
-  # https://gravitational.com/teleport/docs/enterprise/ssh-rbac/
-  rules:
-      # Access Request is part of Access Workflows introduced in 4.2
-      # `access_request` should only be given to Teleport Admins.
-      - resources: [access_request]
-        verbs: [list, read, update, delete]
+  options:
+    # ...
 ```
 
 ```code
 $ tsh login teleport-cluster --request-roles=dba
 # Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
 ```
+
+<Admonition type="note">
+  Users can finish the request without waiting for approval with the `--request-nowait` flag.
+  Once the request is approved, the user can see it with `tsh request ls` and login with it
+  using `tsh login --request-id`.
+</Admonition>
 
 As a Teleport Administrator:
 

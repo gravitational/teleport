@@ -26,12 +26,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -40,17 +42,41 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/stretchr/testify/require"
 )
 
-const staticToken = "test-static-token"
+const (
+	staticToken = "test-static-token"
+	// tshBinMainTestEnv allows to execute tsh main function from test binary.
+	tshBinMainTestEnv = "TSH_BIN_MAIN_TEST"
+)
 
-var randomLocalAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+var ports utils.PortList
+
+func init() {
+	// Allows test to refer to tsh binary in tests.
+	// Needed for tests that generate OpenSSH config by tsh config command where
+	// tsh proxy ssh command is used as ProxyCommand.
+	if os.Getenv(tshBinMainTestEnv) != "" {
+		main()
+		return
+	}
+
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe. Used to test tsh ssh command.
+	if len(os.Args) == 2 && (os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+		srv.RunAndExit(os.Args[1])
+		return
+	}
+
+	var err error
+	ports, err = utils.GetFreeTCPPorts(5000, utils.PortStartingNumber)
+	if err != nil {
+		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
+	}
+}
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
@@ -86,14 +112,11 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 func TestFailedLogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 
-	_, proxyProcess := makeTestServers(t, connector)
+	_, proxyProcess := makeTestServers(t, withBootstrap(connector))
 
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
@@ -110,7 +133,7 @@ func TestFailedLogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = client.SSOLoginFunc(ssoLogin)
 		return nil
 	}))
@@ -118,10 +141,7 @@ func TestFailedLogin(t *testing.T) {
 }
 
 func TestOIDCLogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+	tmpHomePath := t.TempDir()
 
 	modules.SetModules(&cliModules{})
 
@@ -152,7 +172,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	connector := mockConnector(t)
 
-	authProcess, proxyProcess := makeTestServers(t, populist, dictator, connector, alice)
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(populist, dictator, connector, alice))
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -197,7 +217,7 @@ func TestOIDCLogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--user", "alice", // explicitly use wrong name
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.SiteName = "localhost"
 		return nil
@@ -213,19 +233,54 @@ func TestOIDCLogin(t *testing.T) {
 	// request to be generated.
 }
 
-func TestRelogin(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
+// TestLoginIdentityOut makes sure that "tsh login --out <ident>" command
+// writes identity credentials to the specified path.
+func TestLoginIdentityOut(t *testing.T) {
+	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
-	alice.SetRoles([]string{"admin"})
+	alice.SetRoles([]string{"access"})
 
-	authProcess, proxyProcess := makeTestServers(t, connector, alice)
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	identPath := filepath.Join(t.TempDir(), "ident")
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+		"--out", identPath,
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	_, err = client.KeyFromIdentityFile(identPath)
+	require.NoError(t, err)
+}
+
+func TestRelogin(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -239,7 +294,7 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
@@ -251,10 +306,10 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	})
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	err = Run([]string{"logout"})
+	err = Run([]string{"logout"}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -264,7 +319,7 @@ func TestRelogin(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	}, cliOption(func(cf *CLIConf) error {
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil
 	}))
@@ -272,12 +327,8 @@ func TestRelogin(t *testing.T) {
 }
 
 func TestMakeClient(t *testing.T) {
-	os.RemoveAll(profile.FullProfilePath(""))
-	t.Cleanup(func() {
-		os.RemoveAll(profile.FullProfilePath(""))
-	})
-
 	var conf CLIConf
+	conf.HomePath = t.TempDir()
 
 	// empty config won't work:
 	tc, err := makeClient(&conf, true)
@@ -394,7 +445,7 @@ func TestIdentityRead(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, k)
 
-		cb, err := k.HostKeyCallback()
+		cb, err := k.HostKeyCallback(false)
 		require.NoError(t, err)
 		require.Nil(t, cb)
 
@@ -412,7 +463,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, k)
 
-	cb, err := k.HostKeyCallback()
+	cb, err := k.HostKeyCallback(true)
 	require.NoError(t, err)
 	require.NotNil(t, cb)
 
@@ -461,7 +512,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Equals Sign Delimited",
 			inOptions:   []string{"AddKeysToAgent=yes"},
 			assertError: require.NoError,
@@ -471,12 +523,14 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Invalid key",
 			inOptions:   []string{"foo foo"},
 			assertError: require.Error,
 			outOptions:  Options{},
-		}, {
+		},
+		{
 			desc:        "Incomplete option",
 			inOptions:   []string{"AddKeysToAgent"},
 			assertError: require.Error,
@@ -500,7 +554,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Forward Agent No",
 			inOptions:   []string{"ForwardAgent no"},
 			assertError: require.NoError,
@@ -510,7 +565,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Forward Agent Local",
 			inOptions:   []string{"ForwardAgent local"},
 			assertError: require.NoError,
@@ -520,7 +576,8 @@ func TestOptions(t *testing.T) {
 				RequestTTY:            false,
 				StrictHostKeyChecking: true,
 			},
-		}, {
+		},
+		{
 			desc:        "Forward Agent InvalidValue",
 			inOptions:   []string{"ForwardAgent potato"},
 			assertError: require.Error,
@@ -542,11 +599,11 @@ func TestOptions(t *testing.T) {
 }
 
 func TestFormatConnectCommand(t *testing.T) {
-	cluster := "root"
 	tests := []struct {
-		comment string
-		db      tlsca.RouteToDatabase
-		command string
+		clusterFlag string
+		comment     string
+		db          tlsca.RouteToDatabase
+		command     string
 	}{
 		{
 			comment: "no default user/database are specified",
@@ -584,10 +641,20 @@ func TestFormatConnectCommand(t *testing.T) {
 			},
 			command: `tsh db connect test`,
 		},
+		{
+			comment:     "extra cluster flag",
+			clusterFlag: "leaf",
+			db: tlsca.RouteToDatabase{
+				ServiceName: "test",
+				Protocol:    defaults.ProtocolPostgres,
+				Database:    "postgres",
+			},
+			command: `tsh db connect --cluster=leaf --db-user=<user> test`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.comment, func(t *testing.T) {
-			require.Equal(t, test.command, formatConnectCommand(cluster, test.db))
+			require.Equal(t, test.command, formatConnectCommand(test.clusterFlag, test.db))
 		})
 	}
 }
@@ -856,7 +923,31 @@ func TestKubeConfigUpdate(t *testing.T) {
 	}
 }
 
-func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
+type testServersOpts struct {
+	bootstrap      []types.Resource
+	authConfigFunc func(cfg *service.AuthConfig)
+}
+
+type testServerOptFunc func(o *testServersOpts)
+
+func withBootstrap(bootstrap ...types.Resource) testServerOptFunc {
+	return func(o *testServersOpts) {
+		o.bootstrap = bootstrap
+	}
+}
+
+func withAuthConfig(fn func(cfg *service.AuthConfig)) testServerOptFunc {
+	return func(o *testServersOpts) {
+		o.authConfigFunc = fn
+	}
+}
+
+func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
+	var options testServersOpts
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	var err error
 	// Set up a test auth server.
 	//
@@ -866,12 +957,12 @@ func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.T
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
-	cfg.AuthServers = []utils.NetAddr{randomLocalAddr}
-	cfg.Auth.Resources = bootstrap
+	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}}
+	cfg.Auth.Resources = options.bootstrap
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
@@ -879,9 +970,13 @@ func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.T
 	require.NoError(t, err)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
-	cfg.Auth.SSHAddr = randomLocalAddr
+	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.Enabled = false
 	cfg.Log = utils.NewLoggerForTests()
+
+	if options.authConfigFunc != nil {
+		options.authConfigFunc(&cfg.Auth)
+	}
 
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -915,9 +1010,9 @@ func makeTestServers(t *testing.T, bootstrap ...types.Resource) (auth *service.T
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
-	cfg.Proxy.WebAddr = randomLocalAddr
-	cfg.Proxy.SSHAddr = randomLocalAddr
-	cfg.Proxy.ReverseTunnelListenAddr = randomLocalAddr
+	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Log = utils.NewLoggerForTests()
 
@@ -976,5 +1071,12 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 			TLSCert:     tlsCert,
 			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
+	}
+}
+
+func setHomePath(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.HomePath = path
+		return nil
 	}
 }

@@ -74,8 +74,8 @@ In production, we recommend starting teleport daemon via an init system like `sy
 
 There are a couple of important things to notice about this file:
 
-1. The start command in the unit file specifies `--config` as a file and there are very few flags passed to the `teleport` binary. Most of the configuration for Teleport should be done in the [configuration file](admin-guide.mdx#configuration).
-2. The **ExecReload** command allows admins to run `systemctl reload teleport`. This will attempt to perform a graceful restart of Teleport **but it only works if network-based backend storage like [DynamoDB](admin-guide.mdx#using-dynamodb) or [etc 3.3](admin-guide.mdx#using-etcd) is configured**. Graceful Restarts will fork a new process to handle new incoming requests and leave the old daemon process running until existing clients disconnect.
+1. The start command in the unit file specifies `--config` as a file and there are very few flags passed to the `teleport` binary. Most of the configuration for Teleport should be done in the [configuration file](./setup/reference/config.mdx).
+2. The **ExecReload** command allows admins to run `systemctl reload teleport`. This will attempt to perform a graceful restart of Teleport **but it only works if network-based backend storage like [DynamoDB](./setup/reference/backends.mdx#dynamodb) or [etcd](./setup/reference/backends.mdx#etcd) is configured**. Graceful Restarts will fork a new process to handle new incoming requests and leave the old daemon process running until existing clients disconnect.
 
 ### Start the Teleport service
 
@@ -121,7 +121,7 @@ to a Teleport daemon manually.
 ### Adding Nodes to the cluster
 
 We've written a dedicated guide on [Adding Nodes to your
-Cluster](admin-guide.mdx#adding-nodes-to-the-cluster) which shows how to generate or set join tokens and
+Cluster](./setup/admin/adding-nodes.mdx) which shows how to generate or set join tokens and
 use them to add nodes.
 
 ## Security considerations
@@ -191,12 +191,6 @@ TLS at the load balancer, then use an autoscaling group for the proxy nodes. Whe
 setting up the proxy nodes start Teleport with:
 
 `teleport start --insecure --roles=proxy --config=/etc/teleport.yaml`
-
-See [Teleport Proxy High Availability](admin-guide.mdx#teleport-proxy-high-availability) for more info.
-
-{
-  /* TODO SSL for Webproxy & Auth Section */
-}
 
 ### CA pinning
 

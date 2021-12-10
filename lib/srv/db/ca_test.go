@@ -77,8 +77,17 @@ func TestInitCACert(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	azureMySQL, err := types.NewDatabaseV3(types.Metadata{
+		Name: "azure-mysql",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+		Azure:    types.Azure{Name: "azure-mysql"},
+	})
+	require.NoError(t, err)
+
 	allDatabases := []types.Database{
-		selfHosted, rds, rdsWithCert, redshift, cloudSQL,
+		selfHosted, rds, rdsWithCert, redshift, cloudSQL, azureMySQL,
 	}
 
 	tests := []struct {
@@ -111,6 +120,11 @@ func TestInitCACert(t *testing.T) {
 			database: cloudSQL.GetName(),
 			cert:     fixtures.TLSCACertPEM,
 		},
+		{
+			desc:     "should download Azure CA when it's not set",
+			database: azureMySQL.GetName(),
+			cert:     fixtures.TLSCACertPEM,
+		},
 	}
 
 	databaseServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
@@ -120,7 +134,7 @@ func TestInitCACert(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			var database types.Database
-			for _, db := range databaseServer.getDatabases() {
+			for _, db := range databaseServer.getProxiedDatabases() {
 				if db.GetName() == test.database {
 					database = db
 				}
@@ -156,7 +170,7 @@ func TestInitCACertCaching(t *testing.T) {
 	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 
 	// Reset it and initialize again, it should already be downloaded.
-	rds.SetCA("")
+	rds.SetStatusCA("")
 	require.NoError(t, databaseServer.initCACert(ctx, rds))
 	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 }

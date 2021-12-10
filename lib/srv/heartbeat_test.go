@@ -316,6 +316,14 @@ func (f *fakeAnnouncer) UpsertAppServer(ctx context.Context, s types.Server) (*t
 	return &types.KeepAlive{}, nil
 }
 
+func (f *fakeAnnouncer) UpsertApplicationServer(ctx context.Context, s types.AppServer) (*types.KeepAlive, error) {
+	f.upsertCalls[HeartbeatModeApp]++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &types.KeepAlive{}, nil
+}
+
 func (f *fakeAnnouncer) UpsertDatabaseServer(ctx context.Context, s types.DatabaseServer) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeDB]++
 	if f.err != nil {

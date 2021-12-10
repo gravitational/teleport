@@ -120,7 +120,15 @@ func TestMonitorStaleLocks(t *testing.T) {
 	default:
 		t.Fatal("No staleness event should be scheduled yet. This is a bug in the test.")
 	}
+
+	// ensure ResetC is drained
+	select {
+	case <-asrv.LockWatcher.ResetC:
+	default:
+	}
 	go asrv.Backend.CloseWatchers()
+
+	// wait for reset
 	select {
 	case <-asrv.LockWatcher.ResetC:
 	case <-time.After(2 * time.Second):
@@ -153,3 +161,30 @@ func (t *mockActivityTracker) GetClientLastActive() time.Time {
 	return t.clock.Now()
 }
 func (t *mockActivityTracker) UpdateClientActivity() {}
+
+// TestMonitorDisconnectExpiredCertBeforeTimeNow test case where DisconnectExpiredCert
+// is already before time.Now
+func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewRealClock()
+
+	certExpirationTime := clock.Now().Add(-1 * time.Second)
+	ctx := context.Background()
+	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, asrv.Close()) })
+
+	conn, _, _ := newTestMonitor(ctx, t, asrv, func(config *MonitorConfig) {
+		config.Clock = clock
+		config.DisconnectExpiredCert = certExpirationTime
+	})
+
+	select {
+	case <-conn.closedC:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Client is still connected.")
+	}
+}
